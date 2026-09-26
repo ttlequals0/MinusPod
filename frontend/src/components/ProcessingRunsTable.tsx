@@ -92,6 +92,9 @@ function timingValue(run: EpisodeProcessingRun, key: typeof TIMING_STAGES[number
   if ((key === 'detectionSeconds' || key === 'verificationSeconds') && run.stats?.cueOnly) {
     return 'Not applicable';
   }
+  if (key === 'normalizationSeconds' && run.stats?.normalizationSkipped === true) {
+    return 'Skipped';
+  }
   const value = timings?.[key];
   if (value != null) return formatDuration(value);
   if (!timings) return 'Timing unavailable';

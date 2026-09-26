@@ -4,12 +4,17 @@ All sponsor writes from the rest of the codebase flow through
 `get_or_create_known_sponsor()` so the canonical row in
 `known_sponsors` is the only place sponsor names live.
 """
+import logging
 import re
 import string
+from functools import lru_cache
 
 from utils.constants import (
+    NON_SPONSOR_LINK_DOMAINS, is_brand_token,
     is_hosting_platform_name, is_non_brand_name, strip_apostrophe_suffixes,
 )
+
+logger = logging.getLogger(__name__)
 
 
 _STRIP_CHARS = string.whitespace + '\'"`.,;:!?-'
@@ -18,6 +23,56 @@ _MAX_LENGTH = 100
 _POSSESSIVE_SUFFIXES = ("'s",)
 # Names are stored as typed, so a lookup has to try each spelling.
 _POSSESSIVE_SPELLINGS = ("'s", "\u2019s")
+
+
+# Substring match: the validator's confidence boost relies on hits like "visitacme.com".
+SPONSOR_SUBSTRING_PATTERNS = re.compile(
+    r'(?:betterhelp|athletic\s*greens|ag1|squarespace|nordvpn|'
+    r'expressvpn|hellofresh|audible|masterclass|ziprecruiter|'
+    r'raycon|manscaped|stamps\.com|indeed|linkedin|'
+    r'casper|helix|brooklinen|bombas|calm|headspace|'
+    r'better\s*help|honey|simplisafe|wix|shopify|'
+    r'bluechew|roman|hims|keeps|factor|noom|'
+    r'magic\s*spoon|athletic\s*brewing|liquid\s*iv)',
+    re.IGNORECASE
+)
+
+# Whole words only, so "keeps" and "romance" do not yield description sponsors.
+DESCRIPTION_SPONSOR_PATTERNS = re.compile(
+    rf'(?<!\w){SPONSOR_SUBSTRING_PATTERNS.pattern}(?!\w)', re.IGNORECASE)
+
+# Domains from href URLs (e.g., "bitwarden.com/twit" -> "bitwarden").
+_DESCRIPTION_HREF_RE = re.compile(
+    r'href=["\']?(?:https?://)?(?:www\.)?([a-z0-9-]+)\.(?:com|io|co|net|org)',
+    re.IGNORECASE)
+
+
+@lru_cache(maxsize=64)
+def extract_description_sponsors(episode_description: str | None) -> frozenset:
+    """Lowercase sponsor names from a description; cached and shared by detector and validator."""
+    sponsors = set()
+    if not episode_description:
+        return frozenset()
+
+    for match in _DESCRIPTION_HREF_RE.finditer(episode_description):
+        domain = match.group(1).lower()
+        # A description links to its host, its apps, and its socials next
+        # to its sponsors, and a short outlet token matches normal speech.
+        if domain in NON_SPONSOR_LINK_DOMAINS or not is_brand_token(domain):
+            continue
+        sponsors.add(domain)
+
+    # Both the spoken form and the squashed one are kept, so "liquid iv"
+    # confirms against a transcript however the brand is written.
+    for match in DESCRIPTION_SPONSOR_PATTERNS.finditer(episode_description.lower()):
+        sponsor = match.group(0).lower()
+        sponsors.add(sponsor)
+        sponsors.add(sponsor.replace(' ', ''))
+
+    if sponsors:
+        logger.info(f"Extracted sponsors from description: {sponsors}")
+
+    return frozenset(sponsors)
 
 
 def segment_category_for(label, overrides):
@@ -42,7 +97,7 @@ def _possessive_base(name):
     return bases[0] if bases else None
 
 
-def get_or_create_known_sponsor(db, name):
+def get_or_create_known_sponsor(db, name, conn=None):
     """Resolve a free-text sponsor name to a `known_sponsors.id`.
 
     Sanitization, in order:
@@ -73,19 +128,19 @@ def get_or_create_known_sponsor(db, name):
         return None
     if is_non_brand_name(s) or is_hosting_platform_name(s):
         return None
-    existing = db.get_known_sponsor_by_name(s)
+    existing = db.get_known_sponsor_by_name(s, conn=conn)
     if existing:
         return existing['id']
     base = _possessive_base(s)
     if base:
-        base_row = db.get_known_sponsor_by_name(base)
+        base_row = db.get_known_sponsor_by_name(base, conn=conn)
         if base_row:
             return base_row['id']
     else:
         # Symmetric: a possessive brand keeps its own spelling, so the row it
         # created has to be found when the base name arrives later.
         for spelling in _POSSESSIVE_SPELLINGS:
-            possessive_row = db.get_known_sponsor_by_name(s + spelling)
+            possessive_row = db.get_known_sponsor_by_name(s + spelling, conn=conn)
             if possessive_row:
                 return possessive_row['id']
-    return db.create_known_sponsor(name=s)
+    return db.create_known_sponsor(name=s, conn=conn)

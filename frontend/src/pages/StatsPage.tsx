@@ -1,4 +1,4 @@
-import { Fragment, useState, useMemo, type ReactNode } from 'react';
+import { Fragment, useState, useMemo, useRef, useEffect, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import {
@@ -24,8 +24,63 @@ import DisclosureButton from '../components/DisclosureButton';
 import CostAmount from '../components/CostAmount';
 import { selectBase, inputBase, focusRing } from '../components/fieldStyles';
 import { btnSecondary } from '../components/buttonStyles';
+import { badgeBase, tint } from '../components/badgeStyles';
 import { getErrorMessage } from '../api/client';
 import { EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat, SpendAttempt } from '../api/types';
+import { CalendarDays } from 'lucide-react';
+
+interface SpendDateFieldProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function SpendDateField({
+  id, label, value, onChange,
+}: SpendDateFieldProps): ReactNode {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing && inputRef.current && inputRef.current.value !== value) {
+      inputRef.current.value = value;
+    }
+  }, [editing, value]);
+  function openPicker(): void {
+    const input = inputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === 'function') input.showPicker();
+    else input.focus();
+  }
+  return (
+    <div className="min-w-0">
+      <label htmlFor={id} className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
+      <div className="flex items-center gap-1">
+        <input
+          ref={inputRef}
+          type="date"
+          id={id}
+          defaultValue={value}
+          onFocus={() => setEditing(true)}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={() => {
+            setEditing(false);
+            onChange(inputRef.current?.value ?? '');
+          }}
+          className={`min-w-0 ${inputBase}`}
+        />
+        <button
+          type="button"
+          aria-label={`Open ${label.toLowerCase()} date picker`}
+          onClick={openPicker}
+          className={`shrink-0 rounded p-2 text-muted-foreground hover:bg-accent hover:text-foreground ${focusRing}`}
+        >
+          <CalendarDays size={16} aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
@@ -283,7 +338,9 @@ const ATTEMPT_COLUMNS: {
     render: (a) => `${a.phase}${a.invokingPass ? ` (pass ${a.invokingPass})` : ''}` },
   { label: 'Provider', align: 'left', render: (a) => `${a.provider} / ${a.credentialSlot}` },
   { label: 'Model', align: 'left', render: (a) => a.returnedModel ?? a.model },
-  { label: 'Status', align: 'left', render: (a) => a.status },
+  { label: 'Status', align: 'left', render: (a) => a.status === 'inconclusive'
+    ? <span className={`${badgeBase} font-medium ${tint.neutral}`}>Abstained</span>
+    : a.status },
   { label: 'Tokens', align: 'right',
     render: (a) => formatTokenCount((a.inputTokens ?? 0) + (a.outputTokens ?? 0)) },
   { label: 'Cost', align: 'right',
@@ -995,6 +1052,7 @@ export default function StatsPage() {
             <ReviewerStatCard label="Rejected" value={reviewer.verdictCounts.reject} />
             <ReviewerStatCard label="Resurrected" value={reviewer.verdictCounts.resurrect} />
             <ReviewerStatCard label="Failed" value={reviewer.verdictCounts.failure} />
+            <ReviewerStatCard label="Abstained" value={reviewer.verdictCounts.inconclusive} />
             <ReviewerStatCard label="Pass 1 adjusts" value={reviewer.pass1AdjustmentCount} />
             <ReviewerStatCard label="Pass 2 adjusts" value={reviewer.pass2AdjustmentCount} />
             <ReviewerStatCard label="Avg shift" value={`${reviewer.avgBoundaryShiftSeconds}s`} />
@@ -1103,26 +1161,18 @@ export default function StatsPage() {
         </p>
 
         <div className="flex flex-wrap items-end gap-3 mb-3">
-          <div className="min-w-0">
-            <label htmlFor="spendFrom" className="block text-xs font-medium text-muted-foreground mb-1">From</label>
-            <input
-              type="date"
-              id="spendFrom"
-              value={ledgerFrom}
-              onChange={(e) => write({ from: e.target.value, muPage: '1', ecPage: '1' })}
-              className={`min-w-0 ${inputBase}`}
-            />
-          </div>
-          <div className="min-w-0">
-            <label htmlFor="spendTo" className="block text-xs font-medium text-muted-foreground mb-1">To</label>
-            <input
-              type="date"
-              id="spendTo"
-              value={ledgerTo}
-              onChange={(e) => write({ to: e.target.value, muPage: '1', ecPage: '1' })}
-              className={`min-w-0 ${inputBase}`}
-            />
-          </div>
+          <SpendDateField
+            id="spendFrom"
+            label="From"
+            value={ledgerFrom}
+            onChange={(value) => write({ from: value, muPage: '1', ecPage: '1' })}
+          />
+          <SpendDateField
+            id="spendTo"
+            label="To"
+            value={ledgerTo}
+            onChange={(value) => write({ to: value, muPage: '1', ecPage: '1' })}
+          />
           <select
             aria-label="Filter spend by podcast"
             value={ledgerPodcast}

@@ -27,9 +27,9 @@ class SponsorMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_known_sponsor_by_name(self, name: str) -> dict | None:
+    def get_known_sponsor_by_name(self, name: str, conn=None) -> dict | None:
         """Get a sponsor by name."""
-        conn = self.get_connection()
+        conn = conn if conn is not None else self.get_connection()
         cursor = conn.execute(
             "SELECT * FROM known_sponsors WHERE LOWER(name) = LOWER(?)", (name,)
         )
@@ -57,9 +57,10 @@ class SponsorMixin:
     def create_known_sponsor(self, name: str, aliases: list[str] = None,
                               category: str = None, common_ctas: list[str] = None,
                               tags: list[str] = None,
-                              segment_category: str = None) -> int:
+                              segment_category: str = None, conn=None) -> int:
         """Create a known sponsor. Returns sponsor ID."""
-        conn = self.get_connection()
+        owns_connection = conn is None
+        conn = conn if conn is not None else self.get_connection()
         cursor = conn.execute(
             """INSERT INTO known_sponsors
                (name, aliases, category, common_ctas, tags, segment_category)
@@ -68,7 +69,8 @@ class SponsorMixin:
              json.dumps(common_ctas or []), json.dumps(tags or []),
              segment_category)
         )
-        conn.commit()
+        if owns_connection:
+            conn.commit()
         return cursor.lastrowid
 
     def update_known_sponsor(self, sponsor_id: int, **kwargs) -> bool:

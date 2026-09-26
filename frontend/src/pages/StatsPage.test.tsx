@@ -16,6 +16,7 @@ const {
   mockGetAddressingStats, mockGetDashboardStats, mockGetStatsByDay,
   mockGetModelUsageStats, mockGetEpisodeCostStats, mockGetLedgerFilterOptions,
   mockGetEpisodeCostRuns, mockGetStatsByPodcast, mockGetSpendAttempts,
+  mockGetReviewerStats,
 } = vi.hoisted(() => {
   const dashboard: DashboardStats = {
     totalEpisodesProcessed: 0,
@@ -50,7 +51,7 @@ const {
   };
   const reviewerStats: ReviewerStats = {
     totalReviews: 0,
-    verdictCounts: { confirmed: 0, adjust: 0, reject: 0, resurrect: 0, failure: 0 },
+    verdictCounts: { confirmed: 0, adjust: 0, reject: 0, resurrect: 0, inconclusive: 0, failure: 0 },
     pass1AdjustmentCount: 0,
     pass2AdjustmentCount: 0,
     avgBoundaryShiftSeconds: 0,
@@ -101,6 +102,7 @@ const {
       runId: null, episodeId: 'ep1', provider: null, attempts: [], total: 0,
       unknownCostCount: 0, knownCostUsd: '0', truncated: false,
     }),
+    mockGetReviewerStats: vi.fn().mockResolvedValue(reviewerStats),
   };
 });
 
@@ -108,7 +110,7 @@ vi.mock('../api/stats', () => ({
   getDashboardStats: (...args: unknown[]) => mockGetDashboardStats(...args),
   getStatsByDay: (...args: unknown[]) => mockGetStatsByDay(...args),
   getStatsByPodcast: (...args: unknown[]) => mockGetStatsByPodcast(...args),
-  getReviewerStats: vi.fn().mockResolvedValue(REVIEWER_STATS),
+  getReviewerStats: (...args: unknown[]) => mockGetReviewerStats(...args),
   getAddressingStats: (...args: unknown[]) => mockGetAddressingStats(...args),
   getModelUsageStats: (...args: unknown[]) => mockGetModelUsageStats(...args),
   getEpisodeCostStats: (...args: unknown[]) => mockGetEpisodeCostStats(...args),
@@ -220,6 +222,26 @@ describe('StatsPage loading placeholders', () => {
     renderPage();
     expect(await screen.findByText(/Enable Ad Reviewer in Settings, AI & Processing section/)).toBeTruthy();
   });
+
+  it('shows zero inconclusive reviewer counts as abstentions', async () => {
+    renderPage();
+    const zeroCard = (await screen.findByText('Abstained')).parentElement;
+    expect(zeroCard && within(zeroCard).getByText('0')).toBeTruthy();
+  });
+
+  it('shows nonzero inconclusive reviewer counts as abstentions', async () => {
+    mockGetReviewerStats.mockResolvedValue({
+      ...REVIEWER_STATS,
+      verdictCounts: { ...REVIEWER_STATS.verdictCounts, inconclusive: 3 },
+    });
+    try {
+      renderPage();
+      const nonzeroCard = await screen.findByText('Abstained');
+      expect(within(nonzeroCard.parentElement!).getByText('3')).toBeTruthy();
+    } finally {
+      mockGetReviewerStats.mockResolvedValue(REVIEWER_STATS);
+    }
+  });
 });
 
 describe('StatsPage LLM cost ledger', () => {
@@ -323,8 +345,18 @@ describe('StatsPage LLM cost ledger', () => {
     expect(await screen.findByText('Lifetime spend (all recorded runs)')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } });
+    fireEvent.blur(screen.getByLabelText('From'));
     await waitFor(() => {
       expect(screen.getByText(/Interval spend from 2026-01-01/)).toBeTruthy();
+    });
+  });
+
+  it('commits a date picked while the field remains focused', async () => {
+    renderPage();
+    const from = await screen.findByLabelText('From');
+    fireEvent.change(from, { target: { value: '2026-01-01' } });
+    await waitFor(() => {
+      expect(lastMainListParams()).toMatchObject({ from: '2026-01-01' });
     });
   });
 });
@@ -465,6 +497,8 @@ describe('StatsPage ledger filters', () => {
 
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } });
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-01-31' } });
+    fireEvent.blur(screen.getByLabelText('From'));
+    fireEvent.blur(screen.getByLabelText('To'));
 
     await waitFor(() => {
       const calls = mockGetEpisodeCostStats.mock.calls;
@@ -575,6 +609,20 @@ describe('StatsPage spend section: copy, labels and table chrome', () => {
     expect(screen.getByLabelText('To').getAttribute('type')).toBe('date');
     expect(from.id).toBeTruthy();
     expect(document.querySelector(`label[for="${from.id}"]`)?.textContent).toBe('From');
+    expect(screen.getByRole('button', { name: 'Open from date picker' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open to date picker' })).toBeTruthy();
+  });
+
+  it('opens the native picker from the calendar button', async () => {
+    const showPicker = vi.fn();
+    Object.defineProperty(HTMLInputElement.prototype, 'showPicker', {
+      configurable: true,
+      value: showPicker,
+    });
+    renderPage();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Open from date picker' }));
+    expect(showPicker).toHaveBeenCalledOnce();
+    delete (HTMLInputElement.prototype as unknown as { showPicker?: unknown }).showPicker;
   });
 
   it('sizes the spend-table placeholders to rows, not to a chart', async () => {
@@ -719,7 +767,7 @@ describe('StatsPage with populated spend data', () => {
         {
           attemptId: 'a2', phase: 'review', invokingPass: 1, provider: 'anthropic',
           credentialSlot: 'primary', model: 'claude-haiku', returnedModel: null,
-          status: 'success', inputTokens: 100, outputTokens: 100, costUsd: null,
+          status: 'inconclusive', inputTokens: 100, outputTokens: 100, costUsd: null,
           costSource: null, createdAt: '2026-09-01T10:01:00Z',
           finalizedAt: '2026-09-01T10:01:02Z',
         },
@@ -736,6 +784,7 @@ describe('StatsPage with populated spend data', () => {
       .toBeGreaterThan(0);
     expect(mockGetSpendAttempts).toHaveBeenCalledWith({ slug: 'a-show', episodeId: 'ep1' });
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Abstained').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/1 of 2 calls have no recorded price/).length).toBeGreaterThan(0);
   });
 });

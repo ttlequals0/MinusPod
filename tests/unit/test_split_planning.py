@@ -238,6 +238,17 @@ class TestMemberAndCutCandidates:
         found = build_split_candidates([], 100.0, 190.0, members=members)
         assert [c['time'] for c in found] == [130.0]
 
+    def test_a_nested_member_proposes_no_divider(self):
+        members = [{'start': 100.0, 'end': 160.0, 'sponsor': 'Acme'},
+                   {'start': 120.0, 'end': 158.0}]
+        assert build_split_candidates([], 100.0, 160.0, members=members) == []
+
+    def test_a_member_past_the_estimated_text_is_a_divider(self):
+        members = [{'start': 2457.8, 'end': 2462.8, 'sponsor': 'Acme'},
+                   {'start': 2485.2, 'end': 2545.0}]
+        found = build_split_candidates([], 2457.8, 2545.3, members=members)
+        assert [c['time'] for c in found] == [2485.2]
+
     def test_a_measured_cut_is_a_divider(self):
         found = build_split_candidates([], 100.0, 190.0, cuts=[145.0])
         assert [(c['time'], c['phrase']) for c in found] == [(145.0, 'measured cut')]

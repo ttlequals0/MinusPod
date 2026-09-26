@@ -11,9 +11,17 @@ import re
 from utils.markers import (
     carve_fragment,
     clip_dai_core_spans,
+    clip_merge_spans,
+    estimated_text_bounds,
+    EDGE_TOLERANCE,
     invalidate_tail_provenance,
+    invalidate_quote_alignment,
+    invalidate_word_timed_edges,
     mark_distinct_merge,
     note_fold,
+    note_merged_members,
+    quote_edge_valid as _quote_edge_valid,
+    word_timed_edge_valid,
 )
 from utils.text import get_transcript_text_for_range
 from utils.time import overlap_seconds, ranges_overlap
@@ -56,6 +64,7 @@ AD_START_PHRASES = [
     "brought to you by",
     "thanks to our sponsor",
     "thank our sponsor",
+    "our sponsor for",
     "sponsored by",
     "a word from",
     "support comes from",
@@ -90,6 +99,104 @@ AD_END_PHRASES = [
 # Module-level alias preserved so existing in-file references and any
 # external test introspection continue to work.
 _NON_BRAND_WORDS = NON_BRAND_WORDS
+
+
+def estimated_pattern_replaced_by_precise_ad(marker, claude_ads, action_map):
+    if (marker.get('detection_stage') != 'text_pattern'
+            or not marker.get('span_estimated')
+            or marker.get('pattern_defined')):
+        return False
+    text = estimated_text_bounds(marker)
+    if text is None or text[1] <= text[0]:
+        return False
+    matches = [ad for ad in claude_ads
+               if ad.get('detection_stage') in (None, 'claude')
+               and (ad.get('confidence') or 0) >= PATTERN_TIGHTEN_MIN_CONFIDENCE
+               and all(_quote_edge_valid(ad, edge)
+                       or word_timed_edge_valid(ad, edge)
+                       for edge in ('start', 'end'))
+               and ad['start'] <= text[0] + EDGE_TOLERANCE
+               and ad['end'] >= text[1] - EDGE_TOLERANCE
+               and (not marker.get('sponsor') or not ad.get('sponsor')
+                    or marker['sponsor'].casefold() == ad['sponsor'].casefold())
+               and (action_map is None
+                    or effective_resolved_action(marker, action_map)
+                    == effective_resolved_action(ad, action_map))]
+    return len(matches) == 1
+
+
+def align_ad_quote_bounds(ads: list[dict], segments: list[dict]) -> list[dict]:
+    """Align exact ad-edge quotes to word times before detections merge."""
+    aligned = []
+    for ad in ads:
+        start = ad.get('start')
+        end = ad.get('end')
+        if (not isinstance(start, (int, float)) or not math.isfinite(start)
+                or not isinstance(end, (int, float)) or not math.isfinite(end)
+                or end <= start):
+            aligned.append(ad)
+            continue
+        start_quote = re.findall(r'[^\W_]+', str(ad.get('start_text') or '').casefold())
+        end_quote = re.findall(r'[^\W_]+', str(ad.get('end_text') or '').casefold())
+        if not (4 <= len(start_quote) <= 30 and 4 <= len(end_quote) <= 30):
+            aligned.append(ad)
+            continue
+
+        words = []
+        for segment in segments:
+            if segment['end'] < start - 60 or segment['start'] > end + 60:
+                continue
+            utterances = _timed_utterances(segment)
+            if utterances is None:
+                words = []
+                break
+            words.extend(word for utterance in utterances
+                         for word in utterance['words'])
+        tokens = []
+        for index, word in enumerate(words):
+            parts = re.findall(r'[^\W_]+', word['word'].casefold())
+            tokens.extend((part, index, part_index, len(parts))
+                          for part_index, part in enumerate(parts))
+
+        def match(quote):
+            hits = []
+            for index in range(len(tokens) - len(quote) + 1):
+                group = tokens[index:index + len(quote)]
+                if (group[0][2] == 0
+                        and group[-1][2] == group[-1][3] - 1
+                        and [part[0] for part in group] == quote):
+                    hits.append((group[0][1], group[-1][1]))
+            return hits[0] if len(hits) == 1 else None
+
+        first = match(start_quote)
+        last = match(end_quote)
+        if first is None or last is None or first[1] >= last[0]:
+            aligned.append(ad)
+            continue
+        if any(words[index + 1]['start'] < words[index]['end'] - 0.05
+               for lo, hi in (first, last) for index in range(lo, hi)):
+            aligned.append(ad)
+            continue
+        if (first[0] > 0
+                and words[first[0]]['start'] < words[first[0] - 1]['end'] - 0.05
+                or last[1] + 1 < len(words)
+                and words[last[1] + 1]['start'] < words[last[1]]['end'] - 0.05):
+            aligned.append(ad)
+            continue
+        new_start = words[first[0]]['start']
+        new_end = words[last[1]]['end']
+        if (new_start < start - EDGE_TOLERANCE or new_end > end + EDGE_TOLERANCE
+                or new_start - start > 60 or end - new_end > 60
+                or new_end - new_start < MIN_AD_DURATION_FOR_REMOVAL):
+            aligned.append(ad)
+            continue
+        aligned_ad = dict(ad, start=new_start, end=new_end,
+                          quote_aligned_start=True, quote_aligned_end=True,
+                          quote_start=new_start, quote_end=new_end,
+                          quote_original_start=start, quote_original_end=end)
+        invalidate_word_timed_edges(aligned_ad)
+        aligned.append(aligned_ad)
+    return aligned
 
 
 def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
@@ -231,8 +338,40 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
         current_seg = segments[start_seg_idx]
         search_words.extend(current_seg.get('words', []))
 
+        # A word-timed line can begin with show speech before the sponsor cue.
+        if (word_timed_edge_valid(ad, 'start')
+                and not is_edge_cue_snapped(ad, 'start')
+                and not _quote_edge_valid(ad, 'start')):
+            inward_words = list(current_seg.get('words', []))
+            if start_seg_idx + 1 < len(segments):
+                inward_words.extend(segments[start_seg_idx + 1].get('words', []))
+            inward_match = find_phrase_in_words(
+                inward_words,
+                ['word from our sponsor', 'brought to you by',
+                 'thanks to our sponsor', 'our sponsor for',
+                 'sponsored by', 'support comes from'],
+            )
+            intro_start = None
+            if inward_match:
+                intro_start = next(
+                    (utterance['start']
+                     for seg in segments[start_seg_idx:start_seg_idx + 2]
+                     for utterance in (_timed_utterances(seg) or [])
+                     if utterance['start'] <= inward_match['start']
+                     < inward_match['end'] <= utterance['end']), None)
+            if (intro_start is not None
+                    and original_start < intro_start < original_end
+                    and intro_start <= original_start + BOUNDARY_EXTENSION_WINDOW
+                    and original_end - intro_start >= MIN_AD_DURATION_FOR_REMOVAL):
+                refined['start'] = intro_start
+                refined['word_timed_start'] = intro_start
+                refined['start_refined'] = True
+                refined['start_phrase'] = inward_match['phrase']
+
         # Search for start transition phrases (never move a cue-snapped edge)
-        start_match = (None if is_edge_cue_snapped(ad, 'start') else
+        start_match = (None if (is_edge_cue_snapped(ad, 'start')
+                                or _quote_edge_valid(ad, 'start')
+                                or word_timed_edge_valid(ad, 'start')) else
                        find_phrase_in_words(search_words, AD_START_PHRASES, search_start=True))
         if start_match:
             new_start = start_match['start']
@@ -259,7 +398,9 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
             search_words.extend(next_seg.get('words', []))
 
         # Search for end transition phrases (never move a cue-snapped edge)
-        end_match = (None if is_edge_cue_snapped(ad, 'end') else
+        end_match = (None if (is_edge_cue_snapped(ad, 'end')
+                              or _quote_edge_valid(ad, 'end')
+                              or word_timed_edge_valid(ad, 'end')) else
                      find_phrase_in_words(search_words, AD_END_PHRASES, search_start=False))
         if end_match:
             # For end phrases, we want the time AFTER the phrase (when content resumes)
@@ -301,7 +442,9 @@ def snap_early_ads_to_zero(ads: list[dict], threshold: float = EARLY_AD_SNAP_THR
     snapped = []
     for ad in ads:
         ad_copy = ad.copy()
-        if ad_copy['start'] > 0 and ad_copy['start'] <= threshold:
+        if (ad_copy['start'] > 0 and ad_copy['start'] <= threshold
+                and not _quote_edge_valid(ad_copy, 'start')
+                and not word_timed_edge_valid(ad_copy, 'start')):
             original_start = ad_copy['start']
             ad_copy['start'] = 0.0
             ad_copy['start_snapped'] = True
@@ -313,6 +456,190 @@ def snap_early_ads_to_zero(ads: list[dict], threshold: float = EARLY_AD_SNAP_THR
         snapped.append(ad_copy)
 
     return snapped
+
+
+def _timed_utterances(segment: dict) -> list[dict] | None:
+    """Return complete word-timed utterances, or None for unreliable timing."""
+    words = segment.get('words')
+    if not isinstance(words, list) or not words:
+        return None
+    timed = []
+    previous_start = segment['start']
+    for word in words:
+        if not isinstance(word, dict) or not isinstance(word.get('word'), str):
+            return None
+        start, end = word.get('start'), word.get('end')
+        if (not isinstance(start, (int, float))
+                or not isinstance(end, (int, float))
+                or not math.isfinite(start) or not math.isfinite(end)
+                or start < previous_start - 0.05 or end < start
+                or start < segment['start'] - 0.05
+                or end > segment['end'] + 0.05
+                or not word.get('word', '').strip()):
+            return None
+        timed.append(word)
+        previous_start = start
+    segment_text = segment.get('text')
+    if not isinstance(segment_text, str):
+        return None
+    if (re.findall(r'\w+', ' '.join(word['word'] for word in timed).lower())
+            != re.findall(r'\w+', segment_text.lower())):
+        return None
+    utterances = []
+    current = []
+    abbreviations = {'mr.', 'mrs.', 'ms.', 'dr.', 'prof.', 'st.'}
+    for word in timed:
+        current.append(word)
+        token = word['word'].strip().lower()
+        if token.endswith(('.', '!', '?')) and token not in abbreviations:
+            utterances.append(current)
+            current = []
+    if current:
+        utterances.append(current)
+    return [
+        {
+            'start': group[0]['start'], 'end': group[-1]['end'],
+            'text': ' '.join(word['word'].strip() for word in group).lower(),
+            'words': group,
+            'terminal': group[-1]['word'].strip().endswith(('.', '!', '?')),
+        }
+        for group in utterances
+    ]
+
+
+def timed_line_segments(segments: list[dict]) -> list[dict]:
+    """Split reliable word timing into transcript lines without losing words."""
+    lines = []
+    for seg in segments:
+        utterances = _timed_utterances(seg)
+        if utterances is None:
+            lines.append(seg.copy())
+            continue
+        for utterance in utterances:
+            words = utterance['words']
+            for offset in range(0, len(words), 25):
+                group = words[offset:offset + 25]
+                lines.append({
+                    'start': group[0]['start'],
+                    'end': group[-1]['end'],
+                    'text': ' '.join(word['word'].strip() for word in group),
+                    'words': group,
+                    'word_timed_line': True,
+                })
+    return lines
+
+
+def _timed_ad_evidence_end(utterance: dict,
+                           boundary: float | None = None) -> float | None:
+    """Locate the last ad indicator without inheriting the whole segment."""
+    if _return_word_index(utterance) is not None:
+        return None
+    words = utterance['words']
+    text = ' '.join(word['word'].strip().lower() for word in words)
+    positions = []
+    offset = 0
+    for word in words:
+        positions.append((offset, offset + len(word['word'].strip())))
+        offset += len(word['word'].strip()) + 1
+    patterns = [*AD_CONTENT_URL_PATTERNS, *AD_CONTENT_PHONE_PATTERNS,
+                'dot com', 'slash', 'percent off', 'free trial',
+                'promo code', 'offer code', 'discount', 'coupon']
+    last_index = None
+    last_pattern = None
+    for pattern in patterns:
+        expression = (r'(?<!\w)' if pattern[0].isalnum() else '')
+        expression += re.escape(pattern.lower()) + r'(?!\w)'
+        for match in re.finditer(expression, text):
+            for index, (_, stop) in enumerate(positions):
+                if stop >= match.end():
+                    if last_index is None or index >= last_index:
+                        last_index = index
+                        last_pattern = pattern
+                    break
+    for match in re.finditer(r'\b[a-z0-9-]+\s*\.\s*[a-z]{2,6}\b', text):
+        for index, (_, stop) in enumerate(positions):
+            if stop >= match.end():
+                if last_index is None or index >= last_index:
+                    last_index = index
+                    last_pattern = 'domain'
+                break
+    if last_index is None:
+        return None
+    if last_pattern in {'slash', 'promo code', 'offer code'}:
+        if last_index + 1 >= len(words):
+            return None
+        last_index += 1
+    # A terminal sentence is not new ad evidence when its CTA ended before the cut.
+    if boundary is not None and words[last_index]['end'] <= boundary:
+        return None
+    if utterance['terminal']:
+        return utterance['end']
+    if last_index + 1 < len(words):
+        return None
+    return words[last_index]['end']
+
+
+def _return_word_index(utterance: dict) -> int | None:
+    tokens = [re.sub(r'^\W+|\W+$', '', word['word'].lower())
+              for word in utterance['words']]
+    for index, token in enumerate(tokens):
+        tail = ' '.join(tokens[index:])
+        if any(tail.startswith(phrase + ' ') for phrase in AD_END_PHRASES):
+            return index
+        if token in {'now', 'okay', 'alright'}:
+            if index == 0 or 'back' in tokens[index + 1:index + 6]:
+                return index - 1 if index and tokens[index - 1] == 'and' else index
+    return None
+
+
+def _ad_outro_utterance(utterance: dict) -> bool:
+    text = utterance['text']
+    return bool(re.search(r'\b(?:we thank|thank you|thanks to)\b.*\b(?:support|sponsor)\b', text))
+
+
+def _ad_connector_utterance(utterance: dict) -> bool:
+    return utterance['text'].startswith(('thank you for ', 'we thank them '))
+
+
+def _domain_labels(text: str) -> set[str]:
+    text = re.sub(r'\s+\.', '.', text.lower())
+    labels = set(re.findall(r'\b([a-z0-9-]{3,})\.[a-z]{2,6}\b', text))
+    labels.update(re.findall(r'\b([a-z0-9-]{3,})\s+dot\s+com\b', text))
+    return labels
+
+
+def _supported_ad_utterance(utterance: dict, ad_text: str,
+                            sponsors: set, boundary: float) -> bool:
+    text = utterance['text']
+    domains = _domain_labels(text)
+    prior_domains = _domain_labels(ad_text)
+    has_phone = any(pattern in text for pattern in AD_CONTENT_PHONE_PATTERNS)
+    has_offer = any(phrase in text for phrase in (
+        'percent off', 'free trial', 'discount', 'coupon'))
+    solicits = bool(re.search(
+        r'\b(?:visit|go to|head to|try|call|sign up|use code|promo code|check out)\b',
+        text))
+    same_advertiser = bool(domains & (prior_domains | sponsors))
+    if utterance['start'] < boundary < utterance['end'] and same_advertiser:
+        return True
+    return solicits and bool(domains or has_phone or has_offer)
+
+
+def _bounded_transcript_text(segments: list[dict], start: float,
+                             end: float) -> str:
+    words = []
+    for segment in segments:
+        if segment['end'] <= start or segment['start'] >= end:
+            continue
+        timed = _timed_utterances(segment)
+        if timed is None:
+            if start <= segment['start'] and segment['end'] <= end:
+                words.append(segment.get('text') or '')
+            continue
+        words.extend(word['word'].strip() for utterance in timed
+                     for word in utterance['words']
+                     if word['end'] > start and word['start'] < end)
+    return ' '.join(words)
 
 
 def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
@@ -364,46 +691,78 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
         end_cap = min([ad_end + BOUNDARY_EXTENSION_MAX] + next_starts)
 
         # Get the ad's own text to extract sponsor names
-        ad_text = get_transcript_text_for_range(segments, ad_start, ad_end).lower()
+        ad_text = _bounded_transcript_text(segments, ad_start, ad_end).lower()
         ad_sponsors = extract_sponsor_names(ad_text, ad.get('reason'),
                                             exclude=own_site)
 
-        # Check text AFTER ad end for continuation
-        after_text = get_transcript_text_for_range(
-            segments, ad_end, ad_end + BOUNDARY_EXTENSION_WINDOW
-        ).lower()
-
-        if (after_text and not is_edge_cue_snapped(ad, 'end')
-                and _text_has_ad_content(after_text, ad_sponsors)):
-            # Walk forward, skipping up to BOUNDARY_EXTENSION_CONNECTOR_SKIP
-            # consecutive non-qualifying segments: CTA tails often sandwich a
-            # connector line ("Thank you for the job you do") between sponsor
-            # mentions, but a long run of plain content means the ad is over.
-            # The skip is also bounded in seconds: two long story segments
-            # should end the walk just like three short ones.
+        # Check timed words after the ad for a supported CTA continuation.
+        if not (is_edge_cue_snapped(ad, 'end') or _quote_edge_valid(ad, 'end')
+                or word_timed_edge_valid(ad, 'end')):
+            # A short sponsor thank-you can connect two supported CTA lines.
             new_end = ad_end
             skipped = 0
             skipped_time = 0.0
+            accepted_domains = set()
             for seg in segments:
                 if seg['end'] <= ad_end:
                     continue  # fully inside the ad; a straddler still counts
                 if seg['start'] >= end_cap:
                     break  # segments are time-sorted
-                if _text_has_ad_content(seg.get('text', '').lower(), ad_sponsors):
-                    # Cap at the window bound: a long qualifying segment
-                    # (straddler or merged transcription) must not pull the
-                    # end past the documented max extension.
-                    new_end = min(seg['end'], end_cap)
-                    skipped = 0
-                    skipped_time = 0.0
-                else:
-                    skipped += 1
-                    # Only the portion past the ad end counts (first segment
-                    # can straddle the boundary).
-                    skipped_time += seg['end'] - max(seg['start'], ad_end)
-                    if (skipped > BOUNDARY_EXTENSION_CONNECTOR_SKIP
-                            or skipped_time > BOUNDARY_EXTENSION_SKIP_MAX):
+                utterances = _timed_utterances(seg)
+                if utterances is None:
+                    break
+                stop = False
+                for utterance in utterances:
+                    if utterance['end'] <= ad_end:
+                        continue
+                    if utterance['start'] >= end_cap:
                         break
+                    return_index = _return_word_index(utterance)
+                    if return_index == 0:
+                        stop = True
+                        break
+                    evidence_end = _timed_ad_evidence_end(utterance, ad_end)
+                    if (evidence_end is not None and evidence_end > ad_end
+                            and _supported_ad_utterance(
+                                utterance, ad_text, ad_sponsors, ad_end)):
+                        new_end = min(evidence_end, end_cap)
+                        accepted_domains.update(_domain_labels(
+                            utterance['text']))
+                        skipped = 0
+                        skipped_time = 0.0
+                    elif (skipped and accepted_domains
+                          & _domain_labels(utterance['text'])
+                          and return_index is None
+                          and utterance['text'].startswith((
+                              'and we thank them', 'we thank them'))):
+                        new_end = min(evidence_end or utterance['end'], end_cap)
+                        skipped = 0
+                        skipped_time = 0.0
+                    elif (_ad_outro_utterance(utterance)
+                          and return_index is None and new_end > ad_end):
+                        new_end = min(utterance['end'], end_cap)
+                        skipped = 0
+                        skipped_time = 0.0
+                    elif (_ad_connector_utterance(utterance)
+                          and new_end > ad_end
+                          and skipped_time + utterance['end']
+                          - max(utterance['start'], ad_end)
+                          <= BOUNDARY_EXTENSION_SKIP_MAX):
+                        skipped += 1
+                        skipped_time += utterance['end'] - max(
+                            utterance['start'], ad_end)
+                    else:
+                        stop = True
+                        break
+                    if return_index is not None:
+                        stop = True
+                        break
+                if stop:
+                    break
+                if (skipped > BOUNDARY_EXTENSION_CONNECTOR_SKIP
+                        or skipped_time > BOUNDARY_EXTENSION_SKIP_MAX):
+                    break
+                continue
 
             if new_end > ad_end:
                 logger.info(
@@ -414,23 +773,34 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                 ad_copy['end_extended_by_content'] = True
 
         # Check text BEFORE ad start for continuation
-        if extend_start and not is_edge_cue_snapped(ad, 'start'):
-            before_text = get_transcript_text_for_range(
-                segments, max(0, ad_start - BOUNDARY_EXTENSION_WINDOW), ad_start
-            ).lower()
-
-            if before_text and _text_has_ad_content(before_text, ad_sponsors):
+        if (extend_start and not is_edge_cue_snapped(ad, 'start')
+                and not _quote_edge_valid(ad, 'start')
+                and not word_timed_edge_valid(ad, 'start')):
+            if ad_start > start_cap:
                 new_start = ad_start
                 # Walk backwards through segments
                 for seg in reversed(segments):
                     if seg['end'] <= start_cap:
                         break  # reversed walk: everything earlier is further out
                     if seg['end'] <= ad_start:
-                        seg_text = seg.get('text', '').lower()
-                        if _text_has_ad_content(seg_text, ad_sponsors):
-                            # Same window cap as the end walk.
-                            new_start = max(seg['start'], start_cap)
-                        else:
+                        utterances = _timed_utterances(seg)
+                        if utterances is None:
+                            break
+                        blocked = False
+                        for utterance in reversed(utterances):
+                            if utterance['end'] <= start_cap:
+                                break
+                            evidence_end = _timed_ad_evidence_end(
+                                utterance)
+                            if (evidence_end is None
+                                    or _return_word_index(utterance) is not None
+                                    or not _supported_ad_utterance(
+                                        utterance, ad_text, ad_sponsors,
+                                        ad_start)):
+                                blocked = True
+                                break
+                            new_start = max(utterance['start'], start_cap)
+                        if blocked or new_start == ad_start:
                             break
 
                 if new_start < ad_start:
@@ -681,6 +1051,50 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
     detection is dropped as covered. Mutates the region and its marker.
     """
     for region in pattern_matched_regions:
+        marker = next((m for m in all_ads if region_matches_marker(region, m)),
+                      None)
+        if marker and marker.get('span_estimated'):
+            text = estimated_text_bounds(marker)
+            if text is None:
+                continue
+            text_start, text_end = text
+            if text_end <= text_start:
+                continue
+            estimated_end = (text_start <= marker['start'] + 1.0
+                             and text_end < marker['end'] - 1.0)
+            estimated_start = (text_start > marker['start'] + 1.0
+                               and text_end >= marker['end'] - 1.0)
+            if not (estimated_start or estimated_end):
+                continue
+            anchors = [a for a in claude_ads
+                       if (a.get('confidence') or 0) >= PATTERN_TIGHTEN_MIN_CONFIDENCE
+                       and (action_map is None
+                            or resolve_category_action(a.get('category'), action_map)
+                            == DEFAULT_SEGMENT_ACTION)
+                       and a['start'] <= text_start + 1.0
+                       and a['end'] >= text_end - 1.0]
+            if len(anchors) != 1:
+                continue
+            anchor = anchors[0]
+            matched_seconds = text_end - text_start
+            if estimated_end:
+                new_end = max(text_end, anchor['end'])
+                if (region['end'] - new_end < PATTERN_TIGHTEN_MIN_EXCESS_SECONDS
+                        or (matched_seconds < MIN_AD_DURATION_FOR_REMOVAL
+                            and anchor['end'] - text_end < MIN_AD_DURATION_FOR_REMOVAL)):
+                    continue
+                marker['end'] = region['end'] = new_end
+            else:
+                new_start = min(text_start, anchor['start'])
+                if (new_start - region['start'] < PATTERN_TIGHTEN_MIN_EXCESS_SECONDS
+                        or (matched_seconds < MIN_AD_DURATION_FOR_REMOVAL
+                            and text_start - anchor['start'] < MIN_AD_DURATION_FOR_REMOVAL)):
+                    continue
+                marker['start'] = region['start'] = new_start
+            logger.info(
+                f"[{slug}:{episode_id}] Tightened estimated pattern marker "
+                f"to LLM bound (pattern #{region.get('pattern_id')})")
+            continue
         inside = [
             a for a in claude_ads
             if a['start'] >= region['start'] - 1.0
@@ -698,9 +1112,7 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
         if excess < PATTERN_TIGHTEN_MIN_EXCESS_SECONDS:
             continue
         for marker in all_ads:
-            if (marker.get('pattern_id') == region.get('pattern_id')
-                    and abs(marker['start'] - region['start']) < 0.01
-                    and abs(marker['end'] - region['end']) < 0.01):
+            if region_matches_marker(region, marker):
                 logger.info(
                     f"[{slug}:{episode_id}] Tightened pattern marker "
                     f"{region['start']:.1f}s-{region['end']:.1f}s to LLM "
@@ -710,6 +1122,31 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
                 marker['start'], marker['end'] = tight['start'], tight['end']
                 break
         region['start'], region['end'] = tight['start'], tight['end']
+
+
+def region_matches_marker(region: dict, marker: dict) -> bool:
+    """True when a pattern region and a marker share pattern_id and bounds."""
+    return (marker.get('pattern_id') == region.get('pattern_id')
+            and abs(marker['start'] - region['start']) < 0.01
+            and abs(marker['end'] - region['end']) < 0.01)
+
+
+def record_absorbed_detection(ad: dict, coverage_regions: list,
+                              all_ads: list[dict]) -> None:
+    """Record a covered LLM ad as a member of each pattern marker absorbing it."""
+    stage = ad.get('detection_stage')
+    member = dict(ad, detection_stage=stage if stage == 'keep_content' else 'claude')
+    for region in coverage_regions:
+        if not isinstance(region, dict):
+            continue
+        marker = next((m for m in all_ads if region_matches_marker(region, m)),
+                      None)
+        if (marker is None or marker['start'] >= ad['end']
+                or marker['end'] <= ad['start']):
+            continue
+        # Recorded before the merge step invalidates the ad's quote edges.
+        note_merged_members(marker, member)
+        clip_merge_spans(marker, marker['start'], marker['end'])
 
 
 # --- Uncovered tail preservation (Fix 2) ---
@@ -824,7 +1261,17 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
     """
     mark_distinct_merge(current_ad, next_ad)
     invalidate_tail_provenance(current_ad, next_ad['end'])
+    if _quote_edge_valid(next_ad, 'end'):
+        for field in ('quote_aligned_end', 'quote_end', 'quote_original_end'):
+            if field in next_ad:
+                current_ad[field] = next_ad[field]
+            else:
+                current_ad.pop(field, None)
+    if word_timed_edge_valid(next_ad, 'end'):
+        current_ad['word_timed_end'] = next_ad['word_timed_end']
     current_ad['end'] = next_ad['end']
+    invalidate_quote_alignment(current_ad)
+    invalidate_word_timed_edges(current_ad)
     # The tail-sweep marker describes how the *current end* was reached. Once
     # this merge replaces that edge, only the later fragment's flag remains
     # meaningful; retaining the earlier fragment's flag could snap past an
@@ -1250,7 +1697,14 @@ def split_conflicting_action_span(last: dict, current: dict,
         return fragment
 
     def carve(parent, s, e):
-        return mark_measured_fragment(carve_fragment(parent, s, e), parent)
+        fragment = carve_fragment(parent, s, e)
+        invalidate_quote_alignment(fragment)
+        invalidate_word_timed_edges(fragment)
+        fragment['reason'] = (
+            'A larger detection was split at a conflicting action boundary.')
+        fragment.pop('sponsor', None)
+        fragment.pop('end_text', None)
+        return mark_measured_fragment(fragment, parent)
 
     priority = {'remove': 0, 'beep': 1, 'keep': 2}
     last_pattern = bool(last.get('pattern_defined'))
@@ -1360,7 +1814,17 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
             note_fold(last, current)
             # Merge: extend end time if current goes further
             if current['end'] > last['end']:
+                if _quote_edge_valid(current, 'end'):
+                    for field in ('quote_aligned_end', 'quote_end', 'quote_original_end'):
+                        if field in current:
+                            last[field] = current[field]
+                        else:
+                            last.pop(field, None)
+                if word_timed_edge_valid(current, 'end'):
+                    last['word_timed_end'] = current['word_timed_end']
                 last['end'] = current['end']
+                invalidate_quote_alignment(last)
+                invalidate_word_timed_edges(last)
                 if current.get('end_text'):
                     last['end_text'] = current['end_text']
             # Keep higher confidence
@@ -1589,7 +2053,8 @@ def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
         for event in candidates:
             if _span_blocked_by_content(
                     segments, coverage, ad_sponsors,
-                    original_end, event['time']):
+                    original_end, event['time'],
+                    allow_ad_content=False):
                 continue
             ad_copy['end'] = event['time']
             ad_copy['tail_splice_snap'] = {
@@ -1610,9 +2075,9 @@ def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
 
 def _span_blocked_by_content(segments: list[dict], ads: list[dict],
                              ad_sponsors: set,
-                             span_start: float, span_end: float) -> bool:
-    """True when the span holds transcribed speech that is neither covered
-    by a detected marker nor ad-like content."""
+                             span_start: float, span_end: float,
+                             allow_ad_content: bool = True) -> bool:
+    """Block uncovered speech in a proposed splice interval."""
     sorted_markers = sorted(
         (marker for marker in ads
          if marker.get('start') is not None
@@ -1624,7 +2089,7 @@ def _span_blocked_by_content(segments: list[dict], ads: list[dict],
         if seg_end <= span_start or seg_start >= span_end:
             continue
         text = (seg.get('text') or '').strip()
-        if not text:
+        if not text and not seg.get('words'):
             continue
         # Only coverage inside the proposed extension matters. A long
         # transcript segment may continue into a later marker after the
@@ -1643,7 +2108,19 @@ def _span_blocked_by_content(segments: list[dict], ads: list[dict],
             if covered_until >= relevant_end:
                 break
         covered = covered_until >= relevant_end
-        if covered or _text_has_ad_content(text.lower(), ad_sponsors):
+        if covered:
             continue
-        return True
+        utterances = _timed_utterances(seg)
+        if utterances is None:
+            if (allow_ad_content and relevant_start == seg_start
+                    and relevant_end == seg_end
+                    and _text_has_ad_content(text.lower(), ad_sponsors)):
+                continue
+            return True
+        words = [word['word'].strip().lower()
+                 for utterance in utterances for word in utterance['words']
+                 if word['end'] > relevant_start and word['start'] < relevant_end]
+        if words and not (allow_ad_content and _text_has_ad_content(
+                ' '.join(words), ad_sponsors)):
+            return True
     return False

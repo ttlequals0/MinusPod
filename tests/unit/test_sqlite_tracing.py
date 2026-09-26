@@ -1,7 +1,9 @@
 """TracedConnection names the holder of a long write transaction and slow lock waits."""
 import logging
 import sqlite3
+import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,7 +16,7 @@ def traced_pair(tmp_path, monkeypatch):
     monkeypatch.setattr(database, 'SLOW_SQLITE_SECONDS', 0.05)
     path = str(tmp_path / 't.db')
     holder = sqlite3.connect(path, factory=TracedConnection, timeout=0.2)
-    waiter = sqlite3.connect(path, factory=TracedConnection, timeout=0.2)
+    waiter = sqlite3.connect(path, factory=TracedConnection, timeout=0.2, check_same_thread=False)
     holder.execute("CREATE TABLE t (x INTEGER)")
     holder.commit()
     yield holder, waiter
@@ -25,18 +27,22 @@ def traced_pair(tmp_path, monkeypatch):
 def test_long_held_write_transaction_is_logged_with_opener(traced_pair, caplog):
     holder, _ = traced_pair
     with caplog.at_level(logging.WARNING, logger='database'):
+        holder.execute('BEGIN IMMEDIATE')
         holder.execute("INSERT INTO t VALUES (1)")
         time.sleep(0.08)
         holder.commit()
     assert 'write transaction held' in caplog.text
-    assert 'opened by: INSERT INTO t VALUES (1)' in caplog.text
+    assert 'opened by: BEGIN IMMEDIATE' in caplog.text
 
 
-def test_short_transaction_is_quiet(traced_pair, caplog):
+def test_short_transaction_is_quiet(traced_pair, caplog, monkeypatch):
     holder, _ = traced_pair
+    monkeypatch.setattr(database, 'time',
+                        SimpleNamespace(monotonic=lambda: 100.0))
     with caplog.at_level(logging.WARNING, logger='database'):
         holder.execute("INSERT INTO t VALUES (1)")
         holder.commit()
+    assert holder.execute('SELECT COUNT(*) FROM t').fetchone()[0] == 1
     assert caplog.text == ''
 
 
@@ -49,6 +55,61 @@ def test_lock_wait_is_logged_even_when_the_statement_fails(traced_pair, caplog):
     holder.rollback()
     assert 'SQLite statement took' in caplog.text
     assert 'INSERT INTO t VALUES (2)' in caplog.text
+
+
+def test_begin_wait_is_not_counted_as_held_transaction(traced_pair, caplog):
+    holder, waiter = traced_pair
+    holder.execute("INSERT INTO t VALUES (1)")
+    attempting = threading.Event()
+    acquired = threading.Event()
+    result = {}
+
+    def begin():
+        attempting.set()
+        with caplog.at_level(logging.WARNING, logger='database'):
+            waiter.execute('BEGIN IMMEDIATE')
+        result['started'] = waiter._tx_started
+        acquired.set()
+
+    thread = threading.Thread(target=begin, name='begin-waiter')
+    thread.start()
+    assert attempting.wait(timeout=1)
+    time.sleep(0.08)
+    holder.rollback()
+    thread.join(timeout=1)
+    assert acquired.is_set()
+    assert result['started'] is not None
+    waiter.commit()
+    waiter_records = [record for record in caplog.records if record.threadName == 'begin-waiter']
+    assert any('SQLite statement took' in record.message for record in waiter_records)
+    assert not any('write transaction held' in record.message for record in waiter_records)
+
+
+def test_implicit_write_wait_is_logged_as_elapsed_not_held(traced_pair, caplog):
+    holder, waiter = traced_pair
+    holder.execute("INSERT INTO t VALUES (1)")
+    attempting = threading.Event()
+    completed = threading.Event()
+
+    def write():
+        attempting.set()
+        with caplog.at_level(logging.WARNING, logger='database'):
+            waiter.execute("INSERT INTO t VALUES (2)")
+            waiter.commit()
+        completed.set()
+
+    thread = threading.Thread(target=write, name='implicit-waiter')
+    thread.start()
+    assert attempting.wait(timeout=1)
+    time.sleep(0.08)
+    holder.rollback()
+    thread.join(timeout=1)
+    assert completed.is_set()
+    waiter_records = [record.message for record in caplog.records
+                      if record.threadName == 'implicit-waiter']
+    assert any('SQLite transaction elapsed' in message for message in waiter_records)
+    assert any('possible lock wait included' in message for message in waiter_records)
+    assert not any('write transaction held' in message for message in waiter_records)
 
 
 def test_failed_commit_keeps_transaction_origin_for_rollback(tmp_path):

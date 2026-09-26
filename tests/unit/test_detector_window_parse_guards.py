@@ -1,13 +1,19 @@
 """Window-level guards on what an LLM detection window is allowed to return."""
-from unittest.mock import patch
+import logging
+from unittest.mock import MagicMock, patch
 
 from tests.app_bootstrap import bootstrap
 
 bootstrap('window_guards_test_')
 
-from ad_detector import AdDetector
-from ad_detector.prompts import parse_ads_from_response
+from ad_detector import AdDetector, _known_sponsor_matchers
+from ad_detector.prompts import EpisodeSponsors, _normalize_ad, parse_ads_from_response
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
+from sponsor_normalize import extract_description_sponsors
+from utils.constants import REASON_DESCRIPTION_MAX
+from text_pattern_matcher import TextMatch
+from utils.text import word_boundary_re
+from verification_pass import VerificationPass
 
 
 class _StubResponse:
@@ -26,7 +32,7 @@ def _window(start, end):
 
 
 def _run_window(response_text, *, window=(0.0, 60.0),
-                pass_name=PASS_AD_DETECTION_1):
+                pass_name=PASS_AD_DETECTION_1, **kwargs):
     detector = AdDetector(api_key='test-key')
 
     def fake_call(**_kw):
@@ -42,6 +48,7 @@ def _run_window(response_text, *, window=(0.0, 60.0),
             llm_timeout=30, max_retries=1,
             slug='s', episode_id='e', pass_name=pass_name,
             window_label_prefix='Window', validate_timestamps=False,
+            **kwargs,
         )
 
 
@@ -176,3 +183,280 @@ def test_null_ad_object_is_discarded():
         '"reason": "No promotional content found"}]')
 
     assert ads == []
+
+
+# Production shape: a 159 s window at 0.99 whose reason names the brand.
+_LONG_START, _LONG_END = 3521.7, 3680.7
+_ACME = EpisodeSponsors(word_boundary_re(['Acme Pet Food']), None)
+
+
+def _long_window(**fields):
+    ad = {'confidence': 0.99,
+          'reason': 'Host talks through the Acme Pet Food kibble lineup'}
+    ad.update(fields)
+    return ad
+
+
+def _registry(*names):
+    registry = MagicMock()
+    registry.find_sponsor_in_text.side_effect = lambda text: next(
+        (n for n in names if n.lower() in text.lower()), None)
+    return registry
+
+
+def test_normalize_ad_accepts_episode_pattern_sponsor(caplog):
+    kept = _normalize_ad(_long_window(), _LONG_START, _LONG_END,
+                         episode_sponsors=_ACME)
+    assert kept is not None
+    assert (kept['start'], kept['end']) == (_LONG_START, _LONG_END)
+
+    with caplog.at_level(logging.INFO, logger='podcast.claude'):
+        dropped = _normalize_ad(_long_window(), _LONG_START, _LONG_END,
+                                episode_sponsors=None)
+    assert dropped is None
+    assert 'no sponsor identified in reason' in caplog.text
+
+
+def test_normalize_ad_episode_sponsor_in_start_text_counts():
+    ad = _long_window(reason='Host talks through a kibble lineup',
+                      start_text='acme pet food makes it easy')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END,
+                         episode_sponsors=_ACME) is not None
+
+
+def test_registry_name_in_a_quote_does_not_admit_a_long_window():
+    ad = {'confidence': 0.9, 'reason': 'Hosts discuss the week in review',
+          'end_text': 'Indeed, that is the story'}
+    start, end = 1000.0, 1150.0
+    registry = _registry('Indeed')
+
+    assert _normalize_ad(ad, start, end, sponsor_service=registry) is None
+    ad['reason'] = 'Indeed hiring spot'
+    assert _normalize_ad(ad, start, end, sponsor_service=registry) is not None
+
+
+def test_episode_sponsor_in_end_text_counts():
+    ad = _long_window(reason='Host talks through a kibble lineup',
+                      end_text='that is Acme Pet Food dot com')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END,
+                         episode_sponsors=_ACME) is not None
+
+
+def test_episode_sponsor_match_is_whole_word():
+    ad = _long_window(reason='Hosts recap what happened on Sunday at length')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END,
+                         episode_sponsors=EpisodeSponsors(word_boundary_re(['Sun']), None)) is None
+
+
+def test_parse_ads_from_response_forwards_episode_sponsors():
+    response = ('[{"start": 3521.7, "end": 3680.7, "confidence": 0.99, '
+                '"reason": "Host talks through the Acme Pet Food kibble lineup"}]')
+    assert parse_ads_from_response(response) == []
+    assert len(parse_ads_from_response(
+        response, episode_sponsors=_ACME)) == 1
+
+
+def test_window_passes_episode_sponsors_to_the_gate():
+    response = ('[{"start": 20.0, "end": 179.0, "confidence": 0.99, '
+                '"reason": "Host talks through the Acme Pet Food kibble lineup"}]')
+    window = (0.0, 600.0)
+
+    assert _run_window(response, window=window).ads == []
+    kept = _run_window(response, window=window,
+                       episode_sponsors=_ACME)
+    assert len(kept.ads) == 1
+
+
+def test_known_sponsor_matchers_collects_matches_and_description():
+    extract_description_sponsors.cache_clear()
+    ads = [
+        {'detection_stage': 'fingerprint', 'sponsor': 'Acme Pet Food'},
+        {'detection_stage': 'text_pattern', 'sponsor': 'Globex'},
+        {'detection_stage': 'text_pattern', 'sponsor': None},
+        {'detection_stage': 'text_pattern', 'sponsor': 'Today'},
+    ]
+    description = 'Sponsored by <a href="https://www.umbrellacorp.com/show">Umbrella</a>'
+
+    matchers = _known_sponsor_matchers(ads, description)
+
+    for name in ('acme pet food', 'Globex'):
+        assert matchers.audio_re.search(f'thanks to {name} today')
+    assert not matchers.audio_re.search('thanks to umbrellacorp')
+    assert matchers.summary_re.search('thanks to UMBRELLACORP today')
+    # A common word stored as a sponsor must not admit a content window.
+    assert not matchers.audio_re.search('what happened today')
+
+
+def test_description_sponsors_skip_non_brand_tokens():
+    extract_description_sponsors.cache_clear()
+    assert _known_sponsor_matchers([], 'Brought to you by Wix') is None
+
+
+def test_description_sponsor_in_a_quote_does_not_admit_a_long_window():
+    extract_description_sponsors.cache_clear()
+    matchers = _known_sponsor_matchers([], 'This episode is brought to you by Calm.')
+    ad = _long_window(reason='Hosts recap the week in review at length',
+                      end_text='just stay calm and carry on')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=matchers) is None
+
+    ad['reason'] = 'Calm meditation app read'
+    assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=matchers) is not None
+
+
+def test_audio_matched_sponsor_in_a_quote_admits_a_long_window():
+    matchers = _known_sponsor_matchers(
+        [{'detection_stage': 'text_pattern', 'sponsor': 'Globex'}], None)
+    ad = _long_window(reason='Hosts recap the week in review at length',
+                      end_text='head over to globex dot com')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=matchers) is not None
+
+
+def test_pass2_sponsor_pattern_takes_every_pass1_cut_sponsor():
+    response = ('[{"start": 20.0, "end": 179.0, "confidence": 0.99, '
+                '"reason": "Host talks through the Initech hiring platform"}]')
+    pass1_cuts = [{'start': 3492.9, 'end': 3544.2,
+                   'detection_stage': 'dai_differential', 'sponsor': 'Initech'}]
+
+    kept = _run_verification(response, pass1_cuts=pass1_cuts)
+    assert [(a['start'], a['end']) for a in kept['ads']] == [(20.0, 179.0)]
+
+
+def test_description_sponsors_are_whole_words():
+    extract_description_sponsors.cache_clear()
+    description = ('A keepsake from our honeymoons, a romance at the factory, '
+                   'and a calming walk. Brought to you by Squarespace.')
+    assert extract_description_sponsors(description) == frozenset({'squarespace'})
+
+
+def test_known_sponsor_matchers_is_none_without_sponsors():
+    assert _known_sponsor_matchers([], None) is None
+
+
+def test_description_sponsors_extract_once_per_description(caplog):
+    extract_description_sponsors.cache_clear()
+    description = 'Thanks to <a href="https://globex.com/show">Globex</a>'
+    with caplog.at_level(logging.INFO):
+        _known_sponsor_matchers([], description)
+        _known_sponsor_matchers([], description)
+    assert caplog.text.count('Extracted sponsors from description') == 1
+
+
+class _PatternDb:
+    def get_false_positive_corrections(self, podcast_id, episode_id):
+        return []
+
+    def get_podcast_by_slug(self, slug):
+        return {'id': 1}
+
+    def get_podcast_false_positive_texts(self, slug):
+        return []
+
+    def get_setting(self, key):
+        return None
+
+    def get_setting_float(self, key, default):
+        return default
+
+    def resolve_segment_actions(self, slug):
+        return None
+
+
+class _AcmeMatcher:
+    def find_matches(self, *args, **kwargs):
+        return [TextMatch(pattern_id=7, start=3492.9, end=3544.2,
+                          confidence=0.95, sponsor='Acme Pet Food',
+                          match_type='intro', category=None)]
+
+
+def test_process_transcript_hands_known_sponsors_to_the_llm_pass():
+    extract_description_sponsors.cache_clear()
+    detector = AdDetector(api_key='test-key')
+    detector.db = _PatternDb()
+    detector.audio_fingerprinter = None
+    detector.text_pattern_matcher = _AcmeMatcher()
+    detector.pattern_service = None
+    segments = [{'start': 3400.0, 'end': 3700.0, 'text': 'show talk'}]
+
+    # Pass 1 trusts only pattern and fingerprint sponsors, not a differential ad's.
+    differential = {'start': 3600.0, 'end': 3650.0, 'confidence': 0.9,
+                    'detection_stage': 'dai_differential', 'sponsor': 'Initech'}
+
+    with patch.object(detector, 'initialize_client'), \
+         patch('ad_detector.dai_differential_ads', return_value=[differential]), \
+         patch.object(detector, 'detect_ads',
+                      return_value={'ads': [], 'status': 'success'}) as detect:
+        detector.process_transcript(
+            segments, 'Example Podcast', 'Episode One',
+            slug='example-podcast', episode_id='a1b2c3d4e5f6',
+            episode_description='Thanks to <a href="https://globex.com/show">Globex</a>',
+            podcast_id='example-podcast', skip_patterns=False,
+            audio_path=None, dai_differential=MagicMock(), keep_content=False)
+
+    matchers = detect.call_args.kwargs['episode_sponsors']
+    assert matchers.audio_re.search('Acme Pet Food')
+    assert matchers.summary_re.search('globex')
+    assert not any(m.search('Initech is hiring') for m in matchers)
+
+
+def _run_verification(response_text, **kwargs):
+    detector = AdDetector(api_key='test-key')
+    segments = [{'start': float(t), 'end': float(t) + 10.0, 'text': 'show talk'}
+                for t in range(0, 600, 10)]
+    with patch.object(detector, 'initialize_client'), \
+         patch.object(detector, '_effective_addressing_mode',
+                      return_value=('timestamps', 'timestamps')), \
+         patch.object(detector, 'get_verification_prompt', return_value='v'), \
+         patch.object(detector, 'get_verification_model', return_value='m'), \
+         patch.object(detector, '_build_known_pattern_hint', return_value=''), \
+         patch.object(detector, '_resolve_segment_action_map', return_value=None), \
+         patch.object(detector, '_call_llm_for_window',
+                      return_value=(_StubResponse(response_text), None)):
+        return detector.run_verification_detection(
+            segments, slug='example-podcast', episode_id='a1b2c3d4e5f6',
+            **kwargs)
+
+
+def test_verification_keeps_long_window_naming_a_pass1_pattern_sponsor():
+    response = ('[{"start": 20.0, "end": 179.0, "confidence": 0.99, '
+                '"reason": "Host talks through the Acme Pet Food kibble lineup"}]')
+    pass1_cuts = [{'start': 3492.9, 'end': 3544.2,
+                   'detection_stage': 'text_pattern', 'sponsor': 'Acme Pet Food'}]
+
+    kept = _run_verification(response, pass1_cuts=pass1_cuts)
+    assert [(a['start'], a['end']) for a in kept['ads']] == [(20.0, 179.0)]
+
+    dropped = _run_verification(response, pass1_cuts=[], episode_description='')
+    assert dropped['ads'] == []
+
+
+def test_verification_pass_forwards_pass1_cuts():
+    detector = MagicMock()
+    detector.run_verification_detection.return_value = {'ads': [], 'status': 'success'}
+    analyzer = MagicMock()
+    analyzer.analyze.return_value.signals = []
+    analyzer.analyze.return_value.get_signals_by_type.return_value = []
+    cuts = [{'start': 30.0, 'end': 60.0, 'detection_stage': 'text_pattern',
+             'sponsor': 'Acme Pet Food'}]
+    VerificationPass(ad_detector=detector, transcriber=MagicMock(),
+                     audio_analyzer=analyzer).verify(
+        processed_audio_path='/nonexistent.mp3', podcast_name='Example Podcast',
+        episode_title='Episode One', slug='example-podcast',
+        episode_id='a1b2c3d4e5f6', pass1_cuts=cuts,
+        original_segments=[{'start': 0.0, 'end': 100.0, 'text': 'hello'}])
+
+    assert detector.run_verification_detection.call_args.kwargs['pass1_cuts'] is cuts
+
+
+def test_unmerged_description_field_still_reaches_the_gate():
+    ad = _long_window(reason='Hosts recap the week',
+                      description='Acme Pet Food read',
+                      notes='A much longer free-text note that wins the merge slot')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=_ACME) is not None
+
+
+def test_sponsor_past_the_description_cap_still_reaches_the_gate():
+    matchers = EpisodeSponsors(None, word_boundary_re(['Globex']))
+    long_text = 'The hosts talk through the week at length. ' * (REASON_DESCRIPTION_MAX // 40)
+    ad = _long_window(reason='Hosts recap the week',
+                      description=f'{long_text}Then a Globex read closes it out.')
+    assert _normalize_ad(ad, _LONG_START, _LONG_END, episode_sponsors=matchers) is not None

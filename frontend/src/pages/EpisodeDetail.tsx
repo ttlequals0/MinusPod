@@ -1281,6 +1281,11 @@ function EpisodeDetail() {
                       Reviewer: skipped
                     </span>
                   )}
+                  {segment.reviewer_verdict === 'inconclusive' && (
+                    <span className={`${badgeBase} font-medium ${tint.neutral}`} title={segment.reviewer_reasoning || 'Reviewer abstained; original detection kept'}>
+                      Reviewer abstained
+                    </span>
+                  )}
                   {episode.transcript && (
                     <button
                       onClick={() => handleJumpToAd(index)}
@@ -1476,6 +1481,10 @@ function EpisodeDetail() {
                 ? 'The reviewer disagreed with the detected boundaries'
                 : segment.hold_reason === 'reviewer_boundary_conflict'
                 ? 'The reviewer proposed a boundary that crosses protected ad evidence'
+                : segment.hold_reason === 'reviewer_inconclusive_bounds'
+                ? 'The reviewer could not verify both cut boundaries'
+                : segment.hold_reason === 'estimated_pattern_bounds'
+                ? 'Estimated pattern remainder outside the verified ad bounds'
                 : segment.hold_reason === 'reviewer_reject_conflict'
                 ? 'The reviewer rejected a span that carries measured ad evidence'
                 : segment.hold_reason === 'no_splice_evidence'
@@ -1493,6 +1502,10 @@ function EpisodeDetail() {
                 : 'Held for manual review';
               const holdLabel = segment.hold_reason === 'verification_miss'
                 ? 'Verification catch'
+                : segment.hold_reason === 'reviewer_inconclusive_bounds'
+                ? 'Unverified bounds'
+                : segment.hold_reason === 'estimated_pattern_bounds'
+                ? 'Estimated bounds'
                 : segment.hold_reason === 'differential_uncorroborated'
                 ? 'Differential hold'
                 : segment.hold_reason === 'large_vad_gap_extension'
@@ -1552,6 +1565,14 @@ function EpisodeDetail() {
                       >
                         {holdLabel}
                       </span>
+                      {segment.reviewer_verdict === 'inconclusive' && (
+                        <span
+                          className={`${badgeBase} font-medium ${tint.neutral}`}
+                          title={segment.reviewer_reasoning || 'Reviewer abstained; marker remains held'}
+                        >
+                          Reviewer abstained
+                        </span>
+                      )}
                       {(correction || segment.approved) && (
                         <span className={`${badgeBase} font-medium ${
                           segment.approved || correction?.correction_type === 'confirm'
@@ -1579,7 +1600,9 @@ function EpisodeDetail() {
                   )}
                   {(segment.hold_reason === 'reviewer_contradiction'
                     || segment.hold_reason === 'reviewer_boundary_conflict'
-                    || segment.hold_reason === 'reviewer_reject_conflict')
+                    || segment.hold_reason === 'reviewer_inconclusive_bounds'
+                    || segment.hold_reason === 'reviewer_reject_conflict'
+                    || segment.reviewer_verdict === 'inconclusive')
                     && segment.reviewer_reasoning && (
                     <p className="text-sm text-muted-foreground mt-1">
                       <span className="font-medium">Reviewer:</span>{' '}

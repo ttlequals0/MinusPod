@@ -796,6 +796,35 @@ describe('Differential status and corroboration badges', () => {
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
     expect(screen.queryByText(/^Cross-fetch:/)).toBeNull();
   });
+
+  it('keeps confirmed reviewer markers unchanged without an abstention badge', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{
+        start: 10,
+        end: 40,
+        confidence: 0.9,
+        reviewer_verdict: 'confirmed',
+        reviewer_reasoning: 'The candidate is an ad.',
+      }],
+    }));
+    await waitFor(() => expect(screen.getByText('Reviewer: confirmed')).toBeDefined());
+    expect(screen.queryByText('Reviewer abstained')).toBeNull();
+  });
+
+  it('shows abstention reasoning while keeping an inconclusive marker held', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [{
+        ...heldMarker,
+        reviewer_verdict: 'inconclusive',
+        reviewer_reasoning: 'The review did not have enough context.',
+      }],
+    }));
+    await waitFor(() => expect(screen.getByTestId('held-for-review-section')).toBeDefined());
+    expect(screen.getByText('Reviewer abstained')).toBeDefined();
+    expect(screen.getByText('The review did not have enough context.')).toBeDefined();
+    expect(screen.getByText('Held')).toBeDefined();
+  });
 });
 
 describe('New hold reasons: tooltip titles', () => {
@@ -824,6 +853,25 @@ describe('New hold reasons: tooltip titles', () => {
     await waitFor(() => expect(screen.getByTitle(
       'The reviewer proposed a boundary that crosses protected ad evidence')).toBeDefined());
     expect(screen.getByText('The candidate starts after the protected boundary.')).toBeDefined();
+  });
+
+  it('shows why inconclusive bounds were held', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{
+      ...heldMarker,
+      hold_reason: 'reviewer_inconclusive_bounds',
+      reviewer_reasoning: 'Reviewer abstained: missing boundary coverage.',
+    }] }));
+    await waitFor(() => expect(screen.getByTitle(
+      'The reviewer could not verify both cut boundaries')).toBeDefined());
+    expect(screen.getByText('Reviewer abstained: missing boundary coverage.')).toBeDefined();
+  });
+
+  it('shows why estimated pattern bounds were held', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{
+      ...heldMarker, hold_reason: 'estimated_pattern_bounds',
+    }] }));
+    await waitFor(() => expect(screen.getByTitle(
+      'Estimated pattern remainder outside the verified ad bounds')).toBeDefined());
   });
 
   it('shows the no_splice_evidence title', async () => {

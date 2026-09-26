@@ -37,6 +37,7 @@ from ad_yield import low_ad_yield
 from ad_reviewer import (
     AdReviewer, is_contradiction_hold, split_resurrection_pool,
 )
+from ad_validator import restore_uncovered_confirmed_spans, user_trimmed_keep_ranges
 from audio_analysis.audio_analyzer import MIN_VOLUME_TIMEOUT
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
@@ -52,9 +53,9 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import (clip_dai_core_spans, clip_merge_spans,
+from utils.markers import (carve_fragment, clip_dai_core_spans, clip_merge_spans,
                            fold_marker_pair, foldable_twin,
-                           invalidate_tail_provenance, spans_match)
+                           invalidate_tail_provenance, spans_match, subtract_spans)
 from utils.time import (
     adjust_timestamp, epoch_to_iso, merge_cut_spans, overlap_ratio,
     ranges_overlap, span_inside_any_cut, utc_now_iso,
@@ -74,7 +75,9 @@ from config import (
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
+    HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
+    PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
@@ -1692,6 +1695,48 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
     return remove
 
 
+def _protect_user_trimmed_cuts(ads_to_remove, all_ads_with_validation, ranges):
+    """Keep saved trim exclusions out of final cut and marker bounds."""
+    if not ranges:
+        return ads_to_remove
+    protected_cuts = []
+    for ad in ads_to_remove:
+        pieces = subtract_spans([(ad['start'], ad['end'])],
+                                [(r['start'], r['end']) for r in ranges])
+        if pieces == [(ad['start'], ad['end'])]:
+            protected_cuts.append(ad)
+            continue
+        master = _find_master(all_ads_with_validation, ad)
+        if master is not None:
+            all_ads_with_validation.remove(master)
+        for lo, hi in pieces:
+            fragment = carve_fragment(ad, lo, hi)
+            fragment['_skip_pattern_learning'] = True
+            fragment['validation'] = dict(ad.get('validation') or {})
+            fragment['validation'].pop('confirmed_span', None)
+            fragment['validation'].pop('user_confirmed', None)
+            protected_cuts.append(fragment)
+            all_ads_with_validation.append(fragment)
+    all_ads_with_validation.sort(key=lambda ad: ad['start'])
+    return protected_cuts
+
+
+def _restore_confirmed_spans(ads_to_remove, all_ads_with_validation, podcast_id,
+                             episode_id, episode_duration, exclude_start_seconds,
+                             restore=True):
+    """Cut uncovered confirmed spans and keep saved trims out; returns (cuts, trim ranges)."""
+    confirmed = db.get_confirmed_corrections(podcast_id, episode_id)
+    trim_ranges = user_trimmed_keep_ranges(confirmed)
+    if restore:
+        ads_to_remove = restore_uncovered_confirmed_spans(
+            ads_to_remove, all_ads_with_validation, confirmed,
+            db.get_false_positive_corrections(podcast_id, episode_id),
+            trim_ranges, episode_duration, exclude_start_seconds)
+    ads_to_remove = _protect_user_trimmed_cuts(
+        ads_to_remove, all_ads_with_validation, trim_ranges)
+    return ads_to_remove, trim_ranges
+
+
 def _partition_cut_actions(ads_to_remove, actions_map):
     """Stamp each cut-list marker with its resolved remove/beep action.
 
@@ -1714,13 +1759,7 @@ def _partition_cut_actions(ads_to_remove, actions_map):
 
 
 def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
-    """Feed keep-action markers into pattern learning (issue #565).
-
-    keep_ads bypasses validation entirely (_partition_keep_ads), so it never
-    reaches the learn_from_detections call inside _refine_and_validate; this
-    applies that same call separately to the withheld markers. No-op when
-    there is nothing to learn from or no slug.
-    """
+    """Learn from keep-action markers that bypassed validation."""
     if not keep_ads or not slug:
         return 0
     patterns_learned = ad_detector.learn_from_detections(
@@ -1731,6 +1770,32 @@ def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
             f"[{slug}:{episode_id}] Learned {patterns_learned} new patterns "
             f"from kept ads"
         )
+    return patterns_learned
+
+
+def _learn_from_applied_cut_ads(slug, episode_id, cut_ads, markers,
+                                applied_cuts, original_duration, segments,
+                                audio_path):
+    """Learn only reviewer-final pass-1 markers present in the rendered cuts."""
+    if not slug:
+        return 0
+    learnable = []
+    for ad in cut_ads:
+        marker = _find_master(markers, ad)
+        if (marker is None or not ad.get('was_cut') or not marker.get('was_cut')
+                or is_pending_review(marker)
+                or marker.get('action_applied') not in ('remove', 'beep')
+                or marker['start'] != ad['start'] or marker['end'] != ad['end']
+                or not _covered_by_cuts(marker, applied_cuts, original_duration)):
+            continue
+        learnable.append(marker)
+    if not learnable:
+        return 0
+    patterns_learned = ad_detector.learn_from_detections(
+        learnable, segments, slug, episode_id, audio_path=audio_path)
+    if patterns_learned > 0:
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Learned {patterns_learned} new patterns from cut ads")
     return patterns_learned
 
 
@@ -1898,18 +1963,16 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
             >= MIN_AD_DURATION_FOR_REMOVAL
         )
         for start, end in fragments:
-            fragment_processed = dict(processed, start=start, end=end)
+            fragment_processed = carve_fragment(processed, start, end)
             if trusted_fragment:
                 # The parent cleared the renderer's duration floor before a
                 # protected keep/beep span carved it into smaller pieces.
                 # Validation still decides whether each piece is a cut.
                 fragment_processed['_measured_split_fragment'] = True
-            fragment_original = dict(
+            fragment_original = carve_fragment(
                 original,
-                start=_map_to_original(
-                    start, timestamp_map, replacement_duration),
-                end=_map_to_original(
-                    end, timestamp_map, replacement_duration),
+                _map_to_original(start, timestamp_map, replacement_duration),
+                _map_to_original(end, timestamp_map, replacement_duration),
             )
             if trusted_fragment:
                 fragment_original['_measured_split_fragment'] = True
@@ -2072,15 +2135,6 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     all_ads_with_validation = validation_result.ads
     storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
-    # Learn patterns from cut ads
-    cut_ads = [a for a in all_ads_with_validation if a.get('was_cut')]
-    if cut_ads and slug:
-        patterns_learned = ad_detector.learn_from_detections(
-            cut_ads, segments, slug, episode_id, audio_path=audio_path
-        )
-        if patterns_learned > 0:
-            audio_logger.info(f"[{slug}:{episode_id}] Learned {patterns_learned} new patterns from cut ads")
-
     rejected_count = validation_result.rejected
     if rejected_count > 0 or low_confidence_count > 0:
         audio_logger.info(
@@ -2128,6 +2182,7 @@ def _log_reviewer_verdicts(slug, episode_id, pass_num, verdicts):
         f"{sum(1 for v in verdicts if v.verdict == 'adjust')} adjusted, "
         f"{sum(1 for v in verdicts if v.verdict == 'reject')} rejected, "
         f"{sum(1 for v in verdicts if v.verdict == 'resurrect')} resurrected, "
+        f"{sum(1 for v in verdicts if v.verdict == 'inconclusive')} inconclusive, "
         f"{sum(1 for v in verdicts if v.verdict == 'failure')} failed"
     )
 
@@ -2227,6 +2282,21 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         key = (v.original_start, v.original_end)
         proc_ad = original_to_processed.get(key)
         ui_ad = ui_by_key.get(key)
+
+        if v.inconclusive_hold:
+            if proc_ad in v_ads_to_cut:
+                v_ads_to_cut.remove(proc_ad)
+            if proc_ad is not None:
+                proc_ad['was_cut'] = False
+                _stamp_reviewer_fields(proc_ad, v)
+            held_ad = ui_ad or original_by_key.get(key)
+            if held_ad is not None:
+                _apply_reviewer_verdict_to_ad(held_ad, v)
+                if held_ad in v_ads_for_ui:
+                    v_ads_for_ui.remove(held_ad)
+                if held_ad not in v_ads_held:
+                    v_ads_held.append(held_ad)
+            continue
 
         if v.boundary_conflict:
             if proc_ad in v_ads_to_cut:
@@ -2422,6 +2492,12 @@ def _ad_review_enabled(db) -> bool:
 def _apply_reviewer_verdict_to_ad(ad, v):
     """Merge a single reviewer verdict into the master ad dict, in place."""
     _stamp_reviewer_fields(ad, v)
+    if v.inconclusive_hold:
+        ad['was_cut'] = False
+        ad['held_for_review'] = True
+        ad['hold_reason'] = HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS
+        ad['source'] = 'reviewer'
+        return
     if v.boundary_conflict:
         ad['was_cut'] = False
         ad['held_for_review'] = True
@@ -2457,6 +2533,8 @@ def _apply_reviewer_verdict_to_ad(ad, v):
         invalidate_tail_provenance(ad, v.adjusted_end)
         ad['start'] = v.adjusted_start
         ad['end'] = v.adjusted_end
+        clip_dai_core_spans(ad, v.adjusted_start, v.adjusted_end)
+        clip_merge_spans(ad, v.adjusted_start, v.adjusted_end)
     elif v.verdict == 'reject':
         ad['was_cut'] = False
         ad['source'] = 'reviewer'
@@ -3069,7 +3147,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers):
                     {'start': span['start'], 'end': span['end']}
                     if trimmed else None),
                 text_snippet=(
-                    f"auto-approved: pass-2 corroborated "
+                    f"{PASS2_AUTOAPPROVE_SNIPPET_PREFIX} corroborated "
                     f"{m.get('hold_reason')} hold"),
                 podcast_id=podcast['id'],
             )
@@ -3276,6 +3354,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             original_segments=None, reuse_transcript=False,
                             max_ad_duration_override=None, cue_gate_enabled=False,
                             pass1_held_markers=None, pass1_kept_markers=None,
+                            pass1_trim_ranges=None,
                             skip_verification=False, segment_actions=None,
                             differential_override=None, run_stats=None,
                             original_audio_path=None, pass1_markers=None):
@@ -3331,6 +3410,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     protected_original_ranges = [
         *list(pass1_held_markers or []),
         *list(pass1_kept_markers or []),
+        *list(pass1_trim_ranges or []),
         *false_positive_corrections,
     ]
 
@@ -3415,6 +3495,13 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             verification_ads_original, verification_segments,
             pass1_cuts, podcast_name, skip_patterns,
         )
+        (verification_ads_processed,
+         verification_ads_original) = _split_pass2_candidates_around_spans(
+            verification_ads_processed,
+            verification_ads_original,
+            _protected_ranges_in_processed_audio(
+                pass1_trim_ranges or [], pass1_cuts),
+            pass1_cuts, 'user-trimmed audio')
 
         # A pass-1 keep is operator intent. Divert overlaps before category
         # partitioning so a same-category keep does not become a duplicate
@@ -3457,6 +3544,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             pass1_cuts,
             category_kept_processed,
         )
+        keep_barriers_processed.extend(
+            _protected_ranges_in_processed_audio(
+                pass1_trim_ranges or [], pass1_cuts))
 
         had_verification_candidates = bool(verification_ads_processed)
         if verification_ads_processed:
@@ -3518,6 +3608,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     v_ads_to_cut, v_ads_for_ui, segment_actions)
                 v_ads_to_cut, v_ads_for_ui = _reconcile_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, pass1_cuts)
+                v_ads_to_cut, v_ads_for_ui = _split_pass2_candidates_around_spans(
+                    v_ads_to_cut, v_ads_for_ui,
+                    _protected_ranges_in_processed_audio(
+                        pass1_trim_ranges or [], pass1_cuts),
+                    pass1_cuts, 'user-trimmed audio')
 
                 if v_ads_to_cut:
                     # Probed above, before the recut deletes the pre-recut
@@ -4872,7 +4967,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
         # Resolve podcast_id once from the episode row so _build_recut_ad_list's
         # per-feed override lookup uses it instead of the slug fallback.
-        recut_podcast_id = (episode_data or {}).get('podcast_id')
+        recut_podcast_id = ((episode_data or {}).get('podcast_id')
+                            or (db.get_podcast_by_slug(slug) or {}).get('id'))
         # Resolved once and reused below so a category now resolving 'keep'
         # comes back out of ads_to_remove, beating an older approval.
         segment_actions = db.resolve_segment_actions(slug)
@@ -4893,6 +4989,10 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             ads_to_remove = [ad for ad in ads_to_remove if id(ad) not in keep_ids]
             all_ads_with_validation = list(all_ads_with_validation) + keep_ads
             all_ads_with_validation.sort(key=lambda x: x['start'])
+        ads_to_remove, trim_ranges = _restore_confirmed_spans(
+            ads_to_remove, all_ads_with_validation, recut_podcast_id, episode_id,
+            original_duration,
+            resolve_ad_detection_exclude_start_seconds(db, recut_podcast_id))
         ads_to_remove = _partition_cut_actions(ads_to_remove, segment_actions)
         for ad in ads_to_remove:
             master = _find_master(all_ads_with_validation, ad)
@@ -4915,7 +5015,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         # protection the pass-2 recut threads through).
         with _measure_run_stage('cut'):
             result = local_audio_processor.process_episode(
-                work_path, audio_segments, cut_barriers=keep_ads)
+                work_path, audio_segments,
+                cut_barriers=[*keep_ads, *trim_ranges])
         if not result:
             raise Exception("FFMPEG processing failed during recut")
         processed_path, applied_cuts = result
@@ -6111,9 +6212,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 all_ads_with_validation = list(all_ads_with_validation) + keep_ads
                 all_ads_with_validation.sort(key=lambda x: x['start'])
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
-                # Kept markers bypass validation entirely, so they never
-                # reach _refine_and_validate's own learn-from-cut-ads call;
-                # feed them into pattern learning separately here.
+                # Kept markers bypass validation and cut-ad learning.
                 _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path)
 
             # Terminal boundary snap (spec 2.3b): after the reviewer so a
@@ -6146,6 +6245,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ads_to_remove = _finalize_user_confirmed_bounds(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 episode_duration=episode_duration)
+            ads_to_remove, trim_ranges = _restore_confirmed_spans(
+                ads_to_remove, all_ads_with_validation, podcast_id, episode_id,
+                episode_duration, opening_exclusion_seconds,
+                restore=not skip_detection)
 
             # Backstop: the late keep partition above should already have
             # caught everything, so this normally finds nothing.
@@ -6183,7 +6286,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # pass-2 and manual recut paths.
             with _measure_run_stage('cut'):
                 result = local_audio_processor.process_episode(
-                    audio_path, audio_segments, cut_barriers=keep_ads)
+                    audio_path, audio_segments,
+                    cut_barriers=[*keep_ads, *trim_ranges])
             if not result:
                 raise Exception(
                     f"FFMPEG processing failed for {len(ads_to_remove)} ad segments "
@@ -6246,6 +6350,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     cue_gate_enabled=cue_gate_enabled,
                     pass1_held_markers=pass1_held_markers,
                     pass1_kept_markers=pass1_kept_markers,
+                    pass1_trim_ranges=trim_ranges,
                     skip_verification=verification_skipped,
                     segment_actions=segment_actions,
                     differential_override=keep_override,
@@ -6265,6 +6370,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # uncompressed dynamics.
             normalize_raw = db.get_setting('audio_normalize_enabled')
             if (normalize_raw or 'false').lower() == 'true':
+                run_stats['normalization_skipped'] = False
                 intensity = db.get_setting('audio_normalize_intensity') or 'normal'
                 with _measure_run_stage('normalization'):
                     normalized_path = local_audio_processor.normalize_audio(
@@ -6286,6 +6392,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     audio_logger.warning(
                         f"[{slug}:{episode_id}] Normalize pass failed, keeping un-normalized output"
                     )
+            else:
+                run_stats['normalization_skipped'] = True
             _check_cancel(cancel_event, slug, episode_id)
 
             # Merge pass 2 ads into combined list for UI.
@@ -6314,6 +6422,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Fence first: resolving the path mkdirs the podcast tree, which
             # would recreate the directory of a feed deleted mid-run.
             _require_publication_owner(slug, episode_id)
+            _learn_from_applied_cut_ads(
+                slug, episode_id, ads_to_remove, all_ads_with_validation,
+                applied_cuts, episode_duration, segments, audio_path)
             final_path = storage.get_episode_path(slug, episode_id, version=new_version)
             shutil.move(processed_path, final_path)
 

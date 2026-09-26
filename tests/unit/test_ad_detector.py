@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector import (
+    AdDetector,
     extract_sponsor_names,
     refine_ad_boundaries,
     merge_same_sponsor_ads,
@@ -17,6 +18,54 @@ from ad_detector import (
     removal_coverage_regions,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
 )
+
+
+def test_detector_merge_invalidates_widened_quote_edge():
+    detector = AdDetector(api_key='test-key')
+    anchored = {
+        'start': 100.0, 'end': 150.0, 'confidence': 0.9,
+        'detection_stage': 'claude', 'sponsor': 'Acme',
+        'quote_aligned_start': True, 'quote_start': 100.0,
+        'quote_original_start': 90.0,
+        'quote_aligned_end': True, 'quote_end': 150.0,
+        'quote_original_end': 170.0,
+    }
+    coarse = {'start': 140.0, 'end': 170.0, 'confidence': 0.9,
+              'detection_stage': 'claude', 'sponsor': 'Acme'}
+
+    merged = detector._merge_detection_results([anchored, coarse])[0]
+    assert merged['start'] == 100.0 and merged['end'] == 170.0
+    assert merged['quote_aligned_start'] is True
+    assert 'quote_aligned_end' not in merged
+
+    quoted_end = dict(coarse, quote_aligned_end=True, quote_end=170.0,
+                      quote_original_end=175.0)
+    merged = detector._merge_detection_results([anchored, quoted_end])[0]
+    assert merged['quote_aligned_end'] is True
+    assert merged['quote_end'] == 170.0
+
+
+def test_duplicate_merge_keeps_only_quote_provenance_at_union_edges():
+    detector = AdDetector(api_key='test-key')
+    first = {
+        'start': 100.0, 'end': 150.0, 'confidence': 0.9,
+        'sponsor': 'Acme', 'quote_aligned_start': True,
+        'quote_start': 100.0, 'quote_original_start': 90.0,
+        'quote_aligned_end': True, 'quote_end': 150.0,
+        'quote_original_end': 170.0,
+    }
+    second = {'start': 110.0, 'end': 160.0, 'confidence': 0.9,
+              'sponsor': 'Acme'}
+    merged = detector._merge_overlapping_accepted_duplicates([first, second])[0]
+    assert merged['start'] == 100.0 and merged['end'] == 160.0
+    assert merged['quote_aligned_start'] is True
+    assert 'quote_aligned_end' not in merged
+
+    second.update(quote_aligned_end=True, quote_end=160.0,
+                  quote_original_end=170.0)
+    merged = detector._merge_overlapping_accepted_duplicates([first, second])[0]
+    assert merged['quote_aligned_end'] is True
+    assert merged['quote_end'] == 160.0
 
 
 class TestExtractSponsorNames:
@@ -101,6 +150,61 @@ class TestRefineBoundaries:
         refined = refine_ad_boundaries([], segments)
 
         assert refined == []
+
+    def test_word_timed_overlap_starts_at_later_explicit_sponsor_cue(self):
+        def segment(start, words):
+            timed = [{'word': word, 'start': start + i * 0.4,
+                      'end': start + (i + 1) * 0.4}
+                     for i, word in enumerate(words.split())]
+            return {'start': start, 'end': timed[-1]['end'],
+                    'text': words, 'words': timed}
+
+        segments = [
+            segment(95.0, 'We will return after this break'),
+            segment(102.0, 'Then we will discuss the next topic'),
+            segment(106.0, 'Our sponsor for this segment is Acme'),
+            segment(110.0, 'Acme has an offer for listeners today'),
+        ]
+        ads = [
+            {'start': 103.2, 'end': 113.0, 'word_timed_start': 103.2,
+             'confidence': 0.93, 'reason': 'Acme sponsor read'},
+            {'start': 106.0, 'end': 124.0, 'word_timed_start': 106.0,
+             'confidence': 0.98, 'reason': 'Acme sponsor read'},
+        ]
+        merged = deduplicate_window_ads(ads)
+        assert merged[0]['start'] == 103.2
+        refined = refine_ad_boundaries(merged, segments)
+        assert len(refined) == 1
+        assert refined[0]['start'] == 106.0
+        assert refined[0]['word_timed_start'] == 106.0
+
+        segments[1] = segment(102.0, 'Brought to you by Acme today')
+        assert refine_ad_boundaries(ads[:1], segments)[0]['start'] == 103.2
+        segments[1] = segment(102.0, 'Then we will discuss the next topic')
+        short = dict(ads[0], end=105.0)
+        assert refine_ad_boundaries([short], segments)[0]['start'] == 103.2
+
+        intro = segment(
+            100.0, 'This portion of the program is brought to you by Acme.')
+        intro_ad = dict(ads[0], start=100.0, end=130.0,
+                        word_timed_start=100.0)
+        assert refine_ad_boundaries([intro_ad], [intro])[0]['start'] == 100.0
+
+        continued = segment(
+            100.0, ' '.join(['description'] * 25)
+            + ' This portion is brought to you by Acme.')
+        continued_ad = dict(ads[0], start=110.0, end=130.0,
+                            word_timed_start=110.0)
+        assert refine_ad_boundaries([continued_ad], [continued])[0]['start'] == 110.0
+
+        mixed = segment(
+            100.0, 'A show teaser ends. This portion is brought to you by Acme.')
+        mixed_ad = dict(ads[0], start=100.0, end=130.0,
+                        word_timed_start=100.0)
+        assert refine_ad_boundaries([mixed_ad], [mixed])[0]['start'] == 101.6
+
+        unreliable = dict(mixed, text='Transcript does not match its words.')
+        assert refine_ad_boundaries([mixed_ad], [unreliable])[0]['start'] == 100.0
 
     def test_refine_empty_segments(self):
         """Empty segments should return ads unchanged."""
@@ -789,6 +893,56 @@ class TestSplitConflictingActionSpan:
         assert entries[0]['category'] == 'interaction'
         assert entries[1]['start'] == 60.0 and entries[1]['end'] == 100.0
         assert entries[1]['category'] == 'sponsor'
+
+    def test_carved_fragments_do_not_inherit_excluded_ad_explanation(self):
+        last = {
+            'start': 0.0, 'end': 100.0, 'category': 'sponsor',
+            'reason': 'Acme advertising: "Visit Acme.com"',
+            'sponsor': 'Acme', 'end_text': 'Visit Acme.com',
+            'confidence': 0.91, 'pattern_id': 12, 'pattern_defined': True,
+        }
+        current = {
+            'start': 40.0, 'end': 60.0, 'category': 'intro',
+            'reason': 'Show introduction', 'sponsor': None,
+        }
+
+        before, entries = split_conflicting_action_span(
+            last, current, 'remove', 'keep')
+
+        assert entries[0] == current
+        assert last['reason'] == 'Acme advertising: "Visit Acme.com"'
+        for fragment, bounds in ((before, (0.0, 40.0)),
+                                 (entries[1], (60.0, 100.0))):
+            assert (fragment['start'], fragment['end']) == bounds
+            assert 'split at a conflicting action boundary' in fragment['reason']
+            assert 'Acme' not in fragment['reason']
+            assert 'sponsor' not in fragment
+            assert 'end_text' not in fragment
+            assert fragment['category'] == 'sponsor'
+            assert fragment['pattern_id'] == 12
+            assert fragment['pattern_defined'] is True
+            assert fragment['confidence'] == 0.91
+            assert extract_sponsor_names('', fragment['reason']) == set()
+            assert _extract_ad_keywords(fragment) == []
+
+    def test_carved_losing_tail_drops_parent_ad_explanation(self):
+        last = {'start': 0.0, 'end': 40.0, 'category': 'intro'}
+        current = {
+            'start': 30.0, 'end': 70.0, 'category': 'sponsor',
+            'reason': 'Acme advertising: "Visit Acme.com"',
+            'sponsor': 'Acme', 'end_text': 'Visit Acme.com',
+        }
+
+        unchanged, entries = split_conflicting_action_span(
+            last, current, 'keep', 'remove')
+
+        assert unchanged == last
+        assert (entries[0]['start'], entries[0]['end']) == (40.0, 70.0)
+        assert 'Acme' not in entries[0]['reason']
+        assert 'sponsor' not in entries[0]
+        assert 'end_text' not in entries[0]
+        assert extract_sponsor_names('', entries[0]['reason']) == set()
+        assert _extract_ad_keywords(entries[0]) == []
 
     def test_current_same_start_as_last_consumes_last(self):
         last = {'start': 0.0, 'end': 100.0, 'category': 'sponsor'}

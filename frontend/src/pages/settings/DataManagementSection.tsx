@@ -4,7 +4,7 @@ import DropdownMenu, { DropdownMenuItem } from '../../components/DropdownMenu';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ConfirmResetButton from './ConfirmResetButton';
 import NumberInput from '../../components/NumberInput';
-import { exportOpml, getSettings, downloadBackup, downloadConfig } from '../../api/settings';
+import { exportOpml, getSettings, downloadBackup } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import { useTransientState } from '../../hooks/useTransientState';
 import { copyText } from '../../utils/clipboard';
@@ -36,8 +36,6 @@ function DataManagementSection({
   const [opmlError, setOpmlError] = useState('');
   const [backupStatus, setBackupStatus] = useTransientState<ActionStatus>('idle', 3000);
   const [backupError, setBackupError] = useState('');
-  const [configStatus, setConfigStatus] = useTransientState<ActionStatus>('idle', 3000);
-  const [configError, setConfigError] = useState('');
 
   // opmlModifiedUrl/opmlOriginalUrl are non-null only when feed auth is on;
   // Copy URL is hidden otherwise (the /opml route 404s without a key).
@@ -72,19 +70,6 @@ function DataManagementSection({
       setBackupError(message === 'backup_encryption_unavailable'
         ? 'Encrypted backup unavailable. Set MINUSPOD_MASTER_PASSPHRASE and restart, or download plaintext below.'
         : message);
-    }
-  };
-
-  const handleDownloadConfig = async () => {
-    setConfigStatus('loading', null);
-    setConfigError('');
-    try {
-      await downloadConfig();
-      setConfigStatus('success');
-    } catch (err) {
-      setConfigStatus('error', 5000);
-      setConfigError(getErrorMessage(
-        err, 'Could not build the configuration file. Try again, or check the server log.'));
     }
   };
 
@@ -177,7 +162,7 @@ function DataManagementSection({
         </div>
 
         {/* Database Backup Card */}
-        <div className="p-4 rounded-lg border border-border bg-background flex flex-col sm:row-span-2">
+        <div className="p-4 rounded-lg border border-border bg-background flex flex-col">
           <div className="flex items-start gap-3 mb-3">
             <div className="p-2 rounded bg-secondary shrink-0">
               <svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -218,32 +203,6 @@ function DataManagementSection({
           {renderStatusIndicator(backupStatus, backupError)}
         </div>
 
-        {/* Configuration Export Card */}
-        <div className="p-4 rounded-lg border border-border bg-background flex flex-col">
-          <div className="flex items-start gap-3 mb-3">
-            <div className="p-2 rounded bg-secondary shrink-0">
-              <svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 3h10l4 4v6H3V7l4-4z" />
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-semibold text-foreground">Configuration Export</h4>
-              <p className="text-xs text-muted-foreground mt-1">
-                Download this instance&apos;s settings and feed configuration as JSON with every key, token, and password removed, ready to attach to a bug report.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleDownloadConfig}
-            disabled={configStatus === 'loading'}
-            className={`mt-auto min-h-[44px] w-full px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium ${focusRing}`}
-          >
-            {configStatus === 'loading' ? 'Preparing download' : 'Download Configuration'}
-          </button>
-          {renderStatusIndicator(configStatus, configError)}
-        </div>
       </div>
 
       <div className="mt-4 pt-4 border-t border-border">

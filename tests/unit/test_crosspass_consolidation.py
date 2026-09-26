@@ -111,6 +111,56 @@ def test_mapped_protection_blocks_processed_merge_and_tail_extension(monkeypatch
     assert [(cut['start'], cut['end']) for cut in tail] == [(250.0, 280.0)]
 
 
+def test_verification_reviewer_cannot_restore_user_trimmed_audio():
+    ctx = SimpleNamespace(
+        slug='example-podcast', episode_id='episode-1', podcast_id=1,
+        podcast_name='Example Podcast', episode_title='Episode',
+        episode_description='', podcast_description='',
+    )
+    proposed = _cut(100.0, 290.0, confidence=0.98)
+    audio = MagicMock()
+    audio.get_audio_duration.return_value = 600.0
+    processor = AudioProcessor()
+    audio.process_episode.side_effect = lambda path, cuts, cut_barriers=None: (
+        '/tmp/trim-recut.mp3',
+        processor.compute_applied_cuts(cuts, 600.0, cut_barriers))
+    fake_db = MagicMock()
+    fake_db.get_setting_float.return_value = 0.8
+    fake_db.get_false_positive_corrections.return_value = []
+    fake_db.get_setting.return_value = 'false'
+
+    def reexpand(_ctx, cuts, original, *_args, **_kwargs):
+        cuts[0]['start'] = 100.0
+        original[0]['start'] = 100.0
+
+    with patch.object(processing, 'db', fake_db), \
+         patch.object(processing, 'storage'), \
+         patch('verification_pass.VerificationPass') as verifier_cls, \
+         patch.object(processing, '_apply_pass2_heuristic_rolls'), \
+         patch.object(processing, '_validate_verification_ads',
+                      side_effect=lambda *args, **kwargs: (args[2], args[3])), \
+         patch.object(processing, '_gate_verification_ads_by_confidence',
+                      side_effect=lambda processed, original, *args, **kwargs:
+                      (processed, original, [], 0)), \
+         patch.object(processing, '_apply_pass2_reviewer', side_effect=reexpand):
+        verifier_cls.return_value.verify.return_value = {
+            'ads': [dict(proposed)], 'ads_processed': [dict(proposed)],
+            'segments': [{'start': 100.0, 'end': 290.0, 'text': 'Sponsor offer'}],
+        }
+        output = processing._run_verification_pass(
+            ctx, '/tmp/pass1-output.mp3', [], False, 0.8,
+            audio, None, original_segments=[],
+            pass1_trim_ranges=[{'start': 100.0, 'end': 101.7}],
+            segment_actions={'sponsor': 'remove'},
+        )
+
+    requested = audio.process_episode.call_args.args[1]
+    assert [(ad['start'], ad['end']) for ad in requested] == [
+        (101.7, 290.0)]
+    assert [(ad['start'], ad['end']) for ad in output[1]] == [
+        (101.7, 290.0)]
+
+
 def test_crosspass_plan_joins_when_pass2_precedes_pass1():
     plan = processing._crosspass_cut_plan(
         [_cut(150.0, 200.0, replacement_duration=1.0)], [_cut(150.0, 200.0)],

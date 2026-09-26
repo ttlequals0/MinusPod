@@ -3,6 +3,14 @@ import math
 
 
 DAI_CORE_SPANS = 'dai_core_spans'
+# Windows the cross-fetch probe actually correlated; the rest of a region is inferred.
+DAI_PROBE_SPANS = 'dai_probe_spans'
+# Probe geometry shared with differential_fetcher._probe_block.
+DAI_PROBE_LEAD_S = 0.5
+DAI_PROBE_REF_S = 4.0
+
+EDGE_TOLERANCE = 0.05
+COVERAGE_GAP_TOLERANCE = 3.0
 
 
 def invalidate_tail_provenance(marker: dict, new_end: float) -> None:
@@ -28,6 +36,35 @@ def finite_number(value) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def quote_edge_valid(marker: dict, edge: str) -> bool:
+    quote_time = finite_number(marker.get(f'quote_{edge}'))
+    edge_time = finite_number(marker.get(edge))
+    return bool(marker.get(f'quote_aligned_{edge}')
+                and quote_time is not None and edge_time is not None
+                and abs(quote_time - edge_time) <= EDGE_TOLERANCE)
+
+
+def invalidate_quote_alignment(marker: dict) -> None:
+    for edge in ('start', 'end'):
+        if marker.get(f'quote_aligned_{edge}') and not quote_edge_valid(marker, edge):
+            marker.pop(f'quote_aligned_{edge}', None)
+            marker.pop(f'quote_{edge}', None)
+            marker.pop(f'quote_original_{edge}', None)
+
+
+def word_timed_edge_valid(marker: dict, edge: str) -> bool:
+    timed = finite_number(marker.get(f'word_timed_{edge}'))
+    current = finite_number(marker.get(edge))
+    return timed is not None and current is not None and abs(timed - current) <= EDGE_TOLERANCE
+
+
+def invalidate_word_timed_edges(marker: dict) -> None:
+    for edge in ('start', 'end'):
+        if (f'word_timed_{edge}' in marker
+                and not word_timed_edge_valid(marker, edge)):
+            marker.pop(f'word_timed_{edge}', None)
+
+
 # Both-edges tolerance for treating two markers as the same span. Matches
 # find_marker_in_list, the reject path, and the review listing, so every
 # consumer agrees on what one span means.
@@ -50,13 +87,9 @@ def find_marker_in_list(markers, start, end, tol: float = BOUNDS_TOLERANCE_S):
     return None
 
 
-def _valid_spans(marker: dict, key: str, extra_field: str | None = None) -> list[dict]:
-    """Normalized {start, end} spans stored under `key`, dropping malformed
-    entries; `extra_field` is carried through when the caller names one.
-
-    Invalid persisted values are ignored. Keeping this parser defensive lets
-    old markers and hand-edited JSON pass through unchanged.
-    """
+def _valid_spans(marker: dict, key: str, extra_field: str | None = None,
+                 optional_fields: tuple = ()) -> list[dict]:
+    """Well-formed {start, end} spans under `key`, plus extra and present optional fields."""
     raw_spans = marker.get(key)
     if not isinstance(raw_spans, list):
         return []
@@ -70,19 +103,19 @@ def _valid_spans(marker: dict, key: str, extra_field: str | None = None) -> list
             span = {'start': start, 'end': end}
             if extra_field is not None:
                 span[extra_field] = raw.get(extra_field)
+            span.update((f, raw[f]) for f in optional_fields if f in raw)
             spans.append(span)
     return spans
 
 
-def _clip_spans(marker: dict, key: str, start: float, end: float,
-                extra_field: str | None = None,
-                keep_empty: bool = False) -> None:
-    """Clip the spans stored under `key` into [start, end], dropping collapsed
+def _clip_spans(marker: dict, key: str, spans: list[dict], start: float,
+                end: float, keep_empty: bool = False) -> None:
+    """Store `spans` under `key` clipped into [start, end], dropping collapsed
     ones; `keep_empty` writes an empty list instead of removing the key."""
     if keep_empty and key not in marker:
         return
     clipped = []
-    for span in _valid_spans(marker, key, extra_field):
+    for span in spans:
         lo = max(start, span['start'])
         hi = min(end, span['end'])
         if hi > lo:
@@ -99,11 +132,39 @@ def _valid_dai_core_spans(marker: dict) -> list[dict[str, float]]:
     return _valid_spans(marker, DAI_CORE_SPANS)
 
 
+def dai_probe_window(start: float, end: float) -> tuple[float, float]:
+    """Window the fetcher correlates inside one differential block."""
+    ref = min(DAI_PROBE_REF_S, end - start)
+    lead = start + min(DAI_PROBE_LEAD_S, (end - start) - ref)
+    return lead, lead + ref
+
+
+def _probe_span_dicts(marker: dict) -> list[dict]:
+    """Recorded probe spans, or the leading window of each core span on legacy markers."""
+    if isinstance(marker.get(DAI_PROBE_SPANS), list):
+        return _valid_spans(marker, DAI_PROBE_SPANS)
+    return [{'start': s['start'],
+             'end': min(s['end'], s['start'] + DAI_PROBE_LEAD_S
+                        + min(DAI_PROBE_REF_S, s['end'] - s['start']))}
+            for s in _valid_dai_core_spans(marker)]
+
+
+def dai_core_spans(marker: dict) -> list[tuple[float, float]]:
+    """(start, end) of a marker's measured DAI regions."""
+    return [(s['start'], s['end']) for s in _valid_dai_core_spans(marker)]
+
+
+def dai_probe_spans(marker: dict) -> list[tuple[float, float]]:
+    """(start, end) windows of a marker's DAI regions that were measured."""
+    return [(s['start'], s['end']) for s in _probe_span_dicts(marker)]
+
+
 def merge_dai_core_spans(target: dict, other: dict) -> None:
     """Carry measured DAI regions through a marker merge."""
     spans = _valid_dai_core_spans(target) + _valid_dai_core_spans(other)
     if not spans:
         return
+    probes = _probe_span_dicts(target) + _probe_span_dicts(other)
     spans.sort(key=lambda span: span['start'])
     merged = [spans[0]]
     for span in spans[1:]:
@@ -112,11 +173,21 @@ def merge_dai_core_spans(target: dict, other: dict) -> None:
         else:
             merged.append(span)
     target[DAI_CORE_SPANS] = merged
+    target[DAI_PROBE_SPANS] = sorted(probes, key=lambda span: span['start'])
 
 
 def clip_dai_core_spans(marker: dict, start: float, end: float) -> None:
     """Clip a marker's DAI evidence to a newly split/clamped range."""
-    _clip_spans(marker, DAI_CORE_SPANS, start, end)
+    core = _valid_dai_core_spans(marker)
+    if core:
+        # Materialize legacy probes first so the fallback never follows a clipped start.
+        marker[DAI_PROBE_SPANS] = _probe_span_dicts(marker)
+    _clip_spans(marker, DAI_CORE_SPANS, core, start, end)
+    if DAI_CORE_SPANS in marker:
+        _clip_spans(marker, DAI_PROBE_SPANS, marker[DAI_PROBE_SPANS],
+                    start, end, keep_empty=True)
+    else:
+        marker.pop(DAI_PROBE_SPANS, None)
 
 
 def span_bounds(spans) -> tuple[float | None, float | None]:
@@ -151,6 +222,18 @@ COARSE_MEMBER_STAGES = frozenset({
 })
 
 MERGED_MEMBER_SPANS = 'merged_member_spans'
+
+# Per-member evidence recorded at merge time, before merges move the edges.
+_MEMBER_FIELDS = ('confidence', 'precise_start', 'precise_end',
+                  'fingerprint_match_start', 'fingerprint_match_end',
+                  'span_estimated')
+
+# Stages measured from audio or matched transcript text, not proposed by a model.
+# dai_differential is not one: a cross-fetch diff earns KeepDifferentialOverride
+# but never outranks a reviewer reject by itself.
+MEASURED_EVIDENCE_STAGES = frozenset({
+    'fingerprint', 'cue_pair', 'text_pattern', 'manual',
+})
 
 # Merge bookkeeping a split fragment must drop: it describes the merged
 # span, not the narrower piece the split just carved out.
@@ -187,7 +270,7 @@ def estimated_text_bounds(marker: dict) -> tuple[float, float] | None:
 
 def recorded_member_spans(marker: dict) -> list[dict]:
     """Normalized member spans recorded on a merged marker."""
-    return _valid_spans(marker, MERGED_MEMBER_SPANS, 'stage')
+    return _valid_spans(marker, MERGED_MEMBER_SPANS, 'stage', _MEMBER_FIELDS)
 
 
 def protected_member_spans(marker: dict, fallback_start=None,
@@ -213,9 +296,15 @@ def protected_member_spans(marker: dict, fallback_start=None,
 
 def clip_member_spans(marker: dict, start: float, end: float) -> None:
     """Clip recorded member spans to a range, dropping collapsed members."""
+    spans = recorded_member_spans(marker)
+    for span in spans:
+        # A moved edge is no longer the one that was measured.
+        for edge, moved in (('start', span['start'] < start),
+                            ('end', span['end'] > end)):
+            if moved and f'precise_{edge}' in span:
+                span[f'precise_{edge}'] = False
     # keep_empty: the key's presence is what marks a tracked merge.
-    _clip_spans(marker, MERGED_MEMBER_SPANS, start, end,
-                extra_field='stage', keep_empty=True)
+    _clip_spans(marker, MERGED_MEMBER_SPANS, spans, start, end, keep_empty=True)
 
 
 def clip_merge_spans(marker: dict, lo: float, hi: float) -> None:
@@ -242,14 +331,44 @@ def _member_spans(marker: dict) -> list[dict]:
     lo, hi = _protected_bounds(marker)
     if lo is None or hi is None:
         return []
-    text = estimated_text_bounds(marker)
-    if text is not None:
-        # An estimate protects only its matched text; a span holding none of
-        # it carries no evidence.
-        if text[1] <= text[0]:
+    if marker.get('span_estimated'):
+        # An estimate protects only its matched text; without any it carries no evidence.
+        text = estimated_text_bounds(marker)
+        if text is None or text[1] <= text[0]:
             return []
         lo, hi = text
-    return [{'start': lo, 'end': hi, 'stage': marker.get('detection_stage')}]
+    stage = marker.get('detection_stage')
+    member = {'start': lo, 'end': hi, 'stage': stage}
+    if marker.get('span_estimated') and not marker.get('pattern_defined'):
+        member['span_estimated'] = True
+    if stage in COARSE_MEMBER_STAGES:
+        confidence = finite_number(marker.get('confidence'))
+        if confidence is not None:
+            member['confidence'] = confidence
+        for edge in ('start', 'end'):
+            member[f'precise_{edge}'] = (quote_edge_valid(marker, edge)
+                                         or word_timed_edge_valid(marker, edge))
+    elif stage == 'fingerprint':
+        match_lo = finite_number(marker.get('fingerprint_match_start'))
+        match_hi = finite_number(marker.get('fingerprint_match_end'))
+        if match_lo is not None and match_hi is not None:
+            member['fingerprint_match_start'] = match_lo
+            member['fingerprint_match_end'] = match_hi
+    return [member]
+
+
+def _take_coarse_edge(prior: dict, span: dict, edge: str, pick) -> None:
+    """Widen prior's edge, taking the precise flag from the member that supplies it."""
+    key = f'precise_{edge}'
+    if span[edge] == prior[edge]:
+        flag = bool(prior.get(key) or span.get(key))
+    elif pick(prior[edge], span[edge]) == span[edge]:
+        prior[edge] = span[edge]
+        flag = bool(span.get(key))
+    else:
+        return
+    if key in prior or key in span:
+        prior[key] = flag
 
 
 def _coalesce_coarse_members(spans: list[dict]) -> list[dict]:
@@ -266,8 +385,15 @@ def _coalesce_coarse_members(spans: list[dict]) -> list[dict]:
         if prior is None:
             merged.append(span)
             continue
-        prior['start'] = min(prior['start'], span['start'])
-        prior['end'] = max(prior['end'], span['end'])
+        _take_coarse_edge(prior, span, 'start', min)
+        _take_coarse_edge(prior, span, 'end', max)
+        # The weakest member bounds what the coalesced span proves; unknown is weakest.
+        confidences = (finite_number(prior.get('confidence')),
+                       finite_number(span.get('confidence')))
+        if None in confidences:
+            prior.pop('confidence', None)
+        else:
+            prior['confidence'] = min(confidences)
     return merged
 
 
@@ -288,6 +414,8 @@ def note_merged_members(target: dict, other: dict) -> None:
     and [] when no member is anchored) so the reviewer can tell a tracked
     merge from a legacy marker persisted by a pre-tracking release.
     """
+    if other.get('has_estimated_pattern_member'):
+        target['has_estimated_pattern_member'] = True
     merge_dai_core_spans(target, other)
     spans = _coalesce_coarse_members(_member_spans(target) + _member_spans(other))
     target[MERGED_MEMBER_SPANS] = spans
@@ -298,6 +426,86 @@ def note_merged_members(target: dict, other: dict) -> None:
         target.get('merged_protected_start'), lo, min)
     target['merged_protected_end'] = _widen(
         target.get('merged_protected_end'), hi, max)
+
+
+def measured_member_spans(marker: dict, min_conf: float, *,
+                          include_dai_core: bool = True) -> list[tuple[float, float, bool]]:
+    """Measured (start, end, is_anchor) spans of a marker, sorted by start."""
+    # Anchors are independent member evidence: no DAI core, no estimate's own text.
+    spans = ([(s['start'], s['end'], False) for s in _valid_dai_core_spans(marker)]
+             if include_dai_core else [])
+    for member in _member_spans(marker):
+        stage = member.get('stage')
+        lo, hi = member['start'], member['end']
+        if stage == 'fingerprint':
+            match_lo = finite_number(member.get('fingerprint_match_start'))
+            match_hi = finite_number(member.get('fingerprint_match_end'))
+            if match_lo is None or match_hi is None:
+                continue
+            lo, hi = max(lo, match_lo), min(hi, match_hi)
+        elif stage in COARSE_MEMBER_STAGES and stage != 'keep_content':
+            confidence = finite_number(member.get('confidence'))
+            if confidence is None or confidence < min_conf:
+                continue
+        elif stage not in MEASURED_EVIDENCE_STAGES:
+            continue
+        if hi > lo:
+            spans.append((lo, hi, not member.get('span_estimated')))
+    return sorted(spans)
+
+
+def reviewer_independent_spans(ad: dict) -> list[tuple[float, float]]:
+    """Measured spans a transcript-supported reviewer edge may not enter."""
+    spans = [(lo, hi) for lo, hi, _ in
+             measured_member_spans(ad, math.inf, include_dai_core=False)]
+    pair = ad.get('cue_pair') or {}
+    cue_lo = finite_number((pair.get('start') or {}).get('cue_end'))
+    cue_hi = finite_number((pair.get('end') or {}).get('cue_start'))
+    # Same 0.05 s pad cue_pair_ads puts inside each cue.
+    if cue_lo is not None and cue_hi is not None and cue_hi - cue_lo > 0.1:
+        spans.append((cue_lo + 0.05, cue_hi - 0.05))
+    spans.extend(dai_probe_spans(ad))
+    start, end = finite_number(ad.get('start')), finite_number(ad.get('end'))
+    if ((ad.get('validation') or {}).get('user_confirmed')
+            and start is not None and end is not None and end > start):
+        spans.append((start, end))
+    return spans
+
+
+def union_cover(spans, start: float, end: float,
+                gap_tol: float = COVERAGE_GAP_TOLERANCE,
+                edge_tol: float = EDGE_TOLERANCE) -> tuple[float | None, float | None]:
+    """Leftmost gap-tolerant run of spans in [start, end], edges snapped within edge_tol."""
+    clipped = []
+    for raw_lo, raw_hi in spans:
+        lo, hi = finite_number(raw_lo), finite_number(raw_hi)
+        if lo is None or hi is None:
+            continue
+        lo, hi = max(lo, start), min(hi, end)
+        if hi > lo:
+            clipped.append((lo, hi))
+    if not clipped:
+        return None, None
+    clipped.sort()
+    lo, cursor = clipped[0]
+    for span_lo, span_hi in clipped[1:]:
+        if span_lo > cursor + gap_tol:
+            break
+        cursor = max(cursor, span_hi)
+    if lo <= start + edge_tol:
+        lo = start
+    if cursor >= end - edge_tol:
+        cursor = end
+    return lo, cursor
+
+
+def subtract_spans(pieces, spans):
+    """Remove each (start, end) in spans from the (lo, hi) pieces."""
+    for start, end in spans:
+        pieces = [part for lo, hi in pieces
+                  for part in ((lo, min(hi, start)), (max(lo, end), hi))
+                  if part[1] > part[0]]
+    return pieces
 
 
 def mark_distinct_merge(target: dict, other: dict) -> None:

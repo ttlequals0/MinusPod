@@ -25,6 +25,7 @@ dist
 .pytest_cache
 .coverage
 .coverage.*
+coverage*
 htmlcov
 .tox
 .nox
@@ -38,8 +39,7 @@ frontend/.vite
 frontend/coverage
 
 # Runtime data and secrets that must never land in an image
-.env
-.env.*
+.env*
 !.env.example
 cookies.txt
 *.pem

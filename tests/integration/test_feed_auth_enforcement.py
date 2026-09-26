@@ -18,6 +18,7 @@ from database.podcasts import RECENTS_SLUG
 from main_app import app, db as app_db, status_service
 import main_app.feeds as feeds_mod
 import main_app.routes as routes_mod
+from rss_parser import RSSParser, RSS_RENDER_VERSION
 
 KEY = 'e' * 64
 OTHER_KEY = 'f' * 64
@@ -33,6 +34,7 @@ def _png() -> bytes:
 def _cached_rss(slug, key=None):
     suffix = f'?key={key}' if key else ''
     return f"""<?xml version="1.0" encoding="UTF-8"?>
+<!-- minuspod-rss-render-version:2 -->
 <rss version="2.0"><channel><title>T</title>
 <item><enclosure url="{BASE}/episodes/{slug}/abcdefabcdef.mp3{suffix}" type="audio/mpeg" /></item>
 </channel></rss>"""
@@ -79,6 +81,13 @@ def recents_subscriber_feed(db):
     status_service.complete_job('recents-source', 'abcdef123456')
     db.delete_podcast('recents')
     db.delete_podcast('recents-source')
+    feeds_mod.invalidate_feed_cache()
+
+
+@pytest.fixture
+def duration_cache_feed_cleanup(db):
+    yield
+    db.delete_podcast('duration-cache-feed')
     feeds_mod.invalidate_feed_cache()
 
 
@@ -345,6 +354,47 @@ def test_serve_rss_no_refresh_when_key_matches(client, db):
     with patch.object(feeds_mod, 'refresh_rss_feed') as spy:
         assert client.get(f'/{slug}?key={KEY}').status_code == 200
     spy.assert_not_called()
+
+
+def test_serve_rss_repairs_unversioned_cache_with_processed_duration(
+        client, db, duration_cache_feed_cleanup):
+    slug = 'duration-cache-feed'
+    source = """<?xml version="1.0"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel><title>Example Feed</title><link>https://example.com</link>
+    <description>Example</description>
+    <item><title>Example Episode</title><guid>episode-guid</guid>
+      <enclosure url="https://example.com/audio.mp3" type="audio/mpeg" />
+      <itunes:duration>44:01</itunes:duration>
+    </item>
+  </channel>
+</rss>"""
+    db.create_podcast(slug, 'https://example.com/feed.xml', 'Example Feed')
+    episode_id = RSSParser().generate_episode_id(
+        'https://example.com/audio.mp3', 'episode-guid')
+    db.upsert_episode(
+        slug, episode_id, status='processed', processed_file='processed.mp3',
+        new_duration=2304, original_duration=2641,
+        original_url='https://example.com/audio.mp3', title='Example Episode')
+    routes_mod.storage.save_rss(slug, _cached_rss(slug).replace(
+        '<!-- minuspod-rss-render-version:2 -->\n', ''))
+    feeds_mod.invalidate_feed_cache()
+
+    with patch.object(feeds_mod.rss_parser, 'fetch_feed_conditional',
+                      return_value=(source, None, None)) as fetch:
+        first = client.get(f'/{slug}')
+
+    assert first.status_code == 200
+    assert '<itunes:duration>2304</itunes:duration>' in first.get_data(as_text=True)
+    cached = routes_mod.storage.get_rss(slug)
+    assert f'minuspod-rss-render-version:{RSS_RENDER_VERSION}' in cached
+    assert fetch.call_count == 1
+
+    with patch.object(feeds_mod.rss_parser, 'fetch_feed_conditional',
+                      side_effect=AssertionError('cache should be current')):
+        second = client.get(f'/{slug}')
+    assert second.status_code == 200
+    assert '<itunes:duration>2304</itunes:duration>' in second.get_data(as_text=True)
 
 
 # --- settings + feeds API lifecycle ------------------------------------------

@@ -104,6 +104,48 @@ class TestFinalizeLlmAttempt:
         ).fetchone()
         assert row['state'] == 'failure'
 
+    def test_billed_inconclusive_counts_without_failure_state(self, temp_db):
+        _seed_price(temp_db, 'test-model-inconclusive', 3.0, 15.0)
+        attempt_id = _begin(temp_db, 'test-model-inconclusive')
+
+        cost = temp_db.finalize_llm_attempt(
+            attempt_id, state='inconclusive', input_tokens=500_000, output_tokens=0)
+
+        assert cost == pytest.approx(1.5)
+        summary = temp_db.get_token_usage_summary()
+        assert summary['totalInputTokens'] == 500_000
+        assert summary['totalCost'] == pytest.approx(1.5)
+        row = temp_db.get_connection().execute(
+            "SELECT state FROM llm_call_usage WHERE attempt_id = ?", (attempt_id,)
+        ).fetchone()
+        assert row['state'] == 'inconclusive'
+
+    def test_unbilled_inconclusive_does_not_create_spend(self, temp_db):
+        attempt_id = _begin(temp_db, 'test-model-unbilled-inconclusive')
+
+        cost = temp_db.finalize_llm_attempt(
+            attempt_id, state='inconclusive')
+
+        assert cost == 0.0
+        assert temp_db.get_run_usage_totals('run-1') == {
+            'input_tokens': 0,
+            'output_tokens': 0,
+            'cost_usd': '0',
+            'has_unknown_cost': False,
+        }
+
+    def test_partial_inconclusive_usage_matches_aggregate_predicate(self, temp_db):
+        first = _begin(temp_db, 'test-model-partial-inconclusive')
+        second = _begin(temp_db, 'test-model-partial-inconclusive')
+        temp_db.finalize_llm_attempt(
+            first, state='inconclusive', input_tokens=10, output_tokens=None)
+        temp_db.finalize_llm_attempt(
+            second, state='inconclusive', input_tokens=None, output_tokens=5)
+
+        totals = temp_db.get_run_usage_totals('run-1')
+        assert totals['input_tokens'] == 10
+        assert totals['output_tokens'] == 5
+
     def test_cancelled_writes_no_counters(self, temp_db):
         _seed_price(temp_db, 'test-model-d', 3.0, 15.0)
         attempt_id = _begin(temp_db, 'test-model-d')

@@ -44,10 +44,15 @@ def _cross_promo_ad():
 
 def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
                   real_sweeps=False, audio_analysis_result=None, segments=None,
-                  verification_return=None, held_categories=None):
+                  verification_return=None, held_categories=None,
+                  reviewer_side_effect=None, render_fails=False,
+                  verification_side_effect=None, real_refine_reviewer=False,
+                  confirmed_corrections=None, duration=100.0,
+                  false_positive_corrections=None):
     """Drive process_episode's full pass-1 flow with every stage but the
     partition itself mocked out. Returns the recorded mocks for inspection.
 
+    ``real_refine_reviewer`` keeps validation and review decisions live.
     ``late_synthesized_ad``: a marker added inside _refine_and_validate
     after the keep partition already ran, appended to the mocked stage's
     return value, not its input. ``real_sweeps=True`` leaves
@@ -59,6 +64,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
     return tuple, to drive the pass-2 merge seam; ``held_categories`` names
     categories the fake validator holds instead of cutting, so a pass-1 held
     marker reaches that seam.
+    ``duration`` sets the episode length the audio mocks report.
     """
     podcast_row = {'id': 1, 'slug': 'keep-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
@@ -86,6 +92,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
 
     def _fake_run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
                               all_ads_with_validation, *a, **k):
+        if reviewer_side_effect:
+            return reviewer_side_effect(ads_to_remove, all_ads_with_validation)
         return ads_to_remove, all_ads_with_validation
 
     def _pass_through_ads(slug, episode_id, ads_to_remove, *a, **k):
@@ -110,16 +118,25 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
         detect = p(processing, '_detect_ads_first_pass',
                   return_value=(first_pass_ads, len(first_pass_ads), {}))
         refine = p(processing, '_refine_and_validate',
-                  side_effect=_fake_refine_and_validate)
+                  side_effect=(processing._refine_and_validate
+                               if real_refine_reviewer else _fake_refine_and_validate))
         reviewer = p(processing, '_run_ad_reviewer',
-                    side_effect=_fake_run_ad_reviewer)
+                     side_effect=(processing._run_ad_reviewer
+                                  if real_refine_reviewer and reviewer_side_effect is None
+                                  else _fake_run_ad_reviewer))
+        if real_refine_reviewer:
+            p(processing, '_apply_heuristic_rolls')
         if not real_sweeps:
             p(processing, '_snap_terminal_starts', side_effect=_pass_through_ads)
             p(processing, '_complete_cut_tails', side_effect=_pass_through_ads)
         local_ap_cls = p(processing, 'AudioProcessor')
-        p(processing, '_run_verification_pass',
-          return_value=(verification_return
-                        or (0, [], [], [], '/tmp/cut.mp3', 0, True, 0)))
+        if verification_side_effect:
+            p(processing, '_run_verification_pass',
+              side_effect=verification_side_effect)
+        else:
+            p(processing, '_run_verification_pass',
+              return_value=(verification_return
+                            or (0, [], [], [], '/tmp/cut.mp3', 0, True, 0)))
         generate_assets = p(processing, '_generate_assets')
         finalize = p(processing, '_finalize_episode')
         p(processing.shutil, 'move')
@@ -128,16 +145,23 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
-        db.get_setting.return_value = 'false'
+        db.get_podcast_cue_settings_overrides.return_value = {}
+        db.get_setting.side_effect = lambda key: (
+            'true' if real_refine_reviewer and key == 'enable_ad_review'
+            else 'false')
+        db.get_setting_bool.return_value = False
+        db.get_false_positive_corrections.return_value = (
+            false_positive_corrections or [])
+        db.get_confirmed_corrections.return_value = confirmed_corrections or []
         db.get_setting_float.side_effect = lambda key, default=None: default
         db.get_all_settings.return_value = {}
         db.resolve_segment_actions.return_value = segment_actions
-        audio_processor.get_audio_duration.return_value = 100.0
+        audio_processor.get_audio_duration.return_value = duration
         local_ap = local_ap_cls.return_value
         local_ap.process_episode.side_effect = (
             lambda audio_path, ads_to_remove, cut_barriers=None:
-            ('/tmp/cut.mp3', list(ads_to_remove)))
-        local_ap.get_audio_duration.return_value = 100.0
+            None if render_fails else ('/tmp/cut.mp3', list(ads_to_remove)))
+        local_ap.get_audio_duration.return_value = duration
         storage.get_episode_path.return_value = '/tmp/final.mp3'
 
         result = processing.process_episode(
@@ -176,6 +200,88 @@ class TestKeepBypass:
         sponsor_marker = by_span[(sponsor['start'], sponsor['end'])]
         assert sponsor_marker['was_cut'] is True
         assert sponsor_marker['action_applied'] == 'remove'
+
+
+    def test_reviewer_trim_learns_only_after_final_applied_cut(self):
+        marker = dict(_sponsor_ad(), sponsor='Acme Tools',
+                      detection_stage='claude')
+        seen_verification = []
+
+        def trim(cuts, markers):
+            adjusted = dict(cuts[0], start=12.0, end=28.0)
+            return [adjusted], [adjusted]
+
+        def verify(ctx, processed_path, applied_cuts, *args, **kwargs):
+            seen_verification.append(True)
+            assert [(cut['start'], cut['end']) for cut in applied_cuts] == [
+                (12.0, 28.0)]
+            return 0, [], [], [], processed_path, 0, True, 0
+
+        def learn(ads, segments, slug, episode_id, audio_path=None):
+            assert seen_verification == [True]
+            assert [(ad['start'], ad['end']) for ad in ads] == [(12.0, 28.0)]
+            assert audio_path == '/tmp/keep.mp3'
+            return 1
+
+        with patch.object(processing.ad_detector, 'learn_from_detections',
+                          side_effect=learn) as learning:
+            result = _run_pipeline(
+                [marker], {'sponsor': 'remove'},
+                reviewer_side_effect=trim,
+                verification_side_effect=verify)
+
+        assert result['result'] is True
+        learning.assert_called_once()
+
+    def test_reviewer_reject_does_not_learn(self):
+        marker = dict(_sponsor_ad(), sponsor='Acme Tools',
+                      detection_stage='claude')
+
+        def reject(cuts, markers):
+            markers[0]['was_cut'] = False
+            return [], markers
+
+        with patch.object(processing.ad_detector, 'learn_from_detections') as learning:
+            result = _run_pipeline(
+                [marker], {'sponsor': 'remove'},
+                reviewer_side_effect=reject)
+
+        assert result['result'] is True
+        learning.assert_not_called()
+
+    def test_failed_render_does_not_learn(self):
+        marker = dict(_sponsor_ad(), sponsor='Acme Tools',
+                      detection_stage='claude')
+        with patch.object(processing.ad_detector, 'learn_from_detections') as learning:
+            result = _run_pipeline([marker], {'sponsor': 'remove'},
+                                   render_fails=True)
+        assert result['result'] is False
+        learning.assert_not_called()
+
+    def test_cancelled_verification_does_not_learn(self):
+        marker = dict(_sponsor_ad(), sponsor='Acme Tools',
+                      detection_stage='claude')
+        with patch.object(processing.ad_detector, 'learn_from_detections') as learning:
+            with pytest.raises(processing.ProcessingCancelled):
+                _run_pipeline(
+                    [marker], {'sponsor': 'remove'},
+                    verification_side_effect=processing.ProcessingCancelled)
+        learning.assert_not_called()
+
+    def test_pass2_recut_must_still_cover_final_pass1_marker(self):
+        marker = dict(_sponsor_ad(), sponsor='Acme Tools',
+                      detection_stage='claude')
+
+        def verify(ctx, processed_path, applied_cuts, *args, **kwargs):
+            applied_cuts[:] = [{'start': 11.0, 'end': 19.0}]
+            return 0, [], [], [], processed_path, 0, True, 0
+
+        with patch.object(processing.ad_detector, 'learn_from_detections') as learning:
+            result = _run_pipeline(
+                [marker], {'sponsor': 'remove'},
+                verification_side_effect=verify)
+        assert result['result'] is True
+        learning.assert_not_called()
 
     def test_pass2_rediscovery_of_a_kept_span_persists_one_marker(self):
         """Pass 2 rescans audio the keep left in place, so it can re-detect a
@@ -450,15 +556,21 @@ class TestKeepMarkersBlockTerminalSnap:
         storage.save_combined_ads.assert_not_called()
 
     def test_tail_completion_clamp_still_stops_at_kept_marker(self):
-        # _complete_cut_tails' next_start clamp treats every marker in
-        # all_ads_with_validation as a hard stop, kept or not. Promo-phrase
-        # segments after the cut would otherwise extend its end to 45.0;
-        # the kept marker's start at 35.0 must cap it there instead.
-        segments = [
-            {'start': 20.0, 'end': 25.0, 'text': 'use promo code SAVE10 today'},
-            {'start': 25.0, 'end': 45.0,
-             'text': 'use promo code SAVE10 again and again'},
-        ]
+        # A kept marker caps a timed CTA extension at its start.
+        def timed_cta(start, end):
+            text = 'Visit acme.com for the listener offer.'
+            tokens = text.split()
+            step = (end - start) / len(tokens)
+            return {
+                'start': start, 'end': end, 'text': text,
+                'words': [
+                    {'word': token, 'start': start + index * step,
+                     'end': start + (index + 1) * step}
+                    for index, token in enumerate(tokens)
+                ],
+            }
+
+        segments = [timed_cta(20.0, 25.0), timed_cta(25.0, 45.0)]
         terminal_ad = {'start': 10.0, 'end': 20.0, 'reason': 'Acme sponsor read',
                        'detection_stage': 'text_pattern', 'confidence': 0.9,
                        'was_cut': True}

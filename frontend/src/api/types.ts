@@ -406,6 +406,8 @@ export interface ProcessingRunStats {
   cueOnly?: boolean;
   // Cue-only mode with transcription skipped: no transcript, chapters, or subtitles.
   transcriptionSkipped?: boolean;
+  // Explicitly records that normalization was disabled for this run.
+  normalizationSkipped?: boolean;
   downloadedDuration?: number | null;
   transcriptSegments?: number;
   // failureClasses is absent when no window was lost; see CoverageGap for the
@@ -555,7 +557,7 @@ export interface AdSegment {
   silence_snap?: { start?: Record<string, unknown>; end?: Record<string, unknown> };
   validation?: AdValidation;
   // Ad reviewer (issue #197) -- populated only when the reviewer ran on this ad.
-  reviewer_verdict?: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure';
+  reviewer_verdict?: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure' | 'inconclusive';
   reviewer_original_start?: number;
   reviewer_original_end?: number;
   reviewer_reasoning?: string;
@@ -570,6 +572,8 @@ export interface AdSegment {
     | 'uncorroborated_tail'
     | 'reviewer_contradiction'
     | 'reviewer_boundary_conflict'
+    | 'reviewer_inconclusive_bounds'
+    | 'estimated_pattern_bounds'
     | 'reviewer_reject_conflict'
     | 'no_splice_evidence'
     | 'verification_miss'
@@ -1483,6 +1487,7 @@ export interface ReviewerStats {
     adjust: number;
     reject: number;
     resurrect: number;
+    inconclusive: number;
     failure: number;
   };
   pass1AdjustmentCount: number;
@@ -1595,7 +1600,7 @@ export interface SpendAttempt {
   credentialSlot: string;
   model: string;
   returnedModel: string | null;
-  status: string;
+  status: 'success' | 'failure' | 'inconclusive';
   inputTokens: number | null;
   outputTokens: number | null;
   costUsd: string | null;

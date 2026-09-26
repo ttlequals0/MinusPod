@@ -31,6 +31,7 @@ from secrets_crypto import (
     encrypt_backup_file,
 )
 from db_backup_service import backup_now, BackupInProgressError
+from diagnostic_log import export as export_diagnostics, _parse_time
 from utils.http import safe_url_for_log
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 
@@ -549,6 +550,34 @@ def export_config():
 
     response = Response(body, mimetype='application/json')
     response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    return response
+
+
+@api.route('/system/diagnostic-export', methods=['GET'])
+@limiter.limit('6 per hour')
+@log_request
+def export_diagnostic_log():
+    """Download bounded, payload-free operational diagnostics."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    try:
+        end = _parse_time(request.args.get('end'), now)
+        start = _parse_time(request.args.get('start'), end - datetime.timedelta(hours=24))
+    except (OverflowError, TypeError, ValueError):
+        return error_response('start and end must be ISO timestamps with timezone', 400)
+    if end <= start or end - start > datetime.timedelta(hours=24):
+        return error_response('diagnostic range must be between 0 and 24 hours', 400)
+    document = export_diagnostics(get_storage().data_dir, start, end)
+    document.update({
+        'start': start.isoformat().replace('+00:00', 'Z'),
+        'end': end.isoformat().replace('+00:00', 'Z'),
+        'coverage': {
+            **document.get('coverage', {}),
+            'description': 'structured operational metadata only',
+        },
+    })
+    timestamp = now.strftime('%Y%m%d-%H%M%S')
+    response = Response(json.dumps(document, separators=(',', ':')), mimetype='application/json')
+    response.headers['Content-Disposition'] = f'attachment; filename=minuspod-diagnostics-{timestamp}.json'
     return response
 
 

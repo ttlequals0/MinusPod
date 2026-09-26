@@ -3,8 +3,12 @@ import pytest
 import sys
 import os
 import json
+import threading
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+
+from database import Database
 
 
 
@@ -599,6 +603,35 @@ class TestDatabaseSingleton:
 
         # Clean up
         Database._instance = None
+
+    def test_isolated_fixture_does_not_publish_during_initialization(
+            self, temp_dir, tmp_path, monkeypatch, request):
+        previous = Database._instance
+        if previous is None:
+            previous = object.__new__(Database)
+            previous._initialized = False
+            Database.__init__(previous, data_dir=str(tmp_path / 'previous'))
+            monkeypatch.setattr(Database, '_instance', previous)
+        observed = []
+        original_init = Database.__init__
+
+        def init_with_interleaving(instance, data_dir=None):
+            if threading.current_thread() is not threading.main_thread():
+                observed.append(instance)
+                return
+            if data_dir == temp_dir:
+                worker = threading.Thread(target=Database)
+                worker.start()
+                worker.join(timeout=1)
+                assert not worker.is_alive()
+            original_init(instance, data_dir)
+
+        monkeypatch.setattr(Database, '__init__', init_with_interleaving)
+        db = request.getfixturevalue('temp_db')
+
+        assert observed == [previous]
+        assert db.data_dir == Path(temp_dir)
+        assert Database._instance is db
 
 
 class TestResetFailedQueueItems:

@@ -30,15 +30,15 @@ _PROCESSED_EPISODE_EXISTS_SQL = (
 
 
 def _ledger_row_is_billable(state: str, input_tokens, output_tokens, cost: float) -> bool:
-    """Whether a finalized llm_call_usage row counts toward totals.
-
-    Include successful calls with missing usage and failures with reported cost.
-    Explicit zero-token, zero-cost calls and unbilled failures are excluded.
-    """
+    """Whether a finalized ledger row contributes to usage totals."""
     tokens_known = input_tokens is not None and output_tokens is not None
-    if not (state == 'success' or (state == 'failure' and (tokens_known or cost != 0))):
+    if state == 'inconclusive':
+        return (((input_tokens or 0) > 0 or (output_tokens or 0) > 0)
+                or cost != 0)
+    if not (state == 'success'
+            or (state == 'failure' and (tokens_known or cost != 0))):
         return False
-    return ((state == 'success' and not tokens_known)
+    return (state == 'success' and not tokens_known
             or (input_tokens or 0) > 0 or (output_tokens or 0) > 0 or cost != 0)
 
 
@@ -46,10 +46,10 @@ def _ledger_row_is_billable(state: str, input_tokens, output_tokens, cost: float
 # filter in SQL rather than materialising every ledger row in Python.
 _LEDGER_BILLABLE_SQL = (
     "((state = 'success' AND (input_tokens IS NULL OR output_tokens IS NULL)) "
-    "OR ((state = 'success' OR (state = 'failure' AND input_tokens IS NOT NULL "
+    "OR ((state IN ('success', 'inconclusive') OR (state = 'failure' AND input_tokens IS NOT NULL "
     "AND output_tokens IS NOT NULL)) "
     "AND (COALESCE(input_tokens, 0) > 0 OR COALESCE(output_tokens, 0) > 0)) "
-    "OR (state IN ('success', 'failure') AND cost_usd IS NOT NULL "
+    "OR (state IN ('success', 'inconclusive', 'failure') AND cost_usd IS NOT NULL "
     "AND CAST(cost_usd AS REAL) != 0))"
 )
 
@@ -1743,7 +1743,7 @@ class StatsMixin:
 
         counts = {
             'confirmed': 0, 'adjust': 0, 'reject': 0,
-            'resurrect': 0, 'failure': 0,
+            'resurrect': 0, 'inconclusive': 0, 'failure': 0,
         }
         pass1_adjust = 0
         pass2_adjust = 0

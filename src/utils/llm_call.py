@@ -7,6 +7,7 @@ from typing import Union
 import run_context
 from llm_capabilities import supports_json_schema
 from llm_client import (
+    is_review_inconclusive_error,
     is_retryable_error,
     is_connectivity_error,
     is_rate_limit_error,
@@ -245,9 +246,9 @@ def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass
         db.finalize_llm_attempt(attempt_id, state='cancelled')
         raise
     except Exception as e:
-        # An empty/reasoning-exhausted completion still carries the usage the
-        # provider billed; record it on the failed attempt instead of zero.
-        _finalize_attempt(db, attempt_id, 'failure', getattr(e, 'response', None), ctx)
+        # Preserve usage on provider errors, including explicit abstentions.
+        state = 'inconclusive' if is_review_inconclusive_error(e) else 'failure'
+        _finalize_attempt(db, attempt_id, state, getattr(e, 'response', None), ctx)
         raise
     finally:
         run_context.end_dispatch()
@@ -302,6 +303,8 @@ def _is_manual_cap_error(error) -> bool:
 
 
 def _is_retryable(error) -> bool:
+    if is_review_inconclusive_error(error):
+        return False
     # A truncated answer is terminal: the same budget truncates again.
     if isinstance(error, OutputTruncatedError):
         return False
@@ -347,8 +350,14 @@ def _lost_window(error, is_window, slug, episode_id, call_label):
     """Log a lost detection/review window and hand the error back. Other call
     sites (chapters, repairs) degrade on their own and are not coverage gaps."""
     if is_window:
-        _log_window_loss(error, slug=slug, episode_id=episode_id,
-                         call_label=call_label)
+        if is_review_inconclusive_error(error):
+            logger.info(
+                f"[{slug}:{episode_id}] {call_label} review inconclusive; "
+                "retaining the original marker"
+            )
+        else:
+            _log_window_loss(error, slug=slug, episode_id=episode_id,
+                             call_label=call_label)
     return error
 
 
@@ -657,6 +666,8 @@ def call_llm(
             return response, None
         except Exception as e:
             last_error = e
+            if is_review_inconclusive_error(e):
+                break
             if isinstance(e, ReasoningExhaustedError):
                 break
             # A cap that refused the reservation already recorded its hold;

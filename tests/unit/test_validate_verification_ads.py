@@ -487,6 +487,93 @@ def test_non_releasable_hold_never_stamped():
     assert 'pass2_corroborated' not in hold
 
 
+def test_pass2_corroborates_estimated_tail():
+    """Pass 2 re-detecting the held remainder is corroboration: stamp and clip to it."""
+    proc = [_plain_proc(3575.0, 3678.0)]
+    orig = [_orig(3575.0, 3678.0, 'estimated')]
+    hold = _held_marker(3573.2, 3680.7, hold_reason='estimated_pattern_bounds')
+
+    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert v_ads_to_cut == []
+    assert n == 1
+    assert hold['pass2_corroborated'] is True
+    assert hold['pass2_corroborated_span'] == {'start': 3575.0, 'end': 3678.0}
+
+
+def test_pass2_low_confidence_does_not_corroborate_estimated_tail():
+    """Pass-2 confidence below min_cut_confidence: no corroboration, hold stays open."""
+    proc = [_plain_proc(3575.0, 3678.0, confidence=0.5)]
+    orig = [_orig(3575.0, 3678.0, 'estimated')]
+    hold = _held_marker(3573.2, 3680.7, hold_reason='estimated_pattern_bounds')
+
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
+
+
+def test_pass2_ad_inside_estimated_hold_approves_measured_part():
+    """A confident pass-2 ad inside an estimated hold approves only its own span."""
+    proc = [_plain_proc(2485.2, 2545.1, confidence=0.98)]
+    orig = [_orig(2485.2, 2545.1, 'estimated')]
+    hold = _held_marker(2457.8, 2545.3, hold_reason='estimated_pattern_bounds')
+
+    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert v_ads_to_cut == []
+    assert n == 1
+    assert hold['pass2_corroborated'] is True
+    assert hold['pass2_corroborated_span'] == {'start': 2485.2, 'end': 2545.1}
+
+
+def test_low_confidence_pass2_ad_inside_estimated_hold_does_not_approve():
+    proc = [_plain_proc(2485.2, 2545.1, confidence=0.5)]
+    orig = [_orig(2485.2, 2545.1, 'estimated')]
+    hold = _held_marker(2457.8, 2545.3, hold_reason='estimated_pattern_bounds')
+
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
+
+
+def test_pass2_ad_reaching_past_estimated_hold_does_not_approve():
+    """20 s outside the hold leaves the ad under 90% inside it."""
+    proc = [_plain_proc(2485.2, 2565.3, confidence=0.98)]
+    orig = [_orig(2485.2, 2565.3, 'estimated')]
+    hold = _held_marker(2457.8, 2545.3, hold_reason='estimated_pattern_bounds')
+
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
+
+
+def test_partial_coverage_still_blocks_differential_hold_approval():
+    """The coverage exemption is for estimated holds only."""
+    proc = [_plain_proc(2485.2, 2545.1, confidence=0.98)]
+    orig = [_orig(2485.2, 2545.1, 'diff')]
+    hold = _held_marker(2457.8, 2545.3, hold_reason='differential_uncorroborated')
+
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
+
+
 def test_boundary_conflict_hold_is_stamped_by_a_corroborating_pass2_ad():
     """A reviewer trim that lost to a measured member is settled by pass 2
     re-finding the span on its own."""
@@ -722,13 +809,13 @@ def test_no_cue_hold_is_never_corroborated():
 
 
 def test_padded_hold_tail_still_corroborates_and_records_span():
-    """tosh-show 6e9f8a115e24: a 239.9s hold with a 24.3s alignment-padding
-    tail scored 0.899 coverage and missed the old 0.9 bar; the ZocDoc break
+    """example-podcast a1b2c3d4e5f6: a 239.9s hold with a 24.3s alignment-padding
+    tail scored 0.899 coverage and missed the old 0.9 bar; the Acme break
     shipped audible. Under the 0.75 bar it stamps, and the corroborated
     sub-span (what pass 2 actually attested, clamped into the hold) is
     recorded for the trimmed auto-approve confirm."""
     proc = [_plain_proc(100.0, 317.9)]
-    orig = [_orig(835.1, 1053.0, 'pestease')]
+    orig = [_orig(835.1, 1053.0, 'acme')]
     hold = _diff_hold(837.4, 1077.3)
 
     _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
@@ -750,11 +837,11 @@ def _contradiction_hold(start, end, p_start, p_end):
 
 
 def test_proposed_span_agreement_corroborates_despite_low_coverage():
-    # tosh-show 6e9f8a115e24 Lincoln Tech: hold 3872.9-3933.3, reviewer
+    # example-podcast a1b2c3d4e5f6 Acme: hold 3872.9-3933.3, reviewer
     # proposed 3895.8-3929.9, pass 2 found the same span. Coverage of the
     # padded hold is 56 percent, but the two sub-spans agree exactly.
     proc = [_plain_proc(100.0, 134.1)]
-    orig = [_orig(3895.8, 3929.9, 'lincoln')]
+    orig = [_orig(3895.8, 3929.9, 'acme')]
     hold = _contradiction_hold(3872.9, 3933.3, 3895.8, 3929.9)
     _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])

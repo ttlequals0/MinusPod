@@ -48,6 +48,8 @@ HOLD_REASON_NO_CUE = 'no_cue_evidence'
 HOLD_REASON_NO_SPLICE = 'no_splice_evidence'
 HOLD_REASON_REVIEWER_CONTRADICTION = 'reviewer_contradiction'
 HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT = 'reviewer_boundary_conflict'
+HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS = 'reviewer_inconclusive_bounds'
+HOLD_REASON_ESTIMATED_PATTERN = 'estimated_pattern_bounds'
 # The reviewer rejected a span that carries measured evidence or a confirmed
 # sponsor: a human decides, the reject alone does not drop it.
 HOLD_REASON_REVIEWER_REJECT_CONFLICT = 'reviewer_reject_conflict'
@@ -255,13 +257,16 @@ def validate_ad_chapter_categories(value) -> str | None:
 # holds, and auto-approving them on a later pass-2 corroboration would let
 # pass 2 approve its own products with no independent second opinion.
 # reviewer_boundary_conflict is in: pass 2 re-detecting the span on its own
-# is the independent second opinion the hold was waiting for.
+# is the independent second opinion the hold was waiting for. Same reasoning
+# covers estimated_pattern_bounds: an independent pass-2 re-detection is the
+# measurement pass 1 could not make.
 PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_NO_SPLICE,
     HOLD_REASON_UNCORROBORATED_TAIL,
+    HOLD_REASON_ESTIMATED_PATTERN,
 })
 
 # Of those, the reasons a pass-2 ad may only corroborate by covering the held
@@ -280,14 +285,20 @@ PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE = 0.5
 # short ad inside a long hold must not approve the whole hold. The bar is
 # deliberately below 0.9: differential hold tails carry alignment padding
 # the detection rightly excludes (a 240s hold with 24s of padding scored
-# 0.899 and stayed audible, tosh-show 6e9f8a115e24), and the auto-approve
+# 0.899 and stayed audible, example-podcast a1b2c3d4e5f6), and the auto-approve
 # confirm is trimmed to the corroborated span, so the uncovered remainder
 # is never cut on the strength of this threshold.
 PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE = 0.75
+# An estimated hold is approved on containment alone: the pass-2 ad must lie
+# at least this far inside it, since the confirm is clipped to the ad anyway.
+PASS2_ESTIMATED_AUTOAPPROVE_MIN_AD_INSIDE = 0.9
 # An auto-approve confirm is filed trimmed only when the attested span is
 # narrower than the hold by more than this per edge; smaller deltas are
 # float noise, not a meaningful trim.
 PASS2_AUTOAPPROVE_TRIM_SLACK_S = 0.5
+# text_snippet prefix of pass-2 auto-filed confirms; those rows never become
+# user keep ranges, so a machine trim cannot protect audio from later cuts.
+PASS2_AUTOAPPROVE_SNIPPET_PREFIX = 'auto-approved: pass-2'
 
 # Second acceptance path: a contradiction hold carries the reviewer's own
 # proposed ad sub-span. When the pass-2 detection and that proposal agree
@@ -306,20 +317,11 @@ def is_cue_backed(ad) -> bool:
             or ad.get('detection_stage') in ('cue_pair', 'manual'))
 
 
-# Stages whose spans are measured from the audio or from matched transcript
-# text rather than proposed by a model. dai_differential is deliberately not
-# one: a cross-fetch diff earns KeepDifferentialOverride but never outranks a
-# reviewer reject by itself.
-MEASURED_EVIDENCE_STAGES = frozenset({
-    'fingerprint', 'cue_pair', 'text_pattern', 'manual',
-})
-
-
 def measured_evidence(ad) -> list[str]:
     """Every measured signal backing an ad: its own stage, the measured stages
     it merged in, a cue snap, and a validator-confirmed sponsor."""
     # Lazy: utils/__init__ imports utils.audio, which imports this module.
-    from utils.markers import recorded_member_spans
+    from utils.markers import MEASURED_EVIDENCE_STAGES, recorded_member_spans
     stages = {ad.get('detection_stage')}
     stages.update(span.get('stage') for span in recorded_member_spans(ad))
     evidence = sorted(s for s in stages if s in MEASURED_EVIDENCE_STAGES)

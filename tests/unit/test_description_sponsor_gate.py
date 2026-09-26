@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_validator import AdValidator
+from sponsor_normalize import extract_description_sponsors
 from utils.text import word_boundary_re
 
 
@@ -85,3 +86,12 @@ class TestWordBoundaryConfirmation:
         pattern = word_boundary_re(['Liquid I.V.', 'Yahoo!'])
         assert pattern.search('try Liquid I.V. today')
         assert pattern.search('over on Yahoo! Finance')
+
+
+def test_reason_boost_keeps_substring_match_description_extraction_does_not():
+    extract_description_sponsors.cache_clear()
+    embedded = 'Promo read: visitsquarespace.com for a free trial'
+    assert extract_description_sponsors(embedded) == frozenset()
+    flags = []
+    assert _validator()._check_reason_quality(
+        {'reason': embedded}, 0.5, flags) == 0.6

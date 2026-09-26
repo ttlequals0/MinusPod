@@ -9,6 +9,120 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+## [2.97.27] - 2026-09-26
+
+### Fixed
+
+- An ad detection absorbed into a pattern marker, fully or in part, is now recorded as a measured member of that marker, so the estimated-tail split can anchor on it instead of holding the whole marker.
+- Pass 2 can approve the measured part of an estimated-pattern hold when a confident re-detection lies almost entirely inside it, even if it does not cover most of the hold. The rest of the hold stays in the audio.
+- A trimmed pass-2 auto-approval no longer turns the audio it left out into a protected keep range. Only a user's trim protects audio from later cuts, so later runs can still detect and cut that audio.
+- Splitting an estimated pattern span now logs the cut range and the held remainder.
+- The reviewer can now trim a dynamically inserted ad region to a transcript pause. The cross-fetch comparison measures only a few seconds of each inserted block, so the rest of the region is inferred and could hold show speech. A trimmed edge still stops at measured evidence: probed audio, fingerprint matches, cue pairs and user-confirmed spans. Other trims still stop at the region edge, as before.
+- A saved confirm correction now cuts its interval even when no detection survives to match it. That covers no detection at all, a wider candidate the validator rejected, and a covering marker the reviewer rejected, trimmed or held. Only the uncovered part of the confirmed span is added as a cut. False-positive corrections and saved trims still win. The per-feed opening exclusion clips a saved confirm to the audio after it. A cut marker is never widened. An uncut marker on the same span is aligned to the confirmed interval, and an overlapping held marker is split around the new cut. Pass-2 auto-approvals do not restore audio.
+
+## [2.97.26] - 2026-09-26
+
+### Fixed
+
+- Ad validation cuts the measured part of a detected ad and holds only the unmeasured estimated-pattern remainder for review. Previously the whole merged marker was held. Approving just the held remainder and reprocessing still cuts the measured part.
+- Pass 2 can auto-approve an estimated-pattern hold when an independent pass-2 re-detection corroborates it.
+- The sponsor gate for long LLM detection windows now accepts a window that names a known sponsor. A sponsor from this episode's pattern or fingerprint matches (in verification, its first-pass cuts) counts anywhere in the detection, including the quoted start or end text. Sponsors from the episode description or the sponsor registry count only in the reason or description, because names like "Calm" or "Indeed" are also common words. A long correct read is no longer dropped for lacking its own ad-language cue.
+- Sponsor names extracted from an episode description now match whole words only, so words like "romance" or "factory" no longer count as sponsors.
+
+## [2.97.25] - 2026-09-25
+
+### Fixed
+
+- Sponsor-cue alignment keeps the full introduction when the cue occurs mid-sentence.
+
+## [2.97.24] - 2026-09-25
+
+### Fixed
+
+- Saved boundary trims keep excluded speech in the audio when a later detection spans several ads, including after reviewer adjustments and verification.
+- A word-timed ad start moves past preceding show speech when a nearby explicit sponsor introduction marks the actual boundary.
+
+## [2.97.23] - 2026-09-25
+
+### Fixed
+
+- Detection and review use word-timed transcript lines when available, allowing ad boundaries inside mixed speech segments. Merges and validation preserve these precise edges.
+- An estimated text pattern no longer hides or widens one precise LLM detection covering its matched words.
+- A renewed ad marker that extends beyond a saved confirmation cuts only the overlapping approved audio. Longer outside portions receive independent review.
+- Audio rendering preserves the end of a user-confirmed cut during close-gap merging and end-of-episode trimming.
+- The legacy episode reprocess URL honors the requested mode. LLM reruns keep the saved transcript, and full reruns retain it until fresh transcription begins.
+
+## [2.97.22] - 2026-09-25
+
+### Fixed
+
+- Text pattern edits, disables, and deletes take effect on the next match without a worker restart.
+- Auto-learned patterns no longer use weak outro text to extend cuts. Estimated pattern spans need full measured coverage before removal. Sponsor registry confirmation requires the marker's advertiser and commercial language in the audio.
+- An inconclusive review holds a cut for manual review when measured evidence does not support both boundaries, in either processing pass.
+
+## [2.97.21] - 2026-09-24
+
+### Fixed
+
+- Refresh system packages for each image version so cached Docker layers do not retain available updates.
+
+## [2.97.20] - 2026-09-24
+
+### Fixed
+
+- Ad boundary extension uses word times to recover supported calls to action. Unclear tails stay at their reviewed boundary.
+- Learned patterns use the final cut and exclude words outside it.
+
+## [2.97.19] - 2026-09-24
+
+### Fixed
+
+- Estimated text-pattern spans can use a corroborating detection's boundary instead of a stored duration.
+- Markers split around a conflicting action no longer repeat an excluded ad's reason or sponsor.
+
+## [2.97.18] - 2026-09-24
+
+### Changed
+
+- Pattern learning uses recorded boundaries to make separate patterns from ads combined for cutting.
+
+### Fixed
+
+- Split is disabled when no reliable boundary exists. Failed splits leave the original pattern active.
+- Reviewer abstentions report missing boundary coverage and retain the original marker.
+- SQLite transaction warnings distinguish elapsed time that may include a lock wait from time spent holding a write lock.
+
+## [2.97.17] - 2026-09-23
+
+### Changed
+
+- Settings groups configuration and diagnostic exports in a Troubleshooting section with two cards that fit smaller screens.
+- Existing cached RSS feeds re-render once after a renderer update so stored metadata catches up.
+
+### Fixed
+
+- Served RSS now reports the processed audio duration for completed episodes.
+- Reviewer abstentions on inconclusive HTTP 422 responses retain the original marker, show a bounded reason, and avoid retries or breaker failures.
+
+## [2.97.16] - 2026-09-23
+
+### Added
+
+- Settings can export 1, 6, or 24 hours of application event metadata without log messages or identifying content.
+
+### Changed
+
+- Runtime, frontend, and CPU image build dependencies were updated to reviewed upstream releases.
+
+### Fixed
+
+- Previously confirmed ads stay approved after small boundary shifts on re-detection, without cutting beyond the approved span.
+- Processing history shows Skipped when normalization was disabled for that run.
+- Spend date filters accept full years on desktop and provide a visible calendar button.
+- SQLite diagnostics separate lock-acquisition wait time from time held after a transaction begins.
+
 ## [2.97.15] - 2026-09-22
 
 ### Fixed

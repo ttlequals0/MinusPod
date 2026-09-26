@@ -23,6 +23,7 @@ from config import HTTP_MAX_REDIRECTS_FEED
 from utils.audio import get_audio_duration
 from user_agent import download_user_agent
 from utils.http import safe_url_for_log
+from utils.markers import DAI_PROBE_REF_S, dai_probe_window
 from utils.safe_http import URLTrust, safe_get, stream_to_file_capped
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
@@ -84,7 +85,7 @@ MAX_SILENCE_MARKS = 400
 # Interval tolerance for duration-matched chaining.
 CHAIN_TOLERANCE_S = 0.5
 # Normalized cross-correlation: reference length and search radius.
-XCORR_REF_S = 4.0
+XCORR_REF_S = DAI_PROBE_REF_S
 XCORR_SEARCH_S = 2.0
 # Minimum peak correlation to call a block identical across fetches.
 XCORR_MIN_CORR = 0.75
@@ -238,7 +239,7 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
         return 'unknown', None
     ref_s = min(XCORR_REF_S, block_len)
     # Lead past the half-silence at the block edge when there is room.
-    run_t = start + min(0.5, block_len - ref_s)
+    run_t = dai_probe_window(start, end)[0]
     corr = _block_correlation(run_pcm, ref_pcm, run_t, offset, ref_s=ref_s)
     if corr is None:
         return 'unknown', None

@@ -28,7 +28,12 @@ from config import (
 from ad_chapters import public_chapters
 from database.podcasts import has_upstream, is_local_feed
 from database.queue import compute_queue_priority
-from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
+from rss_parser import (
+    RSS_RENDER_VERSION,
+    extract_cached_base_url,
+    extract_cached_feed_auth_key,
+    extract_cached_render_version,
+)
 from user_agent import download_user_agent
 from utils.constants import EpisodeStatus, REPROCESS_SOURCE_JIT
 from utils.safe_http import URLTrust, safe_head
@@ -432,12 +437,16 @@ def register_routes(app):
         last_checked = db.get_podcast_last_checked_at(slug)
 
         should_refresh = False
-        force_refresh = False  # Force full fetch bypasses 304 - use when cache is missing
+        force_refresh = False  # Force full fetch bypasses 304 for cache repairs
         if not cached_rss:
             should_refresh = True
             force_refresh = True  # No cache, must get full content (can't use 304)
             feed_logger.info(f"[{slug}] No RSS cache, refreshing")
         else:
+            if extract_cached_render_version(cached_rss) != RSS_RENDER_VERSION:
+                should_refresh = True
+                force_refresh = True
+                feed_logger.info("cached RSS renderer version mismatch, forcing refresh")
             # Issue #193: cached RSS keeps stale enclosure URLs when BASE_URL
             # changes between renders. Force a refresh on prefix mismatch.
             cached_base = extract_cached_base_url(cached_rss)

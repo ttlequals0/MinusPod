@@ -22,6 +22,13 @@ def _restore_loaded_app_singletons():
         Storage._instance = app_storage
 
 
+def _new_isolated_database(data_dir):
+    db = object.__new__(Database)
+    db._initialized = False
+    Database.__init__(db, data_dir=data_dir)
+    return db
+
+
 @pytest.fixture(autouse=True)
 def _align_loaded_app_singletons():
     """Keep constructor lookups aligned with imported app references."""
@@ -42,9 +49,8 @@ def temp_dir():
 def temp_db(temp_dir):
     """Create a temporary database and restore the prior singleton."""
     previous = Database._instance
-    Database._instance = None
-
-    db = Database(data_dir=temp_dir)
+    db = _new_isolated_database(temp_dir)
+    Database._instance = db
     yield db
 
     Database._instance = previous
@@ -237,4 +243,3 @@ def _reset_rate_limiter():
         # module runs (Flask app import is lazy). Safe to skip.
         pass
     yield
-
