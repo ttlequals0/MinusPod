@@ -54,7 +54,7 @@ def test_word_timed_edge_counts_as_precise():
     assert member['precise_end'] is False
 
 
-def test_coalesced_member_keeps_max_confidence_and_widened_edge_flags():
+def test_coalesced_member_keeps_widened_edge_flags():
     target = _ad(0.0, 50.0, 'claude', confidence=0.7,
                  quote_aligned_start=True, quote_start=0.0)
     other = _ad(40.0, 80.0, 'claude', confidence=0.92,
@@ -62,7 +62,7 @@ def test_coalesced_member_keeps_max_confidence_and_widened_edge_flags():
     note_merged_members(target, other)
     (member,) = recorded_member_spans(target)
     assert (member['start'], member['end']) == (0.0, 80.0)
-    assert member['confidence'] == 0.92
+    assert member['confidence'] == 0.7
     assert member['precise_start'] is True
     assert member['precise_end'] is True
 
@@ -149,3 +149,15 @@ def test_measured_member_spans_on_an_unmerged_marker():
                                  0.8) == [(5.0, 25.0)]
     assert measured_member_spans(_ad(5.0, 25.0, 'claude', confidence=0.5),
                                  0.8) == []
+
+
+def test_coalesced_coarse_member_keeps_the_weakest_confidence():
+    marker = _ad(0.0, 60.0, 'claude', confidence=0.96)
+    note_merged_members(marker, _ad(50.0, 175.0, 'claude', confidence=0.6))
+    (member,) = recorded_member_spans(marker)
+    assert member['confidence'] == 0.6
+    assert measured_member_spans(marker, 0.8) == []
+
+    marker = _ad(0.0, 60.0, 'claude', confidence=0.96)
+    note_merged_members(marker, _ad(50.0, 175.0, 'claude', confidence=0.85))
+    assert measured_member_spans(marker, 0.8) == [(0.0, 175.0)]

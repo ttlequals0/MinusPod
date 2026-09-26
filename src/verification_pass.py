@@ -273,6 +273,7 @@ def _build_timestamp_map(pass1_cuts: list[dict]) -> list[tuple[float, float, flo
 _AD_TIMESTAMP_FIELDS = (
     'start', 'end', 'text_start', 'text_end',
     'merged_protected_start', 'merged_protected_end',
+    'fingerprint_match_start', 'fingerprint_match_end',
 )
 _AD_SPAN_FIELDS = ('merged_member_spans', 'dai_core_spans')
 

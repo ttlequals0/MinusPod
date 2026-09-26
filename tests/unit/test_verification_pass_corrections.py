@@ -88,3 +88,20 @@ def test_map_correction_start_in_cut_lands_after_beep():
     # after the beep in processed audio: 70 - 18 = 52 = beep end.
     proc = _map_correction_to_processed(60.0, 100.0, cuts, replacement_duration=2.0)
     assert proc == (52.0, 82.0)
+
+
+def test_map_ad_to_original_maps_fingerprint_match_fields():
+    from verification_pass import _map_ad_to_original
+    cuts = [(50.0, 20.0)]
+    ad = {'start': 82.0, 'end': 92.0, 'detection_stage': 'fingerprint',
+          'fingerprint_match_start': 82.0, 'fingerprint_match_end': 92.0,
+          'merged_member_spans': [{'start': 82.0, 'end': 92.0,
+                                   'stage': 'fingerprint',
+                                   'fingerprint_match_start': 82.0,
+                                   'fingerprint_match_end': 92.0}]}
+    mapped = _map_ad_to_original(ad, cuts, 2.0)
+    assert mapped['fingerprint_match_start'] == 100.0
+    assert mapped['fingerprint_match_end'] == 110.0
+    member = mapped['merged_member_spans'][0]
+    assert member['fingerprint_match_start'] == 100.0
+    assert member['fingerprint_match_end'] == 110.0

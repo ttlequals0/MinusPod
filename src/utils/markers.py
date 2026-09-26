@@ -84,13 +84,7 @@ def find_marker_in_list(markers, start, end, tol: float = BOUNDS_TOLERANCE_S):
 
 def _valid_spans(marker: dict, key: str, extra_field: str | None = None,
                  optional_fields: tuple = ()) -> list[dict]:
-    """Normalized {start, end} spans stored under `key`, dropping malformed
-    entries; `extra_field` is carried through when the caller names one, and
-    each of `optional_fields` only when the entry has it.
-
-    Invalid persisted values are ignored. Keeping this parser defensive lets
-    old markers and hand-edited JSON pass through unchanged.
-    """
+    """Well-formed {start, end} spans under `key`, plus extra and present optional fields."""
     raw_spans = marker.get(key)
     if not isinstance(raw_spans, list):
         return []
@@ -316,8 +310,7 @@ def _member_spans(marker: dict) -> list[dict]:
 
 
 def _take_coarse_edge(prior: dict, span: dict, edge: str, pick) -> None:
-    """Widen prior's edge to span's, taking the precise flag from whichever
-    member supplies it; a tie is precise when either member is."""
+    """Widen prior's edge, taking the precise flag from the member that supplies it."""
     key = f'precise_{edge}'
     if span[edge] == prior[edge]:
         flag = bool(prior.get(key) or span.get(key))
@@ -346,10 +339,13 @@ def _coalesce_coarse_members(spans: list[dict]) -> list[dict]:
             continue
         _take_coarse_edge(prior, span, 'start', min)
         _take_coarse_edge(prior, span, 'end', max)
-        confidence = _widen(finite_number(prior.get('confidence')),
-                            finite_number(span.get('confidence')), max)
-        if confidence is not None:
-            prior['confidence'] = confidence
+        # The weakest member bounds what the coalesced span proves; unknown is weakest.
+        confidences = (finite_number(prior.get('confidence')),
+                       finite_number(span.get('confidence')))
+        if None in confidences:
+            prior.pop('confidence', None)
+        else:
+            prior['confidence'] = min(confidences)
     return merged
 
 
@@ -410,8 +406,7 @@ def measured_member_spans(marker: dict, min_conf: float) -> list[tuple[float, fl
 def union_cover(spans, start: float, end: float,
                 gap_tol: float = COVERAGE_GAP_TOLERANCE,
                 edge_tol: float = EDGE_TOLERANCE) -> tuple[float | None, float | None]:
-    """Leftmost run of (start, end) spans within [start, end] whose gaps are at
-    most gap_tol; an edge within edge_tol of start or end snaps to it."""
+    """Leftmost gap-tolerant run of spans in [start, end], edges snapped within edge_tol."""
     clipped = []
     for raw_lo, raw_hi in spans:
         lo, hi = finite_number(raw_lo), finite_number(raw_hi)

@@ -50,7 +50,7 @@ from llm_client import (
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import (
-    COARSE_MEMBER_STAGES, dai_core_bounds, finite_number,
+    COARSE_MEMBER_STAGES, EDGE_TOLERANCE, dai_core_bounds, finite_number,
     invalidate_tail_provenance, protected_member_spans, span_bounds,
     spans_match, union_cover,
 )
@@ -160,19 +160,16 @@ def inconclusive_bounds_supported(ad: dict, db) -> bool:
     if (ad.get('validation') or {}).get('user_confirmed'):
         return True
 
-    tolerance = 0.05
-
     core = [(span.get('start'), span.get('end'))
             for span in ad.get('dai_core_spans') or []]
-    if union_cover(core, start, end, gap_tol=tolerance,
-                   edge_tol=tolerance) == (start, end):
+    if union_cover(core, start, end, gap_tol=EDGE_TOLERANCE) == (start, end):
         return True
 
     pair = ad.get('cue_pair') or {}
     if (finite_number((pair.get('start') or {}).get('cue_end')) is not None
             and finite_number((pair.get('end') or {}).get('cue_start')) is not None
-            and abs(start - (pair['start']['cue_end'] + 0.05)) <= tolerance
-            and abs(end - (pair['end']['cue_start'] - 0.05)) <= tolerance):
+            and abs(start - (pair['start']['cue_end'] + 0.05)) <= EDGE_TOLERANCE
+            and abs(end - (pair['end']['cue_start'] - 0.05)) <= EDGE_TOLERANCE):
         return True
 
     snap = ad.get('cue_snap') or {}
@@ -183,9 +180,9 @@ def inconclusive_bounds_supported(ad: dict, db) -> bool:
             and finite_number((snap.get(edge) or {}).get('shift_seconds')) is not None
             for edge in ('start', 'end'))
             and abs(start - snap['start']['original']
-                    - snap['start']['shift_seconds']) <= tolerance
+                    - snap['start']['shift_seconds']) <= EDGE_TOLERANCE
             and abs(end - snap['end']['original']
-                    - snap['end']['shift_seconds']) <= tolerance):
+                    - snap['end']['shift_seconds']) <= EDGE_TOLERANCE):
         return True
 
     pattern_id = ad.get('pattern_id')
@@ -195,8 +192,8 @@ def inconclusive_bounds_supported(ad: dict, db) -> bool:
             or ad.get('merged_member_spans')
             or finite_number(ad.get('fingerprint_match_start')) is None
             or finite_number(ad.get('fingerprint_match_end')) is None
-            or abs(start - ad['fingerprint_match_start']) > tolerance
-            or abs(end - ad['fingerprint_match_end']) > tolerance):
+            or abs(start - ad['fingerprint_match_start']) > EDGE_TOLERANCE
+            or abs(end - ad['fingerprint_match_end']) > EDGE_TOLERANCE):
         return False
     try:
         pattern = db.get_ad_pattern_by_id(pattern_id)
