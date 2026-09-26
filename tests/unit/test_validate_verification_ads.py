@@ -517,6 +517,63 @@ def test_pass2_low_confidence_does_not_corroborate_estimated_tail():
     assert 'pass2_corroborated' not in hold
 
 
+def test_pass2_ad_inside_estimated_hold_approves_measured_part():
+    """A confident pass-2 ad inside an estimated hold approves only its own span."""
+    proc = [_plain_proc(2485.2, 2545.1, confidence=0.98)]
+    orig = [_orig(2485.2, 2545.1, 'estimated')]
+    hold = _held_marker(2457.8, 2545.3, hold_reason='estimated_pattern_bounds')
+
+    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert v_ads_to_cut == []
+    assert n == 1
+    assert hold['pass2_corroborated'] is True
+    assert hold['pass2_corroborated_span'] == {'start': 2485.2, 'end': 2545.1}
+
+
+def test_low_confidence_pass2_ad_inside_estimated_hold_does_not_approve():
+    proc = [_plain_proc(2485.2, 2545.1, confidence=0.5)]
+    orig = [_orig(2485.2, 2545.1, 'estimated')]
+    hold = _held_marker(2457.8, 2545.3, hold_reason='estimated_pattern_bounds')
+
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
+
+
+def test_pass2_ad_reaching_past_estimated_hold_does_not_approve():
+    """20 s outside the hold leaves the ad under 90% inside it."""
+    proc = [_plain_proc(2485.2, 2565.3, confidence=0.98)]
+    orig = [_orig(2485.2, 2565.3, 'estimated')]
+    hold = _held_marker(2457.8, 2545.3, hold_reason='estimated_pattern_bounds')
+
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
+
+
+def test_partial_coverage_still_blocks_differential_hold_approval():
+    """The coverage exemption is for estimated holds only."""
+    proc = [_plain_proc(2485.2, 2545.1, confidence=0.98)]
+    orig = [_orig(2485.2, 2545.1, 'diff')]
+    hold = _held_marker(2457.8, 2545.3, hold_reason='differential_uncorroborated')
+
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
+
+
 def test_boundary_conflict_hold_is_stamped_by_a_corroborating_pass2_ad():
     """A reviewer trim that lost to a measured member is settled by pass 2
     re-finding the span on its own."""

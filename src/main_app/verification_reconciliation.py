@@ -5,6 +5,7 @@ import logging
 from audio_processor import get_replacement_duration
 from config import (
     CORRECTION_MATCH_MIN_COVERAGE,
+    HOLD_REASON_ESTIMATED_PATTERN,
     HOLD_REASON_VERIFICATION_KEPT_CONFLICT,
     HOLD_REASON_VERIFICATION_MISS,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
@@ -12,6 +13,7 @@ from config import (
     PASS2_COVERAGE_ONLY_HOLD_REASONS,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
+    PASS2_ESTIMATED_AUTOAPPROVE_MIN_AD_INSIDE,
 )
 from database.settings import registry_get_default
 from utils.time import (
@@ -89,8 +91,8 @@ def _corroborates_hold(overlapping, orig_ad, confidence,
     """True when a confident non-held pass-2 ad is the independent
     corroboration a held span was waiting for: it overlaps exactly that one
     pending marker, and either covers nearly all of it while sitting mostly
-    inside it, or agrees with the reviewer's own proposed sub-span (see
-    _proposed_span_agrees). The ad is still dropped (pending audio is never
+    inside it (an estimated hold needs only containment), or agrees with the
+    reviewer's own proposed sub-span (see _proposed_span_agrees). The ad is still dropped (pending audio is never
     cut mid-pipeline); the hold is stamped for auto-approval instead."""
     if (confidence < min_cut_confidence
             or len(overlapping) != 1
@@ -100,6 +102,10 @@ def _corroborates_hold(overlapping, orig_ad, confidence,
     hold = overlapping[0]
     ad_inside = overlap_ratio(hold['start'], hold['end'],
                               orig_ad['start'], orig_ad['end'])
+    # An estimated hold's extent is a guess, so coverage of it proves nothing.
+    if (hold.get('hold_reason') == HOLD_REASON_ESTIMATED_PATTERN
+            and ad_inside >= PASS2_ESTIMATED_AUTOAPPROVE_MIN_AD_INSIDE):
+        return True
     hold_covered = overlap_ratio(orig_ad['start'], orig_ad['end'],
                                  hold['start'], hold['end'])
     if (ad_inside >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE

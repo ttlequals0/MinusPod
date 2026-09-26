@@ -289,6 +289,9 @@ PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE = 0.5
 # confirm is trimmed to the corroborated span, so the uncovered remainder
 # is never cut on the strength of this threshold.
 PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE = 0.75
+# An estimated hold is approved on containment alone: the pass-2 ad must lie
+# at least this far inside it, since the confirm is clipped to the ad anyway.
+PASS2_ESTIMATED_AUTOAPPROVE_MIN_AD_INSIDE = 0.9
 # An auto-approve confirm is filed trimmed only when the attested span is
 # narrower than the hold by more than this per edge; smaller deltas are
 # float noise, not a meaningful trim.
