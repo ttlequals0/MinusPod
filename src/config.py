@@ -258,9 +258,8 @@ def validate_ad_chapter_categories(value) -> str | None:
 # pass 2 approve its own products with no independent second opinion.
 # reviewer_boundary_conflict is in: pass 2 re-detecting the span on its own
 # is the independent second opinion the hold was waiting for. Same reasoning
-# covers estimated_pattern_bounds: the held remainder is an estimate pass 1
-# could not measure, and an independent pass-2 re-detection is the missing
-# measurement.
+# covers estimated_pattern_bounds: an independent pass-2 re-detection is the
+# measurement pass 1 could not make.
 PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
