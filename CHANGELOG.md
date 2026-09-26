@@ -11,6 +11,14 @@ release notes.
 
 ## [Unreleased]
 
+## [2.97.27] - 2026-09-26
+
+### Fixed
+
+- An ad detection fully absorbed into a pattern marker is now recorded as a measured member of that marker, so the estimated-tail split can anchor on it instead of holding the whole marker.
+- Pass 2 can approve the measured part of an estimated-pattern hold when a confident re-detection sits mostly inside it, even if it does not cover most of the hold.
+- Splitting an estimated pattern span now logs the cut range and the held remainder.
+
 ## [2.97.26] - 2026-09-26
 
 ### Fixed
