@@ -48,7 +48,8 @@ from utils.markers import (
 from differential_fetcher import differential_region_overlapping
 from community_export import brand_match_candidates
 from text_pattern_matcher import _segments_for_pattern_learning
-from utils.constants import NON_SPONSOR_LINK_DOMAINS, is_brand_token, squash_brand
+from sponsor_normalize import DESCRIPTION_SPONSOR_PATTERNS, extract_description_sponsors
+from utils.constants import squash_brand
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 
@@ -152,16 +153,7 @@ class AdValidator:
     # POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN, MERGE_GAP_THRESHOLD
 
     # Sponsor patterns for verification
-    SPONSOR_PATTERNS = re.compile(
-        r'betterhelp|athletic\s*greens|ag1|squarespace|nordvpn|'
-        r'expressvpn|hellofresh|audible|masterclass|ziprecruiter|'
-        r'raycon|manscaped|stamps\.com|indeed|linkedin|'
-        r'casper|helix|brooklinen|bombas|calm|headspace|'
-        r'better\s*help|honey|simplisafe|wix|shopify|'
-        r'bluechew|roman|hims|keeps|factor|noom|'
-        r'magic\s*spoon|athletic\s*brewing|liquid\s*iv',
-        re.IGNORECASE
-    )
+    SPONSOR_PATTERNS = DESCRIPTION_SPONSOR_PATTERNS
 
     AD_SIGNAL_PATTERNS = re.compile(
         r'promo\s*code|use\s+code\s+\w+|\.com\/\w+|'
@@ -264,7 +256,7 @@ class AdValidator:
         self.episode_duration = episode_duration
         self.segments = segments or []
         self.episode_description = episode_description or ""
-        self.description_sponsors = self.extract_description_sponsors(
+        self.description_sponsors = extract_description_sponsors(
             self.episode_description)
         # One alternation for the whole set: _is_sponsor_confirmed otherwise
         # recompiled a regex per sponsor per ad.
@@ -299,47 +291,6 @@ class AdValidator:
         if self.positional_prior is not None:
             logger.info(f"Using learned positional prior: "
                         f"{len(self.positional_prior.zones)} zones")
-
-    @classmethod
-    def extract_description_sponsors(cls, episode_description: str | None) -> set:
-        """Extract sponsor names from episode description.
-
-        Looks for sponsors in:
-        - <strong>Sponsors:</strong> sections with <a href="..."> links
-        - URL patterns like domain.com/code
-        - Known sponsor patterns
-
-        Returns:
-            Set of lowercase sponsor names
-        """
-        sponsors = set()
-        if not episode_description:
-            return sponsors
-
-        description = episode_description.lower()
-
-        # Extract domains from href URLs (e.g., "bitwarden.com/twit" -> "bitwarden")
-        href_pattern = re.compile(r'href=["\']?(?:https?://)?(?:www\.)?([a-z0-9-]+)\.(?:com|io|co|net|org)', re.IGNORECASE)
-        for match in href_pattern.finditer(episode_description):
-            domain = match.group(1).lower()
-            # A description links to its host, its apps, and its socials next
-            # to its sponsors, and a short outlet token matches normal speech.
-            if domain in NON_SPONSOR_LINK_DOMAINS or not is_brand_token(domain):
-                continue
-            sponsors.add(domain)
-
-        # Check for known sponsor patterns in description text. Both the
-        # spoken form and the squashed one are kept, so "liquid iv" confirms
-        # against a transcript however the brand is written.
-        for match in cls.SPONSOR_PATTERNS.finditer(description):
-            sponsor = match.group(0).lower()
-            sponsors.add(sponsor)
-            sponsors.add(sponsor.replace(' ', ''))
-
-        if sponsors:
-            logger.info(f"Extracted sponsors from description: {sponsors}")
-
-        return sponsors
 
     def _registry_confirms(self, ad: dict) -> bool:
         """Whether the ad's own audio names a sponsor from the registry.

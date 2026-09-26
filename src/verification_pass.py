@@ -151,6 +151,7 @@ class VerificationPass:
             podcast_description=podcast_description,
             progress_callback=progress_callback,
             audio_analysis=processed_analysis,
+            pass1_cuts=pass1_cuts,
         )
         # Window counts ride along on every post-detection return so the run
         # stats can report coverage the verification scan never examined.
