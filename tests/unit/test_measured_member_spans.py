@@ -132,6 +132,18 @@ def test_measured_member_spans_excludes_estimated_tail():
     assert measured_member_spans(fp, 0.8) == [(0.0, 60.0)]
 
 
+def test_anchors_exclude_dai_core_and_auto_estimates():
+    marker = _estimated_tail_marker()
+    marker['dai_core_spans'] = [{'start': 150.0, 'end': 170.0}]
+    assert measured_member_spans(marker, 0.8, anchors_only=True) == [(0.0, 60.0)]
+
+    defined = _ad(0.0, 30.0, 'claude', confidence=0.5)
+    note_merged_members(defined, _ad(30.0, 90.0, 'text_pattern',
+                                     span_estimated=True, pattern_defined=True,
+                                     text_start=30.0, text_end=50.0))
+    assert measured_member_spans(defined, 0.8, anchors_only=True) == [(30.0, 50.0)]
+
+
 def test_measured_member_spans_evidence_kinds():
     marker = _ad(0.0, 10.0, 'cue_pair')
     for other in (_ad(12.0, 20.0, 'manual'),

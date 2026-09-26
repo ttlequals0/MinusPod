@@ -15,7 +15,10 @@ bootstrap('reviewer_merged_member_trims_test_')
 
 from ad_detector import AdDetector
 from ad_reviewer import AdReviewer, _clamp_overrode
-from config import HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+from ad_validator import AdValidator
+from config import (
+    HOLD_REASON_ESTIMATED_PATTERN, HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
+)
 from ad_detector.boundaries import deduplicate_window_ads
 from utils.markers import mark_distinct_merge, note_fold
 
@@ -321,20 +324,30 @@ def _folded_estimate_ad():
     ad['end'] = 921.1
     note_fold(ad, {'start': 831.75, 'end': 999.65, 'confidence': 0.85,
                    'detection_stage': 'text_pattern', 'span_estimated': True,
-                   'text_start': 831.75, 'text_end': 860.0})
+                   'text_start': 831.75, 'text_end': 860.0,
+                   'has_estimated_pattern_member': True})
     ad['end'] = 999.65
     return ad
 
 
 def test_estimated_text_pattern_tail_is_trimmed_not_held():
-    # The text_pattern end is the pattern's average duration, not evidence.
-    ad = _folded_estimate_ad()
+    # The validator cuts the measured members and holds only the estimated
+    # tail; the reviewer's trim then applies to the cut piece.
+    segments = [{'start': 640.0, 'end': 700.0, 'text': 'sponsor read'},
+                {'start': 710.0, 'end': 1000.0, 'text': 'sponsor read'}]
+    validator = AdValidator(1200.0, segments, splice_veto_enabled=False)
+    validated = validator.validate([_folded_estimate_ad()]).ads
+    assert [(a['start'], a['end']) for a in validated] == [
+        (649.4, 921.1), (921.1, 999.65)]
+    cut, held = validated
+    assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+    assert not cut.get('has_estimated_pattern_member')
 
-    result = _review(_build_reviewer(), ad, (649.4, 943.8))
+    result = _review(_build_reviewer(), cut, (649.4, 915.0))
 
     assert result.held_by_boundary_conflict == []
     accepted = result.accepted_after_review[0]
-    assert (accepted['start'], accepted['end']) == (649.4, 943.8)
+    assert (accepted['start'], accepted['end']) == (649.4, 915.0)
 
 
 def _tail_trim_ad():

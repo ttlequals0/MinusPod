@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from ad_validator import AdValidator, Decision, ValidationResult, user_trimmed_keep_ranges
 from audio_processor import AudioProcessor
 from sponsor_service import SponsorService
+from utils.markers import mark_distinct_merge
 from utils.text import word_boundary_re
 from config import (
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
@@ -2571,6 +2572,10 @@ def test_brand_mentions_before_partial_segment_do_not_confirm(temp_db):
     validator._description_sponsor_re = word_boundary_re(('Example Cloud',))
     assert validator._sponsor_confirmation_source(candidate) is None
 
+def _spans(result):
+    return [(ad['start'], ad['end']) for ad in result.ads]
+
+
 def test_auto_pattern_estimated_tail_is_held_without_full_independent_bounds():
     validator = AdValidator(3600.0, [], splice_veto_enabled=False)
     ad = {'start': 0.0, 'end': 175.0, 'confidence': 1.0,
@@ -2578,19 +2583,31 @@ def test_auto_pattern_estimated_tail_is_held_without_full_independent_bounds():
           'detection_stage': 'fingerprint',
           'fingerprint_match_start': 0.0, 'fingerprint_match_end': 60.0,
           'has_estimated_pattern_member': True,
+          'merged_distinct_ads': True,
+          'merged_protected_start': 0.0, 'merged_protected_end': 90.0,
           'merged_member_spans': [
-              {'start': 0.0, 'end': 60.0, 'stage': 'fingerprint'},
-              {'start': 60.0, 'end': 90.0, 'stage': 'text_pattern'},
+              {'start': 0.0, 'end': 60.0, 'stage': 'fingerprint',
+               'fingerprint_match_start': 0.0, 'fingerprint_match_end': 60.0},
+              {'start': 60.0, 'end': 90.0, 'stage': 'text_pattern',
+               'span_estimated': True},
           ]}
 
-    held = validator.validate([ad]).ads[0]
+    result = validator.validate([ad])
+    assert _spans(result) == [(0.0, 90.0), (90.0, 175.0)]
+    cut, held = result.ads
+    assert cut['validation']['decision'] == Decision.ACCEPT.value
+    assert not cut.get('held_for_review')
     assert held['validation']['decision'] == Decision.REVIEW.value
     assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
 
-    same_brand_wider_fingerprint = {**ad, 'merged_member_spans': [
-        {'start': 0.0, 'end': 175.0, 'stage': 'fingerprint'}]}
-    still_held = validator.validate([same_brand_wider_fingerprint]).ads[0]
-    assert still_held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+    # The fingerprint member counts only its match span, not the wider member.
+    wider_fingerprint = {**ad, 'merged_member_spans': [
+        {'start': 0.0, 'end': 175.0, 'stage': 'fingerprint',
+         'fingerprint_match_start': 0.0, 'fingerprint_match_end': 60.0},
+        ad['merged_member_spans'][1]]}
+    result = validator.validate([wider_fingerprint])
+    assert _spans(result) == [(0.0, 90.0), (90.0, 175.0)]
+    assert result.ads[1]['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
 
 
 def test_validator_merge_preserves_estimated_pattern_risk():
@@ -2606,8 +2623,132 @@ def test_validator_merge_preserves_estimated_pattern_risk():
     ]
 
     result = validator.validate(markers)
-    assert len(result.ads) == 1
+    assert _spans(result) == [(0.0, 90.0), (90.0, 117.0)]
+    assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+    assert result.ads[1]['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
+def _claude_then_estimate(claude_confidence=0.96, estimated_end=3680.7):
+    """A claude read merged with an auto pattern whose outro went unmatched."""
+    ad = {'start': 3492.9, 'end': 3544.2, 'confidence': claude_confidence,
+          'reason': 'Acme sponsor read', 'sponsor': 'Acme',
+          'detection_stage': 'claude'}
+    mark_distinct_merge(ad, {
+        'start': 3544.56, 'end': estimated_end, 'confidence': 0.95,
+        'detection_stage': 'text_pattern', 'span_estimated': True,
+        'text_start': 3544.56, 'text_end': 3573.2,
+        'has_estimated_pattern_member': True})
+    ad['end'] = estimated_end
+    ad['confidence'] = max(claude_confidence, 0.95)
+    return [ad]
+
+
+def test_estimated_tail_split_at_measured_claude_end():
+    validator = AdValidator(3800.0, [], splice_veto_enabled=False)
+
+    result = validator.validate(_claude_then_estimate())
+
+    assert _spans(result) == [(3492.9, 3573.2), (3573.2, 3680.7)]
+    cut, held = result.ads
+    assert cut['validation']['decision'] == Decision.ACCEPT.value
+    assert not cut.get('has_estimated_pattern_member')
+    assert not cut.get('span_estimated')
+    assert not cut.get('_skip_pattern_learning')
+    assert held['validation']['decision'] == Decision.REVIEW.value
+    assert held['held_for_review'] is True
+    assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+    assert held['_skip_pattern_learning'] is True
+    assert held['reason'].endswith(' (estimated pattern tail)')
+
+
+def test_estimate_inside_measured_span_not_held():
+    validator = AdValidator(3600.0, [], splice_veto_enabled=False)
+    ad = {'start': 100.0, 'end': 200.0, 'confidence': 0.95,
+          'reason': 'Acme sponsor read', 'detection_stage': 'claude',
+          'has_estimated_pattern_member': True,
+          'merged_distinct_ads': True,
+          'merged_protected_start': 100.0, 'merged_protected_end': 200.0,
+          'merged_member_spans': [
+              {'start': 100.0, 'end': 200.0, 'stage': 'claude',
+               'confidence': 0.95},
+              {'start': 150.0, 'end': 160.0, 'stage': 'text_pattern',
+               'span_estimated': True},
+          ]}
+
+    result = validator.validate([ad])
+
+    assert _spans(result) == [(100.0, 200.0)]
+    only = result.ads[0]
+    assert only['validation']['decision'] == Decision.ACCEPT.value
+    assert not only.get('has_estimated_pattern_member')
+    assert not only.get('span_estimated')
+
+
+def test_low_conf_claude_member_not_measured():
+    validator = AdValidator(3800.0, [], splice_veto_enabled=False)
+
+    result = validator.validate(_claude_then_estimate(claude_confidence=0.6))
+
+    assert _spans(result) == [(3492.9, 3680.7)]
     assert result.ads[0]['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
+def test_split_skipped_for_user_confirmed():
+    validator = AdValidator(
+        3800.0, [], splice_veto_enabled=False,
+        confirmed_corrections=[{'start': 3492.9, 'end': 3680.7,
+                                'correction_type': 'confirm'}])
+
+    result = validator.validate(_claude_then_estimate())
+
+    assert _spans(result) == [(3492.9, 3680.7)]
+    assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+    assert not result.ads[0].get('held_for_review')
+
+
+def test_rejected_tail_does_not_reject_measured_cut():
+    validator = AdValidator(
+        3800.0, [], splice_veto_enabled=False,
+        false_positive_corrections=[{'start': 3573.2, 'end': 3680.7}])
+
+    result = validator.validate(_claude_then_estimate())
+
+    assert _spans(result) == [(3492.9, 3573.2), (3573.2, 3680.7)]
+    decisions = [ad['validation']['decision'] for ad in result.ads]
+    assert decisions == [Decision.ACCEPT.value, Decision.REJECT.value]
+
+
+@pytest.mark.parametrize('gap_text,expected', [
+    pytest.param('', [(100.0, 200.0), (200.0, 260.0)], id='silent_gap_bridged'),
+    pytest.param('host chat', [(100.0, 140.0), (140.0, 260.0)], id='speech_gap_stops'),
+])
+def test_measured_cover_bridges_only_mergeable_gaps(gap_text, expected):
+    segments = [{'start': 100.0, 'end': 140.0, 'text': 'sponsor read'},
+                {'start': 140.0, 'end': 160.0, 'text': gap_text},
+                {'start': 160.0, 'end': 260.0, 'text': 'sponsor read'}]
+    validator = AdValidator(3600.0, segments, splice_veto_enabled=False)
+    ad = {'start': 100.0, 'end': 140.0, 'confidence': 0.95,
+          'reason': 'Acme sponsor read', 'detection_stage': 'claude'}
+    mark_distinct_merge(ad, {'start': 160.0, 'end': 200.0, 'confidence': 0.95,
+                             'detection_stage': 'claude'})
+    mark_distinct_merge(ad, {'start': 180.0, 'end': 260.0,
+                             'detection_stage': 'text_pattern',
+                             'span_estimated': True, 'text_start': 180.0,
+                             'text_end': 190.0})
+    ad['end'] = 260.0
+    ad['has_estimated_pattern_member'] = True
+
+    assert _spans(validator.validate([ad])) == expected
+
+
+def test_short_estimated_remainder_dropped_not_held():
+    validator = AdValidator(3800.0, [], splice_veto_enabled=False)
+
+    result = validator.validate(_claude_then_estimate(estimated_end=3578.2))
+
+    assert _spans(result) == [(3492.9, 3573.2)]
+    assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+    assert not result.ads[0].get('held_for_review')
 
 
 def test_estimated_pattern_requires_contiguous_dai_coverage():

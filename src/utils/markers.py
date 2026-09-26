@@ -188,7 +188,8 @@ MERGED_MEMBER_SPANS = 'merged_member_spans'
 
 # Per-member evidence recorded at merge time, before merges move the edges.
 _MEMBER_FIELDS = ('confidence', 'precise_start', 'precise_end',
-                  'fingerprint_match_start', 'fingerprint_match_end')
+                  'fingerprint_match_start', 'fingerprint_match_end',
+                  'span_estimated')
 
 # Stages whose member span is measured regardless of confidence.
 _MEASURED_MEMBER_STAGES = frozenset({'cue_pair', 'manual', 'text_pattern'})
@@ -293,6 +294,8 @@ def _member_spans(marker: dict) -> list[dict]:
         lo, hi = text
     stage = marker.get('detection_stage')
     member = {'start': lo, 'end': hi, 'stage': stage}
+    if marker.get('span_estimated') and not marker.get('pattern_defined'):
+        member['span_estimated'] = True
     if stage in COARSE_MEMBER_STAGES:
         confidence = finite_number(marker.get('confidence'))
         if confidence is not None:
@@ -380,10 +383,15 @@ def note_merged_members(target: dict, other: dict) -> None:
         target.get('merged_protected_end'), hi, max)
 
 
-def measured_member_spans(marker: dict, min_conf: float) -> list[tuple[float, float]]:
+def measured_member_spans(marker: dict, min_conf: float,
+                          anchors_only: bool = False) -> list[tuple[float, float]]:
     """Spans of audio a marker's members measured, sorted by start."""
-    spans = [(s['start'], s['end']) for s in _valid_dai_core_spans(marker)]
+    # Anchors are independent member evidence: no DAI core, no estimate's own text.
+    spans = ([] if anchors_only
+             else [(s['start'], s['end']) for s in _valid_dai_core_spans(marker)])
     for member in _member_spans(marker):
+        if anchors_only and member.get('span_estimated'):
+            continue
         stage = member.get('stage')
         lo, hi = member['start'], member['end']
         if stage == 'fingerprint':

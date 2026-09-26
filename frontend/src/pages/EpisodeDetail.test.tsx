@@ -871,7 +871,7 @@ describe('New hold reasons: tooltip titles', () => {
       ...heldMarker, hold_reason: 'estimated_pattern_bounds',
     }] }));
     await waitFor(() => expect(screen.getByTitle(
-      'The pattern found ad text but could not verify the full cut')).toBeDefined());
+      'Estimated pattern tail past the verified ad end')).toBeDefined());
   });
 
   it('shows the no_splice_evidence title', async () => {

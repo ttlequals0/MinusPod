@@ -37,8 +37,11 @@ from utils.markers import (
     invalidate_quote_alignment,
     invalidate_word_timed_edges,
     mark_distinct_merge,
+    measured_member_spans,
     note_fold,
     quote_edge_valid,
+    recorded_member_spans,
+    union_cover,
     word_timed_edge_valid,
 )
 from differential_fetcher import differential_region_overlapping
@@ -741,6 +744,9 @@ class AdValidator:
         # Step 3.5: Extend trailing ad to end of episode if close
         ads = self._extend_trailing_ad(ads, result)
 
+        # Step 3.6: Cut measured audio, hold only an estimated remainder
+        ads = self._split_estimated_remainders(ads, result)
+
         # Step 4: Validate each ad
         for ad in ads:
             validated = self._validate_ad(ad)
@@ -1347,10 +1353,15 @@ class AdValidator:
         return decision
 
     @staticmethod
-    def _estimated_pattern_needs_hold(ad: dict) -> bool:
+    def _has_estimated_edge(ad: dict) -> bool:
+        """Whether an auto pattern guessed part of this ad's span."""
+        return bool(ad.get('has_estimated_pattern_member')
+                    or (ad.get('span_estimated') and not ad.get('pattern_defined')))
+
+    @classmethod
+    def _estimated_pattern_needs_hold(cls, ad: dict) -> bool:
         """An auto pattern's guessed edge needs full independent coverage."""
-        if not (ad.get('has_estimated_pattern_member')
-                or (ad.get('span_estimated') and not ad.get('pattern_defined'))):
+        if not cls._has_estimated_edge(ad):
             return False
         start = finite_number(ad.get('start'))
         end = finite_number(ad.get('end'))
@@ -1367,6 +1378,82 @@ class AdValidator:
                if isinstance(span, dict)):
             return False
         return True
+
+    def _measured_cover(self, spans: list[tuple[float, float]], start: float,
+                        end: float) -> tuple[float | None, float | None]:
+        """Measured run from the first span, bridging gaps the merge step folds."""
+        lo, hi = union_cover(spans, start, end)
+        while lo is not None and hi < end:
+            nxt = min((s for s, _ in spans if hi < s < end), default=None)
+            if nxt is None:
+                break
+            gap = nxt - hi
+            if not (gap < MERGE_GAP_THRESHOLD
+                    or (gap < MAX_SILENT_GAP
+                        and not self._has_speech_in_range(hi, nxt))):
+                break
+            _, hi = union_cover(spans, nxt, end)
+        return lo, hi
+
+    def _narrowed(self, ad: dict, lo: float, hi: float, keep_members: bool) -> dict:
+        """Copy of ad narrowed to [lo, hi], with stale edge provenance dropped."""
+        piece = dict(ad)
+        # A rejection of one piece must not reject the rest on a re-detection.
+        if piece.get('_matches_false_positive_correction'):
+            piece['_matches_false_positive_correction'] = (
+                self._overlaps_false_positive(lo, hi))
+        invalidate_tail_provenance(piece, hi)
+        if keep_members:
+            piece['start'], piece['end'] = lo, hi
+            clip_dai_core_spans(piece, lo, hi)
+            clip_merge_spans(piece, lo, hi)
+        else:
+            piece = carve_fragment(piece, lo, hi)
+        invalidate_quote_alignment(piece)
+        invalidate_word_timed_edges(piece)
+        return piece
+
+    def _split_estimated_remainders(self, ads: list[dict],
+                                    result: ValidationResult) -> list[dict]:
+        """Cut what members measured; only the estimate's unmeasured remainder stays held."""
+        out = []
+        for ad in ads:
+            # Without recorded members the whole span is the estimate; a pass-two
+            # ad's original-coords twin cannot follow a split.
+            if (not self._has_estimated_edge(ad)
+                    or not recorded_member_spans(ad)
+                    or ad.get('_confirmed_correction') is not None
+                    or '_orig_twin' in ad):
+                out.append(ad)
+                continue
+            anchors = measured_member_spans(
+                ad, self.min_cut_confidence, anchors_only=True)
+            spans = measured_member_spans(ad, self.min_cut_confidence)
+            lo, hi = self._measured_cover(spans, ad['start'], ad['end'])
+            # The cut run must hold independent evidence, not just the estimate's text.
+            if lo is None or not any(a < hi and b > lo for a, b in anchors):
+                out.append(ad)
+                continue
+            if (lo, hi) == (ad['start'], ad['end']):
+                cut = ad
+            else:
+                cut = self._narrowed(ad, lo, hi, keep_members=True)
+                for a, b in ((ad['start'], lo), (hi, ad['end'])):
+                    if b - a < MIN_AD_DURATION:
+                        continue
+                    remainder = self._narrowed(ad, a, b, keep_members=False)
+                    remainder['_skip_pattern_learning'] = True
+                    remainder['reason'] = (
+                        f"{ad.get('reason', 'ad')} (estimated pattern tail)")
+                    out.append(remainder)
+                result.corrections.append(
+                    f"Split estimated pattern span {ad['start']:.1f}s-"
+                    f"{ad['end']:.1f}s at measured {lo:.1f}s-{hi:.1f}s")
+            cut.pop('has_estimated_pattern_member', None)
+            cut.pop('span_estimated', None)
+            out.append(cut)
+        out.sort(key=lambda a: a['start'])
+        return out
 
     def _mark_held(self, ad: dict, flags: list[str], reason: str) -> None:
         """Set held_for_review state on the ad dict and append a flag entry."""
