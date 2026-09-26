@@ -1403,6 +1403,7 @@ class AdValidator:
                 cut = ad
             else:
                 cut = self._narrowed(ad, lo, hi, keep_members=True)
+                remainder_spans = []
                 for a, b in ((ad['start'], lo), (hi, ad['end'])):
                     if b - a < MIN_AD_DURATION:
                         continue
@@ -1411,9 +1412,15 @@ class AdValidator:
                     remainder['reason'] = (
                         f"{ad.get('reason', 'ad')} (estimated pattern remainder)")
                     out.append(remainder)
+                    remainder_spans.append(f"{a:.1f}s-{b:.1f}s")
                 result.corrections.append(
                     f"Split estimated pattern span {ad['start']:.1f}s-"
                     f"{ad['end']:.1f}s at measured {lo:.1f}s-{hi:.1f}s")
+                logger.info(
+                    f"Split estimated pattern span {ad['start']:.1f}s-"
+                    f"{ad['end']:.1f}s: cut {lo:.1f}s-{hi:.1f}s, "
+                    f"held {', '.join(remainder_spans)}"
+                )
             cut.pop('has_estimated_pattern_member', None)
             cut.pop('span_estimated', None)
             out.append(cut)
@@ -1425,8 +1432,12 @@ class AdValidator:
         ad['held_for_review'] = True
         ad['hold_reason'] = reason
         flags.append(f"INFO: Held for review ({reason})")
+        # Split remainders keep the same hold_reason; tag the log line only.
+        log_reason = reason
+        if ad.get('reason', '').endswith('(estimated pattern remainder)'):
+            log_reason = f"{reason} (remainder)"
         logger.info(
-            f"Holding ad {ad['start']:.1f}s-{ad['end']:.1f}s for review: {reason}"
+            f"Holding ad {ad['start']:.1f}s-{ad['end']:.1f}s for review: {log_reason}"
         )
 
     def _clamp_boundaries(self, ads: list[dict],

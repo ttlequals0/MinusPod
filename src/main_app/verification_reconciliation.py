@@ -92,8 +92,9 @@ def _corroborates_hold(overlapping, orig_ad, confidence,
     corroboration a held span was waiting for: it overlaps exactly that one
     pending marker, and either covers nearly all of it while sitting mostly
     inside it (an estimated hold needs only containment), or agrees with the
-    reviewer's own proposed sub-span (see _proposed_span_agrees). The ad is still dropped (pending audio is never
-    cut mid-pipeline); the hold is stamped for auto-approval instead."""
+    reviewer's own proposed sub-span (see _proposed_span_agrees). The ad is
+    still dropped (pending audio is never cut mid-pipeline); the hold is
+    stamped for auto-approval instead."""
     if (confidence < min_cut_confidence
             or len(overlapping) != 1
             or overlapping[0].get('hold_reason')

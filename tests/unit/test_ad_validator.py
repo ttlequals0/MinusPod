@@ -1,4 +1,5 @@
 """Unit tests for AdValidator class."""
+import logging
 import pytest
 import sys
 import os
@@ -2659,6 +2660,32 @@ def test_estimated_tail_split_at_measured_claude_end():
     assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
     assert held['_skip_pattern_learning'] is True
     assert held['reason'].endswith(' (estimated pattern remainder)')
+
+
+def test_estimated_tail_split_logs_one_info_line(caplog):
+    validator = AdValidator(3800.0, [], splice_veto_enabled=False)
+
+    with caplog.at_level(logging.INFO, logger='ad_validator'):
+        validator.validate(_claude_then_estimate())
+
+    split_lines = [r.message for r in caplog.records
+                   if r.message.startswith('Split estimated pattern span')]
+    assert split_lines == [
+        'Split estimated pattern span 3492.9s-3680.7s: '
+        'cut 3492.9s-3573.2s, held 3573.2s-3680.7s']
+
+
+def test_estimated_remainder_hold_log_gets_remainder_suffix(caplog):
+    validator = AdValidator(3800.0, [], splice_veto_enabled=False)
+
+    with caplog.at_level(logging.INFO, logger='ad_validator'):
+        validator.validate(_claude_then_estimate())
+
+    hold_lines = [r.message for r in caplog.records
+                  if r.message.startswith('Holding ad 3573.2s')]
+    assert hold_lines == [
+        'Holding ad 3573.2s-3680.7s for review: '
+        'estimated_pattern_bounds (remainder)']
 
 
 def test_estimate_inside_measured_span_not_held():
