@@ -12,6 +12,7 @@ from utils.markers import (
     carve_fragment,
     clip_dai_core_spans,
     estimated_text_bounds,
+    EDGE_TOLERANCE,
     invalidate_tail_provenance,
     invalidate_quote_alignment,
     invalidate_word_timed_edges,
@@ -112,8 +113,8 @@ def estimated_pattern_replaced_by_precise_ad(marker, claude_ads, action_map):
                and all(_quote_edge_valid(ad, edge)
                        or word_timed_edge_valid(ad, edge)
                        for edge in ('start', 'end'))
-               and ad['start'] <= text[0] + 0.05
-               and ad['end'] >= text[1] - 0.05
+               and ad['start'] <= text[0] + EDGE_TOLERANCE
+               and ad['end'] >= text[1] - EDGE_TOLERANCE
                and (not marker.get('sponsor') or not ad.get('sponsor')
                     or marker['sponsor'].casefold() == ad['sponsor'].casefold())
                and (action_map is None
@@ -182,7 +183,7 @@ def align_ad_quote_bounds(ads: list[dict], segments: list[dict]) -> list[dict]:
             continue
         new_start = words[first[0]]['start']
         new_end = words[last[1]]['end']
-        if (new_start < start - 0.05 or new_end > end + 0.05
+        if (new_start < start - EDGE_TOLERANCE or new_end > end + EDGE_TOLERANCE
                 or new_start - start > 60 or end - new_end > 60
                 or new_end - new_start < MIN_AD_DURATION_FOR_REMOVAL):
             aligned.append(ad)

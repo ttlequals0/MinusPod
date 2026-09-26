@@ -840,7 +840,7 @@ class AdValidator:
             if auto_accept:
                 approved = span or confirmed
                 # Allow drift below the displayed precision, then clamp to approved bounds.
-                tolerance = 0.05
+                tolerance = EDGE_TOLERANCE
                 fully_authorized = (
                     ad['start'] >= approved['start'] - tolerance - 1e-9
                     and ad['end'] <= approved['end'] + tolerance + 1e-9
