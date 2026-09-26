@@ -285,11 +285,10 @@ def _member_spans(marker: dict) -> list[dict]:
     lo, hi = _protected_bounds(marker)
     if lo is None or hi is None:
         return []
-    text = estimated_text_bounds(marker)
-    if text is not None:
-        # An estimate protects only its matched text; a span holding none of
-        # it carries no evidence.
-        if text[1] <= text[0]:
+    if marker.get('span_estimated'):
+        # An estimate protects only its matched text; without any it carries no evidence.
+        text = estimated_text_bounds(marker)
+        if text is None or text[1] <= text[0]:
             return []
         lo, hi = text
     stage = marker.get('detection_stage')

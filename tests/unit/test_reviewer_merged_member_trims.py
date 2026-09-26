@@ -331,6 +331,15 @@ def _folded_estimate_ad():
 
 
 def test_estimated_text_pattern_tail_is_trimmed_not_held():
+    # The text_pattern end is the pattern's average duration, not evidence.
+    result = _review(_build_reviewer(), _folded_estimate_ad(), (649.4, 943.8))
+
+    assert result.held_by_boundary_conflict == []
+    accepted = result.accepted_after_review[0]
+    assert (accepted['start'], accepted['end']) == (649.4, 943.8)
+
+
+def test_reviewer_trim_applies_to_validator_cut_piece():
     # The validator cuts the measured members and holds only the estimated
     # tail; the reviewer's trim then applies to the cut piece.
     segments = [{'start': 640.0, 'end': 700.0, 'text': 'sponsor read'},

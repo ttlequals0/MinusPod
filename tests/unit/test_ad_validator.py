@@ -2658,7 +2658,7 @@ def test_estimated_tail_split_at_measured_claude_end():
     assert held['held_for_review'] is True
     assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
     assert held['_skip_pattern_learning'] is True
-    assert held['reason'].endswith(' (estimated pattern tail)')
+    assert held['reason'].endswith(' (estimated pattern remainder)')
 
 
 def test_estimate_inside_measured_span_not_held():
@@ -2739,6 +2739,44 @@ def test_measured_cover_bridges_only_mergeable_gaps(gap_text, expected):
     ad['has_estimated_pattern_member'] = True
 
     assert _spans(validator.validate([ad])) == expected
+
+
+def test_tail_approval_then_reprocess_cuts_measured_read():
+    validator = AdValidator(
+        3800.0, [], splice_veto_enabled=False,
+        confirmed_corrections=[{'start': 3573.2, 'end': 3680.7,
+                                'correction_type': 'confirm'}])
+
+    result = validator.validate(_claude_then_estimate())
+
+    by_span = {(ad['start'], ad['end']): ad for ad in result.ads}
+    assert set(by_span) == {(3492.9, 3573.2), (3573.2, 3680.7)}
+    tail = by_span[(3573.2, 3680.7)]
+    assert tail['validation']['decision'] == Decision.ACCEPT.value
+    assert tail['validation']['user_confirmed'] is True
+    measured = by_span[(3492.9, 3573.2)]
+    assert measured['validation']['decision'] == Decision.ACCEPT.value
+    assert not measured.get('held_for_review')
+
+
+def test_leading_estimated_remainder_is_held():
+    validator = AdValidator(3600.0, [], splice_veto_enabled=False)
+    ad = {'start': 100.0, 'end': 200.0, 'confidence': 0.95,
+          'reason': 'Acme (pattern #7, outro)', 'sponsor': 'Acme',
+          'detection_stage': 'text_pattern', 'span_estimated': True,
+          'text_start': 170.0, 'text_end': 200.0,
+          'has_estimated_pattern_member': True}
+    mark_distinct_merge(ad, {'start': 170.0, 'end': 230.0, 'confidence': 0.95,
+                             'detection_stage': 'claude'})
+    ad['end'] = 230.0
+
+    result = validator.validate([ad])
+
+    assert _spans(result) == [(100.0, 170.0), (170.0, 230.0)]
+    lead, cut = result.ads
+    assert lead['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+    assert cut['validation']['decision'] == Decision.ACCEPT.value
+    assert not cut.get('held_for_review')
 
 
 def test_short_estimated_remainder_dropped_not_held():

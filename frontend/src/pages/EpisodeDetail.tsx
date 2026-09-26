@@ -1484,7 +1484,7 @@ function EpisodeDetail() {
                 : segment.hold_reason === 'reviewer_inconclusive_bounds'
                 ? 'The reviewer could not verify both cut boundaries'
                 : segment.hold_reason === 'estimated_pattern_bounds'
-                ? 'Estimated pattern tail past the verified ad end'
+                ? 'Estimated pattern remainder outside the verified ad bounds'
                 : segment.hold_reason === 'reviewer_reject_conflict'
                 ? 'The reviewer rejected a span that carries measured ad evidence'
                 : segment.hold_reason === 'no_splice_evidence'

@@ -31,6 +31,7 @@ from utils.markers import (
     carve_fragment,
     clip_dai_core_spans,
     clip_merge_spans,
+    EDGE_TOLERANCE,
     dai_core_bounds,
     finite_number,
     invalidate_tail_provenance,
@@ -705,7 +706,11 @@ class AdValidator:
                            (seen_end, ad['end'])):
                 if hi - lo < MIN_AD_DURATION:
                     continue
-                residue = carve_fragment(ad, lo, hi)
+                # Clipped members let the estimated-remainder split judge it;
+                # with none left the parent's merge records describe nothing here.
+                residue = self._narrowed(ad, lo, hi, keep_members=True)
+                if not recorded_member_spans(residue):
+                    residue = carve_fragment(residue, lo, hi)
                 for key in ('_confirmed_correction',
                             '_has_confirmed_correction_candidate',
                             '_matches_false_positive_correction'):
@@ -1367,7 +1372,7 @@ class AdValidator:
         end = finite_number(ad.get('end'))
         if start is None or end is None or end <= start:
             return True
-        tolerance = 0.05
+        tolerance = EDGE_TOLERANCE
         def covers(span):
             lo = finite_number(span.get('start'))
             hi = finite_number(span.get('end'))
@@ -1444,7 +1449,7 @@ class AdValidator:
                     remainder = self._narrowed(ad, a, b, keep_members=False)
                     remainder['_skip_pattern_learning'] = True
                     remainder['reason'] = (
-                        f"{ad.get('reason', 'ad')} (estimated pattern tail)")
+                        f"{ad.get('reason', 'ad')} (estimated pattern remainder)")
                     out.append(remainder)
                 result.corrections.append(
                     f"Split estimated pattern span {ad['start']:.1f}s-"

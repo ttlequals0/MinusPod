@@ -272,17 +272,12 @@ def test_estimated_text_pattern_member_records_only_its_matched_text():
     assert base['merged_protected_end'] == 921.1
 
 
-@pytest.mark.parametrize('other', [
-    pytest.param(_ad(831.75, 999.65, 'text_pattern', span_estimated=False,
-                     text_start=831.75, text_end=860.0), id='measured'),
-    pytest.param(_ad(831.75, 999.65, 'text_pattern', span_estimated=True),
-                 id='no_text_bounds'),
-])
-def test_text_pattern_member_keeps_full_span(other):
-    # Measured, and estimated with no recorded text bounds: neither narrows.
+def test_text_pattern_member_keeps_full_span():
     base = _ad(649.4, 921.1, 'claude')
 
-    note_merged_members(base, other)
+    note_merged_members(base, _ad(831.75, 999.65, 'text_pattern',
+                                  span_estimated=False, text_start=831.75,
+                                  text_end=860.0))
 
     assert _base(base['merged_member_spans'][1]) == {
         'start': 831.75, 'end': 999.65, 'stage': 'text_pattern'}
@@ -293,6 +288,8 @@ def test_text_pattern_member_keeps_full_span(other):
     pytest.param(carve_fragment(_estimated(831.75, 999.65, 831.75, 860.0),
                                 900.0, 999.65),
                  id='carved_estimated_tail'),
+    pytest.param(_ad(831.75, 999.65, 'text_pattern', span_estimated=True),
+                 id='no_text_bounds'),
 ])
 def test_estimate_holding_none_of_its_text_contributes_no_member(other):
     base = _ad(649.4, 921.1, 'claude')
