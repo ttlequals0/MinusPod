@@ -20,6 +20,7 @@ release notes.
 - A trimmed pass-2 auto-approval no longer turns the audio it left out into a protected keep range. Only a user's trim protects audio from later cuts, so later runs can still detect and cut that audio.
 - Splitting an estimated pattern span now logs the cut range and the held remainder.
 - The reviewer can now trim a dynamically inserted ad region to a transcript pause. The cross-fetch comparison measures only a few seconds of each inserted block, so the rest of the region is inferred and could hold show speech. A trimmed edge still stops at measured evidence: probed audio, fingerprint matches, cue pairs and user-confirmed spans. Other trims still stop at the region edge, as before.
+- A saved confirm correction now cuts its interval even when no detection survives to match it. That covers no detection at all, a wider candidate the validator rejected, and a covering marker the reviewer rejected, trimmed or held. Only the uncovered part of the confirmed span is added as a cut. False-positive corrections and saved trims still win, existing markers are never widened, and an overlapping held marker is split around the new cut. Pass-2 auto-approvals do not restore audio.
 
 ## [2.97.26] - 2026-09-26
 

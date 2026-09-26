@@ -47,7 +47,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
                   verification_return=None, held_categories=None,
                   reviewer_side_effect=None, render_fails=False,
                   verification_side_effect=None, real_refine_reviewer=False,
-                  confirmed_corrections=None, duration=100.0):
+                  confirmed_corrections=None, duration=100.0,
+                  false_positive_corrections=None):
     """Drive process_episode's full pass-1 flow with every stage but the
     partition itself mocked out. Returns the recorded mocks for inspection.
 
@@ -149,7 +150,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
             'true' if real_refine_reviewer and key == 'enable_ad_review'
             else 'false')
         db.get_setting_bool.return_value = False
-        db.get_false_positive_corrections.return_value = []
+        db.get_false_positive_corrections.return_value = (
+            false_positive_corrections or [])
         db.get_confirmed_corrections.return_value = confirmed_corrections or []
         db.get_setting_float.side_effect = lambda key, default=None: default
         db.get_all_settings.return_value = {}

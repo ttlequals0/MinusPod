@@ -47,7 +47,8 @@ def _marker(start, end, category, action_applied, was_cut, **overrides):
     return m
 
 
-def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1):
+def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
+               confirmed_corrections=()):
     """Drive _recut_episode with _build_recut_ad_list mocked to return the
     given (ads_to_remove, all_ads), i.e. what the validator/confidence gate
     would have produced on this run, before re-resolution against the
@@ -73,6 +74,8 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1):
         db.get_original_segments.return_value = [{'start': 0.0, 'end': 60.0}]
         db.get_all_settings.return_value = {}
         db.resolve_segment_actions.return_value = segment_actions
+        db.get_confirmed_corrections.return_value = list(confirmed_corrections)
+        db.get_false_positive_corrections.return_value = []
         storage.get_original_path.return_value.exists.return_value = True
         storage.get_applied_cuts.return_value = None
         storage.get_episode_path.return_value = '/tmp/segrerender-final.mp3'

@@ -37,7 +37,7 @@ from ad_yield import low_ad_yield
 from ad_reviewer import (
     AdReviewer, is_contradiction_hold, split_resurrection_pool,
 )
-from ad_validator import user_trimmed_keep_ranges
+from ad_validator import restore_uncovered_confirmed_spans, user_trimmed_keep_ranges
 from audio_analysis.audio_analyzer import MIN_VOLUME_TIMEOUT
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
@@ -1771,7 +1771,7 @@ def _learn_from_applied_cut_ads(slug, episode_id, cut_ads, markers,
     for ad in cut_ads:
         marker = _find_master(markers, ad)
         if (marker is None or not ad.get('was_cut') or not marker.get('was_cut')
-                or is_pending_review(marker)
+                or is_pending_review(marker) or marker.get('_skip_pattern_learning')
                 or marker.get('action_applied') not in ('remove', 'beep')
                 or marker['start'] != ad['start'] or marker['end'] != ad['end']
                 or not _covered_by_cuts(marker, applied_cuts, original_duration)):
@@ -4977,8 +4977,12 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             ads_to_remove = [ad for ad in ads_to_remove if id(ad) not in keep_ids]
             all_ads_with_validation = list(all_ads_with_validation) + keep_ads
             all_ads_with_validation.sort(key=lambda x: x['start'])
-        trim_ranges = user_trimmed_keep_ranges(
-            db.get_confirmed_corrections(recut_podcast_id, episode_id))
+        confirmed_corrections = db.get_confirmed_corrections(recut_podcast_id, episode_id)
+        trim_ranges = user_trimmed_keep_ranges(confirmed_corrections)
+        ads_to_remove = restore_uncovered_confirmed_spans(
+            ads_to_remove, all_ads_with_validation, confirmed_corrections,
+            db.get_false_positive_corrections(recut_podcast_id, episode_id),
+            trim_ranges, original_duration)
         ads_to_remove = _protect_user_trimmed_cuts(
             ads_to_remove, all_ads_with_validation, trim_ranges)
         ads_to_remove = _partition_cut_actions(ads_to_remove, segment_actions)
@@ -6233,8 +6237,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ads_to_remove = _finalize_user_confirmed_bounds(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 episode_duration=episode_duration)
-            trim_ranges = user_trimmed_keep_ranges(
-                db.get_confirmed_corrections(podcast_id, episode_id))
+            confirmed_corrections = db.get_confirmed_corrections(podcast_id, episode_id)
+            trim_ranges = user_trimmed_keep_ranges(confirmed_corrections)
+            if not skip_detection:
+                ads_to_remove = restore_uncovered_confirmed_spans(
+                    ads_to_remove, all_ads_with_validation, confirmed_corrections,
+                    db.get_false_positive_corrections(podcast_id, episode_id),
+                    trim_ranges, episode_duration)
             ads_to_remove = _protect_user_trimmed_cuts(
                 ads_to_remove, all_ads_with_validation, trim_ranges)
 
