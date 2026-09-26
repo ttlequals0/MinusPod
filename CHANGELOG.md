@@ -21,7 +21,7 @@ release notes.
 
 ### Changed
 
-- 2.97.22 introduced the estimated-pattern hold and 2.97.24 tightened registry sponsor confirmation to require both a sponsor match and commercial language; both were under-documented at the time.
+- 2.97.22 introduced the estimated-pattern hold, which held the whole merged marker rather than just the estimated part; this was not documented at the time.
 
 ## [2.97.25] - 2026-09-25
 
