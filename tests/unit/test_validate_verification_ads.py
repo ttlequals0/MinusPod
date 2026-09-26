@@ -487,6 +487,39 @@ def test_non_releasable_hold_never_stamped():
     assert 'pass2_corroborated' not in hold
 
 
+def test_pass2_corroborates_estimated_tail():
+    """estimated_pattern_bounds is releasable: pass 2 re-detecting the held
+    remainder on its own is the independent corroboration the hold was
+    waiting for, so it stamps and clips to the pass-2 span."""
+    proc = [_plain_proc(3494.0, 3572.0)]
+    orig = [_orig(3494.0, 3572.0, 'estimated')]
+    hold = _held_marker(3492.9, 3573.2, hold_reason='estimated_pattern_bounds')
+
+    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert v_ads_to_cut == []
+    assert n == 1
+    assert hold['pass2_corroborated'] is True
+    assert hold['pass2_corroborated_span'] == {'start': 3494.0, 'end': 3572.0}
+
+
+def test_pass2_low_confidence_does_not_corroborate_estimated_tail():
+    """Same overlap, but pass-2 confidence is below min_cut_confidence: no
+    independent corroboration, hold stays open."""
+    proc = [_plain_proc(3494.0, 3572.0, confidence=0.5)]
+    orig = [_orig(3494.0, 3572.0, 'estimated')]
+    hold = _held_marker(3492.9, 3573.2, hold_reason='estimated_pattern_bounds')
+
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
+
+
 def test_boundary_conflict_hold_is_stamped_by_a_corroborating_pass2_ad():
     """A reviewer trim that lost to a measured member is settled by pass 2
     re-finding the span on its own."""

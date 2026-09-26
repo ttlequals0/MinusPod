@@ -257,13 +257,17 @@ def validate_ad_chapter_categories(value) -> str | None:
 # holds, and auto-approving them on a later pass-2 corroboration would let
 # pass 2 approve its own products with no independent second opinion.
 # reviewer_boundary_conflict is in: pass 2 re-detecting the span on its own
-# is the independent second opinion the hold was waiting for.
+# is the independent second opinion the hold was waiting for. Same reasoning
+# covers estimated_pattern_bounds: the held remainder is an estimate pass 1
+# could not measure, and an independent pass-2 re-detection is the missing
+# measurement.
 PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_NO_SPLICE,
     HOLD_REASON_UNCORROBORATED_TAIL,
+    HOLD_REASON_ESTIMATED_PATTERN,
 })
 
 # Of those, the reasons a pass-2 ad may only corroborate by covering the held
