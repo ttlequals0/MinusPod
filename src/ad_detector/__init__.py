@@ -123,6 +123,7 @@ from .boundaries import (
     validate_ad_timestamps,
     _unpack_region,
     get_uncovered_portions,
+    record_absorbed_detection,
     removal_coverage_regions,
     tighten_pattern_regions,
     merge_same_sponsor_ads,
@@ -2553,6 +2554,7 @@ class AdDetector:
                 else:
                     logger.debug(f"[{slug}:{episode_id}] Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s "
                                  f"fully covered by patterns")
+                    record_absorbed_detection(ad, coverage_regions, all_ads)
                     continue
 
             # Log if ad was trimmed (not returned as-is)

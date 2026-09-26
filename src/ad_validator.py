@@ -1335,18 +1335,24 @@ class AdValidator:
             gap < MAX_SILENT_GAP
             and not self._has_speech_in_range(left_end, right_start))
 
-    def _measured_cover(self, spans: list[tuple[float, float]], start: float,
+    def _measured_cover(self, spans: list[tuple[float, float]],
+                        anchors: list[tuple[float, float]], start: float,
                         end: float) -> tuple[float | None, float | None]:
-        """Measured run from the first span, bridging gaps the merge step folds."""
+        """First anchored measured run, bridging gaps the merge step folds."""
         clipped = sorted((max(a, start), min(b, end)) for a, b in spans
                          if min(b, end) > max(a, start))
-        if not clipped:
+        runs = []
+        for a, b in clipped:
+            if runs and (a <= runs[-1][1] + COVERAGE_GAP_TOLERANCE
+                         or self._gap_merges(runs[-1][1], a)):
+                runs[-1][1] = max(runs[-1][1], b)
+            else:
+                runs.append([a, b])
+        lo, hi = next(((lo, hi) for lo, hi in runs
+                       if any(a < hi and b > lo for a, b in anchors)),
+                      (None, None))
+        if lo is None:
             return None, None
-        lo, hi = clipped[0]
-        for a, b in clipped[1:]:
-            if a > hi + COVERAGE_GAP_TOLERANCE and not self._gap_merges(hi, a):
-                break
-            hi = max(hi, b)
         if lo <= start + EDGE_TOLERANCE:
             lo = start
         if hi >= end - EDGE_TOLERANCE:
@@ -1388,9 +1394,9 @@ class AdValidator:
             measured = measured_member_spans(ad, self.min_cut_confidence)
             spans = [(a, b) for a, b, _ in measured]
             anchors = [(a, b) for a, b, anchor in measured if anchor]
-            lo, hi = self._measured_cover(spans, ad['start'], ad['end'])
             # The cut run must hold independent evidence, not just the estimate's text.
-            if lo is None or not any(a < hi and b > lo for a, b in anchors):
+            lo, hi = self._measured_cover(spans, anchors, ad['start'], ad['end'])
+            if lo is None:
                 out.append(ad)
                 continue
             if (lo, hi) == (ad['start'], ad['end']):

@@ -11,6 +11,7 @@ import re
 from utils.markers import (
     carve_fragment,
     clip_dai_core_spans,
+    clip_merge_spans,
     estimated_text_bounds,
     EDGE_TOLERANCE,
     invalidate_tail_provenance,
@@ -18,6 +19,7 @@ from utils.markers import (
     invalidate_word_timed_edges,
     mark_distinct_merge,
     note_fold,
+    note_merged_members,
     quote_edge_valid as _quote_edge_valid,
     word_timed_edge_valid,
 )
@@ -1124,6 +1126,26 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
                 marker['start'], marker['end'] = tight['start'], tight['end']
                 break
         region['start'], region['end'] = tight['start'], tight['end']
+
+
+def record_absorbed_detection(ad: dict, coverage_regions: list,
+                              all_ads: list[dict]) -> None:
+    """Record a covered LLM ad as a member of each pattern marker absorbing it."""
+    member = dict(ad, detection_stage=(
+        'keep_content' if ad.get('detection_stage') == 'keep_content' else 'claude'))
+    for region in coverage_regions:
+        if not isinstance(region, dict):
+            continue
+        marker = next((m for m in all_ads
+                       if m.get('pattern_id') == region.get('pattern_id')
+                       and abs(m['start'] - region['start']) < 0.01
+                       and abs(m['end'] - region['end']) < 0.01), None)
+        if (marker is None or marker['start'] >= ad['end']
+                or marker['end'] <= ad['start']):
+            continue
+        # Recorded before the merge step invalidates the ad's quote edges.
+        note_merged_members(marker, member)
+        clip_merge_spans(marker, marker['start'], marker['end'])
 
 
 # --- Uncovered tail preservation (Fix 2) ---
