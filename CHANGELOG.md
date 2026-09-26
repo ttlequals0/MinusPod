@@ -19,6 +19,7 @@ release notes.
 - Pass 2 can approve the measured part of an estimated-pattern hold when a confident re-detection lies almost entirely inside it, even if it does not cover most of the hold. The rest of the hold stays in the audio.
 - A trimmed pass-2 auto-approval no longer turns the audio it left out into a protected keep range. Only a user's trim protects audio from later cuts, so later runs can still detect and cut that audio.
 - Splitting an estimated pattern span now logs the cut range and the held remainder.
+- The reviewer can now trim a dynamically inserted ad region to a transcript pause. The cross-fetch comparison measures only a few seconds of each inserted block, so the rest of the region is inferred and could hold show speech. A trimmed edge still stops at measured evidence: probed audio, fingerprint matches, cue pairs and user-confirmed spans. Other trims still stop at the region edge, as before.
 
 ## [2.97.26] - 2026-09-26
 

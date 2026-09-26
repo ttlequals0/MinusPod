@@ -3,6 +3,11 @@ import math
 
 
 DAI_CORE_SPANS = 'dai_core_spans'
+# Windows the cross-fetch probe actually correlated; the rest of a region is inferred.
+DAI_PROBE_SPANS = 'dai_probe_spans'
+# Probe geometry shared with differential_fetcher._probe_block.
+DAI_PROBE_LEAD_S = 0.5
+DAI_PROBE_REF_S = 4.0
 
 EDGE_TOLERANCE = 0.05
 COVERAGE_GAP_TOLERANCE = 3.0
@@ -127,11 +132,39 @@ def _valid_dai_core_spans(marker: dict) -> list[dict[str, float]]:
     return _valid_spans(marker, DAI_CORE_SPANS)
 
 
+def dai_probe_window(start: float, end: float) -> tuple[float, float]:
+    """Window the fetcher correlates inside one differential block."""
+    ref = min(DAI_PROBE_REF_S, end - start)
+    lead = start + min(DAI_PROBE_LEAD_S, (end - start) - ref)
+    return lead, lead + ref
+
+
+def _probe_span_dicts(marker: dict) -> list[dict]:
+    """Recorded probe spans, or the leading window of each core span on legacy markers."""
+    if isinstance(marker.get(DAI_PROBE_SPANS), list):
+        return _valid_spans(marker, DAI_PROBE_SPANS)
+    return [{'start': s['start'],
+             'end': min(s['end'], s['start'] + DAI_PROBE_LEAD_S
+                        + min(DAI_PROBE_REF_S, s['end'] - s['start']))}
+            for s in _valid_dai_core_spans(marker)]
+
+
+def dai_core_spans(marker: dict) -> list[tuple[float, float]]:
+    """(start, end) of a marker's measured DAI regions."""
+    return [(s['start'], s['end']) for s in _valid_dai_core_spans(marker)]
+
+
+def dai_probe_spans(marker: dict) -> list[tuple[float, float]]:
+    """(start, end) windows of a marker's DAI regions that were measured."""
+    return [(s['start'], s['end']) for s in _probe_span_dicts(marker)]
+
+
 def merge_dai_core_spans(target: dict, other: dict) -> None:
     """Carry measured DAI regions through a marker merge."""
     spans = _valid_dai_core_spans(target) + _valid_dai_core_spans(other)
     if not spans:
         return
+    probes = _probe_span_dicts(target) + _probe_span_dicts(other)
     spans.sort(key=lambda span: span['start'])
     merged = [spans[0]]
     for span in spans[1:]:
@@ -140,11 +173,21 @@ def merge_dai_core_spans(target: dict, other: dict) -> None:
         else:
             merged.append(span)
     target[DAI_CORE_SPANS] = merged
+    target[DAI_PROBE_SPANS] = sorted(probes, key=lambda span: span['start'])
 
 
 def clip_dai_core_spans(marker: dict, start: float, end: float) -> None:
     """Clip a marker's DAI evidence to a newly split/clamped range."""
-    _clip_spans(marker, DAI_CORE_SPANS, _valid_dai_core_spans(marker), start, end)
+    core = _valid_dai_core_spans(marker)
+    if core:
+        # Materialize legacy probes first so the fallback never follows a clipped start.
+        marker[DAI_PROBE_SPANS] = _probe_span_dicts(marker)
+    _clip_spans(marker, DAI_CORE_SPANS, core, start, end)
+    if DAI_CORE_SPANS in marker:
+        _clip_spans(marker, DAI_PROBE_SPANS, marker[DAI_PROBE_SPANS],
+                    start, end, keep_empty=True)
+    else:
+        marker.pop(DAI_PROBE_SPANS, None)
 
 
 def span_bounds(spans) -> tuple[float | None, float | None]:
@@ -385,11 +428,12 @@ def note_merged_members(target: dict, other: dict) -> None:
         target.get('merged_protected_end'), hi, max)
 
 
-def measured_member_spans(marker: dict,
-                          min_conf: float) -> list[tuple[float, float, bool]]:
+def measured_member_spans(marker: dict, min_conf: float, *,
+                          include_dai_core: bool = True) -> list[tuple[float, float, bool]]:
     """Measured (start, end, is_anchor) spans of a marker, sorted by start."""
     # Anchors are independent member evidence: no DAI core, no estimate's own text.
-    spans = [(s['start'], s['end'], False) for s in _valid_dai_core_spans(marker)]
+    spans = ([(s['start'], s['end'], False) for s in _valid_dai_core_spans(marker)]
+             if include_dai_core else [])
     for member in _member_spans(marker):
         stage = member.get('stage')
         lo, hi = member['start'], member['end']
@@ -408,6 +452,24 @@ def measured_member_spans(marker: dict,
         if hi > lo:
             spans.append((lo, hi, not member.get('span_estimated')))
     return sorted(spans)
+
+
+def reviewer_independent_spans(ad: dict) -> list[tuple[float, float]]:
+    """Measured spans a transcript-supported reviewer edge may not enter."""
+    spans = [(lo, hi) for lo, hi, _ in
+             measured_member_spans(ad, math.inf, include_dai_core=False)]
+    pair = ad.get('cue_pair') or {}
+    cue_lo = finite_number((pair.get('start') or {}).get('cue_end'))
+    cue_hi = finite_number((pair.get('end') or {}).get('cue_start'))
+    # Same 0.05 s pad cue_pair_ads puts inside each cue.
+    if cue_lo is not None and cue_hi is not None and cue_hi - cue_lo > 0.1:
+        spans.append((cue_lo + 0.05, cue_hi - 0.05))
+    spans.extend(dai_probe_spans(ad))
+    start, end = finite_number(ad.get('start')), finite_number(ad.get('end'))
+    if ((ad.get('validation') or {}).get('user_confirmed')
+            and start is not None and end is not None and end > start):
+        spans.append((start, end))
+    return spans
 
 
 def union_cover(spans, start: float, end: float,

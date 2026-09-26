@@ -331,6 +331,7 @@ def test_merged_dai_core_inward_shrink_keeps_existing_core_clamp():
         'resurrect_prompt': 'resurrect',
         'review_max_boundary_shift': '60',
     })
+    # 130/160 are no transcript edges, so the unsupported trim keeps the core.
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"start": 130.0, "end": 160.0, "confidence": 0.85}]'
     )
@@ -1069,6 +1070,7 @@ def test_clamp_preserves_dai_core_but_trims_outer_candidate():
         'dai_core_spans': [{'start': 100.0, 'end': 160.0}],
     }
 
+    # No segments: neither edge is transcript-supported.
     s, e = r._clamp_proposed_bounds(
         ad, 120.0, 140.0, 80.0, 180.0, 60.0, 'slug', 'ep')
 

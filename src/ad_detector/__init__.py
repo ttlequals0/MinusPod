@@ -35,6 +35,8 @@ from utils.llm_call import (
 )
 from utils.markers import (
     DAI_CORE_SPANS,
+    DAI_PROBE_SPANS,
+    dai_probe_window,
     estimated_text_bounds,
     finite_number,
     invalidate_word_timed_edges,
@@ -507,12 +509,15 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
     # keeps spans separate.
     spans = []
     for c_start, c_end in candidates:
+        p_start, p_end = dai_probe_window(c_start, c_end)
+        probe = {'start': p_start, 'end': p_end}
         if spans and abs(c_start - spans[-1][1]) <= 0.05:
             spans[-1][1] = c_end
+            spans[-1][2].append(probe)
         else:
-            spans.append([c_start, c_end])
+            spans.append([c_start, c_end, [probe]])
 
-    for start, end in spans:
+    for start, end, probes in spans:
         if any(overlap_ratio(fp_start, fp_end, start, end) > 0.5
                for fp_start, fp_end in fp_pairs):
             continue
@@ -532,6 +537,7 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
             # start/end with coarse LLM spans, but the reviewer must not trim
             # away audio that cross-fetch measured as inserted.
             DAI_CORE_SPANS: [{'start': start, 'end': end}],
+            DAI_PROBE_SPANS: probes,
         }
         if stage_overlap:
             ad['reason'] = ('Dynamically inserted: audio differs across '

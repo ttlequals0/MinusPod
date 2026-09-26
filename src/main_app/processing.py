@@ -2521,6 +2521,8 @@ def _apply_reviewer_verdict_to_ad(ad, v):
         invalidate_tail_provenance(ad, v.adjusted_end)
         ad['start'] = v.adjusted_start
         ad['end'] = v.adjusted_end
+        clip_dai_core_spans(ad, v.adjusted_start, v.adjusted_end)
+        clip_merge_spans(ad, v.adjusted_start, v.adjusted_end)
     elif v.verdict == 'reject':
         ad['was_cut'] = False
         ad['source'] = 'reviewer'

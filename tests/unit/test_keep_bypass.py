@@ -47,7 +47,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
                   verification_return=None, held_categories=None,
                   reviewer_side_effect=None, render_fails=False,
                   verification_side_effect=None, real_refine_reviewer=False,
-                  confirmed_corrections=None):
+                  confirmed_corrections=None, duration=100.0):
     """Drive process_episode's full pass-1 flow with every stage but the
     partition itself mocked out. Returns the recorded mocks for inspection.
 
@@ -63,6 +63,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
     return tuple, to drive the pass-2 merge seam; ``held_categories`` names
     categories the fake validator holds instead of cutting, so a pass-1 held
     marker reaches that seam.
+    ``duration`` sets the episode length the audio mocks report.
     """
     podcast_row = {'id': 1, 'slug': 'keep-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
@@ -153,12 +154,12 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
         db.get_setting_float.side_effect = lambda key, default=None: default
         db.get_all_settings.return_value = {}
         db.resolve_segment_actions.return_value = segment_actions
-        audio_processor.get_audio_duration.return_value = 100.0
+        audio_processor.get_audio_duration.return_value = duration
         local_ap = local_ap_cls.return_value
         local_ap.process_episode.side_effect = (
             lambda audio_path, ads_to_remove, cut_barriers=None:
             None if render_fails else ('/tmp/cut.mp3', list(ads_to_remove)))
-        local_ap.get_audio_duration.return_value = 100.0
+        local_ap.get_audio_duration.return_value = duration
         storage.get_episode_path.return_value = '/tmp/final.mp3'
 
         result = processing.process_episode(

@@ -50,9 +50,10 @@ from llm_client import (
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import (
-    COARSE_MEMBER_STAGES, EDGE_TOLERANCE, dai_core_bounds, finite_number,
-    invalidate_tail_provenance, protected_member_spans, span_bounds,
-    spans_match, union_cover,
+    COARSE_MEMBER_STAGES, EDGE_TOLERANCE, clip_dai_core_spans, clip_merge_spans,
+    dai_core_bounds, dai_core_spans, dai_probe_spans, finite_number,
+    invalidate_tail_provenance, protected_member_spans,
+    reviewer_independent_spans, span_bounds, spans_match, union_cover,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
@@ -396,6 +397,9 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
     invalidate_tail_provenance(updated, end)
     updated["start"] = start
     updated["end"] = end
+    # Persist the trim so re-validation cannot restore the dropped core.
+    clip_dai_core_spans(updated, start, end)
+    clip_merge_spans(updated, start, end)
     updated["reviewer_verdict"] = "adjust"
     updated["reviewer_moved"] = True
     updated["reviewer_original_start"] = original_start
@@ -509,6 +513,65 @@ def _clamp_overrode(new_start, new_end, original_start, original_end,
                                       original_start, original_end)
             and not _bounds_unchanged(clamped_start, clamped_end,
                                       new_start, new_end))
+
+
+# Silence a supported edge needs before the next (or after the previous) speech.
+_SUPPORTED_EDGE_GAP_S = 0.3
+
+
+def _speech_units(segments) -> list[tuple[float, float]]:
+    """(start, end) of every timed word, or of the segment when it has none."""
+    units = []
+    for seg in segments or []:
+        words = seg.get('words') or [seg]
+        for unit in words:
+            lo, hi = finite_number(unit.get('start')), finite_number(unit.get('end'))
+            if lo is not None and hi is not None and hi >= lo:
+                units.append((lo, hi))
+    return units
+
+
+def _edge_matches(value: float, new: float) -> bool:
+    return abs(value - new) <= EDGE_TOLERANCE or float(f"{value:.1f}") == new
+
+
+def _edge_transcript_supported(segments, edge: str, new: float, old: float) -> bool:
+    """Whether an inward edge lands on a transcript pause with speech dropped past it."""
+    units = _speech_units(segments)
+    if edge == 'end':
+        matched = [hi for _, hi in units if _edge_matches(hi, new)]
+        if (new >= old - EDGE_TOLERANCE or not matched
+                or not any(new <= lo < old for lo, _ in units)):
+            return False
+        at = max(matched)
+        gap = min((lo for lo, _ in units if lo > at - EDGE_TOLERANCE),
+                  default=math.inf) - at
+    else:
+        matched = [lo for lo, _ in units if _edge_matches(lo, new)]
+        if (new <= old + EDGE_TOLERANCE or not matched
+                or not any(old < hi <= new for _, hi in units)):
+            return False
+        at = min(matched)
+        gap = at - max((hi for _, hi in units if hi < at + EDGE_TOLERANCE),
+                       default=-math.inf)
+    crossed = any(lo < at - EDGE_TOLERANCE and hi > at + EDGE_TOLERANCE
+                  for lo, hi in units)
+    return not crossed and gap >= _SUPPORTED_EDGE_GAP_S
+
+
+def _supported_edge_floor(ad: dict, edge: str, value: float,
+                          lo_bound: float, hi_bound: float) -> float:
+    """Where a supported edge stops: short of any independent span it would enter."""
+    spans = reviewer_independent_spans(ad)
+    cores = dai_core_spans(ad)
+    for p_lo, p_hi in dai_probe_spans(ad):
+        if (p_hi > value) if edge == 'end' else (p_lo < value):
+            # The unprobed rest of an entered block is unknown, so keep its whole region.
+            spans += [(c_lo, c_hi) for c_lo, c_hi in cores if c_lo <= p_lo and p_hi <= c_hi]
+    spans = [(max(lo, lo_bound), min(hi, hi_bound)) for lo, hi in spans]
+    if edge == 'end':
+        return max([value] + [hi for lo, hi in spans if hi > max(lo, value)])
+    return min([value] + [lo for lo, hi in spans if lo < min(hi, value)])
 
 
 # How far a reviewer proposal may cut into a measured merge member before the
@@ -1439,7 +1502,7 @@ class AdReviewer:
 
         clamped_start, clamped_end = self._clamp_proposed_bounds(
             ad, new_start, new_end, original_start, original_end,
-            max_shift, slug, episode_id)
+            max_shift, slug, episode_id, segments=segments)
 
         proposal_clamped = _clamp_overrode(
             new_start, new_end, original_start, original_end,
@@ -1521,7 +1584,7 @@ class AdReviewer:
 
     def _clamp_proposed_bounds(self, ad, new_start, new_end,
                                original_start, original_end, max_shift,
-                               slug, episode_id):
+                               slug, episode_id, segments=None):
         """Clamp reviewer-proposed bounds: inverted-bounds fallback, per-edge
         shift cap, merged-span floor, final validity fallback. Single seam for
         every path that turns reviewer prose or deltas into marker bounds."""
@@ -1578,6 +1641,22 @@ class AdReviewer:
         if core_start is not None:
             floor_start = min(clamped_start, core_start)
             floor_end = max(clamped_end, core_end)
+            # Only the probe windows of a region are measured, so an edge on a
+            # transcript pause may cross the rest, stopping at independent evidence.
+            if _edge_transcript_supported(segments, 'start', clamped_start,
+                                          original_start):
+                floor_start = _supported_edge_floor(
+                    ad, 'start', clamped_start, original_start, original_end)
+            if _edge_transcript_supported(segments, 'end', clamped_end,
+                                          original_end):
+                floor_end = _supported_edge_floor(
+                    ad, 'end', clamped_end, original_start, original_end)
+            if floor_start > core_start or floor_end < core_end:
+                logger.info(
+                    f"[{slug}:{episode_id}] Reviewer supported trim crossed "
+                    f"DAI core {core_start:.1f}-{core_end:.1f}s: "
+                    f"{floor_start:.1f}-{floor_end:.1f}"
+                )
             if floor_start != clamped_start or floor_end != clamped_end:
                 logger.info(
                     f"[{slug}:{episode_id}] Reviewer inward shrink clamped "
