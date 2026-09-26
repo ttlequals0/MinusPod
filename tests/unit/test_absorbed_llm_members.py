@@ -22,7 +22,7 @@ SEGMENTS = [
 ]
 
 
-def _detect(claude_confidence):
+def _detect(claude_confidence, claude_end=2545.0):
     detector = AdDetector(api_key='test-key')
     detector.db = None
     detector.audio_fingerprinter = None
@@ -32,7 +32,7 @@ def _detect(claude_confidence):
             pattern_id=7, start=2457.8, end=2545.3, confidence=0.95,
             sponsor='Acme', category='sponsor', span_estimated=True,
             text_start=2457.8, text_end=2462.8)]})()
-    claude_ad = {'start': 2485.2, 'end': 2545.0,
+    claude_ad = {'start': 2485.2, 'end': claude_end,
                  'confidence': claude_confidence, 'sponsor': 'Acme',
                  'category': 'sponsor', 'reason': 'Acme sponsor read'}
     with (patch.object(detector, 'initialize_client'),
@@ -45,6 +45,22 @@ def _detect(claude_confidence):
             keep_content=False)
     assert len(result['ads']) == 1
     return result['ads'][0]
+
+
+def test_trimmed_llm_ad_records_covered_part_as_member():
+    marker = _detect(0.98, claude_end=2562.0)
+
+    claude = [m for m in marker['merged_member_spans'] if m['stage'] == 'claude']
+    assert [(m['start'], m['end']) for m in claude] == [(2485.2, 2562.0)]
+
+    result = AdValidator(3600.0, SEGMENTS, splice_veto_enabled=False).validate([marker])
+
+    assert [(ad['start'], ad['end']) for ad in result.ads] == [
+        (2457.8, 2485.2), (2485.2, 2562.0)]
+    lead, cut = result.ads
+    assert lead['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+    assert cut['validation']['decision'] == Decision.ACCEPT.value
+    assert not cut.get('held_for_review')
 
 
 def test_absorbed_llm_ad_recorded_as_member():

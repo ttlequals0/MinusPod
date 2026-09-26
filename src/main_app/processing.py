@@ -77,6 +77,7 @@ from config import (
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
     HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
+    PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
@@ -3132,7 +3133,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers):
                     {'start': span['start'], 'end': span['end']}
                     if trimmed else None),
                 text_snippet=(
-                    f"auto-approved: pass-2 corroborated "
+                    f"{PASS2_AUTOAPPROVE_SNIPPET_PREFIX} corroborated "
                     f"{m.get('hold_reason')} hold"),
                 podcast_id=podcast['id'],
             )

@@ -1051,10 +1051,8 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
     detection is dropped as covered. Mutates the region and its marker.
     """
     for region in pattern_matched_regions:
-        marker = next((m for m in all_ads
-                       if m.get('pattern_id') == region.get('pattern_id')
-                       and abs(m['start'] - region['start']) < 0.01
-                       and abs(m['end'] - region['end']) < 0.01), None)
+        marker = next((m for m in all_ads if region_matches_marker(region, m)),
+                      None)
         if marker and marker.get('span_estimated'):
             text = estimated_text_bounds(marker)
             if text is None:
@@ -1114,9 +1112,7 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
         if excess < PATTERN_TIGHTEN_MIN_EXCESS_SECONDS:
             continue
         for marker in all_ads:
-            if (marker.get('pattern_id') == region.get('pattern_id')
-                    and abs(marker['start'] - region['start']) < 0.01
-                    and abs(marker['end'] - region['end']) < 0.01):
+            if region_matches_marker(region, marker):
                 logger.info(
                     f"[{slug}:{episode_id}] Tightened pattern marker "
                     f"{region['start']:.1f}s-{region['end']:.1f}s to LLM "
@@ -1128,6 +1124,13 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
         region['start'], region['end'] = tight['start'], tight['end']
 
 
+def region_matches_marker(region: dict, marker: dict) -> bool:
+    """True when a pattern region and a marker share pattern_id and bounds."""
+    return (marker.get('pattern_id') == region.get('pattern_id')
+            and abs(marker['start'] - region['start']) < 0.01
+            and abs(marker['end'] - region['end']) < 0.01)
+
+
 def record_absorbed_detection(ad: dict, coverage_regions: list,
                               all_ads: list[dict]) -> None:
     """Record a covered LLM ad as a member of each pattern marker absorbing it."""
@@ -1136,10 +1139,8 @@ def record_absorbed_detection(ad: dict, coverage_regions: list,
     for region in coverage_regions:
         if not isinstance(region, dict):
             continue
-        marker = next((m for m in all_ads
-                       if m.get('pattern_id') == region.get('pattern_id')
-                       and abs(m['start'] - region['start']) < 0.01
-                       and abs(m['end'] - region['end']) < 0.01), None)
+        marker = next((m for m in all_ads if region_matches_marker(region, m)),
+                      None)
         if (marker is None or marker['start'] >= ad['end']
                 or marker['end'] <= ad['start']):
             continue

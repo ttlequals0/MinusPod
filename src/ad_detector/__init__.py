@@ -124,6 +124,7 @@ from .boundaries import (
     _unpack_region,
     get_uncovered_portions,
     record_absorbed_detection,
+    region_matches_marker,
     removal_coverage_regions,
     tighten_pattern_regions,
     merge_same_sponsor_ads,
@@ -2509,9 +2510,7 @@ class AdDetector:
                        if id(marker) not in superseded_ids]
             pattern_matched_regions = [
                 region for region in pattern_matched_regions
-                if not any(region.get('pattern_id') == marker.get('pattern_id')
-                           and abs(region['start'] - marker['start']) < 0.01
-                           and abs(region['end'] - marker['end']) < 0.01
+                if not any(region_matches_marker(region, marker)
                            for marker in superseded)]
 
         # Duration feedback: update pattern avg_duration from Claude's more accurate boundaries
@@ -2557,10 +2556,11 @@ class AdDetector:
                     record_absorbed_detection(ad, coverage_regions, all_ads)
                     continue
 
-            # Log if ad was trimmed (not returned as-is)
+            # Trimmed: record the covered part as a member, then log the kept portions
             if not (len(uncovered_portions) == 1
                     and uncovered_portions[0]['start'] == ad['start']
                     and uncovered_portions[0]['end'] == ad['end']):
+                record_absorbed_detection(ad, coverage_regions, all_ads)
                 for portion in uncovered_portions:
                     logger.info(f"[{slug}:{episode_id}] Preserved uncovered portion: "
                                 f"{portion['start']:.1f}s-{portion['end']:.1f}s "

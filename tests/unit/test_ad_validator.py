@@ -53,6 +53,17 @@ def test_newer_confirmation_supersedes_only_reviewed_trim_audio():
     assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
 
 
+def test_auto_filed_confirm_neither_protects_nor_releases_audio():
+    user_trim = {'start': 100.0, 'end': 160.0,
+                 'confirmed_span': {'start': 110.0, 'end': 160.0}}
+    auto = {'start': 90.0, 'end': 160.0, 'auto_filed': True,
+            'confirmed_span': {'start': 105.0, 'end': 160.0}}
+
+    assert user_trimmed_keep_ranges([auto]) == []
+    assert user_trimmed_keep_ranges([auto, user_trim]) == [
+        {'start': 100.0, 'end': 110.0}]
+
+
 def test_saved_trim_blocks_subsecond_render_merge():
     ranges = user_trimmed_keep_ranges([{
         'start': 100.0, 'end': 160.0,
@@ -2673,6 +2684,24 @@ def test_estimated_tail_split_logs_one_info_line(caplog):
     assert split_lines == [
         'Split estimated pattern span 3492.9s-3680.7s: '
         'cut 3492.9s-3573.2s, held 3573.2s-3680.7s']
+
+
+def test_estimated_split_log_says_none_when_remainders_are_short(caplog):
+    ad = {'start': 100.0, 'end': 160.0, 'confidence': 0.95,
+          'reason': 'Acme sponsor read', 'detection_stage': 'text_pattern',
+          'span_estimated': True, 'text_start': 100.0, 'text_end': 104.0,
+          'merged_protected_start': 103.0, 'merged_protected_end': 157.0,
+          'merged_member_spans': [
+              {'start': 103.0, 'end': 157.0, 'stage': 'claude',
+               'confidence': 0.95}]}
+
+    with caplog.at_level(logging.INFO, logger='ad_validator'):
+        AdValidator(3600.0, [], splice_veto_enabled=False).validate([ad])
+
+    assert [r.message for r in caplog.records
+            if r.message.startswith('Split estimated pattern span')] == [
+        'Split estimated pattern span 100.0s-160.0s: '
+        'cut 103.0s-157.0s, held none']
 
 
 def test_estimated_remainder_hold_log_gets_remainder_suffix(caplog):

@@ -62,6 +62,9 @@ def user_trimmed_keep_ranges(corrections: list[dict]) -> list[dict]:
     protected = []
     newer_approvals = []
     for correction in corrections:
+        # Pass-2 auto-approvals carry no user authority over excluded audio.
+        if correction.get('auto_filed'):
+            continue
         start = finite_number(correction.get('start'))
         end = finite_number(correction.get('end'))
         span = correction.get('confirmed_span')
@@ -1419,7 +1422,7 @@ class AdValidator:
                 logger.info(
                     f"Split estimated pattern span {ad['start']:.1f}s-"
                     f"{ad['end']:.1f}s: cut {lo:.1f}s-{hi:.1f}s, "
-                    f"held {', '.join(remainder_spans)}"
+                    f"held {', '.join(remainder_spans) or 'none'}"
                 )
             cut.pop('has_estimated_pattern_member', None)
             cut.pop('span_estimated', None)

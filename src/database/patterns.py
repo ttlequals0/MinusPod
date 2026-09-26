@@ -2,7 +2,7 @@
 import json
 import logging
 
-from config import SEGMENT_CATEGORIES
+from config import PASS2_AUTOAPPROVE_SNIPPET_PREFIX, SEGMENT_CATEGORIES
 
 logger = logging.getLogger(__name__)
 
@@ -712,7 +712,8 @@ class PatternMixin:
         """
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT correction_type, original_bounds, corrected_bounds
+            """SELECT correction_type, original_bounds, corrected_bounds,
+                      text_snippet
                FROM pattern_corrections
                WHERE podcast_id = ? AND episode_id = ?
                  AND correction_type IN ('confirm', 'boundary_adjustment')
@@ -730,6 +731,9 @@ class PatternMixin:
                 if confirmed_span:
                     bounds['confirmed_span'] = confirmed_span
                 bounds['correction_type'] = row['correction_type']
+                if (row['text_snippet'] or '').startswith(
+                        PASS2_AUTOAPPROVE_SNIPPET_PREFIX):
+                    bounds['auto_filed'] = True
                 results.append(bounds)
         return results
 

@@ -10,7 +10,9 @@ from unittest.mock import MagicMock
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='confirm_held_test_'))
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 
+from ad_validator import user_trimmed_keep_ranges
 from api.patterns import _handle_confirm_correction
+import main_app.processing as processing_mod
 
 
 def _seed(temp_db, markers, slug='confirm-test', episode_id='abcdef012345'):
@@ -395,3 +397,34 @@ class TestTrimmedConfirmValidation:
         assert _status(resp) == 200
         saved, _ = _markers(temp_db, slug, eid)
         assert saved[0]['approved'] is True
+
+
+def test_user_trimmed_confirm_remainder_is_a_keep_range(temp_db):
+    slug, eid = _seed(temp_db, [_held(2457.8, 2545.3)])
+
+    _confirm_trimmed(temp_db, slug, eid, 2457.8, 2545.3, 2485.2, 2545.3)
+
+    podcast_id = temp_db.get_podcast_by_slug(slug)['id']
+    corrections = temp_db.get_confirmed_corrections(podcast_id, eid)
+    assert not corrections[0].get('auto_filed')
+    assert user_trimmed_keep_ranges(corrections) == [
+        {'start': 2457.8, 'end': 2485.2}]
+
+
+def test_auto_filed_confirm_remainder_is_not_a_keep_range(temp_db, monkeypatch):
+    hold = dict(_held(2457.8, 2545.3), hold_reason='estimated_pattern_bounds',
+                pass2_corroborated=True,
+                pass2_corroborated_span={'start': 2485.2, 'end': 2545.3})
+    slug, eid = _seed(temp_db, [hold])
+    monkeypatch.setattr(processing_mod, 'db', temp_db)
+    monkeypatch.setattr(processing_mod, 'storage', MagicMock())
+    monkeypatch.setattr(temp_db, 'get_original_segments',
+                        lambda *a: [{'start': 0.0, 'end': 30.0}])
+
+    assert processing_mod._file_corroborated_hold_approvals(slug, eid, [hold]) == 1
+
+    podcast_id = temp_db.get_podcast_by_slug(slug)['id']
+    corrections = temp_db.get_confirmed_corrections(podcast_id, eid)
+    assert corrections[0]['auto_filed'] is True
+    assert corrections[0]['confirmed_span'] == {'start': 2485.2, 'end': 2545.3}
+    assert user_trimmed_keep_ranges(corrections) == []
