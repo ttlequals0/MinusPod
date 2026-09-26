@@ -1,6 +1,9 @@
 """Unit tests for verification_pass timestamp mapping helpers (issue #183)."""
 
-from verification_pass import _build_timestamp_map, _map_correction_to_processed
+from verification_pass import (
+    _build_timestamp_map, _map_ad_to_original, _map_correction_to_processed,
+    _map_to_original,
+)
 
 
 def test_map_correction_no_cuts():
@@ -55,14 +58,12 @@ def test_map_correction_empty_range():
 
 
 def test_map_to_original_accounts_for_replacement_audio():
-    from verification_pass import _map_to_original
     cuts = [(50.0, 20.0)]  # cut 50-70s, replaced by a 2s beep
     # Content originally at 100s sits at 100 - (20 - 2) = 82s in beeped audio.
     assert _map_to_original(82.0, cuts, replacement_duration=2.0) == 100.0
 
 
 def test_map_to_original_inside_replacement_maps_into_cut():
-    from verification_pass import _map_to_original
     cuts = [(50.0, 20.0)]
     # 1s into the beep maps just inside the removed span, keeping the
     # mapping monotonic.
@@ -70,7 +71,6 @@ def test_map_to_original_inside_replacement_maps_into_cut():
 
 
 def test_map_to_original_zero_replacement_unchanged():
-    from verification_pass import _map_to_original
     cuts = [(50.0, 20.0)]
     assert _map_to_original(80.0, cuts) == 100.0
 
@@ -91,7 +91,6 @@ def test_map_correction_start_in_cut_lands_after_beep():
 
 
 def test_map_ad_to_original_maps_fingerprint_match_fields():
-    from verification_pass import _map_ad_to_original
     cuts = [(50.0, 20.0)]
     ad = {'start': 82.0, 'end': 92.0, 'detection_stage': 'fingerprint',
           'fingerprint_match_start': 82.0, 'fingerprint_match_end': 92.0,

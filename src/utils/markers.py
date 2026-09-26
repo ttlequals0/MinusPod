@@ -36,7 +36,7 @@ def quote_edge_valid(marker: dict, edge: str) -> bool:
     edge_time = finite_number(marker.get(edge))
     return bool(marker.get(f'quote_aligned_{edge}')
                 and quote_time is not None and edge_time is not None
-                and abs(quote_time - edge_time) <= 0.05)
+                and abs(quote_time - edge_time) <= EDGE_TOLERANCE)
 
 
 def invalidate_quote_alignment(marker: dict) -> None:
@@ -50,7 +50,7 @@ def invalidate_quote_alignment(marker: dict) -> None:
 def word_timed_edge_valid(marker: dict, edge: str) -> bool:
     timed = finite_number(marker.get(f'word_timed_{edge}'))
     current = finite_number(marker.get(edge))
-    return timed is not None and current is not None and abs(timed - current) <= 0.05
+    return timed is not None and current is not None and abs(timed - current) <= EDGE_TOLERANCE
 
 
 def invalidate_word_timed_edges(marker: dict) -> None:

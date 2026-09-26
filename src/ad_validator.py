@@ -660,9 +660,11 @@ class AdValidator:
                 if hi - lo < MIN_AD_DURATION:
                     continue
                 # Clipped members let the estimated-remainder split judge it;
-                # with none left the parent's merge records describe nothing here.
-                residue = self._narrowed(ad, lo, hi, keep_members=True)
-                if not recorded_member_spans(residue):
+                # otherwise the parent's merge records describe nothing here.
+                residue = ad
+                if self._has_estimated_edge(ad):
+                    residue = self._narrowed(ad, lo, hi, keep_members=True)
+                if residue is ad or not recorded_member_spans(residue):
                     residue = carve_fragment(residue, lo, hi)
                 for key in ('_confirmed_correction',
                             '_has_confirmed_correction_candidate',

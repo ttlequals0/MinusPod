@@ -1,10 +1,6 @@
-import os
-import sys
-import tempfile
+from tests.app_bootstrap import bootstrap
 
-os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='measured_test_'))
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+bootstrap('measured_test_')
 
 from ad_detector import AdDetector
 from utils.markers import (

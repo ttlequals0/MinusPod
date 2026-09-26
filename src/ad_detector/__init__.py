@@ -638,11 +638,12 @@ def _pattern_match_evidence(match, kind: str) -> str:
 _SPONSOR_MATCH_STAGES = ('fingerprint', 'text_pattern')
 
 
-def _known_sponsor_pattern(ads: list[dict],
-                           episode_description: str | None) -> re.Pattern | None:
+def _known_sponsor_pattern(ads: list[dict], episode_description: str | None,
+                           any_stage: bool = False) -> re.Pattern | None:
     """Matcher for sponsors already known via pattern/fingerprint or the description, or None."""
+    # Pass-1 cuts are validated ads; merge priority can relabel a pattern cut's stage.
     names = {ad['sponsor'] for ad in ads
-             if ad.get('detection_stage') in _SPONSOR_MATCH_STAGES
+             if (any_stage or ad.get('detection_stage') in _SPONSOR_MATCH_STAGES)
              and ad.get('sponsor') and is_brand_token(ad['sponsor'])}
     names |= extract_description_sponsors(episode_description)
     return word_boundary_re(names)
@@ -3392,7 +3393,7 @@ class AdDetector:
 
             # Before the scrub: href sponsor links live in the raw description.
             episode_sponsor_re = _known_sponsor_pattern(
-                pass1_cuts or [], episode_description)
+                pass1_cuts or [], episode_description, any_stage=True)
 
             # Prepare description section
             description_section = ""

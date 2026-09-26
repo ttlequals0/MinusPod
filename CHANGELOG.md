@@ -15,13 +15,10 @@ release notes.
 
 ### Fixed
 
-- Ad validation cuts the measured part of a detected ad and holds only the unmeasured estimated-pattern remainder for review, instead of holding the whole merged marker. Approving just the held remainder and reprocessing still cuts the measured part.
+- Ad validation cuts the measured part of a detected ad and holds only the unmeasured estimated-pattern remainder for review. Previously the whole merged marker was held. Approving just the held remainder and reprocessing still cuts the measured part.
 - Pass 2 can auto-approve an estimated-pattern hold when an independent pass-2 re-detection corroborates it.
-- The sponsor gate for long LLM detection windows now accepts a window naming a sponsor already confirmed elsewhere in the same episode, so a long correct read is no longer dropped for lacking its own ad-language cue.
-
-### Changed
-
-- 2.97.22 introduced the estimated-pattern hold, which held the whole merged marker rather than just the estimated part; this was not documented at the time.
+- The sponsor gate for long LLM detection windows now accepts a window with a known sponsor. That sponsor is named by this episode's pattern or fingerprint matches, its description, or the sponsor registry in the detection reason. A long correct read is no longer dropped for lacking its own ad-language cue.
+- Sponsor names read from an episode description now match whole words only, so words like "romance" or "factory" no longer count as sponsors.
 
 ## [2.97.25] - 2026-09-25
 

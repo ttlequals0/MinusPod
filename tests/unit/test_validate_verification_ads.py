@@ -489,9 +489,9 @@ def test_non_releasable_hold_never_stamped():
 
 def test_pass2_corroborates_estimated_tail():
     """Pass 2 re-detecting the held remainder is corroboration: stamp and clip to it."""
-    proc = [_plain_proc(3494.0, 3572.0)]
-    orig = [_orig(3494.0, 3572.0, 'estimated')]
-    hold = _held_marker(3492.9, 3573.2, hold_reason='estimated_pattern_bounds')
+    proc = [_plain_proc(3575.0, 3678.0)]
+    orig = [_orig(3575.0, 3678.0, 'estimated')]
+    hold = _held_marker(3573.2, 3680.7, hold_reason='estimated_pattern_bounds')
 
     v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
@@ -500,14 +500,14 @@ def test_pass2_corroborates_estimated_tail():
     assert v_ads_to_cut == []
     assert n == 1
     assert hold['pass2_corroborated'] is True
-    assert hold['pass2_corroborated_span'] == {'start': 3494.0, 'end': 3572.0}
+    assert hold['pass2_corroborated_span'] == {'start': 3575.0, 'end': 3678.0}
 
 
 def test_pass2_low_confidence_does_not_corroborate_estimated_tail():
     """Pass-2 confidence below min_cut_confidence: no corroboration, hold stays open."""
-    proc = [_plain_proc(3494.0, 3572.0, confidence=0.5)]
-    orig = [_orig(3494.0, 3572.0, 'estimated')]
-    hold = _held_marker(3492.9, 3573.2, hold_reason='estimated_pattern_bounds')
+    proc = [_plain_proc(3575.0, 3678.0, confidence=0.5)]
+    orig = [_orig(3575.0, 3678.0, 'estimated')]
+    hold = _held_marker(3573.2, 3680.7, hold_reason='estimated_pattern_bounds')
 
     _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],

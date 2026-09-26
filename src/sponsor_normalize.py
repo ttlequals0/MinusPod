@@ -25,14 +25,15 @@ _POSSESSIVE_SUFFIXES = ("'s",)
 _POSSESSIVE_SPELLINGS = ("'s", "\u2019s")
 
 
+# Whole words only, so "keeps" and "romance" do not yield sponsors.
 DESCRIPTION_SPONSOR_PATTERNS = re.compile(
-    r'betterhelp|athletic\s*greens|ag1|squarespace|nordvpn|'
+    r'(?<!\w)(?:betterhelp|athletic\s*greens|ag1|squarespace|nordvpn|'
     r'expressvpn|hellofresh|audible|masterclass|ziprecruiter|'
     r'raycon|manscaped|stamps\.com|indeed|linkedin|'
     r'casper|helix|brooklinen|bombas|calm|headspace|'
     r'better\s*help|honey|simplisafe|wix|shopify|'
     r'bluechew|roman|hims|keeps|factor|noom|'
-    r'magic\s*spoon|athletic\s*brewing|liquid\s*iv',
+    r'magic\s*spoon|athletic\s*brewing|liquid\s*iv)(?!\w)',
     re.IGNORECASE
 )
 
@@ -44,7 +45,7 @@ _DESCRIPTION_HREF_RE = re.compile(
 
 @lru_cache(maxsize=64)
 def extract_description_sponsors(episode_description: str | None) -> frozenset:
-    """Lowercase sponsor names from an episode description; cached so detector and validator share one extraction."""
+    """Lowercase sponsor names from a description; cached and shared by detector and validator."""
     sponsors = set()
     if not episode_description:
         return frozenset()

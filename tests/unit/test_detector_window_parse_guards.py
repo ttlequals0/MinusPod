@@ -223,15 +223,22 @@ def test_normalize_ad_episode_sponsor_in_start_text_counts():
                          episode_sponsor_re=_ACME) is not None
 
 
-def test_normalize_ad_registry_hit_in_end_text():
+def test_registry_name_in_a_quote_does_not_admit_a_long_window():
+    ad = {'confidence': 0.9, 'reason': 'Hosts discuss the week in review',
+          'end_text': 'Indeed, that is the story'}
+    start, end = 1000.0, 1150.0
+    registry = _registry('Indeed')
+
+    assert _normalize_ad(ad, start, end, sponsor_service=registry) is None
+    ad['reason'] = 'Indeed hiring spot'
+    assert _normalize_ad(ad, start, end, sponsor_service=registry) is not None
+
+
+def test_episode_sponsor_in_end_text_counts():
     ad = _long_window(reason='Host talks through a kibble lineup',
                       end_text='that is Acme Pet Food dot com')
-    registry = _registry('Acme Pet Food')
-
     assert _normalize_ad(ad, _LONG_START, _LONG_END,
-                         sponsor_service=registry) is not None
-    assert _normalize_ad(ad, _LONG_START, _LONG_END,
-                         sponsor_service=_registry()) is None
+                         episode_sponsor_re=_ACME) is not None
 
 
 def test_episode_sponsor_match_is_whole_word():
@@ -277,6 +284,24 @@ def test_known_sponsor_pattern_collects_matches_and_description():
     assert not pattern.search('Initech is hiring')
     # A common word stored as a sponsor must not admit a content window.
     assert not pattern.search('what happened today')
+
+
+def test_pass2_sponsor_pattern_takes_every_pass1_cut_sponsor():
+    extract_description_sponsors.cache_clear()
+    cuts = [{'detection_stage': 'dai_differential', 'sponsor': 'Initech'},
+            {'detection_stage': 'claude', 'sponsor': 'Today'}]
+
+    assert _known_sponsor_pattern(cuts, None) is None
+    pattern = _known_sponsor_pattern(cuts, None, any_stage=True)
+    assert pattern.search('Initech is hiring')
+    assert not pattern.search('what happened today')
+
+
+def test_description_sponsors_are_whole_words():
+    extract_description_sponsors.cache_clear()
+    description = ('A keepsake from our honeymoons, a romance at the factory, '
+                   'and a calming walk. Brought to you by Squarespace.')
+    assert extract_description_sponsors(description) == frozenset({'squarespace'})
 
 
 def test_known_sponsor_pattern_is_none_without_sponsors():

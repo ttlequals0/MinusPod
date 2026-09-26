@@ -9,17 +9,12 @@ import pytest
 from ad_detector import AdDetector, _label_reach
 from ad_detector.boundaries import get_uncovered_portions, tighten_pattern_regions
 from text_pattern_matcher import TextPatternMatcher, AdPattern, TextMatch
+from tests.unit.marker_test_utils import member_bases
 from utils.markers import note_fold
 
 SEGMENTS = [{'start': s, 'end': s + 5.0, 'text': 'words ' * 12}
             for s in range(1970, 2100, 5)]
 
-
-def _base(members):
-    """Member spans reduced to start, end and stage."""
-    if isinstance(members, dict):
-        return {k: members[k] for k in ('start', 'end', 'stage')}
-    return [_base(m) for m in members]
 
 def test_estimated_pattern_span_does_not_clear_hold():
     # start=2040 (< last['end']=2043) forces a true overlap so the merge
@@ -93,7 +88,7 @@ def test_folded_marker_records_only_the_matched_text(ads, members):
                                         action_map=None)
 
     assert len(merged) == 1
-    assert _base(merged[0]['merged_member_spans']) == members
+    assert member_bases(merged[0]['merged_member_spans']) == members
 
 
 def test_estimate_moved_by_a_snap_still_narrows_to_its_text():
@@ -103,7 +98,7 @@ def test_estimate_moved_by_a_snap_still_narrows_to_its_text():
     note_fold(ad, {'start': 1100.0, 'end': 1200.0, 'confidence': 0.9,
                    'detection_stage': 'claude'})
 
-    assert _base(ad['merged_member_spans'][0]) == {
+    assert member_bases(ad['merged_member_spans'][0]) == {
         'start': 831.75, 'end': 860.0, 'stage': 'text_pattern'}
 
 
@@ -146,7 +141,7 @@ def test_bundled_llm_bound_stops_estimated_pattern_tail(pattern_first):
     assert (marker['start'], marker['end']) == (185.0, 222.0)
     assert (region['start'], region['end']) == (185.0, 222.0)
     assert [(m['start'], m['end']) for m in merged] == [(100.0, 222.0)]
-    assert _base(merged[0]['merged_member_spans']) == [
+    assert member_bases(merged[0]['merged_member_spans']) == [
         {'start': 100.0, 'end': 222.0, 'stage': 'claude'},
         {'start': 185.0, 'end': 222.0, 'stage': 'text_pattern'},
     ]

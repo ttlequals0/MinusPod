@@ -360,15 +360,16 @@ def _extract_sponsor_name(ad: dict) -> str:
     return 'Advertisement detected'
 
 
-def _names_known_sponsor(texts: list[str],
+def _names_known_sponsor(texts: list[str], summary_texts: list[str],
                          episode_sponsor_re: re.Pattern | None,
                          sponsor_service) -> bool:
-    """Whether any text names a known episode sponsor or a registry sponsor."""
+    """Whether any text names a known episode sponsor, or a summary text a registry sponsor."""
     if episode_sponsor_re is not None and any(
             episode_sponsor_re.search(t) for t in texts):
         return True
+    # Quotes are excluded: registry names like "Indeed" are common words.
     return bool(sponsor_service) and any(
-        sponsor_service.find_sponsor_in_text(t) for t in texts)
+        sponsor_service.find_sponsor_in_text(t) for t in summary_texts)
 
 
 def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
@@ -472,11 +473,11 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     # Checked only when cheaper evidence is missing: the registry scan is costly.
     has_known_sponsor = False
     if not has_sponsor_field and not has_ad_language:
-        texts = [t for t in (reason, _as_text(ad.get('start_text')),
-                             _as_text(ad.get('end_text')),
-                             _as_text(ad.get('description'))) if t]
+        summary = [t for t in (reason, _as_text(ad.get('description'))) if t]
+        quotes = [t for t in (_as_text(ad.get('start_text')),
+                              _as_text(ad.get('end_text'))) if t]
         has_known_sponsor = _names_known_sponsor(
-            texts, episode_sponsor_re, sponsor_service)
+            summary + quotes, summary, episode_sponsor_re, sponsor_service)
 
     if not has_sponsor_field and not has_known_sponsor and not has_ad_language:
         # Low confidence + no evidence = reject regardless of duration
