@@ -128,10 +128,12 @@ def build_split_candidates(spans: list[dict], start: float, end: float,
         proposals += [(_time_at_offset(spans, offset), name)
                       for offset, name in _brand_handoffs(text, brands, compiled)]
     # A member's start is where the ad before it ended, so only the members
-    # after the first name an interior boundary.
-    proposals += [(member['start'], member.get('sponsor') or 'merged ad')
-                  for member in sorted(members or [],
-                                       key=lambda m: m['start'])[1:]]
+    # after the first name an interior boundary; one nested in an earlier member names none.
+    reach = None
+    for member in sorted(members or [], key=lambda m: m['start']):
+        if reach is not None and member['end'] > reach:
+            proposals.append((member['start'], member.get('sponsor') or 'merged ad'))
+        reach = member['end'] if reach is None else max(reach, member['end'])
     proposals += [(cut, 'measured cut') for cut in cuts or []]
 
     out: list[dict] = []

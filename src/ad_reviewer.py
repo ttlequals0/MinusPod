@@ -186,14 +186,20 @@ def inconclusive_bounds_supported(ad: dict, db) -> bool:
         return True
 
     pattern_id = ad.get('pattern_id')
+    # A merge reaching past the match is unmeasured; an absorbed detection inside it is not.
+    protected_start = finite_number(ad.get('merged_protected_start'))
+    protected_end = finite_number(ad.get('merged_protected_end'))
     if (pattern_id is None or db is None
             or ad.get('detection_stage') != 'fingerprint'
             or ad.get('merged_distinct_ads')
-            or ad.get('merged_member_spans')
             or finite_number(ad.get('fingerprint_match_start')) is None
             or finite_number(ad.get('fingerprint_match_end')) is None
             or abs(start - ad['fingerprint_match_start']) > EDGE_TOLERANCE
-            or abs(end - ad['fingerprint_match_end']) > EDGE_TOLERANCE):
+            or abs(end - ad['fingerprint_match_end']) > EDGE_TOLERANCE
+            or (protected_start is not None and protected_start
+                < ad['fingerprint_match_start'] - EDGE_TOLERANCE)
+            or (protected_end is not None and protected_end
+                > ad['fingerprint_match_end'] + EDGE_TOLERANCE)):
         return False
     try:
         pattern = db.get_ad_pattern_by_id(pattern_id)

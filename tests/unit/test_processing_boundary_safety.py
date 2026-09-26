@@ -218,6 +218,26 @@ def test_abstained_fingerprint_needs_defined_pattern_and_original_bounds(monkeyp
     assert result.accepted_after_review == []
 
 
+def test_abstained_fingerprint_with_absorbed_llm_member_still_cuts(monkeypatch):
+    reviewer = _reviewer()
+    monkeypatch.setattr('ad_reviewer.call_llm_for_window',
+                        lambda **kwargs: (None, InconclusiveError()))
+    reviewer.db.get_ad_pattern_by_id.return_value = {
+        'created_by': 'user', 'is_active': 1}
+    absorbed = {'start': 10.0, 'end': 70.0, 'confidence': 0.95,
+                'detection_stage': 'fingerprint', 'pattern_id': 7,
+                'fingerprint_match_start': 10.0, 'fingerprint_match_end': 70.0,
+                'merged_protected_start': 10.0, 'merged_protected_end': 70.0,
+                'merged_member_spans': [
+                    {'start': 10.0, 'end': 70.0, 'stage': 'fingerprint'},
+                    {'start': 15.0, 'end': 68.0, 'stage': 'claude',
+                     'confidence': 0.9}]}
+    past_match = dict(absorbed, merged_protected_end=90.0)
+    result = reviewer.review([absorbed, past_match], [], [], _meta(), 1, 'test-model')
+    assert result.accepted_after_review == [absorbed]
+    assert [m['merged_protected_end'] for m in result.held_by_inconclusive] == [90.0]
+
+
 def test_full_processing_pass_renders_no_abstained_cut(monkeypatch):
     reviewer = _reviewer()
     monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)

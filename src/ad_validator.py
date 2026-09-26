@@ -1394,8 +1394,8 @@ class AdValidator:
             measured = measured_member_spans(ad, self.min_cut_confidence)
             spans = [(a, b) for a, b, _ in measured]
             anchors = [(a, b) for a, b, anchor in measured if anchor]
-            # The cut run must hold independent evidence, not just the estimate's text.
             lo, hi = self._measured_cover(spans, anchors, ad['start'], ad['end'])
+            # No run holds independent evidence: the whole span stays one estimate.
             if lo is None:
                 out.append(ad)
                 continue
