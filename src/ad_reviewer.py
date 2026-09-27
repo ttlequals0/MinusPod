@@ -584,8 +584,49 @@ def _supported_edge_floor(ad: dict, independent, edge: str, value: float,
     return min([value] + [lo for lo, hi in spans if lo < min(hi, value)])
 
 
-def _floor_source(floor: float, proposed: float, core_edge: float) -> str:
+def _speech_run_reach(run, sign: int) -> float:
+    """Far end of the unbroken speech starting at run[0]; sign is +1 going later, -1 earlier."""
+    reach = run[0][1]
+    for near, far in run[1:]:
+        if sign * (near - reach) >= _SUPPORTED_EDGE_GAP_S:
+            break
+        reach = max(reach, far) if sign > 0 else min(reach, far)
+    return reach
+
+
+def _speech_capped_floor(units, independent, edge: str, proposed: float,
+                         floor: float) -> float | None:
+    """Unsupported-edge floor stopped at the adjacent spoken word, or None to keep the floor."""
+    # Cap only when unbroken speech runs from the proposal past the floor, with no
+    # measured evidence between them; speech wholly inside the core may be the ad.
+    if edge == 'end':
+        run = sorted(u for u in units if u[0] >= proposed - EDGE_TOLERANCE)
+        if (floor <= proposed or not run or run[0][0] >= floor
+                or _speech_run_reach(run, 1) <= floor):
+            return None
+        region = (proposed, floor)
+    else:
+        run = sorted(((hi, lo) for lo, hi in units if hi <= proposed + EDGE_TOLERANCE),
+                     reverse=True)
+        if (floor >= proposed or not run or run[0][0] <= floor
+                or _speech_run_reach(run, -1) >= floor):
+            return None
+        region = (floor, proposed)
+    if any(lo < region[1] and hi > region[0] for lo, hi in independent):
+        return None
+    word_edge = run[0][0]
+    if edge == 'end':
+        on_word = any(_edge_matches(hi, proposed) for _, hi in units)
+        return proposed if on_word else max(word_edge, proposed)
+    on_word = any(_edge_matches(lo, proposed) for lo, _ in units)
+    return proposed if on_word else min(word_edge, proposed)
+
+
+def _floor_source(floor: float, proposed: float, core_edge: float,
+                  capped: bool = False) -> str:
     """Name what stopped a reviewer edge, for the DAI core clamp log."""
+    if capped:
+        return 'spoken word cap'
     if floor == proposed:
         return 'none'
     return 'DAI core' if floor == core_edge else 'independent span'
@@ -1699,14 +1740,23 @@ class AdReviewer:
             # transcript pause may cross the rest, stopping at independent evidence.
             units = _speech_units(segments)
             independent = reviewer_independent_spans(ad)
+            cap_start = cap_end = None
             if _edge_transcript_supported(units, 'start', clamped_start,
                                           original_start):
                 floor_start = _supported_edge_floor(
                     ad, independent, 'start', clamped_start, original_start, original_end)
+            else:
+                cap_start = _speech_capped_floor(
+                    units, independent, 'start', clamped_start, floor_start)
+                floor_start = floor_start if cap_start is None else cap_start
             if _edge_transcript_supported(units, 'end', clamped_end,
                                           original_end):
                 floor_end = _supported_edge_floor(
                     ad, independent, 'end', clamped_end, original_start, original_end)
+            else:
+                cap_end = _speech_capped_floor(
+                    units, independent, 'end', clamped_end, floor_end)
+                floor_end = floor_end if cap_end is None else cap_end
             if ((floor_start, floor_end) != (clamped_start, clamped_end)
                     or floor_start > core_start or floor_end < core_end):
                 logger.info(
@@ -1715,8 +1765,9 @@ class AdReviewer:
                     f"{clamped_start:.1f}-{clamped_end:.1f} -> "
                     f"{floor_start:.1f}-{floor_end:.1f} "
                     f"(start floored by "
-                    f"{_floor_source(floor_start, clamped_start, core_start)}, "
-                    f"end floored by {_floor_source(floor_end, clamped_end, core_end)})"
+                    f"{_floor_source(floor_start, clamped_start, core_start, cap_start is not None)}, "
+                    f"end floored by "
+                    f"{_floor_source(floor_end, clamped_end, core_end, cap_end is not None)})"
                 )
             clamped_start, clamped_end = floor_start, floor_end
 

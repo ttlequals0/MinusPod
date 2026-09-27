@@ -101,9 +101,10 @@ def test_cue_pair_floors_supported_end(monkeypatch):
     assert cuts == [(0.0, 73.2)]
 
 
-def test_unsupported_end_keeps_core_clamp(monkeypatch):
+def test_unsupported_end_capped_short_of_straddling_speech(monkeypatch):
+    # The 61.06-87.16 segment runs past the core end, so the old 73.2 floor cut into it.
     _, cuts = _run(monkeypatch, _marker(), end=60.0)
-    assert cuts == [(0.0, 73.2)]
+    assert cuts == [(0.0, 61.06)]
 
 
 def test_end_edge_supported_by_segment_end_and_gap():
@@ -207,3 +208,92 @@ def test_clamp_log_names_what_floored_each_edge(caplog):
     lines = [r.getMessage() for r in caplog.records if 'DAI core' in r.getMessage()]
     assert len(lines) == 1
     assert 'start floored by DAI core, end floored by independent span' in lines[0]
+
+
+# "vary." ends 94.2 and "Dare" starts 0.22 s later, too close for a supported edge.
+TIGHT_SEGMENTS = SEGMENTS[:3] + [
+    {'start': 61.06, 'end': 94.2, 'text': 'Welcome back, results may vary.',
+     'words': [{'word': 'Welcome', 'start': 61.06, 'end': 70.0},
+               {'word': 'back,', 'start': 70.0, 'end': 80.0},
+               {'word': 'results', 'start': 80.0, 'end': 90.0},
+               {'word': 'vary.', 'start': 90.0, 'end': 94.2}]},
+    {'start': 94.42, 'end': 105.89, 'text': 'Dare to grow tomatoes.',
+     'words': [{'word': 'Dare', 'start': 94.42, 'end': 94.98},
+               {'word': 'to', 'start': 94.98, 'end': 100.0},
+               {'word': 'grow', 'start': 100.0, 'end': 103.0},
+               {'word': 'tomatoes.', 'start': 103.0, 'end': 105.89}]},
+]
+
+
+def _tight_marker(**overrides):
+    return _marker(**dict({'end': 94.8, 'dai_core_spans': [{'start': 0.0, 'end': 94.8}]},
+                          **overrides))
+
+
+def test_unsupported_end_capped_at_next_spoken_word(caplog):
+    reviewer = AdReviewer.__new__(AdReviewer)
+    with caplog.at_level('INFO', logger='ad_reviewer'):
+        bounds = reviewer._clamp_proposed_bounds(
+            _tight_marker(), 0.0, 94.2, 0.0, 94.8, 60, 'slug', 'ep',
+            segments=TIGHT_SEGMENTS)
+    assert bounds == pytest.approx((0.0, 94.2))
+    lines = [r.getMessage() for r in caplog.records if 'DAI core' in r.getMessage()]
+    assert len(lines) == 1
+    assert 'start floored by none, end floored by spoken word cap' in lines[0]
+
+
+def test_unsupported_end_off_word_edge_capped_at_word_start():
+    reviewer = AdReviewer.__new__(AdReviewer)
+    bounds = reviewer._clamp_proposed_bounds(
+        _tight_marker(), 0.0, 94.3, 0.0, 94.8, 60, 'slug', 'ep',
+        segments=TIGHT_SEGMENTS)
+    assert bounds == pytest.approx((0.0, 94.42))
+
+
+def test_next_word_inside_probe_keeps_core_floor():
+    reviewer = AdReviewer.__new__(AdReviewer)
+    marker = _tight_marker(**{DAI_PROBE_SPANS: [{'start': 0.5, 'end': 4.5},
+                                                {'start': 94.3, 'end': 94.8}]})
+    bounds = reviewer._clamp_proposed_bounds(
+        marker, 0.0, 94.2, 0.0, 94.8, 60, 'slug', 'ep', segments=TIGHT_SEGMENTS)
+    assert bounds == pytest.approx((0.0, 94.8))
+
+
+def test_unsupported_start_capped_at_previous_spoken_word():
+    segments = [{'start': 0.0, 'end': 10.0, 'text': 'Show talk ends.',
+                 'words': [{'word': 'Show', 'start': 0.0, 'end': 5.0},
+                           {'word': 'ends.', 'start': 5.0, 'end': 10.0}]},
+                {'start': 10.2, 'end': 40.0, 'text': 'Brought to you by Acme.'}]
+    marker = {'start': 9.5, 'end': 40.0, 'detection_stage': 'dai_differential',
+              'dai_core_spans': [{'start': 9.5, 'end': 40.0}],
+              DAI_PROBE_SPANS: [{'start': 35.0, 'end': 39.0}]}
+    reviewer = AdReviewer.__new__(AdReviewer)
+    bounds = reviewer._clamp_proposed_bounds(
+        marker, 10.2, 40.0, 9.5, 40.0, 60, 'slug', 'ep', segments=segments)
+    assert bounds == pytest.approx((10.2, 40.0))
+    probed = dict(marker, **{DAI_PROBE_SPANS: [{'start': 9.5, 'end': 13.5}]})
+    bounds = reviewer._clamp_proposed_bounds(
+        probed, 10.2, 40.0, 9.5, 40.0, 60, 'slug', 'ep', segments=segments)
+    assert bounds == pytest.approx((9.5, 40.0))
+
+
+def test_unsupported_end_render_keeps_next_spoken_word(monkeypatch):
+    reviewer = _reviewer()
+    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)
+    body = '[{"start": 0.0, "end": 94.2, "is_ad": true, "confidence": 0.94}]'
+    monkeypatch.setattr('ad_reviewer.call_llm_for_window',
+                        lambda **kwargs: (_LLMResp(body), None))
+    run = _run_pipeline([_tight_marker()], {'sponsor': 'remove'},
+                        segments=TIGHT_SEGMENTS, real_refine_reviewer=True,
+                        duration=600.0)
+    assert run['result'] is True
+    cuts = run['local_ap'].process_episode.call_args.args[1]
+    assert [(c['start'], c['end']) for c in cuts] == [(0.0, 94.2)]
+
+
+def test_speech_wholly_inside_core_keeps_core_floor():
+    # Speech after 20.42 pauses at 58.2, well before the core end.
+    reviewer = AdReviewer.__new__(AdReviewer)
+    bounds = reviewer._clamp_proposed_bounds(
+        _marker(), 0.0, 20.42, 0.0, 73.2, 60, 'slug', 'ep', segments=SEGMENTS)
+    assert bounds == pytest.approx((0.0, 73.2))
