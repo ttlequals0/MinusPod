@@ -279,7 +279,7 @@ def test_held_pass2_ad_diverts_to_v_ads_held():
     proc = [_held_proc(100.0, 160.0)]
     orig = [_orig(1100.0, 1160.0, 'held')]
 
-    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8,
     )
 
@@ -302,7 +302,7 @@ def test_non_held_pass2_ad_behavior_unchanged():
     proc = [_plain_proc(100.0, 160.0)]
     orig = [_orig(1100.0, 1160.0, 'plain')]
 
-    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8,
     )
 
@@ -319,7 +319,7 @@ def test_held_not_in_v_ads_for_ui():
     proc = [_held_proc(100.0, 160.0), _plain_proc(300.0, 360.0)]
     orig = [_orig(1100.0, 1160.0, 'held'), _orig(1300.0, 1360.0, 'plain')]
 
-    _v_ads_to_cut, v_ads_for_ui, v_ads_held, _n = _gate_verification_ads_by_confidence(
+    _v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8,
     )
 
@@ -335,7 +335,7 @@ def test_held_was_cut_is_false():
     proc = [_held_proc(200.0, 280.0, confidence=0.95, hold_reason='no_cue_evidence')]
     orig = [_orig(1200.0, 1280.0, 'nocue')]
 
-    _, _, v_ads_held, _n = _gate_verification_ads_by_confidence(
+    _, _, v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8,
     )
 
@@ -354,7 +354,7 @@ def test_below_threshold_non_held_not_in_v_ads_held():
     }]
     orig = [_orig(1100.0, 1160.0, 'lowconf')]
 
-    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8,
     )
 
@@ -374,7 +374,7 @@ def test_pass2_cut_inside_pass1_held_span_is_dropped():
     orig = [_orig(120.0, 250.0, 'inside')]  # original coords overlap held 100-500
     pass1_held = [_held_marker(100.0, 500.0)]
 
-    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=pass1_held,
     )
 
@@ -390,7 +390,7 @@ def test_pass2_cut_outside_pass1_held_span_still_cut():
     orig = [_orig(600.0, 660.0, 'outside')]
     pass1_held = [_held_marker(100.0, 500.0)]
 
-    v_ads_to_cut, v_ads_for_ui, _v_ads_held, _n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, v_ads_for_ui, _v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=pass1_held,
     )
 
@@ -414,7 +414,7 @@ def test_corroborating_ad_stamps_hold_and_is_still_dropped():
     orig = [_orig(4875.8, 5024.8, 'diff')]
     hold = _diff_hold(4875.8, 5025.8)
 
-    v_ads_to_cut, v_ads_for_ui, v_ads_held, n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, v_ads_for_ui, v_ads_held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -436,7 +436,7 @@ def test_short_ad_in_long_hold_does_not_stamp():
     orig = [_orig(1100.0, 1115.0, 'short')]
     hold = _diff_hold(1000.0, 1300.0)
 
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -449,7 +449,7 @@ def test_graze_does_not_stamp():
     orig = [_orig(4400.0, 4500.0, 'graze')]
     hold = _diff_hold(4480.0, 4600.0)  # 20s of the 100s ad inside
 
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -462,7 +462,7 @@ def test_low_confidence_does_not_stamp():
     orig = [_orig(990.0, 1150.0, 'lowconf')]
     hold = _diff_hold(990.0, 1150.0)
 
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -478,7 +478,7 @@ def test_non_releasable_hold_never_stamped():
     orig = [_orig(990.0, 1150.0, 'nocue')]
     hold = _held_marker(990.0, 1150.0, hold_reason='no_cue_evidence')
 
-    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -493,7 +493,7 @@ def test_pass2_corroborates_estimated_tail():
     orig = [_orig(3575.0, 3678.0, 'estimated')]
     hold = _held_marker(3573.2, 3680.7, hold_reason='estimated_pattern_bounds')
 
-    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -509,7 +509,7 @@ def test_pass2_low_confidence_does_not_corroborate_estimated_tail():
     orig = [_orig(3575.0, 3678.0, 'estimated')]
     hold = _held_marker(3573.2, 3680.7, hold_reason='estimated_pattern_bounds')
 
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -523,7 +523,7 @@ def test_pass2_ad_inside_estimated_hold_approves_measured_part():
     orig = [_orig(2485.2, 2545.1, 'estimated')]
     hold = _held_marker(2457.8, 2545.3, hold_reason='estimated_pattern_bounds')
 
-    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -538,7 +538,7 @@ def test_low_confidence_pass2_ad_inside_estimated_hold_does_not_approve():
     orig = [_orig(2485.2, 2545.1, 'estimated')]
     hold = _held_marker(2457.8, 2545.3, hold_reason='estimated_pattern_bounds')
 
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -552,7 +552,7 @@ def test_pass2_ad_reaching_past_estimated_hold_does_not_approve():
     orig = [_orig(2485.2, 2565.3, 'estimated')]
     hold = _held_marker(2457.8, 2545.3, hold_reason='estimated_pattern_bounds')
 
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -566,7 +566,7 @@ def test_partial_coverage_still_blocks_differential_hold_approval():
     orig = [_orig(2485.2, 2545.1, 'diff')]
     hold = _held_marker(2457.8, 2545.3, hold_reason='differential_uncorroborated')
 
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -581,7 +581,7 @@ def test_boundary_conflict_hold_is_stamped_by_a_corroborating_pass2_ad():
     orig = [_orig(990.0, 1150.0, 'bconflict')]
     hold = _held_marker(990.0, 1150.0, hold_reason='reviewer_boundary_conflict')
 
-    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -600,7 +600,7 @@ def test_boundary_conflict_hold_is_not_stamped_by_the_rejected_trim():
     hold['reviewer_proposed_start'] = 990.0
     hold['reviewer_proposed_end'] = 1060.0
 
-    v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -615,7 +615,7 @@ def test_ad_overlapping_two_pending_markers_does_not_stamp():
     hold = _diff_hold(1000.0, 1150.0)
     other = _held_marker(1140.0, 1200.0, hold_reason='no_cue_evidence')
 
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold, other],
     )
 
@@ -628,7 +628,7 @@ def test_two_corroborating_ads_stamp_once():
     orig = [_orig(1000.0, 1140.0, 'a'), _orig(1000.0, 1145.0, 'b')]
     hold = _diff_hold(1000.0, 1150.0)
 
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -641,7 +641,7 @@ def test_held_pass2_ad_still_diverts_never_stamps():
     orig = [_orig(990.0, 1150.0, 'heldover')]
     hold = _diff_hold(990.0, 1150.0)
 
-    v_ads_to_cut, _ui, v_ads_held, n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, _ui, v_ads_held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -818,7 +818,7 @@ def test_padded_hold_tail_still_corroborates_and_records_span():
     orig = [_orig(835.1, 1053.0, 'acme')]
     hold = _diff_hold(837.4, 1077.3)
 
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 
@@ -843,7 +843,7 @@ def test_proposed_span_agreement_corroborates_despite_low_coverage():
     proc = [_plain_proc(100.0, 134.1)]
     orig = [_orig(3895.8, 3929.9, 'acme')]
     hold = _contradiction_hold(3872.9, 3933.3, 3895.8, 3929.9)
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])
     assert n == 1
     assert hold['pass2_corroborated'] is True
@@ -856,7 +856,7 @@ def test_proposed_span_disagreement_does_not_corroborate():
     proc = [_plain_proc(100.0, 120.0)]
     orig = [_orig(3873.0, 3893.0, 'other')]
     hold = _contradiction_hold(3872.9, 3933.3, 3895.8, 3929.9)
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])
     assert n == 0
     assert 'pass2_corroborated' not in hold
@@ -916,7 +916,7 @@ def test_proposed_span_outside_hold_does_not_corroborate():
     proc = [_plain_proc(100.0, 130.0)]
     orig = [_orig(160.0, 190.0, 'outside')]
     hold = _contradiction_hold(100.0, 160.0, 161.0, 190.0)
-    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])
     assert n == 0
     assert 'pass2_corroborated' not in hold

@@ -97,7 +97,7 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
                       side_effect=lambda *args, **kwargs: (args[2], args[3])), \
          patch.object(processing, '_gate_verification_ads_by_confidence',
                       side_effect=lambda processed, original, *args, **kwargs:
-                      (processed, original, [], 0)), \
+                      (processed, original, [], 0, [])), \
          patch.object(processing, '_apply_pass2_reviewer', reviewer), \
          patch.object(processing, '_crosspass_cut_plan', crosspass), \
          patch.object(processing, 'build_protection', side_effect=spy_build):

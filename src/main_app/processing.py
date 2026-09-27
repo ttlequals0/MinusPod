@@ -62,7 +62,7 @@ from utils.markers import (EDGE_TOLERANCE, carve_fragment, clip_dai_core_spans,
                            is_reviewer_rejected, reviewer_edge_locked,
                            set_reviewer_locks, spans_match, subtract_spans)
 from utils.time import (
-    adjust_timestamp, epoch_to_iso, merge_cut_spans, overlap_ratio,
+    adjust_timestamp, epoch_to_iso, merge_cut_spans, overlap_ratio, overlap_seconds,
     ranges_overlap, span_inside_any_cut, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
@@ -80,7 +80,7 @@ from config import (
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
-    PASS2_AUTOAPPROVE_HOLD_REASONS,
+    PASS2_AUTOAPPROVE_HOLD_REASONS, PASS2_REVIEWED_RELEASE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     REVIEWER_REJECT_PRESERVED_FLAG,
@@ -2355,6 +2355,8 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
             continue
 
         if v.verdict == 'resurrect':
+            if (original_by_key.get(key) or {}).get('held_for_review'):
+                continue
             if proc_ad is None:
                 # Without a processed-coord twin we cannot add to the recut
                 # list; UI would falsely show it cut. Drop the resurrection
@@ -2387,6 +2389,72 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
             stamp_reviewer_fields(ui_ad, v)
 
     _log_reviewer_verdicts(slug, episode_id, 2, result.verdicts)
+
+
+def _released_span(v, sub, hold, barriers):
+    """The span a successful review of a hold subspan releases, or None."""
+    if (not v.success or v.inconclusive_hold or v.boundary_conflict
+            or is_contradiction_hold(v.verdict, v.reasoning, v.structured_is_ad)):
+        return None
+    if v.verdict == 'confirmed':
+        lo, hi = sub['start'], sub['end']
+    elif v.verdict == 'adjust' and v.adjusted_start is not None and v.adjusted_end is not None:
+        lo, hi = v.adjusted_start, v.adjusted_end
+    else:
+        return None
+    outside = subtract_spans(
+        [(lo, hi)], [(hold['start'], hold['end']), (sub['start'], sub['end'])])
+    if hi - lo < MIN_AD_DURATION or any(b - a > EDGE_TOLERANCE for a, b in outside):
+        return None
+    if any(overlap_seconds(lo, hi, b['start'], b['end']) > EDGE_TOLERANCE
+           for b in barriers):
+        return None
+    return {'start': lo, 'end': hi}
+
+
+def _review_hold_release_candidates(ctx, candidates, original_segments,
+                                    protection, segment_actions=None):
+    """Review each pass-2 subspan inside a hold; stamp holds whose subspan passed."""
+    if not candidates or not _ad_review_enabled(db):
+        return 0
+    reviewer = _build_reviewer(db, ad_detector)
+    episode_meta = _build_episode_meta(
+        ctx.slug, ctx.episode_id, ctx.podcast_id, ctx.podcast_name,
+        ctx.episode_title, ctx.podcast_description, ctx.episode_description,
+        effective_category_actions=segment_actions,
+        hard_barriers=protection.hard_orig)
+    result = reviewer.review(
+        accepted_ads=[orig_sub for _proc, orig_sub, _hold in candidates],
+        resurrection_eligible=[],
+        segments=original_segments or [],
+        episode_meta=episode_meta,
+        pass_num=2,
+        pass_model=ad_detector.get_verification_model(),
+        pass_provider=ad_detector.get_verification_provider(),
+    )
+    by_key = {(sub['start'], sub['end']): (sub, hold) for _proc, sub, hold in candidates}
+    released = 0
+    for v in result.verdicts:
+        sub, hold = by_key.get((v.original_start, v.original_end), (None, None))
+        if hold is None or hold.get('pass2_reviewed_release'):
+            continue
+        span = _released_span(v, sub, hold, protection.barriers_orig(exclude=[hold]))
+        if span is None:
+            audio_logger.info(
+                f"[{ctx.slug}:{ctx.episode_id}] Review of {sub['start']:.1f}s-"
+                f"{sub['end']:.1f}s inside hold {hold['start']:.1f}s-"
+                f"{hold['end']:.1f}s returned {v.verdict}; the hold stays whole")
+            continue
+        hold['pass2_reviewed_release'] = span
+        hold['pass2_corroborated'] = True
+        hold['pass2_corroborated_span'] = dict(span)
+        hold.setdefault('validation', {}).setdefault('flags', []).append(
+            'INFO: Pass-2 subspan confirmed by review')
+        released += 1
+        audio_logger.info(
+            f"[{ctx.slug}:{ctx.episode_id}] Review released {span['start']:.1f}s-"
+            f"{span['end']:.1f}s of hold {hold['start']:.1f}s-{hold['end']:.1f}s")
+    return released
 
 
 def _hold_adjustments_crossing_final_holds(processed_ads, original_ads, held_ads):
@@ -3132,7 +3200,9 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers):
     the pipeline can fold them into its own and finalize once."""
     holds = [m for m in markers or []
              if m.get('pass2_corroborated') and is_pending_review(m)
-             and m.get('hold_reason') in PASS2_AUTOAPPROVE_HOLD_REASONS]
+             and (m.get('hold_reason') in PASS2_AUTOAPPROVE_HOLD_REASONS
+                  or (m.get('pass2_reviewed_release')
+                      and m.get('hold_reason') in PASS2_REVIEWED_RELEASE_HOLD_REASONS))]
     if not holds:
         return 0
     try:
@@ -3189,14 +3259,17 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers):
             # skipping on a graze runs the recut without a matching confirm,
             # the validator re-holds the marker, and the auto-approval
             # silently does nothing (DTNS 5313 reprocess).
-            if any(overlap_ratio(c['start'], c['end'], m['start'], m['end'])
+            span = _pass2_confirm_span(m)
+            target = span or m
+            if any(overlap_ratio((c.get('confirmed_span') or c)['start'],
+                                 (c.get('confirmed_span') or c)['end'],
+                                 target['start'], target['end'])
                    >= CORRECTION_MATCH_MIN_COVERAGE
                    for c in confirmed_corrections or []):
                 continue
             # Trim the confirm to the pass-2-attested sub-span (same shape a
             # human trimmed approval files); the validator clamps the cut to
             # confirmed_span, so hold padding the detection excluded stays.
-            span = _pass2_confirm_span(m)
             trimmed = span is not None
             db.create_pattern_correction(
                 correction_type='confirm',
@@ -3695,13 +3768,17 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
 
             if verification_ads_processed:
                 # Confidence gate and re-cut
-                (v_ads_to_cut, v_ads_for_ui, gated_held,
-                 v_corroborated_count) = _gate_verification_ads_by_confidence(
+                (v_ads_to_cut, v_ads_for_ui, gated_held, v_corroborated_count,
+                 hold_release_candidates) = _gate_verification_ads_by_confidence(
                     verification_ads_processed, verification_ads_original,
                     min_cut_confidence,
                     pass1_held_markers=pass1_held_markers,
                     verification_miss_hold_min_confidence=verification_miss_hold_min_confidence,
                     verification_miss_autocut_min_confidence=verification_miss_autocut_min_confidence,
+                    pass1_cuts=pass1_cuts,
+                    hard_barriers_orig=current_protection().hard_orig,
+                    segments=original_segments,
+                    cue_gate_enabled=cue_gate_enabled,
                 )
                 v_ads_held.extend(gated_held)
 
@@ -3720,6 +3797,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 )
                 _hold_adjustments_crossing_final_holds(
                     v_ads_to_cut, v_ads_for_ui, v_ads_held)
+                v_corroborated_count += _review_hold_release_candidates(
+                    ctx, hold_release_candidates, original_segments,
+                    current_protection(), segment_actions=segment_actions)
 
                 _stamp_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, segment_actions)

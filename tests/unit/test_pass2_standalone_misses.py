@@ -36,7 +36,7 @@ def test_miss_above_hold_floor_becomes_held_marker():
     proc = [_proc(100.0, 160.0, 0.8)]
     orig = [_orig(1100.0, 1160.0, 0.8)]
 
-    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.9,
     )
 
@@ -57,7 +57,7 @@ def test_miss_below_hold_floor_is_discarded():
     proc = [_proc(100.0, 160.0, 0.5)]
     orig = [_orig(1100.0, 1160.0, 0.5)]
 
-    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.9,
     )
 
@@ -76,7 +76,7 @@ def test_miss_above_autocut_floor_is_cut_not_held():
     proc = [_proc(100.0, 160.0, 0.8)]
     orig = [_orig(1100.0, 1160.0, 0.8)]
 
-    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.9,
         verification_miss_autocut_min_confidence=0.75,
     )
@@ -96,7 +96,7 @@ def test_autocut_disabled_by_default_falls_back_to_hold():
     proc = [_proc(100.0, 160.0, 0.99)]
     orig = [_orig(1100.0, 1160.0, 0.99)]
 
-    v_ads_to_cut, _v_ads_for_ui, v_ads_held, _n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, _v_ads_for_ui, v_ads_held, _n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.999,
     )
 
@@ -118,7 +118,7 @@ def test_miss_overlapping_pass1_held_marker_still_corroborates():
         'differential_uncorroborated': True,
     }
 
-    v_ads_to_cut, v_ads_for_ui, v_ads_held, n = _gate_verification_ads_by_confidence(
+    v_ads_to_cut, v_ads_for_ui, v_ads_held, n, _rel = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
     )
 

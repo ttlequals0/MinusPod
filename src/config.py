@@ -271,6 +271,13 @@ PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_ESTIMATED_PATTERN,
 })
 
+# Holds a reviewed pass-2 subspan may release: the auto-approve set plus the
+# reviewer abstentions, where a review of the narrower span is the missing second look.
+PASS2_REVIEWED_RELEASE_HOLD_REASONS = PASS2_AUTOAPPROVE_HOLD_REASONS | frozenset({
+    HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
+    HOLD_REASON_REVIEWER_FAILED,
+})
+
 # Of those, the reasons a pass-2 ad may only corroborate by covering the held
 # span, never by agreeing with the reviewer's stored proposal. That proposal
 # is the trim the hold was created to block, so approving it would ship the

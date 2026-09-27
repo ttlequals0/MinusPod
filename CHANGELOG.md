@@ -22,6 +22,7 @@ release notes.
 - A marker now shows as cut only when the rendered audio removed it. Rejected, held and kept markers, and requested cuts the render dropped, are saved as not cut. A marker the render removed only in part stays not cut and records the part that was removed. Marker state, counts, the saved cut list, the transcript and chapters come from the same rendered cuts.
 - A failed recut no longer leaves markers out of step with the audio. A failed render changes nothing, and markers saved before a later failure are restored. The recut now publishes its audio and assets before it saves markers, and a full run saves its final markers after its assets.
 - A short piece left when a pass-1 cut is split around kept audio now stays cut on a recut. The saved piece lacked the mark that lets a recut keep a short trusted fragment, so the recut put that audio back.
+- A pass-2 finding inside a pass-1 hold now goes to the reviewer at its own span instead of being dropped. Pass 2 narrows it to the span its evidence supports inside the hold. If the reviewer confirms that span, only that span is auto-approved. On the recut, the rest of the hold stays held instead of being left neither cut nor pending. A reject, an abstain, a failed review or a span that crosses other protected audio leaves the whole hold pending. A finding that overlaps a hold can no longer be resurrected into a cut.
 
 ### Changed
 

@@ -101,7 +101,7 @@ def test_second_hold_for_the_same_span_is_not_counted_twice():
     proc = {'start': 401.2, 'end': 420.8, 'confidence': 0.95,
             'held_for_review': True, 'hold_reason': 'cue_unproven'}
     orig = {'start': 500.2, 'end': 519.8, 'confidence': 0.95, 'sponsor': 'Acme'}
-    _cut, ui, gated_held, _n = processing._gate_verification_ads_by_confidence(
+    _cut, ui, gated_held, _n, _rel = processing._gate_verification_ads_by_confidence(
         [proc], [orig], 0.7, pass1_held_markers=[held])
 
     saved, folded = _seam([held], ui, gated_held)
@@ -232,7 +232,7 @@ def test_a_pass2_hold_survives_a_fold_into_a_rejected_pass1_marker():
                 'validation': {'decision': 'REJECT', 'flags': ['REJECT: no evidence']}}
     proc = {'start': 401.2, 'end': 420.8, 'confidence': 0.62}
     orig = {'start': 500.2, 'end': 519.8, 'confidence': 0.62, 'sponsor': 'Acme'}
-    _cut, ui, gated_held, _n = processing._gate_verification_ads_by_confidence(
+    _cut, ui, gated_held, _n, _rel = processing._gate_verification_ads_by_confidence(
         [proc], [orig], 0.7, verification_miss_hold_min_confidence=0.5,
         verification_miss_autocut_min_confidence=0.0)
     assert gated_held == [orig]

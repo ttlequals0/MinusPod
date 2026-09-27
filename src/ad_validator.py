@@ -61,6 +61,14 @@ from ad_detector.boundaries import effective_resolved_action
 
 logger = logging.getLogger(__name__)
 
+# A held remainder is a new pending span: the hold's approval stamps and
+# correction bookkeeping describe the released part, not it.
+_REMAINDER_DROPPED_KEYS = (
+    '_confirmed_correction', '_has_confirmed_correction_candidate',
+    '_matches_false_positive_correction', '_saved_was_cut', 'pass2_corroborated',
+    'pass2_corroborated_span', 'pass2_reviewed_release',
+)
+
 
 def user_trimmed_keep_ranges(corrections: list[dict]) -> list[dict]:
     """Return saved trim exclusions after newer approvals take precedence."""
@@ -750,6 +758,10 @@ class AdValidator:
             span = confirmed['confirmed_span']
             seen_start = min(confirmed['start'], span['start'])
             seen_end = max(confirmed['end'], span['end'])
+            if (confirmed.get('auto_filed') and is_pending_review(ad)
+                    and ad.get('hold_reason')):
+                residue_ads.extend(self._held_remainders(
+                    ad, span, seen_start, seen_end))
             for lo, hi in ((ad['start'], seen_start),
                            (seen_end, ad['end'])):
                 if hi - lo < MIN_AD_DURATION:
@@ -841,6 +853,8 @@ class AdValidator:
         confidence = ad.get('confidence', 1.0)
 
         # Pop stale held/corroboration state -- re-derived on every pass.
+        remainder_reason = (ad.get('hold_reason') if ad.get('pass2_hold_remainder')
+                            else None)
         ad.pop('held_for_review', None)
         ad.pop('hold_reason', None)
         ad.pop('corroborated_by', None)
@@ -1029,6 +1043,12 @@ class AdValidator:
 
         # Apply per-feed hold rules after the base decision.
         decision = self._apply_hold_rules(ad, decision, confidence, flags, duration)
+        # Only a human decides what an auto-approval left of a hold.
+        if remainder_reason and decision != Decision.REJECT:
+            if not ad.get('held_for_review'):
+                self._mark_held(ad, flags, remainder_reason)
+            ad['hold_reason'] = remainder_reason
+            decision = Decision.REVIEW
 
         ad['validation'] = {
             'decision': decision.value,
@@ -1473,6 +1493,24 @@ class AdValidator:
         invalidate_quote_alignment(piece)
         invalidate_word_timed_edges(piece)
         return piece
+
+    def _held_remainders(self, ad: dict, span: dict, seen_start: float,
+                         seen_end: float) -> list[dict]:
+        """A pending hold's audio an auto-filed confirm trimmed away, kept held."""
+        pieces = []
+        for lo, hi in ((max(ad['start'], seen_start), span['start']),
+                       (span['end'], min(ad['end'], seen_end))):
+            if hi - lo < MIN_AD_DURATION:
+                continue
+            piece = self._narrowed(ad, lo, hi, keep_members=self._has_estimated_edge(ad))
+            for key in _REMAINDER_DROPPED_KEYS:
+                piece.pop(key, None)
+            piece['held_for_review'] = True
+            piece['hold_reason'] = ad['hold_reason']
+            piece['pass2_hold_remainder'] = True
+            piece['_skip_pattern_learning'] = True
+            pieces.append(piece)
+        return pieces
 
     def _split_estimated_remainders(self, ads: list[dict],
                                     result: ValidationResult) -> list[dict]:

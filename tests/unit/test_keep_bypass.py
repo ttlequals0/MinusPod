@@ -1031,7 +1031,7 @@ class TestExcludeKeptSpansFromVerification:
                    for r in caplog.records)
 
         # Nothing routes to a cut: the kept span is never cut through.
-        v_ads_to_cut, v_ads_for_ui, v_ads_held, n = processing._gate_verification_ads_by_confidence(
+        v_ads_to_cut, v_ads_for_ui, v_ads_held, n, _rel = processing._gate_verification_ads_by_confidence(
             out_proc, out_orig, min_cut_confidence=0.5)
         assert v_ads_to_cut == []
         assert n == 0
@@ -1052,7 +1052,7 @@ class TestExcludeKeptSpansFromVerification:
 
         # Confidence 0.95 >= min_cut_confidence 0.5: confirmed-cut path,
         # unaffected since this finding never overlapped a kept span.
-        v_ads_to_cut, v_ads_for_ui, v_ads_held, _n = processing._gate_verification_ads_by_confidence(
+        v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = processing._gate_verification_ads_by_confidence(
             out_proc, out_orig, min_cut_confidence=0.5)
         assert v_ads_to_cut == [proc_clear]
         assert v_ads_for_ui == [orig_clear]

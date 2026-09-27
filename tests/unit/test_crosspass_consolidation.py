@@ -159,7 +159,7 @@ def test_verification_reviewer_cannot_restore_user_trimmed_audio():
                       side_effect=lambda *args, **kwargs: (args[2], args[3])), \
          patch.object(processing, '_gate_verification_ads_by_confidence',
                       side_effect=lambda processed, original, *args, **kwargs:
-                      (processed, original, [], 0)), \
+                      (processed, original, [], 0, [])), \
          patch.object(processing, '_apply_pass2_reviewer', side_effect=reexpand):
         verifier_cls.return_value.verify.return_value = {
             'ads': [dict(proposed)], 'ads_processed': [dict(proposed)],
@@ -234,7 +234,7 @@ def test_verification_rerenders_original_and_replaces_cut_authority():
          patch.object(processing, '_validate_verification_ads',
                       side_effect=lambda *args, **kwargs: (args[2], args[3])), \
          patch.object(processing, '_gate_verification_ads_by_confidence',
-                      return_value=([processed], [original], [], 0)):
+                      return_value=([processed], [original], [], 0, [])):
         verifier_cls.return_value.verify.return_value = result
         output = processing._run_verification_pass(
             ctx, '/tmp/pass1-output.mp3', pass1_cuts, False, 0.8,
@@ -279,7 +279,7 @@ def test_verification_marks_failed_crosspass_rerender_incomplete():
          patch.object(processing, '_validate_verification_ads',
                       side_effect=lambda *args, **kwargs: (args[2], args[3])), \
          patch.object(processing, '_gate_verification_ads_by_confidence',
-                      return_value=([processed], [original], [], 0)):
+                      return_value=([processed], [original], [], 0, [])):
         verifier_cls.return_value.verify.return_value = result
         output = processing._run_verification_pass(
             ctx, '/tmp/pass1-output.mp3', pass1_cuts, False, 0.8,
@@ -323,7 +323,7 @@ def _run_pass2_against_keep(pass1_cuts, finding_proc, finding_orig, *,
                       side_effect=lambda *args, **kwargs: (args[2], args[3])), \
          patch.object(processing, '_gate_verification_ads_by_confidence',
                       side_effect=lambda processed, original, *args, **kwargs:
-                      (list(processed), list(original), [], 0)), \
+                      (list(processed), list(original), [], 0, [])), \
          patch.object(processing, '_apply_pass2_reviewer'):
         verifier_cls.return_value.verify.return_value = {
             'ads': [finding_orig], 'ads_processed': [finding_proc],

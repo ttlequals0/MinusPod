@@ -12,13 +12,17 @@ from config import (
     MIN_AD_DURATION_FOR_REMOVAL,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_PROPOSED_IOU,
+    PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     PASS2_COVERAGE_ONLY_HOLD_REASONS,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
     PASS2_ESTIMATED_AUTOAPPROVE_MIN_AD_INSIDE,
+    PASS2_REVIEWED_RELEASE_HOLD_REASONS,
 )
 from database.settings import registry_get_default
-from utils.markers import carve_fragment, subtract_spans
+from utils.markers import (
+    EDGE_TOLERANCE, carve_fragment, measured_member_spans, subtract_spans,
+)
 from utils.time import (
     adjust_timestamp, merge_cut_spans, overlap_ratio, overlap_seconds,
     ranges_overlap,
@@ -132,6 +136,52 @@ def _corroborated_span(hold, orig_ad):
         'start': max(lo, orig_ad['start']),
         'end': min(hi, orig_ad['end']),
     }
+
+
+def _inside_word_edge(segments, value, edge):
+    """Move an edge inward off any timed word it splits."""
+    for seg in segments or []:
+        for word in seg.get('words') or []:
+            lo, hi = word.get('start'), word.get('end')
+            if lo is None or hi is None:
+                continue
+            if lo < value - EDGE_TOLERANCE and hi > value + EDGE_TOLERANCE:
+                return hi if edge == 'start' else lo
+    return value
+
+
+def _hold_release_span(hold, orig_ad, min_cut_confidence, other_holds,
+                       hard_barriers_orig, segments):
+    """Narrowest pass-2-supported (start, end) inside a hold, original time, or None."""
+    lo = max(orig_ad['start'], hold['start'])
+    hi = min(orig_ad['end'], hold['end'])
+    # Same slack the auto-approve trim ignores, so no sliver of hold is left behind.
+    if lo - hold['start'] <= PASS2_AUTOAPPROVE_TRIM_SLACK_S:
+        lo = hold['start']
+    if hold['end'] - hi <= PASS2_AUTOAPPROVE_TRIM_SLACK_S:
+        hi = hold['end']
+    measured = measured_member_spans(orig_ad, min_cut_confidence)
+    if measured:
+        inside = [(max(a, lo), min(b, hi)) for a, b, _ in measured
+                  if min(b, hi) > max(a, lo)]
+        if not inside:
+            return None
+        lo, hi = min(a for a, _ in inside), max(b for _, b in inside)
+    if _proposed_span_agrees(hold, orig_ad):
+        agreed = _corroborated_span(hold, orig_ad)
+        lo, hi = max(lo, agreed['start']), min(hi, agreed['end'])
+    pieces = subtract_spans([(lo, hi)], [(h['start'], h['end']) for h in other_holds])
+    if not pieces:
+        return None
+    lo, hi = max(pieces, key=lambda piece: piece[1] - piece[0])
+    lo = _inside_word_edge(segments, lo, 'start')
+    hi = _inside_word_edge(segments, hi, 'end')
+    if hi - lo < MIN_AD_DURATION:
+        return None
+    if any(overlap_seconds(lo, hi, b['start'], b['end']) > EDGE_TOLERANCE
+           for b in hard_barriers_orig or []):
+        return None
+    return lo, hi
 
 
 def _pass2_keep_barriers_processed(pass1_kept_markers, pass1_cuts,
@@ -275,15 +325,47 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     return surviving_processed, surviving_original, conflicts
 
 
+def _add_release_candidate(release_by_hold, ad, orig_ad, hold, overlapping,
+                           min_cut_confidence, hard_barriers_orig, segments,
+                           pass1_cuts, beep):
+    """Record the finding's supported span in hold as a review candidate, longest per hold."""
+    if (hold.get('hold_reason') not in PASS2_REVIEWED_RELEASE_HOLD_REASONS
+            or hold.get('pass2_corroborated') or hold.get('pass2_reviewed_release')):
+        return
+    span = _hold_release_span(
+        hold, orig_ad, min_cut_confidence,
+        [h for h in overlapping if h is not hold], hard_barriers_orig, segments)
+    if span is None:
+        return
+    prior = release_by_hold.get(id(hold))
+    if prior and prior[1]['end'] - prior[1]['start'] >= span[1] - span[0]:
+        return
+    orig_sub = carve_fragment(orig_ad, *span)
+    orig_sub['held_for_review'] = True
+    orig_sub['_hold_release_of'] = (hold['start'], hold['end'])
+    proc_sub = carve_fragment(ad, adjust_timestamp(span[0], pass1_cuts, beep),
+                              adjust_timestamp(span[1], pass1_cuts, beep))
+    release_by_hold[id(hold)] = (proc_sub, orig_sub, hold)
+    audio_logger.info(
+        f"Pass-2 ad {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s supports "
+        f"{span[0]:.1f}s-{span[1]:.1f}s of {hold.get('hold_reason')} hold "
+        f"{hold['start']:.1f}s-{hold['end']:.1f}s: sending it to review")
+
+
 def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_ads_original,
                                           min_cut_confidence,
                                           pass1_held_markers=None,
                                           verification_miss_hold_min_confidence=None,
-                                          verification_miss_autocut_min_confidence=None):
+                                          verification_miss_autocut_min_confidence=None,
+                                          pass1_cuts=None, hard_barriers_orig=None,
+                                          segments=None, cue_gate_enabled=False):
     """Confidence gate pass-2 ads.
 
-    Returns (v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count).
+    Returns (v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count,
+    hold_release_candidates). Each candidate is (processed_sub, original_sub,
+    hold): the pass-2-supported span inside a hold the fast path could not
+    corroborate, for a review that may release only that span.
 
     Held ads (held_for_review=True) divert to v_ads_held as original-coord
     twins with was_cut=False. They must NOT enter v_ads_for_ui: that list
@@ -328,6 +410,8 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     v_ads_for_ui = []
     v_ads_held = []
     corroborated_count = 0
+    release_by_hold = {}
+    beep = get_replacement_duration()
     for ad, orig_ad in zip(verification_ads_processed, verification_ads_original, strict=True):
         # Held ads divert to the held list; never cut, never enter the UI/reviewer pool.
         # Checked before the pass-1 overlap below so a held ad can never
@@ -370,11 +454,19 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                     f"{hold['start']:.1f}s-{hold['end']:.1f}s: stamping it "
                     f"for auto-approval")
             else:
+                if confidence >= min_cut_confidence and not cue_gate_enabled:
+                    for hold in overlapping:
+                        _add_release_candidate(
+                            release_by_hold, ad, orig_ad, hold, overlapping,
+                            min_cut_confidence, hard_barriers_orig, segments,
+                            pass1_cuts or [], beep)
                 audio_logger.info(
                     f"Dropping pass-2 cut {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s: "
                     f"overlaps a pass-1 held span")
             ad['was_cut'] = False
             orig_ad['was_cut'] = False
+            # Held so the resurrection pool can never cut audio a hold protects.
+            orig_ad['held_for_review'] = True
             continue
         if confidence >= min_cut_confidence:
             ad['was_cut'] = True
@@ -413,7 +505,8 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                 f"confidence={conf:.2f}, below verification-miss hold floor "
                 f"{verification_miss_hold_min_confidence:.2f})"
             )
-    return v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count
+    return (v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count,
+            list(release_by_hold.values()))
 
 
 def _covered_by_cuts(ad, applied_cuts, total_duration=None, tolerance=0.01):

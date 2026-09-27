@@ -98,7 +98,7 @@ def test_pass2_verification_marker_with_422_is_held(monkeypatch):
                 'detection_stage': 'claude'}
     processed = dict(original, validation={'decision': 'ACCEPT',
                                            'adjusted_confidence': 0.98})
-    cuts, ui, held, _ = _gate_verification_ads_by_confidence(
+    cuts, ui, held, _, _rel = _gate_verification_ads_by_confidence(
         [processed], [original], 0.80, pass1_held_markers=[])
     assert len(cuts) == 1
     context = SimpleNamespace(

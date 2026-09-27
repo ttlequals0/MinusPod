@@ -131,7 +131,7 @@ def test_abstained_pass1_and_adjacent_pass2_never_reach_render_or_learning(monke
                 'detection_stage': 'claude'}
     processed = dict(original, validation={'decision': 'ACCEPT',
                                            'adjusted_confidence': 0.98})
-    pass2_cuts, pass2_ui, pass2_held, corroborated = (
+    pass2_cuts, pass2_ui, pass2_held, corroborated, _rel = (
         _gate_verification_ads_by_confidence(
             [processed], [original], 0.80, pass1_held_markers=markers))
     assert len(pass2_cuts) == 1

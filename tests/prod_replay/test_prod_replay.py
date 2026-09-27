@@ -33,7 +33,6 @@ TRANSIENT_KEYS = ('validation', 'was_cut', 'held_for_review', 'hold_reason',
                   'reviewer_locked_start', 'reviewer_locked_end', 'source',
                   'pass2_corroborated', 'pass2_corroborated_span')
 
-PENDING_19 = pytest.mark.xfail(strict=True, reason='pending Task 19 (audit item 2)')
 PENDING_20 = pytest.mark.xfail(strict=True, reason='pending Task 20 (audit item 4)')
 
 
@@ -337,7 +336,6 @@ def test_gate_replay_records_hold_overlap(replay_out, eid, finding):
           {'result': result, 'holds_after': holds, 'holds_before': before})
 
 
-@PENDING_19
 @pytest.mark.parametrize('eid,finding', _findings(2))
 def test_gate_reviews_pass2_span_inside_hold(eid, finding):
     ep = load_episode(ROOT, eid)
