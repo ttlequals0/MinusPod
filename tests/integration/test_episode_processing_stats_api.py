@@ -28,6 +28,8 @@ STATS_DB = {
     'markers': {'cut': 6, 'held': 4, 'not_cut': 5},
     'verification_ads_cut': 1,
     'seconds_removed': 609.0,
+    'source_seconds_removed': 612.0,
+    'replacement_seconds_added': 3.0,
     'timings': {
         'download': 42.0,
         'transcription': 180.0,
@@ -72,6 +74,8 @@ STATS_API = {
     'markers': {'cut': 6, 'held': 4, 'notCut': 5},
     'verificationAdsCut': 1,
     'secondsRemoved': 609.0,
+    'sourceSecondsRemoved': 612.0,
+    'replacementSecondsAdded': 3.0,
     'timings': {
         'downloadSeconds': 42.0,
         'transcriptionSeconds': 180.0,

@@ -218,14 +218,7 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
                                            verification_ads_original,
                                            pass1_kept_markers, pass1_cuts,
                                            false_positive_corrections=None):
-    """Settle pass-2 findings against the pass-1 spans the operator keeps.
-
-    A finding the keeps contain, or one matching a user false-positive
-    rejection, is dropped. A finding that only clips a keep is split on the
-    processed timeline and its outside fragments go on as candidates.
-    Returns (surviving_processed, surviving_original, conflicts); conflicts
-    only holds a finding whose fragment cannot be mapped back to original time.
-    """
+    """Drop or split pass-2 findings over kept spans; returns (processed, original, conflicts)."""
     if not pass1_kept_markers:
         return verification_ads_processed, verification_ads_original, []
     keep_barriers = [{'start': start, 'end': end} for start, end, *_ in merge_cut_spans(

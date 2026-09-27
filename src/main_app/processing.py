@@ -2610,10 +2610,85 @@ def _find_master(all_ads, ad):
     (start, end) span (reviewer adjustments rebuild dicts, so identity alone
     is not enough). None when nothing matches."""
     for master in all_ads:
-        if master is ad or (master.get('start') == ad.get('start')
-                            and master.get('end') == ad.get('end')):
+        if master is ad:
+            return master
+    for master in all_ads:
+        if master.get('start') == ad.get('start') and master.get('end') == ad.get('end'):
             return master
     return None
+
+
+def _cut_groups(cuts):
+    """Rendered cuts merged into contiguous [start, end] runs."""
+    groups = []
+    for cut in sorted(cuts, key=lambda c: c['start']):
+        if groups and cut['start'] <= groups[-1][1] + EDGE_TOLERANCE:
+            groups[-1][1] = max(groups[-1][1], cut['end'])
+        else:
+            groups.append([cut['start'], cut['end']])
+    return groups
+
+
+def _clamped_span(marker, duration):
+    start = max(0.0, marker['start'])
+    return start, (min(marker['end'], duration) if duration else marker['end'])
+
+
+def _covering_group(groups, marker, duration):
+    start, end = _clamped_span(marker, duration)
+    return next((g for g in groups
+                 if g[0] - EDGE_TOLERANCE <= start and end <= g[1] + EDGE_TOLERANCE), None)
+
+
+def _finalize_cut_state(all_ads, ads_to_remove, applied_cuts, duration, tag=''):
+    """Set was_cut on every marker from the rendered cuts; returns the rendered cut count."""
+    groups = _cut_groups(applied_cuts)
+    masters = [_find_master(all_ads, ad) for ad in ads_to_remove]
+    requested = {id(ad) for ad in [*ads_to_remove, *masters] if ad is not None}
+    markers = {id(m): m for m in [*all_ads, *ads_to_remove]}
+    for marker in markers.values():
+        marker.pop('partial_cut_spans', None)
+        is_requested = id(marker) in requested
+        marker['was_cut'] = (is_requested
+                             and _covering_group(groups, marker, duration) is not None)
+        if not is_requested or marker['was_cut']:
+            continue
+        # A partly rendered marker stays uncut; the removed part is recorded for the editor.
+        start, end = _clamped_span(marker, duration)
+        partial = [{'start': max(start, g[0]), 'end': min(end, g[1])}
+                   for g in groups if min(end, g[1]) > max(start, g[0])]
+        if partial:
+            marker['partial_cut_spans'] = partial
+        audio_logger.info(
+            f"{tag} Marker {marker['start']:.1f}s-{marker['end']:.1f}s is not fully "
+            f"inside the rendered cuts; marking as not cut")
+    return len(groups)
+
+
+def _rendered_cuts_covering(cuts, markers, duration):
+    """Number of rendered cuts holding at least one cut marker from ``markers``."""
+    groups = _cut_groups(cuts)
+    hit = {id(group) for m in markers if m.get('was_cut')
+           and (group := _covering_group(groups, m, duration)) is not None}
+    return len(hit)
+
+
+def _record_cut_seconds(run_stats, cuts, original_duration, new_duration):
+    """Store net seconds_removed plus the source and replacement seconds behind it."""
+    if run_stats is None:
+        return
+    source, replacement = _cut_seconds(cuts)
+    run_stats['source_seconds_removed'] = source
+    run_stats['replacement_seconds_added'] = replacement
+    if original_duration and new_duration:
+        run_stats['seconds_removed'] = round(original_duration - new_duration, 2)
+
+
+def _cut_seconds(cuts):
+    """(source seconds removed, replacement seconds added) for rendered cuts."""
+    groups = merge_cut_spans(cuts, default_replacement=get_replacement_duration())
+    return (round(sum(end - start for start, end, *_ in groups), 2),
+            round(sum(replacement for *_, replacement in groups), 2))
 
 
 def _carve_cuts_around_kept_audio(slug, episode_id, ads_to_remove, all_ads,
@@ -2637,17 +2712,19 @@ def _carve_cuts_around_kept_audio(slug, episode_id, ads_to_remove, all_ads,
             f"[{slug}:{episode_id}] Pass 1 cut {ad['start']:.1f}s-{ad['end']:.1f}s "
             f"split around kept audio into {len(spans)} removable fragment(s)")
         pieces = [carve_fragment(ad, start, end) for start, end in spans]
-        for piece in pieces:
+        master = _find_master(all_ads, ad)
+        master_pieces = ([carve_fragment(master, start, end) for start, end in spans]
+                         if master is not None else [])
+        # Saved fragments carry the stamp too, so a recut keeps a short trusted piece cut.
+        for piece in [*pieces, *master_pieces]:
             if trusted:
                 piece['_measured_split_fragment'] = True
         carved.extend(pieces)
-        master = _find_master(all_ads, ad)
         if master is None:
             continue
         index = next(i for i, marker in enumerate(all_ads) if marker is master)
         if spans:
-            all_ads[index:index + 1] = [
-                carve_fragment(master, start, end) for start, end in spans]
+            all_ads[index:index + 1] = master_pieces
         else:
             master['was_cut'] = False
     return carved
@@ -4971,6 +5048,17 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                 pass
 
 
+def _restore_saved_markers(slug, episode_id, episode_data):
+    """Put back the markers a failed recut replaced, so they match the published audio."""
+    raw = (episode_data or {}).get('ad_markers_json')
+    if not raw:
+        return
+    try:
+        storage.save_combined_ads(slug, episode_id, json.loads(raw))
+    except Exception as err:
+        audio_logger.error(f"[{slug}:{episode_id}] Could not restore markers after recut: {err}")
+
+
 def _recut_episode(slug, episode_id, episode_title, podcast_name,
                     episode_description, start_time, cancel_event=None,
                     run_stats=None, verification_count=0,
@@ -4990,11 +5078,12 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     the history row, so a folded approval recut keeps the run's stats.
     podcast_row, when given, is the caller's already-fetched podcasts row.
     owns_failure=False leaves the failure to the caller. ``progress`` is a dict
-    the recut stamps 'mutated' on before it overwrites the episode's markers or
-    audio, so a caller that means to fall back knows whether anything it would
-    finalize is still intact."""
+    the recut stamps 'mutated' on before it overwrites the episode's audio, so a
+    caller that means to fall back knows whether anything it would finalize is
+    still intact. Markers saved before a later failure are restored from entry."""
 
     work_path = None
+    markers_saved = False
     episode_data = db.get_episode(slug, episode_id)
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Recut: \"{episode_title}\"")
@@ -5083,22 +5172,27 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             raise Exception("FFMPEG processing failed during recut")
         processed_path, applied_cuts = result
 
-        # A requested cut the applied list dropped (merge/short-filter) stays in
-        # the audio; do not claim it was removed (mirrors the main pipeline).
-        uncovered = [ad for ad in ads_to_remove
-                     if not _covered_by_cuts(ad, applied_cuts, original_duration)]
-        for ad in uncovered:
-            ad['was_cut'] = False
-            master = _find_master(all_ads_with_validation, ad)
-            if master is not None:
-                master['was_cut'] = False
-        # Past this point the recut owns the episode's markers and audio, so a
-        # later failure cannot be papered over by finalizing the earlier render.
-        if progress is not None:
-            progress['mutated'] = True
-        storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
-
+        # Marker state and counts come from the render before anything is published.
+        rendered_cuts = _finalize_cut_state(
+            all_ads_with_validation, ads_to_remove, applied_cuts, original_duration,
+            tag=f"[{slug}:{episode_id}]")
+        held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
+        not_cut_count = count_not_cut(all_ads_with_validation)
+        first_pass_count, verification_count = _split_recut_counts(
+            rendered_cuts, verification_count)
         new_duration = local_audio_processor.get_audio_duration(processed_path)
+        if run_stats is not None:
+            if 'verification_ads_cut' in run_stats:
+                # Capped here as well, or the run's stat and the history row report
+                # different pass-2 counts.
+                run_stats['verification_ads_cut'] = verification_count
+            # Recomputed here: the caller's copy predates the approvals this recut cut.
+            _record_cut_seconds(run_stats, applied_cuts, original_duration, new_duration)
+            if isinstance(run_stats.get('markers'), dict):
+                run_stats['markers'] = dict(
+                    run_stats['markers'],
+                    cut=sum(1 for m in all_ads_with_validation if m.get('was_cut')),
+                    held=held_count, not_cut=not_cut_count)
 
         # processed_version is unaffected by the PROCESSING upsert above, so the
         # episode row read at entry still has the prior version.
@@ -5106,6 +5200,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         new_version = previous_version + 1  # recut is always a reprocess
         final_path = storage.get_episode_path(slug, episode_id, version=new_version)
         _require_publication_owner(slug, episode_id)
+        # The move can replace a caller's unpublished render at the same version path.
+        if progress is not None:
+            progress['mutated'] = True
         shutil.move(processed_path, final_path)
 
         _publish_status('update_job_stage', slug, episode_id, "recut:assets", 85)
@@ -5132,28 +5229,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                               original_duration=original_duration,
                               markers=all_ads_with_validation,
                               podcast_row=podcast_row)
+        storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+        markers_saved = True
 
-        pass1_cut_count = sum(
-            1 for ad in ads_to_remove
-            if _covered_by_cuts(ad, applied_cuts, original_duration)
-        )
-        held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
-        not_cut_count = count_not_cut(all_ads_with_validation)
-        first_pass_count, verification_count = _split_recut_counts(
-            pass1_cut_count, verification_count)
-        if run_stats is not None and 'verification_ads_cut' in run_stats:
-            # Capped here as well, or the run's stat and the history row report
-            # different pass-2 counts.
-            run_stats['verification_ads_cut'] = verification_count
-        if run_stats is not None and original_duration and new_duration:
-            # Recomputed here: the caller's copy predates the approvals this
-            # recut just cut.
-            run_stats['seconds_removed'] = round(original_duration - new_duration, 2)
-            if isinstance(run_stats.get('markers'), dict):
-                run_stats['markers'] = dict(run_stats['markers'],
-                                            cut=pass1_cut_count,
-                                            held=held_count,
-                                            not_cut=not_cut_count)
         # A recut never runs detection, so it must not clear a degraded flag it
         # had no part in setting: forward the pre-recut row's flag when this
         # call has no run_stats of its own to carry it.
@@ -5175,6 +5253,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     except ProcessingCancelled:
         raise
     except Exception as e:
+        if markers_saved:
+            _restore_saved_markers(slug, episode_id, episode_data)
         if owns_failure:
             _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                         episode_data, e, start_time)
@@ -6363,25 +6443,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 )
             processed_path, applied_cuts = result
 
-            # A requested cut the applied list does not cover (e.g. a short
-            # untrusted span the filter dropped) is still in the audio; the
-            # ad editor must not claim it was removed. Reviewer adjustments
-            # rebuild dicts, so match the master entry by identity or span
-            # (same approach as the tail-completion sweep).
-            uncovered = [ad for ad in ads_to_remove
-                         if not _covered_by_cuts(ad, applied_cuts, episode_duration)]
-            if uncovered:
-                for ad in uncovered:
-                    ad['was_cut'] = False
-                    master = _find_master(all_ads_with_validation, ad)
-                    if master is not None:
-                        master['was_cut'] = False
-                    audio_logger.info(
-                        f"[{slug}:{episode_id}] Pass 1 ad {ad['start']:.1f}s-"
-                        f"{ad['end']:.1f}s was filtered out of the applied "
-                        f"cuts; marking as not cut"
-                    )
-                storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+            # Pass 2 routes on this state; it is persisted once, after the assets.
+            _finalize_cut_state(all_ads_with_validation, ads_to_remove, applied_cuts,
+                                episode_duration, tag=f"[{slug}:{episode_id}]")
 
             original_duration = episode_duration
             _check_cancel(cancel_event, slug, episode_id)
@@ -6473,14 +6537,20 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 _stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held))
             # A pass-2 marker repeating a span pass 1 already persisted folds
             # into that marker; appending it would store one span twice.
-            merge_v, folded_v = _merge_pass2_markers(
+            merge_v, _ = _merge_pass2_markers(
                 all_ads_with_validation, merge_v)
-            # Corroboration and folds mutate markers already in
-            # all_ads_with_validation, so they need a re-save too.
-            if merge_v or folded_v or v_corroborated_count:
+            if merge_v:
                 all_ads_with_validation = list(all_ads_with_validation) + merge_v
                 all_ads_with_validation.sort(key=lambda x: x['start'])
-                storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+            # Stage 7 renders assets from these cuts, so marker state and counts use them too.
+            all_cuts_for_assets = applied_cuts + v_cuts_for_assets
+            rendered_cuts = _finalize_cut_state(
+                all_ads_with_validation, [*ads_to_remove, *v_ads_for_ui],
+                all_cuts_for_assets, original_duration, tag=f"[{slug}:{episode_id}]")
+            # A rendered cut holding a pass-2 marker is a verification cut.
+            verification_count = _rendered_cuts_covering(
+                all_cuts_for_assets, v_ads_for_ui, original_duration)
+            pass1_cut_count = rendered_cuts - verification_count
 
             new_duration = local_audio_processor.get_audio_duration(processed_path)
 
@@ -6512,7 +6582,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Stage 7: Generate assets. Uses the RENDERED cut lists (one
             # replacement beep per span), not the UI ad list: gap-merged
             # pass-2 ads share a single beep in the audio.
-            all_cuts_for_assets = applied_cuts + v_cuts_for_assets
             if skip_detection:
                 _reserve_provider()
                 provider_attempted = True
@@ -6524,16 +6593,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                   original_duration=original_duration,
                                   run_stats=run_stats,
                                   markers=all_ads_with_validation)
+            storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
-            # Stage 8: Finalize. ads_removed accounting counts the cuts that
-            # exist in the audio: an ad merged into a covering span still
-            # counts; one filtered out of the applied list (<10s) does not.
-            pass1_cut_count = sum(
-                1 for ad in ads_to_remove
-                if _covered_by_cuts(ad, applied_cuts, original_duration)
-            )
-            # Final marker buckets: what actually got cut, what is waiting on
-            # a human, and what stayed in the audio.
+            # Stage 8: Finalize. ads_removed counts rendered cuts, so markers
+            # merged into one span count once and a filtered-out one not at all.
             held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
             cut_count = sum(1 for m in all_ads_with_validation if m.get('was_cut'))
             not_cut_count = count_not_cut(all_ads_with_validation)
@@ -6547,8 +6610,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # indistinguishable).
             if verification_ok:
                 run_stats['verification_ads_cut'] = verification_count
-            if new_duration:
-                run_stats['seconds_removed'] = round(original_duration - new_duration, 2)
+            _record_cut_seconds(run_stats, all_cuts_for_assets, original_duration,
+                                new_duration)
             # File the confirms before finalizing so the recut below applies
             # them in this run: two finalizes wrote two history rows and
             # notified twice for one reprocess.

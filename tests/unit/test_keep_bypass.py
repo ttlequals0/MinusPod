@@ -48,7 +48,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
                   reviewer_side_effect=None, render_fails=False,
                   verification_side_effect=None, real_refine_reviewer=False,
                   confirmed_corrections=None, duration=100.0,
-                  false_positive_corrections=None):
+                  false_positive_corrections=None, render=None, new_duration=None,
+                  assets_side_effect=None):
     """Drive process_episode's full pass-1 flow with every stage but the
     partition itself mocked out. Returns the recorded mocks for inspection.
 
@@ -65,6 +66,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
     categories the fake validator holds instead of cutting, so a pass-1 held
     marker reaches that seam.
     ``duration`` sets the episode length the audio mocks report.
+    ``render`` maps the requested cuts to the applied list; ``new_duration`` is the render length.
+    ``assets_side_effect`` runs in place of the mocked _generate_assets.
     """
     podcast_row = {'id': 1, 'slug': 'keep-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
@@ -137,7 +140,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
             p(processing, '_run_verification_pass',
               return_value=(verification_return
                             or (0, [], [], [], '/tmp/cut.mp3', 0, True, 0)))
-        generate_assets = p(processing, '_generate_assets')
+        generate_assets = p(processing, '_generate_assets',
+                            side_effect=assets_side_effect)
         finalize = p(processing, '_finalize_episode')
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
@@ -160,8 +164,9 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
         local_ap = local_ap_cls.return_value
         local_ap.process_episode.side_effect = (
             lambda audio_path, ads_to_remove, cut_barriers=None, hard_barriers=None:
-            None if render_fails else ('/tmp/cut.mp3', list(ads_to_remove)))
-        local_ap.get_audio_duration.return_value = duration
+            None if render_fails else (
+                '/tmp/cut.mp3', (render or list)(ads_to_remove)))
+        local_ap.get_audio_duration.return_value = new_duration or duration
         storage.get_episode_path.return_value = '/tmp/final.mp3'
 
         result = processing.process_episode(
@@ -406,6 +411,119 @@ class TestKeepBypass:
         }
         audio_segments = m['local_ap'].process_episode.call_args.args[1]
         assert all(s['beep'] is False for s in audio_segments)
+
+
+def _applied(start, end, replacement=1.0):
+    return {'start': start, 'end': end, 'replacement_duration': replacement}
+
+
+class TestAppliedCutsAreTheFinalAuthority:
+    ACTIONS = {'sponsor': 'remove', 'cross_promo': 'keep', 'interaction': 'beep'}
+
+    def test_two_markers_merged_into_one_render_count_once(self):
+        a = dict(_sponsor_ad(), start=10.0, end=20.0)
+        b = dict(_sponsor_ad(), start=20.5, end=30.0)
+
+        m = _run_pipeline([a, b], self.ACTIONS,
+                          render=lambda ads: [_applied(10.0, 30.0)])
+
+        args = m['finalize'].call_args.args
+        assert args[4] + args[5] == 1
+        assert m['finalize'].call_args.kwargs['run_stats']['markers']['cut'] == 2
+        saved = m['storage'].save_combined_ads.call_args.args[2]
+        assert all(marker['was_cut'] for marker in saved)
+
+    def test_marker_outside_the_applied_cuts_persists_not_cut(self):
+        a = dict(_sponsor_ad(), start=10.0, end=20.0)
+        b = dict(_sponsor_ad(), start=50.0, end=55.0)
+
+        m = _run_pipeline([a, b], self.ACTIONS,
+                          render=lambda ads: [_applied(10.0, 20.0)])
+
+        saved = m['storage'].save_combined_ads.call_args.args[2]
+        by_span = {(x['start'], x['end']): x['was_cut'] for x in saved}
+        assert by_span == {(10.0, 20.0): True, (50.0, 55.0): False}
+        args = m['finalize'].call_args.args
+        assert args[4] + args[5] == 1
+
+    def test_paid_tail_beside_a_kept_neighbor_is_cut_and_the_keep_is_not(self):
+        sponsor = dict(_sponsor_ad(), start=10.0, end=60.0)
+        keep = dict(_cross_promo_ad(), start=10.0, end=40.0)
+
+        m = _run_pipeline([sponsor, keep], self.ACTIONS)
+
+        call = m['local_ap'].process_episode.call_args
+        assert (10.0, 40.0) in {(b['start'], b['end']) for b in call.kwargs['cut_barriers']}
+        saved = m['storage'].save_combined_ads.call_args.args[2]
+        by_span = {(x['start'], x['end']): x['was_cut'] for x in saved}
+        assert by_span == {(10.0, 40.0): False, (40.0, 60.0): True}
+
+    def test_duration_fields_follow_the_rendered_cuts(self):
+        remove = dict(_sponsor_ad(), start=10.0, end=20.0)
+        beep = dict(_sponsor_ad(), start=50.0, end=60.0, category='interaction')
+
+        m = _run_pipeline(
+            [remove, beep], self.ACTIONS, new_duration=91.0,
+            render=lambda ads: [_applied(10.0, 20.0, 1.0), _applied(50.0, 60.0, 10.0)])
+
+        stats = m['finalize'].call_args.kwargs['run_stats']
+        assert stats['seconds_removed'] == 9.0
+        assert stats['source_seconds_removed'] == 20.0
+        assert stats['replacement_seconds_added'] == 11.0
+        assert stats['seconds_removed'] == pytest.approx(
+            stats['source_seconds_removed'] - stats['replacement_seconds_added'])
+
+    def test_pass2_cut_counts_as_one_verification_cut(self):
+        pass1 = dict(_sponsor_ad(), start=10.0, end=20.0)
+        pass2 = {'start': 50.0, 'end': 60.0, 'category': 'sponsor', 'confidence': 0.95,
+                 'detection_stage': 'verification', 'was_cut': True,
+                 'action_applied': 'remove'}
+
+        m = _run_pipeline(
+            [pass1], self.ACTIONS,
+            verification_return=(1, [pass2], [_applied(50.0, 60.0)], [],
+                                 '/tmp/cut.mp3', 0, True, 0))
+
+        args = m['finalize'].call_args.args
+        assert (args[4], args[5]) == (1, 1)
+        stats = m['finalize'].call_args.kwargs['run_stats']
+        assert stats['verification_ads_cut'] == 1
+        assert stats['markers']['cut'] == 2
+
+    def test_pass2_cut_joining_a_pass1_cut_is_one_rendered_cut(self):
+        pass1 = dict(_sponsor_ad(), start=10.0, end=20.0)
+        pass2 = {'start': 20.0, 'end': 30.0, 'category': 'sponsor', 'confidence': 0.95,
+                 'detection_stage': 'verification', 'was_cut': True,
+                 'action_applied': 'remove'}
+
+        m = _run_pipeline(
+            [pass1], self.ACTIONS,
+            verification_return=(1, [pass2], [_applied(20.0, 30.0)], [],
+                                 '/tmp/cut.mp3', 0, True, 0))
+
+        args = m['finalize'].call_args.args
+        assert args[4] + args[5] == 1
+        assert m['finalize'].call_args.kwargs['run_stats']['verification_ads_cut'] == 1
+
+    def test_assets_see_the_list_saved_after_them(self):
+        a = dict(_sponsor_ad(), start=10.0, end=20.0)
+        b = dict(_sponsor_ad(), start=50.0, end=55.0)
+        seen = {}
+
+        def assets(*args, **kwargs):
+            seen['markers'] = kwargs['markers']
+            seen['was_cut'] = [x['was_cut'] for x in kwargs['markers']]
+            seen['cuts'] = args[3]
+            seen['saves'] = processing.storage.save_combined_ads.call_count
+
+        m = _run_pipeline([a, b], self.ACTIONS, assets_side_effect=assets,
+                          render=lambda ads: [_applied(10.0, 20.0)])
+
+        save = m['storage'].save_combined_ads
+        assert save.call_count == seen['saves'] + 1
+        assert save.call_args.args[2] is seen['markers']
+        assert [x['was_cut'] for x in save.call_args.args[2]] == seen['was_cut'] == [True, False]
+        assert seen['cuts'] == [_applied(10.0, 20.0)]
 
 
 class TestKeepMarkersBlockTerminalSnap:

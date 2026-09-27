@@ -11585,6 +11585,7 @@ components:
           nullable: true
         adsRemoved:
           type: integer
+          description: Rendered cuts in the output audio. Markers merged into one cut count once.
         timeSaved:
           type: number
           description: Seconds saved by removing ads
@@ -11715,7 +11716,7 @@ components:
               description: Number of ads detected by first pass (includes merged)
             adsRemovedVerification:
               type: integer
-              description: Number of ads detected by verification pass
+              description: Rendered cuts in the output audio that hold a verification-pass marker
             inputTokens:
               type: integer
               description: Total LLM input tokens used to process this episode
@@ -12313,9 +12314,20 @@ components:
               type:
                 - integer
                 - 'null'
-              description: Ads the second scan of the output audio found and cut. 0 means the scan ran and came back clean. Absent or null means the scan did not run, either because it was skipped (see verificationSkipped and detectionSkipped) or because it failed.
+              description: Rendered cuts holding an ad the second scan of the output audio found. 0 means the scan ran and came back clean. Absent or null means the scan did not run, either because it was skipped (see verificationSkipped and detectionSkipped) or because it failed.
             secondsRemoved:
               type: number
+              description: Net seconds removed, original duration minus output duration. Replacement beeps count against it.
+            sourceSecondsRemoved:
+              type:
+                - number
+                - 'null'
+              description: Seconds of source audio inside the rendered cuts. Absent on runs recorded before this field existed.
+            replacementSecondsAdded:
+              type:
+                - number
+                - 'null'
+              description: Seconds of replacement audio (beeps) inserted in place of the rendered cuts. secondsRemoved is about sourceSecondsRemoved minus this value.
             timings:
               type:
                 - object
@@ -12626,6 +12638,16 @@ components:
         held_for_review:
           type: boolean
           description: True when this marker remains in the audio pending a human decision.
+        partial_cut_spans:
+          type: array
+          description: Set only on a marker that was requested as a cut but lies partly outside the rendered cuts. It stays was_cut=false and lists the parts of it that were removed.
+          items:
+            type: object
+            properties:
+              start:
+                type: number
+              end:
+                type: number
         hold_reason:
           type: string
           nullable: true

@@ -191,6 +191,11 @@ def test_recut_replay_records_cut_list(monkeypatch, replay_out, eid):
 
 def _replay_render(monkeypatch, ep):
     """Applied cuts for a recut of the saved state, following _recut_episode."""
+    return _replay_render_state(monkeypatch, ep)[2]
+
+
+def _replay_render_state(monkeypatch, ep):
+    """(ads_to_remove, all_ads, applied cuts) for a recut of the saved state."""
     ads_to_remove, all_ads = _recut(monkeypatch, ep)
     keep_ads, all_ads = processing._partition_keep_ads(
         all_ads, dict(ACTIONS), processing._make_keep_differential_override(
@@ -207,7 +212,7 @@ def _replay_render(monkeypatch, ep):
     ads_to_remove = [a for a in ads_to_remove if id(a) not in reject_ids]
     ads_to_remove = processing._carve_cuts_around_kept_audio(
         'replay', 'replay', ads_to_remove, all_ads, keep_ads)
-    return AudioProcessor().compute_applied_cuts(
+    return ads_to_remove, all_ads, AudioProcessor().compute_applied_cuts(
         ads_to_remove, ep['duration'], cut_barriers=[*keep_ads, *trims, *rejects],
         hard_barriers=[*keep_ads, *trims])
 
@@ -233,6 +238,16 @@ def test_replayed_render_never_cuts_kept_audio(monkeypatch, eid, keep):
     hits = [(c['start'], c['end']) for c in applied
             if overlap_seconds(c['start'], c['end'], *keep) > 0.5]
     assert not hits, f'applied cuts {hits} overlap kept span {keep}'
+
+
+@pytest.mark.parametrize('eid', _ep_params())
+def test_replayed_cut_count_matches_was_cut(monkeypatch, eid):
+    ep = load_episode(ROOT, eid)
+    ads_to_remove, all_ads, applied = _replay_render_state(monkeypatch, ep)
+    rendered = processing._finalize_cut_state(all_ads, ads_to_remove, applied, ep['duration'])
+    cut = [m for m in all_ads if m['was_cut']]
+    assert rendered == len(applied)
+    assert rendered == processing._rendered_cuts_covering(applied, cut, ep['duration'])
 
 
 # (b) validator replay ---------------------------------------------------------

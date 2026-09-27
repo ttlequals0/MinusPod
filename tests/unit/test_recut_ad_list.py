@@ -1185,3 +1185,89 @@ def test_build_recut_ad_list_keeps_kept_markers_out_of_validation(monkeypatch):
     assert (100.0, 130.0, 'keep') in {
         (a['start'], a['end'], a.get('action_applied')) for a in all_ads}
     assert all(a.get('category') == 'sponsor' for a in ads_to_remove)
+
+
+def test_pass1_carve_saves_trusted_fragments_that_a_recut_keeps_cut(monkeypatch):
+    cut = dict(_cut(10.0, 60.0), category='sponsor', sponsor='Acme')
+    keep = {'start': 12.0, 'end': 40.0, 'confidence': 0.98, 'category': 'self_promo',
+            'action_applied': 'keep', 'was_cut': False, 'reason': 'show promo'}
+    all_ads = [cut, keep]
+    pieces = processing._carve_cuts_around_kept_audio('slug', 'ep', [cut], all_ads, [keep])
+    processing._finalize_cut_state(
+        all_ads, pieces, [{'start': 10.0, 'end': 12.0}, {'start': 40.0, 'end': 60.0}], 600.0)
+    fragments = [a for a in all_ads if a is not keep]
+    assert [(a['start'], a['end'], a['was_cut']) for a in fragments] == [
+        (10.0, 12.0, True), (40.0, 60.0, True)]
+    assert all(a.get('_measured_split_fragment') for a in fragments)
+
+    _stub_recut_db(monkeypatch, json.loads(json.dumps(all_ads)))
+    ads_to_remove, _ = processing._build_recut_ad_list(
+        'slug', 'ep', [{'start': 0.0, 'end': 60.0, 'text': 'Acme promo code'}], 600.0,
+        '', 0.80, segment_actions={'self_promo': 'keep', 'sponsor': 'remove'})
+
+    assert {(10.0, 12.0), (40.0, 60.0)} <= _spans(ads_to_remove)
+
+
+@pytest.mark.skipif(shutil.which('ffmpeg') is None or shutil.which('ffprobe') is None,
+                    reason='ffmpeg/ffprobe not available')
+def test_manual_approve_reject_and_adjust_recut_twice_is_identical(tmp_path):
+    src = tmp_path / 'retained.mp3'
+    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=120',
+                    '-acodec', 'libmp3lame', '-ab', '64k', str(src)],
+                   check=True, capture_output=True)
+    held = dict(_cut(30.0, 38.0), was_cut=False, held_for_review=True,
+                hold_reason='max_duration')
+    ads = [_cut(10.0, 20.0), held, _cut(40.0, 46.0), _cut(48.0, 58.0)]
+    corrections = [{'correction_type': 'boundary_adjustment',
+                    'original_bounds': {'start': 48.0, 'end': 58.0},
+                    'corrected_bounds': {'start': 49.0, 'end': 57.0}}]
+
+    def run(markers):
+        saved = {}
+        with ExitStack() as stack:
+            p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+            db = p(processing, 'db')
+            storage = p(processing, 'storage')
+            p(processing, 'status_service')
+            p(processing, '_finalize_episode')
+            p(processing, 'get_min_cut_confidence', return_value=0.80)
+            p(processing, 'embed_chapters', return_value=True)
+            p(processing, 'get_replacement_duration', return_value=1.0)
+            p(processing, 'resolve_ad_chapter_config', return_value=AdChapterConfig.disabled())
+            db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
+                                           'ad_markers_json': json.dumps(markers)}
+            db.get_podcast_by_slug.return_value = {'id': 1}
+            db.get_original_segments.return_value = [
+                {'start': float(t), 'end': float(t + 5), 'text': 'Acme promo code'}
+                for t in range(0, 120, 5)]
+            db.get_all_settings.return_value = {}
+            db.get_setting.return_value = None
+            db.get_episode_corrections.return_value = corrections
+            db.get_false_positive_corrections.return_value = [{'start': 40.0, 'end': 46.0}]
+            db.get_confirmed_corrections.return_value = [
+                {'start': 30.0, 'end': 38.0, 'correction_type': 'confirm'}]
+            db.get_podcast_cue_settings_overrides.return_value = {}
+            db.get_episode_audio_analysis.return_value = None
+            db.get_episode_dai_differential.return_value = None
+            db.resolve_segment_actions.return_value = {}
+            storage.get_original_path.return_value = src
+            storage.get_applied_cuts.return_value = []
+            storage.get_chapters_json.return_value = {
+                'version': '1.2.0', 'chapters': [{'startTime': 0, 'title': 'Intro'}]}
+            storage.get_episode_path.return_value = str(tmp_path / 'final.mp3')
+            storage.save_combined_ads.side_effect = (
+                lambda s, e, m: saved.__setitem__('markers', json.loads(json.dumps(m))))
+            storage.save_chapters_and_applied_cuts.side_effect = (
+                lambda s, e, chapters, cuts: saved.__setitem__('cuts', cuts))
+            assert processing._recut_episode(
+                'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
+        return saved
+
+    first = run(ads)
+    second = run(first['markers'])
+
+    assert second == first
+    was_cut = {(round(m['start'], 1), round(m['end'], 1)): m['was_cut']
+               for m in first['markers']}
+    assert was_cut == {(10.0, 20.0): True, (30.0, 38.0): True, (40.0, 46.0): False,
+                       (49.0, 57.0): True}

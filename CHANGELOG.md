@@ -19,6 +19,13 @@ release notes.
 - A pass-2 finding that only partly overlaps a kept span is now split around it, and the part outside goes on to validation, review and the cut. Before, the whole finding was held for review, and its part outside the keep stayed in the audio.
 - Pass 2 now treats category-kept audio as a fixed barrier instead of a pending hold, like keeps, user trims and user rejections, and carves kept audio out of its cuts. The category action map is resolved once per run and shared by detection, validation, review and pass 2.
 - Segment action controls stay aligned when a feed override is set.
+- A marker now shows as cut only when the rendered audio removed it. Rejected, held and kept markers, and requested cuts the render dropped, are saved as not cut. A marker the render removed only in part stays not cut and records the part that was removed. Marker state, counts, the saved cut list, the transcript and chapters come from the same rendered cuts.
+- A failed recut no longer leaves markers out of step with the audio. A failed render changes nothing, and markers saved before a later failure are restored. The recut now publishes its audio and assets before it saves markers, and a full run saves its final markers after its assets.
+- A short piece left when a pass-1 cut is split around kept audio now stays cut on a recut. The saved piece lacked the mark that lets a recut keep a short trusted fragment, so the recut put that audio back.
+
+### Changed
+
+- Ads removed now counts cuts in the output audio. Two markers merged into one cut count once, and a marker the render dropped does not count. The second-scan count is the number of cuts that hold a second-scan marker. Run stats add the seconds of source audio cut and the seconds of beeps inserted. Removed time stays net, so beeps count against it.
 
 ## [2.97.29] - 2026-09-27
 

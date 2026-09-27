@@ -202,8 +202,15 @@ const COLUMNS: Column[] = [
   },
   {
     label: 'Removed',
-    title: 'Ad time cut from the audio',
-    render: (run) => (run.stats?.secondsRemoved != null ? formatDuration(run.stats.secondsRemoved) : '-'),
+    title: 'Net time removed: ad audio cut minus any beeps inserted in its place',
+    render: (run) => {
+      const s = run.stats;
+      if (s?.secondsRemoved == null) return '-';
+      const net = formatDuration(s.secondsRemoved);
+      return s.replacementSecondsAdded && s.sourceSecondsRemoved != null
+        ? `${net} (${formatDuration(s.sourceSecondsRemoved)} cut)`
+        : net;
+    },
   },
   {
     label: 'Second scan',

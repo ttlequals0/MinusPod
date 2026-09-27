@@ -449,6 +449,8 @@ def _run_stats_to_api(stats):
         } if markers else None,
         'verificationAdsCut': stats.get('verification_ads_cut'),
         'secondsRemoved': stats.get('seconds_removed'),
+        'sourceSecondsRemoved': stats.get('source_seconds_removed'),
+        'replacementSecondsAdded': stats.get('replacement_seconds_added'),
         'timings': {
             'downloadSeconds': timings.get('download'),
             'transcriptionSeconds': timings.get('transcription'),

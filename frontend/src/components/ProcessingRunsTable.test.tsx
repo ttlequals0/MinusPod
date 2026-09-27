@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ProcessingRunsTable from './ProcessingRunsTable';
 import type { EpisodeProcessingRun } from '../api/types';
+import { formatDuration } from '../pages/settings/settingsUtils';
 
 const statsRun: EpisodeProcessingRun = {
   runNumber: 2,
@@ -155,6 +156,15 @@ describe('ProcessingRunsTable', () => {
     expect(table.getByText('0 fingerprint / 3 text / 11 cross-fetch / 11 LLM')).toBeTruthy();
     expect(table.getByText('6 cut / 4 held / 5 kept')).toBeTruthy();
     expect(table.getByText('clean')).toBeTruthy();
+  });
+
+  it('shows the source time cut next to the net time when beeps were inserted', () => {
+    const beepRun = {
+      ...statsRun,
+      stats: { ...statsRun.stats, secondsRemoved: 589, sourceSecondsRemoved: 609, replacementSecondsAdded: 20 },
+    };
+    expect(renderTable([beepRun]).getByText(`${formatDuration(589)} (${formatDuration(609)} cut)`)).toBeTruthy();
+    expect(renderTable([statsRun]).getByText(formatDuration(609))).toBeTruthy();
   });
 
   it('falls back to basic columns for runs without a blob', () => {

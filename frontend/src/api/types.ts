@@ -423,7 +423,10 @@ export interface ProcessingRunStats {
   detected?: number;
   markers?: { cut: number; held: number; notCut: number } | null;
   verificationAdsCut?: number | null;
+  // Net: original minus output duration, so inserted beeps count against it.
   secondsRemoved?: number | null;
+  sourceSecondsRemoved?: number | null;
+  replacementSecondsAdded?: number | null;
   timings?: ProcessingRunTimings | null;
   // Present only when this run retried a rejected thinking setting with
   // pass defaults. The backend deliberately excludes the provider error.
