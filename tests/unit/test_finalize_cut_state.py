@@ -10,6 +10,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('finalize_cut_state_test_')
 
 import main_app.processing as processing  # noqa: E402
+from tests.unit.marker_test_utils import applied_cut  # noqa: E402
 
 
 def _marker(start, end, **extra):
@@ -20,20 +21,16 @@ def _marker(start, end, **extra):
     return m
 
 
-def _cut(start, end, replacement=1.0):
-    return {'start': start, 'end': end, 'replacement_duration': replacement}
-
-
 class TestFinalizeCutState:
     def test_two_markers_under_one_rendered_cut_count_once(self):
         a, b = _marker(10.0, 40.0), _marker(40.5, 70.0)
-        rendered = processing._finalize_cut_state([a, b], [a, b], [_cut(10.0, 70.0)], 600.0)
-        assert rendered == 1
+        groups = processing._finalize_cut_state([a, b], [a, b], [applied_cut(10.0, 70.0)], 600.0)
+        assert groups == [[10.0, 70.0]]
         assert a['was_cut'] is True and b['was_cut'] is True
 
     def test_marker_outside_the_applied_cuts_is_not_cut(self):
         a, b = _marker(10.0, 40.0), _marker(100.0, 104.0)
-        processing._finalize_cut_state([a, b], [a, b], [_cut(10.0, 40.0)], 600.0)
+        processing._finalize_cut_state([a, b], [a, b], [applied_cut(10.0, 40.0)], 600.0)
         assert a['was_cut'] is True
         assert b['was_cut'] is False
 
@@ -42,56 +39,56 @@ class TestFinalizeCutState:
         stale = _marker(20.0, 30.0, validation={'decision': 'REJECT'})
         held = _marker(30.0, 40.0, was_cut=False, held_for_review=True,
                        hold_reason='max_duration')
-        processing._finalize_cut_state([cut, stale, held], [cut], [_cut(10.0, 60.0)], 600.0)
+        processing._finalize_cut_state([cut, stale, held], [cut], [applied_cut(10.0, 60.0)], 600.0)
         assert stale['was_cut'] is False
         assert held['was_cut'] is False
 
     def test_rebuilt_request_dict_resolves_its_master_by_span(self):
         master = _marker(10.0, 40.0, was_cut=False)
         rebuilt = dict(master)
-        processing._finalize_cut_state([master], [rebuilt], [_cut(10.0, 40.0)], 600.0)
+        processing._finalize_cut_state([master], [rebuilt], [applied_cut(10.0, 40.0)], 600.0)
         assert master['was_cut'] is True
         assert rebuilt['was_cut'] is True
 
     def test_identity_wins_over_an_earlier_span_twin(self):
         twin = _marker(10.0, 40.0, was_cut=False, validation={'decision': 'REJECT'})
         master = _marker(10.0, 40.0)
-        processing._finalize_cut_state([twin, master], [master], [_cut(10.0, 40.0)], 600.0)
+        processing._finalize_cut_state([twin, master], [master], [applied_cut(10.0, 40.0)], 600.0)
         assert master['was_cut'] is True
         assert twin['was_cut'] is False
 
     def test_edges_within_tolerance_are_covered(self):
         a = _marker(10.0, 70.0)
-        processing._finalize_cut_state([a], [a], [_cut(10.04, 69.96)], 600.0)
+        processing._finalize_cut_state([a], [a], [applied_cut(10.04, 69.96)], 600.0)
         assert a['was_cut'] is True
         b = _marker(10.0, 70.0)
-        processing._finalize_cut_state([b], [b], [_cut(10.2, 70.0)], 600.0)
+        processing._finalize_cut_state([b], [b], [applied_cut(10.2, 70.0)], 600.0)
         assert b['was_cut'] is False
 
     def test_touching_rendered_cuts_cover_a_marker_together(self):
         a = _marker(10.0, 70.0)
         processing._finalize_cut_state(
-            [a], [a], [_cut(10.0, 40.0), _cut(40.0, 70.0)], 600.0)
+            [a], [a], [applied_cut(10.0, 40.0), applied_cut(40.0, 70.0)], 600.0)
         assert a['was_cut'] is True
 
     def test_overrunning_marker_is_clamped_to_the_audio(self):
         a = _marker(580.0, 605.0)
-        processing._finalize_cut_state([a], [a], [_cut(580.0, 600.0)], 600.0)
+        processing._finalize_cut_state([a], [a], [applied_cut(580.0, 600.0)], 600.0)
         assert a['was_cut'] is True
 
     def test_partial_coverage_is_not_cut_and_records_the_covered_span(self):
         a = _marker(10.0, 50.0)
-        processing._finalize_cut_state([a], [a], [_cut(10.0, 30.0)], 600.0)
+        processing._finalize_cut_state([a], [a], [applied_cut(10.0, 30.0)], 600.0)
         assert a['was_cut'] is False
         assert a['partial_cut_spans'] == [{'start': 10.0, 'end': 30.0}]
-        processing._finalize_cut_state([a], [a], [_cut(10.0, 50.0)], 600.0)
+        processing._finalize_cut_state([a], [a], [applied_cut(10.0, 50.0)], 600.0)
         assert a['was_cut'] is True
         assert 'partial_cut_spans' not in a
 
     def test_is_idempotent(self):
         markers = [_marker(10.0, 40.0), _marker(40.5, 70.0), _marker(100.0, 104.0),
                    _marker(200.0, 260.0)]
-        cuts = [_cut(10.0, 70.0), _cut(200.0, 230.0)]
+        cuts = [applied_cut(10.0, 70.0), applied_cut(200.0, 230.0)]
         processing._finalize_cut_state(markers, list(markers), cuts, 600.0)
         first = copy.deepcopy(markers)
         processing._finalize_cut_state(markers, list(markers), cuts, 600.0)
@@ -100,11 +97,11 @@ class TestFinalizeCutState:
 
 class TestCutSeconds:
     def test_source_and_replacement_seconds(self):
-        cuts = [_cut(10.0, 70.0, 1.0), _cut(100.0, 110.0, 10.0)]
+        cuts = [applied_cut(10.0, 70.0, 1.0), applied_cut(100.0, 110.0, 10.0)]
         assert processing._cut_seconds(cuts) == (70.0, 11.0)
 
     def test_overlapping_cuts_count_source_audio_once(self):
-        cuts = [_cut(10.0, 70.0, 1.0), _cut(60.0, 80.0, 1.0)]
+        cuts = [applied_cut(10.0, 70.0, 1.0), applied_cut(60.0, 80.0, 1.0)]
         assert processing._cut_seconds(cuts) == (70.0, 2.0)
 
 
@@ -126,7 +123,7 @@ def _run_recut(ads_to_remove, all_ads, render, *, new_duration=600.0,
         p(processing, 'status_service')
         p(processing, '_handle_processing_failure')
         p(processing, '_copy_retained_original_to_temp', return_value='/tmp/fcs-work.mp3')
-        p(processing, '_build_recut_ad_list', return_value=(ads_to_remove, all_ads, []))
+        p(processing, '_build_recut_ad_list', return_value=(ads_to_remove, all_ads, [], [], []))
 
         def _assets(*args, **kwargs):
             captured['assets_cuts'] = args[3]
@@ -200,7 +197,7 @@ class TestRecutOrderAndFailure:
 
     def test_assets_failure_leaves_markers_unsaved(self):
         a = _marker(10.0, 40.0)
-        m = _run_recut([a], [a], render=lambda segs: [_cut(10.0, 40.0)],
+        m = _run_recut([a], [a], render=lambda segs: [applied_cut(10.0, 40.0)],
                        assets_side_effect=RuntimeError('vtt write failed'))
         assert m['result'] is False
         m['storage'].save_combined_ads.assert_not_called()
@@ -208,7 +205,7 @@ class TestRecutOrderAndFailure:
 
     def test_failure_after_the_save_restores_the_entry_snapshot(self):
         a = _marker(10.0, 40.0)
-        m = _run_recut([a], [a], render=lambda segs: [_cut(10.0, 40.0)],
+        m = _run_recut([a], [a], render=lambda segs: [applied_cut(10.0, 40.0)],
                        finalize_side_effect=RuntimeError('publication fence'))
         assert m['result'] is False
         saves = _saves(m)
@@ -218,14 +215,14 @@ class TestRecutOrderAndFailure:
 
     def test_order_is_render_move_assets_save_finalize(self):
         a = _marker(10.0, 40.0)
-        m = _run_recut([a], [a], render=lambda segs: [_cut(10.0, 40.0)])
+        m = _run_recut([a], [a], render=lambda segs: [applied_cut(10.0, 40.0)])
         assert m['result'] is True
         order = [c[0] for c in m['calls'].method_calls]
         assert order == ['render', 'move', 'assets', 'save', 'finalize']
 
     def test_assets_receive_exactly_the_saved_markers_and_cuts(self):
         a, b = _marker(10.0, 40.0), _marker(100.0, 104.0)
-        applied = [_cut(10.0, 40.0)]
+        applied = [applied_cut(10.0, 40.0)]
         m = _run_recut([a, b], [a, b], render=lambda segs: applied)
         saved = _saves(m)[-1]
         assert m['captured']['assets_cuts'] == applied
@@ -236,7 +233,7 @@ class TestRecutOrderAndFailure:
     def test_counts_and_durations_follow_the_rendered_cuts(self):
         a, b = _marker(10.0, 40.0), _marker(40.5, 70.0)
         beep = _marker(200.0, 210.0, action_applied='beep')
-        applied = [_cut(10.0, 70.0, 1.0), _cut(200.0, 210.0, 10.0)]
+        applied = [applied_cut(10.0, 70.0, 1.0), applied_cut(200.0, 210.0, 10.0)]
         run_stats = {'markers': {'cut': 0, 'held': 0, 'not_cut': 0},
                      'verification_ads_cut': 0}
         # new = original - source (70 s) + replacement (11 s)

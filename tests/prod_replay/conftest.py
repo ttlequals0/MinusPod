@@ -1,7 +1,9 @@
 """Fixtures for replaying saved production episodes through the pipeline code."""
+import copy
 import json
 import os
 import re
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
@@ -23,7 +25,12 @@ def load_json(path):
 
 
 def load_episode(root, episode_id):
-    """Saved markers, corrections and word-timed segments for one episode."""
+    """Saved markers, corrections and word-timed segments for one episode; a fresh copy per call."""
+    return copy.deepcopy(_load_episode_raw(root, episode_id))
+
+
+@lru_cache(maxsize=None)
+def _load_episode_raw(root, episode_id):
     base = root / 'episodes' / episode_id
     data = load_json(base / 'replay_input.json')
     data['segments'] = load_json(base / 'original_segments.json')['segments']

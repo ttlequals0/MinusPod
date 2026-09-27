@@ -255,7 +255,7 @@ class TestRecutPreservesDegradedFlag:
             p(processing, 'status_service')
             p(processing, '_copy_retained_original_to_temp',
               return_value='/tmp/degraded-recut-work.mp3')
-            p(processing, '_build_recut_ad_list', return_value=([], [], []))
+            p(processing, '_build_recut_ad_list', return_value=([], [], [], [], []))
             p(processing, '_generate_assets')
             finalize = p(processing, '_finalize_episode')
             local_ap_cls = p(processing, 'AudioProcessor')

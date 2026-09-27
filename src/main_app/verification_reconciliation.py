@@ -220,7 +220,7 @@ def _matches_false_positive_correction(orig_ad, false_positive_corrections):
 
 def _split_pass2_candidates_around_spans(processed_ads, original_ads,
                                           barriers_processed, pass1_cuts,
-                                          barrier_label):
+                                          barrier_label, timestamp_map=None):
     """Split paired pass-2 candidates around protected processed spans."""
     if not barriers_processed:
         return processed_ads, original_ads
@@ -229,7 +229,8 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
             'Pass-2 processed/original marker lists must stay paired')
 
     barriers = [(marker['start'], marker['end']) for marker in barriers_processed]
-    timestamp_map = _build_timestamp_map(pass1_cuts)
+    if timestamp_map is None:
+        timestamp_map = _build_timestamp_map(pass1_cuts)
     replacement_duration = get_replacement_duration()
     surviving_processed = []
     surviving_original = []
@@ -280,6 +281,7 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     surviving_processed = []
     surviving_original = []
     conflicts = []
+    timestamp_map = None
     for ad, orig_ad in zip(verification_ads_processed, verification_ads_original, strict=True):
         covered = sum(overlap_seconds(barrier['start'], barrier['end'],
                                       ad['start'], ad['end'])
@@ -297,8 +299,11 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
                 f"dropping it"
             )
             continue
+        if timestamp_map is None:
+            timestamp_map = _build_timestamp_map(pass1_cuts)
         fragments = list(zip(*_split_pass2_candidates_around_spans(
-            [ad], [orig_ad], keep_barriers, pass1_cuts, 'kept audio'), strict=True))
+            [ad], [orig_ad], keep_barriers, pass1_cuts, 'kept audio',
+            timestamp_map=timestamp_map), strict=True))
         for proc, orig in fragments:
             if orig['end'] <= orig['start']:
                 # A fragment inside a replacement beep has no original audio to cut.

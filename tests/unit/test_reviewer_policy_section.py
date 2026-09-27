@@ -80,7 +80,15 @@ def test_prompt_carries_policy_barriers_members_and_measured_edges():
 
 
 def test_custom_review_prompt_still_gets_the_section():
-    assert 'Effective category actions' in _prompt(settings={'review_prompt': 'custom'})
+    reviewer = _reviewer({'review_prompt': 'custom', 'resurrect_prompt': 'resurrect',
+                          'review_max_boundary_shift': '60'})
+    reviewer._llm_client.messages_create.return_value = MagicMock(
+        content='[]', model='test-model')
+    reviewer.review(accepted_ads=[_ad()], resurrection_eligible=[], segments=SEGMENTS,
+                    episode_meta=_meta(), pass_num=1, pass_model='test-model')
+    call = reviewer._llm_client.messages_create.call_args_list[0].kwargs
+    assert call['system'].startswith('custom')
+    assert 'Effective category actions' in call['messages'][0]['content']
 
 
 def test_barriers_and_members_are_capped():

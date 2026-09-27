@@ -40,7 +40,6 @@ def test_hard_orig_and_hard_proc_cover_the_same_audio_under_shifted_cuts():
     assert _spans(protection.hard_proc) == [
         (100.0, 110.0), (170.0, 210.0), (470.0, 480.0)]
     assert protection.holds_orig == [hold]
-    assert _spans(protection.render_hard) == [(200.0, 220.0), (215.0, 240.0), (120.0, 140.0)]
     assert (300.0, 310.0) not in _spans(protection.hard_orig)
     assert (270.0, 280.0) not in _spans(protection.hard_proc)
 
@@ -115,11 +114,10 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
             segment_actions=ACTIONS,
         )
 
-    assert len(built) >= 3
-    for protection in built:
-        assert (300.0, 320.0) in _spans(protection.hard_orig)
-        assert (300.0, 320.0) not in _spans(protection.holds_orig)
-        assert (400.0, 420.0) not in _spans(protection.hard_orig)
+    # Hard sources are built once, after the category partition.
+    [protection] = built
+    assert (300.0, 320.0) in _spans(protection.hard_orig)
+    assert (400.0, 420.0) not in _spans(protection.hard_orig)
     reviewer_barriers = reviewer.call_args.kwargs['protected_original_ranges']
     assert {(300.0, 320.0), (400.0, 420.0)} <= set(_spans(reviewer_barriers))
     # The prompt lists hard protection only, labelled; holds stay out.
@@ -132,6 +130,11 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
         _spans(crosspass.call_args.args[4]))
     assert {(300.0, 320.0), (400.0, 420.0)} <= set(
         _spans(audio.process_episode.call_args.kwargs['cut_barriers']))
+    # A user rejection is a hard render barrier, like a keep.
+    assert {(300.0, 320.0), (500.0, 510.0)} <= set(
+        _spans(audio.process_episode.call_args.kwargs['hard_barriers']))
+    assert (400.0, 420.0) not in _spans(
+        audio.process_episode.call_args.kwargs['hard_barriers'])
     # The category keep still persists with the pass-2 markers.
     assert any(m['start'] == 300.0 and m['action_applied'] == 'keep'
                for m in output[3])

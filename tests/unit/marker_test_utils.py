@@ -11,3 +11,8 @@ def member_bases(members):
 def _ad(start, end, stage=None, **extra):
     """Minimal marker dict for a detection stage."""
     return {'start': start, 'end': end, 'detection_stage': stage, **extra}
+
+
+def applied_cut(start, end, replacement=1.0):
+    """A rendered cut as compute_applied_cuts returns it."""
+    return {'start': start, 'end': end, 'replacement_duration': replacement}

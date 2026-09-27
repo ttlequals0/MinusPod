@@ -192,11 +192,7 @@ def test_hold_reason_enum_matches_config_constants():
 
 
 def test_patterns_list_params_match_handler():
-    """GET /patterns documents every query param the handler reads.
-
-    Regression test for the scope=all / active_only drift where the spec
-    documented params the handler silently ignored or renamed.
-    """
+    """GET /patterns documents exactly the query params the handler reads."""
     with SPEC_PATH.open() as f:
         doc = yaml.safe_load(f)
     params = doc['paths']['/patterns']['get']['parameters']

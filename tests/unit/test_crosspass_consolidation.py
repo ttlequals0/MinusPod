@@ -422,3 +422,24 @@ def test_applied_cut_inside_a_hard_barrier_is_dropped():
         hard_barriers=[{'start': 90.0, 'end': 130.0}])
 
     assert applied == []
+
+
+def test_crosspass_rerender_clips_a_pass1_cut_at_a_false_positive():
+    pass1_cuts = [_cut(100.0, 200.0, replacement_duration=1.0),
+                  _cut(400.0, 450.0, replacement_duration=1.0)]
+    pass1_markers = [_cut(100.0, 200.0), _cut(400.0, 450.0)]
+    # Joins the second pass-1 cut, so the whole plan renders from the original.
+    proc = _cut(302.0, 332.0, confidence=0.95, category='sponsor')
+    orig = _cut(450.0, 480.0, confidence=0.95, category='sponsor')
+
+    _output, audio = _run_pass2_against_keep(
+        pass1_cuts, proc, orig, fp_corrections=[{'start': 185.0, 'end': 215.0}],
+        original_audio_path='/tmp/original-working.mp3',
+        pass1_markers=pass1_markers,
+        segments=[{'start': 0.0, 'end': 600.0, 'text': 'show content'}])
+
+    assert audio.process_episode.call_args.args[0] == '/tmp/original-working.mp3'
+    hard = audio.process_episode.call_args.kwargs['hard_barriers']
+    applied = AudioProcessor().compute_applied_cuts(
+        audio.process_episode.call_args.args[1], 1000.0, hard_barriers=hard)
+    assert [(c['start'], c['end']) for c in applied] == [(100.0, 185.0), (400.0, 480.0)]

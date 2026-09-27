@@ -54,8 +54,8 @@ from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import (
     COARSE_MEMBER_STAGES, EDGE_TOLERANCE, clip_merge_spans,
     dai_core_bounds, dai_core_spans, dai_probe_spans, edge_support,
-    finite_number, hard_member_spans, invalidate_tail_provenance, member_spans,
-    reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
+    finite_number, hard_member_spans, hard_members, invalidate_tail_provenance,
+    member_spans, reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
     union_cover,
 )
 from utils.prompt import (
@@ -662,11 +662,13 @@ def _member_conflict(member: dict, start: float, end: float) -> bool:
 
 
 def _measured_member_floor(ad: dict, start: float, end: float, original_start: float,
-                           original_end: float, min_conf: float) -> tuple[float, float]:
+                           original_end: float, min_conf: float,
+                           members=None) -> tuple[float, float]:
     """Widen a proposal over every measured member extent it would cut into."""
+    if members is None:
+        members = hard_member_spans(ad, original_start, original_end, min_conf)
     # Coarse members are excluded: re-expanding to one would undo the trim just accepted.
-    hard = [m for m in hard_member_spans(ad, original_start, original_end, min_conf)
-            if m.get('stage') not in COARSE_MEMBER_STAGES]
+    hard = [m for m in members if m.get('stage') not in COARSE_MEMBER_STAGES]
     p_start, p_end = span_bounds(hard)
     if p_start is None:
         return start, end
@@ -1097,8 +1099,8 @@ def _member_item(member: dict) -> str:
     return item
 
 
-def _edge_item(ad: dict, edge: str, min_conf: float) -> str:
-    support = edge_support(ad, edge, min_conf)
+def _edge_item(ad: dict, edge: str, min_conf: float, hard: list[dict]) -> str:
+    support = edge_support(ad, edge, min_conf, hard)
     if support['measured'] is None:
         return f"{edge} unmeasured"
     precise = ', precise' if support['precise'] else ''
@@ -1125,8 +1127,10 @@ def _format_policy_section(ad: dict, episode_meta: dict, max_shift: float) -> st
         lines.append(f"Evidence envelope: {_span_text(start, end)}")
         lines.extend(_capped_line('Member', [_member_item(m)])
                      for m in members[:MAX_PROMPT_MEMBERS])
+        hard = hard_members(ad, min_conf)
         lines.append(_capped_line('Measured edges', [
-            _edge_item(ad, 'start', min_conf), _edge_item(ad, 'end', min_conf)], ', '))
+            _edge_item(ad, 'start', min_conf, hard),
+            _edge_item(ad, 'end', min_conf, hard)], ', '))
     section = ''
     for line in filter(None, lines):
         if len(section) + len(line) + 1 > POLICY_SECTION_CAP:
@@ -1721,14 +1725,18 @@ class AdReviewer:
             confidence = None
 
         min_conf = _meta_min_conf(episode_meta)
+        members = (hard_member_spans(ad, original_start, original_end, min_conf)
+                   if ad.get('merged_distinct_ads') else None)
         boundary_conflict = self._proposal_conflicts_with_protection(
-            ad, new_start, new_end, original_start, original_end, min_conf)
+            ad, new_start, new_end, original_start, original_end, min_conf,
+            members=members)
 
         clamped_start, clamped_end = self._clamp_proposed_bounds(
             ad, new_start, new_end, original_start, original_end,
             max_shift, slug, episode_id, segments=segments,
             transcript_units=transcript_units,
-            hard_barriers=episode_meta.get('hard_barriers'), min_conf=min_conf)
+            hard_barriers=episode_meta.get('hard_barriers'), min_conf=min_conf,
+            members=members)
 
         proposal_clamped = _clamp_overrode(
             new_start, new_end, original_start, original_end,
@@ -1818,7 +1826,8 @@ class AdReviewer:
     def _clamp_proposed_bounds(self, ad, new_start, new_end,
                                original_start, original_end, max_shift,
                                slug, episode_id, segments=None, transcript_units=None,
-                               hard_barriers=None, min_conf=MIN_CUT_CONFIDENCE):
+                               hard_barriers=None, min_conf=MIN_CUT_CONFIDENCE,
+                               members=None):
         """Clamp reviewer-proposed bounds: inverted-bounds fallback, per-edge
         shift cap, merged-span floor, final validity fallback. Single seam for
         every path that turns reviewer prose or deltas into marker bounds."""
@@ -1849,7 +1858,8 @@ class AdReviewer:
         # expand-only rule.
         if ad.get('merged_distinct_ads'):
             floor_start, floor_end = _measured_member_floor(
-                ad, clamped_start, clamped_end, original_start, original_end, min_conf)
+                ad, clamped_start, clamped_end, original_start, original_end, min_conf,
+                members=members)
             if floor_start != clamped_start or floor_end != clamped_end:
                 logger.info(
                     f"[{slug}:{episode_id}] Reviewer inward shrink clamped "
@@ -1915,12 +1925,13 @@ class AdReviewer:
     @staticmethod
     def _proposal_conflicts_with_protection(ad, start, end,
                                              original_start, original_end,
-                                             min_conf=MIN_CUT_CONFIDENCE):
+                                             min_conf=MIN_CUT_CONFIDENCE, members=None):
         """Return whether an inward proposal crosses measured member evidence."""
         if end <= start or not ad.get('merged_distinct_ads'):
             return False
-        return any(_member_conflict(m, start, end) for m in
-                   hard_member_spans(ad, original_start, original_end, min_conf))
+        if members is None:
+            members = hard_member_spans(ad, original_start, original_end, min_conf)
+        return any(_member_conflict(m, start, end) for m in members)
 
     def _recover_contradiction_trim(
         self,

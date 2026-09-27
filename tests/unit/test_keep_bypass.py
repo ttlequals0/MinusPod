@@ -28,6 +28,7 @@ import main_app.processing as processing
 from api.patterns import _matches_held_marker
 from audio_processor import AudioProcessor
 from config import count_pending_review, HOLD_REASON_VERIFICATION_KEPT_CONFLICT
+from tests.unit.marker_test_utils import applied_cut
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
@@ -50,7 +51,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
                   verification_side_effect=None, real_refine_reviewer=False,
                   confirmed_corrections=None, duration=100.0,
                   false_positive_corrections=None, render=None, new_duration=None,
-                  assets_side_effect=None, episode_row=None):
+                  assets_side_effect=None, episode_row=None, finalize_side_effect=None):
     """Drive process_episode's full pass-1 flow with every stage but the
     partition itself mocked out. Returns the recorded mocks for inspection.
 
@@ -70,6 +71,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
     ``render`` maps the requested cuts to the applied list; ``new_duration`` is the render length.
     ``assets_side_effect`` runs in place of the mocked _generate_assets.
     ``episode_row`` is the episode row read at the start of the run.
+    ``finalize_side_effect`` runs in place of the mocked _finalize_episode.
     """
     podcast_row = {'id': 1, 'slug': 'keep-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
@@ -144,7 +146,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
                             or (0, [], [], [], '/tmp/cut.mp3', 0, True, 0)))
         generate_assets = p(processing, '_generate_assets',
                             side_effect=assets_side_effect)
-        finalize = p(processing, '_finalize_episode')
+        finalize = p(processing, '_finalize_episode', side_effect=finalize_side_effect)
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
         p(processing.os.path, 'exists', return_value=False)
@@ -241,6 +243,15 @@ class TestKeepBypass:
         assert fp in m['reviewer'].call_args.kwargs['hard_barriers']
         assert fp in m['local_ap'].process_episode.call_args.kwargs['hard_barriers']
 
+    def test_corrections_are_read_once_per_run(self):
+        fp = {'start': 70.0, 'end': 80.0}
+        m = _run_pipeline([_sponsor_ad()], {'sponsor': 'remove'},
+                          real_refine_reviewer=True, false_positive_corrections=[fp])
+
+        assert m['result'] is True
+        assert m['db'].get_false_positive_corrections.call_count == 1
+        assert m['db'].get_confirmed_corrections.call_count == 1
+
     def test_reviewer_trim_learns_only_after_final_applied_cut(self):
         marker = dict(_sponsor_ad(), sponsor='Acme Tools',
                       detection_stage='claude')
@@ -311,6 +322,32 @@ class TestKeepBypass:
 
         assert m['result'] is False
         assert m['storage'].save_combined_ads.call_args.args[2] == saved
+
+    def test_failure_after_the_row_is_persisted_keeps_the_new_markers(self):
+        saved = [{'start': 50.0, 'end': 70.0, 'confidence': 0.9, 'was_cut': True}]
+
+        def finalize(*args, on_persisted=None, **kwargs):
+            on_persisted()
+            raise RuntimeError('history write failed')
+
+        m = _run_pipeline([_sponsor_ad()], {'sponsor': 'remove'},
+                          finalize_side_effect=finalize,
+                          episode_row={'ad_markers_json': json.dumps(saved)})
+
+        assert m['result'] is False
+        assert m['storage'].save_combined_ads.call_args.args[2] != saved
+
+    def test_finalize_reports_persistence_before_the_summary_can_fail(self):
+        persisted = []
+        with patch.object(processing, '_persist_episode_state'), \
+             patch.object(processing, '_refresh_rss_for_slug'), \
+             patch.object(processing, '_log_completion_summary',
+                          side_effect=RuntimeError('credit failed')), \
+             pytest.raises(RuntimeError):
+            processing._finalize_episode(
+                'keep-feed', 'ep1', 'Episode', 'Podcast', 1, 0, 1, 100.0, 90.0,
+                0.0, on_persisted=lambda: persisted.append(True))
+        assert persisted == [True]
 
     def test_cancelled_verification_does_not_learn(self):
         marker = dict(_sponsor_ad(), sponsor='Acme Tools',
@@ -438,10 +475,6 @@ class TestKeepBypass:
         assert all(s['beep'] is False for s in audio_segments)
 
 
-def _applied(start, end, replacement=1.0):
-    return {'start': start, 'end': end, 'replacement_duration': replacement}
-
-
 class TestAppliedCutsAreTheFinalAuthority:
     ACTIONS = {'sponsor': 'remove', 'cross_promo': 'keep', 'interaction': 'beep'}
 
@@ -450,7 +483,7 @@ class TestAppliedCutsAreTheFinalAuthority:
         b = dict(_sponsor_ad(), start=20.5, end=30.0)
 
         m = _run_pipeline([a, b], self.ACTIONS,
-                          render=lambda ads: [_applied(10.0, 30.0)])
+                          render=lambda ads: [applied_cut(10.0, 30.0)])
 
         args = m['finalize'].call_args.args
         assert args[4] + args[5] == 1
@@ -463,7 +496,7 @@ class TestAppliedCutsAreTheFinalAuthority:
         b = dict(_sponsor_ad(), start=50.0, end=55.0)
 
         m = _run_pipeline([a, b], self.ACTIONS,
-                          render=lambda ads: [_applied(10.0, 20.0)])
+                          render=lambda ads: [applied_cut(10.0, 20.0)])
 
         saved = m['storage'].save_combined_ads.call_args.args[2]
         by_span = {(x['start'], x['end']): x['was_cut'] for x in saved}
@@ -478,7 +511,7 @@ class TestAppliedCutsAreTheFinalAuthority:
         m = _run_pipeline([sponsor, keep], self.ACTIONS)
 
         call = m['local_ap'].process_episode.call_args
-        assert (10.0, 40.0) in {(b['start'], b['end']) for b in call.kwargs['cut_barriers']}
+        assert (10.0, 40.0) in {(b['start'], b['end']) for b in call.kwargs['hard_barriers']}
         saved = m['storage'].save_combined_ads.call_args.args[2]
         by_span = {(x['start'], x['end']): x['was_cut'] for x in saved}
         assert by_span == {(10.0, 40.0): False, (40.0, 60.0): True}
@@ -489,7 +522,7 @@ class TestAppliedCutsAreTheFinalAuthority:
 
         m = _run_pipeline(
             [remove, beep], self.ACTIONS, new_duration=91.0,
-            render=lambda ads: [_applied(10.0, 20.0, 1.0), _applied(50.0, 60.0, 10.0)])
+            render=lambda ads: [applied_cut(10.0, 20.0, 1.0), applied_cut(50.0, 60.0, 10.0)])
 
         stats = m['finalize'].call_args.kwargs['run_stats']
         assert stats['seconds_removed'] == 9.0
@@ -506,7 +539,7 @@ class TestAppliedCutsAreTheFinalAuthority:
 
         m = _run_pipeline(
             [pass1], self.ACTIONS,
-            verification_return=(1, [pass2], [_applied(50.0, 60.0)], [],
+            verification_return=(1, [pass2], [applied_cut(50.0, 60.0)], [],
                                  '/tmp/cut.mp3', 0, True, 0))
 
         args = m['finalize'].call_args.args
@@ -523,7 +556,7 @@ class TestAppliedCutsAreTheFinalAuthority:
 
         m = _run_pipeline(
             [pass1], self.ACTIONS,
-            verification_return=(1, [pass2], [_applied(20.0, 30.0)], [],
+            verification_return=(1, [pass2], [applied_cut(20.0, 30.0)], [],
                                  '/tmp/cut.mp3', 0, True, 0))
 
         args = m['finalize'].call_args.args
@@ -542,13 +575,13 @@ class TestAppliedCutsAreTheFinalAuthority:
             seen['saves'] = processing.storage.save_combined_ads.call_count
 
         m = _run_pipeline([a, b], self.ACTIONS, assets_side_effect=assets,
-                          render=lambda ads: [_applied(10.0, 20.0)])
+                          render=lambda ads: [applied_cut(10.0, 20.0)])
 
         save = m['storage'].save_combined_ads
         assert save.call_count == seen['saves'] + 1
         assert save.call_args.args[2] is seen['markers']
         assert [x['was_cut'] for x in save.call_args.args[2]] == seen['was_cut'] == [True, False]
-        assert seen['cuts'] == [_applied(10.0, 20.0)]
+        assert seen['cuts'] == [applied_cut(10.0, 20.0)]
 
 
 class TestKeepMarkersBlockTerminalSnap:

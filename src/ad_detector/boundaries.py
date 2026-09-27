@@ -1156,7 +1156,7 @@ def removal_coverage_regions(pattern_matched_regions: list, action_map) -> list:
 
     A keep-resolving pattern region never cuts, so letting it cover a
     remove-resolving detection trims the only marker that could remove the
-    ad while the covering marker keeps the audio (DTNS 5337). Regions
+    ad while the covering marker keeps the audio (seen on a production episode). Regions
     without category information (bare tuples, uncategorized patterns)
     resolve to the default remove action and stay eligible.
     """

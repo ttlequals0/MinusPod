@@ -523,6 +523,7 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
     const overriddenSlot = overridden.nextElementSibling as HTMLElement;
     const inheritedSlot = inherited.nextElementSibling as HTMLElement;
     expect(within(overriddenSlot).getByRole('button', { name: 'Clear' })).toBeDefined();
+    expect(within(inheritedSlot).getByText('Inherit')).toBeDefined();
     expect(overriddenSlot.className).toBe(inheritedSlot.className);
     expect(overriddenSlot.className).toMatch(/\bw-16\b/);
     expect(overriddenSlot.className).toMatch(/\bshrink-0\b/);

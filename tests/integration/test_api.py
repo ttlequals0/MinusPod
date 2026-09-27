@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 # (indicates we're not in the Docker container with full dependencies)
 pytest.importorskip("ctranslate2", reason="Integration tests require Docker environment")
 
+from database import Database  # noqa: E402
+
 
 class TestHealthEndpoint:
     """Tests for health check endpoint."""
@@ -273,6 +275,17 @@ class TestPatternsEndpoint:
 
         ids = {p['community_id'] for p in json.loads(response.data)['patterns']}
         assert 'active-alias-test' in ids
+
+    def test_list_patterns_active_only_wins_over_the_alias(self, app_client):
+        """active_only decides when both it and the legacy active alias are sent."""
+        pattern_id = Database().create_ad_pattern(
+            scope='global', text_template='t' * 60, community_id='active-both-test')
+        Database().update_ad_pattern(pattern_id, is_active=0)
+
+        response = app_client.get('/api/v1/patterns?active_only=true&active=false')
+
+        ids = {p['community_id'] for p in json.loads(response.data)['patterns']}
+        assert 'active-both-test' not in ids
 
     def test_list_patterns_default_includes_inactive(self, app_client):
         """Plain GET /api/v1/patterns matches the documented active_only default of false."""

@@ -111,7 +111,7 @@ def _stub_db(monkeypatch, ep):
 
 def _recut(monkeypatch, ep):
     _stub_db(monkeypatch, ep)
-    ads_to_remove, all_ads, _keeps = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
         'replay', 'replay', ep['segments'], ep['duration'], ep['description'],
         MIN_CONF, podcast_id=1, segment_actions=dict(ACTIONS))
     return ads_to_remove, all_ads
@@ -197,25 +197,22 @@ def _replay_render(monkeypatch, ep):
 
 def _replay_render_state(monkeypatch, ep):
     """(ads_to_remove, all_ads, applied cuts) for a recut of the saved state."""
-    ads_to_remove, all_ads = _recut(monkeypatch, ep)
-    keep_ads, all_ads = processing._partition_keep_ads(
-        all_ads, dict(ACTIONS), processing._make_keep_differential_override(
-            ep.get('dai_differential')))
-    keep_ids = {id(a) for a in keep_ads}
-    ads_to_remove = [a for a in ads_to_remove if id(a) not in keep_ids]
-    all_ads = sorted([*all_ads, *keep_ads], key=lambda a: a['start'])
-    rejects = [a for a in all_ads if processing.REVIEWER_REJECT_PRESERVED_FLAG
-               in (a.get('validation') or {}).get('flags', [])]
+    _stub_db(monkeypatch, ep)
+    corrections = (processing.db.get_false_positive_corrections(1, 'replay'),
+                   processing.db.get_confirmed_corrections(1, 'replay'))
+    ads_to_remove, all_ads, keep_ads, rejects, holds = processing._build_recut_ad_list(
+        'replay', 'replay', ep['segments'], ep['duration'], ep['description'],
+        MIN_CONF, podcast_id=1, segment_actions=dict(ACTIONS), corrections=corrections)
     ads_to_remove, trims = processing._restore_confirmed_spans(
-        ads_to_remove, all_ads, 1, 'replay', ep['duration'], 0.0, reject_ranges=rejects)
-    ads_to_remove = processing._partition_cut_actions(ads_to_remove, dict(ACTIONS))
+        ads_to_remove, all_ads, 1, 'replay', ep['duration'], 0.0, reject_ranges=rejects,
+        corrections=corrections)
     reject_ids = {id(a) for a in rejects}
-    ads_to_remove = [a for a in ads_to_remove if id(a) not in reject_ids]
-    ads_to_remove = processing._carve_cuts_around_kept_audio(
-        'replay', 'replay', ads_to_remove, all_ads, keep_ads)
+    ads_to_remove = processing._stamp_and_carve_cuts(
+        'replay', 'replay', [a for a in ads_to_remove if id(a) not in reject_ids],
+        all_ads, dict(ACTIONS), keep_ads)
     return ads_to_remove, all_ads, AudioProcessor().compute_applied_cuts(
-        ads_to_remove, ep['duration'], cut_barriers=[*keep_ads, *trims, *rejects],
-        hard_barriers=[*keep_ads, *trims])
+        ads_to_remove, ep['duration'], cut_barriers=holds,
+        hard_barriers=[*keep_ads, *trims, *corrections[0], *rejects])
 
 
 def _cut_over_keep_cases():
@@ -245,10 +242,10 @@ def test_replayed_render_never_cuts_kept_audio(monkeypatch, eid, keep):
 def test_replayed_cut_count_matches_was_cut(monkeypatch, eid):
     ep = load_episode(ROOT, eid)
     ads_to_remove, all_ads, applied = _replay_render_state(monkeypatch, ep)
-    rendered = processing._finalize_cut_state(all_ads, ads_to_remove, applied, ep['duration'])
+    groups = processing._finalize_cut_state(all_ads, ads_to_remove, applied, ep['duration'])
     cut = [m for m in all_ads if m['was_cut']]
-    assert rendered == len(applied)
-    assert rendered == processing._rendered_cuts_covering(applied, cut, ep['duration'])
+    assert len(groups) == len(applied)
+    assert len(groups) == processing._rendered_cuts_covering(groups, cut, ep['duration'])
 
 
 # (b) validator replay ---------------------------------------------------------

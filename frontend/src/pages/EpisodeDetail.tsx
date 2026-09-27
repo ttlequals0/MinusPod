@@ -105,8 +105,6 @@ function toOriginalAd(segment: AdSegment) {
   };
 }
 
-// Pencil icon button that opens a held/rejected row in the waveform
-// editor (issue #563). Callers own the gating.
 // A render removed part of this uncut marker; list those parts for the reviewer.
 function PartialCutHint({ segment }: { segment: AdSegment }) {
   if (!segment.partial_cut_spans?.length) return null;
@@ -119,6 +117,8 @@ function PartialCutHint({ segment }: { segment: AdSegment }) {
   );
 }
 
+// Pencil icon button that opens a held/rejected row in the waveform
+// editor (issue #563). Callers own the gating.
 function OpenEditorButton({ onClick, testId }: { onClick: () => void; testId: string }) {
   return (
     <button

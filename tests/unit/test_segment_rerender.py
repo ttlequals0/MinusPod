@@ -29,6 +29,7 @@ _test_data_dir = bootstrap(
     reset_storage=True)
 
 import main_app.processing as processing
+from audio_processor import AudioProcessor
 from config import SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION
 from werkzeug.security import generate_password_hash
 
@@ -48,7 +49,7 @@ def _marker(start, end, category, action_applied, was_cut, **overrides):
 
 
 def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
-               confirmed_corrections=(), render_calls=None):
+               confirmed_corrections=(), render_calls=None, fp_corrections=()):
     """Drive _recut_episode with _build_recut_ad_list mocked to return the
     given (ads_to_remove, all_ads) after the builder's keep partition against
     the current action map. Audio processor is mocked out (no ffmpeg). Returns
@@ -65,7 +66,7 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
         p(processing, '_copy_retained_original_to_temp',
           return_value='/tmp/segrerender-work.mp3')
         p(processing, '_build_recut_ad_list',
-          return_value=(ads_to_remove, all_ads, keep_ads))
+          return_value=(ads_to_remove, all_ads, keep_ads, [], []))
         p(processing, '_generate_assets')
         p(processing, '_finalize_episode')
         local_ap_cls = p(processing, 'AudioProcessor')
@@ -77,7 +78,7 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
         db.get_all_settings.return_value = {}
         db.resolve_segment_actions.return_value = segment_actions
         db.get_confirmed_corrections.return_value = list(confirmed_corrections)
-        db.get_false_positive_corrections.return_value = []
+        db.get_false_positive_corrections.return_value = list(fp_corrections)
         storage.get_original_path.return_value.exists.return_value = True
         storage.get_applied_cuts.return_value = None
         storage.get_episode_path.return_value = '/tmp/segrerender-final.mp3'
@@ -173,6 +174,17 @@ class TestRecutReResolvesAgainstCurrentMap:
         assert sorted((m['start'], m['end'], m['action_applied'])
                       for m in saved) == [
             (10.0, 20.0, 'remove'), (20.0, 30.0, 'keep'), (30.0, 50.0, 'remove')]
+
+    def test_recut_clips_a_cut_at_a_user_rejection(self):
+        cut = _marker(10.0, 50.0, 'sponsor', 'remove', True)
+        calls = []
+        audio_segments, _saved = _run_recut(
+            [cut], [cut], dict(ALL_REMOVE), render_calls=calls,
+            fp_corrections=[{'start': 40.0, 'end': 55.0}])
+
+        applied = AudioProcessor().compute_applied_cuts(
+            audio_segments, 60.0, hard_barriers=calls[0].kwargs['hard_barriers'])
+        assert [(c['start'], c['end']) for c in applied] == [(10.0, 40.0)]
 
     def test_all_remove_map_regresses_exactly_as_before(self):
         # No 'keep' anywhere in the map: _partition_keep_ads is a no-op

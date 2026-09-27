@@ -2545,7 +2545,7 @@ class AdDetector:
 
         # Only remove-resolving regions may trim a detection: a keep-action
         # region never cuts, so covering a sponsor detection with one left
-        # the ad in the audio with no marker to remove it (DTNS 5337).
+        # the ad in the audio with no marker to remove it (seen on a production episode).
         coverage_regions = removal_coverage_regions(
             pattern_matched_regions, action_map)
 

@@ -599,10 +599,15 @@ def hard_member_spans(ad: dict, lo, hi, min_conf: float) -> list[dict]:
     return _hard_members(protected_member_spans(ad, lo, hi), min_conf)
 
 
-def edge_support(ad: dict, edge: str, min_conf: float) -> dict:
+def hard_members(ad: dict, min_conf: float) -> list[dict]:
+    """member_spans clipped to what each member measured."""
+    return _hard_members(member_spans(ad), min_conf)
+
+
+def edge_support(ad: dict, edge: str, min_conf: float, hard=None) -> dict:
     """The envelope edge and the outermost member edge that measures it."""
     candidates = []
-    for member in _hard_members(member_spans(ad), min_conf):
+    for member in hard_members(ad, min_conf) if hard is None else hard:
         stage = member.get('stage')
         transcript = stage in COARSE_MEMBER_STAGES
         if transcript and not _transcript_member(member, min_conf):
