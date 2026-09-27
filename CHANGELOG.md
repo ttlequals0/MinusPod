@@ -9,6 +9,19 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.31] - 2026-09-27
+
+### Fixed
+
+- When a feed keeps a category, a text pattern whose length was estimated now protects only the words it matched. Before, its estimated tail could overlap a precisely timed sponsor read next to it, and that part of the read stayed in the audio.
+- The reviewer prompt no longer lists a coarse transcript edge as measured. An edge with no precise evidence is now shown as unmeasured.
+- A pass-2 finding sent to review inside a held span is now logged as sent to review, not as dropped.
+
+### Changed
+
+- Each run logs its resolved category action map and names the categories set by a feed override.
+- Tests now pin keep-map behavior: a self-promo inside a sponsor read stays in the audio, the reviewer cannot move the read's edge into it, and the replay harness checks the merge under fixed action maps.
+
 ## [2.97.30] - 2026-09-27
 
 ### Fixed
