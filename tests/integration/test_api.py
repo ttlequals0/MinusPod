@@ -204,6 +204,110 @@ class TestPatternsEndpoint:
         row = next(p for p in data['patterns'] if p['community_id'] == 'trust-tier-stale-test')
         assert row['trust'] == 'stale'
 
+    def test_list_patterns_scope_all_returns_every_scope(self, app_client):
+        """GET /api/v1/patterns?scope=all applies no scope filter."""
+        from database import Database
+        db = Database()
+        db.create_ad_pattern(scope='global', text_template='x' * 60,
+                              community_id='scope-all-global-test')
+        db.create_ad_pattern(scope='podcast', text_template='y' * 60,
+                              podcast_id='example-podcast',
+                              community_id='scope-all-podcast-test')
+
+        response = app_client.get('/api/v1/patterns?scope=all')
+
+        assert response.status_code == 200
+        ids = {p['community_id'] for p in json.loads(response.data)['patterns']}
+        assert {'scope-all-global-test', 'scope-all-podcast-test'} <= ids
+
+    def test_list_patterns_scope_omitted_returns_every_scope(self, app_client):
+        """GET /api/v1/patterns with no scope behaves like scope=all."""
+        from database import Database
+        db = Database()
+        db.create_ad_pattern(scope='global', text_template='x' * 60,
+                              community_id='scope-omitted-global-test')
+        db.create_ad_pattern(scope='podcast', text_template='y' * 60,
+                              podcast_id='example-podcast',
+                              community_id='scope-omitted-podcast-test')
+
+        response = app_client.get('/api/v1/patterns')
+
+        ids = {p['community_id'] for p in json.loads(response.data)['patterns']}
+        assert {'scope-omitted-global-test', 'scope-omitted-podcast-test'} <= ids
+
+    def test_list_patterns_active_only_false_includes_inactive(self, app_client):
+        """GET /api/v1/patterns?active_only=false includes disabled patterns."""
+        from database import Database
+        db = Database()
+        pattern_id = db.create_ad_pattern(scope='global', text_template='z' * 60,
+                                           community_id='active-only-false-test')
+        db.update_ad_pattern(pattern_id, is_active=0)
+
+        response = app_client.get('/api/v1/patterns?active_only=false')
+
+        ids = {p['community_id'] for p in json.loads(response.data)['patterns']}
+        assert 'active-only-false-test' in ids
+
+    def test_list_patterns_active_only_true_excludes_inactive(self, app_client):
+        """GET /api/v1/patterns?active_only=true excludes disabled patterns."""
+        from database import Database
+        db = Database()
+        pattern_id = db.create_ad_pattern(scope='global', text_template='w' * 60,
+                                           community_id='active-only-true-test')
+        db.update_ad_pattern(pattern_id, is_active=0)
+
+        response = app_client.get('/api/v1/patterns?active_only=true')
+
+        ids = {p['community_id'] for p in json.loads(response.data)['patterns']}
+        assert 'active-only-true-test' not in ids
+
+    def test_list_patterns_active_alias_still_works(self, app_client):
+        """GET /api/v1/patterns?active=false is still honored as an alias."""
+        from database import Database
+        db = Database()
+        pattern_id = db.create_ad_pattern(scope='global', text_template='v' * 60,
+                                           community_id='active-alias-test')
+        db.update_ad_pattern(pattern_id, is_active=0)
+
+        response = app_client.get('/api/v1/patterns?active=false')
+
+        ids = {p['community_id'] for p in json.loads(response.data)['patterns']}
+        assert 'active-alias-test' in ids
+
+    def test_list_patterns_default_includes_inactive(self, app_client):
+        """Plain GET /api/v1/patterns matches the documented active_only default of false."""
+        from database import Database
+        db = Database()
+        pattern_id = db.create_ad_pattern(scope='global', text_template='u' * 60,
+                                           community_id='active-default-test')
+        db.update_ad_pattern(pattern_id, is_active=0)
+
+        response = app_client.get('/api/v1/patterns')
+
+        ids = {p['community_id'] for p in json.loads(response.data)['patterns']}
+        assert 'active-default-test' in ids
+
+    def test_list_patterns_filters_by_podcast_id_and_network_id(self, app_client):
+        """GET /api/v1/patterns?podcast_id=... and ?network_id=... filter as documented."""
+        from database import Database
+        db = Database()
+        db.create_ad_pattern(scope='podcast', text_template='p' * 60,
+                              podcast_id='example-podcast',
+                              community_id='podcast-id-filter-test')
+        db.create_ad_pattern(scope='network', text_template='n' * 60,
+                              network_id='example-network',
+                              community_id='network-id-filter-test')
+
+        response = app_client.get('/api/v1/patterns?podcast_id=example-podcast')
+        ids = {p['community_id'] for p in json.loads(response.data)['patterns']}
+        assert 'podcast-id-filter-test' in ids
+        assert 'network-id-filter-test' not in ids
+
+        response = app_client.get('/api/v1/patterns?network_id=example-network')
+        ids = {p['community_id'] for p in json.loads(response.data)['patterns']}
+        assert 'network-id-filter-test' in ids
+        assert 'podcast-id-filter-test' not in ids
+
 
 class TestSystemEndpoints:
     """Tests for system status endpoints."""

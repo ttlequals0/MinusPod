@@ -55,7 +55,7 @@ class PatternMixin:
 
         if active_only:
             query += " AND ap.is_active = 1"
-        if scope:
+        if scope and scope != 'all':
             query += " AND ap.scope = ?"
             params.append(scope)
         if podcast_id:

@@ -189,3 +189,23 @@ def test_hold_reason_enum_matches_config_constants():
     constants = {value for name, value in vars(config).items()
                  if name.startswith('HOLD_REASON_')}
     assert set(enum) - {None} == constants
+
+
+def test_patterns_list_params_match_handler():
+    """GET /patterns documents every query param the handler reads.
+
+    Regression test for the scope=all / active_only drift where the spec
+    documented params the handler silently ignored or renamed.
+    """
+    with SPEC_PATH.open() as f:
+        doc = yaml.safe_load(f)
+    params = doc['paths']['/patterns']['get']['parameters']
+    documented = {p['name'] for p in params}
+    assert documented == {'scope', 'active_only', 'podcast_id', 'network_id', 'source'}
+
+    scope_schema = next(p for p in params if p['name'] == 'scope')['schema']
+    assert scope_schema['enum'] == ['all', 'global', 'network', 'podcast']
+    assert scope_schema['default'] == 'all'
+
+    active_only_schema = next(p for p in params if p['name'] == 'active_only')['schema']
+    assert active_only_schema['default'] is False

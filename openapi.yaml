@@ -3355,10 +3355,26 @@ paths:
             default: all
         - name: active_only
           in: query
-          description: Only return active patterns
+          description: Only return active patterns. Accepts the legacy `active` query param as an alias.
           schema:
             type: boolean
             default: false
+        - name: podcast_id
+          in: query
+          description: Filter to patterns scoped to this podcast slug
+          schema:
+            type: string
+        - name: network_id
+          in: query
+          description: Filter to patterns scoped to this network id
+          schema:
+            type: string
+        - name: source
+          in: query
+          description: Filter by pattern source
+          schema:
+            type: string
+            enum: [local, community, imported]
       responses:
         '200':
           description: List of patterns

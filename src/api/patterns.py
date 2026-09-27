@@ -45,7 +45,8 @@ def list_patterns():
     """List all ad patterns with optional filtering.
 
     Query params:
-      scope, podcast_id, network_id, active (bool, default true),
+      scope (all|global|network|podcast, default all), podcast_id, network_id,
+      active_only (bool, default false; 'active' accepted as a legacy alias),
       source (one of 'local', 'community', 'imported')
     """
     from utils.community_tags import PATTERN_SOURCES
@@ -54,7 +55,8 @@ def list_patterns():
     scope = request.args.get('scope')
     podcast_id = request.args.get('podcast_id')
     network_id = request.args.get('network_id')
-    active_only = request.args.get('active', 'true').lower() == 'true'
+    active_only_param = request.args.get('active_only', request.args.get('active'))
+    active_only = (active_only_param or 'false').lower() == 'true'
     source = request.args.get('source')
     if source and source not in PATTERN_SOURCES:
         source = None  # ignore garbage values rather than 400; preserves prior behavior
