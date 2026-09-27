@@ -14,6 +14,8 @@ release notes.
 ### Fixed
 
 - A recut no longer cuts audio the reviewer rejected. The recut revalidated a rejected span from scratch, accepted it and saved it as cut, and every later recut kept cutting it. Reviewer rejects now stay in the audio unless the user confirmed or adjusted that span. Pass-2 auto-approval no longer files a confirm over audio the reviewer rejected. Markers already saved in that state are repaired on the next recut.
+- A defined pattern in a category the feed keeps now resolves to remove in every processing step, as it already did at the cut. Before, close-ad merging, duplicate folding and pattern coverage still treated it as kept. It could block a merge with the sponsor read next to it or fail to cover a detection inside it.
+- Pass 2 now treats category-kept audio as a fixed barrier, like keeps, user trims and user rejections, instead of as a pending hold. The category action map is resolved once per run and shared by detection, validation, review and pass 2.
 - Segment action controls stay aligned when a feed override is set.
 
 ## [2.97.29] - 2026-09-27

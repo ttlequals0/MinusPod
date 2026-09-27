@@ -1069,7 +1069,7 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
             anchors = [a for a in claude_ads
                        if (a.get('confidence') or 0) >= PATTERN_TIGHTEN_MIN_CONFIDENCE
                        and (action_map is None
-                            or resolve_category_action(a.get('category'), action_map)
+                            or effective_resolved_action(a, action_map)
                             == DEFAULT_SEGMENT_ACTION)
                        and a['start'] <= text_start + 1.0
                        and a['end'] >= text_end - 1.0]
@@ -1101,7 +1101,7 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
             and a['end'] <= region['end'] + 1.0
             and (a.get('confidence') or 0) >= PATTERN_TIGHTEN_MIN_CONFIDENCE
             and (action_map is None
-                 or resolve_category_action(a.get('category'), action_map)
+                 or effective_resolved_action(a, action_map)
                  == DEFAULT_SEGMENT_ACTION)
         ]
         if len(inside) != 1:
@@ -1165,7 +1165,7 @@ def removal_coverage_regions(pattern_matched_regions: list, action_map) -> list:
     return [
         region for region in pattern_matched_regions
         if not isinstance(region, dict)
-        or resolve_category_action(region.get('category'), action_map)
+        or effective_resolved_action(region, action_map)
         == DEFAULT_SEGMENT_ACTION
     ]
 
@@ -1789,14 +1789,9 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
 
         # Check for overlap (ads within threshold seconds are considered overlapping)
         if current['start'] <= last['end'] + merge_threshold:
-            last_action = (resolve_category_action(
-                last.get('category'), action_map) if action_map else None)
-            current_action = (resolve_category_action(
-                current.get('category'), action_map) if action_map else None)
-            same_action = (
-                action_map is None
-                or effective_resolved_action(last, action_map)
-                == effective_resolved_action(current, action_map))
+            last_action = effective_resolved_action(last, action_map)
+            current_action = effective_resolved_action(current, action_map)
+            same_action = action_map is None or last_action == current_action
             if not same_action:
                 new_last, new_entries = split_conflicting_action_span(
                     last, current, last_action, current_action)

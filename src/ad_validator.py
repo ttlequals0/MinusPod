@@ -25,7 +25,6 @@ from config import (
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
     HOLD_REASON_LARGE_VAD_GAP,
     MAX_ADJACENT_AUTO_EXTENSION_SECONDS, MERGE_GAP_SECONDS, is_pending_review,
-    normalize_segment_category, DEFAULT_SEGMENT_ACTION,
 )
 from utils.markers import (
     carve_fragment,
@@ -58,6 +57,7 @@ from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS, extract_description_sp
 from utils.constants import squash_brand
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
+from ad_detector.boundaries import effective_resolved_action
 
 logger = logging.getLogger(__name__)
 
@@ -1721,10 +1721,8 @@ class AdValidator:
             # a merged span could only be cut or kept as a whole, silently
             # applying one category's action to the other's audio.
             if actions_map is not None:
-                a_last = actions_map.get(
-                    normalize_segment_category(last.get('category')), DEFAULT_SEGMENT_ACTION)
-                a_cur = actions_map.get(
-                    normalize_segment_category(current.get('category')), DEFAULT_SEGMENT_ACTION)
+                a_last = effective_resolved_action(last, actions_map)
+                a_cur = effective_resolved_action(current, actions_map)
                 if a_last != a_cur:
                     merged.append(current.copy())
                     continue

@@ -1856,7 +1856,8 @@ class AdDetector:
                    audio_analysis=None,
                    positional_prior_hint: str = "",
                    recurrence_spans: list | None = None,
-                   episode_sponsors: EpisodeSponsors | None = None) -> dict | None:
+                   episode_sponsors: EpisodeSponsors | None = None,
+                   action_map: dict[str, str] | None = None) -> dict | None:
         """Detect ad segments using Claude API with sliding window approach.
 
         Processes transcript in overlapping windows to ensure ads at chunk
@@ -1871,6 +1872,7 @@ class AdDetector:
                                    (hushpod adoption); rendered per-window.
             episode_sponsors: Matchers for sponsors already known for this
                               episode; a long window naming one passes the content gate.
+            action_map: Caller-resolved category actions; resolved here when None.
         """
         if not self.api_key:
             logger.warning("Skipping ad detection - no API key")
@@ -1947,7 +1949,8 @@ class AdDetector:
             # deduplicate_window_ads can gate on it too: window-boundary
             # dedup is the earliest point a categorized detection could be
             # silently fused into an uncategorized one and lose its category.
-            action_map = self._resolve_segment_action_map(slug)
+            if action_map is None:
+                action_map = self._resolve_segment_action_map(slug)
 
             # Gates the category repair pass and the category-miss warning on
             # whether per-category actions are configured for this feed.
@@ -2209,7 +2212,8 @@ class AdDetector:
                           positional_prior_hint: str = "",
                           recurrence_spans: list | None = None,
                           keep_content: bool | None = None,
-                          skip_llm: bool = False) -> dict:
+                          skip_llm: bool = False,
+                          action_map: dict[str, str] | None = None) -> dict:
         """Process transcript for ad detection using three-stage pipeline.
 
         Pipeline stages:
@@ -2242,6 +2246,8 @@ class AdDetector:
             recurrence_spans: Optional cross-episode text-recurrence spans
                  (hushpod adoption), forwarded to the blacklist detect_ads()
                  call only; keep-content mode does not receive it.
+            action_map: Caller-resolved category actions; resolved once here
+                 when None and shared with detect_ads().
 
         Returns:
             Dict with ads, status, and detection metadata
@@ -2269,6 +2275,8 @@ class AdDetector:
         elif self.db and slug:
             podcast_row = self.db.get_podcast_by_slug(slug)
             podcast_db_id = podcast_row['id'] if podcast_row else None
+        if action_map is None:
+            action_map = self._resolve_segment_action_map(slug)
         all_ads = []
         pattern_matched_regions = []  # Regions covered by pattern matching
         detection_stats = {
@@ -2482,6 +2490,7 @@ class AdDetector:
                         [ad for ad in all_ads
                          if ad.get('detection_stage') in _SPONSOR_MATCH_STAGES],
                         episode_description),
+                    action_map=action_map,
                 )
 
         if result is None:
@@ -2499,10 +2508,6 @@ class AdDetector:
         # Merge Claude detections with pattern matches
         claude_ads = result.get('ads', [])
         cross_episode_skipped = 0
-
-        # Resolved once and reused below (the coverage-drop gate) and at the
-        # final merge call: the feed's category->action map.
-        action_map = self._resolve_segment_action_map(slug)
 
         tighten_pattern_regions(claude_ads, pattern_matched_regions, all_ads,
                                 action_map, slug, episode_id)
@@ -2553,7 +2558,7 @@ class AdDetector:
                 # would discard a keep-resolving category (e.g. intro/outro),
                 # so keep it intact for the merge below to see.
                 if (action_map is not None
-                        and resolve_category_action(ad.get('category'), action_map)
+                        and effective_resolved_action(ad, action_map)
                             != DEFAULT_SEGMENT_ACTION):
                     uncovered_portions = [ad]
                 else:
@@ -2684,6 +2689,7 @@ class AdDetector:
             # Lets removal_coverage_regions resolve the region's action so a
             # keep-resolving match never shadows a remove-resolving detection.
             'category': match.category,
+            'pattern_defined': getattr(match, 'defined', False),
         })
         if self.pattern_service and match.pattern_id:
             self.pattern_service.record_pattern_match(match.pattern_id, episode_id)
@@ -3042,14 +3048,9 @@ class AdDetector:
 
             # Check for overlap (within 3 seconds)
             if current['start'] <= last['end'] + 3.0:
-                last_action = (resolve_category_action(
-                    last.get('category'), action_map) if action_map else None)
-                current_action = (resolve_category_action(
-                    current.get('category'), action_map) if action_map else None)
-                same_action = (
-                    action_map is None
-                    or effective_resolved_action(last, action_map)
-                    == effective_resolved_action(current, action_map))
+                last_action = effective_resolved_action(last, action_map)
+                current_action = effective_resolved_action(current, action_map)
+                same_action = action_map is None or last_action == current_action
                 if not same_action:
                     # Contested audio: never merge a keep-resolving marker
                     # into a remove-resolving one, and never let a shorter
@@ -3319,8 +3320,8 @@ class AdDetector:
 
                     category_source = primary
                     if action_map is not None:
-                        a_action = resolve_category_action(a.get('category'), action_map)
-                        b_action = resolve_category_action(b.get('category'), action_map)
+                        a_action = effective_resolved_action(a, action_map)
+                        b_action = effective_resolved_action(b, action_map)
                         if a_action != b_action:
                             if a_action == 'keep':
                                 category_source = a
@@ -3351,7 +3352,8 @@ class AdDetector:
                                     podcast_description: str = None,
                                     progress_callback=None,
                                     audio_analysis=None,
-                                    pass1_cuts: list[dict] | None = None) -> dict:
+                                    pass1_cuts: list[dict] | None = None,
+                                    action_map: dict[str, str] | None = None) -> dict:
         """Run ad detection with the verification prompt on processed audio.
 
         Uses the same sliding window approach as detect_ads() but with the
@@ -3367,6 +3369,7 @@ class AdDetector:
             podcast_description: Podcast-level description for context
             progress_callback: Optional callback(stage, percent) to report progress
             pass1_cuts: Pass-1 cuts; their pattern and fingerprint sponsors feed the content gate
+            action_map: Caller-resolved category actions; resolved here when None.
         """
         if not self.api_key:
             logger.warning("Skipping verification detection - no API key")
@@ -3429,7 +3432,8 @@ class AdDetector:
             # default verification prompt requires a category, and configured
             # non-default actions enable the same narrow repair pass used by
             # pass 1 for custom/legacy prompts or omitted model fields.
-            action_map = self._resolve_segment_action_map(slug)
+            if action_map is None:
+                action_map = self._resolve_segment_action_map(slug)
             segment_categories_configured = (
                 action_map is not None
                 and any(action != DEFAULT_SEGMENT_ACTION

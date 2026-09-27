@@ -51,13 +51,15 @@ class VerificationPass:
                progress_callback=None,
                original_segments: list[dict] = None,
                reuse_transcript: bool = False,
-               feed_id: int | None = None) -> dict:
+               feed_id: int | None = None,
+               action_map: dict[str, str] | None = None) -> dict:
         """
         Run full pipeline on processed audio to find missed ads.
 
         Args:
             pass1_cuts: List of ad dicts removed in pass 1 (need start/end).
                         Used to build the timestamp map back to original audio.
+            action_map: The run's resolved category actions, forwarded to detection.
 
         Returns dict with:
             'ads': list of ad dicts in ORIGINAL-audio timestamps (for UI/DB)
@@ -152,6 +154,7 @@ class VerificationPass:
             progress_callback=progress_callback,
             audio_analysis=processed_analysis,
             pass1_cuts=pass1_cuts,
+            action_map=action_map,
         )
         # Window counts ride along on every post-detection return so the run
         # stats can report coverage the verification scan never examined.
