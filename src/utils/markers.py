@@ -92,6 +92,13 @@ def set_reviewer_locks(marker: dict, edges) -> None:
         marker[f'reviewer_locked_{edge}'] = marker[edge]
 
 
+def drop_stale_reviewer_locks(marker: dict) -> None:
+    """Drop a reviewer lock whose edge a merge has widened past."""
+    for edge in ('start', 'end'):
+        if f'reviewer_locked_{edge}' in marker and not reviewer_edge_locked(marker, edge):
+            marker.pop(f'reviewer_locked_{edge}', None)
+
+
 # Both-edges tolerance for treating two markers as the same span. Matches
 # find_marker_in_list, the reject path, and the review listing, so every
 # consumer agrees on what one span means.

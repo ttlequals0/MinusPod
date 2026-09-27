@@ -34,6 +34,7 @@ from utils.markers import (
     COVERAGE_GAP_TOLERANCE,
     EDGE_TOLERANCE,
     dai_core_bounds,
+    drop_stale_reviewer_locks,
     find_marker_in_list,
     finite_number,
     invalidate_tail_provenance,
@@ -205,6 +206,7 @@ def _adopt_later_marker_end(target: dict, source: dict) -> None:
     if source.get('tail_splice_snap') is not None:
         snap = source['tail_splice_snap']
         target['tail_splice_snap'] = dict(snap) if isinstance(snap, dict) else snap
+    drop_stale_reviewer_locks(target)
 
 
 class Decision(Enum):
@@ -1675,6 +1677,7 @@ class AdValidator:
             note_fold(original, current_original)
             original['start'] = min(original['start'], current_original['start'])
             original['end'] = max(original['end'], current_original['end'])
+            drop_stale_reviewer_locks(original)
             if current.get('_measured_split_fragment'):
                 original['_measured_split_fragment'] = True
 

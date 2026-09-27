@@ -16,7 +16,7 @@ release notes.
 ### Fixed
 
 - When the reviewer ends an ad on a spoken word and the show resumes at least 0.3 s later, that boundary now holds inside the cross-fetch region. It holds even when no transcribed speech lies between it and the region edge. Before, the cut ran on to the region edge and removed show audio after the ad. A fingerprint match, cue pair, probe window or user confirmation in the released span still keeps the region edge.
-- Reviewer boundaries now survive the steps that run after the review. DAI core restore, terminal start snap, tail completion, tail splice snap, trailing-ad extension, close-ad merge, end-of-episode cut extension and cross-pass cut joining no longer widen an edge the reviewer set with numeric bounds. Inward moves and user-approved bounds still apply.
+- Reviewer boundaries now survive the steps that run after the review. DAI core restore, terminal start snap, tail completion, tail splice snap, trailing-ad extension and end-of-episode cut extension no longer widen an edge the reviewer set with numeric bounds. Close-ad merge and cross-pass cut joining no longer bridge a gap next to a locked edge. Touching or overlapping detections still merge, and the merged marker drops any lock it has moved past. Inward moves and user-approved bounds still apply.
 
 ### Changed
 

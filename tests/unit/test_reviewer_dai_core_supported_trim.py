@@ -15,7 +15,8 @@ from audio_analysis.base import AudioAnalysisResult
 from audio_processor import AudioProcessor
 from main_app import processing
 from utils.markers import (DAI_PROBE_SPANS, EDGE_TOLERANCE, carve_fragment,
-                           clip_dai_core_spans, dai_probe_spans, merge_dai_core_spans,
+                           clip_dai_core_spans, dai_probe_spans,
+                           drop_stale_reviewer_locks, merge_dai_core_spans,
                            reviewer_edge_locked, reviewer_independent_spans)
 from tests.unit.marker_test_utils import _ad
 from tests.unit.test_keep_bypass import _run_pipeline
@@ -525,6 +526,40 @@ def test_validator_keeps_reviewer_locked_edges():
     later = {'start': 80.5, 'end': 95.0}
     merged = validator._merge_close_ads([ad, later], ValidationResult(ads=[]))
     assert [(m['start'], m['end']) for m in merged] == [(12.0, 80.0), (80.5, 95.0)]
+
+
+def test_touching_merge_past_locked_end_drops_end_lock():
+    validator = AdValidator(episode_duration=100.0, segments=[])
+    ad = {'start': 12.0, 'end': 80.0, 'reviewer_locked_start': 12.0,
+          'reviewer_locked_end': 80.0}
+    merged = validator._merge_close_ads(
+        [ad, {'start': 80.0, 'end': 90.0}], ValidationResult(ads=[]))
+    assert [(m['start'], m['end']) for m in merged] == [(12.0, 90.0)]
+    assert 'reviewer_locked_end' not in merged[0]
+    assert merged[0]['reviewer_locked_start'] == 12.0
+
+
+def test_drop_stale_reviewer_locks_keeps_unmoved_and_narrowed_edges():
+    marker = {'start': 12.0, 'end': 70.0, 'reviewer_locked_start': 12.03,
+              'reviewer_locked_end': 80.0}
+    drop_stale_reviewer_locks(marker)
+    assert (marker['reviewer_locked_start'], marker['reviewer_locked_end']) == (12.03, 80.0)
+    marker['start'] = 11.0
+    drop_stale_reviewer_locks(marker)
+    assert 'reviewer_locked_start' not in marker
+    assert marker['reviewer_locked_end'] == 80.0
+
+
+def test_merge_before_locked_start_drops_twin_start_lock():
+    validator = AdValidator(episode_duration=100.0, segments=[])
+    twin = {'start': 20.0, 'end': 80.0, 'reviewer_locked_start': 20.0,
+            'reviewer_locked_end': 80.0}
+    ad = {'start': 12.0, 'end': 80.0, '_orig_twin': twin}
+    later = {'start': 80.0, 'end': 85.0, '_orig_twin': {'start': 10.0, 'end': 85.0}}
+    validator._merge_close_ads([ad, later], ValidationResult(ads=[]))
+    assert (twin['start'], twin['end']) == (10.0, 85.0)
+    assert 'reviewer_locked_start' not in twin
+    assert 'reviewer_locked_end' not in twin
 
 
 def test_render_keeps_reviewer_locked_end_before_episode_end():
