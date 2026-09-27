@@ -83,6 +83,24 @@ def test_touching_cuts_merge_without_transcript_or_enabled_gap_setting():
     assert processing._crosspass_cut_plan(pass1, markers, pass2, [], [], 12.0)
 
 
+def test_crosspass_plan_keeps_reviewer_locked_pass1_edges():
+    show = [{'start': 0.0, 'end': 2780.0, 'text': 'content'}]
+    end_locked = [_cut(2802.09, 2959.57, reviewer_locked_end=2959.57)]
+    assert processing._crosspass_cut_plan(
+        [_cut(2802.09, 2959.57, replacement_duration=1.0)], end_locked,
+        [_cut(2966.47, 2990.0)], show, [], 12.0) is None
+
+    start_locked = [_cut(2802.09, 2959.57, reviewer_locked_start=2802.09)]
+    assert processing._crosspass_cut_plan(
+        [_cut(2802.09, 2959.57, replacement_duration=1.0)], start_locked,
+        [_cut(2790.0, 2800.0)], show, [], 12.0) is None
+
+    unlocked = processing._crosspass_cut_plan(
+        [_cut(2802.09, 2959.57, replacement_duration=1.0)], [_cut(2802.09, 2959.57)],
+        [_cut(2790.0, 2800.0), _cut(2966.47, 2990.0)], show, [], 12.0)
+    assert [(cut['start'], cut['end']) for cut in unlocked] == [(2790.0, 2990.0)]
+
+
 def test_crosspass_union_keeps_trusted_pass1_short_cut(monkeypatch):
     plan = processing._crosspass_cut_plan(
         [_cut(105.0, 108.0, replacement_duration=1.0, beep=False)], [],

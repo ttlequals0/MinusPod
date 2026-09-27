@@ -15,12 +15,15 @@ release notes.
 
 ### Fixed
 
-- When the reviewer ends an ad on a spoken word and the show resumes at least 0.3 s later, that boundary now holds inside the cross-fetch region. This applies even when no transcribed speech lies between it and the region edge. Before, the cut ran on to the region edge and removed show audio after the ad. The edge must fall on a word with its own timing, so a transcript segment without word timings no longer supports it. A fingerprint match, cue pair, probe window or user confirmation in the released span still keeps the region edge.
-- Reviewer boundaries now survive the steps that run after the review. DAI core restore, terminal start snap, tail completion, tail splice snap, trailing-ad extension, close-ad merge and end-of-episode cut extension no longer widen an edge the reviewer set with numeric bounds. Inward moves and user-approved bounds still apply.
+- When the reviewer ends an ad on a spoken word and the show resumes at least 0.3 s later, that boundary now holds inside the cross-fetch region. It holds even when no transcribed speech lies between it and the region edge. Before, the cut ran on to the region edge and removed show audio after the ad. A fingerprint match, cue pair, probe window or user confirmation in the released span still keeps the region edge.
+- Reviewer boundaries now survive the steps that run after the review. DAI core restore, terminal start snap, tail completion, tail splice snap, trailing-ad extension, close-ad merge, end-of-episode cut extension and cross-pass cut joining no longer widen an edge the reviewer set with numeric bounds. Inward moves and user-approved bounds still apply.
 
 ### Changed
 
-- An untranscribed ad outro, such as a jingle or music, can now stay in the audio when it plays inside the region after the reviewer's last spoken word. The region shows that an ad is present; only its probe windows show where the ad ends, so the reviewer's word boundary wins.
+- A reviewer boundary inside the cross-fetch region must now fall on a word with its own timing. A transcript segment without word timings no longer supports it, so on feeds without word timestamps the region edge stays.
+- Tail completion no longer extends an end the reviewer set. A spoken call to action after that end stays in the audio.
+- Terminal start snap no longer moves a reviewer-set start earlier, and tail splice snap no longer moves a reviewer-set end later. An untranscribed onset or sonic logo just outside that edge stays in the audio.
+- An untranscribed ad outro, such as a jingle or music, can now stay in the audio when it plays inside the region after the reviewer's last spoken word. The region shows that an ad is present but not where it ends. Unless a probe window, fingerprint match or cue pair in the released span marks the end, the reviewer's word boundary wins.
 
 ## [2.97.28] - 2026-09-26
 

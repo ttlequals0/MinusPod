@@ -78,6 +78,12 @@ def reviewer_edge_locked(marker: dict, edge: str) -> bool:
     return current <= locked + EDGE_TOLERANCE
 
 
+def precise_edge(marker: dict, edge: str) -> bool:
+    """Whether a quote, word timing, or reviewer lock pins this edge."""
+    return (quote_edge_valid(marker, edge) or word_timed_edge_valid(marker, edge)
+            or reviewer_edge_locked(marker, edge))
+
+
 def set_reviewer_locks(marker: dict, edges) -> None:
     """Lock the named edges at their current values and clear the others."""
     for edge in ('start', 'end'):

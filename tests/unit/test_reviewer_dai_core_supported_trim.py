@@ -17,6 +17,7 @@ from main_app import processing
 from utils.markers import (DAI_PROBE_SPANS, EDGE_TOLERANCE, carve_fragment,
                            clip_dai_core_spans, dai_probe_spans, merge_dai_core_spans,
                            reviewer_edge_locked, reviewer_independent_spans)
+from tests.unit.marker_test_utils import _ad
 from tests.unit.test_keep_bypass import _run_pipeline
 from tests.unit.test_processing_boundary_safety import _reviewer
 
@@ -397,12 +398,15 @@ OUTRO_SEGMENTS = [
 ]
 
 
+def _dai_marker(start, end, probes):
+    return _ad(start, end, stage='dai_differential', confidence=0.95,
+               category='sponsor', sponsor='Acme',
+               reason='Dynamically inserted: audio differs across fetches',
+               dai_core_spans=[{'start': start, 'end': end}], **{DAI_PROBE_SPANS: probes})
+
+
 def _outro_marker(probes):
-    return {'start': 2820.81, 'end': 2961.04, 'confidence': 0.95,
-            'detection_stage': 'dai_differential', 'category': 'sponsor',
-            'sponsor': 'Acme', 'reason': 'Dynamically inserted: audio differs across fetches',
-            'dai_core_spans': [{'start': 2820.81, 'end': 2961.04}],
-            DAI_PROBE_SPANS: probes}
+    return _dai_marker(2820.81, 2961.04, probes)
 
 
 def _splice(events):
@@ -447,9 +451,12 @@ def test_word_supported_end_crosses_core_without_released_speech(monkeypatch):
 
 
 def test_probe_over_released_span_keeps_core_end(monkeypatch):
-    _, cuts = _run_outro(monkeypatch, [{'start': 2821.31, 'end': 2825.31},
-                                      {'start': 2959.0, 'end': 2961.04}])
+    run, cuts = _run_outro(monkeypatch, [{'start': 2821.31, 'end': 2825.31},
+                                        {'start': 2959.0, 'end': 2961.04}])
     assert len(cuts) == 1 and cuts[0][1] == pytest.approx(2961.04)
+    saved = _saved_marker(run)
+    assert saved['end'] == pytest.approx(2961.04)
+    assert 'reviewer_locked_end' not in saved
 
 
 MIDROLL_SEGMENTS = [
@@ -461,11 +468,7 @@ MIDROLL_SEGMENTS = [
 
 
 def _midroll_marker(probes, end=3851.08):
-    return {'start': 3773.39, 'end': end, 'confidence': 0.95,
-            'detection_stage': 'dai_differential', 'category': 'sponsor',
-            'sponsor': 'Acme', 'reason': 'Dynamically inserted: audio differs across fetches',
-            'dai_core_spans': [{'start': 3773.39, 'end': end}],
-            DAI_PROBE_SPANS: probes}
+    return _dai_marker(3773.39, end, probes)
 
 
 def test_tail_completion_keeps_reviewer_locked_end(monkeypatch):

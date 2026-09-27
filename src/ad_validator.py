@@ -42,6 +42,7 @@ from utils.markers import (
     mark_distinct_merge,
     measured_member_spans,
     note_fold,
+    precise_edge,
     quote_edge_valid,
     recorded_member_spans,
     reviewer_edge_locked,
@@ -1547,17 +1548,13 @@ class AdValidator:
             core_start, core_end = dai_core_bounds(ad)
             if core_start is not None:
                 if (core_start < ad['start']
-                        and not quote_edge_valid(ad, 'start')
-                        and not word_timed_edge_valid(ad, 'start')
-                        and not reviewer_edge_locked(ad, 'start')):
+                        and not precise_edge(ad, 'start')):
                     result.corrections.append(
                         f"Restored start {ad['start']:.1f}s to measured DAI "
                         f"core {core_start:.1f}s")
                     ad['start'] = core_start
                 if (core_end > ad['end']
-                        and not quote_edge_valid(ad, 'end')
-                        and not word_timed_edge_valid(ad, 'end')
-                        and not reviewer_edge_locked(ad, 'end')):
+                        and not precise_edge(ad, 'end')):
                     result.corrections.append(
                         f"Restored end {ad['end']:.1f}s to measured DAI "
                         f"core {core_end:.1f}s")
@@ -1615,9 +1612,7 @@ class AdValidator:
                 or last_ad.get('vad_gap_requires_review')):
             return ads
 
-        if (quote_edge_valid(last_ad, 'end')
-                or word_timed_edge_valid(last_ad, 'end')
-                or reviewer_edge_locked(last_ad, 'end')):
+        if precise_edge(last_ad, 'end'):
             return ads
 
         gap_to_end = self.episode_duration - last_ad['end']

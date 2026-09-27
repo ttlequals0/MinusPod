@@ -954,7 +954,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
         split_marker = dict(marker)
         # Review bookkeeping belongs to the original span, not the pieces.
         for stale in ('reviewer_original_start', 'reviewer_original_end',
-                      'approved'):
+                      'reviewer_locked_start', 'reviewer_locked_end', 'approved'):
             split_marker.pop(stale, None)
         split_marker.update({
             'start': piece['start'],

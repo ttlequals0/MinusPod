@@ -191,6 +191,16 @@ class TestSplitting:
         for m in _markers(merged):
             assert 'approved' not in m
 
+    def test_pieces_drop_parent_reviewer_locks(self, app_client, merged):
+        locked = dict(MERGED_MARKER, reviewer_locked_start=100.0,
+                      reviewer_locked_end=190.0)
+        merged['db'].save_episode_details(
+            merged['slug'], merged['episodeId'], ad_markers=[locked])
+        assert _split(app_client, merged, [130.0]).status_code == 200
+        for m in _markers(merged):
+            assert 'reviewer_locked_start' not in m
+            assert 'reviewer_locked_end' not in m
+
     def test_other_markers_on_the_episode_survive(self, app_client, merged):
         other = {'start': 900.0, 'end': 930.0, 'confidence': 0.8,
                  'sponsor': 'Delta', 'was_cut': True}

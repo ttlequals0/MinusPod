@@ -54,8 +54,8 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import (carve_fragment, clip_dai_core_spans, clip_merge_spans,
-                           fold_marker_pair, foldable_twin,
+from utils.markers import (EDGE_TOLERANCE, carve_fragment, clip_dai_core_spans,
+                           clip_merge_spans, finite_number, fold_marker_pair, foldable_twin,
                            invalidate_tail_provenance, reviewer_edge_locked,
                            set_reviewer_locks, spans_match, subtract_spans)
 from utils.time import (
@@ -2679,11 +2679,7 @@ def _keep_locked_edges(before, after):
 def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validation,
                           segments, audio_analysis_result, episode_duration,
                           podcast_name=None):
-    """Terminal boundary snap (spec 2.3b): pull a terminal cut's start back
-    to the strongest deep-silence splice event. Runs after the reviewer,
-    whose adjust verdicts are what move Dillon-style starts inside the ad
-    block. Mutates matching master entries in place; returns the cut list.
-    """
+    """Pull a terminal cut's start back to the strongest splice event, leaving reviewer-locked starts alone."""
     if not ads_to_remove or not episode_duration:
         return ads_to_remove
     splice = getattr(audio_analysis_result, 'splice_evidence', None) or {}
@@ -2741,18 +2737,7 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
 
 def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation,
                         segments, podcast_name=None):
-    """Re-run content-based end extension late in the pre-cut pipeline.
-
-    This sweep exists to undo reviewer end-pullbacks: the reviewer can pull a
-    cut's end back to the detector boundary, and the pre-reviewer extension
-    pass in _refine_boundaries never sees that. Without the reviewer enabled,
-    _refine_boundaries already extended these ends and a second pass would
-    just compound the extension window, so the sweep is gated on the reviewer.
-    End-only: starts don't drift short. Reviewer-locked ends are left alone.
-
-    Mutates matching ``all_ads_with_validation`` entries in place and re-saves
-    combined ads when anything changed. Returns the (possibly extended) cut list.
-    """
+    """Re-run content end extension after the reviewer, never past a reviewer-locked end."""
     if not ads_to_remove or not segments:
         return ads_to_remove
     if not _ad_review_enabled(db):
@@ -3224,6 +3209,13 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
             protected['start'] < end and protected['end'] > start
             for protected in protected_ranges or [])
 
+    def locked_at(cut, edge):
+        return any(
+            (locked := finite_number(marker.get(f'reviewer_locked_{edge}'))) is not None
+            and abs(locked - cut[edge]) <= EDGE_TOLERANCE
+            and _covered_by_cuts(marker, [cut])
+            for marker in pass1_markers or [])
+
     planned = []
     merged_crosspass = False
     for candidate in sorted(candidates, key=lambda item: item['start']):
@@ -3238,8 +3230,10 @@ def _crosspass_cut_plan(pass1_cuts, pass1_markers, pass2_original_cuts,
         speech = (_content_duration_in_range(
             original_segments, current['end'], candidate['start'])
             if gap > 0 and original_segments else 0.0)
+        # A gap next to a reviewer-locked pass-1 edge is audio the reviewer kept.
         eligible = gap <= 0 or (
-            bool(original_segments) and min_content > 0 and speech < min_content)
+            bool(original_segments) and min_content > 0 and speech < min_content
+            and not locked_at(current, 'end') and not locked_at(candidate, 'start'))
         if (same_action and combines_passes and eligible
                 and end - start <= MAX_MERGED_DURATION
                 and not crosses_protected(start, end)):
@@ -6211,17 +6205,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # Kept markers bypass validation and cut-ad learning.
                 _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path)
 
-            # Terminal boundary snap (spec 2.3b): after the reviewer so a
-            # reviewer-adjusted start can be pulled back to the splice point.
+            # Terminal start snap to the splice point; reviewer-locked starts stay put.
             ads_to_remove = _snap_terminal_starts(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 segments, audio_analysis_result, episode_duration,
                 podcast_name=podcast_name
             )
 
-            # Tail completion: final content-based end sweep after the reviewer,
-            # which can pull cut ends back to the detector boundary and strand
-            # the trailing CTA in the audio.
+            # Tail completion: content-based end sweep that never extends a reviewer-locked end.
             ads_to_remove = _complete_cut_tails(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 segments, podcast_name=podcast_name

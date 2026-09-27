@@ -75,7 +75,7 @@ class TestRunReviewBatchOrdering:
         delays = delay_map or {}
 
         def stub(*, ad, pool, pass_num, segments, episode_meta,
-                 system_prompt, model, max_shift):
+                 system_prompt, model, max_shift, transcript_units=None):
             idx = int(ad['sponsor'].split('-')[1])
             time.sleep(delays.get(idx, 0))
             updated_ad = dict(ad)

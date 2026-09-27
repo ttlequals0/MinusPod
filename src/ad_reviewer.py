@@ -1187,11 +1187,13 @@ class AdReviewer:
         # Accepted pool first. Position-indexed merge preserves input order so
         # verdicts list and downstream pattern-correction lookups match the
         # original sequential semantics.
+        transcript_units = (_speech_units(segments), _word_units(segments))
         accepted_results = self._run_review_batch(
             accepted_ads,
             pool="accepted",
             pass_num=pass_num,
             segments=segments,
+            transcript_units=transcript_units,
             episode_meta=episode_meta,
             system_prompt=review_prompt,
             model=model,
@@ -1352,6 +1354,7 @@ class AdReviewer:
                     verdict.verdict = "adjust"
                     verdict.adjusted_start = new_start
                     verdict.adjusted_end = new_end
+                    # Prose-recovered bounds are never locked and skip the transcript clamp.
                     trimmed = _adjusted_ad_copy(
                         updated_ad, new_start, new_end,
                         verdict.original_start, verdict.original_end,
@@ -1374,6 +1377,7 @@ class AdReviewer:
             pool="resurrection",
             pass_num=pass_num,
             segments=segments,
+            transcript_units=transcript_units,
             episode_meta=episode_meta,
             system_prompt=resurrect_prompt,
             model=model,
@@ -1401,7 +1405,7 @@ class AdReviewer:
 
     def _run_review_batch(self, ads, *, pool, pass_num, segments,
                           episode_meta, system_prompt, model, max_shift,
-                          max_workers):
+                          max_workers, transcript_units=None):
         """Run _review_single across a list of ads, sequential or via thread
         pool depending on max_workers. Returns (verdict, updated_ad) pairs
         in input order regardless of completion order."""
@@ -1421,6 +1425,7 @@ class AdReviewer:
                 system_prompt=system_prompt,
                 model=model,
                 max_shift=max_shift,
+                transcript_units=transcript_units,
             )
 
         if max_workers <= 1 or len(ads) == 1:
@@ -1447,6 +1452,7 @@ class AdReviewer:
         system_prompt: str,
         model: str,
         max_shift: int,
+        transcript_units=None,
     ) -> tuple[ReviewVerdict, dict]:
         """Review one ad. Always returns (verdict, ad). On failure or
         unparseable response, verdict.verdict is 'failure' and ad is the input
@@ -1607,7 +1613,8 @@ class AdReviewer:
 
         clamped_start, clamped_end = self._clamp_proposed_bounds(
             ad, new_start, new_end, original_start, original_end,
-            max_shift, slug, episode_id, segments=segments)
+            max_shift, slug, episode_id, segments=segments,
+            transcript_units=transcript_units)
 
         proposal_clamped = _clamp_overrode(
             new_start, new_end, original_start, original_end,
@@ -1696,7 +1703,7 @@ class AdReviewer:
 
     def _clamp_proposed_bounds(self, ad, new_start, new_end,
                                original_start, original_end, max_shift,
-                               slug, episode_id, segments=None):
+                               slug, episode_id, segments=None, transcript_units=None):
         """Clamp reviewer-proposed bounds: inverted-bounds fallback, per-edge
         shift cap, merged-span floor, final validity fallback. Single seam for
         every path that turns reviewer prose or deltas into marker bounds."""
@@ -1752,8 +1759,7 @@ class AdReviewer:
             floor_end = max(clamped_end, core_end)
             # Only the probe windows of a region are measured, so an edge on a
             # transcript pause may cross the rest, stopping at independent evidence.
-            units = _speech_units(segments)
-            words = _word_units(segments)
+            units, words = transcript_units or (_speech_units(segments), _word_units(segments))
             independent = reviewer_independent_spans(ad)
             cap_start = cap_end = None
             if _edge_transcript_supported(units, words, 'start', clamped_start,
