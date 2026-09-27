@@ -16,7 +16,7 @@ from tests.app_bootstrap import bootstrap  # noqa: E402
 
 bootstrap('prod_replay_')
 
-from audio_processor import get_replacement_duration  # noqa: E402
+from audio_processor import AudioProcessor, get_replacement_duration  # noqa: E402
 from main_app import processing  # noqa: E402
 from main_app import verification_reconciliation as vr  # noqa: E402
 from utils import markers as marker_utils  # noqa: E402
@@ -33,6 +33,7 @@ TRANSIENT_KEYS = ('validation', 'was_cut', 'held_for_review', 'hold_reason',
                   'reviewer_locked_start', 'reviewer_locked_end', 'source',
                   'pass2_corroborated', 'pass2_corroborated_span')
 
+PENDING_16 = pytest.mark.xfail(strict=True, reason='pending Task 16')
 PENDING_17 = pytest.mark.xfail(strict=True, reason='pending Task 17 (audit item 3)')
 PENDING_19 = pytest.mark.xfail(strict=True, reason='pending Task 19 (audit item 2)')
 PENDING_20 = pytest.mark.xfail(strict=True, reason='pending Task 20 (audit item 4)')
@@ -188,6 +189,50 @@ def test_recut_replay_records_cut_list(monkeypatch, replay_out, eid):
     for m in rejects:
         assert not any(overlap_seconds(a['start'], a['end'], m['start'], m['end']) > 0.5
                        for a in ads_to_remove)
+
+
+def _replay_render(monkeypatch, ep):
+    """Applied cuts for a recut of the saved state, following _recut_episode."""
+    ads_to_remove, all_ads = _recut(monkeypatch, ep)
+    keep_ads, all_ads = processing._partition_keep_ads(
+        all_ads, dict(ACTIONS), processing._make_keep_differential_override(
+            ep.get('dai_differential')))
+    keep_ids = {id(a) for a in keep_ads}
+    ads_to_remove = [a for a in ads_to_remove if id(a) not in keep_ids]
+    all_ads = sorted([*all_ads, *keep_ads], key=lambda a: a['start'])
+    rejects = [a for a in all_ads if processing.REVIEWER_REJECT_PRESERVED_FLAG
+               in (a.get('validation') or {}).get('flags', [])]
+    ads_to_remove, trims = processing._restore_confirmed_spans(
+        ads_to_remove, all_ads, 1, 'replay', ep['duration'], 0.0, reject_ranges=rejects)
+    ads_to_remove = processing._partition_cut_actions(ads_to_remove, dict(ACTIONS))
+    reject_ids = {id(a) for a in rejects}
+    ads_to_remove = [a for a in ads_to_remove if id(a) not in reject_ids]
+    return AudioProcessor().compute_applied_cuts(
+        ads_to_remove, ep['duration'], cut_barriers=[*keep_ads, *trims, *rejects])
+
+
+def _cut_over_keep_cases():
+    """Saved episodes whose rendered cuts overlap a kept (non-pass-2) marker."""
+    params = []
+    for n, eid in enumerate(EPISODES):
+        ep = load_episode(ROOT, eid)
+        cuts = [m for m in ep['markers'] if m.get('was_cut')]
+        for m in ep['markers']:
+            if m.get('action_applied') != 'keep' or m.get('detection_stage') == 'verification':
+                continue
+            if any(overlap_seconds(c['start'], c['end'], m['start'], m['end']) > 0.5 for c in cuts):
+                params.append(pytest.param(eid, [m['start'], m['end']],
+                                           id=f"ep{n:02d}-keep{int(m['start'])}"))
+    return params
+
+
+@PENDING_16
+@pytest.mark.parametrize('eid,keep', _cut_over_keep_cases())
+def test_replayed_render_never_cuts_kept_audio(monkeypatch, eid, keep):
+    applied = _replay_render(monkeypatch, load_episode(ROOT, eid))
+    hits = [(c['start'], c['end']) for c in applied
+            if overlap_seconds(c['start'], c['end'], *keep) > 0.5]
+    assert not hits, f'applied cuts {hits} overlap kept span {keep}'
 
 
 # (b) validator replay ---------------------------------------------------------
