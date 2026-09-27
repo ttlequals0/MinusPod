@@ -33,8 +33,6 @@ TRANSIENT_KEYS = ('validation', 'was_cut', 'held_for_review', 'hold_reason',
                   'reviewer_locked_start', 'reviewer_locked_end', 'source',
                   'pass2_corroborated', 'pass2_corroborated_span')
 
-PENDING_16 = pytest.mark.xfail(strict=True, reason='pending Task 16')
-PENDING_17 = pytest.mark.xfail(strict=True, reason='pending Task 17 (audit item 3)')
 PENDING_19 = pytest.mark.xfail(strict=True, reason='pending Task 19 (audit item 2)')
 PENDING_20 = pytest.mark.xfail(strict=True, reason='pending Task 20 (audit item 4)')
 
@@ -207,8 +205,11 @@ def _replay_render(monkeypatch, ep):
     ads_to_remove = processing._partition_cut_actions(ads_to_remove, dict(ACTIONS))
     reject_ids = {id(a) for a in rejects}
     ads_to_remove = [a for a in ads_to_remove if id(a) not in reject_ids]
+    ads_to_remove = processing._carve_cuts_around_kept_audio(
+        'replay', 'replay', ads_to_remove, all_ads, keep_ads)
     return AudioProcessor().compute_applied_cuts(
-        ads_to_remove, ep['duration'], cut_barriers=[*keep_ads, *trims, *rejects])
+        ads_to_remove, ep['duration'], cut_barriers=[*keep_ads, *trims, *rejects],
+        hard_barriers=[*keep_ads, *trims])
 
 
 def _cut_over_keep_cases():
@@ -226,7 +227,6 @@ def _cut_over_keep_cases():
     return params
 
 
-@PENDING_16
 @pytest.mark.parametrize('eid,keep', _cut_over_keep_cases())
 def test_replayed_render_never_cuts_kept_audio(monkeypatch, eid, keep):
     applied = _replay_render(monkeypatch, load_episode(ROOT, eid))
@@ -378,7 +378,6 @@ def _kept_input(eid, finding):
     return [_processed_twin(orig, cuts)], [orig], kept, cuts
 
 
-@PENDING_17
 @pytest.mark.parametrize('eid,finding', [p for p in _findings(3) if p.values[1].get('audited')])
 def test_kept_split_preserves_outside_residual(eid, finding):
     proc, orig, kept, cuts = _kept_input(eid, finding)

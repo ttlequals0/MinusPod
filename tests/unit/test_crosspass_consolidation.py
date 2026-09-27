@@ -139,7 +139,7 @@ def test_verification_reviewer_cannot_restore_user_trimmed_audio():
     audio = MagicMock()
     audio.get_audio_duration.return_value = 600.0
     processor = AudioProcessor()
-    audio.process_episode.side_effect = lambda path, cuts, cut_barriers=None: (
+    audio.process_episode.side_effect = lambda path, cuts, cut_barriers=None, hard_barriers=None: (
         '/tmp/trim-recut.mp3',
         processor.compute_applied_cuts(cuts, 600.0, cut_barriers))
     fake_db = MagicMock()
@@ -293,3 +293,132 @@ def test_verification_marks_failed_crosspass_rerender_incomplete():
     assert output[6] is False
     assert output[1] == []
     assert pass1_cuts == [_cut(100.0, 200.0, replacement_duration=1.0)]
+
+
+def _run_pass2_against_keep(pass1_cuts, finding_proc, finding_orig, *,
+                            kept=(), fp_corrections=(), original_audio_path=None,
+                            pass1_markers=None, segments=()):
+    """Drive _run_verification_pass with gate and reviewer passing through."""
+    ctx = SimpleNamespace(
+        slug='example-podcast', episode_id='a1b2c3d4e5f6', podcast_id=1,
+        podcast_name='Example Podcast', episode_title='Episode',
+        episode_description='', podcast_description='',
+    )
+    audio = MagicMock()
+    audio.get_audio_duration.return_value = 1000.0
+    processor = AudioProcessor()
+    audio.process_episode.side_effect = (
+        lambda path, cuts, cut_barriers=None, hard_barriers=None: (
+            '/tmp/kept-recut.mp3', processor.compute_applied_cuts(
+                cuts, 1000.0, cut_barriers, hard_barriers=hard_barriers)))
+    fake_db = MagicMock()
+    fake_db.get_setting_float.return_value = 0.8
+    fake_db.get_false_positive_corrections.return_value = list(fp_corrections)
+    fake_db.get_setting.return_value = 'false'
+    with patch.object(processing, 'db', fake_db), \
+         patch.object(processing, 'storage'), \
+         patch('verification_pass.VerificationPass') as verifier_cls, \
+         patch.object(processing, '_apply_pass2_heuristic_rolls'), \
+         patch.object(processing, '_validate_verification_ads',
+                      side_effect=lambda *args, **kwargs: (args[2], args[3])), \
+         patch.object(processing, '_gate_verification_ads_by_confidence',
+                      side_effect=lambda processed, original, *args, **kwargs:
+                      (list(processed), list(original), [], 0)), \
+         patch.object(processing, '_apply_pass2_reviewer'):
+        verifier_cls.return_value.verify.return_value = {
+            'ads': [finding_orig], 'ads_processed': [finding_proc],
+            'segments': list(segments) or [
+                {'start': 0.0, 'end': 90.0, 'text': 'show content'}],
+        }
+        output = processing._run_verification_pass(
+            ctx, '/tmp/pass1-output.mp3', pass1_cuts, False, 0.8,
+            audio, None, original_segments=list(segments),
+            pass1_kept_markers=list(kept),
+            segment_actions={'sponsor': 'remove'},
+            original_audio_path=original_audio_path,
+            pass1_markers=pass1_markers,
+        )
+    return output, audio
+
+
+def test_pass2_finding_clipping_a_keep_renders_only_its_outside_tail():
+    pass1_cuts = [_cut(100.0, 200.0, replacement_duration=1.0)]
+    keep = {'start': 500.0, 'end': 520.0, 'action_applied': 'keep'}
+    proc = _cut(420.0, 510.0, confidence=0.95, category='sponsor')
+    orig = _cut(519.0, 609.0, confidence=0.95, category='sponsor')
+
+    output, audio = _run_pass2_against_keep(pass1_cuts, proc, orig, kept=[keep])
+
+    requested = audio.process_episode.call_args.args[1]
+    assert [(ad['start'], ad['end']) for ad in requested] == [(421.0, 510.0)]
+    hard = audio.process_episode.call_args.kwargs['hard_barriers']
+    applied = AudioProcessor().compute_applied_cuts(
+        requested, 1000.0, hard_barriers=hard)
+    # Keep 500-520 sits at processed 401-421.
+    assert not [c for c in applied if c['start'] < 421.0 and c['end'] > 401.0]
+    assert [(ad['start'], ad['end']) for ad in output[1]] == [(520.0, 609.0)]
+    assert not any(m.get('held_for_review') for m in output[3])
+
+
+def test_crosspass_plan_does_not_bridge_a_keep_between_passes():
+    pass1_cuts = [_cut(100.0, 200.0, replacement_duration=1.0)]
+    pass1_markers = [_cut(100.0, 200.0)]
+    # Keep 200-205 sits at processed 101-106, between the pass-1 cut and the finding.
+    keep = {'start': 200.0, 'end': 205.0, 'action_applied': 'keep'}
+    proc = _cut(101.0, 150.0, confidence=0.95, category='sponsor')
+    orig = _cut(200.0, 249.0, confidence=0.95, category='sponsor')
+
+    output, audio = _run_pass2_against_keep(
+        pass1_cuts, proc, orig, kept=[keep],
+        original_audio_path='/tmp/original-working.mp3',
+        pass1_markers=pass1_markers,
+        segments=[{'start': 0.0, 'end': 90.0, 'text': 'show content'}])
+
+    assert audio.process_episode.call_args.args[0] == '/tmp/pass1-output.mp3'
+    requested = audio.process_episode.call_args.args[1]
+    assert [(ad['start'], ad['end']) for ad in requested] == [(106.0, 150.0)]
+    assert [(ad['start'], ad['end']) for ad in output[1]] == [(205.0, 249.0)]
+
+
+def test_pass2_cut_partly_over_a_false_positive_stops_at_the_correction():
+    """Under half inside a user rejection: not dropped, but trimmed at it."""
+    proc = _cut(100.0, 190.0, confidence=0.95, category='sponsor')
+    orig = _cut(100.0, 190.0, confidence=0.95, category='sponsor')
+
+    output, audio = _run_pass2_against_keep(
+        [], proc, orig, fp_corrections=[{'start': 90.0, 'end': 110.0}])
+
+    requested = audio.process_episode.call_args.args[1]
+    assert [(ad['start'], ad['end']) for ad in requested] == [(110.0, 190.0)]
+    assert [(ad['start'], ad['end']) for ad in output[1]] == [(110.0, 190.0)]
+
+
+def test_pass2_finding_mostly_over_a_false_positive_is_dropped():
+    proc = _cut(100.0, 160.0, confidence=0.95, category='sponsor')
+    orig = _cut(100.0, 160.0, confidence=0.95, category='sponsor')
+
+    output, audio = _run_pass2_against_keep(
+        [], proc, orig, fp_corrections=[{'start': 90.0, 'end': 140.0}])
+
+    audio.process_episode.assert_not_called()
+    assert output[1] == []
+
+
+def test_applied_cuts_clip_at_hard_barriers_without_extending():
+    processor = AudioProcessor()
+    applied = processor.compute_applied_cuts(
+        [_cut(100.0, 200.0), _cut(240.0, 280.0)], 300.0,
+        hard_barriers=[{'start': 150.0, 'end': 160.0},
+                       {'start': 230.0, 'end': 250.0},
+                       {'start': 285.0, 'end': 290.0}])
+
+    assert [(c['start'], c['end']) for c in applied] == [
+        (100.0, 150.0), (160.0, 200.0), (250.0, 280.0)]
+
+
+def test_applied_cut_inside_a_hard_barrier_is_dropped():
+    applied = AudioProcessor().compute_applied_cuts(
+        [_cut(100.0, 120.0)], 300.0,
+        hard_barriers=[{'start': 90.0, 'end': 130.0}])
+
+    assert applied == []

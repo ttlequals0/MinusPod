@@ -159,7 +159,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
         audio_processor.get_audio_duration.return_value = duration
         local_ap = local_ap_cls.return_value
         local_ap.process_episode.side_effect = (
-            lambda audio_path, ads_to_remove, cut_barriers=None:
+            lambda audio_path, ads_to_remove, cut_barriers=None, hard_barriers=None:
             None if render_fails else ('/tmp/cut.mp3', list(ads_to_remove)))
         local_ap.get_audio_duration.return_value = duration
         storage.get_episode_path.return_value = '/tmp/final.mp3'
@@ -201,6 +201,30 @@ class TestKeepBypass:
         assert sponsor_marker['was_cut'] is True
         assert sponsor_marker['action_applied'] == 'remove'
 
+
+    def test_pass1_cut_over_a_keep_is_carved_before_render(self):
+        sponsor = dict(_sponsor_ad(), start=10.0, end=60.0)
+        keep = dict(_cross_promo_ad(), start=30.0, end=40.0)
+        segment_actions = {'sponsor': 'remove', 'cross_promo': 'keep'}
+
+        m = _run_pipeline([sponsor, keep], segment_actions)
+
+        call = m['local_ap'].process_episode.call_args
+        assert [(a['start'], a['end']) for a in call.args[1]] == [
+            (10.0, 30.0), (40.0, 60.0)]
+        assert (30.0, 40.0) in {(b['start'], b['end'])
+                                for b in call.kwargs['hard_barriers']}
+        saved = m['storage'].save_combined_ads.call_args.args[2]
+        assert sorted((a['start'], a['end'], a.get('action_applied'))
+                      for a in saved) == [
+            (10.0, 30.0, 'remove'), (30.0, 40.0, 'keep'), (40.0, 60.0, 'remove')]
+
+    def test_pass1_reviewer_gets_keeps_as_hard_barriers(self):
+        keep = _cross_promo_ad()
+        m = _run_pipeline([_sponsor_ad(), keep],
+                          {'sponsor': 'remove', 'cross_promo': 'keep'})
+
+        assert keep in m['reviewer'].call_args.kwargs['hard_barriers']
 
     def test_reviewer_trim_learns_only_after_final_applied_cut(self):
         marker = dict(_sponsor_ad(), sponsor='Acme Tools',
@@ -948,22 +972,49 @@ class TestExcludeKeptSpansFromVerification:
         assert 'held_for_review' not in orig_overlap
         assert any('false-positive rejection' in r.message for r in caplog.records)
 
-    def test_a_finding_reaching_past_the_kept_span_is_held_for_review(self):
-        """A 90 s read that clips a 20 s keep by a second is mostly audio the
-        operator never ruled on: hold it rather than drop it with the keep."""
+    def _exclude(self, proc, orig, kept=None, cuts=None):
+        with patch.object(processing, 'get_replacement_duration', return_value=1.0):
+            return processing._exclude_kept_spans_from_verification(
+                [proc], [orig], kept or [self.KEPT_MARKER],
+                self.PASS1_CUTS if cuts is None else cuts)
+
+    def test_a_finding_reaching_past_the_kept_span_is_split(self):
+        """A 90 s read that clips a 20 s keep by a second keeps its outside
+        residual as a removable fragment instead of a whole-span hold."""
         proc_overlap = {'start': 420.0, 'end': 510.0, 'confidence': 0.95}
         orig_overlap = {'start': 519.0, 'end': 609.0, 'confidence': 0.95}
 
-        with patch.object(processing, 'get_replacement_duration', return_value=1.0):
-            out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
-                [proc_overlap], [orig_overlap], [self.KEPT_MARKER], self.PASS1_CUTS)
+        out_proc, out_orig, conflicts = self._exclude(proc_overlap, orig_overlap)
 
-        assert out_proc == []
-        assert out_orig == []
-        assert conflicts == [orig_overlap]
-        assert orig_overlap['held_for_review'] is True
-        assert orig_overlap['was_cut'] is False
-        assert orig_overlap['hold_reason'] == HOLD_REASON_VERIFICATION_KEPT_CONFLICT
+        assert [(a['start'], a['end']) for a in out_proc] == [(421.0, 510.0)]
+        assert [(a['start'], a['end']) for a in out_orig] == [(520.0, 609.0)]
+        assert conflicts == []
+        assert not out_orig[0].get('held_for_review')
+        assert out_proc[0]['_measured_split_fragment'] is True
+        assert 'held_for_review' not in orig_overlap
+
+    def test_split_fragments_map_across_a_pass1_cut(self):
+        """Edges carve in processed time and each maps back on its own side of the cut."""
+        cuts = [{'start': 100.0, 'end': 200.0, 'replacement_duration': 1.0}]
+        # Original 210-220 sits at processed 111-121.
+        kept = [{'start': 210.0, 'end': 220.0, 'action_applied': 'keep'}]
+        proc = {'start': 80.0, 'end': 140.0, 'confidence': 0.95}
+        orig = {'start': 80.0, 'end': 239.0, 'confidence': 0.95}
+
+        out_proc, out_orig, conflicts = self._exclude(proc, orig, kept, cuts)
+
+        assert [(a['start'], a['end']) for a in out_proc] == [
+            (80.0, 111.0), (121.0, 140.0)]
+        assert [(a['start'], a['end']) for a in out_orig] == [
+            (80.0, 210.0), (220.0, 239.0)]
+        assert conflicts == []
+
+    def test_a_short_untrusted_residual_is_dropped(self):
+        proc = {'start': 415.0, 'end': 423.0, 'confidence': 0.95}
+        orig = {'start': 514.0, 'end': 522.0, 'confidence': 0.95}
+
+        assert self._exclude(proc, orig) == ([], [], [])
+        assert 'held_for_review' not in orig
 
 
 class TestContainmentIsMeasuredAgainstEveryOverlappingKeep:
@@ -989,15 +1040,16 @@ class TestContainmentIsMeasuredAgainstEveryOverlappingKeep:
         assert (out_proc, out_orig, conflicts) == ([], [], [])
         assert 'held_for_review' not in orig
 
-    def test_a_finding_the_union_only_half_covers_is_held(self):
+    def test_a_finding_the_union_only_half_covers_keeps_one_tail(self):
         proc = {'start': 421.0, 'end': 461.0, 'confidence': 0.95}
         orig = {'start': 520.0, 'end': 560.0, 'confidence': 0.95}
 
         out_proc, out_orig, conflicts = self._exclude(proc, orig)
 
-        assert (out_proc, out_orig) == ([], [])
-        assert conflicts == [orig]
-        assert orig['hold_reason'] == HOLD_REASON_VERIFICATION_KEPT_CONFLICT
+        assert [(a['start'], a['end']) for a in out_proc] == [(441.0, 461.0)]
+        assert [(a['start'], a['end']) for a in out_orig] == [(540.0, 560.0)]
+        assert conflicts == []
+        assert 'hold_reason' not in orig
 
 
 class TestStampPass2MarkerCategories:

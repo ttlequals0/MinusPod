@@ -11,7 +11,7 @@ from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.paths import resolve_data_dir
-from utils.markers import precise_edge
+from utils.markers import precise_edge, subtract_spans
 from config import (
     FFMPEG_LONG_TIMEOUT,
     MIN_AD_DURATION_FOR_REMOVAL, POST_ROLL_TRIM_THRESHOLD, MERGE_GAP_SECONDS,
@@ -240,14 +240,16 @@ class AudioProcessor:
 
     def compute_applied_cuts(self, ad_segments: list[dict],
                              total_duration: float,
-                             cut_barriers: list[dict] | None = None
+                             cut_barriers: list[dict] | None = None,
+                             hard_barriers: list[dict] | None = None
                              ) -> list[dict]:
         """Compute the cuts remove_ads actually applies to the audio.
 
         Requested segments diverge from applied cuts: near-adjacent segments
         merge, short ones drop, and an end-of-episode cut extends to the end
         of the file. ``cut_barriers`` identifies content that must neither be
-        swallowed by a gap merge nor by that trailing extension. Asset
+        swallowed by a gap merge nor by that trailing extension.
+        ``hard_barriers`` are kept audio: every cut is also clipped at them. Asset
         generation and verification timestamp mapping need the applied list,
         not the requested one -- remove_ads returns it.
         """
@@ -258,6 +260,7 @@ class AudioProcessor:
         # below zero or runs past the end of the file, and an out-of-range
         # atrim would silently cut the wrong region.
         clamped = []
+        hard_spans = [(barrier['start'], barrier['end']) for barrier in hard_barriers or []]
         for ad in ad_segments:
             start = max(0.0, ad['start'])
             end = min(ad['end'], total_duration)
@@ -265,11 +268,14 @@ class AudioProcessor:
                 logger.info(f"Skipping out-of-range ad ({ad['start']:.1f}s-{ad['end']:.1f}s "
                             f"vs {total_duration:.1f}s audio)")
                 continue
-            ad = dict(ad)
-            ad['start'], ad['end'] = start, end
-            clamped.append(ad)
+            pieces = subtract_spans([(start, end)], hard_spans)
+            if pieces != [(start, end)]:
+                logger.info(f"Clipping ad {start:.1f}s-{end:.1f}s at kept audio to "
+                            f"{[(round(lo, 1), round(hi, 1)) for lo, hi in pieces]}")
+            clamped.extend(dict(ad, start=lo, end=hi) for lo, hi in pieces)
         if not clamped:
             return []
+        cut_barriers = [*(cut_barriers or []), *(hard_barriers or [])]
 
         sorted_segments = sorted(clamped, key=lambda x: x['start'])
 
@@ -400,7 +406,8 @@ class AudioProcessor:
 
     def remove_ads(self, input_path: str, ad_segments: list[dict],
                    output_path: str,
-                   cut_barriers: list[dict] | None = None
+                   cut_barriers: list[dict] | None = None,
+                   hard_barriers: list[dict] | None = None
                    ) -> list[dict] | None:
         """Remove ad segments from audio file.
 
@@ -430,7 +437,7 @@ class AudioProcessor:
 
             ads = self.compute_applied_cuts(
                 ad_segments, total_duration,
-                cut_barriers=cut_barriers)
+                cut_barriers=cut_barriers, hard_barriers=hard_barriers)
             logger.info(f"After merging and filtering: {len(ads)} ad segments")
             if not ads:
                 # Every requested cut merged/filtered away: nothing to cut,
@@ -619,7 +626,8 @@ class AudioProcessor:
                 os.unlink(chapters_meta_path)
 
     def process_episode(self, input_path: str, ad_segments: list[dict],
-                        cut_barriers: list[dict] | None = None
+                        cut_barriers: list[dict] | None = None,
+                        hard_barriers: list[dict] | None = None
                         ) -> tuple[str, list[dict]] | None:
         """Process episode audio to remove ads.
 
@@ -633,7 +641,7 @@ class AudioProcessor:
         try:
             applied_cuts = self.remove_ads(
                 input_path, ad_segments, temp_output,
-                cut_barriers=cut_barriers)
+                cut_barriers=cut_barriers, hard_barriers=hard_barriers)
             if applied_cuts is not None:
                 return temp_output, applied_cuts
             # Clean up on failure

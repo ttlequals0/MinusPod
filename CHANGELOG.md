@@ -15,7 +15,9 @@ release notes.
 
 - A recut no longer cuts audio the reviewer rejected. The recut revalidated a rejected span from scratch, accepted it and saved it as cut, and every later recut kept cutting it. Reviewer rejects now stay in the audio unless the user confirmed or adjusted that span. Pass-2 auto-approval no longer files a confirm over audio the reviewer rejected. Markers already saved in that state are repaired on the next recut.
 - A defined pattern in a category the feed keeps now resolves to remove in every processing step, as it already did at the cut. Before, close-ad merging, duplicate folding and pattern coverage still treated it as kept. It could block a merge with the sponsor read next to it or fail to cover a detection inside it.
-- Pass 2 now treats category-kept audio as a fixed barrier, like keeps, user trims and user rejections, instead of as a pending hold. The category action map is resolved once per run and shared by detection, validation, review and pass 2.
+- Kept audio is no longer cut out of the episode. Keeps only stopped cuts from merging across them or extending over them, so a pass-1 cut, a reviewer adjustment or a recut could still overlap a kept span and remove it. Cuts are now split around kept audio before rendering, and the render clips any cut that still reaches into it. The reviewer can no longer widen an edge into kept audio. A recut no longer re-validates kept markers, so they cannot merge into a neighboring cut.
+- A pass-2 finding that only partly overlaps a kept span is now split around it, and the part outside goes on to validation, review and the cut. Before, the whole finding was held for review, and its part outside the keep stayed in the audio.
+- Pass 2 now treats category-kept audio as a fixed barrier instead of a pending hold, like keeps, user trims and user rejections, and carves kept audio out of its cuts. The category action map is resolved once per run and shared by detection, validation, review and pass 2.
 - Segment action controls stay aligned when a feed override is set.
 
 ## [2.97.29] - 2026-09-27

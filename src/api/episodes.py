@@ -152,11 +152,11 @@ def chapters_only_decisions(markers, applied_cuts, original_duration,
         for m in markers
         if m.get('start') is not None and m.get('end') is not None
     ]
+    kept = [m for m, action in resolved if action == 'keep']
     wanted = AudioProcessor().compute_applied_cuts(
         [dict(m, beep=(action == 'beep')) for m, action in resolved
          if _marker_wants_cut(m, action, false_positives, confirmed)],
-        original_duration,
-        cut_barriers=[m for m, action in resolved if action == 'keep'],
+        original_duration, cut_barriers=kept, hard_barriers=kept,
     )
     return (len(wanted) == len(applied_cuts)
             and all(_same_cut(w, a)

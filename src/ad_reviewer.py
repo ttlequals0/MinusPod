@@ -1343,7 +1343,8 @@ class AdReviewer:
                         verdict.original_start, verdict.original_end,
                         max_shift,
                         episode_meta.get('slug'),
-                        episode_meta.get('episode_id'))
+                        episode_meta.get('episode_id'),
+                        hard_barriers=episode_meta.get('hard_barriers'))
                     if _bounds_unchanged(new_start, new_end,
                                          verdict.original_start,
                                          verdict.original_end):
@@ -1614,7 +1615,8 @@ class AdReviewer:
         clamped_start, clamped_end = self._clamp_proposed_bounds(
             ad, new_start, new_end, original_start, original_end,
             max_shift, slug, episode_id, segments=segments,
-            transcript_units=transcript_units)
+            transcript_units=transcript_units,
+            hard_barriers=episode_meta.get('hard_barriers'))
 
         proposal_clamped = _clamp_overrode(
             new_start, new_end, original_start, original_end,
@@ -1703,7 +1705,8 @@ class AdReviewer:
 
     def _clamp_proposed_bounds(self, ad, new_start, new_end,
                                original_start, original_end, max_shift,
-                               slug, episode_id, segments=None, transcript_units=None):
+                               slug, episode_id, segments=None, transcript_units=None,
+                               hard_barriers=None):
         """Clamp reviewer-proposed bounds: inverted-bounds fallback, per-edge
         shift cap, merged-span floor, final validity fallback. Single seam for
         every path that turns reviewer prose or deltas into marker bounds."""
@@ -1792,6 +1795,13 @@ class AdReviewer:
                     f"(start floored by {start_source}, end floored by {end_source})"
                 )
             clamped_start, clamped_end = floor_start, floor_end
+
+        # A widened edge never enters kept audio beyond the original span.
+        for barrier in hard_barriers or []:
+            if barrier['start'] < original_start and barrier['end'] > clamped_start:
+                clamped_start = max(clamped_start, min(barrier['end'], original_start))
+            if barrier['end'] > original_end and barrier['start'] < clamped_end:
+                clamped_end = min(clamped_end, max(barrier['start'], original_end))
 
         if clamped_end <= clamped_start:
             clamped_start, clamped_end = original_start, original_end

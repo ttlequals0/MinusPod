@@ -48,7 +48,7 @@ def _marker(start, end, category, action_applied, was_cut, **overrides):
 
 
 def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
-               confirmed_corrections=()):
+               confirmed_corrections=(), render_calls=None):
     """Drive _recut_episode with _build_recut_ad_list mocked to return the
     given (ads_to_remove, all_ads), i.e. what the validator/confidence gate
     would have produced on this run, before re-resolution against the
@@ -83,7 +83,7 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
         local_ap = local_ap_cls.return_value
         local_ap.get_audio_duration.return_value = 60.0
         local_ap.process_episode.side_effect = (
-            lambda work_path, segs, cut_barriers=None: (
+            lambda work_path, segs, cut_barriers=None, hard_barriers=None: (
                 '/tmp/segrerender-cut.mp3',
                 [{'start': s['start'], 'end': s['end']} for s in segs]))
 
@@ -94,6 +94,8 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
         assert result is True
         audio_segments = local_ap.process_episode.call_args.args[1]
         saved_markers = storage.save_combined_ads.call_args.args[2]
+        if render_calls is not None:
+            render_calls.append(local_ap.process_episode.call_args)
 
     return audio_segments, saved_markers
 
@@ -152,6 +154,23 @@ class TestRecutReResolvesAgainstCurrentMap:
         assert by_span[(5.0, 15.0)]['beep'] is True
         saved_marker = next(m for m in saved if m['start'] == 5.0)
         assert saved_marker['action_applied'] == 'beep'
+
+    def test_cut_over_a_kept_marker_is_carved_before_render(self):
+        cut = _marker(10.0, 50.0, 'sponsor', 'remove', True)
+        kept = _marker(20.0, 30.0, 'cross_promo', 'keep', False)
+        actions = dict(ALL_REMOVE, cross_promo='keep')
+
+        calls = []
+        audio_segments, saved = _run_recut([cut], [cut, kept], actions,
+                                           render_calls=calls)
+
+        assert [(s['start'], s['end']) for s in audio_segments] == [
+            (10.0, 20.0), (30.0, 50.0)]
+        assert (20.0, 30.0) in {(b['start'], b['end'])
+                                for b in calls[0].kwargs['hard_barriers']}
+        assert sorted((m['start'], m['end'], m['action_applied'])
+                      for m in saved) == [
+            (10.0, 20.0, 'remove'), (20.0, 30.0, 'keep'), (30.0, 50.0, 'remove')]
 
     def test_all_remove_map_regresses_exactly_as_before(self):
         # No 'keep' anywhere in the map: _partition_keep_ads is a no-op

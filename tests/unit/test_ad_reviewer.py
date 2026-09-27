@@ -1079,3 +1079,36 @@ def test_clamp_preserves_dai_core_but_trims_outer_candidate():
         ad, 120.0, 140.0, 80.0, 180.0, 60.0, 'slug', 'ep')
 
     assert (s, e) == (100.0, 160.0)
+
+
+def _review_with_barriers(llm_body, barriers):
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(llm_body)
+    meta = dict(_mock_episode_meta(), hard_barriers=barriers)
+    return reviewer.review(
+        accepted_ads=[{'start': 120.0, 'end': 180.0, 'confidence': 0.9}],
+        resurrection_eligible=[], segments=_mock_segments(),
+        episode_meta=meta, pass_num=1, pass_model='claude-test',
+    )
+
+
+def test_reviewer_widening_stops_at_a_hard_barrier():
+    result = _review_with_barriers(
+        '[{"start": 95.0, "end": 200.0, "confidence": 0.95}]',
+        [{'start': 100.0, 'end': 110.0}, {'start': 190.0, 'end': 230.0}])
+
+    out = result.accepted_after_review[0]
+    assert (out['start'], out['end']) == (110.0, 190.0)
+
+
+def test_reviewer_widening_away_from_barriers_is_unchanged():
+    result = _review_with_barriers(
+        '[{"start": 115.0, "end": 185.0, "confidence": 0.95}]',
+        [{'start': 100.0, 'end': 110.0}, {'start': 190.0, 'end': 230.0}])
+
+    out = result.accepted_after_review[0]
+    assert (out['start'], out['end']) == (115.0, 185.0)

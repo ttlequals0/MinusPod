@@ -113,9 +113,11 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
             segment_actions=ACTIONS,
         )
 
-    assert built
-    for protection in built:
+    # The first build carves findings before the category partition runs.
+    assert len(built) >= 3
+    for protection in built[1:]:
         assert (300.0, 320.0) in _spans(protection.hard_orig)
+    for protection in built:
         assert (300.0, 320.0) not in _spans(protection.holds_orig)
         assert (400.0, 420.0) not in _spans(protection.hard_orig)
     reviewer_barriers = reviewer.call_args.kwargs['protected_original_ranges']

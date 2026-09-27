@@ -1151,3 +1151,37 @@ def test_recut_episode_keeps_rejects_out_of_saved_markers_and_applied_cuts(tmp_p
         assert marker['validation']['decision'] == 'REJECT'
         assert not any(c['start'] < hi and c['end'] > lo for c in saved['cuts'])
     assert any(c['start'] <= 48.5 and c['end'] >= 55.5 for c in saved['cuts'])
+
+
+def test_build_recut_ad_list_keeps_kept_markers_out_of_validation(monkeypatch):
+    """A kept marker must not be merged into an overlapping cut on recut."""
+    kept = {'start': 100.0, 'end': 130.0, 'confidence': 0.98, 'category': 'self_promo',
+            'action_applied': 'keep', 'was_cut': False, 'reason': 'show promo'}
+    sponsor = {'start': 110.0, 'end': 190.0, 'confidence': 0.98, 'category': 'sponsor',
+               'sponsor': 'Acme', 'was_cut': True, 'reason': 'sponsor read for Acme'}
+    monkeypatch.setattr(processing.db, 'get_episode',
+                        lambda s, e: {'ad_markers_json': json.dumps([kept, sponsor])})
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda p, e: [])
+    monkeypatch.setattr(processing.db, 'get_false_positive_corrections', lambda p, e: [])
+    monkeypatch.setattr(processing.db, 'get_confirmed_corrections', lambda p, e: [])
+    seen = []
+    real_build = processing._build_validator
+
+    def spy_build(*args, **kwargs):
+        validator = real_build(*args, **kwargs)
+        real_validate = validator.validate
+        validator.validate = lambda ads, **kw: (seen.extend(ads), real_validate(ads, **kw))[1]
+        return validator
+
+    monkeypatch.setattr(processing, '_build_validator', spy_build)
+    segments = [{'start': 100.0, 'end': 190.0, 'text': 'promo then sponsor read'}]
+
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', segments, 600.0, '', 0.80,
+        segment_actions={'self_promo': 'keep', 'sponsor': 'remove'})
+
+    assert [a.get('category') for a in seen] == ['sponsor']
+    assert (100.0, 130.0, 'keep') in {
+        (a['start'], a['end'], a.get('action_applied')) for a in all_ads}
+    assert all(a.get('category') == 'sponsor' for a in ads_to_remove)
