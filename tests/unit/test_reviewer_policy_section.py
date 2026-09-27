@@ -5,7 +5,7 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('reviewer_policy_section_test_')
 
-from ad_reviewer import AdReviewer, _format_policy_section
+from ad_reviewer import POLICY_LINE_CAP, AdReviewer, _capped_line, _format_policy_section
 from database import DEFAULT_REVIEW_PROMPT
 from main_app import processing
 from utils.markers import note_merged_members
@@ -202,3 +202,12 @@ def test_pass1_reviewer_widen_stops_at_a_user_rejection(monkeypatch):
         segment_actions=ACTIONS, hard_barriers=[])
 
     assert [(c['start'], c['end']) for c in cuts] == [(3492.9, 3590.0)]
+
+
+def test_capped_line_truncates_an_oversized_first_item_instead_of_dropping_it():
+    item = 'x' * 250
+    line = _capped_line('Member', [item])
+    assert line != ''
+    assert len(line) == POLICY_LINE_CAP
+    assert line.startswith('Member: ')
+    assert line.endswith('...')

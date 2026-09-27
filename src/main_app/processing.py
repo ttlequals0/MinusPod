@@ -2804,6 +2804,9 @@ def _record_cut_seconds(run_stats, cuts, original_duration, new_duration):
     run_stats['replacement_seconds_added'] = replacement
     if original_duration and new_duration:
         run_stats['seconds_removed'] = round(original_duration - new_duration, 2)
+    else:
+        # Duration probe failed; estimate net removed from source minus replacement.
+        run_stats['seconds_removed'] = round(source - replacement, 2)
 
 
 def _cut_seconds(cuts):

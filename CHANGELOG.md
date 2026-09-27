@@ -32,6 +32,7 @@ release notes.
 - `GET /api/v1/patterns?scope=all` no longer returns an empty list. The endpoint's `active_only`, `podcast_id`, `network_id` and `source` query params now match the documented spec, and `active` still works as an alias for `active_only`. The default listing, with no query params, now includes inactive patterns as documented.
 - Diagnostic export no longer stops when it reaches an oversized log line. It skips that line and keeps scanning; only reaching the byte budget stops the export.
 - The legacy episode reprocess endpoint now accepts an empty or non-JSON body as a default reprocess instead of failing.
+- Recorded net seconds removed no longer shows as unknown when the output duration probe fails after a render. It is now estimated from the source and replacement seconds already recorded, so the removed-time stat stays consistent with them.
 
 ### Changed
 

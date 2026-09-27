@@ -105,6 +105,22 @@ class TestCutSeconds:
         assert processing._cut_seconds(cuts) == (70.0, 2.0)
 
 
+class TestRecordCutSeconds:
+    def test_failed_duration_probe_estimates_seconds_removed(self):
+        run_stats = {}
+        cuts = [applied_cut(10.0, 70.0, 1.0)]
+        processing._record_cut_seconds(run_stats, cuts, 600.0, None)
+        assert run_stats['source_seconds_removed'] == 60.0
+        assert run_stats['replacement_seconds_added'] == 1.0
+        assert run_stats['seconds_removed'] == 59.0
+
+    def test_measured_duration_uses_the_probe(self):
+        run_stats = {}
+        cuts = [applied_cut(10.0, 70.0, 1.0)]
+        processing._record_cut_seconds(run_stats, cuts, 600.0, 541.0)
+        assert run_stats['seconds_removed'] == 59.0
+
+
 # ---------------------------------------------------------------------------
 # _recut_episode order of operations and failure safety
 # ---------------------------------------------------------------------------

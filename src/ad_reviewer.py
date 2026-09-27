@@ -1060,11 +1060,15 @@ def _span_text(start, end) -> str:
 
 
 def _capped_line(label: str, items: list[str], sep: str = '; ') -> str:
-    """label plus as many whole items as fit in POLICY_LINE_CAP, or '' when none fit."""
+    """label plus as many whole items as fit in POLICY_LINE_CAP; an oversized first item is truncated to fit."""
     line = ''
     for item in items:
         candidate = f"{line}{sep}{item}" if line else f"{label}: {item}"
         if len(candidate) > POLICY_LINE_CAP:
+            if not line:
+                prefix = f"{label}: "
+                budget = max(POLICY_LINE_CAP - len(prefix) - 3, 0)
+                line = f"{prefix}{item[:budget]}..."
             break
         line = candidate
     return line
