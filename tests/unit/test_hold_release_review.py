@@ -112,6 +112,19 @@ def test_supported_subspan_inside_hold_becomes_a_release_candidate():
     assert orig[0]['held_for_review'] is True
 
 
+def test_finding_sent_to_hold_review_is_not_logged_as_dropped(caplog):
+    with caplog.at_level('INFO', logger='podcast.audio'):
+        _gate([_proc(1040.0, 1060.0)], [_orig(1040.0, 1060.0)], [_hold(1000.0, 1100.0)])
+        _gate([_proc(1040.0, 1060.0, 0.5)], [_orig(1040.0, 1060.0, 0.5)],
+              [_hold(1000.0, 1100.0)])
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert [m for m in messages if m.startswith('Sent pass-2 span')] == [
+        'Sent pass-2 span 1040.0s-1060.0s to hold review']
+    assert [m for m in messages if m.startswith('Dropping pass-2 cut')] == [
+        'Dropping pass-2 cut 1040.0s-1060.0s: overlaps a pass-1 held span']
+
+
 def test_candidate_is_clipped_to_the_hold_in_original_coordinates():
     cuts = [{'start': 100.0, 'end': 200.0}]
     beep = get_replacement_duration()

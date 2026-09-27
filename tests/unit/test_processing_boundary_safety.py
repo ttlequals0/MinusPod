@@ -6,14 +6,16 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('processing_boundary_safety_test_')
 
+from ad_detector import AdDetector
 from ad_reviewer import AdReviewer, split_resurrection_pool
-from ad_detector.boundaries import _merge_ad_pair
+from ad_detector.boundaries import _merge_ad_pair, effective_resolved_action
 from ad_validator import AdValidator, Decision, user_trimmed_keep_ranges
 from audio_processor import AudioProcessor
 from config import (HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
                     PASS2_AUTOAPPROVE_HOLD_REASONS, is_pending_review)
 from main_app import processing
 from main_app.verification_reconciliation import _gate_verification_ads_by_confidence
+from tests.unit.test_ad_reviewer import _build_reviewer, _mock_episode_meta, _resp
 from tests.unit.test_keep_bypass import _run_pipeline
 
 
@@ -269,3 +271,116 @@ def test_boundary_merge_keeps_estimated_pattern_risk():
     _merge_ad_pair(measured, estimated)
     assert measured['has_estimated_pattern_member'] is True
     assert measured['end'] == 175.0
+
+
+KEEP_PROMO_MAP = {'sponsor': 'remove', 'interaction': 'remove', 'cross_promo': 'keep',
+                  'self_promo': 'keep', 'intro': 'keep', 'outro': 'keep', 'recap': 'keep'}
+REMOVE_PROMO_MAP = {category: 'remove' for category in KEEP_PROMO_MAP}
+PROMO_KEEP = (2588.74, 2617.19)
+PROMO_TEXT_END = 2628.74
+READ_END = 2707.94
+
+
+def _promo_members(precise_read=True, text_defined=False):
+    """Fingerprint and estimated text self-promo inside a longer sponsor read."""
+    fingerprint = {'start': 2588.74, 'end': 2617.19, 'confidence': 0.99,
+                   'detection_stage': 'fingerprint', 'category': 'self_promo',
+                   'pattern_id': 12, 'pattern_defined': False,
+                   'fingerprint_match_start': 2588.74, 'fingerprint_match_end': 2617.19,
+                   'reason': 'Show promo fingerprint'}
+    text = {'start': 2595.7, 'end': 2675.0, 'confidence': 0.9,
+            'detection_stage': 'text_pattern', 'category': 'self_promo',
+            'pattern_id': 13, 'pattern_defined': text_defined, 'span_estimated': True,
+            'text_start': 2595.7, 'text_end': PROMO_TEXT_END, 'reason': 'Show promo text'}
+    read = {'start': 2593.03, 'end': READ_END, 'confidence': 0.96,
+            'detection_stage': 'claude', 'category': 'sponsor', 'sponsor': 'Acme',
+            'reason': 'Acme sponsor read'}
+    if precise_read:
+        read.update(word_timed_start=2593.03, word_timed_end=READ_END)
+    return [fingerprint, text, read]
+
+
+def _merge(ads, action_map):
+    return AdDetector.__new__(AdDetector)._merge_detection_results(
+        ads, None, action_map=action_map)
+
+
+def _spans(ads):
+    return [(round(a['start'], 2), round(a['end'], 2), a.get('category')) for a in ads]
+
+
+def _render(merged, action_map, duration=2708.2445):
+    keeps = [a for a in merged if action_map.get(a.get('category')) == 'keep']
+    cuts = [dict(a) for a in merged if a not in keeps]
+    cuts = processing._carve_cuts_around_kept_audio('example-podcast', 'a1b2c3d4e5f6',
+                                                    cuts, list(merged), keeps)
+    return AudioProcessor().compute_applied_cuts(cuts, duration, hard_barriers=keeps)
+
+
+def test_keep_map_leaves_promo_audio_and_cuts_the_read_after_it():
+    merged = _merge(_promo_members(), KEEP_PROMO_MAP)
+
+    assert _spans(merged) == [(*PROMO_KEEP, 'self_promo'),
+                              (2595.7, PROMO_TEXT_END, 'self_promo'),
+                              (PROMO_TEXT_END, READ_END, 'sponsor')]
+    applied = _render(merged, KEEP_PROMO_MAP)
+    assert [(c['start'], c['end']) for c in applied] == [(PROMO_TEXT_END, READ_END)]
+
+
+def test_remove_map_merges_promo_and_read_into_one_cut():
+    merged = _merge(_promo_members(), REMOVE_PROMO_MAP)
+
+    assert [(round(a['start'], 2), round(a['end'], 2)) for a in merged] == [
+        (PROMO_KEEP[0], READ_END)]
+
+
+def test_estimated_keep_without_a_precise_read_stays_whole():
+    merged = _merge(_promo_members(precise_read=False), KEEP_PROMO_MAP)
+
+    assert (2595.7, 2675.0, 'self_promo') in _spans(merged)
+
+
+def test_defined_promo_pattern_is_never_clipped_to_its_text():
+    merged = _merge(_promo_members(text_defined=True), KEEP_PROMO_MAP)
+
+    assert [(round(a['start'], 2), round(a['end'], 2),
+             effective_resolved_action(a, KEEP_PROMO_MAP)) for a in merged] == [
+        (*PROMO_KEEP, 'keep'), (PROMO_KEEP[1], READ_END, 'remove')]
+
+
+def _review_read_start(proposed_start, original, core_start):
+    reviewer = _build_reviewer({'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+                                'review_max_boundary_shift': '60'})
+    reviewer._llm_client.messages_create.return_value = _resp(
+        f'[{{"start": {proposed_start}, "end": {original[1]}, "confidence": 0.96}}]')
+    read = {'start': original[0], 'end': original[1], 'confidence': 0.97,
+            'detection_stage': 'dai_differential', 'category': 'sponsor',
+            'dai_core_spans': [{'start': core_start, 'end': original[1]}],
+            'merged_member_spans': [
+                {'start': original[0], 'end': original[1], 'stage': 'claude',
+                 'confidence': 0.97, 'precise_start': False, 'precise_end': True}]}
+    segments = [
+        {'start': original[0] - 40.0, 'end': original[0], 'text': 'Show promo read.'},
+        {'start': original[0], 'end': original[1], 'text': 'A message from Acme.'},
+    ]
+    meta = dict(_mock_episode_meta(), hard_barriers=[
+        {'start': original[0] - 28.45, 'end': original[0]}])
+    result = reviewer.review(accepted_ads=[read], resurrection_eligible=[], segments=segments,
+                             episode_meta=meta, pass_num=1, pass_model='claude-test')
+    return result.accepted_after_review[0], meta['hard_barriers']
+
+
+def test_reviewer_adjust_into_kept_promo_is_clamped_at_the_keep_edge():
+    out, keeps = _review_read_start(2609.36, (PROMO_KEEP[1], 2708.2445), 2647.12)
+
+    assert out['start'] == PROMO_KEEP[1]
+    applied = AudioProcessor().compute_applied_cuts([out], 2708.2445, hard_barriers=keeps)
+    assert applied and applied[0]['start'] >= PROMO_KEEP[1]
+
+
+def test_reviewer_inward_trim_after_kept_promo_still_cuts():
+    out, keeps = _review_read_start(2141.21, (2128.45, 2187.36), 2141.21)
+
+    assert (out['start'], out['end']) == (2141.21, 2187.36)
+    applied = AudioProcessor().compute_applied_cuts([out], 2400.0, hard_barriers=keeps)
+    assert [(c['start'], c['end']) for c in applied] == [(2141.21, 2187.36)]

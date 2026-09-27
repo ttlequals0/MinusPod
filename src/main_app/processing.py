@@ -99,6 +99,7 @@ from config import (
     SEGMENT_CATEGORIES,
     DEFAULT_SEGMENT_ACTION,
     resolve_processing_mode,
+    resolve_segment_category_actions_map,
     resolve_skip_second_pass,
     resolve_skip_transcription,
     resolve_cue_only_safety,
@@ -6371,6 +6372,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
                 # One category action map for detection, validation, review and pass 2.
                 segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
+                feed_overrides = resolve_segment_category_actions_map(
+                    (podcast_settings or {}).get('segment_category_actions'), baseline={})
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Segment action map: "
+                    + ', '.join(f"{k}={v}" for k, v in segment_actions.items())
+                    + f"; feed overrides: {', '.join(feed_overrides) or 'none'}")
 
                 # Stage 3: First-pass detection
                 _reserve_provider()

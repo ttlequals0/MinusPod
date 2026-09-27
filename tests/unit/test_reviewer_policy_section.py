@@ -211,3 +211,11 @@ def test_capped_line_truncates_an_oversized_first_item_instead_of_dropping_it():
     assert len(line) == POLICY_LINE_CAP
     assert line.startswith('Member: ')
     assert line.endswith('...')
+
+
+def test_coarse_transcript_edges_are_labelled_unmeasured():
+    ad = _ad()
+    ad['merged_member_spans'][0].update(precise_start=False, precise_end=False)
+    ad['merged_member_spans'].pop()
+
+    assert 'Measured edges: start unmeasured, end unmeasured' in _prompt(ad=ad)

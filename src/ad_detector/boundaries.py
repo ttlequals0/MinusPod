@@ -1670,6 +1670,22 @@ def effective_resolved_action(marker: dict,
     return action
 
 
+def _clip_estimated_keep(keep: dict, keep_action, other: dict, other_action) -> dict:
+    """An estimated keep contests a precise remove only over its matched text."""
+    if (keep_action != 'keep' or other_action != 'remove' or not keep.get('span_estimated')
+            or not any(_quote_edge_valid(other, edge) or word_timed_edge_valid(other, edge)
+                       for edge in ('start', 'end'))):
+        return keep
+    text = estimated_text_bounds(keep)
+    if text is None or text[1] <= text[0] or text == (keep['start'], keep['end']):
+        return keep
+    logger.info(
+        f"Clipping estimated {keep.get('category')!r} keep "
+        f"{keep['start']:.1f}s-{keep['end']:.1f}s to its matched text "
+        f"{text[0]:.1f}s-{text[1]:.1f}s against a precise remove")
+    return carve_fragment(keep, *text)
+
+
 def split_conflicting_action_span(last: dict, current: dict,
                                   last_action: str | None = None,
                                   current_action: str | None = None) -> tuple:
@@ -1714,6 +1730,10 @@ def split_conflicting_action_span(last: dict, current: dict,
     effective_current_action = (
         'remove' if current_pattern and current_action == 'keep'
         else current_action)
+    last = _clip_estimated_keep(last, effective_last_action, current, effective_current_action)
+    current = _clip_estimated_keep(current, effective_current_action, last, effective_last_action)
+    if current['start'] >= last['end'] or current['end'] <= last['start']:
+        return last, [current.copy()]
     if ((last_action is None or current_action is None)
             and current['end'] > last['end']):
         # Legacy no-action behavior: the earlier marker owns a partial

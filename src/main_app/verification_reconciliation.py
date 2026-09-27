@@ -327,18 +327,18 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
 
 def _add_release_candidate(release_by_hold, orig_ad, hold, overlapping,
                            min_cut_confidence, hard_barriers_orig, segments):
-    """Record the finding's supported span in hold as a review candidate, longest per hold."""
+    """Record the finding's supported span in hold as a review candidate, longest per hold; True if recorded."""
     if (hold.get('hold_reason') not in PASS2_REVIEWED_RELEASE_HOLD_REASONS
             or hold.get('pass2_corroborated') or hold.get('pass2_reviewed_release')):
-        return
+        return False
     span = _hold_release_span(
         hold, orig_ad, min_cut_confidence,
         [h for h in overlapping if h is not hold], hard_barriers_orig, segments)
     if span is None:
-        return
+        return False
     prior = release_by_hold.get(id(hold))
     if prior and prior[0]['end'] - prior[0]['start'] >= span[1] - span[0]:
-        return
+        return False
     orig_sub = carve_fragment(orig_ad, *span)
     orig_sub['held_for_review'] = True
     orig_sub['_hold_release_of'] = (hold['start'], hold['end'])
@@ -347,6 +347,7 @@ def _add_release_candidate(release_by_hold, orig_ad, hold, overlapping,
         f"Pass-2 ad {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s supports "
         f"{span[0]:.1f}s-{span[1]:.1f}s of {hold.get('hold_reason')} hold "
         f"{hold['start']:.1f}s-{hold['end']:.1f}s: sending it to review")
+    return True
 
 
 def _gate_verification_ads_by_confidence(verification_ads_processed,
@@ -450,14 +451,20 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                     f"{hold['start']:.1f}s-{hold['end']:.1f}s: stamping it "
                     f"for auto-approval")
             else:
+                sent = False
                 if confidence >= min_cut_confidence and not cue_gate_enabled:
                     for hold in overlapping:
-                        _add_release_candidate(
+                        sent |= _add_release_candidate(
                             release_by_hold, orig_ad, hold, overlapping,
                             min_cut_confidence, hard_barriers_orig, segments)
-                audio_logger.info(
-                    f"Dropping pass-2 cut {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s: "
-                    f"overlaps a pass-1 held span")
+                if sent:
+                    audio_logger.info(
+                        f"Sent pass-2 span {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s "
+                        f"to hold review")
+                else:
+                    audio_logger.info(
+                        f"Dropping pass-2 cut {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s: "
+                        f"overlaps a pass-1 held span")
             ad['was_cut'] = False
             orig_ad['was_cut'] = False
             # Held so the resurrection pool can never cut audio a hold protects.

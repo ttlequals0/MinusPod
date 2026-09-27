@@ -1105,7 +1105,9 @@ def _member_item(member: dict) -> str:
 
 def _edge_item(ad: dict, edge: str, min_conf: float, hard: list[dict]) -> str:
     support = edge_support(ad, edge, min_conf, hard)
-    if support['measured'] is None:
+    # A coarse transcript edge is not a measurement.
+    if support['measured'] is None or (support['source'] == 'transcript'
+                                       and not support['precise']):
         return f"{edge} unmeasured"
     precise = ', precise' if support['precise'] else ''
     return f"{edge} {support['measured']:.1f}s ({support['source']}{precise})"

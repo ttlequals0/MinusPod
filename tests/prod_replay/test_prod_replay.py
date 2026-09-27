@@ -16,6 +16,8 @@ from tests.app_bootstrap import bootstrap  # noqa: E402
 
 bootstrap('prod_replay_')
 
+from ad_detector import AdDetector  # noqa: E402
+from ad_detector.boundaries import effective_resolved_action  # noqa: E402
 from audio_processor import AudioProcessor, get_replacement_duration  # noqa: E402
 from main_app import processing  # noqa: E402
 from main_app import verification_reconciliation as vr  # noqa: E402
@@ -406,6 +408,73 @@ def test_kept_split_preserves_outside_residual(eid, finding):
     if paid:
         assert sum(overlap_seconds(s['start'], s['end'], *paid) for s in surviving) \
             >= 0.9 * (paid[1] - paid[0])
+
+
+# (e) keep-map merge replay of exported merged markers -----------------------
+
+# Pinned so the replay never follows a feed's live category actions.
+PINNED_REMOVE_MAP = {'sponsor': 'remove', 'interaction': 'remove', 'cross_promo': 'remove',
+                     'self_promo': 'remove', 'intro': 'remove', 'outro': 'remove',
+                     'recap': 'remove'}
+PINNED_KEEP_MAP = dict(PINNED_REMOVE_MAP, self_promo='keep')
+PROMO_STAGES = {'fingerprint', 'text_pattern', 'claude'}
+
+
+def _promo_merge_cases():
+    """Exported self_promo markers merged from a fingerprint, a text pattern and an LLM read."""
+    params = []
+    for path in sorted((ROOT / 'after-2.97.30').glob('*.full-reprocess.json')):
+        for m in load_json(path)['adMarkers']:
+            stages = {s.get('stage') for s in m.get('merged_member_spans') or []}
+            if m.get('category') == 'self_promo' and PROMO_STAGES <= stages:
+                params.append(pytest.param(m, id=f"after{len(params):02d}-{int(m['start'])}"))
+    return params
+
+
+def _member_detections(marker):
+    ads = []
+    for s in marker['merged_member_spans']:
+        ad = {'start': s['start'], 'end': s['end'], 'detection_stage': s['stage'],
+              'confidence': s.get('confidence', 0.95), 'reason': s['stage']}
+        if s['stage'] == 'claude':
+            ad['category'] = 'sponsor'
+            ad.update({f'word_timed_{e}': s[e] for e in ('start', 'end') if s.get(f'precise_{e}')})
+        else:
+            ad.update(category='self_promo', pattern_defined=False)
+        if s.get('span_estimated'):
+            ad.update(span_estimated=True, text_start=s['start'], text_end=s['end'])
+        if s['stage'] == 'fingerprint':
+            ad.update(fingerprint_match_start=s.get('fingerprint_match_start'),
+                      fingerprint_match_end=s.get('fingerprint_match_end'))
+        ads.append(ad)
+    return ads
+
+
+def _merge_members(marker, action_map):
+    return AdDetector.__new__(AdDetector)._merge_detection_results(
+        _member_detections(marker), None, action_map=action_map)
+
+
+@pytest.mark.parametrize('marker', _promo_merge_cases())
+def test_keep_map_splits_promo_from_the_read(marker):
+    merged = _merge_members(marker, PINNED_KEEP_MAP)
+    keeps = [m for m in merged if effective_resolved_action(m, PINNED_KEEP_MAP) == 'keep']
+    cuts = [m for m in merged if m not in keeps]
+    fp = next(s for s in marker['merged_member_spans'] if s['stage'] == 'fingerprint')
+    assert any(k['start'] <= fp['start'] and k['end'] >= fp['end'] for k in keeps)
+    text = next(s for s in marker['merged_member_spans'] if s['stage'] == 'text_pattern')
+    assert cuts and max(c['end'] for c in cuts) == pytest.approx(marker['end'])
+    assert min(c['start'] for c in cuts) == pytest.approx(max(fp['end'], text['end']))
+    for c in cuts:
+        assert all(overlap_seconds(c['start'], c['end'], k['start'], k['end']) <= 0.05
+                   for k in keeps)
+
+
+@pytest.mark.parametrize('marker', _promo_merge_cases())
+def test_remove_map_merges_promo_and_read(marker):
+    merged = _merge_members(marker, PINNED_REMOVE_MAP)
+    assert [(m['start'], m['end']) for m in merged] == [
+        pytest.approx((marker['start'], marker['end']))]
 
 
 # Summary -----------------------------------------------------------------------
