@@ -558,7 +558,8 @@ class AdValidator:
         return self._overlaps_corrections(self.confirmed_corrections, start, end, overlap_threshold)
 
     def _matching_confirmed(self, start: float, end: float,
-                            overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> dict | None:
+                            overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE,
+                            skip_auto_filed: bool = False) -> dict | None:
         """Return a user-confirmed correction covering >= threshold of the
         range, or None. Mirrors _overlaps_confirmed but yields the match so
         the caller can honor an exact ``confirmed_span``. Corrections arrive
@@ -568,6 +569,8 @@ class AdValidator:
         if segment_duration < 0.001:
             return None
         for corr in self.confirmed_corrections:
+            if skip_auto_filed and corr.get('auto_filed'):
+                continue
             confirmed_span = corr.get('confirmed_span')
             matches_original = (
                 overlap_ratio(corr['start'], corr['end'], start, end)
@@ -649,7 +652,9 @@ class AdValidator:
                 self._overlaps_false_positive(ad['start'], ad['end']))
             if ad.get('_user_kept_by_trim'):
                 continue
-            confirmed = self._matching_confirmed(ad['start'], ad['end'])
+            # An auto-filed confirm never outranks a standing reviewer reject.
+            confirmed = self._matching_confirmed(
+                ad['start'], ad['end'], skip_auto_filed=ad.get('_reviewer_rejected', False))
             if confirmed is None:
                 continue
             span = confirmed.get('confirmed_span')
@@ -892,7 +897,9 @@ class AdValidator:
 
         # Check for user-confirmed corrections (second priority)
         confirmed = (pre_restore_confirmed or confirmed
-                     or self._matching_confirmed(ad['start'], ad['end']))
+                     or self._matching_confirmed(
+                         ad['start'], ad['end'],
+                         skip_auto_filed=ad.get('_reviewer_rejected', False)))
         if confirmed is not None:
             # A trimmed approval confirms exactly one sub-span as ad. A later
             # detection can be wider, but that must neither authorize the new
@@ -1722,10 +1729,12 @@ class AdValidator:
                     merged.append(current.copy())
                     continue
 
-            # Recut path: never fold a previously-cut ad into a marker that
-            # was not cut (or vice versa); the keep partition runs after
-            # this merge and would swallow the cut.
-            if bool(last.get('_saved_was_cut')) != bool(current.get('_saved_was_cut')):
+            # Recut path: never fold a previously-cut ad or a reviewer reject
+            # into a marker without the same stamp; the fold would decide both
+            # spans' fate as one.
+            if (bool(last.get('_saved_was_cut')) != bool(current.get('_saved_was_cut'))
+                    or bool(last.get('_reviewer_rejected'))
+                    != bool(current.get('_reviewer_rejected'))):
                 merged.append(current.copy())
                 continue
 

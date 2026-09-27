@@ -1,6 +1,9 @@
 """Marker-dict bookkeeping shared by the detector, validator, and reviewer."""
 import math
 
+from config import CORRECTION_MATCH_MIN_COVERAGE
+from utils.time import overlap_ratio
+
 
 # DAI core: the region measured as differing across fetches; it answers whether the audio is an ad.
 # DAI probes: sub-windows where correlation was computed; they answer whether an edge is measured.
@@ -65,6 +68,27 @@ def invalidate_word_timed_edges(marker: dict) -> None:
         if (f'word_timed_{edge}' in marker
                 and not word_timed_edge_valid(marker, edge)):
             marker.pop(f'word_timed_{edge}', None)
+
+
+def is_reviewer_rejected(marker: dict) -> bool:
+    """Whether the reviewer rejected this marker outright (no hold)."""
+    # was_cut is ignored so a reject wrongly saved as cut repairs on the next recut.
+    return (marker.get('reviewer_verdict') == 'reject'
+            and marker.get('source') == 'reviewer'
+            and not marker.get('held_for_review'))
+
+
+def explicit_override(marker: dict, confirmed: list[dict]) -> bool:
+    """Whether a user (not auto-filed) confirm or boundary adjustment covers the marker."""
+    start, end = marker['start'], marker['end']
+    for corr in confirmed or []:
+        if corr.get('auto_filed'):
+            continue
+        spans = [corr, corr.get('confirmed_span') or corr]
+        if any(overlap_ratio(s['start'], s['end'], start, end) >= CORRECTION_MATCH_MIN_COVERAGE
+               for s in spans):
+            return True
+    return False
 
 
 def reviewer_edge_locked(marker: dict, edge: str) -> bool:

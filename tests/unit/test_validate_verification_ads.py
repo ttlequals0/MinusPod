@@ -1229,3 +1229,44 @@ def test_the_pipeline_hands_pass1_the_feeds_id():
     m = _run_fold_branch()
 
     assert m['refine'].call_args.kwargs['podcast_id'] == 1
+
+
+def _reviewer_reject(start, end):
+    return {'start': start, 'end': end, 'was_cut': False, 'source': 'reviewer',
+            'reviewer_verdict': 'reject'}
+
+
+def _approval_db(monkeypatch):
+    db = MagicMock()
+    db.get_false_positive_corrections.return_value = []
+    db.get_confirmed_corrections.return_value = []
+    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
+    monkeypatch.setattr(processing_mod, 'db', db)
+    monkeypatch.setattr(processing_mod, 'storage', MagicMock())
+    return db
+
+
+def test_auto_approve_skips_hold_overlapping_reviewer_reject(monkeypatch):
+    db = _approval_db(monkeypatch)
+    hold = _diff_hold(4875.8, 5025.8)
+    hold['pass2_corroborated'] = True
+
+    n = processing_mod._file_corroborated_hold_approvals(
+        's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)])
+
+    assert n == 0
+    db.create_pattern_correction.assert_not_called()
+
+
+def test_auto_approve_trimmed_span_clear_of_reviewer_reject_files(monkeypatch):
+    db = _approval_db(monkeypatch)
+    hold = _diff_hold(4875.8, 5025.8)
+    hold['pass2_corroborated'] = True
+    hold['pass2_corroborated_span'] = {'start': 4875.8, 'end': 4990.0}
+
+    n = processing_mod._file_corroborated_hold_approvals(
+        's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)])
+
+    assert n == 1
+    assert db.create_pattern_correction.call_args.kwargs['corrected_bounds'] == {
+        'start': 4875.8, 'end': 4990.0}

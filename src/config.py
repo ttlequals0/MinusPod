@@ -302,6 +302,9 @@ PASS2_AUTOAPPROVE_TRIM_SLACK_S = 0.5
 # user keep ranges, so a machine trim cannot protect audio from later cuts.
 PASS2_AUTOAPPROVE_SNIPPET_PREFIX = 'auto-approved: pass-2'
 
+# Validation flag on a reviewer reject a recut kept out of the audio.
+REVIEWER_REJECT_PRESERVED_FLAG = 'reviewer_reject_preserved'
+
 # Second acceptance path: a contradiction hold carries the reviewer's own
 # proposed ad sub-span. When the pass-2 detection and that proposal agree
 # (IoU of the two sub-spans at or above this bar), two independent signals
