@@ -24,6 +24,7 @@ from config import (
 from ad_chapters import (
     merge_ad_chapters, public_chapters, resolve_ad_chapter_config,
 )
+from ad_validator import user_trimmed_keep_ranges
 from ad_yield import latest_completed_run, low_ad_yield
 from audio_peaks import compute_peaks, PeaksError
 from audio_processor import AudioProcessor, get_replacement_duration
@@ -132,14 +133,17 @@ def _same_cut(a, b, tol=0.05) -> bool:
 
 
 def chapters_only_decisions(markers, applied_cuts, original_duration,
-                            actions=None, false_positives=(), confirmed=()):
+                            actions=None, false_positives=(), confirmed=(),
+                            keep_override=None):
     """True when cutting the current markers reproduces the applied cuts.
 
     The decisions then changed only which ad chapters the audio should carry,
     so an apply can rebuild those instead of re-rendering the file. `actions`
     is the feed's resolved category action map, so a recategorized marker is
-    judged the way the recut would judge it. Unknown inputs (no persisted cut
-    list, no known duration) answer False: a recut is the safe fallback.
+    judged the way the recut would judge it; `keep_override(marker)` is True
+    where a pattern or differential rule cuts a keep anyway. Unknown inputs
+    (no persisted cut list, no known duration) answer False: a recut is the
+    safe fallback.
     """
     if applied_cuts is None or not original_duration:
         return False
@@ -152,11 +156,15 @@ def chapters_only_decisions(markers, applied_cuts, original_duration,
         for m in markers
         if m.get('start') is not None and m.get('end') is not None
     ]
-    kept = [m for m, action in resolved if action == 'keep']
+    resolved = [(m, DEFAULT_SEGMENT_ACTION
+                 if action == 'keep' and keep_override and keep_override(m) else action)
+                for m, action in resolved]
+    protected = [*(m for m, action in resolved if action == 'keep'),
+                 *user_trimmed_keep_ranges(list(confirmed))]
     wanted = AudioProcessor().compute_applied_cuts(
         [dict(m, beep=(action == 'beep')) for m, action in resolved
          if _marker_wants_cut(m, action, false_positives, confirmed)],
-        original_duration, cut_barriers=kept, hard_barriers=kept,
+        original_duration, cut_barriers=protected, hard_barriers=protected,
     )
     return (len(wanted) == len(applied_cuts)
             and all(_same_cut(w, a)
@@ -165,6 +173,12 @@ def chapters_only_decisions(markers, applied_cuts, original_duration,
 
 def _apply_needs_chapters_only(db, slug, episode_id, episode, markers) -> bool:
     """chapters_only_decisions for one pending-recut episode."""
+    # Module-level import would be a cycle: main_app imports this package.
+    from main_app.processing import (
+        _keep_overridden, _load_stored_dai_differential, _make_keep_differential_override,
+    )
+    differential_override = _make_keep_differential_override(
+        _load_stored_dai_differential(slug, episode_id))
     return chapters_only_decisions(
         markers, db.get_applied_cuts(slug, episode_id),
         episode.get('original_duration'),
@@ -172,7 +186,8 @@ def _apply_needs_chapters_only(db, slug, episode_id, episode, markers) -> bool:
         false_positives=db.get_false_positive_corrections(
             episode['podcast_id'], episode_id),
         confirmed=db.get_confirmed_corrections(
-            episode['podcast_id'], episode_id))
+            episode['podcast_id'], episode_id),
+        keep_override=lambda m: _keep_overridden(dict(m), differential_override))
 
 
 # Reprocess-mode rules shared by the three reprocess endpoints
@@ -2356,7 +2371,10 @@ def reprocess_episode_with_mode(slug, episode_id):
 def _reprocess_episode_with_mode(slug, episode_id, legacy=False):
     db = get_database()
 
-    data = {} if legacy and not request.get_data() else request.get_json()
+    # Legacy clients post no body or a non-JSON one; both mean the default mode.
+    data = request.get_json(silent=legacy)
+    if legacy and data is None:
+        data = {}
     if not isinstance(data, dict):
         return error_response('Request body must be a JSON object', 400)
     mode = data.get('mode', 'reprocess')

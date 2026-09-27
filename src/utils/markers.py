@@ -1,7 +1,8 @@
 """Marker-dict bookkeeping shared by the detector, validator, and reviewer."""
 import math
 
-from config import CORRECTION_MATCH_MIN_COVERAGE, FINGERPRINT_CHUNK_SIZE
+from config import (CORRECTION_MATCH_MIN_COVERAGE, FINGERPRINT_CHUNK_SIZE,
+                    PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS)
 from utils.time import overlap_ratio
 
 
@@ -78,17 +79,27 @@ def is_reviewer_rejected(marker: dict) -> bool:
             and not marker.get('held_for_review'))
 
 
+def _confirm_covers(corr: dict, marker: dict) -> bool:
+    spans = [corr, corr.get('confirmed_span') or corr]
+    return any(overlap_ratio(s['start'], s['end'], marker['start'], marker['end'])
+               >= CORRECTION_MATCH_MIN_COVERAGE for s in spans)
+
+
 def explicit_override(marker: dict, confirmed: list[dict]) -> bool:
     """Whether a user (not auto-filed) confirm or boundary adjustment covers the marker."""
-    start, end = marker['start'], marker['end']
-    for corr in confirmed or []:
-        if corr.get('auto_filed'):
-            continue
-        spans = [corr, corr.get('confirmed_span') or corr]
-        if any(overlap_ratio(s['start'], s['end'], start, end) >= CORRECTION_MATCH_MIN_COVERAGE
-               for s in spans):
-            return True
-    return False
+    return any(not corr.get('auto_filed') and _confirm_covers(corr, marker)
+               for corr in confirmed or [])
+
+
+def reviewer_hold_stands(marker: dict, confirmed: list[dict]) -> bool:
+    """Whether a pending reviewer hold survives a recut: no user override, no pass-2 release."""
+    reason = marker.get('hold_reason')
+    if (not marker.get('held_for_review') or marker.get('was_cut')
+            or reason not in REVIEWER_HOLD_REASONS or explicit_override(marker, confirmed)):
+        return False
+    return not (reason in PASS2_REVIEWED_RELEASE_HOLD_REASONS and any(
+        corr.get('auto_filed') and corr.get('hold_reason') == reason
+        and _confirm_covers(corr, marker) for corr in confirmed or []))
 
 
 def reviewer_edge_locked(marker: dict, edge: str) -> bool:
@@ -514,15 +525,13 @@ def measured_member_spans(marker: dict, min_conf: float, *,
     # Anchors are independent member evidence: no DAI core, no estimate's own text.
     spans = ([(s['start'], s['end'], False) for s in _valid_dai_core_spans(marker)]
              if include_dai_core else [])
-    for member in member_spans(marker):
+    # Same hard extents the reviewer uses: a fingerprint start is measured, its projected end soft.
+    for member in _hard_members(member_spans(marker), min_conf):
         stage = member.get('stage')
         lo, hi = member['start'], member['end']
         if stage == 'fingerprint':
-            match_lo = finite_number(member.get('fingerprint_match_start'))
-            match_hi = finite_number(member.get('fingerprint_match_end'))
-            if match_lo is None or match_hi is None:
+            if _unmatched_fingerprint(member):
                 continue
-            lo, hi = max(lo, match_lo), min(hi, match_hi)
         elif stage in COARSE_MEMBER_STAGES and stage != 'keep_content':
             confidence = finite_number(member.get('confidence'))
             if confidence is None or confidence < min_conf:

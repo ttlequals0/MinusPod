@@ -167,3 +167,30 @@ def test_pass1_reviewer_gets_keeps_and_user_rejections(monkeypatch):
         {'start': 3450.0, 'end': 3480.0, 'kind': 'keep', 'category': 'self_promo'},
         {'start': 3700.0, 'end': 3710.0, 'kind': 'user_reject'},
     ]
+
+
+def test_pass1_reviewer_widen_stops_at_a_user_rejection(monkeypatch):
+    reviewer = _reviewer({'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+                          'review_max_boundary_shift': '60'})
+    reviewer._llm_client.messages_create.return_value = MagicMock(
+        content='[{"start": 3492.9, "end": 3620.0, "confidence": 0.95}]',
+        model='test-model')
+    fake_db = MagicMock()
+    fake_db.get_false_positive_corrections.return_value = [
+        {'start': 3590.0, 'end': 3610.0}]
+    fake_db.get_confirmed_corrections.return_value = []
+    monkeypatch.setattr(processing, 'db', fake_db)
+    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(processing, '_build_reviewer', lambda db, det: reviewer)
+    monkeypatch.setattr(processing, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(processing, '_publish_status', lambda *args: None)
+    monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
+    ad = {'start': 3492.9, 'end': 3573.2, 'confidence': 0.95,
+          'detection_stage': 'claude', 'category': 'sponsor'}
+
+    cuts, _ = processing._run_ad_reviewer(
+        'example-podcast', 'a1b2c3d4e5f6', 1, [ad], [ad], SEGMENTS,
+        'Example Podcast', 'Episode', '', '', 0.8, 1, 'test-model',
+        segment_actions=ACTIONS, hard_barriers=[])
+
+    assert [(c['start'], c['end']) for c in cuts] == [(3492.9, 3590.0)]

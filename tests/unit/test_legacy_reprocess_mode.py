@@ -61,12 +61,11 @@ def test_legacy_invalid_mode_leaves_saved_data_untouched(app_client, episode):
     assert db.get_original_segments(slug, episode_id) == segments
 
 
-@pytest.mark.parametrize('body', ['not JSON', '[]', 'null'])
-def test_legacy_invalid_body_leaves_saved_data_untouched(app_client, episode, body):
+def test_legacy_non_object_json_leaves_saved_data_untouched(app_client, episode):
     db, slug, episode_id, segments, headers = episode
     response = app_client.post(
         f'/api/v1/feeds/{slug}/episodes/{episode_id}/reprocess',
-        data=body, content_type='application/json', headers=headers,
+        data='[]', content_type='application/json', headers=headers,
     )
 
     assert response.status_code == 400
@@ -89,3 +88,19 @@ def test_legacy_default_reprocess_defers_detail_clear(app_client, episode):
     assert db.get_episode(slug, episode_id)['reprocess_mode'] == 'reprocess'
     assert db.has_transcript(slug, episode_id)
     assert db.get_original_segments(slug, episode_id) == segments
+
+
+@pytest.mark.parametrize('body,content_type', [
+    ('not JSON', 'application/json'), ('null', 'application/json'),
+    ('mode=llm', 'application/x-www-form-urlencoded'), ('', 'text/plain')])
+def test_legacy_non_json_or_empty_body_uses_the_default_mode(
+        app_client, episode, body, content_type):
+    db, slug, episode_id, _segments, headers = episode
+    with patch('main_app.processing.start_background_processing', return_value=(False, 'busy')):
+        response = app_client.post(
+            f'/api/v1/feeds/{slug}/episodes/{episode_id}/reprocess',
+            data=body, content_type=content_type, headers=headers,
+        )
+
+    assert response.status_code == 202
+    assert db.get_episode(slug, episode_id)['reprocess_mode'] == 'reprocess'

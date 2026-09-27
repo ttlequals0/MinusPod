@@ -7,6 +7,7 @@ input, the reviewer input, the cut list, or held-for-review routing.
 Markers resolving to 'remove' (the default) flow through byte-identical
 to before.
 """
+import json
 import logging
 import os
 import sys
@@ -49,7 +50,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
                   verification_side_effect=None, real_refine_reviewer=False,
                   confirmed_corrections=None, duration=100.0,
                   false_positive_corrections=None, render=None, new_duration=None,
-                  assets_side_effect=None):
+                  assets_side_effect=None, episode_row=None):
     """Drive process_episode's full pass-1 flow with every stage but the
     partition itself mocked out. Returns the recorded mocks for inspection.
 
@@ -68,6 +69,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
     ``duration`` sets the episode length the audio mocks report.
     ``render`` maps the requested cuts to the applied list; ``new_duration`` is the render length.
     ``assets_side_effect`` runs in place of the mocked _generate_assets.
+    ``episode_row`` is the episode row read at the start of the run.
     """
     podcast_row = {'id': 1, 'slug': 'keep-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
@@ -147,7 +149,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
         p(processing.os, 'unlink')
         p(processing.os.path, 'exists', return_value=False)
 
-        db.get_episode.return_value = {}
+        db.get_episode.return_value = episode_row or {}
         db.get_podcast_by_slug.return_value = podcast_row
         db.get_podcast_cue_settings_overrides.return_value = {}
         db.get_setting.side_effect = lambda key: (
@@ -231,6 +233,14 @@ class TestKeepBypass:
 
         assert keep in m['reviewer'].call_args.kwargs['hard_barriers']
 
+    def test_pass1_user_rejections_are_hard_for_reviewer_and_render(self):
+        fp = {'start': 70.0, 'end': 80.0}
+        m = _run_pipeline([_sponsor_ad()], {'sponsor': 'remove'},
+                          false_positive_corrections=[fp])
+
+        assert fp in m['reviewer'].call_args.kwargs['hard_barriers']
+        assert fp in m['local_ap'].process_episode.call_args.kwargs['hard_barriers']
+
     def test_reviewer_trim_learns_only_after_final_applied_cut(self):
         marker = dict(_sponsor_ad(), sponsor='Acme Tools',
                       detection_stage='claude')
@@ -286,6 +296,21 @@ class TestKeepBypass:
                                    render_fails=True)
         assert result['result'] is False
         learning.assert_not_called()
+
+    def test_failed_render_leaves_saved_markers_unchanged(self):
+        saved = [{'start': 50.0, 'end': 70.0, 'confidence': 0.9, 'was_cut': True}]
+        marker = dict(_sponsor_ad(), sponsor='Acme Tools')
+
+        def save_mid_run(cuts, markers):
+            processing.storage.save_combined_ads('keep-feed', 'ep1', markers)
+            return cuts, markers
+
+        m = _run_pipeline([marker], {'sponsor': 'remove'}, render_fails=True,
+                          reviewer_side_effect=save_mid_run,
+                          episode_row={'ad_markers_json': json.dumps(saved)})
+
+        assert m['result'] is False
+        assert m['storage'].save_combined_ads.call_args.args[2] == saved
 
     def test_cancelled_verification_does_not_learn(self):
         marker = dict(_sponsor_ad(), sponsor='Acme Tools',
@@ -1069,27 +1094,6 @@ class TestExcludeKeptSpansFromVerification:
         assert out_orig is orig
         assert conflicts == []
 
-    def test_false_positive_match_is_dropped_not_held(self, caplog):
-        """A span the user already rejected must not resurface in the
-        review queue as a kept-conflict (exclusion runs before validation,
-        so it screens corrections itself)."""
-        proc_overlap = {'start': 405.0, 'end': 415.0, 'confidence': 0.95,
-                        'validation': {'decision': 'ACCEPT', 'adjusted_confidence': 0.95}}
-        orig_overlap = {'start': 504.0, 'end': 514.0, 'confidence': 0.95,
-                        'sponsor': 'Acme'}
-
-        with patch.object(processing, 'get_replacement_duration', return_value=1.0), \
-                caplog.at_level(logging.DEBUG, logger='podcast.audio'):
-            out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
-                [proc_overlap], [orig_overlap], [self.KEPT_MARKER], self.PASS1_CUTS,
-                false_positive_corrections=[{'start': 503.0, 'end': 515.0}])
-
-        assert out_proc == []
-        assert out_orig == []
-        assert conflicts == []
-        assert 'held_for_review' not in orig_overlap
-        assert any('false-positive rejection' in r.message for r in caplog.records)
-
     def _exclude(self, proc, orig, kept=None, cuts=None):
         with patch.object(processing, 'get_replacement_duration', return_value=1.0):
             return processing._exclude_kept_spans_from_verification(
@@ -1126,6 +1130,23 @@ class TestExcludeKeptSpansFromVerification:
         assert [(a['start'], a['end']) for a in out_orig] == [
             (80.0, 210.0), (220.0, 239.0)]
         assert conflicts == []
+
+    def test_only_a_fragment_inside_a_replacement_beep_is_held(self):
+        # A 0.5 s cut rendered as a 3 s beep: processed 101-103 maps to no original audio.
+        cuts = [{'start': 100.0, 'end': 100.5, 'replacement_duration': 3.0}]
+        kept = [{'start': 100.5, 'end': 120.0, 'action_applied': 'keep'}]
+        proc = {'start': 101.0, 'end': 150.0, 'confidence': 0.95}
+        orig = {'start': 100.5, 'end': 147.5, 'confidence': 0.95}
+
+        with patch.object(processing, 'get_replacement_duration', return_value=3.0):
+            out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
+                [proc], [orig], kept, cuts)
+
+        assert [(a['start'], a['end']) for a in out_orig] == [(120.0, 147.5)]
+        assert [(a['start'], a['end']) for a in out_proc] == [(122.5, 150.0)]
+        assert [(c['start'], c['end'], c['hold_reason']) for c in conflicts] == [
+            (100.5, 101.0, 'verification_kept_conflict')]
+        assert 'held_for_review' not in orig
 
     def test_a_short_untrusted_residual_is_dropped(self):
         proc = {'start': 415.0, 'end': 423.0, 'confidence': 0.95}
@@ -1316,20 +1337,15 @@ class TestPartitionPass2CategoryActions:
         assert out_p == []
         assert out_o == []
 
-    def test_pass1_and_pass2_keeps_share_processed_barrier_list(self):
+    def test_pass1_keeps_map_to_processed_barriers(self):
         pass1_keep = {'start': 100.0, 'end': 120.0, 'action_applied': 'keep'}
-        pass2_keep = {'start': 200.0, 'end': 220.0, 'action_applied': 'keep'}
         pass1_cuts = [
             {'start': 20.0, 'end': 40.0, 'replacement_duration': 1.0},
         ]
 
-        barriers = processing._pass2_keep_barriers_processed(
-            [pass1_keep], pass1_cuts, [pass2_keep])
+        barriers = processing._pass2_keep_barriers_processed([pass1_keep], pass1_cuts)
 
-        assert [(marker['start'], marker['end']) for marker in barriers] == [
-            (81.0, 101.0), (200.0, 220.0),
-        ]
-        assert barriers[1] is pass2_keep
+        assert [(marker['start'], marker['end']) for marker in barriers] == [(81.0, 101.0)]
         assert (pass1_keep['start'], pass1_keep['end']) == (100.0, 120.0)
 
     def test_remove_candidate_splits_around_beep_candidate(self):

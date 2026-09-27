@@ -8,6 +8,7 @@ from utils.markers import (
     COVERAGE_GAP_TOLERANCE,
     EDGE_TOLERANCE,
     clip_member_spans,
+    hard_member_spans,
     measured_member_spans,
     note_merged_members,
     recorded_member_spans,
@@ -180,3 +181,20 @@ def test_coalesced_coarse_member_keeps_the_weakest_confidence():
     marker = _ad(0.0, 60.0, 'claude', confidence=0.96)
     note_merged_members(marker, _ad(50.0, 175.0, 'claude', confidence=0.85))
     assert measured_member_spans(marker, 0.8) == [(0.0, 175.0, True)]
+
+
+def test_fingerprint_member_is_measured_only_to_its_hard_extent():
+    marker = {
+        'start': 3492.9, 'end': 3680.7, 'confidence': 0.95, 'detection_stage': 'claude',
+        'merged_protected_start': 3492.9, 'merged_protected_end': 3680.7,
+        'merged_member_spans': [
+            {'start': 3492.9, 'end': 3573.2, 'stage': 'claude',
+             'confidence': 0.95, 'precise_start': True, 'precise_end': True},
+            {'start': 3544.2, 'end': 3680.7, 'stage': 'fingerprint',
+             'fingerprint_match_start': 3544.2, 'fingerprint_match_end': 3600.0},
+        ],
+    }
+    assert measured_member_spans(marker, 0.8) == [
+        (3492.9, 3573.2, True), (3544.2, 3573.2, True)]
+    assert [(lo, hi) for lo, hi, _ in measured_member_spans(marker, 0.8)] == [
+        (m['start'], m['end']) for m in hard_member_spans(marker, 3492.9, 3680.7, 0.8)]

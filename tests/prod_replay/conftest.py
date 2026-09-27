@@ -1,12 +1,15 @@
 """Fixtures for replaying saved production episodes through the pipeline code."""
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
 
 FIXTURES_ENV = 'MINUSPOD_PROD_FIXTURES'
 _SUMMARY_KEY = pytest.StashKey[list]()
+# The export omits text_snippet, so an auto-filed confirm's hold reason comes from the run log.
+_CORROBORATES_RE = re.compile(r'corroborates (\S+) hold ([\d.]+)s-([\d.]+)s')
 
 
 def fixtures_dir():
@@ -24,6 +27,10 @@ def load_episode(root, episode_id):
     base = root / 'episodes' / episode_id
     data = load_json(base / 'replay_input.json')
     data['segments'] = load_json(base / 'original_segments.json')['segments']
+    log = base / 'full.log.txt'
+    data['auto_filed_reasons'] = {
+        (float(lo), float(hi)): reason
+        for reason, lo, hi in _CORROBORATES_RE.findall(log.read_text() if log.exists() else '')}
     return data
 
 

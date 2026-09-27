@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 
 import diagnostic_log
@@ -209,3 +210,26 @@ def test_export_skips_invalid_utf8_file(tmp_path):
 
     assert result['events'] == []
     assert result['coverage']['firstEvent'] is None
+
+
+def test_export_skips_an_oversized_line_and_keeps_scanning(tmp_path):
+    directory = tmp_path / 'logs' / 'diagnostics'
+    directory.mkdir(parents=True)
+
+    def event(hour):
+        return json.dumps({'ts': f'2026-01-02T{hour:02d}:00:00Z', 'level': 'INFO',
+                           'category': 'api', 'source': 'diagnostic_log.py', 'line': 1})
+
+    newer = directory / 'diagnostic-2.jsonl'
+    newer.write_text(event(12) + '\n' + 'x' * 3000 + '\n' + event(13) + '\n')
+    older = directory / 'diagnostic-1.jsonl'
+    older.write_text(event(11) + '\n')
+    stamp = datetime(2026, 1, 2, 14).timestamp()
+    os.utime(older, (stamp - 60, stamp - 60))
+    os.utime(newer, (stamp, stamp))
+
+    result = export(tmp_path, datetime(2026, 1, 2, 10, tzinfo=timezone.utc),
+                    datetime(2026, 1, 2, 15, tzinfo=timezone.utc))
+
+    assert [e['ts'][11:13] for e in result['events']] == ['11', '12', '13']
+    assert result['truncated'] is True

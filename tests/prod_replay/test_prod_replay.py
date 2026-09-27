@@ -86,6 +86,10 @@ def _stub_db(monkeypatch, ep):
             b['correction_type'] = c['correction_type']
             if c.get('auto_filed'):
                 b['auto_filed'] = True
+                reason = ep['auto_filed_reasons'].get(
+                    (round(b['start'], 1), round(b['end'], 1)))
+                if reason:
+                    b['hold_reason'] = reason
             out.append(b)
         return out
 
@@ -107,9 +111,10 @@ def _stub_db(monkeypatch, ep):
 
 def _recut(monkeypatch, ep):
     _stub_db(monkeypatch, ep)
-    return processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _keeps = processing._build_recut_ad_list(
         'replay', 'replay', ep['segments'], ep['duration'], ep['description'],
         MIN_CONF, podcast_id=1, segment_actions=dict(ACTIONS))
+    return ads_to_remove, all_ads
 
 
 def _pass1_cuts(ep):
@@ -372,7 +377,7 @@ def test_kept_exclusion_replay_records(replay_out, eid, finding):
                     f'match the logged {ps}-{pe}')
     kept = [m for m in ep['markers'] if m.get('action_applied') == 'keep'
             and m.get('detection_stage') != 'verification']
-    result = vr._exclude_kept_spans_from_verification([proc], [orig], kept, cuts, [])
+    result = vr._exclude_kept_spans_from_verification([proc], [orig], kept, cuts)
     _dump(replay_out, f'kept_{eid}_{int(lo)}.json', {'result': result})
 
 
@@ -391,7 +396,7 @@ def _kept_input(eid, finding):
 def test_kept_split_preserves_outside_residual(eid, finding):
     proc, orig, kept, cuts = _kept_input(eid, finding)
     _p, surviving, _conflicts = vr._exclude_kept_spans_from_verification(
-        proc, orig, kept, cuts, [])
+        proc, orig, kept, cuts)
     keeps = [(k['start'], k['end']) for k in kept]
     for s in surviving:
         for k_lo, k_hi in keeps:

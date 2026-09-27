@@ -4,6 +4,7 @@ import logging
 import re
 
 from config import PASS2_AUTOAPPROVE_SNIPPET_PREFIX, SEGMENT_CATEGORIES
+from utils.pattern_catalog import invalidate_pattern_catalog_scope
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +203,7 @@ class PatternMixin:
 
     def create_ad_pattern(self, *args, **kwargs) -> int:
         """Create a new ad pattern in its own transaction. Returns pattern ID."""
+        invalidate_pattern_catalog_scope()
         with self.transaction() as conn:
             return self._create_ad_pattern_conn(conn, *args, **kwargs)
 
@@ -235,6 +237,7 @@ class PatternMixin:
 
     def update_ad_pattern(self, pattern_id: int, **kwargs) -> bool:
         """Update an ad pattern in its own transaction."""
+        invalidate_pattern_catalog_scope()
         with self.transaction() as conn:
             return self._update_ad_pattern_conn(conn, pattern_id, **kwargs)
 
@@ -287,11 +290,13 @@ class PatternMixin:
 
     def bulk_delete_patterns(self, ids: list[int]) -> int:
         """Hard-delete patterns by id in its own transaction. Returns rows deleted."""
+        invalidate_pattern_catalog_scope()
         with self.transaction() as conn:
             return self._bulk_delete_patterns_conn(conn, ids)
 
     def bulk_disable_patterns(self, ids: list[int]) -> int:
         """Set is_active=0 on patterns by id. Returns rows changed."""
+        invalidate_pattern_catalog_scope()
         if not ids:
             return 0
         conn = self.get_connection()
@@ -335,6 +340,7 @@ class PatternMixin:
 
     def update_pattern_duration(self, pattern_id: int, observed_duration: float) -> bool:
         """Update pattern avg_duration as a running average."""
+        invalidate_pattern_catalog_scope()
         conn = self.get_connection()
         conn.execute(
             """UPDATE ad_patterns SET
@@ -362,6 +368,7 @@ class PatternMixin:
 
     def delete_ad_pattern(self, pattern_id: int) -> bool:
         """Delete an ad pattern in its own transaction. Returns True if deleted."""
+        invalidate_pattern_catalog_scope()
         with self.transaction() as conn:
             return self._delete_ad_pattern_conn(conn, pattern_id)
 
@@ -374,6 +381,7 @@ class PatternMixin:
         patterns. The FK cascades, but only on a connection with
         foreign_keys on, so the delete stays explicit.
         """
+        invalidate_pattern_catalog_scope()
         conn = self.get_connection()
         conn.execute(
             "DELETE FROM audio_fingerprints WHERE pattern_id IN ("

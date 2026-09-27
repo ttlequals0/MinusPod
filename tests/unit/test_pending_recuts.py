@@ -502,6 +502,19 @@ class TestChaptersOnlyDecisions:
         assert chapters_only_decisions(
             [dict(CUT_AD), dict(KEPT_OUTRO)], self.CUTS, 1800.0) is True
 
+    def test_true_when_a_user_trim_already_clipped_the_cut(self):
+        trimmed = [{'start': 300.0, 'end': 360.0, 'correction_type': 'confirm',
+                    'confirmed_span': {'start': 300.0, 'end': 340.0}}]
+        assert chapters_only_decisions(
+            [dict(CUT_AD)], [{'start': 300.0, 'end': 340.0}], 1800.0,
+            confirmed=trimmed) is True
+
+    def test_true_when_a_keep_override_still_cuts_the_marker(self):
+        pattern_ad = dict(CUT_AD, pattern_defined=True)
+        assert chapters_only_decisions(
+            [pattern_ad], self.CUTS, 1800.0, actions={'sponsor': 'keep'},
+            keep_override=lambda m: bool(m.get('pattern_defined'))) is True
+
     def test_false_when_boundaries_moved(self):
         moved = dict(CUT_AD, start=310.0)
         assert chapters_only_decisions([moved], self.CUTS, 1800.0) is False

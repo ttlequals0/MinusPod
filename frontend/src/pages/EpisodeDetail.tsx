@@ -107,6 +107,18 @@ function toOriginalAd(segment: AdSegment) {
 
 // Pencil icon button that opens a held/rejected row in the waveform
 // editor (issue #563). Callers own the gating.
+// A render removed part of this uncut marker; list those parts for the reviewer.
+function PartialCutHint({ segment }: { segment: AdSegment }) {
+  if (!segment.partial_cut_spans?.length) return null;
+  return (
+    <p className="text-sm text-muted-foreground mt-1 font-mono">
+      Partly cut: {segment.partial_cut_spans
+        .map((span) => `${formatTimestamp(span.start)} - ${formatTimestamp(span.end)}`)
+        .join(', ')}
+    </p>
+  );
+}
+
 function OpenEditorButton({ onClick, testId }: { onClick: () => void; testId: string }) {
   return (
     <button
@@ -1596,6 +1608,7 @@ function EpisodeDetail() {
                       {segment.validation.flags.join(', ')}
                     </p>
                   )}
+                  <PartialCutHint segment={segment} />
                   {segment.reason && (
                     <p className="text-sm text-muted-foreground mt-1">
                       <span className="font-medium">Match:</span>{' '}
@@ -1807,6 +1820,7 @@ function EpisodeDetail() {
                           {segment.validation.flags.join(', ')}
                         </p>
                       )}
+                      <PartialCutHint segment={segment} />
                       {segment.reason && (
                         <ExpandableText
                           label="match"

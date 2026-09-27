@@ -40,6 +40,7 @@ from utils.constants import (
 )
 from utils.community_tags import UNIVERSAL_TAG
 from utils.language import get_pattern_language
+from utils.pattern_catalog import scoped_catalog
 from utils.pattern_similarity import similarity, canonicalize_for_dedupe
 from utils.time import utc_now_iso
 
@@ -623,7 +624,8 @@ class TextPatternMatcher:
             return []
         if self.db:
             try:
-                patterns = self.db.get_ad_patterns(active_only=True)
+                patterns = scoped_catalog(
+                    id(self.db), lambda: self.db.get_ad_patterns(active_only=True))
             except Exception as e:
                 logger.warning(f"Pattern catalog refresh failed; skipping text matches: {e}")
                 return []

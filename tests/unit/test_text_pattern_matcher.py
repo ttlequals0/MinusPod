@@ -14,6 +14,7 @@ from text_pattern_matcher import (
     TextPatternMatcher, AdPattern, TextMatch, MAX_MATCH_DURATION,
     MIN_TEXT_LENGTH, FUZZY_DISCRIMINATIVE_LENGTH, required_fuzzy_score,
 )
+from utils.pattern_catalog import pattern_catalog_scope
 from ad_detector import _unpack_region, get_uncovered_portions, AdDetector
 from config import (
     DEFAULT_AD_DURATION_ESTIMATE, TFIDF_MATCH_THRESHOLD, FUZZY_MATCH_THRESHOLD,
@@ -924,3 +925,28 @@ def test_catalog_refresh_waits_for_inflight_matching(temp_db, monkeypatch):
     assert first_results
     assert second_done.is_set()
     assert second_results == []
+
+
+def test_catalog_scope_reads_active_patterns_once_until_a_pattern_write(temp_db, monkeypatch):
+    transcript = ('This episode is sponsored by Acme. '
+                  'Visit acme.com and use code PODCAST for a free trial.')
+    pattern_id = temp_db.create_ad_pattern(
+        scope='global', text_template=transcript,
+        intro_variants=[transcript], duration=30.0)
+    matcher = TextPatternMatcher(db=temp_db)
+    segments = [{'start': 0.0, 'end': 30.0, 'text': transcript}]
+    assert matcher.is_available()
+    reads = []
+    original_get = temp_db.get_ad_patterns
+    monkeypatch.setattr(temp_db, 'get_ad_patterns',
+                        lambda *a, **k: reads.append(1) or original_get(*a, **k))
+
+    with pattern_catalog_scope():
+        assert matcher.find_matches(segments)
+        assert matcher.find_matches(segments)
+        assert len(reads) == 1
+        temp_db.update_ad_pattern(pattern_id, scope='global')
+        assert matcher.find_matches(segments)
+        assert len(reads) == 2
+    matcher.find_matches(segments)
+    assert len(reads) == 3

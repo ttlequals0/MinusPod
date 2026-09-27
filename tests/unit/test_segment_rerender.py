@@ -50,11 +50,13 @@ def _marker(start, end, category, action_applied, was_cut, **overrides):
 def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
                confirmed_corrections=(), render_calls=None):
     """Drive _recut_episode with _build_recut_ad_list mocked to return the
-    given (ads_to_remove, all_ads), i.e. what the validator/confidence gate
-    would have produced on this run, before re-resolution against the
-    current action map. Audio processor is mocked out (no ffmpeg). Returns
+    given (ads_to_remove, all_ads) after the builder's keep partition against
+    the current action map. Audio processor is mocked out (no ffmpeg). Returns
     the audio segments actually cut and the markers persisted to storage.
     """
+    keep_ads, _rest = processing._partition_keep_ads(all_ads, segment_actions)
+    keep_ids = {id(ad) for ad in keep_ads}
+    ads_to_remove = [ad for ad in ads_to_remove if id(ad) not in keep_ids]
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
         db = p(processing, 'db')
@@ -63,7 +65,7 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
         p(processing, '_copy_retained_original_to_temp',
           return_value='/tmp/segrerender-work.mp3')
         p(processing, '_build_recut_ad_list',
-          return_value=(ads_to_remove, all_ads))
+          return_value=(ads_to_remove, all_ads, keep_ads))
         p(processing, '_generate_assets')
         p(processing, '_finalize_episode')
         local_ap_cls = p(processing, 'AudioProcessor')

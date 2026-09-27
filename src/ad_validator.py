@@ -446,6 +446,7 @@ class AdValidator:
         return False
 
     def _bounded_text_segments(self, ad: dict) -> list[str]:
+        # Deliberately narrow: a boundary segment counts only by its words inside the ad.
         relevant = []
         for seg in self.segments:
             if seg.get('start', 0) >= ad['end'] or seg.get('end', 0) <= ad['start']:

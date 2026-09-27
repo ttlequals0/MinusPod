@@ -15,6 +15,7 @@ import userEvent from '@testing-library/user-event';
 import EpisodeDetail, { KeyedEpisodeDetail } from './EpisodeDetail';
 import EpisodeList from '../components/EpisodeList';
 import type { Episode, EpisodeDetail as EpisodeDetailType } from '../api/types';
+import { formatTimestamp } from '../utils/format';
 
 // react-router stubs. Mutable so a test can move the view to another episode.
 const routeParams = vi.hoisted(() => ({ slug: 'test-feed', episodeId: 'ep-1' }));
@@ -1314,6 +1315,31 @@ describe('Segment category chips (#565)', () => {
     expect(await screen.findByText('Detections Not Cut (1)')).not.toBeNull();
     expect(screen.getByText('Interaction')).not.toBeNull();
     expect(screen.getByText('Kept')).not.toBeNull();
+  });
+
+  it('lists the partly cut spans of an uncut marker', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [{ ...heldMarker, partial_cut_spans: [{ start: 70, end: 80 }] }],
+      rejectedAdMarkers: [{
+        start: 60, end: 120, confidence: 0.9, category: 'sponsor',
+        partial_cut_spans: [{ start: 60, end: 90 }, { start: 100, end: 110 }],
+      }],
+    }));
+    expect(await screen.findByText('Detections Not Cut (1)')).not.toBeNull();
+    const hints = screen.getAllByText(/^Partly cut:/).map((el) => el.textContent);
+    expect(hints).toEqual([
+      `Partly cut: ${formatTimestamp(70)} - ${formatTimestamp(80)}`,
+      `Partly cut: ${formatTimestamp(60)} - ${formatTimestamp(90)}, ${formatTimestamp(100)} - ${formatTimestamp(110)}`,
+    ]);
+  });
+
+  it('shows no partly cut hint on a marker without partial spans', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      rejectedAdMarkers: [{ start: 5, end: 20, confidence: 0.4, category: 'sponsor' }],
+    }));
+    expect(await screen.findByText('Detections Not Cut (1)')).not.toBeNull();
+    expect(screen.queryByText(/^Partly cut:/)).toBeNull();
   });
 });
 

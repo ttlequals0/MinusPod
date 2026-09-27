@@ -40,6 +40,7 @@ def test_hard_orig_and_hard_proc_cover_the_same_audio_under_shifted_cuts():
     assert _spans(protection.hard_proc) == [
         (100.0, 110.0), (170.0, 210.0), (470.0, 480.0)]
     assert protection.holds_orig == [hold]
+    assert _spans(protection.render_hard) == [(200.0, 220.0), (215.0, 240.0), (120.0, 140.0)]
     assert (300.0, 310.0) not in _spans(protection.hard_orig)
     assert (270.0, 280.0) not in _spans(protection.hard_proc)
 
@@ -114,11 +115,9 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
             segment_actions=ACTIONS,
         )
 
-    # The first build carves findings before the category partition runs.
     assert len(built) >= 3
-    for protection in built[1:]:
-        assert (300.0, 320.0) in _spans(protection.hard_orig)
     for protection in built:
+        assert (300.0, 320.0) in _spans(protection.hard_orig)
         assert (300.0, 320.0) not in _spans(protection.holds_orig)
         assert (400.0, 420.0) not in _spans(protection.hard_orig)
     reviewer_barriers = reviewer.call_args.kwargs['protected_original_ranges']

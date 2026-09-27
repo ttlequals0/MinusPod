@@ -67,6 +67,14 @@ HOLD_REASON_VERIFICATION_KEPT_CONFLICT = 'verification_kept_conflict'
 HOLD_REASON_CUE_TEMPLATE_UNPROVEN = 'cue_template_unproven'
 HOLD_REASON_CUE_LOW_CONFIDENCE = 'cue_low_confidence'
 HOLD_REASON_LARGE_VAD_GAP = 'large_vad_gap_extension'
+# Holds only the reviewer stamps; recut validation cannot re-derive them.
+REVIEWER_HOLD_REASONS = frozenset({
+    HOLD_REASON_REVIEWER_CONTRADICTION,
+    HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
+    HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
+    HOLD_REASON_REVIEWER_FAILED,
+    HOLD_REASON_REVIEWER_REJECT_CONFLICT,
+})
 
 # Segment categories (issue #565): what kind of content a marker spans. A
 # marker may carry none: unset means no stage classified it, and only action
@@ -502,7 +510,7 @@ DEFER_SERVICE_WHISPER = 'whisper'
 TFIDF_MATCH_THRESHOLD = 0.70         # TF-IDF similarity for content matching
 FUZZY_MATCH_THRESHOLD = 0.75         # Fuzzy string match threshold
 FINGERPRINT_MATCH_THRESHOLD = 0.65   # Audio fingerprint similarity threshold
-# Audio a fingerprint match correlates from its start position (seconds).
+# Seconds of audio a fingerprint match correlates, measured from its start.
 FINGERPRINT_CHUNK_SIZE = 10.0
 
 # ============================================================

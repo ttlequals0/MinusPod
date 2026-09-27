@@ -22,6 +22,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_chapters import AdChapterConfig
+from config import PASS2_REVIEWED_RELEASE_HOLD_REASONS
 from main_app import processing
 
 
@@ -437,7 +438,7 @@ def test_build_recut_ad_list_drops_rejected(monkeypatch):
         {'start': 30.0, 'end': 90.0, 'text': 'sponsor a'},
         {'start': 300.0, 'end': 360.0, 'text': 'sponsor b'},
     ]
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', segments, 600.0, '', 0.80
     )
     starts = {a['start'] for a in ads_to_remove}
@@ -459,7 +460,7 @@ def test_build_recut_ad_list_keeps_confirmed(monkeypatch):
         processing.db, 'get_confirmed_corrections',
         lambda podcast_id, eid: [{'start': 30.0, 'end': 90.0}])
     segments = [{'start': 30.0, 'end': 90.0, 'text': 'maybe an ad'}]
-    ads_to_remove, _ = processing._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80)
+    ads_to_remove, _, _ = processing._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80)
     assert {a['start'] for a in ads_to_remove} == {30.0}
 
 
@@ -476,13 +477,13 @@ def test_build_recut_ad_list_keeps_manual_add(monkeypatch):
     monkeypatch.setattr(
         processing.db, 'get_confirmed_corrections', lambda podcast_id, eid: [])
     segments = [{'start': 120.0, 'end': 180.0, 'text': 'manual'}]
-    ads_to_remove, _ = processing._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80)
+    ads_to_remove, _, _ = processing._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80)
     assert {a['start'] for a in ads_to_remove} == {120.0}
 
 
 def test_build_recut_ad_list_empty_when_no_markers(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_episode', lambda s, e: {'ad_markers_json': None})
-    assert processing._build_recut_ad_list('slug', 'ep', [], 600.0, '', 0.80) == ([], [])
+    assert processing._build_recut_ad_list('slug', 'ep', [], 600.0, '', 0.80) == ([], [], [])
 
 
 def _stub_assets_io(monkeypatch, counters):
@@ -523,7 +524,7 @@ def test_build_recut_held_confirm_is_cut(monkeypatch):
     _stub_recut_db(monkeypatch, ads,
                    confirmed=[{'start': 100.0, 'end': 400.0}],
                    overrides={'max_ad_duration_override': 240.0})
-    ads_to_remove, _ = processing._build_recut_ad_list(
+    ads_to_remove, _, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
     assert {a['start'] for a in ads_to_remove} == {100.0}, (
@@ -539,7 +540,7 @@ def test_build_recut_held_fp_is_uncut_reject(monkeypatch):
     _stub_recut_db(monkeypatch, ads,
                    fp=[{'start': 100.0, 'end': 400.0}],
                    overrides={'max_ad_duration_override': 240.0})
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
     assert ads_to_remove == [], "FP-corrected held ad must not be cut"
@@ -572,7 +573,7 @@ def test_build_recut_respects_splice_veto_disabled(monkeypatch):
     except AttributeError:
         pass
     segments = [{'start': 1800.0, 'end': 1890.0, 'text': 'vacation rental'}]
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', segments, 3600.0, '', 0.80
     )
     assert len(ads_to_remove) == 1, (
@@ -587,7 +588,7 @@ def test_build_recut_held_nothing_stays_held_uncut(monkeypatch):
             'reason': 'BetterHelp sponsor'}]
     _stub_recut_db(monkeypatch, ads,
                    overrides={'max_ad_duration_override': 240.0})
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
     assert ads_to_remove == [], "Held ad with no correction must not be cut"
@@ -602,7 +603,7 @@ def test_build_recut_manual_on_cue_gated_feed_is_cut(monkeypatch):
             'reason': 'Manual Co: manually added ad'}]
     _stub_recut_db(monkeypatch, ads,
                    overrides={'cue_gated_approval': 1})
-    ads_to_remove, _ = processing._build_recut_ad_list(
+    ads_to_remove, _, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
     assert {a['start'] for a in ads_to_remove} == {120.0}, (
@@ -640,7 +641,7 @@ def test_build_recut_previously_cut_stays_cut_when_cue_gate_enabled(monkeypatch)
     ads = [{'start': 100.0, 'end': 160.0, 'confidence': 0.95,
             'reason': 'promotional read', 'was_cut': True}]
     _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
     assert {a['start'] for a in ads_to_remove} == {100.0}, (
@@ -658,7 +659,7 @@ def test_build_recut_previously_cut_stays_cut_after_boundary_clamp(monkeypatch):
     ads = [{'start': 3540.0, 'end': 3603.0, 'confidence': 0.95,
             'reason': 'promotional read', 'was_cut': True}]
     _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
     assert ads_to_remove, "Previously-cut ad must still be cut after clamp"
@@ -675,7 +676,7 @@ def test_build_recut_preserves_trusted_short_cut(monkeypatch):
     }]
     _stub_recut_db(monkeypatch, ads)
 
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
 
@@ -692,7 +693,7 @@ def test_build_recut_trusted_short_cut_still_honors_fp(monkeypatch):
     }]
     _stub_recut_db(monkeypatch, ads, fp=[{'start': 100.0, 'end': 106.0}])
 
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
 
@@ -711,7 +712,7 @@ def test_build_recut_no_merge_across_saved_cut_status_keeps_both_outcomes(monkey
          'reason': 'promo two', 'was_cut': True},  # previously cut
     ]
     _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
     assert {a['start'] for a in ads_to_remove} == {162.0}, (
@@ -731,7 +732,7 @@ def test_build_recut_previously_cut_review_not_held_by_cue_gate(monkeypatch):
     ads = [{'start': 500.0, 'end': 560.0, 'confidence': 0.60,
             'reason': 'possible sponsor mention', 'was_cut': True}]
     _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
     assert not all_ads[0].get('held_for_review'), (
@@ -746,7 +747,7 @@ def test_build_recut_previously_held_still_re_held(monkeypatch):
             'held_for_review': True, 'hold_reason': 'max_duration'}]
     _stub_recut_db(monkeypatch, ads,
                    overrides={'max_ad_duration_override': 240.0})
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
     assert ads_to_remove == []
@@ -944,8 +945,8 @@ def test_generate_assets_skips_embed_without_audio_path(monkeypatch):
     assert embedded == {}
 
 
-R1 = (295.88, 321.74)
-R2 = (694.02, 706.30)
+R1 = (296.0, 322.0)
+R2 = (694.0, 706.0)
 
 
 def _reject(span, was_cut=False):
@@ -1002,7 +1003,7 @@ def test_recut_preserves_reviewer_rejects_among_confirmed_adjusted_and_held(monk
     _stub_recut_db(monkeypatch, ads, confirmed=confirmed)
     _stub_adjustment(monkeypatch, (395.0, 465.0), (400.0, 460.0))
 
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
 
     assert _spans(ads_to_remove) == {(100.0, 160.0), (400.0, 460.0), (1000.0, 1100.0)}
@@ -1017,7 +1018,7 @@ def test_recut_preserves_reviewer_rejects_among_confirmed_adjusted_and_held(monk
 def test_recut_repairs_reject_saved_as_cut(monkeypatch):
     _stub_recut_db(monkeypatch, [_reject(R1, was_cut=True)])
 
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
 
     assert ads_to_remove == []
@@ -1028,7 +1029,7 @@ def test_recut_repairs_reject_saved_as_cut(monkeypatch):
 def test_recut_auto_filed_confirm_does_not_cut_reject(monkeypatch):
     _stub_recut_db(monkeypatch, [_reject(R1)], confirmed=[_auto_confirm(*R1)])
 
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
 
     assert ads_to_remove == []
@@ -1042,7 +1043,7 @@ def test_recut_user_confirm_overrides_reject(monkeypatch):
     _stub_recut_db(monkeypatch, [stale],
                    confirmed=[{'start': R1[0], 'end': R1[1], 'correction_type': 'confirm'}])
 
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
 
     assert _spans(ads_to_remove) == {R1}
@@ -1058,7 +1059,7 @@ def test_recut_boundary_adjustment_overrides_reject(monkeypatch):
                                'confirmed_span': {'start': corrected[0], 'end': corrected[1]}}])
     _stub_adjustment(monkeypatch, R1, corrected)
 
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
 
     assert _spans(ads_to_remove) == {corrected}
@@ -1070,11 +1071,11 @@ def test_recut_reject_preservation_is_idempotent(monkeypatch):
            _corroborated_hold(1000.0, 1100.0)]
     confirmed = [_auto_confirm(1000.0, 1100.0)]
     _stub_recut_db(monkeypatch, ads, confirmed=confirmed)
-    first_cut, first_all = processing._build_recut_ad_list(
+    first_cut, first_all, _ = processing._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
 
     _stub_recut_db(monkeypatch, json.loads(json.dumps(first_all)), confirmed=confirmed)
-    second_cut, second_all = processing._build_recut_ad_list(
+    second_cut, second_all, _ = processing._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
 
     assert _spans(first_cut) == _spans(second_cut) == {(100.0, 160.0), (1000.0, 1100.0)}
@@ -1089,7 +1090,7 @@ def test_recut_reject_preservation_is_idempotent(monkeypatch):
 def test_recut_reject_never_merges_into_adjacent_cut(monkeypatch, neighbor, saved_cut):
     _stub_recut_db(monkeypatch, [neighbor, _reject(R1, was_cut=saved_cut)])
 
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
 
     assert _spans(ads_to_remove) == {(270.0, 295.5)}
@@ -1177,7 +1178,7 @@ def test_build_recut_ad_list_keeps_kept_markers_out_of_validation(monkeypatch):
     monkeypatch.setattr(processing, '_build_validator', spy_build)
     segments = [{'start': 100.0, 'end': 190.0, 'text': 'promo then sponsor read'}]
 
-    ads_to_remove, all_ads = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
         'slug', 'ep', segments, 600.0, '', 0.80,
         segment_actions={'self_promo': 'keep', 'sponsor': 'remove'})
 
@@ -1201,7 +1202,7 @@ def test_pass1_carve_saves_trusted_fragments_that_a_recut_keeps_cut(monkeypatch)
     assert all(a.get('_measured_split_fragment') for a in fragments)
 
     _stub_recut_db(monkeypatch, json.loads(json.dumps(all_ads)))
-    ads_to_remove, _ = processing._build_recut_ad_list(
+    ads_to_remove, _, _ = processing._build_recut_ad_list(
         'slug', 'ep', [{'start': 0.0, 'end': 60.0, 'text': 'Acme promo code'}], 600.0,
         '', 0.80, segment_actions={'self_promo': 'keep', 'sponsor': 'remove'})
 
@@ -1271,3 +1272,155 @@ def test_manual_approve_reject_and_adjust_recut_twice_is_identical(tmp_path):
                for m in first['markers']}
     assert was_cut == {(10.0, 20.0): True, (30.0, 38.0): True, (40.0, 46.0): False,
                        (49.0, 57.0): True}
+
+
+REVIEWER_REASONS = ('reviewer_reject_conflict', 'reviewer_boundary_conflict',
+                    'reviewer_inconclusive_bounds', 'reviewer_failed',
+                    'reviewer_contradiction')
+HELD = (300.0, 330.0)
+
+
+def _reviewer_hold(reason, span=HELD):
+    return {'start': span[0], 'end': span[1], 'confidence': 0.95,
+            'reason': 'Acme promo', 'detection_stage': 'claude', 'was_cut': False,
+            'held_for_review': True, 'hold_reason': reason}
+
+
+def _assert_still_held(marker, reason):
+    assert marker['held_for_review'] is True
+    assert marker['hold_reason'] == reason
+    assert marker['was_cut'] is False
+    assert marker['validation']['decision'] == 'REVIEW'
+    assert not any(k.startswith('_') for k in marker)
+
+
+@pytest.mark.parametrize('reason', REVIEWER_REASONS)
+def test_unrelated_auto_confirm_recut_leaves_reviewer_hold_held(monkeypatch, reason):
+    ads = [_reviewer_hold(reason), _corroborated_hold(1000.0, 1100.0)]
+    confirmed = [dict(_auto_confirm(1000.0, 1100.0),
+                      hold_reason='differential_uncorroborated')]
+    _stub_recut_db(monkeypatch, ads, confirmed=confirmed)
+
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
+        'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
+
+    assert _spans(ads_to_remove) == {(1000.0, 1100.0)}
+    _assert_still_held(_find(all_ads, HELD), reason)
+
+
+@pytest.mark.parametrize('reason', REVIEWER_REASONS)
+def test_user_confirm_releases_reviewer_hold(monkeypatch, reason):
+    _stub_recut_db(monkeypatch, [_reviewer_hold(reason)],
+                   confirmed=[{'start': HELD[0], 'end': HELD[1], 'correction_type': 'confirm'}])
+
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
+        'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
+
+    assert _spans(ads_to_remove) == {HELD}
+    assert not all_ads[0].get('held_for_review')
+
+
+@pytest.mark.parametrize('reason', REVIEWER_REASONS)
+def test_matching_auto_confirm_releases_only_a_releasable_reviewer_hold(monkeypatch, reason):
+    _stub_recut_db(monkeypatch, [_reviewer_hold(reason)],
+                   confirmed=[dict(_auto_confirm(*HELD), hold_reason=reason)])
+
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
+        'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
+
+    if reason in PASS2_REVIEWED_RELEASE_HOLD_REASONS:
+        assert _spans(ads_to_remove) == {HELD}
+    else:
+        assert ads_to_remove == []
+        _assert_still_held(all_ads[0], reason)
+
+
+def test_auto_confirm_filed_for_another_reason_does_not_release_hold(monkeypatch):
+    reason = 'reviewer_inconclusive_bounds'
+    _stub_recut_db(monkeypatch, [_reviewer_hold(reason)],
+                   confirmed=[dict(_auto_confirm(*HELD), hold_reason='no_splice_evidence')])
+
+    ads_to_remove, all_ads, _ = processing._build_recut_ad_list(
+        'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
+
+    assert ads_to_remove == []
+    _assert_still_held(all_ads[0], reason)
+
+
+def test_reviewer_hold_recut_is_idempotent(monkeypatch):
+    ads = [_reviewer_hold(r, (300.0 + 100 * i, 330.0 + 100 * i))
+           for i, r in enumerate(REVIEWER_REASONS)]
+    ads.append(_corroborated_hold(1000.0, 1100.0))
+    confirmed = [dict(_auto_confirm(1000.0, 1100.0),
+                      hold_reason='differential_uncorroborated')]
+    _stub_recut_db(monkeypatch, ads, confirmed=confirmed)
+    first_cut, first_all, _ = processing._build_recut_ad_list(
+        'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
+
+    _stub_recut_db(monkeypatch, json.loads(json.dumps(first_all)), confirmed=confirmed)
+    second_cut, second_all, _ = processing._build_recut_ad_list(
+        'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
+
+    assert _spans(first_cut) == _spans(second_cut) == {(1000.0, 1100.0)}
+    held = [(a['start'], a['end'], a.get('hold_reason'), a['was_cut']) for a in first_all]
+    assert held == [(a['start'], a['end'], a.get('hold_reason'), a['was_cut'])
+                    for a in second_all]
+    assert sum(1 for a in second_all if a.get('held_for_review')) == len(REVIEWER_REASONS)
+
+
+@pytest.mark.skipif(shutil.which('ffmpeg') is None or shutil.which('ffprobe') is None,
+                    reason='ffmpeg/ffprobe not available')
+def test_approval_fold_recut_keeps_reviewer_reject_conflict_hold(tmp_path):
+    src = tmp_path / 'retained.mp3'
+    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=60',
+                    '-acodec', 'libmp3lame', '-ab', '64k', str(src)],
+                   check=True, capture_output=True)
+    held = (20.0, 30.0)
+    ads = [_cut(5.0, 15.0), _reviewer_hold('reviewer_reject_conflict', held),
+           _corroborated_hold(30.5, 40.0)]
+    saved = {}
+    with ExitStack() as stack:
+        p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+        db = p(processing, 'db')
+        storage = p(processing, 'storage')
+        p(processing, 'status_service')
+        p(processing, '_finalize_episode')
+        p(processing, 'get_min_cut_confidence', return_value=0.80)
+        p(processing, 'embed_chapters', return_value=True)
+        p(processing, 'get_replacement_duration', return_value=1.0)
+        p(processing, 'resolve_ad_chapter_config', return_value=AdChapterConfig.disabled())
+        db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
+                                       'ad_markers_json': json.dumps(ads)}
+        db.get_podcast_by_slug.return_value = {'id': 1}
+        db.get_original_segments.return_value = [
+            {'start': float(t), 'end': float(t + 5), 'text': 'Acme promo code'}
+            for t in range(0, 60, 5)]
+        db.get_all_settings.return_value = {}
+        db.get_setting.return_value = None
+        db.get_episode_corrections.return_value = []
+        db.get_false_positive_corrections.return_value = []
+        db.get_confirmed_corrections.return_value = [
+            dict(_auto_confirm(30.5, 40.0), hold_reason='differential_uncorroborated')]
+        db.get_setting_float.side_effect = lambda k, default=None: default
+        db.get_setting_bool.side_effect = lambda k, default=False: default
+        db.get_podcast_cue_settings_overrides.return_value = {}
+        db.get_episode_audio_analysis.return_value = None
+        db.get_episode_dai_differential.return_value = None
+        db.resolve_segment_actions.return_value = {}
+        storage.get_original_path.return_value = src
+        storage.get_applied_cuts.return_value = []
+        storage.get_chapters_json.return_value = {
+            'version': '1.2.0', 'chapters': [{'startTime': 0, 'title': 'Intro'}]}
+        storage.get_episode_path.return_value = str(tmp_path / 'final.mp3')
+        storage.save_combined_ads.side_effect = (
+            lambda s, e, markers: saved.__setitem__('markers', json.loads(json.dumps(markers))))
+        storage.save_chapters_and_applied_cuts.side_effect = (
+            lambda s, e, chapters, cuts: saved.__setitem__('cuts', cuts))
+
+        assert processing._recut_episode(
+            'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time(),
+            owns_failure=False)
+
+    _assert_still_held(_find(saved['markers'], held), 'reviewer_reject_conflict')
+    assert not any(c['start'] < held[1] and c['end'] > held[0] for c in saved['cuts'])
+    assert any(c['start'] <= 31.0 and c['end'] >= 39.5 for c in saved['cuts'])

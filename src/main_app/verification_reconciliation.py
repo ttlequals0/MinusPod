@@ -191,11 +191,10 @@ def _hold_release_span(hold, orig_ad, min_cut_confidence, other_holds,
     return lo, hi
 
 
-def _pass2_keep_barriers_processed(pass1_kept_markers, pass1_cuts,
-                                    category_kept_processed=None):
+def _pass2_keep_barriers_processed(pass1_kept_markers, pass1_cuts):
     """Collect every keep marker on the pass-1 processed timeline."""
     replacement_duration = get_replacement_duration()
-    pass1_processed = [
+    return [
         dict(
             marker,
             start=adjust_timestamp(
@@ -205,7 +204,6 @@ def _pass2_keep_barriers_processed(pass1_kept_markers, pass1_cuts,
         )
         for marker in pass1_kept_markers or []
     ]
-    return [*pass1_processed, *(category_kept_processed or [])]
 
 
 def _matches_false_positive_correction(orig_ad, false_positive_corrections):
@@ -273,8 +271,7 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
 
 def _exclude_kept_spans_from_verification(verification_ads_processed,
                                            verification_ads_original,
-                                           pass1_kept_markers, pass1_cuts,
-                                           false_positive_corrections=None):
+                                           pass1_kept_markers, pass1_cuts):
     """Drop or split pass-2 findings over kept spans; returns (processed, original, conflicts)."""
     if not pass1_kept_markers:
         return verification_ads_processed, verification_ads_original, []
@@ -291,16 +288,6 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
             surviving_processed.append(ad)
             surviving_original.append(orig_ad)
             continue
-        # This runs before validation, so screen against the user's
-        # false-positive rejections here too.
-        if _matches_false_positive_correction(
-                orig_ad, false_positive_corrections):
-            audio_logger.info(
-                f"Pass-2 finding {orig_ad['start']:.1f}s-"
-                f"{orig_ad['end']:.1f}s overlaps a kept span but matches "
-                f"a user false-positive rejection; dropping it"
-            )
-            continue
         span = ad['end'] - ad['start']
         inside = min(1.0, covered / span) if span > 0 else 0.0
         if inside >= KEPT_SPAN_CONTAINMENT_MIN:
@@ -312,14 +299,15 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
             continue
         fragments = list(zip(*_split_pass2_candidates_around_spans(
             [ad], [orig_ad], keep_barriers, pass1_cuts, 'kept audio'), strict=True))
-        if any(orig['end'] <= orig['start'] for _proc, orig in fragments):
-            # A fragment inside a replacement beep has no original audio to cut.
-            orig_ad['held_for_review'] = True
-            orig_ad['was_cut'] = False
-            orig_ad['hold_reason'] = HOLD_REASON_VERIFICATION_KEPT_CONFLICT
-            conflicts.append(orig_ad)
-            continue
         for proc, orig in fragments:
+            if orig['end'] <= orig['start']:
+                # A fragment inside a replacement beep has no original audio to cut.
+                orig['start'], orig['end'] = orig['end'], orig['start']
+                orig['held_for_review'] = True
+                orig['was_cut'] = False
+                orig['hold_reason'] = HOLD_REASON_VERIFICATION_KEPT_CONFLICT
+                conflicts.append(orig)
+                continue
             if (proc['end'] - proc['start'] < MIN_AD_DURATION
                     and not proc.get('_measured_split_fragment')):
                 audio_logger.info(

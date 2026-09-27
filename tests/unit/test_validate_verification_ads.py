@@ -1270,3 +1270,16 @@ def test_auto_approve_trimmed_span_clear_of_reviewer_reject_files(monkeypatch):
     assert n == 1
     assert db.create_pattern_correction.call_args.kwargs['corrected_bounds'] == {
         'start': 4875.8, 'end': 4990.0}
+
+
+def test_auto_approve_span_touching_a_reviewer_reject_files(monkeypatch):
+    db = _approval_db(monkeypatch)
+    hold = _diff_hold(4875.8, 5025.8)
+    hold['pass2_corroborated'] = True
+    hold['pass2_corroborated_span'] = {'start': 4875.8, 'end': 5000.0}
+
+    n = processing_mod._file_corroborated_hold_approvals(
+        's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)])
+
+    assert n == 1
+    db.create_pattern_correction.assert_called_once()

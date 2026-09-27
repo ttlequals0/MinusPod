@@ -261,6 +261,7 @@ def export(data_dir, start: datetime, end: datetime) -> dict:
                 'coverage': {'firstEvent': None, 'lastEvent': None, 'version': _SAFE_VERSION}}
     paths.sort(reverse=True)
     truncated = False
+    exhausted = False
     for _, path in paths:
         try:
             with path.open(encoding='utf-8') as stream:
@@ -269,9 +270,19 @@ def export(data_dir, start: datetime, end: datetime) -> dict:
                     if not line:
                         break
                     bytes_read += len(line)
-                    if bytes_read > MAX_EXPORT_BYTES or len(line) > 1024:
-                        truncated = True
+                    oversized = len(line) > 1024
+                    # An oversized line is skipped, not fatal: drain it and keep scanning.
+                    while oversized and not line.endswith('\n') and bytes_read <= MAX_EXPORT_BYTES:
+                        line = stream.readline(1025)
+                        if not line:
+                            break
+                        bytes_read += len(line)
+                    if bytes_read > MAX_EXPORT_BYTES:
+                        truncated = exhausted = True
                         break
+                    if oversized:
+                        truncated = True
+                        continue
                     try:
                         event = _canonical_event(json.loads(line))
                         if event is None:
@@ -283,7 +294,7 @@ def export(data_dir, start: datetime, end: datetime) -> dict:
                         records.append(event)
         except (OSError, UnicodeError):
             continue
-        if truncated:
+        if exhausted:
             break
     records.sort(key=lambda event: event['ts'])
     events = records[-MAX_EXPORT_RECORDS:]
