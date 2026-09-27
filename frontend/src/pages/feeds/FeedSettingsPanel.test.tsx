@@ -508,6 +508,25 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
       segmentCategoryActions: { sponsor: 'keep', self_promo: 'beep' },
     });
   });
+  it('keeps the toggle and trailing slot boxes identical with and without an override', async () => {
+    renderPanel(makeFeed({ segmentCategoryActions: { self_promo: 'remove' } }));
+    const overridden = await screen.findByRole('radiogroup', { name: 'Self-promo action' });
+    const inherited = screen.getByRole('radiogroup', { name: 'Sponsor action' });
+    await waitFor(() => expect(within(inherited.parentElement as HTMLElement).getByText('Inherit')).toBeDefined());
+    expect(overridden.className).toBe(inherited.className);
+    // Selection may change color only; every class that sizes the box must match.
+    const boxClasses = (el: Element) => el.className.split(/\s+/)
+      .filter((c) => /^(p[xy]?-|text-(xs|sm|base)$|font-|border|min-w-|w-|h-)/.test(c));
+    const radioClasses = (group: HTMLElement) => within(group).getAllByRole('radio').map(boxClasses);
+    expect(radioClasses(overridden)).toEqual(radioClasses(inherited));
+    // A fixed-width trailing slot keeps the toggle's right edge in one column.
+    const overriddenSlot = overridden.nextElementSibling as HTMLElement;
+    const inheritedSlot = inherited.nextElementSibling as HTMLElement;
+    expect(within(overriddenSlot).getByRole('button', { name: 'Clear' })).toBeDefined();
+    expect(overriddenSlot.className).toBe(inheritedSlot.className);
+    expect(overriddenSlot.className).toMatch(/\bw-16\b/);
+    expect(overriddenSlot.className).toMatch(/\bshrink-0\b/);
+  });
 });
 
 describe('FeedSettingsPanel show-segments tri-state control (#565)', () => {

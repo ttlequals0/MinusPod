@@ -1334,20 +1334,23 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                           ariaLabel={`${SEGMENT_CATEGORY_LABELS[category]} action`}
                           onChange={(action) => setSegmentActionOverride(category, action)}
                         />
-                        {override === undefined ? (
-                          <span className={`${badgeBase} font-medium ${tint.secondary}`}>
-                            Inherit
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => clearSegmentActionOverride(category)}
-                            disabled={updateMutation.isPending}
-                            className={`text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 ${focusRing}`}
-                          >
-                            Clear
-                          </button>
-                        )}
+                        {/* Fixed width fits the Inherit pill, so Clear never shifts the toggle. */}
+                        <div className="w-16 shrink-0 flex">
+                          {override === undefined ? (
+                            <span className={`${badgeBase} font-medium whitespace-nowrap ${tint.secondary}`}>
+                              Inherit
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => clearSegmentActionOverride(category)}
+                              disabled={updateMutation.isPending}
+                              className={`text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 ${focusRing}`}
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

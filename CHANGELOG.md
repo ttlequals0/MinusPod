@@ -14,6 +14,7 @@ release notes.
 ### Fixed
 
 - A recut no longer cuts audio the reviewer rejected. The recut revalidated a rejected span from scratch, accepted it and saved it as cut, and every later recut kept cutting it. Reviewer rejects now stay in the audio unless the user confirmed or adjusted that span. Pass-2 auto-approval no longer files a confirm over audio the reviewer rejected. Markers already saved in that state are repaired on the next recut.
+- Segment action controls stay aligned when a feed override is set.
 
 ## [2.97.29] - 2026-09-27
 
