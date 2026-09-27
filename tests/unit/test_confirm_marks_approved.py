@@ -426,5 +426,6 @@ def test_auto_filed_confirm_remainder_is_not_a_keep_range(temp_db, monkeypatch):
     podcast_id = temp_db.get_podcast_by_slug(slug)['id']
     corrections = temp_db.get_confirmed_corrections(podcast_id, eid)
     assert corrections[0]['auto_filed'] is True
+    assert corrections[0]['hold_reason'] == 'estimated_pattern_bounds'
     assert corrections[0]['confirmed_span'] == {'start': 2485.2, 'end': 2545.3}
     assert user_trimmed_keep_ranges(corrections) == []

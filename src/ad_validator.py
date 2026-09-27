@@ -758,10 +758,10 @@ class AdValidator:
             span = confirmed['confirmed_span']
             seen_start = min(confirmed['start'], span['start'])
             seen_end = max(confirmed['end'], span['end'])
-            if (confirmed.get('auto_filed') and is_pending_review(ad)
-                    and ad.get('hold_reason')):
+            reason = ad.get('hold_reason') or confirmed.get('hold_reason')
+            if confirmed.get('auto_filed') and reason:
                 residue_ads.extend(self._held_remainders(
-                    ad, span, seen_start, seen_end))
+                    ad, span, seen_start, seen_end, reason))
             for lo, hi in ((ad['start'], seen_start),
                            (seen_end, ad['end'])):
                 if hi - lo < MIN_AD_DURATION:
@@ -1495,8 +1495,8 @@ class AdValidator:
         return piece
 
     def _held_remainders(self, ad: dict, span: dict, seen_start: float,
-                         seen_end: float) -> list[dict]:
-        """A pending hold's audio an auto-filed confirm trimmed away, kept held."""
+                         seen_end: float, reason: str) -> list[dict]:
+        """The audio an auto-filed confirm trimmed off a hold, kept held."""
         pieces = []
         for lo, hi in ((max(ad['start'], seen_start), span['start']),
                        (span['end'], min(ad['end'], seen_end))):
@@ -1506,7 +1506,7 @@ class AdValidator:
             for key in _REMAINDER_DROPPED_KEYS:
                 piece.pop(key, None)
             piece['held_for_review'] = True
-            piece['hold_reason'] = ad['hold_reason']
+            piece['hold_reason'] = reason
             piece['pass2_hold_remainder'] = True
             piece['_skip_pattern_learning'] = True
             pieces.append(piece)

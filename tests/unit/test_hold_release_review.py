@@ -13,7 +13,9 @@ from ad_validator import AdValidator, Decision
 from audio_processor import get_replacement_duration
 from config import is_pending_review
 from main_app import processing
-from main_app.verification_reconciliation import _gate_verification_ads_by_confidence
+from main_app.verification_reconciliation import (
+    _gate_verification_ads_by_confidence, _inside_word_edge,
+)
 from utils.time import adjust_timestamp
 from verification_pass import _build_timestamp_map, _map_to_original
 
@@ -72,7 +74,7 @@ def _review(monkeypatch, candidates, verdicts, protection=None, enabled=True):
                         lambda: 'test-model', raising=False)
     monkeypatch.setattr(processing.ad_detector, 'get_verification_provider',
                         lambda: None, raising=False)
-    holds = [c[2] for c in candidates]
+    holds = [c[1] for c in candidates]
     protection = protection or processing.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[],
         holds=holds, pass1_cuts=[])
@@ -97,14 +99,13 @@ def test_supported_subspan_inside_hold_becomes_a_release_candidate():
     hold = _hold(1000.0, 1100.0)
     proc, orig = [_proc(1040.0, 1060.0)], [_orig(1040.0, 1060.0)]
 
-    cut, ui, held, n, candidates = _gate(proc, orig, [hold], pass1_cuts=[])
+    cut, ui, held, n, candidates = _gate(proc, orig, [hold])
 
     assert (cut, ui, held, n) == ([], [], [], 0)
     assert 'pass2_corroborated' not in hold
-    [(proc_sub, orig_sub, owner)] = candidates
+    [(orig_sub, owner)] = candidates
     assert owner is hold
     assert (orig_sub['start'], orig_sub['end']) == (1040.0, 1060.0)
-    assert (proc_sub['start'], proc_sub['end']) == (1040.0, 1060.0)
     assert orig_sub['held_for_review'] is True
     assert orig_sub['_hold_release_of'] == (1000.0, 1100.0)
     # The dropped finding itself can never be resurrected.
@@ -115,16 +116,15 @@ def test_candidate_is_clipped_to_the_hold_in_original_coordinates():
     cuts = [{'start': 100.0, 'end': 200.0}]
     beep = get_replacement_duration()
     hold = _hold(300.0, 400.0)
-    orig = _orig(380.0, 420.0)
     proc = _proc(adjust_timestamp(380.0, cuts, beep), adjust_timestamp(420.0, cuts, beep))
-
-    *_rest, candidates = _gate([proc], [orig], [hold], pass1_cuts=cuts)
-
-    [(proc_sub, orig_sub, _owner)] = candidates
-    assert (orig_sub['start'], orig_sub['end']) == (380.0, 400.0)
     ts_map = _build_timestamp_map(cuts)
-    assert _map_to_original(proc_sub['start'], ts_map, beep) == pytest.approx(380.0)
-    assert _map_to_original(proc_sub['end'], ts_map, beep) == pytest.approx(400.0)
+    orig = _orig(_map_to_original(proc['start'], ts_map, beep),
+                 _map_to_original(proc['end'], ts_map, beep))
+
+    *_rest, candidates = _gate([proc], [orig], [hold])
+
+    [(orig_sub, _owner)] = candidates
+    assert (orig_sub['start'], orig_sub['end']) == pytest.approx((380.0, 400.0))
 
 
 def test_fast_path_corroboration_still_stamps_without_a_candidate():
@@ -159,7 +159,7 @@ def test_subspan_stops_at_a_neighbouring_hold():
     other = _hold(1080.0, 1200.0, 'max_duration')
     *_rest, candidates = _gate([_proc(1040.0, 1100.0)], [_orig(1040.0, 1100.0)],
                                [hold, other])
-    [(_proc_sub, orig_sub, owner)] = candidates
+    [(orig_sub, owner)] = candidates
     assert owner is hold
     assert (orig_sub['start'], orig_sub['end']) == (1040.0, 1080.0)
 
@@ -172,8 +172,50 @@ def test_measured_members_narrow_the_subspan():
         {'start': 1040.0, 'end': 1070.0, 'stage': 'fingerprint',
          'fingerprint_match_start': 1045.0, 'fingerprint_match_end': 1065.0}]
     *_rest, candidates = _gate([_proc(1030.0, 1080.0)], [orig], [hold])
-    [(_proc_sub, orig_sub, _owner)] = candidates
+    [(orig_sub, _owner)] = candidates
     assert (orig_sub['start'], orig_sub['end']) == (1045.0, 1065.0)
+
+
+def test_members_with_an_unmeasured_gap_use_the_longest_run():
+    hold = _hold(1000.0, 1100.0, INCONCLUSIVE)
+    orig = _orig(1010.0, 1090.0)
+    orig['merged_protected_start'], orig['merged_protected_end'] = 1010.0, 1090.0
+    orig['merged_member_spans'] = [
+        {'start': 1010.0, 'end': 1020.0, 'stage': 'cue_pair'},
+        {'start': 1050.0, 'end': 1080.0, 'stage': 'cue_pair'}]
+    *_rest, candidates = _gate([_proc(1010.0, 1090.0)], [orig], [hold])
+    [(orig_sub, _owner)] = candidates
+    assert (orig_sub['start'], orig_sub['end']) == (1050.0, 1080.0)
+
+
+def test_later_fast_path_corroboration_prunes_the_candidate():
+    hold = _hold(1000.0, 1100.0)
+    proc = [_proc(1040.0, 1060.0), _proc(1001.0, 1099.0)]
+    orig = [_orig(1040.0, 1060.0), _orig(1001.0, 1099.0)]
+    *_rest, n, candidates = _gate(proc, orig, [hold])
+    assert n == 1 and candidates == []
+    assert hold['pass2_corroborated_span'] == {'start': 1001.0, 'end': 1099.0}
+
+
+def test_review_skips_a_hold_corroborated_after_gating(monkeypatch):
+    candidates = _candidate()
+    hold = candidates[0][1]
+    hold['pass2_corroborated'] = True
+    hold['pass2_corroborated_span'] = {'start': 1001.0, 'end': 1099.0}
+    released, _calls = _review(monkeypatch, candidates,
+                               [_verdict('confirmed', 1040.0, 1060.0)])
+    assert released == 0
+    assert hold['pass2_corroborated_span'] == {'start': 1001.0, 'end': 1099.0}
+    assert 'pass2_reviewed_release' not in hold
+
+
+def test_edges_move_inward_off_a_split_word():
+    segments = [{'start': 1000.0, 'end': 1100.0, 'words': [
+        {'start': 1039.5, 'end': 1040.5}, {'start': 1059.6, 'end': 1060.4}]}]
+    assert _inside_word_edge(segments, 1040.0, 'start') == 1040.5
+    assert _inside_word_edge(segments, 1060.0, 'end') == 1059.6
+    assert _inside_word_edge(segments, 1045.0, 'start') == 1045.0
+    assert _inside_word_edge(segments, 1040.5, 'start') == 1040.5
 
 
 def test_one_candidate_per_hold():
@@ -181,7 +223,7 @@ def test_one_candidate_per_hold():
     proc = [_proc(1010.0, 1030.0), _proc(1050.0, 1090.0)]
     orig = [_orig(1010.0, 1030.0), _orig(1050.0, 1090.0)]
     *_rest, candidates = _gate(proc, orig, [hold])
-    [(_proc_sub, orig_sub, _owner)] = candidates
+    [(orig_sub, _owner)] = candidates
     assert (orig_sub['start'], orig_sub['end']) == (1050.0, 1090.0)
 
 
@@ -225,7 +267,7 @@ def _candidate(hold_span=(1000.0, 1100.0), sub=(1040.0, 1060.0), reason=NO_SPLIC
 
 def test_confirmed_subspan_is_released_and_filed_trimmed(monkeypatch):
     candidates = _candidate()
-    hold = candidates[0][2]
+    hold = candidates[0][1]
 
     released, calls = _review(monkeypatch, candidates,
                               [_verdict('confirmed', 1040.0, 1060.0)])
@@ -253,7 +295,7 @@ def test_inconclusive_hold_reason_is_releasable(monkeypatch):
     assert released == 1
     db = _approval_db(monkeypatch)
     assert processing._file_corroborated_hold_approvals(
-        's', 'e', [candidates[0][2]]) == 1
+        's', 'e', [candidates[0][1]]) == 1
     assert db.create_pattern_correction.called
 
 
@@ -267,7 +309,7 @@ def test_inconclusive_hold_reason_is_releasable(monkeypatch):
 ])
 def test_unsuccessful_review_keeps_the_whole_hold(monkeypatch, verdict):
     candidates = _candidate()
-    hold = candidates[0][2]
+    hold = candidates[0][1]
     before = dict(hold)
 
     released, _calls = _review(monkeypatch, candidates, [verdict])
@@ -284,12 +326,12 @@ def test_adjust_inside_the_hold_releases_the_adjusted_span(monkeypatch):
     released, _calls = _review(monkeypatch, candidates, [
         _verdict('adjust', 1040.0, 1060.0, adjusted=(1036.0, 1064.0))])
     assert released == 1
-    assert candidates[0][2]['pass2_reviewed_release'] == {'start': 1036.0, 'end': 1064.0}
+    assert candidates[0][1]['pass2_reviewed_release'] == {'start': 1036.0, 'end': 1064.0}
 
 
 def test_adjust_into_another_hold_keeps_the_whole_hold(monkeypatch):
     candidates = _candidate()
-    hold = candidates[0][2]
+    hold = candidates[0][1]
     other = _hold(1062.0, 1070.0, 'max_duration')
     protection = processing.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[],
@@ -303,7 +345,7 @@ def test_adjust_into_another_hold_keeps_the_whole_hold(monkeypatch):
 
 def test_confirm_over_a_later_pass2_hold_keeps_the_whole_hold(monkeypatch):
     candidates = _candidate()
-    hold = candidates[0][2]
+    hold = candidates[0][1]
     pass2_hold = _hold(1050.0, 1055.0, 'verification_miss')
     protection = processing.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[],
@@ -320,12 +362,12 @@ def test_review_disabled_keeps_the_hold(monkeypatch):
     released, calls = _review(monkeypatch, candidates,
                               [_verdict('confirmed', 1040.0, 1060.0)], enabled=False)
     assert released == 0 and calls == []
-    assert 'pass2_reviewed_release' not in candidates[0][2]
+    assert 'pass2_reviewed_release' not in candidates[0][1]
 
 
 def test_release_over_a_reviewer_reject_is_not_filed(monkeypatch):
     candidates = _candidate()
-    hold = candidates[0][2]
+    hold = candidates[0][1]
     _review(monkeypatch, candidates, [_verdict('confirmed', 1040.0, 1060.0)])
     reject = {'start': 1050.0, 'end': 1058.0, 'was_cut': False,
               'source': 'reviewer', 'reviewer_verdict': 'reject'}
@@ -336,7 +378,7 @@ def test_release_over_a_reviewer_reject_is_not_filed(monkeypatch):
 
 def test_repeated_detection_files_one_confirm(monkeypatch):
     candidates = _candidate()
-    hold = candidates[0][2]
+    hold = candidates[0][1]
     _review(monkeypatch, candidates, [_verdict('confirmed', 1040.0, 1060.0)])
     filed = {'start': 1000.0, 'end': 1100.0, 'correction_type': 'confirm',
              'auto_filed': True, 'confirmed_span': {'start': 1040.0, 'end': 1060.0}}
@@ -430,6 +472,21 @@ def test_auto_filed_confirm_cuts_the_subspan_and_holds_the_remainders(reason):
     again = _recut_validate(saved, confirm)
     assert sorted((a['start'], a['end'], bool(a.get('held_for_review'))) for a in again) == [
         (1000.0, 1040.0, True), (1040.0, 1060.0, False), (1060.0, 1100.0, True)]
+
+
+def test_fresh_detection_matching_an_auto_confirm_keeps_remainders_held():
+    fresh = {'start': 1000.0, 'end': 1100.0, 'confidence': 0.95,
+             'reason': 'Acme sponsor read', 'detection_stage': 'claude'}
+    confirm = _auto_confirm((1000.0, 1100.0), (1040.0, 1060.0))
+    confirm['hold_reason'] = INCONCLUSIVE
+
+    ads = _recut_validate([fresh], confirm)
+
+    assert sorted((a['start'], a['end'], a['validation']['decision'],
+                   a.get('hold_reason')) for a in ads) == [
+        (1000.0, 1040.0, 'REVIEW', INCONCLUSIVE),
+        (1040.0, 1060.0, 'ACCEPT', None),
+        (1060.0, 1100.0, 'REVIEW', INCONCLUSIVE)]
 
 
 def test_user_trimmed_confirm_still_keeps_the_trimmed_audio_unheld():

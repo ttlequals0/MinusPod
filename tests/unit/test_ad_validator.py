@@ -64,6 +64,24 @@ def test_auto_filed_confirm_neither_protects_nor_releases_audio():
         {'start': 100.0, 'end': 110.0}]
 
 
+def test_auto_filed_confirm_holds_what_it_trims_off_a_fresh_detection():
+    auto = {'start': 3492.9, 'end': 3680.7, 'auto_filed': True,
+            'hold_reason': HOLD_REASON_ESTIMATED_PATTERN, 'correction_type': 'confirm',
+            'confirmed_span': {'start': 3544.2, 'end': 3573.2}}
+    detected = {'start': 3492.9, 'end': 3680.7, 'confidence': 0.95,
+                'reason': 'Acme sponsor read', 'detection_stage': 'claude'}
+
+    ads = AdValidator(episode_duration=4000.0,
+                      confirmed_corrections=[auto]).validate([detected]).ads
+
+    held = [(a['start'], a['end']) for a in ads if a.get('held_for_review')]
+    assert held == [(3492.9, 3544.2), (3573.2, 3680.7)]
+    assert all(a['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+               and a['pass2_hold_remainder'] for a in ads if a.get('held_for_review'))
+    assert [(a['start'], a['end']) for a in ads
+            if a['validation']['decision'] == Decision.ACCEPT.value] == [(3544.2, 3573.2)]
+
+
 def test_saved_trim_blocks_subsecond_render_merge():
     ranges = user_trimmed_keep_ranges([{
         'start': 100.0, 'end': 160.0,

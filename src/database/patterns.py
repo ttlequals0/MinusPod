@@ -1,10 +1,14 @@
 """Ad patterns and corrections mixin for MinusPod database."""
 import json
 import logging
+import re
 
 from config import PASS2_AUTOAPPROVE_SNIPPET_PREFIX, SEGMENT_CATEGORIES
 
 logger = logging.getLogger(__name__)
+
+# The hold reason inside the snippet _file_corroborated_hold_approvals writes.
+_AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
 
 def _parse_bounds(raw: str | None) -> dict | None:
@@ -731,9 +735,13 @@ class PatternMixin:
                 if confirmed_span:
                     bounds['confirmed_span'] = confirmed_span
                 bounds['correction_type'] = row['correction_type']
-                if (row['text_snippet'] or '').startswith(
-                        PASS2_AUTOAPPROVE_SNIPPET_PREFIX):
+                snippet = row['text_snippet'] or ''
+                if snippet.startswith(PASS2_AUTOAPPROVE_SNIPPET_PREFIX):
                     bounds['auto_filed'] = True
+                    reason = _AUTO_FILED_REASON_RE.match(
+                        snippet[len(PASS2_AUTOAPPROVE_SNIPPET_PREFIX):])
+                    if reason:
+                        bounds['hold_reason'] = reason.group(1)
                 results.append(bounds)
         return results
 

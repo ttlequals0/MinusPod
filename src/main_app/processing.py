@@ -2424,7 +2424,7 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         effective_category_actions=segment_actions,
         hard_barriers=protection.hard_orig)
     result = reviewer.review(
-        accepted_ads=[orig_sub for _proc, orig_sub, _hold in candidates],
+        accepted_ads=[orig_sub for orig_sub, _hold in candidates],
         resurrection_eligible=[],
         segments=original_segments or [],
         episode_meta=episode_meta,
@@ -2432,11 +2432,13 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         pass_model=ad_detector.get_verification_model(),
         pass_provider=ad_detector.get_verification_provider(),
     )
-    by_key = {(sub['start'], sub['end']): (sub, hold) for _proc, sub, hold in candidates}
+    by_key = {(sub['start'], sub['end']): (sub, hold) for sub, hold in candidates}
     released = 0
     for v in result.verdicts:
         sub, hold = by_key.get((v.original_start, v.original_end), (None, None))
-        if hold is None or hold.get('pass2_reviewed_release'):
+        # A fast-path corroboration already owns the hold's approved span.
+        if (hold is None or hold.get('pass2_reviewed_release')
+                or hold.get('pass2_corroborated')):
             continue
         span = _released_span(v, sub, hold, protection.barriers_orig(exclude=[hold]))
         if span is None:
@@ -3775,7 +3777,6 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     pass1_held_markers=pass1_held_markers,
                     verification_miss_hold_min_confidence=verification_miss_hold_min_confidence,
                     verification_miss_autocut_min_confidence=verification_miss_autocut_min_confidence,
-                    pass1_cuts=pass1_cuts,
                     hard_barriers_orig=current_protection().hard_orig,
                     segments=original_segments,
                     cue_gate_enabled=cue_gate_enabled,
