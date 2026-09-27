@@ -130,3 +130,53 @@ def test_pipeline_does_not_render_a_failed_review(monkeypatch):
     marker = next(m for m in saved if m.get('sponsor') == 'Acme')
     assert marker['hold_reason'] == HOLD_REASON_REVIEWER_FAILED
     assert marker['was_cut'] is False
+
+
+def _batch_failure_ads():
+    unsupported = {'start': 3544.2, 'end': 3573.2, 'confidence': 0.98,
+                   'detection_stage': 'claude', 'sponsor': 'Acme'}
+    supported = {'start': 3573.2, 'end': 3680.7, 'confidence': 0.98,
+                 'detection_stage': 'dai_differential',
+                 'dai_core_spans': [{'start': 3573.2, 'end': 3680.7}]}
+    confirmed = {'start': 3492.9, 'end': 3544.2, 'confidence': 0.98,
+                 'validation': {'user_confirmed': True}}
+    return unsupported, supported, confirmed
+
+
+def test_batch_failure_applies_per_ad_rule(monkeypatch, caplog):
+    reviewer = _reviewer()
+    monkeypatch.setattr(reviewer, '_review_inner',
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError('boom')))
+    unsupported, supported, confirmed = _batch_failure_ads()
+    with caplog.at_level(logging.INFO, logger='ad_reviewer'):
+        result = reviewer.review(
+            accepted_ads=[unsupported, supported, confirmed],
+            resurrection_eligible=[], segments=[], episode_meta=_meta(),
+            pass_num=1, pass_model='test-model')
+    assert result.accepted_after_review == [supported, confirmed]
+    assert supported['validation']['flags'] == [SUPPORTED_FLAG]
+    assert [h['hold_reason'] for h in result.held_by_inconclusive] == [
+        HOLD_REASON_REVIEWER_FAILED]
+    assert [v.verdict for v in result.verdicts] == ['failure', 'failure']
+    assert len([r for r in caplog.records
+                if 'Reviewer unavailable; bounds unsupported' in r.getMessage()]) == 1
+
+
+def test_batch_failure_holds_unsupported_pass1_marker(monkeypatch):
+    reviewer = _reviewer()
+    monkeypatch.setattr(reviewer, '_review_inner',
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError('boom')))
+    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)
+    monkeypatch.setattr(processing, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(processing, '_publish_status', lambda *args: None)
+    monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
+    unsupported, supported, _ = _batch_failure_ads()
+    markers = [unsupported, supported]
+    cuts, markers = processing._run_ad_reviewer(
+        'example-podcast', 'a1b2c3d4e5f6', 1, list(markers), markers, [],
+        'Example Podcast', 'Episode', '', '', 0.80, 1, 'test-model')
+    assert cuts == [supported]
+    assert unsupported['hold_reason'] == HOLD_REASON_REVIEWER_FAILED
+    assert is_pending_review(unsupported)
+    assert SUPPORTED_FLAG in supported['validation']['flags']

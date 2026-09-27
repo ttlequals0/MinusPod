@@ -20,6 +20,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+import config
+
 
 SPEC_PATH = Path(__file__).resolve().parents[2] / 'openapi.yaml'
 
@@ -178,3 +180,12 @@ def test_string_enums_are_quoted_in_the_spec():
                 f"episodeLogs enum value {value!r} parsed as {type(value).__name__}; "
                 f"quote it in openapi.yaml"
             )
+
+
+def test_hold_reason_enum_matches_config_constants():
+    with SPEC_PATH.open() as f:
+        doc = yaml.safe_load(f)
+    enum = doc['components']['schemas']['AdMarker']['properties']['hold_reason']['enum']
+    constants = {value for name, value in vars(config).items()
+                 if name.startswith('HOLD_REASON_')}
+    assert set(enum) - {None} == constants

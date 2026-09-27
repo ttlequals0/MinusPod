@@ -1037,9 +1037,8 @@ class AdReviewer:
 
         Returns:
             ReviewResult with the post-reviewer accepted list and the audit
-            trail. On catastrophic failure, returns the inputs unmodified with
-            a synthetic failure verdict per ad so the audit log still records
-            the attempt.
+            trail. On catastrophic failure, each accepted ad gets a synthetic
+            failure verdict and the per-ad failure rule.
         """
         try:
             return self._review_inner(
@@ -1054,7 +1053,54 @@ class AdReviewer:
                 f"Reviewer pass {pass_num} hit catastrophic failure: {e}",
                 exc_info=True,
             )
-            return ReviewResult(accepted_after_review=list(accepted_ads))
+            return self._fail_all(accepted_ads, e, episode_meta, pass_num)
+
+    def _fail_all(self, accepted_ads, error, episode_meta, pass_num) -> ReviewResult:
+        """Apply the per-ad failure rule to every accepted ad after a batch failure."""
+        result = ReviewResult()
+        for ad in accepted_ads:
+            if (ad.get("validation") or {}).get("user_confirmed"):
+                result.accepted_after_review.append(ad)
+                continue
+            verdict = ReviewVerdict(
+                pool="accepted", pass_num=pass_num, verdict="failure",
+                original_start=float(ad.get("start", 0.0)),
+                original_end=float(ad.get("end", 0.0)),
+                reasoning=_review_failure_reason(error), success=False,
+            )
+            result.verdicts.append(verdict)
+            self._settle_abstained(result, verdict, ad, episode_meta)
+        return result
+
+    def _settle_abstained(self, result, verdict, ad, episode_meta) -> bool:
+        """Hold an abstained or failed review on unsupported bounds; True when settled here."""
+        if verdict.verdict not in ("inconclusive", "failure"):
+            return False
+        if inconclusive_bounds_supported(ad, self.db):
+            if verdict.verdict != "failure":
+                return False
+            flags = ad.setdefault('validation', {}).setdefault('flags', [])
+            if REVIEWER_FAILED_SUPPORTED_FLAG not in flags:
+                flags.append(REVIEWER_FAILED_SUPPORTED_FLAG)
+            result.accepted_after_review.append(ad)
+            return True
+        verdict.inconclusive_hold = True
+        if verdict.verdict == "failure":
+            logger.info(
+                f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
+                f"Reviewer unavailable; bounds unsupported @ "
+                f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s: held"
+            )
+        held = dict(ad)
+        held['was_cut'] = False
+        held['held_for_review'] = True
+        held['hold_reason'] = abstain_hold_reason(verdict)
+        held['reviewer_verdict'] = verdict.verdict
+        held['reviewer_reasoning'] = verdict.reasoning
+        held['reviewer_model'] = verdict.model_used
+        held['source'] = 'reviewer'
+        result.held_by_inconclusive.append(held)
+        return True
 
     def _review_inner(
         self,
@@ -1116,31 +1162,9 @@ class AdReviewer:
                 verdict, model=verdict.model_used,
                 slug=episode_meta.get('slug'),
                 episode_id=episode_meta.get('episode_id'))
-            abstained = verdict.verdict in ("inconclusive", "failure")
-            supported = abstained and inconclusive_bounds_supported(updated_ad, self.db)
-            if abstained and not supported:
-                verdict.inconclusive_hold = True
-                held = dict(updated_ad)
-                held['was_cut'] = False
-                held['held_for_review'] = True
-                held['hold_reason'] = abstain_hold_reason(verdict)
-                if verdict.verdict == "failure":
-                    logger.info(
-                        f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
-                        f"Reviewer unavailable; bounds unsupported @ "
-                        f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s: held"
-                    )
-                held['reviewer_verdict'] = verdict.verdict
-                held['reviewer_reasoning'] = verdict.reasoning
-                held['reviewer_model'] = verdict.model_used
-                held['source'] = 'reviewer'
-                result.held_by_inconclusive.append(held)
-            elif verdict.verdict == "failure":
-                flags = updated_ad.setdefault('validation', {}).setdefault('flags', [])
-                if REVIEWER_FAILED_SUPPORTED_FLAG not in flags:
-                    flags.append(REVIEWER_FAILED_SUPPORTED_FLAG)
-                result.accepted_after_review.append(updated_ad)
-            elif verdict.verdict == "reject":
+            if self._settle_abstained(result, verdict, updated_ad, episode_meta):
+                continue
+            if verdict.verdict == "reject":
                 evidence = reject_hold_evidence(updated_ad)
                 if evidence:
                     # Measured evidence outranks one model's opinion, so a

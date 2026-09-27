@@ -873,7 +873,7 @@ def test_multi_element_array_takes_first():
     assert result.verdicts[0].verdict == 'confirmed'
 
 
-def test_catastrophic_failure_returns_inputs_unchanged():
+def test_catastrophic_failure_holds_unsupported_inputs():
     reviewer = _build_reviewer({
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
@@ -885,7 +885,8 @@ def test_catastrophic_failure_returns_inputs_unchanged():
             segments=_mock_segments(), episode_meta=_mock_episode_meta(),
             pass_num=1, pass_model='claude-test',
         )
-    assert result.accepted_after_review == [ad]
+    assert result.accepted_after_review == []
+    assert result.held_by_inconclusive[0]['hold_reason'] == 'reviewer_failed'
 
 
 # ---------- Resurrection pool selector ----------
