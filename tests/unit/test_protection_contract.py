@@ -77,7 +77,8 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
     audio.process_episode.return_value = ('/tmp/recut.mp3', [dict(sponsor)])
     fake_db = MagicMock()
     fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_false_positive_corrections.return_value = []
+    fake_db.get_false_positive_corrections.return_value = [
+        {'start': 500.0, 'end': 510.0}]
     fake_db.get_setting.return_value = 'false'
     built = []
     real_build = processing.build_protection
@@ -122,6 +123,12 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
         assert (400.0, 420.0) not in _spans(protection.hard_orig)
     reviewer_barriers = reviewer.call_args.kwargs['protected_original_ranges']
     assert {(300.0, 320.0), (400.0, 420.0)} <= set(_spans(reviewer_barriers))
+    # The prompt lists hard protection only, labelled; holds stay out.
+    labelled = reviewer.call_args.kwargs['protected_spans']
+    assert {'start': 300.0, 'end': 320.0, 'kind': 'keep',
+            'category': 'self_promo'} in labelled
+    assert {'start': 500.0, 'end': 510.0, 'kind': 'user_reject'} in labelled
+    assert (400.0, 420.0) not in _spans(labelled)
     assert {(300.0, 320.0), (400.0, 420.0)} <= set(
         _spans(crosspass.call_args.args[4]))
     assert {(300.0, 320.0), (400.0, 420.0)} <= set(

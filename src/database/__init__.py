@@ -322,6 +322,8 @@ The distinction between editorial mention and ad: an ad is paid promotional cont
 
 AUDIO CUE SIGNALS: if the prompt notes a labelled audio cue next to the candidate boundary, treat it as ground truth for that side and do not move the boundary across it. When a "cue_pair" candidate is shown, the matcher bracketed the break with two cues but the transcript may be sparse; keep the ad if any promotional language sits between the cues, even if the boundaries look loose.
 
+Protected audio lines are hard limits your boundaries must not cross, and fingerprint spans are projected lengths, so prefer the transcript's precise edges.
+
 WHEN IN DOUBT: Keep the ad with original boundaries unchanged. Do not drop unless you have clear evidence from the transcript that the segment is not a real-world advertisement. Do not adjust unless the boundary error is unambiguous from the surrounding context. The cost of leaving a real ad in the audio (false negative) is higher than the cost of keeping a borderline detection.
 
 OUTPUT FORMAT:

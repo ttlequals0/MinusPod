@@ -53,8 +53,8 @@ from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import (
     COARSE_MEMBER_STAGES, EDGE_TOLERANCE, clip_merge_spans,
-    dai_core_bounds, dai_core_spans, dai_probe_spans, finite_number,
-    hard_member_spans, invalidate_tail_provenance,
+    dai_core_bounds, dai_core_spans, dai_probe_spans, edge_support,
+    finite_number, hard_member_spans, invalidate_tail_provenance, member_spans,
     reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
     union_cover,
 )
@@ -1045,6 +1045,94 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
     if not lines:
         return ""
     return "\n".join(lines) + "\n\n"
+
+
+POLICY_LINE_CAP = 200
+POLICY_SECTION_CAP = 1500
+MAX_PROMPT_BARRIERS = 4
+MAX_PROMPT_MEMBERS = 6
+
+
+def _span_text(start, end) -> str:
+    return f"{start:.1f}-{end:.1f}s"
+
+
+def _capped_line(label: str, items: list[str], sep: str = '; ') -> str:
+    """label plus as many whole items as fit in POLICY_LINE_CAP, or '' when none fit."""
+    line = ''
+    for item in items:
+        candidate = f"{line}{sep}{item}" if line else f"{label}: {item}"
+        if len(candidate) > POLICY_LINE_CAP:
+            break
+        line = candidate
+    return line
+
+
+def _protected_item(span: dict) -> str:
+    text = _span_text(span['start'], span['end'])
+    if span.get('kind') == 'user_reject':
+        return f"user rejected {text}"
+    category = span.get('category')
+    return f"keep {text} ({category})" if category else f"keep {text}"
+
+
+def _member_item(member: dict) -> str:
+    stage = member.get('stage')
+    text = _span_text(member['start'], member['end'])
+    if stage == 'fingerprint':
+        pattern = member.get('pattern_id')
+        label = f"fingerprint pattern #{pattern}" if pattern is not None else 'fingerprint'
+        match_lo = finite_number(member.get('fingerprint_match_start'))
+        match_hi = finite_number(member.get('fingerprint_match_end'))
+        matched = (f", matched {_span_text(match_lo, match_hi)}"
+                   if match_lo is not None and match_hi is not None else '')
+        return f"{label} {text} (projected length{matched})"
+    item = f"{stage} {text}"
+    confidence = finite_number(member.get('confidence'))
+    if confidence is not None:
+        item += f" conf {confidence:.2f}"
+    if stage in COARSE_MEMBER_STAGES:
+        precise = [edge for edge in ('start', 'end') if member.get(f'precise_{edge}')]
+        item += f" precise {','.join(precise)}" if precise else ' imprecise edges'
+    return item
+
+
+def _edge_item(ad: dict, edge: str, min_conf: float) -> str:
+    support = edge_support(ad, edge, min_conf)
+    if support['measured'] is None:
+        return f"{edge} unmeasured"
+    precise = ', precise' if support['precise'] else ''
+    return f"{edge} {support['measured']:.1f}s ({support['source']}{precise})"
+
+
+def _format_policy_section(ad: dict, episode_meta: dict, max_shift: float) -> str:
+    """Effective category actions, nearby hard protection and member provenance for one ad."""
+    start, end = float(ad.get('start', 0.0)), float(ad.get('end', 0.0))
+    lines = []
+    actions = episode_meta.get('effective_category_actions') or {}
+    lines.append(_capped_line('Effective category actions', [
+        f"{category}={action}" for category, action in actions.items()], ', '))
+    # Only hard protection is listed; temporary holds are unresolved evidence.
+    nearby = [span for span in episode_meta.get('protected_spans') or []
+              if span['end'] >= start - max_shift and span['start'] <= end + max_shift]
+    nearby.sort(key=lambda span: max(0.0, start - span['end'], span['start'] - end))
+    nearby = sorted(nearby[:MAX_PROMPT_BARRIERS], key=lambda span: span['start'])
+    lines.append(_capped_line('Protected audio (never cut, do not cross)',
+                              [_protected_item(span) for span in nearby]))
+    members = [m for m in member_spans(ad) if m.get('stage')]
+    if members:
+        min_conf = _meta_min_conf(episode_meta)
+        lines.append(f"Evidence envelope: {_span_text(start, end)}")
+        lines.extend(_capped_line('Member', [_member_item(m)])
+                     for m in members[:MAX_PROMPT_MEMBERS])
+        lines.append(_capped_line('Measured edges', [
+            _edge_item(ad, 'start', min_conf), _edge_item(ad, 'end', min_conf)], ', '))
+    section = ''
+    for line in filter(None, lines):
+        if len(section) + len(line) + 1 > POLICY_SECTION_CAP:
+            break
+        section += line + '\n'
+    return section + '\n' if section else ''
 
 
 class AdReviewer:
@@ -2074,12 +2162,15 @@ class AdReviewer:
             bucket_radius=float(max_shift),
         )
 
+        policy_section = _format_policy_section(ad, episode_meta, max_shift)
+
         return (
             f"Podcast: {podcast_name}\n"
             f"Episode: {episode_title}\n"
             f"{description_section}\n"
             f"{framing}\n"
             f"{cue_section}"
+            f"{policy_section}"
             f"Transcript (60s before, the candidate ad, 60s after; all lines "
             f"carry [start-end] second timestamps):\n"
             f"{before_text}\n"

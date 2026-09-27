@@ -2099,7 +2099,8 @@ def _build_reviewer(db, ad_detector) -> AdReviewer:
 def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
                         episode_title, podcast_description, episode_description,
                         audio_analysis=None, effective_category_actions=None,
-                        hard_barriers=None, min_cut_confidence=None):
+                        hard_barriers=None, min_cut_confidence=None,
+                        protected_spans=None):
     return {
         'podcast_name': podcast_name,
         'episode_title': episode_title,
@@ -2118,7 +2119,17 @@ def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
         'hard_barriers': hard_barriers,
         # Confidence a transcript member needs before its precise edge softens a fingerprint's.
         'min_cut_confidence': min_cut_confidence,
+        # Labelled keeps and user rejections the reviewer prompt lists as hard limits.
+        'protected_spans': protected_spans,
     }
+
+
+def _labelled_protected_spans(keeps, user_rejects):
+    """Hard protection sources labelled for the reviewer prompt, original time."""
+    return ([{'start': k['start'], 'end': k['end'], 'kind': 'keep',
+              'category': k.get('category')} for k in keeps or []]
+            + [{'start': r['start'], 'end': r['end'], 'kind': 'user_reject'}
+               for r in user_rejects or []])
 
 
 def _log_reviewer_verdicts(slug, episode_id, pass_num, verdicts):
@@ -2138,7 +2149,8 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence,
                            cue_gate_enabled=False, pass1_cuts=None,
-                           protected_original_ranges=None, segment_actions=None):
+                           protected_original_ranges=None, segment_actions=None,
+                           protected_spans=None):
     """Run the reviewer on pass 2 results, in original transcript coordinates.
 
     Mutates ``v_ads_to_cut``, ``v_ads_for_ui`` and ``v_ads_held`` in place.
@@ -2195,6 +2207,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         episode_title, podcast_description, episode_description,
         effective_category_actions=segment_actions,
         min_cut_confidence=min_cut_confidence,
+        protected_spans=protected_spans,
     )
     pass2_model = ad_detector.get_verification_model()
     pass2_provider = ad_detector.get_verification_provider()
@@ -2426,7 +2439,8 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         ctx.slug, ctx.episode_id, ctx.podcast_id, ctx.podcast_name,
         ctx.episode_title, ctx.podcast_description, ctx.episode_description,
         effective_category_actions=segment_actions,
-        hard_barriers=protection.hard_orig, min_cut_confidence=min_cut_confidence)
+        hard_barriers=protection.hard_orig, min_cut_confidence=min_cut_confidence,
+        protected_spans=protection.hard_labelled)
     result = reviewer.review(
         accepted_ads=[orig_sub for orig_sub, _hold in candidates],
         resurrection_eligible=[],
@@ -2644,6 +2658,10 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     )
 
     reviewer = _build_reviewer(db, ad_detector)
+    user_rejects = [
+        *(db.get_false_positive_corrections(podcast_id, episode_id) or []),
+        *user_trimmed_keep_ranges(
+            db.get_confirmed_corrections(podcast_id, episode_id) or [])]
     episode_meta = _build_episode_meta(
         slug, episode_id, podcast_id, podcast_name,
         episode_title, podcast_description, episode_description,
@@ -2651,6 +2669,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
         effective_category_actions=segment_actions,
         hard_barriers=hard_barriers,
         min_cut_confidence=min_cut_confidence,
+        protected_spans=_labelled_protected_spans(hard_barriers, user_rejects),
     )
     result = reviewer.review(
         accepted_ads=ads_to_remove,
@@ -3478,6 +3497,8 @@ class Protection:
     """Temporary holds (pass-1 holds, kept conflicts, pass-2 holds), unmerged originals."""
     pass1_cuts: list
     """Pass-1 cuts the processed mapping was built from."""
+    hard_labelled: list
+    """Unmerged hard sources labelled keep or user_reject, for the reviewer prompt."""
 
     def barriers_orig(self, exclude=()):
         """Hard ranges plus every hold not in exclude (matched by identity)."""
@@ -3505,6 +3526,9 @@ def build_protection(kept, category_kept, user_trims, fp_corrections, holds,
         hard_proc=_protected_ranges_in_processed_audio(hard_orig, pass1_cuts),
         holds_orig=list(holds or []),
         pass1_cuts=pass1_cuts or [],
+        hard_labelled=_labelled_protected_spans(
+            [*(kept or []), *(category_kept or [])],
+            [*(user_trims or []), *(fp_corrections or [])]),
     )
 
 
@@ -3788,6 +3812,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
 
                 # Reviewer adjustments map back only when they stay in
                 # surviving, unprotected original audio.
+                reviewer_protection = current_protection()
                 _apply_pass2_reviewer(
                     ctx,
                     v_ads_to_cut, v_ads_for_ui, v_ads_held,
@@ -3795,9 +3820,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     original_segments, min_cut_confidence,
                     cue_gate_enabled=cue_gate_enabled,
                     pass1_cuts=pass1_cuts,
-                    protected_original_ranges=(
-                        current_protection().barriers_orig()),
+                    protected_original_ranges=reviewer_protection.barriers_orig(),
                     segment_actions=segment_actions,
+                    protected_spans=reviewer_protection.hard_labelled,
                 )
                 _hold_adjustments_crossing_final_holds(
                     v_ads_to_cut, v_ads_for_ui, v_ads_held)

@@ -116,7 +116,7 @@ SEED_SNAPSHOT = {
     'review_provider': 'same_as_pass',
     'secondary_provider_enabled': 'false',
     'secondary_provider_base_url': 'http://localhost:8000/v1',
-    'review_prompt': ('sha256', '0a30979273b7dd4f7447c40536383d0bb3a3e3c649b2ec07c4772ea47880035e'),  # Updated for the #695 example format
+    'review_prompt': ('sha256', '3f38da2af82b5bd127255e5c33296018986f248041b6466145e9a3bb7b151c03'),  # Updated for the protected-audio sentence
     'rss_refresh_interval_minutes': '15',
     'queue_manual_boost': '20',
     'queue_fresh_boost': '5',
