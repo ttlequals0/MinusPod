@@ -101,10 +101,10 @@ def test_cue_pair_floors_supported_end(monkeypatch):
     assert cuts == [(0.0, 73.2)]
 
 
-def test_unsupported_end_capped_short_of_straddling_speech(monkeypatch):
-    # The 61.06-87.16 segment runs past the core end, so the old 73.2 floor cut into it.
+def test_unsupported_end_keeps_floor_when_segment_straddles(monkeypatch):
+    # 61.06-87.16 has no word timings, so it may merge ad and show speech.
     _, cuts = _run(monkeypatch, _marker(), end=60.0)
-    assert cuts == [(0.0, 61.06)]
+    assert cuts == [(0.0, 73.2)]
 
 
 def test_end_edge_supported_by_segment_end_and_gap():
@@ -297,3 +297,52 @@ def test_speech_wholly_inside_core_keeps_core_floor():
     bounds = reviewer._clamp_proposed_bounds(
         _marker(), 0.0, 20.42, 0.0, 73.2, 60, 'slug', 'ep', segments=SEGMENTS)
     assert bounds == pytest.approx((0.0, 73.2))
+
+
+def test_contiguous_words_cap_at_word_straddling_floor():
+    # 0.05 s gaps everywhere: the cap must not release the unprobed core after 20.45.
+    words = [{'word': 'w', 'start': i * 0.5, 'end': i * 0.5 + 0.45} for i in range(212)]
+    segments = [{'start': 0.0, 'end': 106.0, 'text': 'x', 'words': words}]
+    marker = {'start': 0.0, 'end': 94.8, 'detection_stage': 'dai_differential',
+              'dai_core_spans': [{'start': 0.0, 'end': 94.8}],
+              DAI_PROBE_SPANS: [{'start': 0.5, 'end': 4.5}]}
+    reviewer = AdReviewer.__new__(AdReviewer)
+    bounds = reviewer._clamp_proposed_bounds(
+        marker, 0.0, 20.45, 0.0, 94.8, 600, 'slug', 'ep', segments=segments)
+    assert bounds == pytest.approx((0.0, 94.5))
+
+
+def test_segment_without_words_straddling_floor_keeps_core_floor():
+    reviewer = AdReviewer.__new__(AdReviewer)
+    bounds = reviewer._clamp_proposed_bounds(
+        _marker(), 0.0, 58.2, 0.0, 73.2, 60, 'slug', 'ep',
+        segments=SEGMENTS[:3] + [{'start': 58.4, 'end': 87.16, 'text': 'Welcome back.'}])
+    assert bounds == pytest.approx((0.0, 73.2))
+
+
+def _start_marker():
+    return {'start': 9.5, 'end': 40.0, 'detection_stage': 'dai_differential',
+            'dai_core_spans': [{'start': 9.5, 'end': 40.0}],
+            DAI_PROBE_SPANS: [{'start': 35.0, 'end': 39.0}]}
+
+
+def test_unsupported_start_after_pause_keeps_core_floor():
+    segments = [{'start': 0.0, 'end': 9.0, 'text': 'Show talk ends.',
+                 'words': [{'word': 'Show', 'start': 0.0, 'end': 5.0},
+                           {'word': 'ends.', 'start': 5.0, 'end': 9.0}]},
+                {'start': 10.2, 'end': 40.0, 'text': 'Brought to you by Acme.'}]
+    reviewer = AdReviewer.__new__(AdReviewer)
+    bounds = reviewer._clamp_proposed_bounds(
+        _start_marker(), 10.2, 40.0, 9.5, 40.0, 60, 'slug', 'ep', segments=segments)
+    assert bounds == pytest.approx((9.5, 40.0))
+
+
+def test_unsupported_start_off_word_lands_on_straddling_word_end():
+    segments = [{'start': 0.0, 'end': 10.0, 'text': 'Show talk ends.',
+                 'words': [{'word': 'Show', 'start': 0.0, 'end': 5.0},
+                           {'word': 'ends.', 'start': 5.0, 'end': 10.0}]},
+                {'start': 10.2, 'end': 40.0, 'text': 'Brought to you by Acme.'}]
+    reviewer = AdReviewer.__new__(AdReviewer)
+    bounds = reviewer._clamp_proposed_bounds(
+        _start_marker(), 10.1, 40.0, 9.5, 40.0, 60, 'slug', 'ep', segments=segments)
+    assert bounds == pytest.approx((10.0, 40.0))

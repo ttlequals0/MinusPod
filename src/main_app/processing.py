@@ -35,7 +35,8 @@ from ad_detector.boundaries import (
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from ad_yield import low_ad_yield
 from ad_reviewer import (
-    AdReviewer, abstain_hold_reason, is_contradiction_hold, split_resurrection_pool,
+    AdReviewer, abstain_hold_reason, is_contradiction_hold, mark_reviewer_hold,
+    split_resurrection_pool, stamp_reviewer_fields,
 )
 from ad_validator import restore_uncovered_confirmed_spans, user_trimmed_keep_ranges
 from audio_analysis.audio_analyzer import MIN_VOLUME_TIMEOUT
@@ -2186,17 +2187,6 @@ def _log_reviewer_verdicts(slug, episode_id, pass_num, verdicts):
     )
 
 
-def _stamp_reviewer_fields(ad, v):
-    """Copy the reviewer verdict fields onto an ad dict, in place."""
-    ad['reviewer_verdict'] = v.verdict
-    if v.reasoning is not None:
-        ad['reviewer_reasoning'] = v.reasoning
-    if v.confidence is not None:
-        ad['reviewer_confidence'] = v.confidence
-    if v.model_used:
-        ad['reviewer_model'] = v.model_used
-
-
 def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence,
@@ -2287,7 +2277,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 v_ads_to_cut.remove(proc_ad)
             if proc_ad is not None:
                 proc_ad['was_cut'] = False
-                _stamp_reviewer_fields(proc_ad, v)
+                stamp_reviewer_fields(proc_ad, v)
             held_ad = ui_ad or original_by_key.get(key)
             if held_ad is not None:
                 _apply_reviewer_verdict_to_ad(held_ad, v)
@@ -2302,7 +2292,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 v_ads_to_cut.remove(proc_ad)
             if proc_ad is not None:
                 proc_ad['was_cut'] = False
-                _stamp_reviewer_fields(proc_ad, v)
+                stamp_reviewer_fields(proc_ad, v)
             held_ad = ui_ad or original_by_key.get(key)
             if held_ad is None:
                 audio_logger.warning(
@@ -2327,7 +2317,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 if proc_ad in v_ads_to_cut:
                     v_ads_to_cut.remove(proc_ad)
                 proc_ad['was_cut'] = False
-                _stamp_reviewer_fields(proc_ad, v)
+                stamp_reviewer_fields(proc_ad, v)
             held_ad = ui_ad if ui_ad is not None else original_by_key.get(key)
             if held_ad is None:
                 audio_logger.warning(
@@ -2383,7 +2373,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                     v_ads_for_ui.remove(ui_ad)
                 held_ad = ui_ad or original_by_key.get(key)
                 if held_ad is not None:
-                    _stamp_reviewer_fields(held_ad, v)
+                    stamp_reviewer_fields(held_ad, v)
                     held_ad['was_cut'] = False
                     held_ad['held_for_review'] = True
                     held_ad['hold_reason'] = HOLD_REASON_REVIEWER_CONTRADICTION
@@ -2396,7 +2386,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
             proc_ad['start'] = adjust_timestamp(adjusted_start, cuts, beep)
             proc_ad['end'] = adjust_timestamp(adjusted_end, cuts, beep)
             _apply_reviewer_verdict_to_ad(ui_ad, v)
-            _stamp_reviewer_fields(proc_ad, v)
+            stamp_reviewer_fields(proc_ad, v)
             invalidate_tail_provenance(proc_ad, proc_ad['end'])
             continue
 
@@ -2404,7 +2394,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
             if proc_ad in v_ads_to_cut:
                 v_ads_to_cut.remove(proc_ad)
             if ui_ad is not None:
-                _stamp_reviewer_fields(ui_ad, v)
+                stamp_reviewer_fields(ui_ad, v)
                 ui_ad['was_cut'] = False
                 ui_ad['source'] = 'reviewer'
                 v_ads_for_ui.remove(ui_ad)
@@ -2432,23 +2422,23 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 proc_ad['was_cut'] = True
                 proc_ad['detection_stage'] = 'verification'
                 proc_ad['source'] = 'reviewer'
-                _stamp_reviewer_fields(proc_ad, v)
+                stamp_reviewer_fields(proc_ad, v)
                 v_ads_to_cut.append(proc_ad)
             orig_ad = original_by_key.get(key)
             if orig_ad is not None:
                 orig_ad['was_cut'] = True
                 orig_ad['detection_stage'] = 'verification'
                 orig_ad['source'] = 'reviewer'
-                _stamp_reviewer_fields(orig_ad, v)
+                stamp_reviewer_fields(orig_ad, v)
                 if orig_ad not in v_ads_for_ui:
                     v_ads_for_ui.append(orig_ad)
             continue
 
         # confirmed or failure: stamp reviewer fields without mutating cuts.
         if proc_ad is not None:
-            _stamp_reviewer_fields(proc_ad, v)
+            stamp_reviewer_fields(proc_ad, v)
         if ui_ad is not None:
-            _stamp_reviewer_fields(ui_ad, v)
+            stamp_reviewer_fields(ui_ad, v)
 
     _log_reviewer_verdicts(slug, episode_id, 2, result.verdicts)
 
@@ -2490,22 +2480,16 @@ def _ad_review_enabled(db) -> bool:
 
 def _apply_reviewer_verdict_to_ad(ad, v):
     """Merge a single reviewer verdict into the master ad dict, in place."""
-    _stamp_reviewer_fields(ad, v)
     if v.inconclusive_hold:
-        ad['was_cut'] = False
-        ad['held_for_review'] = True
-        ad['hold_reason'] = abstain_hold_reason(v)
-        ad['source'] = 'reviewer'
+        mark_reviewer_hold(ad, v, abstain_hold_reason(v))
         return
     if v.boundary_conflict:
-        ad['was_cut'] = False
-        ad['held_for_review'] = True
-        ad['hold_reason'] = HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+        mark_reviewer_hold(ad, v, HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT)
         ad['reviewer_boundary_conflict'] = True
-        ad['source'] = 'reviewer'
         ad['reviewer_proposed_start'] = v.adjusted_start
         ad['reviewer_proposed_end'] = v.adjusted_end
         return
+    stamp_reviewer_fields(ad, v)
     if is_contradiction_hold(v.verdict, v.reasoning, v.structured_is_ad):
         # Contradiction guard (spec 1.4): hold for a human, never auto-reject.
         # Boundaries stay at the pass-1 values; an "adjust" whose reasoning

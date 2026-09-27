@@ -65,6 +65,7 @@ from utils.text import (
     get_timestamped_transcript_for_range,
     get_timestamped_words_for_range,
 )
+from utils.time import overlap_seconds
 
 
 Verdict = Literal["confirmed", "adjust", "reject", "resurrect", "inconclusive", "failure"]
@@ -421,18 +422,35 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
     return updated
 
 
+def stamp_reviewer_fields(ad: dict, verdict: "ReviewVerdict") -> None:
+    """Copy the reviewer verdict fields onto an ad dict, in place."""
+    ad['reviewer_verdict'] = verdict.verdict
+    if verdict.reasoning is not None:
+        ad['reviewer_reasoning'] = verdict.reasoning
+    if verdict.confidence is not None:
+        ad['reviewer_confidence'] = verdict.confidence
+    if verdict.model_used:
+        ad['reviewer_model'] = verdict.model_used
+    if verdict.verdict == 'failure' and not verdict.inconclusive_hold:
+        flags = ad.setdefault('validation', {}).setdefault('flags', [])
+        if REVIEWER_FAILED_SUPPORTED_FLAG not in flags:
+            flags.append(REVIEWER_FAILED_SUPPORTED_FLAG)
+
+
+def mark_reviewer_hold(ad: dict, verdict: "ReviewVerdict", reason: str) -> None:
+    """Hold an ad dict for review on a reviewer verdict, in place."""
+    stamp_reviewer_fields(ad, verdict)
+    ad['was_cut'] = False
+    ad['held_for_review'] = True
+    ad['hold_reason'] = reason
+    ad['source'] = 'reviewer'
+
+
 def _boundary_conflict_hold(ad: dict, verdict: "ReviewVerdict") -> dict:
     """Keep the original span when a proposed trim crosses protected evidence."""
     held = dict(ad)
-    held['was_cut'] = False
-    held['held_for_review'] = True
-    held['hold_reason'] = HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+    mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT)
     held['reviewer_boundary_conflict'] = True
-    held['reviewer_verdict'] = verdict.verdict
-    held['reviewer_reasoning'] = verdict.reasoning
-    held['reviewer_confidence'] = verdict.confidence
-    held['reviewer_model'] = verdict.model_used
-    held['source'] = 'reviewer'
     held['reviewer_proposed_start'] = verdict.adjusted_start
     held['reviewer_proposed_end'] = verdict.adjusted_end
     return held
@@ -534,12 +552,22 @@ def _speech_units(segments) -> list[tuple[float, float]]:
     """(start, end) of every timed word, or of the segment when it has none."""
     units = []
     for seg in segments or []:
-        words = seg.get('words') or [seg]
-        for unit in words:
-            lo, hi = finite_number(unit.get('start')), finite_number(unit.get('end'))
-            if lo is not None and hi is not None and hi >= lo:
-                units.append((lo, hi))
+        for unit in seg.get('words') or [seg]:
+            span = _timed_span(unit)
+            if span:
+                units.append(span)
     return units
+
+
+def _word_units(segments) -> set[tuple[float, float]]:
+    """(start, end) of every timed word."""
+    spans = (_timed_span(w) for seg in segments or [] for w in seg.get('words') or [])
+    return {span for span in spans if span}
+
+
+def _timed_span(unit) -> tuple[float, float] | None:
+    lo, hi = finite_number(unit.get('start')), finite_number(unit.get('end'))
+    return (lo, hi) if lo is not None and hi is not None and hi >= lo else None
 
 
 def _edge_matches(value: float, new: float) -> bool:
@@ -584,49 +612,33 @@ def _supported_edge_floor(ad: dict, independent, edge: str, value: float,
     return min([value] + [lo for lo, hi in spans if lo < min(hi, value)])
 
 
-def _speech_run_reach(run, sign: int) -> float:
-    """Far end of the unbroken speech starting at run[0]; sign is +1 going later, -1 earlier."""
-    reach = run[0][1]
-    for near, far in run[1:]:
-        if sign * (near - reach) >= _SUPPORTED_EDGE_GAP_S:
-            break
-        reach = max(reach, far) if sign > 0 else min(reach, far)
-    return reach
+def _negated(spans) -> list[tuple[float, float]]:
+    return [(-hi, -lo) for lo, hi in spans]
 
 
-def _speech_capped_floor(units, independent, edge: str, proposed: float,
+def _speech_capped_floor(units, words, independent, edge: str, proposed: float,
                          floor: float) -> float | None:
-    """Unsupported-edge floor stopped at the adjacent spoken word, or None to keep the floor."""
-    # Cap only when unbroken speech runs from the proposal past the floor, with no
-    # measured evidence between them; speech wholly inside the core may be the ad.
-    if edge == 'end':
-        run = sorted(u for u in units if u[0] >= proposed - EDGE_TOLERANCE)
-        if (floor <= proposed or not run or run[0][0] >= floor
-                or _speech_run_reach(run, 1) <= floor):
-            return None
-        region = (proposed, floor)
-    else:
-        run = sorted(((hi, lo) for lo, hi in units if hi <= proposed + EDGE_TOLERANCE),
-                     reverse=True)
-        if (floor >= proposed or not run or run[0][0] <= floor
-                or _speech_run_reach(run, -1) >= floor):
-            return None
-        region = (floor, proposed)
-    if any(lo < region[1] and hi > region[0] for lo, hi in independent):
+    """Unsupported-edge floor stopped at the word straddling it, or None to keep the floor."""
+    if edge == 'start':
+        capped = _speech_capped_floor(_negated(units), set(_negated(words)),
+                                      _negated(independent), 'end', -proposed, -floor)
+        return None if capped is None else -capped
+    after = sorted(u for u in units if u[0] >= proposed - EDGE_TOLERANCE)
+    straddling = [u for u in after if u[0] < floor < u[1]]
+    # A segment without word timings may merge ad and show speech, so it never caps.
+    if floor <= proposed or not straddling or straddling[0] not in words:
         return None
-    word_edge = run[0][0]
-    if edge == 'end':
-        on_word = any(_edge_matches(hi, proposed) for _, hi in units)
-        return proposed if on_word else max(word_edge, proposed)
-    on_word = any(_edge_matches(lo, proposed) for lo, _ in units)
-    return proposed if on_word else min(word_edge, proposed)
+    word_lo = straddling[0][0]
+    snap = (after[0] == straddling[0] and word_lo - proposed < _SUPPORTED_EDGE_GAP_S
+            and any(_edge_matches(hi, proposed) for _, hi in units))
+    capped = proposed if snap else max(word_lo, proposed)
+    if any(overlap_seconds(lo, hi, capped, floor) > 0 for lo, hi in independent):
+        return None
+    return capped
 
 
-def _floor_source(floor: float, proposed: float, core_edge: float,
-                  capped: bool = False) -> str:
+def _floor_source(floor: float, proposed: float, core_edge: float) -> str:
     """Name what stopped a reviewer edge, for the DAI core clamp log."""
-    if capped:
-        return 'spoken word cap'
     if floor == proposed:
         return 'none'
     return 'DAI core' if floor == core_edge else 'independent span'
@@ -1102,57 +1114,35 @@ class AdReviewer:
                     f"Reviewer pass {pass_num} failure rule failed ({settle_error}); "
                     f"holding every unconfirmed ad"
                 )
-                return self._hold_all_failed(accepted_ads, e, pass_num)
+                return self._fail_all(accepted_ads, e, episode_meta, pass_num,
+                                      check_support=False)
 
-    @staticmethod
-    def _batch_failure_verdicts(accepted_ads, error, pass_num):
-        """Yield (ad, failure verdict) per ad; confirmed ads get None."""
+    def _fail_all(self, accepted_ads, error, episode_meta, pass_num,
+                  check_support=True) -> ReviewResult:
+        """Apply the per-ad failure rule to every accepted ad after a batch failure."""
+        result = ReviewResult()
         for ad in accepted_ads:
             if (ad.get("validation") or {}).get("user_confirmed"):
-                yield ad, None
+                result.accepted_after_review.append(ad)
                 continue
-            yield ad, ReviewVerdict(
+            verdict = ReviewVerdict(
                 pool="accepted", pass_num=pass_num, verdict="failure",
                 original_start=float(ad.get("start", 0.0)),
                 original_end=float(ad.get("end", 0.0)),
                 reasoning=_review_failure_reason(error), success=False,
             )
-
-    def _fail_all(self, accepted_ads, error, episode_meta, pass_num) -> ReviewResult:
-        """Apply the per-ad failure rule to every accepted ad after a batch failure."""
-        result = ReviewResult()
-        for ad, verdict in self._batch_failure_verdicts(accepted_ads, error, pass_num):
-            if verdict is None:
-                result.accepted_after_review.append(ad)
-                continue
             result.verdicts.append(verdict)
-            self._settle_abstained(result, verdict, ad, episode_meta)
+            self._settle_abstained(result, verdict, ad, episode_meta, check_support)
         return result
 
-    def _hold_all_failed(self, accepted_ads, error, pass_num) -> ReviewResult:
-        """Hold every unconfirmed ad as reviewer_failed without the support check."""
-        result = ReviewResult()
-        for ad, verdict in self._batch_failure_verdicts(accepted_ads, error, pass_num):
-            if verdict is None:
-                result.accepted_after_review.append(ad)
-                continue
-            flags = (ad.get('validation') or {}).get('flags')
-            if flags and REVIEWER_FAILED_SUPPORTED_FLAG in flags:
-                flags.remove(REVIEWER_FAILED_SUPPORTED_FLAG)
-            result.verdicts.append(verdict)
-            self._hold_abstained(result, verdict, ad)
-        return result
-
-    def _settle_abstained(self, result, verdict, ad, episode_meta) -> bool:
+    def _settle_abstained(self, result, verdict, ad, episode_meta,
+                          check_support=True) -> bool:
         """Hold an abstained or failed review on unsupported bounds; True when settled here."""
         if verdict.verdict not in ("inconclusive", "failure"):
             return False
-        if inconclusive_bounds_supported(ad, self.db):
+        if check_support and inconclusive_bounds_supported(ad, self.db):
             if verdict.verdict != "failure":
                 return False
-            flags = ad.setdefault('validation', {}).setdefault('flags', [])
-            if REVIEWER_FAILED_SUPPORTED_FLAG not in flags:
-                flags.append(REVIEWER_FAILED_SUPPORTED_FLAG)
             result.accepted_after_review.append(ad)
             return True
         if verdict.verdict == "failure":
@@ -1161,22 +1151,11 @@ class AdReviewer:
                 f"Reviewer unavailable; bounds unsupported @ "
                 f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s: held"
             )
-        self._hold_abstained(result, verdict, ad)
-        return True
-
-    @staticmethod
-    def _hold_abstained(result, verdict, ad) -> None:
-        """Append a held copy of an abstained or failed ad to the result."""
         verdict.inconclusive_hold = True
         held = dict(ad)
-        held['was_cut'] = False
-        held['held_for_review'] = True
-        held['hold_reason'] = abstain_hold_reason(verdict)
-        held['reviewer_verdict'] = verdict.verdict
-        held['reviewer_reasoning'] = verdict.reasoning
-        held['reviewer_model'] = verdict.model_used
-        held['source'] = 'reviewer'
+        mark_reviewer_hold(held, verdict, abstain_hold_reason(verdict))
         result.held_by_inconclusive.append(held)
+        return True
 
     def _review_inner(
         self,
@@ -1763,10 +1742,7 @@ class AdReviewer:
                 )
             clamped_start, clamped_end = floor_start, floor_end
 
-        # Cross-fetch evidence remains authoritative inside a merged
-        # candidate. The reviewer may trim coarse LLM/VAD extensions outside
-        # these measured regions, but cannot leave part of an inserted block
-        # in the published episode.
+        # Probes and independent spans hold the floor; unsupported edges stop at the straddling word.
         core_start, core_end = dai_core_bounds(ad)
         if core_start is not None:
             floor_start = min(clamped_start, core_start)
@@ -1774,6 +1750,7 @@ class AdReviewer:
             # Only the probe windows of a region are measured, so an edge on a
             # transcript pause may cross the rest, stopping at independent evidence.
             units = _speech_units(segments)
+            words = _word_units(segments)
             independent = reviewer_independent_spans(ad)
             cap_start = cap_end = None
             if _edge_transcript_supported(units, 'start', clamped_start,
@@ -1782,7 +1759,7 @@ class AdReviewer:
                     ad, independent, 'start', clamped_start, original_start, original_end)
             else:
                 cap_start = _speech_capped_floor(
-                    units, independent, 'start', clamped_start, floor_start)
+                    units, words, independent, 'start', clamped_start, floor_start)
                 floor_start = floor_start if cap_start is None else cap_start
             if _edge_transcript_supported(units, 'end', clamped_end,
                                           original_end):
@@ -1790,19 +1767,20 @@ class AdReviewer:
                     ad, independent, 'end', clamped_end, original_start, original_end)
             else:
                 cap_end = _speech_capped_floor(
-                    units, independent, 'end', clamped_end, floor_end)
+                    units, words, independent, 'end', clamped_end, floor_end)
                 floor_end = floor_end if cap_end is None else cap_end
             if ((floor_start, floor_end) != (clamped_start, clamped_end)
                     or floor_start > core_start or floor_end < core_end):
+                start_source = ('spoken word cap' if cap_start is not None
+                                else _floor_source(floor_start, clamped_start, core_start))
+                end_source = ('spoken word cap' if cap_end is not None
+                              else _floor_source(floor_end, clamped_end, core_end))
                 logger.info(
                     f"[{slug}:{episode_id}] Reviewer trim vs DAI core "
                     f"{core_start:.1f}-{core_end:.1f}s: "
                     f"{clamped_start:.1f}-{clamped_end:.1f} -> "
                     f"{floor_start:.1f}-{floor_end:.1f} "
-                    f"(start floored by "
-                    f"{_floor_source(floor_start, clamped_start, core_start, cap_start is not None)}, "
-                    f"end floored by "
-                    f"{_floor_source(floor_end, clamped_end, core_end, cap_end is not None)})"
+                    f"(start floored by {start_source}, end floored by {end_source})"
                 )
             clamped_start, clamped_end = floor_start, floor_end
 

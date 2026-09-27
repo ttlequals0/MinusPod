@@ -16,7 +16,7 @@ release notes.
 ### Fixed
 
 - When the ad reviewer fails, for example because the LLM provider rejects the request, an ad without independently supported bounds is now held for review as reviewer_failed. Before, it was cut unreviewed. This also covers a failure of the whole review batch. An ad whose bounds are covered by independent evidence (a measured cross-fetch region, a cue pair, template-snapped cues, a fingerprint match or a user confirmation) is still cut and flagged "Reviewer failed; bounds supported". If that support check itself errors during a batch failure, every unconfirmed ad is held.
-- When the reviewer trims an ad edge that no measured evidence supports, and speech runs unbroken past the edge of the inserted region, the edge now stops at the next spoken word instead of the region edge. Previously the cut could clip the first words of show speech after the ad.
+- When the reviewer trims an ad edge with no measured support, the cut now stops at the timed word that crosses the region edge. Before, it stopped at the region edge and could clip the first words of show speech after the ad. A transcript segment without word timings still keeps the region edge, since it may hold both ad and show speech.
 
 ### Changed
 

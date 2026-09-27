@@ -11,9 +11,10 @@ bootstrap('reviewer_failure_hold_test_')
 
 from config import (HOLD_REASON_REVIEWER_FAILED, PASS2_AUTOAPPROVE_HOLD_REASONS,
                     PASS2_COVERAGE_ONLY_HOLD_REASONS, is_pending_review)
-from ad_reviewer import inconclusive_bounds_supported
+from ad_reviewer import inconclusive_bounds_supported, stamp_reviewer_fields
 from main_app import processing
 from main_app.verification_reconciliation import _gate_verification_ads_by_confidence
+from tests.unit.marker_test_utils import _ad
 from tests.unit.test_keep_bypass import _run_pipeline
 from tests.unit.test_processing_boundary_safety import _meta, _reviewer
 
@@ -64,6 +65,8 @@ def test_failure_with_full_dai_core_is_accepted_with_flag(monkeypatch):
     assert result.accepted_after_review == [ad]
     assert result.held_by_inconclusive == []
     assert result.verdicts[0].inconclusive_hold is False
+    assert 'validation' not in ad
+    stamp_reviewer_fields(ad, result.verdicts[0])
     assert ad['validation']['flags'] == [SUPPORTED_FLAG]
 
 
@@ -78,6 +81,8 @@ def test_failure_with_fingerprint_cover_is_accepted_with_flag(monkeypatch):
           'validation': {'flags': ['INFO: existing']}}
     result = _review(reviewer, ad)
     assert result.accepted_after_review == [ad]
+    assert ad['validation']['flags'] == ['INFO: existing']
+    stamp_reviewer_fields(ad, result.verdicts[0])
     assert ad['validation']['flags'] == ['INFO: existing', SUPPORTED_FLAG]
 
 
@@ -155,7 +160,7 @@ def test_batch_failure_applies_per_ad_rule(monkeypatch, caplog):
             resurrection_eligible=[], segments=[], episode_meta=_meta(),
             pass_num=1, pass_model='test-model')
     assert result.accepted_after_review == [supported, confirmed]
-    assert supported['validation']['flags'] == [SUPPORTED_FLAG]
+    assert 'validation' not in supported
     assert [h['hold_reason'] for h in result.held_by_inconclusive] == [
         HOLD_REASON_REVIEWER_FAILED]
     assert [v.verdict for v in result.verdicts] == ['failure', 'failure']
@@ -184,8 +189,8 @@ def test_batch_failure_holds_unsupported_pass1_marker(monkeypatch):
 
 
 def _dai_ad(**extra):
-    return dict({'start': 3573.2, 'end': 3680.7, 'detection_stage': 'dai_differential',
-                 'dai_core_spans': [{'start': 3573.2, 'end': 3680.7}]}, **extra)
+    return _ad(3573.2, 3680.7, 'dai_differential',
+               dai_core_spans=[{'start': 3573.2, 'end': 3680.7}], **extra)
 
 
 def test_core_with_empty_probe_list_is_unsupported():
@@ -224,7 +229,9 @@ def test_second_failure_holds_every_unconfirmed_ad(monkeypatch, caplog):
     held = result.held_by_inconclusive
     assert [h['hold_reason'] for h in held] == [HOLD_REASON_REVIEWER_FAILED] * 2
     assert all(h['was_cut'] is False and is_pending_review(h) for h in held)
-    assert SUPPORTED_FLAG not in held[0].get('validation', {}).get('flags', [])
+    assert 'validation' not in supported and 'validation' not in held[0]
     assert [v.verdict for v in result.verdicts] == ['failure', 'failure']
     assert all(v.inconclusive_hold for v in result.verdicts)
     assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
+    assert len([r for r in caplog.records if r.levelno == logging.INFO
+                and 'Reviewer unavailable; bounds unsupported' in r.getMessage()]) == 2
