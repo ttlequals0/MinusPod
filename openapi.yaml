@@ -12333,7 +12333,7 @@ components:
               description: Rendered cuts holding an ad the second scan of the output audio found. 0 means the scan ran and came back clean. Absent or null means the scan did not run, either because it was skipped (see verificationSkipped and detectionSkipped) or because it failed.
             secondsRemoved:
               type: number
-              description: Net seconds removed, original duration minus output duration. Replacement beeps count against it.
+              description: Net seconds removed, original duration minus output duration. Replacement beeps count against it. When the output duration cannot be measured this is estimated as sourceSecondsRemoved minus replacementSecondsAdded.
             sourceSecondsRemoved:
               type:
                 - number
