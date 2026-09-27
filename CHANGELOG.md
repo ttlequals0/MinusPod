@@ -9,25 +9,39 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.97.30] - 2026-09-27
 
 ### Fixed
 
 - A recut no longer cuts audio the reviewer rejected. The recut revalidated a rejected span from scratch, accepted it and saved it as cut, and every later recut kept cutting it. Reviewer rejects now stay in the audio unless the user confirmed or adjusted that span. Pass-2 auto-approval no longer files a confirm over audio the reviewer rejected. Markers already saved in that state are repaired on the next recut.
+- A recut, including the automatic approval recut that follows pass 2, no longer cuts a marker the reviewer held for review. It stays held until the user approves it or pass 2 approves the hold.
 - A defined pattern in a category the feed keeps now resolves to remove in every processing step, as it already did at the cut. Before, close-ad merging, duplicate folding and pattern coverage still treated it as kept. It could block a merge with the sponsor read next to it or fail to cover a detection inside it.
 - Kept audio is no longer cut out of the episode. Keeps only stopped cuts from merging across them or extending over them, so a pass-1 cut, a reviewer adjustment or a recut could still overlap a kept span and remove it. Cuts are now split around kept audio before rendering, and the render clips any cut that still reaches into it. The reviewer can no longer widen an edge into kept audio. A recut no longer re-validates kept markers, so they cannot merge into a neighboring cut.
 - A pass-2 finding that only partly overlaps a kept span is now split around it, and the part outside goes on to validation, review and the cut. Before, the whole finding was held for review, and its part outside the keep stayed in the audio.
-- Pass 2 now treats category-kept audio as a fixed barrier instead of a pending hold, like keeps, user trims and user rejections, and carves kept audio out of its cuts. The category action map is resolved once per run and shared by detection, validation, review and pass 2.
+- Pass 2 now treats category-kept audio as a fixed barrier instead of a pending hold, like keeps, user trims and user rejections, and carves kept audio out of its cuts.
+- Audio the user marked as not an ad is now a hard limit for every render. Pass 2 and recuts now clip a cut at it, as pass 1 already did.
 - Segment action controls stay aligned when a feed override is set.
 - A marker now shows as cut only when the rendered audio removed it. Rejected, held and kept markers, and requested cuts the render dropped, are saved as not cut. A marker the render removed only in part stays not cut and records the part that was removed. Marker state, counts, the saved cut list, the transcript and chapters come from the same rendered cuts.
-- A failed recut no longer leaves markers out of step with the audio. A failed render changes nothing, and markers saved before a later failure are restored. The recut now publishes its audio and assets before it saves markers, and a full run saves its final markers after its assets.
+- Markers a render only partly removed now show the removed parts in the episode view.
+- A failed or cancelled run, including a recut, no longer leaves new ad markers next to the old published audio. A failed render changes nothing, and markers saved before a later failure are restored. The recut publishes its audio and assets before it saves markers, and a full run saves its final markers after its assets.
+- A failure after an episode's new audio is published, for example while writing history, no longer puts the old ad markers back next to it.
 - A short piece left when a pass-1 cut is split around kept audio now stays cut on a recut. The saved piece lacked the mark that lets a recut keep a short trusted fragment, so the recut put that audio back.
-- A pass-2 finding inside a pass-1 hold now goes to the reviewer at its own span instead of being dropped. Pass 2 narrows it to the span its evidence supports inside the hold. If the reviewer confirms that span, only that span is auto-approved. On the recut, the rest of the hold stays held instead of being left neither cut nor pending. A reject, an abstain, a failed review or a span that crosses other protected audio leaves the whole hold pending. A finding that overlaps a hold can no longer be resurrected into a cut.
+- A pass-2 finding inside a pass-1 hold now goes to the reviewer at its own span instead of being dropped. Pass 2 narrows it to the span its evidence supports inside the hold. If the reviewer confirms that span, only that span is auto-approved. On a recut or a reprocess, the rest of the hold stays held instead of being left neither cut nor pending. A reject, an abstain, a failed review or a span that crosses other protected audio leaves the whole hold pending. A finding that overlaps a hold can no longer be resurrected into a cut.
 - When an LLM detection with a word-timed end merges with a fingerprint or segment-level text pattern that runs past it, the reviewer can now trim back to that end. Before, the fingerprint's projected pattern length or the pattern's segment end counted as measured. A trim to the spoken end was pushed back out to the merged edge or held as a conflict. Detection and validation still keep the merged edge, and only a reviewer trim can move it inward. A trim into the measured part of a fingerprint is still held. An approved trim also drops fingerprint match bounds and cross-fetch regions outside the new span.
+- A fingerprint match's start still counts as measured even when its projected pattern length reaches past a precise transcript end. A reviewer trim can still move the end inward to the spoken words without the start losing its protection.
+- `GET /api/v1/patterns?scope=all` no longer returns an empty list. The endpoint's `active_only`, `podcast_id`, `network_id` and `source` query params now match the documented spec, and `active` still works as an alias for `active_only`. The default listing, with no query params, now includes inactive patterns as documented.
+- Diagnostic export no longer stops when it reaches an oversized log line. It skips that line and keeps scanning; only reaching the byte budget stops the export.
+- The legacy episode reprocess endpoint now accepts an empty or non-JSON body as a default reprocess instead of failing.
 
 ### Changed
 
 - Ads removed now counts cuts in the output audio. Two markers merged into one cut count once, and a marker the render dropped does not count. The second-scan count is the number of cuts that hold a second-scan marker. Run stats add the seconds of source audio cut and the seconds of beeps inserted. Removed time stays net, so beeps count against it.
+- The pipeline separates hard protection, category keeps, user trims and user rejections that no step may cross, from temporary reviewer holds that can later be released. Each run resolves the feed's category action map once and shares it across detection, validation, review and pass 2.
+- The ad reviewer now sees the feed's effective category actions, nearby kept audio and user rejections as hard limits. It also sees where each piece of evidence came from, including which fingerprint spans are projected lengths and which edges were measured. The default review prompt tells the reviewer not to cross protected audio and to prefer the transcript's precise edges over projected fingerprint lengths. Customized review prompts still receive the new per-ad section.
+- Text pattern matching reads the active pattern list once per processing run instead of re-reading it for every match attempt.
+- Merged markers now keep a fingerprint member's pattern id, so the reviewer prompt can name the pattern behind a fingerprint member.
+- User corrections are loaded once per processing run and reused by validation, the reviewer, confirmed-span restore and pass-2 approvals. A correction saved during a run applies on the next run.
+- An opt-in production replay harness runs saved production episodes through the real recut, validator and pass-2 code, with no LLM calls, as a regression check against fixtures kept outside the repo.
 
 ## [2.97.29] - 2026-09-27
 
