@@ -183,13 +183,13 @@ def test_word_edges_support_a_trim_inside_a_segment():
 def test_independent_spans_cover_measured_evidence():
     marker = _marker(cue_pair={'start': {'cue_end': 1.0},
                                'end': {'cue_start': 70.0}})
-    spans = reviewer_independent_spans(marker)
+    spans = reviewer_independent_spans(marker, 0.8)
     assert (23.6, 29.82) in spans
     assert (0.5, 4.5) in spans
     assert (1.05, 69.95) in spans
     assert (0.0, 73.2) not in spans
     confirmed = _marker(validation={'user_confirmed': True})
-    assert (0.0, 73.2) in reviewer_independent_spans(confirmed)
+    assert (0.0, 73.2) in reviewer_independent_spans(confirmed, 0.8)
 
 
 def test_differential_ads_record_each_block_probe_window():

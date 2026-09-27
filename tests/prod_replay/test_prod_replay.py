@@ -33,9 +33,6 @@ TRANSIENT_KEYS = ('validation', 'was_cut', 'held_for_review', 'hold_reason',
                   'reviewer_locked_start', 'reviewer_locked_end', 'source',
                   'pass2_corroborated', 'pass2_corroborated_span')
 
-PENDING_20 = pytest.mark.xfail(strict=True, reason='pending Task 20 (audit item 4)')
-
-
 def _findings(item, kind=None):
     params = []
     for n, eid in enumerate(EPISODES):
@@ -288,7 +285,6 @@ def test_validator_replay_records_decisions(replay_out, eid):
     assert result
 
 
-@PENDING_20
 @pytest.mark.parametrize('eid,finding', _findings(4))
 def test_validator_exposes_measured_end_not_envelope(eid, finding):
     result = _validate(eid)

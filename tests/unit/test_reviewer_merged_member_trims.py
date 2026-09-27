@@ -5,6 +5,7 @@ LLM/heuristic members carry padding the reviewer exists to trim, measured
 members must stay covered but for a few seconds of boundary disagreement.
 """
 from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,14 +15,17 @@ from tests.app_bootstrap import bootstrap
 bootstrap('reviewer_merged_member_trims_test_')
 
 from ad_detector import AdDetector
-from ad_reviewer import AdReviewer, _clamp_overrode
+from ad_reviewer import AdReviewer, _clamp_overrode, _supported_edge_floor
 from ad_validator import AdValidator
 from config import (
     HOLD_REASON_ESTIMATED_PATTERN, HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
 )
 from ad_detector.boundaries import deduplicate_window_ads
 from tests.unit.marker_test_utils import member_bases
-from utils.markers import mark_distinct_merge, note_fold
+from utils.markers import (
+    edge_support, mark_distinct_merge, note_fold, recorded_member_spans,
+    reviewer_independent_spans,
+)
 
 
 def _mock_segments():
@@ -547,3 +551,86 @@ def test_a_stageless_member_still_takes_the_legacy_union_rule():
 
     assert AdReviewer._proposal_conflicts_with_protection(
         ad, 100.0, 250.0, 100.0, 260.0) is True
+
+
+MIN_CONF = 0.8
+
+
+def _envelope_ad():
+    return _merged(1711.02, 1872.74, [
+        {'start': 1711.02, 'end': 1836.66, 'stage': 'claude', 'confidence': 0.98,
+         'precise_start': True, 'precise_end': True},
+        {'start': 1770.0, 'end': 1872.74, 'stage': 'fingerprint',
+         'fingerprint_match_start': 1770.0, 'fingerprint_match_end': 1872.74}],
+        fingerprint_match_start=1770.0, fingerprint_match_end=1872.74)
+
+
+def test_trim_to_the_precise_transcript_end_is_applied():
+    reviewer = _build_reviewer()
+
+    result = _review(reviewer, _envelope_ad(), (1711.02, 1836.66))
+
+    assert result.held_by_boundary_conflict == []
+    accepted = result.accepted_after_review[0]
+    assert (accepted['start'], accepted['end']) == (1711.02, 1836.66)
+    assert all(m['end'] <= 1836.66 for m in recorded_member_spans(accepted))
+    assert accepted['fingerprint_match_end'] == 1836.66
+
+
+def test_trim_into_the_measured_extent_is_still_held():
+    reviewer = _build_reviewer()
+
+    result = _review(reviewer, _envelope_ad(), (1711.02, 1820.0))
+
+    assert result.accepted_after_review == []
+    held = result.held_by_boundary_conflict[0]
+    assert held['end'] == 1872.74
+    assert held['reviewer_proposed_end'] == 1820.0
+
+
+def _clamp_path(ad, end):
+    return _build_reviewer()._clamp_proposed_bounds(
+        ad, 1711.02, end, 1711.02, 1872.74, 60, 'test-pod', 'ep1')[1]
+
+
+def _recover_path(ad, end):
+    reviewer = _build_reviewer()
+    reviewer._llm_client.messages_create.return_value = _LLMResp(
+        f'{{"ad_start": 1711.02, "ad_end": {end}}}')
+    verdict = SimpleNamespace(original_start=1711.02, original_end=1872.74,
+                              reasoning=TAIL_TRIM_REASON)
+    recovered = reviewer._recover_contradiction_trim(
+        verdict, ad=ad, segments=[], model='test-model', pass_num=1,
+        slug='test-pod', episode_id='ep1')
+    return recovered[1]
+
+
+def _conflict_path(ad, end):
+    conflict = AdReviewer._proposal_conflicts_with_protection(
+        ad, 1711.02, end, 1711.02, 1872.74, min_conf=MIN_CONF)
+    return None if conflict else end
+
+
+def _supported_floor_path(ad, end):
+    return _supported_edge_floor(ad, reviewer_independent_spans(ad, MIN_CONF), 'end',
+                                 end, 1711.02, 1872.74)
+
+
+def _edge_support_path(ad, end):
+    return max(end, edge_support(ad, 'end', MIN_CONF)['measured'])
+
+
+@pytest.mark.parametrize('proposal', [1836.66, 1850.0])
+@pytest.mark.parametrize('path', [_clamp_path, _recover_path, _conflict_path,
+                                  _supported_floor_path, _edge_support_path],
+                         ids=['clamp', 'recover_trim', 'conflict', 'supported_floor',
+                              'edge_support'])
+def test_every_clamp_path_supports_the_measured_end_not_the_envelope(path, proposal):
+    assert path(_envelope_ad(), proposal) == pytest.approx(proposal)
+
+
+@pytest.mark.parametrize('path', [_clamp_path, _recover_path, _supported_floor_path,
+                                  _edge_support_path],
+                         ids=['clamp', 'recover_trim', 'supported_floor', 'edge_support'])
+def test_every_floor_path_restores_the_measured_end(path):
+    assert path(_envelope_ad(), 1834.0) == pytest.approx(1836.66)

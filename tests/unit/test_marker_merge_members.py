@@ -8,6 +8,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='mergemem_tes
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from ad_detector import AdDetector
 from ad_detector.boundaries import (
     deduplicate_window_ads,
     split_conflicting_action_span,
@@ -18,12 +19,17 @@ from utils.markers import (
     clip_dai_core_spans,
     clip_merge_spans,
     dai_core_bounds,
+    edge_support,
     estimated_text_bounds,
+    hard_member_spans,
     mark_distinct_merge,
     merge_dai_core_spans,
     note_merged_members,
     protected_member_spans,
+    recorded_member_spans,
 )
+
+MIN_CONF = 0.8
 
 
 def _estimated(start, end, text_start, text_end):
@@ -485,3 +491,129 @@ def test_estimated_text_bounds_never_inverts():
         {'span_estimated': True, 'start': 10.0, 'end': 20.0,
          'text_start': 30.0, 'text_end': 40.0}) == (30.0, 30.0)
 
+
+
+def _precise_llm(start, end, **extra):
+    return _ad(start, end, 'claude', confidence=0.98, sponsor='Acme', category='sponsor',
+               word_timed_start=start, word_timed_end=end, **extra)
+
+
+def _fingerprint(start, end):
+    return _ad(start, end, 'fingerprint', confidence=0.95, sponsor='Acme', category='sponsor',
+               fingerprint_match_start=start, fingerprint_match_end=end)
+
+
+def _envelope():
+    detector = AdDetector.__new__(AdDetector)
+    (merged,) = detector._merge_detection_results(
+        [_precise_llm(1711.02, 1836.66), _fingerprint(1770.0, 1872.74)])
+    return merged
+
+
+def test_edge_support_prefers_precise_transcript_end_over_fingerprint_envelope():
+    merged = _envelope()
+
+    assert merged['end'] == 1872.74
+    assert edge_support(merged, 'end', MIN_CONF) == {
+        'envelope': 1872.74, 'measured': 1836.66, 'source': 'transcript', 'precise': True}
+    assert edge_support(merged, 'start', MIN_CONF) == {
+        'envelope': 1711.02, 'measured': 1711.02, 'source': 'transcript', 'precise': True}
+
+
+def test_segment_end_text_pattern_is_soft_past_a_precise_word_end():
+    merged = {'start': 944.07, 'end': 1109.8, 'merged_protected_start': 944.07,
+              'merged_protected_end': 1109.8, 'merged_member_spans': [
+        {'start': 944.07, 'end': 1074.76, 'stage': 'claude', 'confidence': 0.98,
+         'precise_start': True, 'precise_end': True},
+        {'start': 1051.8, 'end': 1081.37, 'stage': 'text_pattern'},
+        {'start': 1046.0, 'end': 1109.8, 'stage': 'fingerprint',
+         'fingerprint_match_start': 1046.0, 'fingerprint_match_end': 1109.8}]}
+
+    assert edge_support(merged, 'end', MIN_CONF)['measured'] == 1074.76
+    assert [(m['start'], m['end']) for m in hard_member_spans(merged, 944.07, 1109.8, MIN_CONF)] == [
+        (944.07, 1074.76), (1051.8, 1074.76), (1046.0, 1074.76)]
+
+
+def test_fingerprint_wholly_past_a_precise_end_proves_no_edge():
+    merged = {'start': 72.66, 'end': 173.6, 'merged_distinct_ads': True,
+              'merged_protected_start': 91.6, 'merged_protected_end': 173.6,
+              'merged_member_spans': [
+        {'start': 91.6, 'end': 116.2, 'stage': 'claude', 'confidence': 0.97,
+         'precise_start': True, 'precise_end': True},
+        {'start': 130.0, 'end': 173.6, 'stage': 'fingerprint',
+         'fingerprint_match_start': 130.0, 'fingerprint_match_end': 173.6}]}
+
+    support = edge_support(merged, 'end', MIN_CONF)
+    assert (support['envelope'], support['measured']) == (173.6, 116.2)
+    assert [m['stage'] for m in hard_member_spans(merged, 72.66, 173.6, MIN_CONF)] == ['claude']
+
+
+def test_fingerprint_only_marker_is_measured_at_its_match_bounds():
+    marker = _ad(100.0, 175.0, 'fingerprint', fingerprint_match_start=100.0,
+                 fingerprint_match_end=160.0)
+
+    assert edge_support(marker, 'end', MIN_CONF) == {
+        'envelope': 175.0, 'measured': 160.0, 'source': 'fingerprint', 'precise': False}
+
+
+def test_stale_precise_flag_no_longer_softens_the_fingerprint():
+    merged = _envelope()
+    clip_merge_spans(merged, 1711.02, 1830.0)
+    merged['end'] = 1830.0
+
+    support = edge_support(merged, 'end', MIN_CONF)
+    assert support['measured'] == 1830.0
+    assert support['precise'] is False
+    fingerprint = [m for m in hard_member_spans(merged, 1711.02, 1830.0, MIN_CONF)
+                   if m['stage'] == 'fingerprint']
+    assert [(m['start'], m['end']) for m in fingerprint] == [(1770.0, 1830.0)]
+
+
+@pytest.mark.parametrize('confidence', [0.5, 0.99])
+def test_category_conflicting_member_never_contributes_a_measured_edge(confidence):
+    marker = {'start': 1700.0, 'end': 1872.74, 'merged_protected_start': 1700.0,
+              'merged_protected_end': 1872.74, 'merged_member_spans': [
+        {'start': 1700.0, 'end': 1800.0, 'stage': 'keep_content', 'confidence': confidence,
+         'precise_start': True, 'precise_end': True},
+        {'start': 1770.0, 'end': 1872.74, 'stage': 'fingerprint',
+         'fingerprint_match_start': 1770.0, 'fingerprint_match_end': 1872.74}]}
+
+    assert edge_support(marker, 'end', MIN_CONF)['measured'] == 1872.74
+    assert edge_support(marker, 'start', MIN_CONF)['measured'] == 1770.0
+
+
+def test_low_confidence_precise_member_does_not_soften_the_fingerprint():
+    merged = _envelope()
+    for member in merged['merged_member_spans']:
+        member['confidence'] = 0.5
+
+    support = edge_support(merged, 'end', MIN_CONF)
+    assert (support['measured'], support['source']) == (1872.74, 'fingerprint')
+
+
+def test_clip_merge_spans_drops_provenance_outside_an_approved_trim():
+    merged = _envelope()
+    merged.update(fingerprint_match_start=1770.0, fingerprint_match_end=1872.74,
+                  dai_core_spans=[{'start': 1714.33, 'end': 1860.0}])
+
+    clip_merge_spans(merged, 1711.02, 1836.66)
+
+    members = recorded_member_spans(merged)
+    assert members and all(m['end'] <= 1836.66 for m in members)
+    assert all(m.get('fingerprint_match_end', 0.0) <= 1836.66 for m in members)
+    assert merged['fingerprint_match_end'] == 1836.66
+    assert dai_core_bounds(merged)[1] == 1836.66
+
+
+def test_clip_merge_spans_drops_a_fingerprint_member_whose_match_leaves_the_range():
+    marker = {'start': 0.0, 'end': 200.0, 'fingerprint_match_start': 150.0,
+              'fingerprint_match_end': 200.0, 'merged_member_spans': [
+                  {'start': 0.0, 'end': 120.0, 'stage': 'claude', 'confidence': 0.9},
+                  {'start': 90.0, 'end': 200.0, 'stage': 'fingerprint',
+                   'fingerprint_match_start': 150.0, 'fingerprint_match_end': 200.0}]}
+
+    clip_merge_spans(marker, 0.0, 120.0)
+
+    assert [m['stage'] for m in recorded_member_spans(marker)] == ['claude']
+    assert 'fingerprint_match_start' not in marker
+    assert 'fingerprint_match_end' not in marker

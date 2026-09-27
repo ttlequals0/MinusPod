@@ -153,7 +153,6 @@ def restore_uncovered_confirmed_spans(ads_to_remove, all_ads, confirmed, false_p
                     invalidate_quote_alignment(marker)
                     invalidate_word_timed_edges(marker)
                 # Stale wider evidence must not let a later clamp re-expand it.
-                clip_dai_core_spans(marker, lo, hi)
                 clip_merge_spans(marker, lo, hi)
             else:
                 marker = {'start': lo, 'end': hi, 'detection_stage': 'manual',
@@ -944,7 +943,6 @@ class AdValidator:
                     # have been clipped to the wider detected bounds earlier;
                     # keep it inside the approved span so the reviewer cannot
                     # later widen the marker back into user-kept content.
-                    clip_dai_core_spans(ad, approved_start, approved_end)
                     clip_merge_spans(ad, approved_start, approved_end)
             if auto_accept:
                 approved = span or confirmed
@@ -969,7 +967,6 @@ class AdValidator:
                 ad['start'] = max(ad['start'], approved_start)
                 ad['end'] = min(ad['end'], approved_end)
                 invalidate_tail_provenance(ad, ad['end'])
-                clip_dai_core_spans(ad, ad['start'], ad['end'])
                 clip_merge_spans(ad, ad['start'], ad['end'])
                 flags.append("INFO: User confirmed as ad")
                 logger.info(
@@ -1485,7 +1482,6 @@ class AdValidator:
         invalidate_tail_provenance(piece, hi)
         if keep_members:
             piece['start'], piece['end'] = lo, hi
-            clip_dai_core_spans(piece, lo, hi)
             clip_merge_spans(piece, lo, hi)
         # Without surviving members the parent's merge records describe nothing here.
         if not keep_members or not recorded_member_spans(piece):

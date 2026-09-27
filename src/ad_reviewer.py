@@ -28,6 +28,7 @@ from config import (
     is_template_cue,
     measured_evidence,
     MIN_AD_DURATION_FOR_REMOVAL,
+    MIN_CUT_CONFIDENCE,
     coerce_bool_setting,
     resolve_max_boundary_shift,
 )
@@ -51,9 +52,9 @@ from llm_client import (
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import (
-    COARSE_MEMBER_STAGES, EDGE_TOLERANCE, clip_dai_core_spans, clip_merge_spans,
+    COARSE_MEMBER_STAGES, EDGE_TOLERANCE, clip_merge_spans,
     dai_core_bounds, dai_core_spans, dai_probe_spans, finite_number,
-    invalidate_tail_provenance, protected_member_spans,
+    hard_member_spans, invalidate_tail_provenance,
     reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
     union_cover,
 )
@@ -410,10 +411,9 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
     invalidate_tail_provenance(updated, end)
     updated["start"] = start
     updated["end"] = end
-    # Persist the trim so re-validation cannot restore the dropped core.
-    clip_dai_core_spans(updated, start, end)
-    clip_merge_spans(updated, start, end)
     set_reviewer_locks(updated, locked_edges)
+    # Persist the trim so re-validation cannot restore dropped core or member evidence.
+    clip_merge_spans(updated, start, end)
     updated["reviewer_verdict"] = "adjust"
     updated["reviewer_moved"] = True
     updated["reviewer_original_start"] = original_start
@@ -659,6 +659,24 @@ def _member_conflict(member: dict, start: float, end: float) -> bool:
     else:
         floor = max(length / 2, length - _MEASURED_MEMBER_TOLERANCE_S)
     return retained < floor
+
+
+def _measured_member_floor(ad: dict, start: float, end: float, original_start: float,
+                           original_end: float, min_conf: float) -> tuple[float, float]:
+    """Widen a proposal over every measured member extent it would cut into."""
+    # Coarse members are excluded: re-expanding to one would undo the trim just accepted.
+    hard = [m for m in hard_member_spans(ad, original_start, original_end, min_conf)
+            if m.get('stage') not in COARSE_MEMBER_STAGES]
+    p_start, p_end = span_bounds(hard)
+    if p_start is None:
+        return start, end
+    return min(start, p_start), max(end, p_end)
+
+
+def _meta_min_conf(episode_meta: dict) -> float:
+    """The feed's cut confidence from episode_meta, or the default."""
+    value = finite_number(episode_meta.get('min_cut_confidence'))
+    return MIN_CUT_CONFIDENCE if value is None else value
 
 
 # Prose/number consistency check on adjust verdicts: warn when the reasoning
@@ -1188,6 +1206,7 @@ class AdReviewer:
         # verdicts list and downstream pattern-correction lookups match the
         # original sequential semantics.
         transcript_units = (_speech_units(segments), _word_units(segments))
+        min_conf = _meta_min_conf(episode_meta)
         accepted_results = self._run_review_batch(
             accepted_ads,
             pool="accepted",
@@ -1285,6 +1304,7 @@ class AdReviewer:
                         pass_num=pass_num,
                         slug=episode_meta.get('slug'),
                         episode_id=episode_meta.get('episode_id'),
+                        min_conf=min_conf,
                     )
                     if recovered is not None:
                         verdict.adjusted_start, verdict.adjusted_end = recovered
@@ -1320,12 +1340,14 @@ class AdReviewer:
                     pass_num=pass_num,
                     slug=episode_meta.get('slug'),
                     episode_id=episode_meta.get('episode_id'),
+                    min_conf=min_conf,
                 )
                 if recovered is None:
                     result.accepted_after_review.append(updated_ad)
                 elif self._proposal_conflicts_with_protection(
                         updated_ad, recovered[0], recovered[1],
-                        verdict.original_start, verdict.original_end):
+                        verdict.original_start, verdict.original_end,
+                        min_conf):
                     verdict.verdict = "adjust"
                     verdict.adjusted_start, verdict.adjusted_end = recovered
                     verdict.boundary_conflict = True
@@ -1344,7 +1366,8 @@ class AdReviewer:
                         max_shift,
                         episode_meta.get('slug'),
                         episode_meta.get('episode_id'),
-                        hard_barriers=episode_meta.get('hard_barriers'))
+                        hard_barriers=episode_meta.get('hard_barriers'),
+                        min_conf=min_conf)
                     if _bounds_unchanged(new_start, new_end,
                                          verdict.original_start,
                                          verdict.original_end):
@@ -1609,14 +1632,15 @@ class AdReviewer:
         except (TypeError, ValueError):
             confidence = None
 
+        min_conf = _meta_min_conf(episode_meta)
         boundary_conflict = self._proposal_conflicts_with_protection(
-            ad, new_start, new_end, original_start, original_end)
+            ad, new_start, new_end, original_start, original_end, min_conf)
 
         clamped_start, clamped_end = self._clamp_proposed_bounds(
             ad, new_start, new_end, original_start, original_end,
             max_shift, slug, episode_id, segments=segments,
             transcript_units=transcript_units,
-            hard_barriers=episode_meta.get('hard_barriers'))
+            hard_barriers=episode_meta.get('hard_barriers'), min_conf=min_conf)
 
         proposal_clamped = _clamp_overrode(
             new_start, new_end, original_start, original_end,
@@ -1706,7 +1730,7 @@ class AdReviewer:
     def _clamp_proposed_bounds(self, ad, new_start, new_end,
                                original_start, original_end, max_shift,
                                slug, episode_id, segments=None, transcript_units=None,
-                               hard_barriers=None):
+                               hard_barriers=None, min_conf=MIN_CUT_CONFIDENCE):
         """Clamp reviewer-proposed bounds: inverted-bounds fallback, per-edge
         shift cap, merged-span floor, final validity fallback. Single seam for
         every path that turns reviewer prose or deltas into marker bounds."""
@@ -1736,15 +1760,8 @@ class AdReviewer:
         # the flag without the protected keys; those keep the old blanket
         # expand-only rule.
         if ad.get('merged_distinct_ads'):
-            # Only measured members hold the floor: re-expanding to a coarse
-            # member would undo the trim just accepted.
-            hard = [m for m in protected_member_spans(ad, original_start, original_end)
-                    if m.get('stage') not in COARSE_MEMBER_STAGES]
-            p_start, p_end = span_bounds(hard)
-            floor_start = (clamped_start if p_start is None
-                           else min(clamped_start, p_start))
-            floor_end = (clamped_end if p_end is None
-                         else max(clamped_end, p_end))
+            floor_start, floor_end = _measured_member_floor(
+                ad, clamped_start, clamped_end, original_start, original_end, min_conf)
             if floor_start != clamped_start or floor_end != clamped_end:
                 logger.info(
                     f"[{slug}:{episode_id}] Reviewer inward shrink clamped "
@@ -1763,7 +1780,7 @@ class AdReviewer:
             # Only the probe windows of a region are measured, so an edge on a
             # transcript pause may cross the rest, stopping at independent evidence.
             units, words = transcript_units or (_speech_units(segments), _word_units(segments))
-            independent = reviewer_independent_spans(ad)
+            independent = reviewer_independent_spans(ad, min_conf)
             cap_start = cap_end = None
             if _edge_transcript_supported(units, words, 'start', clamped_start,
                                           original_start):
@@ -1809,12 +1826,13 @@ class AdReviewer:
 
     @staticmethod
     def _proposal_conflicts_with_protection(ad, start, end,
-                                             original_start, original_end):
-        """Return whether an inward proposal crosses protected evidence."""
+                                             original_start, original_end,
+                                             min_conf=MIN_CUT_CONFIDENCE):
+        """Return whether an inward proposal crosses measured member evidence."""
         if end <= start or not ad.get('merged_distinct_ads'):
             return False
         return any(_member_conflict(m, start, end) for m in
-                   protected_member_spans(ad, original_start, original_end))
+                   hard_member_spans(ad, original_start, original_end, min_conf))
 
     def _recover_contradiction_trim(
         self,
@@ -1826,6 +1844,7 @@ class AdReviewer:
         pass_num: int,
         slug: str | None,
         episode_id: str | None,
+        min_conf: float = MIN_CUT_CONFIDENCE,
     ) -> tuple[float, float] | None:
         """Recover machine-readable trim bounds from a prose-only trim.
 
@@ -1927,7 +1946,7 @@ class AdReviewer:
         if end <= start:
             return None
         protection_conflict = self._proposal_conflicts_with_protection(
-            ad, start, end, o_start, o_end)
+            ad, start, end, o_start, o_end, min_conf)
         if not protection_conflict:
             core_start, core_end = dai_core_bounds(ad)
             if core_start is not None:
@@ -1944,13 +1963,8 @@ class AdReviewer:
             )
             return None
         if not protection_conflict and ad.get('merged_distinct_ads'):
-            # Same floor the boundary clamp applies: a stamped proposal must
-            # not cut into a measured member either.
-            hard = [m for m in protected_member_spans(ad, o_start, o_end)
-                    if m.get('stage') not in COARSE_MEMBER_STAGES]
-            p_start, p_end = span_bounds(hard)
-            if p_start is not None:
-                start, end = min(start, p_start), max(end, p_end)
+            # Same floor the boundary clamp applies.
+            start, end = _measured_member_floor(ad, start, end, o_start, o_end, min_conf)
         logger.info(
             f"[{slug}:{episode_id}] {call_label} recovered proposed trim "
             f"{start:.1f}-{end:.1f}s from span {o_start:.1f}-{o_end:.1f}s"

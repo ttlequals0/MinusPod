@@ -56,7 +56,7 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import (EDGE_TOLERANCE, carve_fragment, clip_dai_core_spans,
+from utils.markers import (EDGE_TOLERANCE, carve_fragment,
                            clip_merge_spans, explicit_override, finite_number,
                            fold_marker_pair, foldable_twin, invalidate_tail_provenance,
                            is_reviewer_rejected, reviewer_edge_locked,
@@ -2099,7 +2099,7 @@ def _build_reviewer(db, ad_detector) -> AdReviewer:
 def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
                         episode_title, podcast_description, episode_description,
                         audio_analysis=None, effective_category_actions=None,
-                        hard_barriers=None):
+                        hard_barriers=None, min_cut_confidence=None):
     return {
         'podcast_name': podcast_name,
         'episode_title': episode_title,
@@ -2116,6 +2116,8 @@ def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
         'effective_category_actions': effective_category_actions,
         # Kept audio in the reviewer's coordinates; a widened edge stops at it.
         'hard_barriers': hard_barriers,
+        # Confidence a transcript member needs before its precise edge softens a fingerprint's.
+        'min_cut_confidence': min_cut_confidence,
     }
 
 
@@ -2192,6 +2194,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         slug, episode_id, podcast_id, podcast_name,
         episode_title, podcast_description, episode_description,
         effective_category_actions=segment_actions,
+        min_cut_confidence=min_cut_confidence,
     )
     pass2_model = ad_detector.get_verification_model()
     pass2_provider = ad_detector.get_verification_provider()
@@ -2413,7 +2416,8 @@ def _released_span(v, sub, hold, barriers):
 
 
 def _review_hold_release_candidates(ctx, candidates, original_segments,
-                                    protection, segment_actions=None):
+                                    protection, segment_actions=None,
+                                    min_cut_confidence=None):
     """Review each pass-2 subspan inside a hold; stamp holds whose subspan passed."""
     if not candidates or not _ad_review_enabled(db):
         return 0
@@ -2422,7 +2426,7 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         ctx.slug, ctx.episode_id, ctx.podcast_id, ctx.podcast_name,
         ctx.episode_title, ctx.podcast_description, ctx.episode_description,
         effective_category_actions=segment_actions,
-        hard_barriers=protection.hard_orig)
+        hard_barriers=protection.hard_orig, min_cut_confidence=min_cut_confidence)
     result = reviewer.review(
         accepted_ads=[orig_sub for orig_sub, _hold in candidates],
         resurrection_eligible=[],
@@ -2532,9 +2536,8 @@ def _apply_reviewer_verdict_to_ad(ad, v):
         invalidate_tail_provenance(ad, v.adjusted_end)
         ad['start'] = v.adjusted_start
         ad['end'] = v.adjusted_end
-        clip_dai_core_spans(ad, v.adjusted_start, v.adjusted_end)
-        clip_merge_spans(ad, v.adjusted_start, v.adjusted_end)
         set_reviewer_locks(ad, v.locked_edges)
+        clip_merge_spans(ad, v.adjusted_start, v.adjusted_end)
     elif v.verdict == 'reject':
         ad['was_cut'] = False
         ad['source'] = 'reviewer'
@@ -2647,6 +2650,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
         audio_analysis=audio_analysis,
         effective_category_actions=segment_actions,
         hard_barriers=hard_barriers,
+        min_cut_confidence=min_cut_confidence,
     )
     result = reviewer.review(
         accepted_ads=ads_to_remove,
@@ -3023,7 +3027,6 @@ def _finalize_user_confirmed_bounds(
         marker.pop('end_extended_by_content', None)
         marker.pop('tail_splice_snap', None)
         marker['start'], marker['end'] = target_start, target_end
-        clip_dai_core_spans(marker, target_start, target_end)
         clip_merge_spans(marker, target_start, target_end)
         flags = (marker.get('validation') or {}).get('flags')
         note_added = False
@@ -3800,7 +3803,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     v_ads_to_cut, v_ads_for_ui, v_ads_held)
                 v_corroborated_count += _review_hold_release_candidates(
                     ctx, hold_release_candidates, original_segments,
-                    current_protection(), segment_actions=segment_actions)
+                    current_protection(), segment_actions=segment_actions,
+                    min_cut_confidence=min_cut_confidence)
 
                 _stamp_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, segment_actions)
@@ -4875,7 +4879,6 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
         # Boundary adjustments are explicit user edits. Keep measured DAI
         # evidence inside the approved range so validation cannot restore a
         # stale automatic boundary over audio the user chose to preserve.
-        clip_dai_core_spans(match, n_start, n_end)
         clip_merge_spans(match, n_start, n_end)
         adjusted.add(id(match))
         applied += 1

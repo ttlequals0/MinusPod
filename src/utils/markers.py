@@ -365,13 +365,33 @@ def clip_member_spans(marker: dict, start: float, end: float) -> None:
     _clip_spans(marker, MERGED_MEMBER_SPANS, spans, start, end, keep_empty=True)
 
 
+def _clip_match(record: dict, lo: float, hi: float) -> bool:
+    """Clip a record's fingerprint match into [lo, hi]; False when none of it is left."""
+    match = _match_bounds(record)
+    if match is None:
+        return True
+    match_lo, match_hi = max(match[0], lo), min(match[1], hi)
+    if match_hi <= match_lo:
+        record.pop('fingerprint_match_start', None)
+        record.pop('fingerprint_match_end', None)
+        return False
+    record['fingerprint_match_start'], record['fingerprint_match_end'] = match_lo, match_hi
+    return True
+
+
 def clip_merge_spans(marker: dict, lo: float, hi: float) -> None:
-    """Clamp every merge record a marker carries into [lo, hi]."""
+    """Clamp every merge record and measured provenance a marker carries into [lo, hi]."""
     for key in ('merged_protected_start', 'merged_protected_end'):
         bound = marker.get(key)
         if bound is not None:
             marker[key] = min(max(bound, lo), hi)
     clip_member_spans(marker, lo, hi)
+    if isinstance(marker.get(MERGED_MEMBER_SPANS), list):
+        # A fingerprint member with no match left in range proves nothing here.
+        marker[MERGED_MEMBER_SPANS] = [m for m in marker[MERGED_MEMBER_SPANS]
+                                       if _clip_match(m, lo, hi)]
+    _clip_match(marker, lo, hi)
+    clip_dai_core_spans(marker, lo, hi)
 
 
 def _member_spans(marker: dict) -> list[dict]:
@@ -512,10 +532,93 @@ def measured_member_spans(marker: dict, min_conf: float, *,
     return sorted(spans)
 
 
-def reviewer_independent_spans(ad: dict) -> list[tuple[float, float]]:
+# Edges from a projected pattern length or a transcript segment boundary, not a timed word.
+SOFT_EDGE_STAGES = frozenset({'fingerprint', 'text_pattern'})
+
+
+def _transcript_member(member: dict, min_conf: float) -> bool:
+    """Whether a member is a confident LLM or heuristic span that can carry a precise edge."""
+    confidence = finite_number(member.get('confidence'))
+    return (member.get('stage') in COARSE_MEMBER_STAGES
+            and member.get('stage') != 'keep_content'
+            and confidence is not None and confidence >= min_conf)
+
+
+def _precise_transcript_edges(members, min_conf: float) -> tuple[float | None, float | None]:
+    """Earliest precise start and latest precise end of confident transcript members."""
+    confident = [m for m in members if _transcript_member(m, min_conf)]
+    return (min((m['start'] for m in confident if m.get('precise_start')), default=None),
+            max((m['end'] for m in confident if m.get('precise_end')), default=None))
+
+
+def _match_bounds(member: dict) -> tuple[float, float] | None:
+    """A member's recorded fingerprint match, or None when it has none."""
+    match_lo = finite_number(member.get('fingerprint_match_start'))
+    match_hi = finite_number(member.get('fingerprint_match_end'))
+    return None if match_lo is None or match_hi is None else (match_lo, match_hi)
+
+
+def _unmatched_fingerprint(member: dict) -> bool:
+    return member.get('stage') == 'fingerprint' and _match_bounds(member) is None
+
+
+def _hard_extent(member: dict, precise) -> tuple[float, float] | None:
+    """A member's measured extent: fingerprint match bounds, soft past precise transcript edges."""
+    lo, hi = member['start'], member['end']
+    stage = member.get('stage')
+    match = _match_bounds(member)
+    if stage == 'fingerprint' and match is not None:
+        lo, hi = max(lo, match[0]), min(hi, match[1])
+    if stage in SOFT_EDGE_STAGES:
+        precise_lo, precise_hi = precise
+        lo = lo if precise_lo is None else max(lo, precise_lo)
+        hi = hi if precise_hi is None else min(hi, precise_hi)
+    return (lo, hi) if hi > lo else None
+
+
+def _hard_members(members: list[dict], min_conf: float) -> list[dict]:
+    """Members clipped to their measured extent, empty ones dropped."""
+    precise = _precise_transcript_edges(members, min_conf)
+    hard = []
+    for member in members:
+        extent = _hard_extent(member, precise)
+        if extent is not None:
+            hard.append({**member, 'start': extent[0], 'end': extent[1]})
+    return hard
+
+
+def hard_member_spans(ad: dict, lo, hi, min_conf: float) -> list[dict]:
+    """protected_member_spans with every member clipped to what it measured."""
+    return _hard_members(protected_member_spans(ad, lo, hi), min_conf)
+
+
+def edge_support(ad: dict, edge: str, min_conf: float) -> dict:
+    """The envelope edge and the outermost member edge that measures it."""
+    candidates = []
+    for member in _hard_members(_member_spans(ad), min_conf):
+        stage = member.get('stage')
+        transcript = stage in COARSE_MEMBER_STAGES
+        if transcript and not _transcript_member(member, min_conf):
+            continue
+        if not transcript and stage not in MEASURED_EVIDENCE_STAGES:
+            continue
+        if _unmatched_fingerprint(member):
+            continue
+        precise = bool(transcript and member.get(f'precise_{edge}'))
+        value = member[edge] if edge == 'end' else -member[edge]
+        rank = (value, precise, finite_number(member.get('confidence')) or 0.0)
+        candidates.append((rank, member[edge], 'transcript' if transcript else stage, precise))
+    best = max(candidates, default=None)
+    return {'envelope': finite_number(ad.get(edge)),
+            'measured': None if best is None else best[1],
+            'source': None if best is None else best[2],
+            'precise': False if best is None else best[3]}
+
+
+def reviewer_independent_spans(ad: dict, min_conf: float) -> list[tuple[float, float]]:
     """Measured spans a transcript-supported reviewer edge may not enter."""
-    spans = [(lo, hi) for lo, hi, _ in
-             measured_member_spans(ad, math.inf, include_dai_core=False)]
+    spans = [(m['start'], m['end']) for m in _hard_members(_member_spans(ad), min_conf)
+             if m.get('stage') in MEASURED_EVIDENCE_STAGES and not _unmatched_fingerprint(m)]
     pair = ad.get('cue_pair') or {}
     cue_lo = finite_number((pair.get('start') or {}).get('cue_end'))
     cue_hi = finite_number((pair.get('end') or {}).get('cue_start'))
