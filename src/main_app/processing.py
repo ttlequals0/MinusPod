@@ -2609,8 +2609,8 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     """Run the LLM ad reviewer over the cut list and resurrection-eligible
     rejects. Returns updated ``(ads_to_remove, all_ads_with_validation)``.
 
-    Non-blocking: any failure inside the reviewer falls through with the
-    original lists. Skips entirely when ``enable_ad_review`` is false.
+    A reviewer failure holds unsupported cuts as reviewer_failed. Skips
+    entirely when ``enable_ad_review`` is false.
 
     ``cue_gate_enabled``: when True, resurrection is suppressed. A resurrected
     non-held reject would become a cue-less auto-cut, violating the gate's

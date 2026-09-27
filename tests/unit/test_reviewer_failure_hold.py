@@ -11,6 +11,7 @@ bootstrap('reviewer_failure_hold_test_')
 
 from config import (HOLD_REASON_REVIEWER_FAILED, PASS2_AUTOAPPROVE_HOLD_REASONS,
                     PASS2_COVERAGE_ONLY_HOLD_REASONS, is_pending_review)
+from ad_reviewer import inconclusive_bounds_supported
 from main_app import processing
 from main_app.verification_reconciliation import _gate_verification_ads_by_confidence
 from tests.unit.test_keep_bypass import _run_pipeline
@@ -180,3 +181,50 @@ def test_batch_failure_holds_unsupported_pass1_marker(monkeypatch):
     assert unsupported['hold_reason'] == HOLD_REASON_REVIEWER_FAILED
     assert is_pending_review(unsupported)
     assert SUPPORTED_FLAG in supported['validation']['flags']
+
+
+def _dai_ad(**extra):
+    return dict({'start': 3573.2, 'end': 3680.7, 'detection_stage': 'dai_differential',
+                 'dai_core_spans': [{'start': 3573.2, 'end': 3680.7}]}, **extra)
+
+
+def test_core_with_empty_probe_list_is_unsupported():
+    assert not inconclusive_bounds_supported(_dai_ad(dai_probe_spans=[]), None)
+
+
+def test_core_with_probe_window_is_supported():
+    ad = _dai_ad(dai_probe_spans=[{'start': 3573.7, 'end': 3577.7}])
+    assert inconclusive_bounds_supported(ad, None)
+
+
+def test_legacy_core_without_probe_key_is_supported():
+    assert inconclusive_bounds_supported(_dai_ad(), None)
+
+
+def test_second_failure_holds_every_unconfirmed_ad(monkeypatch, caplog):
+    reviewer = _reviewer()
+    monkeypatch.setattr(reviewer, '_review_inner',
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError('boom')))
+    unsupported, supported, confirmed = _batch_failure_ads()
+    # Support check fails on the second ad, after the first was already settled.
+    calls = []
+
+    def flaky_support(ad, db):
+        calls.append(ad)
+        if len(calls) > 1:
+            raise RuntimeError('database is locked')
+        return True
+    monkeypatch.setattr('ad_reviewer.inconclusive_bounds_supported', flaky_support)
+    with caplog.at_level(logging.INFO, logger='ad_reviewer'):
+        result = reviewer.review(
+            accepted_ads=[supported, unsupported, confirmed],
+            resurrection_eligible=[], segments=[], episode_meta=_meta(),
+            pass_num=1, pass_model='test-model')
+    assert result.accepted_after_review == [confirmed]
+    held = result.held_by_inconclusive
+    assert [h['hold_reason'] for h in held] == [HOLD_REASON_REVIEWER_FAILED] * 2
+    assert all(h['was_cut'] is False and is_pending_review(h) for h in held)
+    assert SUPPORTED_FLAG not in held[0].get('validation', {}).get('flags', [])
+    assert [v.verdict for v in result.verdicts] == ['failure', 'failure']
+    assert all(v.inconclusive_hold for v in result.verdicts)
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1

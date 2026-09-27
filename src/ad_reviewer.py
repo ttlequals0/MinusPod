@@ -172,9 +172,9 @@ def inconclusive_bounds_supported(ad: dict, db) -> bool:
     if (ad.get('validation') or {}).get('user_confirmed'):
         return True
 
-    core = [(span.get('start'), span.get('end'))
-            for span in ad.get('dai_core_spans') or []]
-    if union_cover(core, start, end, gap_tol=EDGE_TOLERANCE) == (start, end):
+    # A core counts only once a probe measured it; legacy cores fall back to the leading window.
+    if (dai_probe_spans(ad) and union_cover(dai_core_spans(ad), start, end,
+                                            gap_tol=EDGE_TOLERANCE) == (start, end)):
         return True
 
     pair = ad.get('cue_pair') or {}
@@ -1094,23 +1094,53 @@ class AdReviewer:
                 f"Reviewer pass {pass_num} hit catastrophic failure: {e}",
                 exc_info=True,
             )
-            return self._fail_all(accepted_ads, e, episode_meta, pass_num)
+            try:
+                return self._fail_all(accepted_ads, e, episode_meta, pass_num)
+            except Exception as settle_error:
+                logger.warning(
+                    f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
+                    f"Reviewer pass {pass_num} failure rule failed ({settle_error}); "
+                    f"holding every unconfirmed ad"
+                )
+                return self._hold_all_failed(accepted_ads, e, pass_num)
 
-    def _fail_all(self, accepted_ads, error, episode_meta, pass_num) -> ReviewResult:
-        """Apply the per-ad failure rule to every accepted ad after a batch failure."""
-        result = ReviewResult()
+    @staticmethod
+    def _batch_failure_verdicts(accepted_ads, error, pass_num):
+        """Yield (ad, failure verdict) per ad; confirmed ads get None."""
         for ad in accepted_ads:
             if (ad.get("validation") or {}).get("user_confirmed"):
-                result.accepted_after_review.append(ad)
+                yield ad, None
                 continue
-            verdict = ReviewVerdict(
+            yield ad, ReviewVerdict(
                 pool="accepted", pass_num=pass_num, verdict="failure",
                 original_start=float(ad.get("start", 0.0)),
                 original_end=float(ad.get("end", 0.0)),
                 reasoning=_review_failure_reason(error), success=False,
             )
+
+    def _fail_all(self, accepted_ads, error, episode_meta, pass_num) -> ReviewResult:
+        """Apply the per-ad failure rule to every accepted ad after a batch failure."""
+        result = ReviewResult()
+        for ad, verdict in self._batch_failure_verdicts(accepted_ads, error, pass_num):
+            if verdict is None:
+                result.accepted_after_review.append(ad)
+                continue
             result.verdicts.append(verdict)
             self._settle_abstained(result, verdict, ad, episode_meta)
+        return result
+
+    def _hold_all_failed(self, accepted_ads, error, pass_num) -> ReviewResult:
+        """Hold every unconfirmed ad as reviewer_failed without the support check."""
+        result = ReviewResult()
+        for ad, verdict in self._batch_failure_verdicts(accepted_ads, error, pass_num):
+            if verdict is None:
+                result.accepted_after_review.append(ad)
+                continue
+            flags = (ad.get('validation') or {}).get('flags')
+            if flags and REVIEWER_FAILED_SUPPORTED_FLAG in flags:
+                flags.remove(REVIEWER_FAILED_SUPPORTED_FLAG)
+            result.verdicts.append(verdict)
+            self._hold_abstained(result, verdict, ad)
         return result
 
     def _settle_abstained(self, result, verdict, ad, episode_meta) -> bool:
@@ -1125,13 +1155,19 @@ class AdReviewer:
                 flags.append(REVIEWER_FAILED_SUPPORTED_FLAG)
             result.accepted_after_review.append(ad)
             return True
-        verdict.inconclusive_hold = True
         if verdict.verdict == "failure":
             logger.info(
                 f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
                 f"Reviewer unavailable; bounds unsupported @ "
                 f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s: held"
             )
+        self._hold_abstained(result, verdict, ad)
+        return True
+
+    @staticmethod
+    def _hold_abstained(result, verdict, ad) -> None:
+        """Append a held copy of an abstained or failed ad to the result."""
+        verdict.inconclusive_hold = True
         held = dict(ad)
         held['was_cut'] = False
         held['held_for_review'] = True
@@ -1141,7 +1177,6 @@ class AdReviewer:
         held['reviewer_model'] = verdict.model_used
         held['source'] = 'reviewer'
         result.held_by_inconclusive.append(held)
-        return True
 
     def _review_inner(
         self,

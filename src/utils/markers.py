@@ -2,8 +2,10 @@
 import math
 
 
+# DAI core: the region measured as differing across fetches; it answers whether the audio is an ad.
+# DAI probes: sub-windows where correlation was computed; they answer whether an edge is measured.
+# Read both only through dai_core_spans/dai_core_bounds and dai_probe_spans.
 DAI_CORE_SPANS = 'dai_core_spans'
-# Windows the cross-fetch probe actually correlated; the rest of a region is inferred.
 DAI_PROBE_SPANS = 'dai_probe_spans'
 # Probe geometry shared with differential_fetcher._probe_block.
 DAI_PROBE_LEAD_S = 0.5

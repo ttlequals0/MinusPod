@@ -578,6 +578,7 @@ export interface AdSegment {
     | 'reviewer_reject_conflict'
     | 'no_splice_evidence'
     | 'verification_miss'
+    | 'verification_kept_conflict'
     | 'differential_uncorroborated'
     | 'large_vad_gap_extension'
     | 'cue_template_unproven'
