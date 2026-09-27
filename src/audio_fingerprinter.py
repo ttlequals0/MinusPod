@@ -42,6 +42,7 @@ from config import (
     AUDIO_CUE_XEP_SIMILARITY,
     AUDIO_CUE_XEP_MIN_MATCHES,
     AUDIO_CUE_XEP_BODY_MIN_DURATION,
+    FINGERPRINT_CHUNK_SIZE,
     FINGERPRINT_MATCH_THRESHOLD as MATCH_THRESHOLD,
 )
 
@@ -49,9 +50,6 @@ logger = logging.getLogger('podcast.fingerprint')
 
 # Minimum duration for fingerprinting (seconds)
 MIN_SEGMENT_DURATION = 5.0
-
-# Fingerprint chunk size for sliding window search (seconds)
-FINGERPRINT_CHUNK_SIZE = 10.0
 
 # Step size for sliding window (seconds)
 SLIDING_STEP_SIZE = 2.0

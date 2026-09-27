@@ -492,7 +492,6 @@ def test_estimated_text_bounds_never_inverts():
          'text_start': 30.0, 'text_end': 40.0}) == (30.0, 30.0)
 
 
-
 def _precise_llm(start, end, **extra):
     return _ad(start, end, 'claude', confidence=0.98, sponsor='Acme', category='sponsor',
                word_timed_start=start, word_timed_end=end, **extra)
@@ -534,18 +533,47 @@ def test_segment_end_text_pattern_is_soft_past_a_precise_word_end():
         (944.07, 1074.76), (1051.8, 1074.76), (1046.0, 1074.76)]
 
 
-def test_fingerprint_wholly_past_a_precise_end_proves_no_edge():
+def test_fingerprint_wholly_past_a_precise_end_keeps_its_correlation_window():
     merged = {'start': 72.66, 'end': 173.6, 'merged_distinct_ads': True,
               'merged_protected_start': 91.6, 'merged_protected_end': 173.6,
               'merged_member_spans': [
-        {'start': 91.6, 'end': 116.2, 'stage': 'claude', 'confidence': 0.97,
-         'precise_start': True, 'precise_end': True},
-        {'start': 130.0, 'end': 173.6, 'stage': 'fingerprint',
-         'fingerprint_match_start': 130.0, 'fingerprint_match_end': 173.6}]}
+                  {'start': 91.6, 'end': 116.2, 'stage': 'claude', 'confidence': 0.97,
+                   'precise_start': True, 'precise_end': True},
+                  {'start': 130.0, 'end': 173.6, 'stage': 'fingerprint',
+                   'fingerprint_match_start': 130.0, 'fingerprint_match_end': 173.6}]}
 
     support = edge_support(merged, 'end', MIN_CONF)
-    assert (support['envelope'], support['measured']) == (173.6, 116.2)
-    assert [m['stage'] for m in hard_member_spans(merged, 72.66, 173.6, MIN_CONF)] == ['claude']
+    assert (support['envelope'], support['measured'], support['source']) == (
+        173.6, 140.0, 'fingerprint')
+    assert [(m['start'], m['end']) for m in hard_member_spans(merged, 72.66, 173.6, MIN_CONF)] == [
+        (91.6, 116.2), (130.0, 140.0)]
+
+
+def test_fingerprint_start_before_a_precise_start_stays_measured():
+    merged = {'start': 1700.0, 'end': 1836.66, 'merged_protected_start': 1700.0,
+              'merged_protected_end': 1836.66, 'merged_member_spans': [
+                  {'start': 1711.02, 'end': 1836.66, 'stage': 'claude', 'confidence': 0.98,
+                   'precise_start': True, 'precise_end': True},
+                  {'start': 1700.0, 'end': 1760.0, 'stage': 'fingerprint',
+                   'fingerprint_match_start': 1700.0, 'fingerprint_match_end': 1760.0}]}
+
+    fingerprint = [m for m in hard_member_spans(merged, 1700.0, 1836.66, MIN_CONF)
+                   if m['stage'] == 'fingerprint']
+    assert [(m['start'], m['end']) for m in fingerprint] == [(1700.0, 1760.0)]
+    assert edge_support(merged, 'start', MIN_CONF)['measured'] == 1700.0
+
+
+@pytest.mark.parametrize('pattern', [(30.0, 60.0), (100.0, 130.0), (-40.0, 0.0)])
+def test_text_pattern_outside_precise_edges_stays_hard(pattern):
+    merged = {'start': -40.0, 'end': 130.0, 'merged_protected_start': -40.0,
+              'merged_protected_end': 130.0, 'merged_member_spans': [
+                  {'start': 0.0, 'end': 30.0, 'stage': 'claude', 'confidence': 0.98,
+                   'precise_start': True, 'precise_end': True},
+                  {'start': pattern[0], 'end': pattern[1], 'stage': 'text_pattern'}]}
+
+    text = [m for m in hard_member_spans(merged, -40.0, 130.0, MIN_CONF)
+            if m['stage'] == 'text_pattern']
+    assert [(m['start'], m['end']) for m in text] == [pattern]
 
 
 def test_fingerprint_only_marker_is_measured_at_its_match_bounds():

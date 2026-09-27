@@ -502,6 +502,8 @@ DEFER_SERVICE_WHISPER = 'whisper'
 TFIDF_MATCH_THRESHOLD = 0.70         # TF-IDF similarity for content matching
 FUZZY_MATCH_THRESHOLD = 0.75         # Fuzzy string match threshold
 FINGERPRINT_MATCH_THRESHOLD = 0.65   # Audio fingerprint similarity threshold
+# Audio a fingerprint match correlates from its start position (seconds).
+FINGERPRINT_CHUNK_SIZE = 10.0
 
 # ============================================================
 # Ad Boundary Extension (content-based)

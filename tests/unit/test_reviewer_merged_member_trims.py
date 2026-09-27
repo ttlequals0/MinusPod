@@ -634,3 +634,27 @@ def test_every_clamp_path_supports_the_measured_end_not_the_envelope(path, propo
                          ids=['clamp', 'recover_trim', 'supported_floor', 'edge_support'])
 def test_every_floor_path_restores_the_measured_end(path):
     assert path(_envelope_ad(), 1834.0) == pytest.approx(1836.66)
+
+
+def test_start_trim_into_a_fingerprint_correlation_window_is_held():
+    ad = _merged(1700.0, 1836.66, [
+        {'start': 1711.02, 'end': 1836.66, 'stage': 'claude', 'confidence': 0.98,
+         'precise_start': True, 'precise_end': True},
+        {'start': 1700.0, 'end': 1760.0, 'stage': 'fingerprint',
+         'fingerprint_match_start': 1700.0, 'fingerprint_match_end': 1760.0}])
+
+    assert AdReviewer._proposal_conflicts_with_protection(
+        ad, 1711.02, 1836.66, 1700.0, 1836.66, min_conf=MIN_CONF)
+
+
+def test_trim_dropping_a_fingerprint_wholly_past_the_precise_end_is_held():
+    ad = _merged(91.6, 173.6, [
+        {'start': 91.6, 'end': 116.2, 'stage': 'claude', 'confidence': 0.97,
+         'precise_start': True, 'precise_end': True},
+        {'start': 130.0, 'end': 173.6, 'stage': 'fingerprint',
+         'fingerprint_match_start': 130.0, 'fingerprint_match_end': 173.6}])
+
+    result = _review(_build_reviewer(), ad, (91.6, 116.2))
+
+    assert result.accepted_after_review == []
+    assert result.held_by_boundary_conflict[0]['reviewer_proposed_end'] == 116.2
