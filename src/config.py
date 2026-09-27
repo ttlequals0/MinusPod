@@ -49,6 +49,8 @@ HOLD_REASON_NO_SPLICE = 'no_splice_evidence'
 HOLD_REASON_REVIEWER_CONTRADICTION = 'reviewer_contradiction'
 HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT = 'reviewer_boundary_conflict'
 HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS = 'reviewer_inconclusive_bounds'
+# The review call failed and no independent evidence backs the bounds.
+HOLD_REASON_REVIEWER_FAILED = 'reviewer_failed'
 HOLD_REASON_ESTIMATED_PATTERN = 'estimated_pattern_bounds'
 # The reviewer rejected a span that carries measured evidence or a confirmed
 # sponsor: a human decides, the reject alone does not drop it.

@@ -683,9 +683,9 @@ def test_empty_array_in_resurrection_pool_yields_reject():
     assert result.accepted_after_review == []
 
 
-# ---------- Failure / fall-through ----------
+# ---------- Failure holds ----------
 
-def test_unparseable_response_falls_through():
+def test_unparseable_response_holds_unsupported_ad():
     reviewer = _build_reviewer({
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
@@ -699,12 +699,13 @@ def test_unparseable_response_falls_through():
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
         pass_num=1, pass_model='claude-test',
     )
-    assert result.accepted_after_review == [ad]
+    assert result.accepted_after_review == []
+    assert result.held_by_inconclusive[0]['hold_reason'] == 'reviewer_failed'
     assert result.verdicts[0].verdict == 'failure'
 
 
-def test_llm_call_failure_falls_through():
-    """Per-ad LLM failure: ad stays unchanged, verdict logged as failure."""
+def test_llm_call_failure_holds_unsupported_ad():
+    """Per-ad LLM failure: an unsupported ad is held, verdict logged as failure."""
     reviewer = _build_reviewer({
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
@@ -717,7 +718,8 @@ def test_llm_call_failure_falls_through():
             pass_num=1, pass_model='claude-test',
         )
 
-    assert result.accepted_after_review == [ad]  # unchanged
+    assert result.accepted_after_review == []
+    assert result.held_by_inconclusive[0]['start'] == 120.0
     assert result.verdicts[0].verdict == 'failure'
     assert result.verdicts[0].success is False
 
@@ -823,7 +825,8 @@ def test_per_ad_failure_does_not_block_other_ads():
     assert len(result.verdicts) == 2
     assert result.verdicts[0].verdict == 'failure'
     assert result.verdicts[1].verdict == 'confirmed'
-    assert len(result.accepted_after_review) == 2
+    assert [a['start'] for a in result.accepted_after_review] == [200.0]
+    assert [a['start'] for a in result.held_by_inconclusive] == [100.0]
 
 
 def test_inverted_boundaries_keep_original():

@@ -573,6 +573,7 @@ export interface AdSegment {
     | 'reviewer_contradiction'
     | 'reviewer_boundary_conflict'
     | 'reviewer_inconclusive_bounds'
+    | 'reviewer_failed'
     | 'estimated_pattern_bounds'
     | 'reviewer_reject_conflict'
     | 'no_splice_evidence'

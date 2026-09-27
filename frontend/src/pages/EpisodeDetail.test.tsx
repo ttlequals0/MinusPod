@@ -866,6 +866,18 @@ describe('New hold reasons: tooltip titles', () => {
     expect(screen.getByText('Reviewer abstained: missing boundary coverage.')).toBeDefined();
   });
 
+  it('labels a failed review hold and shows its reasoning', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{
+      ...heldMarker,
+      hold_reason: 'reviewer_failed',
+      reviewer_reasoning: 'Review unavailable: LLM call failed',
+    }] }));
+    await waitFor(() => expect(screen.getByText('Reviewer unavailable')).toBeDefined());
+    expect(screen.getByTitle(
+      'The reviewer could not be reached and no independent evidence backs the bounds')).toBeDefined();
+    expect(screen.getByText('Review unavailable: LLM call failed')).toBeDefined();
+  });
+
   it('shows why estimated pattern bounds were held', async () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [{
       ...heldMarker, hold_reason: 'estimated_pattern_bounds',

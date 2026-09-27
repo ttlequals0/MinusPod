@@ -1483,6 +1483,8 @@ function EpisodeDetail() {
                 ? 'The reviewer proposed a boundary that crosses protected ad evidence'
                 : segment.hold_reason === 'reviewer_inconclusive_bounds'
                 ? 'The reviewer could not verify both cut boundaries'
+                : segment.hold_reason === 'reviewer_failed'
+                ? 'The reviewer could not be reached and no independent evidence backs the bounds'
                 : segment.hold_reason === 'estimated_pattern_bounds'
                 ? 'Estimated pattern remainder outside the verified ad bounds'
                 : segment.hold_reason === 'reviewer_reject_conflict'
@@ -1504,6 +1506,8 @@ function EpisodeDetail() {
                 ? 'Verification catch'
                 : segment.hold_reason === 'reviewer_inconclusive_bounds'
                 ? 'Unverified bounds'
+                : segment.hold_reason === 'reviewer_failed'
+                ? 'Reviewer unavailable'
                 : segment.hold_reason === 'estimated_pattern_bounds'
                 ? 'Estimated bounds'
                 : segment.hold_reason === 'differential_uncorroborated'
@@ -1601,6 +1605,7 @@ function EpisodeDetail() {
                   {(segment.hold_reason === 'reviewer_contradiction'
                     || segment.hold_reason === 'reviewer_boundary_conflict'
                     || segment.hold_reason === 'reviewer_inconclusive_bounds'
+                    || segment.hold_reason === 'reviewer_failed'
                     || segment.hold_reason === 'reviewer_reject_conflict'
                     || segment.reviewer_verdict === 'inconclusive')
                     && segment.reviewer_reasoning && (

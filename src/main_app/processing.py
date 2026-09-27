@@ -35,7 +35,7 @@ from ad_detector.boundaries import (
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from ad_yield import low_ad_yield
 from ad_reviewer import (
-    AdReviewer, is_contradiction_hold, split_resurrection_pool,
+    AdReviewer, abstain_hold_reason, is_contradiction_hold, split_resurrection_pool,
 )
 from ad_validator import restore_uncovered_confirmed_spans, user_trimmed_keep_ranges
 from audio_analysis.audio_analyzer import MIN_VOLUME_TIMEOUT
@@ -75,7 +75,6 @@ from config import (
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
-    HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
@@ -2495,7 +2494,7 @@ def _apply_reviewer_verdict_to_ad(ad, v):
     if v.inconclusive_hold:
         ad['was_cut'] = False
         ad['held_for_review'] = True
-        ad['hold_reason'] = HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS
+        ad['hold_reason'] = abstain_hold_reason(v)
         ad['source'] = 'reviewer'
         return
     if v.boundary_conflict:

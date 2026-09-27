@@ -179,15 +179,15 @@ def test_confirmed_with_normal_reasoning_still_cut():
     assert result.held_by_contradiction == []
 
 
-def test_failure_verdict_keeps_pass1_cut_decision():
-    """Documented fallback (spec 1.4): reviewer unavailable -> trust the
-    pass-1 decision. The ad stays in the cut list and is NOT held."""
+def test_failure_verdict_keeps_supported_pass1_cut_decision():
+    """Reviewer unavailable on independently supported bounds: the cut stands, unheld."""
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
     })
     with patch('ad_reviewer.call_llm_for_window',
                return_value=(None, RuntimeError('boom'))):
-        ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+        ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9,
+              'dai_core_spans': [{'start': 120.0, 'end': 180.0}]}
         result = reviewer.review(
             accepted_ads=[ad], resurrection_eligible=[],
             segments=_mock_segments(), episode_meta=_mock_episode_meta(),

@@ -17,6 +17,7 @@ from config import (
     resolve_env_backed_default,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
+    HOLD_REASON_REVIEWER_FAILED,
     HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
     HOLD_REASON_REVIEWER_REJECT_CONFLICT,
     AUDIO_CUE_ROLE_DEFAULT,
@@ -150,6 +151,16 @@ def _review_inconclusive_reason(error: Exception) -> str:
             value = None
     parts.append("Original marker retained.")
     return " ".join(parts).replace('; Original', ". Original")
+
+
+REVIEWER_FAILED_SUPPORTED_FLAG = 'INFO: Reviewer failed; bounds supported'
+
+
+def abstain_hold_reason(verdict) -> str:
+    """Hold reason for a review that abstained or failed on unsupported bounds."""
+    if verdict.verdict == "failure":
+        return HOLD_REASON_REVIEWER_FAILED
+    return HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS
 
 
 def inconclusive_bounds_supported(ad: dict, db) -> bool:
@@ -701,6 +712,7 @@ class ReviewVerdict:
     # Set on a reject the evidence floor turned into a hold; the apply path
     # stamps it as the marker's hold_reason instead of dropping the ad.
     reject_hold_reason: str | None = None
+    # Held because the review abstained or failed and no evidence backs the bounds.
     inconclusive_hold: bool = False
 
 
@@ -1104,18 +1116,30 @@ class AdReviewer:
                 verdict, model=verdict.model_used,
                 slug=episode_meta.get('slug'),
                 episode_id=episode_meta.get('episode_id'))
-            if (verdict.verdict == "inconclusive"
-                    and not inconclusive_bounds_supported(updated_ad, self.db)):
+            abstained = verdict.verdict in ("inconclusive", "failure")
+            supported = abstained and inconclusive_bounds_supported(updated_ad, self.db)
+            if abstained and not supported:
                 verdict.inconclusive_hold = True
                 held = dict(updated_ad)
                 held['was_cut'] = False
                 held['held_for_review'] = True
-                held['hold_reason'] = HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS
+                held['hold_reason'] = abstain_hold_reason(verdict)
+                if verdict.verdict == "failure":
+                    logger.info(
+                        f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
+                        f"Reviewer unavailable; bounds unsupported @ "
+                        f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s: held"
+                    )
                 held['reviewer_verdict'] = verdict.verdict
                 held['reviewer_reasoning'] = verdict.reasoning
                 held['reviewer_model'] = verdict.model_used
                 held['source'] = 'reviewer'
                 result.held_by_inconclusive.append(held)
+            elif verdict.verdict == "failure":
+                flags = updated_ad.setdefault('validation', {}).setdefault('flags', [])
+                if REVIEWER_FAILED_SUPPORTED_FLAG not in flags:
+                    flags.append(REVIEWER_FAILED_SUPPORTED_FLAG)
+                result.accepted_after_review.append(updated_ad)
             elif verdict.verdict == "reject":
                 evidence = reject_hold_evidence(updated_ad)
                 if evidence:
@@ -1411,8 +1435,8 @@ class AdReviewer:
                 )
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer {window_label} "
-                f"@ {original_start:.1f}s failed: {error}. Falling through "
-                f"with original ad."
+                f"@ {original_start:.1f}s failed: {error}. Original "
+                f"bounds retained."
             )
             return (
                 ReviewVerdict(
@@ -1432,7 +1456,7 @@ class AdReviewer:
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer {window_label} "
                 f"@ {original_start:.1f}s returned unparseable response "
-                f"(text head: {text[:200]!r}). Falling through with original ad."
+                f"(text head: {text[:200]!r}). Original bounds retained."
             )
             return (
                 ReviewVerdict(
@@ -1464,7 +1488,7 @@ class AdReviewer:
         if not isinstance(kept, dict):
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer {window_label} returned "
-                f"non-object array element. Falling through with original ad."
+                f"non-object array element. Original bounds retained."
             )
             return (
                 ReviewVerdict(
