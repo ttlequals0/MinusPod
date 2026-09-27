@@ -232,31 +232,31 @@ class TestContinuationScaffoldingStrippedFromReason:
 class TestShowNameIsNotASponsor:
     """A self-promo or listener-support read has no advertiser, so the model
     puts the show's own name in the sponsor slot. Seen in production as a
-    Patreon thank-you credited to "Dailytechnewsshow"."""
+    Patreon thank-you credited to "Thedailytechshow"."""
 
-    SHOW = 'Daily Tech News Show'
+    SHOW = 'The Daily Tech Show'
 
     def test_the_show_name_is_rejected(self):
         from utils.constants import sanitize_sponsor_label
-        for label in ('Dailytechnewsshow', 'daily tech news show',
-                      'Daily-Tech-News-Show', '  Daily Tech News Show  '):
+        for label in ('Thedailytechshow', 'the daily tech show',
+                      'The-Daily-Tech-Show', '  The Daily Tech Show  '):
             assert sanitize_sponsor_label(label, show_name=self.SHOW) is None, label
 
     def test_a_real_sponsor_survives(self):
         from utils.constants import sanitize_sponsor_label
-        for label in ('Squarespace', 'Morning Brew Daily', 'Cologuard'):
+        for label in ('Squarespace', 'Globex Daily', 'Initech'):
             assert sanitize_sponsor_label(label, show_name=self.SHOW) == label
 
     def test_without_a_show_name_nothing_changes(self):
         from utils.constants import sanitize_sponsor_label
-        assert sanitize_sponsor_label('Dailytechnewsshow') == 'Dailytechnewsshow'
+        assert sanitize_sponsor_label('Thedailytechshow') == 'Thedailytechshow'
 
     def test_a_sponsor_that_merely_contains_the_show_name_survives(self):
         """Only an exact match counts; a brand is not the show because the
         show's name appears inside it."""
         from utils.constants import sanitize_sponsor_label
-        assert sanitize_sponsor_label('Daily Tech News Show Store',
-                                      show_name=self.SHOW) == 'Daily Tech News Show Store'
+        assert sanitize_sponsor_label('The Daily Tech Show Store',
+                                      show_name=self.SHOW) == 'The Daily Tech Show Store'
 
 
 class TestBrandFurtherFromTheReadPhrase:
@@ -270,8 +270,8 @@ class TestBrandFurtherFromTheReadPhrase:
 
     def test_a_slash_joined_brand_reduces_to_its_first_form(self):
         assert self._extract(
-            'PestEase/Pesti pest control sponsor read with a discount offer'
-        ) == 'PestEase'
+            'Hooli/Hoolix pest control sponsor read with a discount offer'
+        ) == 'Hooli'
 
     def test_a_brand_separated_by_a_descriptor_is_found(self):
         assert self._extract(
@@ -310,20 +310,20 @@ class TestAdvertisersListedAfterAColon:
     def test_a_hyphenated_compound_does_not_yield_a_fragment(self):
         """"host-read sponsor spots" stored "read" as the advertiser."""
         assert self._extract(
-            'Ad break with host-read sponsor spots: IQ Bar (text Tosh to 64000)'
-        ) == 'IQ Bar'
+            'Ad break with host-read sponsor spots: Stark Bar (text SHOW to 64000)'
+        ) == 'Stark Bar'
 
     def test_the_first_advertiser_of_a_list_becomes_the_label(self):
         assert self._extract(
-            'Ad break with three DAI host/produced reads: Serval '
-            '(serval.com/tickets), Just Food for Dogs, and LifeLock'
-        ) == 'Serval'
+            'Ad break with three DAI host/produced reads: Wayne '
+            '(wayne.com/tickets), Food for Pets, and Umbrella'
+        ) == 'Wayne'
 
     def test_a_pre_roll_list_is_matched_too(self):
         assert self._extract(
-            'Back-to-back dynamically-inserted pre-roll ads: Serval '
-            '(serval.com/tickets) and Lincoln Tech (lincolntech.edu), merged'
-        ) == 'Serval'
+            'Back-to-back dynamically-inserted pre-roll ads: Wayne '
+            '(wayne.com/tickets) and Acme Tech (acmetech.edu), merged'
+        ) == 'Wayne'
 
     def test_a_non_brand_after_the_colon_is_refused(self):
         assert self._extract('Ad break: Host discusses the news at length') is None

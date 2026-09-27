@@ -1,6 +1,6 @@
 """Tail no-VAD re-transcription merge (spec 1.2).
 
-Whisper's VAD drops quiet DAI post-rolls (TWiT 1091: transcript ended 42.4s
+Whisper's VAD drops quiet DAI post-rolls (one episode: transcript ended 42.4s
 before the audio), so no LLM window covered the tail. The helper re-runs the
 tail with vad_filter=False, offsets timestamps, applies the hallucination
 filter, and appends segments flagged novad_tail=True before the transcript

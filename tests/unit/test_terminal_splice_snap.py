@@ -1,6 +1,6 @@
 """Terminal boundary snap to splice evidence (spec 2.3b).
 
-Dillon-shaped fixture: the reviewer moved a terminal marker's start 11.1s
+Observed-shape fixture: the reviewer moved a terminal marker's start 11.1s
 inside the DAI block. The snap recovers the extension via the deep-silence
 event at the true onset, while a content sentence 3s further back blocks
 the deeper-but-wrong candidate.
@@ -33,10 +33,10 @@ def _fixture():
         {'start': 4155.0, 'end': 4158.4,
          'text': 'and that is the end of the story for this week'},
         {'start': 4161.0, 'end': 4171.5,
-         'text': 'Vital Proteins collagen peptides, use promo code DILLON'},
+         'text': 'Acme collagen peptides, use promo code SHOW'},
     ]
     marker = {'start': 4172.0, 'end': _EOF, 'confidence': 0.9,
-              'reason': 'Vital Proteins ad read',
+              'reason': 'Acme ad read',
               'detection_stage': 'text_pattern'}
     events = [
         _event(4157.9, -95.0),  # deeper, but behind the content sentence

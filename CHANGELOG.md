@@ -3613,8 +3613,8 @@ release notes.
 
 - Pass-2 auto-approval no longer demands the corroborating detection cover
   90 percent of the held span. Differential hold tails carry alignment
-  padding the detection rightly excludes: a 240 second ZocDoc break on
-  tosh-show scored 89.9 percent coverage, missed the bar by 0.3 seconds,
+  padding the detection rightly excludes: a 240 second sponsor break on
+  one feed scored 89.9 percent coverage, missed the bar by 0.3 seconds,
   and shipped audible after a reprocess. The bar drops to 75 percent, and
   in exchange the auto-filed confirm is trimmed to the sub-span pass 2
   actually attested (the same shape a human trimmed approval files), so
@@ -3636,7 +3636,7 @@ release notes.
   phrases, so a boundary note like "that interview material is not
   advertising and should be excluded" (about a 28 second tail) held a 231
   second block of three sponsor reads that every detection signal agreed
-  on (tosh-show, and the same shape previously on daily-tech-news-show).
+  on (seen on one feed, and the same shape previously on another).
   An affirmation paired with trim language now wins, and a confirmed
   verdict whose prose describes a trim gets the trim recovered and applied
   as an adjust instead of a hold. An affirmation with a whole-span
@@ -3645,7 +3645,7 @@ release notes.
 - Merged ad spans are no longer blanket expand-only in the reviewer. Merge
   sites now record which member spans are transcript-anchored; reviewer
   trims and trim recovery clamp to that protected union, so a trailing
-  member ad still cannot be severed (the original Grainger case) while
+  member ad still cannot be severed (the original trailing-ad case) while
   the alignment-derived padding of differential regions is trimmable
   again. Markers persisted by earlier releases keep the old blanket rule.
 - Pass-2 auto-approval now releases every releasable hold reason
@@ -3691,7 +3691,7 @@ release notes.
 
 ### Fixed
 - Two bugs that kept obvious DAI ads stuck in the review queue (found by
-  tracing a Daily Tech News Show episode through both a normal run and a
+  tracing one episode through both a normal run and a
   reprocess):
   - The detection merge decided cut-vs-held by sort order. When a Claude ad
     started fractionally before the differential region it corroborated
@@ -5074,7 +5074,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Changed
 
-- The "Find cue candidates" scan now finds recurring sounds by fingerprinting the whole episode instead of hunting for loud spots. The old pass only triggered on loud bursts, so it missed ad-break stings that play at the same level as the talking around them. On one Daily Tech News Show episode the recurring sting sits at or below the speech level at most of its appearances, and the loud-spot pass returned nothing usable. The new scan generates one Chromaprint fingerprint of the episode and surfaces the windows that repeat across it, which does not depend on loudness: on that same episode it now returns the sting as the top candidate (5 of its 6 appearances) plus two other recurring segments, in about two seconds. Candidates are ranked by how often they repeat.
+- The "Find cue candidates" scan now finds recurring sounds by fingerprinting the whole episode instead of hunting for loud spots. The old pass only triggered on loud bursts, so it missed ad-break stings that play at the same level as the talking around them. On one episode the recurring sting sits at or below the speech level at most of its appearances, and the loud-spot pass returned nothing usable. The new scan generates one Chromaprint fingerprint of the episode and surfaces the windows that repeat across it, which does not depend on loudness: on that same episode it now returns the sting as the top candidate (5 of its 6 appearances) plus two other recurring segments, in about two seconds. Candidates are ranked by how often they repeat.
 
 ### Added
 
@@ -5409,13 +5409,13 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Fixed
 
-- Extended the 2.8.3 reviewer fix to the merge path that actually caused the Grainger survival. A back-to-back ad chain is collapsed into one cut by the window-deduplication step before validation ever sees it, and that step did not mark the result as a multi-ad span. So when the reviewer trimmed the merged block's end, it still severed the trailing ad. Re-verifying 2.8.3 on the Daily Tech News Show episode showed the cut was only saved by a second detection pass, not by the reviewer guard. Every merge that joins separate ads now sets one shared marker, including window and detection-stage merges and ads that sit exactly back-to-back, so the reviewer treats the whole span as expand-only. A single ad re-detected across an overlapping window is left tightenable as before.
+- Extended the 2.8.3 reviewer fix to the merge path that actually caused the trailing-ad survival. A back-to-back ad chain is collapsed into one cut by the window-deduplication step before validation ever sees it, and that step did not mark the result as a multi-ad span. So when the reviewer trimmed the merged block's end, it still severed the trailing ad. Re-verifying 2.8.3 on the same episode showed the cut was only saved by a second detection pass, not by the reviewer guard. Every merge that joins separate ads now sets one shared marker, including window and detection-stage merges and ads that sit exactly back-to-back, so the reviewer treats the whole span as expand-only. A single ad re-detected across an overlapping window is left tightenable as before.
 
 ## [2.8.3] - 2026-06-10
 
 ### Fixed
 
-- The ad reviewer no longer drops a confirmed ad when several back-to-back ads were merged into one cut. When the validator joins adjacent ads across a short gap, or merges fragments of the same sponsor, the result is one span covering several independently detected ads. The reviewer refines that span's boundaries, and an inward pull could land mid-span and sever a trailing ad from the cut. On a sampled Daily Tech News Show episode this left a full Grainger read (about 26 seconds) in the audio after the reviewer trimmed the merged block's end. Merged spans are now expand-only in the reviewer: it can still grow a cut outward to catch a leading or trailing call to action, but it cannot shrink one below the union of the ads it already confirmed. Single detected ads are unaffected and still tighten normally.
+- The ad reviewer no longer drops a confirmed ad when several back-to-back ads were merged into one cut. When the validator joins adjacent ads across a short gap, or merges fragments of the same sponsor, the result is one span covering several independently detected ads. The reviewer refines that span's boundaries, and an inward pull could land mid-span and sever a trailing ad from the cut. On a sampled episode this left a full trailing sponsor read (about 26 seconds) in the audio after the reviewer trimmed the merged block's end. Merged spans are now expand-only in the reviewer: it can still grow a cut outward to catch a leading or trailing call to action, but it cannot shrink one below the union of the ads it already confirmed. Single detected ads are unaffected and still tighten normally.
 
 ## [2.8.2] - 2026-06-10
 
@@ -5693,7 +5693,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Fixed
 
-- **v2 backfill of `processing_history.ads_detected` for episodes where the reviewer rejected some pass-1 ads.** The v1 backfill in 2.5.29 compared `history.ads_detected` against `episodes.ads_removed_firstpass`, but `firstpass` stores the pass-1 DETECTION count (pre-reviewer), not the post-reviewer cuts that the buggy 2.5.27 writer captured. v1 only matched episodes where the reviewer rejected zero ads, so cases like `macbreak-weekly-audio:2d9ccd57b93b` (firstpass detection=10, reviewer kept 6, verification=2, total cuts=8) stayed at the wrong value of 6. v2 (`_run_backfill_history_ads_detected_v2` in `src/database/schema/__init__.py`) derives the correct pass-1 cut count as `ads_removed - ads_removed_secondpass`, which equals the buggy writer's value regardless of how many ads the reviewer rejected or resurrected. New gate row `backfill_history_ads_detected_v2_postreviewer_cuts` so v2 runs once on the next boot for every deployer; v1's gate stays set and v1 does not re-run. v1-corrected rows are naturally excluded from v2 because their `ads_detected == ads_removed` and v2 requires `ads_detected == ads_removed - secondpass`, impossible when `secondpass > 0`.
+- **v2 backfill of `processing_history.ads_detected` for episodes where the reviewer rejected some pass-1 ads.** The v1 backfill in 2.5.29 compared `history.ads_detected` against `episodes.ads_removed_firstpass`, but `firstpass` stores the pass-1 DETECTION count (pre-reviewer), not the post-reviewer cuts that the buggy 2.5.27 writer captured. v1 only matched episodes where the reviewer rejected zero ads, so cases like `example-podcast:a1b2c3d4e5f6` (firstpass detection=10, reviewer kept 6, verification=2, total cuts=8) stayed at the wrong value of 6. v2 (`_run_backfill_history_ads_detected_v2` in `src/database/schema/__init__.py`) derives the correct pass-1 cut count as `ads_removed - ads_removed_secondpass`, which equals the buggy writer's value regardless of how many ads the reviewer rejected or resurrected. New gate row `backfill_history_ads_detected_v2_postreviewer_cuts` so v2 runs once on the next boot for every deployer; v1's gate stays set and v1 does not re-run. v1-corrected rows are naturally excluded from v2 because their `ads_detected == ads_removed` and v2 requires `ads_detected == ads_removed - secondpass`, impossible when `secondpass > 0`.
 - **Webhook now only fires when the history row is written.** `_record_history_and_event` previously had separate `try/except` blocks for `record_processing_history` vs `fire_event`, so a failed history INSERT (disk full, locked DB, missing podcast row) still fired `EVENT_EPISODE_PROCESSED` with an `ads_removed` total that no `/api/v1/history` row backed. External webhook consumers and the History page are now consistent: if the history row was not written, the webhook is skipped and the skip is logged.
 - **Backfill hardening for v1 and v2.** Five defensive changes to `_run_backfill_history_ads_detected[_v2]` in `src/database/schema/__init__.py`: (a) `conn.rollback()` on outer-`except` so a v1 failure cannot leak uncommitted UPDATEs into v2's commit; (b) `INSERT OR IGNORE` on the gate-row INSERT so a concurrent gunicorn worker's race does not raise `UNIQUE constraint failed`; (c) `CREATE TABLE IF NOT EXISTS schema_migrations` is hoisted to the top of `_run_schema_migrations` so the backfills no longer depend on `_run_env_backed_settings_migration` succeeding first; (d) `ROW_NUMBER() OVER (... ORDER BY processed_at DESC, h.id DESC)` adds a stable tie-break so two history rows written in the same second pick the actual latest by primary-key order; (e) `COALESCE(..., 0)` wraps `ads_removed`, `ads_removed_firstpass`, `ads_removed_secondpass` so legacy rows with NULL columns are treated as 0 instead of silently failing the predicate.
 - **`_log_completion_summary` `verification_count` is now keyword-only.** Inserting `verification_count` into the positional signature in 2.5.28 created a footgun where a future positional caller using the older 7-arg form would shift a float `original_duration` into the `verification_count` slot. The `*,` separator forces all callers to pass it by name.
@@ -5706,7 +5706,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Added
 
-- **`tests/unit/test_history_backfill_migration_v2.py`: 7 cases.** The macbreak-style row (firstpass != cuts because reviewer rejected) gets corrected. v1-already-corrected rows are not touched. Episodes with `secondpass=0` are untouched. Older reprocess rows are left alone while the latest row is corrected. The gate prevents v2 from running twice. Failed-status rows are untouched. The coexistence test verifies that a single boot of a deployer upgrading from `<=2.5.28` directly to 2.5.30 corrects both the easy-case rows (via v1) and the reviewer-rejected rows (via v2).
+- **`tests/unit/test_history_backfill_migration_v2.py`: 7 cases.** The reviewer-rejected row (firstpass != cuts because reviewer rejected) gets corrected. v1-already-corrected rows are not touched. Episodes with `secondpass=0` are untouched. Older reprocess rows are left alone while the latest row is corrected. The gate prevents v2 from running twice. Failed-status rows are untouched. The coexistence test verifies that a single boot of a deployer upgrading from `<=2.5.28` directly to 2.5.30 corrects both the easy-case rows (via v1) and the reviewer-rejected rows (via v2).
 
 ## [2.5.29] - 2026-05-26
 
@@ -5728,7 +5728,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Added
 
-- **`tests/unit/test_history_ad_count.py`: regression test pinning the history-ad-count contract.** Five cases: history records total (pass-1 + verification) and not pass-1 alone; the zero-verification path still records pass-1; the zero-pass-1-positive-verification path (the `glt1412515089:a40d43aec65b` scenario that prompted the audit) records the verification cuts; the completion log line includes verification in its total; the completion log reports `0 ads removed` when neither pass cut anything. Without these, the omission would have been invisible to CI for a third release in a row.
+- **`tests/unit/test_history_ad_count.py`: regression test pinning the history-ad-count contract.** Five cases: history records total (pass-1 + verification) and not pass-1 alone; the zero-verification path still records pass-1; the zero-pass-1-positive-verification path (the scenario that prompted the audit) records the verification cuts; the completion log line includes verification in its total; the completion log reports `0 ads removed` when neither pass cut anything. Without these, the omission would have been invisible to CI for a third release in a row.
 
 ## [2.5.27] - 2026-05-26
 
@@ -5835,13 +5835,13 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Fixed
 
-- **Verification-pass auto-pattern-creation now matches the filter discipline of the first-pass learner.** Pre-2.5.13, `pattern_service.record_verification_misses` trusted every "missed ad" the verification LLM reported and called `text_pattern_matcher.create_pattern_from_ad` with no confidence floor, no `was_cut` check, and only a presence-only sponsor-in-intro test downstream. The first-pass learner at `ad_detector._ad_passes_learning_filters` already enforced `confidence >= 0.85` (`>= 0.92` for ads longer than 90 s), `was_cut == True`, and `detection_stage == 'claude'`. That asymmetry produced Pattern #354 (drink-champs, sponsor=Modelo): the verification LLM read host conversation about "how you get the big, Modelo?" as a missed Modelo ad and the auto-creator wrote 870 chars of unrelated dialogue into a podcast-scoped pattern. The function has carried the presence-only check since commit `f07ddf3` on 2025-12-17. Five filters added at the verification-miss entry point: (1) `confidence >= 0.85` floor, `>= 0.92` for ads with `duration > 90 s`; (2) reject when `reason` starts with a `SPONSOR_REASONING_PREFIXES` entry or contains a `SPONSOR_REASONING_SUBSTRINGS` entry (catches the case where the LLM put its rationale in the `reason` field); (3) require the sponsor brand (with aliases and whitespace-stripped variants via `count_brand_occurrences`) to appear at least twice in the actual transcript window between `start` and `end`. The existing "boost the matching pattern's `confirmation_count`" path also goes through the same filters now; this matters because the boost path inflates `confirmation_count` and was making it look like rare-brand patterns had "matched real ads" when they had only been re-flagged by the same kind of host-name-drop the original pattern came from.
+- **Verification-pass auto-pattern-creation now matches the filter discipline of the first-pass learner.** Pre-2.5.13, `pattern_service.record_verification_misses` trusted every "missed ad" the verification LLM reported and called `text_pattern_matcher.create_pattern_from_ad` with no confidence floor, no `was_cut` check, and only a presence-only sponsor-in-intro test downstream. The first-pass learner at `ad_detector._ad_passes_learning_filters` already enforced `confidence >= 0.85` (`>= 0.92` for ads longer than 90 s), `was_cut == True`, and `detection_stage == 'claude'`. That asymmetry produced Pattern #354 (one feed, sponsor=Acme): the verification LLM read host conversation that name-dropped the brand once as a missed Acme ad and the auto-creator wrote 870 chars of unrelated dialogue into a podcast-scoped pattern. The function has carried the presence-only check since commit `f07ddf3` on 2025-12-17. Five filters added at the verification-miss entry point: (1) `confidence >= 0.85` floor, `>= 0.92` for ads with `duration > 90 s`; (2) reject when `reason` starts with a `SPONSOR_REASONING_PREFIXES` entry or contains a `SPONSOR_REASONING_SUBSTRINGS` entry (catches the case where the LLM put its rationale in the `reason` field); (3) require the sponsor brand (with aliases and whitespace-stripped variants via `count_brand_occurrences`) to appear at least twice in the actual transcript window between `start` and `end`. The existing "boost the matching pattern's `confirmation_count`" path also goes through the same filters now; this matters because the boost path inflates `confirmation_count` and was making it look like rare-brand patterns had "matched real ads" when they had only been re-flagged by the same kind of host-name-drop the original pattern came from.
 - **`text_pattern_matcher.create_pattern_from_ad` now requires `duration >= 15 s`** in addition to the existing `<= 120 s` upper bound. Pattern #356 (Patreon, 8 s, first-pass detection) was the canonical floor false-positive: a real sponsor read does not fit in eight seconds. The guard keeps the same shape as the original duration check, with a matching warning log.
 - **Sponsor occurrence guard in `create_pattern_from_ad` is now alias-aware.** The 2.5.13a draft used a raw substring count on the canonical sponsor string. That undercounted patterns where the brand lives only inside a compound (e.g. "DeleteMe" inside `joindeleteme.com`) and would have wrongly rejected the existing Pattern #350. The new check uses `community_export.count_brand_occurrences`, which counts case-insensitive substring matches across `known_sponsors.name`, every alias, and whitespace-stripped variants of both. Real ads where the canonical brand is referenced only via a URL or alias now pass; one-mention name-drops still fail. Falls back to `{name: sponsor, aliases: '[]'}` when `get_known_sponsor_by_name` returns nothing, so installs that haven't yet seeded their sponsor catalog still get the guard.
 - **One-shot `_cleanup_low_mention_patterns` migration retires structurally false-positive rows.** Rewritten from the 2.5.13a draft (which had a single criterion of "fewer than 2 sponsor occurrences" and would have disabled eight patterns with `confirmation_count > 0` that have matched real ads). New criteria, all conservative, must each be satisfied independently to disable a row:
   - **low-mention auto-created never-matched**: brand variants appear <2 times in `text_template` AND `created_by = 'auto'` AND `confirmation_count = 0` AND `false_positive_count = 0`;
   - **sponsor field is an LLM rationale**: `sponsor` starts with a `SPONSOR_REASONING_PREFIXES` entry or contains a `SPONSOR_REASONING_SUBSTRINGS` entry (catches Pattern #202 where the full Walden University reasoning sentence got stored as the sponsor name);
-  - **sponsor field has an LLM-suffix tell**: ends with `' brand'`, `' pre-roll'`, `' sponsor ad'`, `' sponsor ad with url'`, or `' advertisement'` (catches Pattern #227 `Grainger brand`);
+  - **sponsor field has an LLM-suffix tell**: ends with `' brand'`, `' pre-roll'`, `' sponsor ad'`, `' sponsor ad with url'`, or `' advertisement'` (catches a pattern stored as `Acme brand`);
   - **sponsor is non-canonical AND no template variant matches**: sponsor stripped of whitespace is not in `known_sponsors` AND no brand variant appears in the template (catches Pattern #142 `statefarm`).
   Idempotent via the `low_mention_cleanup_revision = '2.5.13'` settings flag. Reversible per row (`is_active = 1` re-enables). Dry-run against the prod 177-pattern catalog before this release shipped: 29 rows would be disabled (26 low-mention auto-created never-matched + #227 + #202 + #142), and the eight `confirmation_count > 0` low-mention edge cases (`#238 SoFi conf=7`, `#87 Chubbiesshorts conf=5`, `#248 Just Another conf=3`, `#259 Athletic Brewing conf=2`, `#245 San Diego Tourism`, `#348 SilverMirror`, `#55 Pura`) are all kept. The migration runs the same way on any install regardless of pattern count or sponsor catalog.
 
@@ -6742,7 +6742,7 @@ Two complementary expansions to the sponsor recognition layer: ~36 more `SPONSOR
 
 ### Improved
 
-- `SPONSOR_ALIASES` (`src/utils/constants.py`) goes from 138 to 174 entries. New families: Affirm, Brex, Cloudflare, Eight Sleep, GitHub Copilot, LMNT, Mercury, Miro, Patreon, Perplexity, Pura, Retool, SeatGeek, Skyscanner, SoFi, StubHub, Substack, Vercel, Whoop. Each family includes the safe compound-split / hyphen / no-space variants. Risky homophones with common English words (`mirror` -> Miro, `cloud` -> Claude, `Sophie` -> SoFi, `brexit` -> Brex, `fuel` -> Huel, `thorn` -> Thorne) and AI model names (`gpt four`, `o three`, etc.) are intentionally excluded. The `Patreon` addition is direct-evidence-driven: episode `ff5a6158313e` ("It's a Thing 416") had a Patreon ad caught only by the verification pass on 2.0.12 with no canonical mapping; the new `pay tree on` and `patron` aliases close that gap.
+- `SPONSOR_ALIASES` (`src/utils/constants.py`) goes from 138 to 174 entries. New families: Affirm, Brex, Cloudflare, Eight Sleep, GitHub Copilot, LMNT, Mercury, Miro, Patreon, Perplexity, Pura, Retool, SeatGeek, Skyscanner, SoFi, StubHub, Substack, Vercel, Whoop. Each family includes the safe compound-split / hyphen / no-space variants. Risky homophones with common English words (`mirror` -> Miro, `cloud` -> Claude, `Sophie` -> SoFi, `brexit` -> Brex, `fuel` -> Huel, `thorn` -> Thorne) and AI model names (`gpt four`, `o three`, etc.) are intentionally excluded. The `Patreon` addition is direct-evidence-driven: one episode had a Patreon ad caught only by the verification pass on 2.0.12 with no canonical mapping; the new `pay tree on` and `patron` aliases close that gap.
 - `KNOWN_SHORT_BRANDS` (`src/utils/constants.py`) gains `lmnt` and `acast`. Both are sub-6-character podcast-relevant single words that Gate B was rejecting.
 
 ### Added
@@ -6771,8 +6771,8 @@ Two follow-up fixes on 2.0.10, re-tagged under 2.0.11 rather than a new version.
 
 ### Fixed
 
-- Reprocess detection in the new versioned-mp3 path used `processed_at` to decide first-process vs reprocess, but the reprocess state reset in `database.episodes` clears `processed_at` to NULL before `process_episode` runs. Result on 2.0.10: `previously_processed` was always False, `new_version` stayed at 0, and the reprocess output overwrote `{episode_id}.mp3` in place, defeating the point of the versioned filename. Observed live on DTNS 5253 reprocess: `processedUrl` came back without the `-v1` suffix. `src/main_app/processing.py` now derives the reprocess signal from `processed_version > 0` OR `reprocess_requested_at` being set. Both are preserved by the reprocess state reset (the version column because it's new, the timestamp because the reprocess endpoint stamps it on its way in). First-ever process still writes `{episode_id}.mp3`; second run and beyond write `{episode_id}-v{N}.mp3` as intended.
-- DTNS 5253 reprocess also surfaced that Whisper transcribes the Xero sponsor read as "Zero" in some passes. The 2.0.10 auto-pattern-create path then declined because no matching pattern existed under "Zero" and the miss could not be learned. New `SPONSOR_ALIASES` map and `canonical_sponsor()` helper in `src/utils/constants.py` (maps ``zero``/``xerox`` -> ``Xero``); `src/ad_detector.py:learn_from_detections` and `src/pattern_service.py:record_verification_misses` normalize the detected sponsor before Gate A/B and the pattern-existence lookup. Effect: a verification miss reporting "Zero" now matches existing Xero patterns for a boost, and a new pattern (where the validator allows it) is stored under "Xero" instead of a parallel "Zero" entry.
+- Reprocess detection in the new versioned-mp3 path used `processed_at` to decide first-process vs reprocess, but the reprocess state reset in `database.episodes` clears `processed_at` to NULL before `process_episode` runs. Result on 2.0.10: `previously_processed` was always False, `new_version` stayed at 0, and the reprocess output overwrote `{episode_id}.mp3` in place, defeating the point of the versioned filename. Observed on one reprocess: `processedUrl` came back without the `-v1` suffix. `src/main_app/processing.py` now derives the reprocess signal from `processed_version > 0` OR `reprocess_requested_at` being set. Both are preserved by the reprocess state reset (the version column because it's new, the timestamp because the reprocess endpoint stamps it on its way in). First-ever process still writes `{episode_id}.mp3`; second run and beyond write `{episode_id}-v{N}.mp3` as intended.
+- The same reprocess also surfaced that Whisper transcribes the Xero sponsor read as "Zero" in some passes. The 2.0.10 auto-pattern-create path then declined because no matching pattern existed under "Zero" and the miss could not be learned. New `SPONSOR_ALIASES` map and `canonical_sponsor()` helper in `src/utils/constants.py` (maps ``zero``/``xerox`` -> ``Xero``); `src/ad_detector.py:learn_from_detections` and `src/pattern_service.py:record_verification_misses` normalize the detected sponsor before Gate A/B and the pattern-existence lookup. Effect: a verification miss reporting "Zero" now matches existing Xero patterns for a boost, and a new pattern (where the validator allows it) is stored under "Xero" instead of a parallel "Zero" entry.
 
 ## [2.0.10] - 2026-04-22
 
@@ -6807,7 +6807,7 @@ Two unrelated fixes bundled into a single release: VAD gap detector false-positi
 
 ### Fixed
 
-- VAD gap detector mid-gap branch (`src/vad_gap_detector.py`) now requires BOTH a signoff phrase before the gap AND a resume phrase after it (logical AND). Previously either side alone was enough, so common podcast filler ("thanks for tuning in", "welcome back") triggered cuts on its own. Marker reason text updated from "VAD gap with signoff/resume context" to "VAD gap with signoff and resume context" to reflect the new semantics. Head-gap and tail-gap branches are unchanged. Concrete regression: MacBreak Weekly 1021 (`5ef2df166c8e`) had 9 of 11 ad markers come from `vad_gap`, of which 8 carried `WARN: No ad signals in transcript` yet were ACCEPTed at adjusted confidence 0.80 and cut 9 to 44 seconds of show content each.
+- VAD gap detector mid-gap branch (`src/vad_gap_detector.py`) now requires BOTH a signoff phrase before the gap AND a resume phrase after it (logical AND). Previously either side alone was enough, so common podcast filler ("thanks for tuning in", "welcome back") triggered cuts on its own. Marker reason text updated from "VAD gap with signoff/resume context" to "VAD gap with signoff and resume context" to reflect the new semantics. Head-gap and tail-gap branches are unchanged. Concrete regression: one episode had 9 of 11 ad markers come from `vad_gap`, of which 8 carried `WARN: No ad signals in transcript` yet were ACCEPTed at adjusted confidence 0.80 and cut 9 to 44 seconds of show content each.
 - `src/ad_validator.py:_verify_in_transcript` now forces vad_gap markers below the validator's `min_cut_confidence` threshold when neither sponsor names nor ad-signal patterns matched in range. The marker is sent to REVIEW instead of being auto-cut. Other detection stages (`claude`, `text_pattern`, `verification`, `fingerprint`) are unaffected. The clamp uses `min_cut_confidence - 0.01` rather than a fixed -0.15, so it stays correct if a user moves the aggressiveness slider. Defense-in-depth: even if the detector regresses, the validator stops unsupported cuts.
 - Webhook URL validation now uses `validate_base_url` instead of the strict `validate_url`, matching the SSRF posture already used for the LLM and Whisper base URLs. Self-hosted destinations on private IPs or non-default ports (e.g. Home Assistant on `http://192.168.x.x:8123`) are accepted; cloud metadata IPs and bad schemes are still blocked. Closes #158. The webhook create/update guard in `src/api/settings.py:_validate_webhook_url` is the single validation point at write time; `safe_post(..., trust=URLTrust.OPERATOR_CONFIGURED)` revalidates at dispatch and on every redirect hop, so the redundant pre-check that used to live in `webhook_service._prepare_and_dispatch` was removed.
 
@@ -6860,7 +6860,7 @@ Dependency rollup. No application-behavior changes. Every Dependabot PR open aft
 ## [2.0.7] - 2026-04-21
 
 ### Added
-- VAD gap detector (`src/vad_gap_detector.py`) catches audio regions Whisper's VAD drops so they never reach the transcript: sped-up legal disclaimers at ad tails, distorted interstitials, long untranscribed silences adjacent to an ad. Runs after Claude + text-pattern + roll detection, before validation. Head-of-episode gaps (>= 3s) are always cut; mid-episode gaps either extend an adjacent existing ad in place or require signoff/resume context before a standalone cut emits; tail-of-episode gaps (>= 3s) are cut when no postroll already covers them. Motivated by a DTNS episode where the DIA ad's sped-up legal babble sat in the pre-transcript window and would otherwise leak into the processed output. Confidence 0.75 on emitted markers; `detection_stage='vad_gap'`.
+- VAD gap detector (`src/vad_gap_detector.py`) catches audio regions Whisper's VAD drops so they never reach the transcript: sped-up legal disclaimers at ad tails, distorted interstitials, long untranscribed silences adjacent to an ad. Runs after Claude + text-pattern + roll detection, before validation. Head-of-episode gaps (>= 3s) are always cut; mid-episode gaps either extend an adjacent existing ad in place or require signoff/resume context before a standalone cut emits; tail-of-episode gaps (>= 3s) are cut when no postroll already covers them. Motivated by an episode where the DIA ad's sped-up legal babble sat in the pre-transcript window and would otherwise leak into the processed output. Confidence 0.75 on emitted markers; `detection_stage='vad_gap'`.
 - Four env vars for operators to tune or disable the detector: `VAD_GAP_DETECTION_ENABLED` (default `true`), `VAD_GAP_START_MIN_SECONDS` (default `3.0`), `VAD_GAP_MID_MIN_SECONDS` (default `8.0`), `VAD_GAP_TAIL_MIN_SECONDS` (default `3.0`). Each also available as a DB setting and via `PUT /api/v1/settings` for parity with other whisper knobs. Not surfaced in the UI; these are advanced knobs most operators will never touch.
 
 ### Changed
@@ -6880,7 +6880,7 @@ Dependency rollup. No application-behavior changes. Every Dependabot PR open aft
 ## [2.0.5] - 2026-04-20
 
 ### Changed
-- Transient-failure auto-retry schedule extended from 3 attempts (5/15/45 min) to 5 attempts (5/15/30/60 min) before marking `permanently_failed`. Covers the common case where upstream CDNs (Acast's `sphinx` in particular) take 30-90 minutes to propagate a newly-published MP3 after the RSS `<item>` appears. Without the extra attempts, episodes like `daily-tech-news-show:407e3e5382c5` gave up at roughly 8 minutes of wall clock time and required manual reprocess; the new tail reaches ~1h50m. `MAX_EPISODE_RETRIES` bumped 3 -> 4 in `config.py`. Backoff ladder in `reset_failed_queue_items` updated to `5m / 15m / 30m / 60m`. Applies to both auto-process and client-requested reprocess paths.
+- Transient-failure auto-retry schedule extended from 3 attempts (5/15/45 min) to 5 attempts (5/15/30/60 min) before marking `permanently_failed`. Covers the common case where upstream CDNs (Acast's `sphinx` in particular) take 30-90 minutes to propagate a newly-published MP3 after the RSS `<item>` appears. Without the extra attempts, some episodes gave up at roughly 8 minutes of wall clock time and required manual reprocess; the new tail reaches ~1h50m. `MAX_EPISODE_RETRIES` bumped 3 -> 4 in `config.py`. Backoff ladder in `reset_failed_queue_items` updated to `5m / 15m / 30m / 60m`. Applies to both auto-process and client-requested reprocess paths.
 - `reset_episode_status` (invoked by `POST /api/v1/feeds/<slug>/episodes/<id>/reprocess`) now zeroes `auto_process_queue.attempts` in addition to `episodes.retry_count`. Before this, a user clicking Reprocess on an episode that had hit attempt 4 would reset the episode row but leave the queue's attempt counter stale, causing the next auto-retry to wait 60 minutes instead of the 5-minute first-step delay. Both counters now reset together so a manual reprocess is a true clean slate.
 
 ## [2.0.4] - 2026-04-20
@@ -6979,7 +6979,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 - `requirements.in` is the new direct-dependency source of truth; `requirements.txt` is the fully-pinned lockfile regenerated via `pip-compile --resolver=backtracking --output-file=requirements.txt requirements.in`. Transitive versions are now explicit.
 - `docker-compose.yml` documents the non-root UID/GID 1000 contract with a commented-out `user: "1000:1000"` line so operators can override when their volume is owned by a different UID.
 - `safe_url_for_log` is now applied at every outbound URL log site (`rss_parser`, `transcriber`, `pricing_fetcher`, `storage`, `llm_client`, `webhook_service`). URL paths and query strings no longer reach logs; scheme + host only.
-- Processing finalize now closes any `pending` / `processing` / `failed` row in `auto_process_queue` for the just-completed episode. Fixes a double-trigger bug where a manual `POST /episodes/<id>/reprocess` finished but left the background-enqueued queue row pending; the refresh loop then re-fired the same episode seconds later (observed on `the-brilliant-idiots:52070c1f9bd2`, which ran through two full 20-minute processing cycles back-to-back). New index `idx_queue_podcast_episode(podcast_id, episode_id)` keeps the cleanup UPDATE off the full-scan path.
+- Processing finalize now closes any `pending` / `processing` / `failed` row in `auto_process_queue` for the just-completed episode. Fixes a double-trigger bug where a manual `POST /episodes/<id>/reprocess` finished but left the background-enqueued queue row pending; the refresh loop then re-fired the same episode seconds later (observed on one episode, which ran through two full 20-minute processing cycles back-to-back). New index `idx_queue_podcast_episode(podcast_id, episode_id)` keeps the cleanup UPDATE off the full-scan path.
 - HTTP and subprocess timeouts plus `max_redirects` are defined in `src/config.py` as tiered constants (`HTTP_TIMEOUT_PROBE/API/EXTERNAL/FETCH/WHISPER`, `HTTP_MAX_REDIRECTS_FEED/API`, `FFMPEG_CHUNK_TIMEOUT`, `FPCALC_TIMEOUT_FULL`, `SUBPROCESS_VERSION_PROBE`). Every outbound-HTTP and long-running subprocess call site now references a named constant so a future policy change (e.g. CDN redirect bump) is a one-line diff. `utils/safe_http.py` function defaults also reference the constants. `webhook_service.py` dropped its module-local `_REQUEST_TIMEOUT_SECS` in favour of the shared `HTTP_TIMEOUT_PROBE`. The `audio_fingerprinter` chunked-extract path was unified at 60s (was 30s) so a slow-IO fingerprint no longer spuriously times out.
 - `smoke/` directory adds local and remote smoke-test scripts for operators to exercise the 2.0 surface (CSRF, login lockout, SSRF, XXE, rate limits, artwork, RSS public paths, backup, patterns, log hygiene, shutdown, multi-worker).
 
@@ -8398,7 +8398,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 ## [0.1.236] - 2026-02-06
 
 ### Fixed
-- **Non-ads extracted as ads when Claude marks them `is_ad: false`**: Added filtering in `_parse_ads_from_response()` to skip entries where `is_ad` is explicitly false/no/0 or where `classification`/`type` indicates non-ad content (content, editorial, organic, interview, etc.). This was the root cause of episodes like `it-s-a-thing:1af1082d376d` losing over half their duration -- Claude's second pass returned segments with `is_ad: false` and `classification: "content"` but the parser treated ALL entries as ads regardless.
+- **Non-ads extracted as ads when Claude marks them `is_ad: false`**: Added filtering in `_parse_ads_from_response()` to skip entries where `is_ad` is explicitly false/no/0 or where `classification`/`type` indicates non-ad content (content, editorial, organic, interview, etc.). This was the root cause of some episodes losing over half their duration: Claude's second pass returned segments with `is_ad: false` and `classification: "content"` but the parser treated ALL entries as ads regardless.
 - **Generic "Advertisement detected" fallback from unknown field names**: Replaced static allowlists for sponsor and description extraction with dynamic field scanning. Instead of maintaining lists of field names Claude might use, the parser now defines STRUCTURAL_FIELDS (timestamps, booleans, config) and treats everything else as a candidate for sponsor/description info. This eliminates the recurring need to patch field names (previously patched in v0.1.217, 218, 220, 232, 234, 235).
 - **Reason field duplication when sponsor and description overlap**: Added `_text_is_duplicate()` helper that checks if one string starts with the other or they share >80% of words. Prevents output like "BetterHelp advertisement: BetterHelp advertisement for therapy services".
 - **Processing queue kills long-running jobs via stale lock detection**: `_clear_stale_state()` was called from `is_busy()`/`get_current()` without `_fd_lock` protection. When a long episode exceeded `MAX_JOB_DURATION`, stale detection would release the lock from under the running thread, allowing another episode to acquire it and causing concurrent processing failures. Now checks if the current process holds the lock before clearing -- if it does, the job is still alive (just long-running) and only a warning is logged.
@@ -8856,7 +8856,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 ## [0.1.190] - 2026-01-18
 
 ### Fixed
-- **Music analysis timeout on long episodes**: Episodes over 1.5 hours now use "fast mode" that analyzes every 3rd frame and skips expensive HPSS (Harmonic-Percussive Source Separation) computation. This prevents the 805s+ timeouts that were occurring on 2+ hour episodes like Security Now.
+- **Music analysis timeout on long episodes**: Episodes over 1.5 hours now use "fast mode" that analyzes every 3rd frame and skips expensive HPSS (Harmonic-Percussive Source Separation) computation. This prevents the 805s+ timeouts that were occurring on 2+ hour episodes.
 - **Non-English DAI ads not detected**: Changed Whisper from `language="en"` to `language=None` for auto-detection. Non-English segments (especially Spanish ads) are now automatically flagged and treated as ads.
 - **VAD filter too aggressive**: Adjusted VAD parameters to be more sensitive (`min_silence_duration_ms`: 500->1000, `speech_pad_ms`: 400->600, `threshold`: 0.3). This helps capture music-heavy ad segments that were being skipped.
 - **End-of-episode ads not fully trimmed**: Ads that end within 30 seconds of the episode end are now extended to the actual end, eliminating leftover ad snippets at the end.
@@ -8971,7 +8971,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - **Improved chapter generation**:
   - Fixed HTML description parsing for timestamp extraction (handles `<br>` tags properly)
   - Content-aware chapter detection: Long segments (>15 min) are automatically split using AI topic detection
-  - Topic-based chapter detection: Descriptions with topic headers but no timestamps (like Windows Weekly show notes) are matched to transcript positions using AI
+  - Topic-based chapter detection: Descriptions with topic headers but no timestamps (like some network show notes) are matched to transcript positions using AI
 
 ---
 
@@ -9010,7 +9010,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - **Chapters startTime compatibility with podcast apps**
   - Changed from float values (738.8) to integers (739)
   - Changed minimum startTime from 0 to 1 (required by some apps like Pocket Casts)
-  - Based on analysis of working No Agenda podcast feed format
+  - Based on analysis of a working podcast feed format
 
 ### Changed
 - VTT and chapters stored in database instead of filesystem
@@ -9129,7 +9129,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 ### Added
 - **Per-Podcast Second Pass Toggle**
   - New `skipSecondPass` setting for podcasts that discuss products (tech shows, etc.)
-  - Second pass detection was too aggressive for shows like Windows Weekly
+  - Second pass detection was too aggressive for some long-form shows
   - Prevents false positives where product discussions are flagged as "subtle ads"
   - Toggle via API: `PATCH /api/v1/feeds/{slug}` with `{"skipSecondPass": true}`
   - Setting is logged during processing: "Second pass skipped (podcast setting)"
@@ -10815,7 +10815,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - Wrap descriptions in CDATA to fix invalid XML in RSS feeds
   - Channel descriptions were not escaped, causing raw HTML and `&nbsp;` entities to break XML parsing
   - Episode descriptions now also use CDATA for consistency
-  - Fixes Pocket Casts rejecting feeds with HTML in descriptions (e.g., No Agenda, DTNS)
+  - Fixes Pocket Casts rejecting feeds with HTML in descriptions (seen on several feeds)
 
 ### Changed
 - OpenAPI version is now dynamically injected from version.py
@@ -11747,7 +11747,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - Feed slugs defaulting to "rss" - now generates slug from podcast title
 
 ### Changed
-- Slug generation now fetches RSS feed to get podcast name (e.g., "tosh-show" instead of "rss")
+- Slug generation now fetches RSS feed to get podcast name (e.g., "example-podcast" instead of "rss")
 - Added Claude Opus 4.5 to available models list
 - Model validation now checks against VALID_MODELS list
 

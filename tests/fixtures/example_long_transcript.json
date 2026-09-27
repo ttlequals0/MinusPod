@@ -1,44 +1,44 @@
 {
-  "episode_id": "fcf5cb5ce64b",
-  "slug": "security-now-audio",
-  "title": "SN 1071: Bucketsquatting - Meta and TikTok's Tracking Pixels",
+  "episode_id": "f6e5d4c3b2a1",
+  "slug": "another-podcast",
+  "title": "Example Episode 202",
   "duration": 10139.532756,
   "ads_removed": 8,
   "segments": [
     {
       "start": 0.0,
       "end": 28.6,
-      "text": "Coming up on Security Now, Steve Gibson is here, and I am filling in for Leo Laporte. Kick off the show with H&R Block's tax software. Well, it's doing something pretty wild, and Steve has a suggested fix for it. We also talk about what happens when breathalyzer firmware needs to be calibrated. Plus, Russians want Telegram and WhatsApp to return to Russia, and very important,"
+      "text": "Coming up on Tech Weekly, Sam Host is here, and I am filling in for Lee Cohost. Kick off the show with H&R Block's tax software. Well, it's doing something pretty wild, and Sam has a suggested fix for it. We also talk about what happens when breathalyzer firmware needs to be calibrated. Plus, Russians want Telegram and WhatsApp to return to Russia, and very important,"
     },
     {
       "start": 28.91,
       "end": 46.16,
-      "text": "We finally learned what bucket squatting means and what can be done to fix it. All of that plus so much more coming up in Security Now. Podcasts you love. From people you trust. This is Twit."
+      "text": "We finally learned what bucket squatting means and what can be done to fix it. All of that plus so much more coming up in Tech Weekly. Podcasts you love. From people you trust. This is Acmecast."
     },
     {
       "start": 49.96,
       "end": 61.84,
-      "text": "This is Security Now Episode 1071 with Steve Gibson and me, Micah Sargent. Recorded Tuesday, March 24th, 2026. Bucket squatting."
+      "text": "This is Tech Weekly Episode 202 with Sam Host and me, Max Guest. Recorded Tuesday, March 24th, 2026. Bucket squatting."
     },
     {
       "start": 62.72,
       "end": 85.02,
-      "text": "It's time for Security Now, and if you're hearing this voice and going, that's not Leo Laporte, well, good for you. You've got a good ear for voices. I am Micah Sargent. Leo Laporte is not here with us this week. He'll be back, don't you worry. But until then, I am excited to be joined by the ever knowledgeable Steve Gibson. Hello, Steve."
+      "text": "It's time for Tech Weekly, and if you're hearing this voice and going, that's not Lee Cohost, well, good for you. You've got a good ear for voices. I am Max Guest. Lee Cohost is not here with us this week. He'll be back, don't you worry. But until then, I am excited to be joined by the ever knowledgeable Sam Host. Hello, Sam."
     },
     {
       "start": 85.58,
       "end": 110.62,
-      "text": "Micah, great to be with you again. Leo told us last week that the RSA conference is going on in San Francisco. And so he and Lisa are there shaking hands with past and present and maybe even future advertisers for security related things. So glad to have you filling in for him. It's always a pleasure to get to join you."
+      "text": "Max, great to be with you again. Lee told us last week that the RSA conference is going on in San Francisco. And so he and Lisa are there shaking hands with past and present and maybe even future advertisers for security related things. So glad to have you filling in for him. It's always a pleasure to get to join you."
     },
     {
       "start": 111.12,
       "end": 137.24,
-      "text": "Well, yeah, and, you know, once upon a time when we had Father Robert, he was our backstop for Leo, and now we got you, so that's great. Yeah, good to be here. Go ahead, go. I was just going to say, this is Security Now Episode 1071 for March 24th, 2026, two days, as it happens, before my 71st birthday."
+      "text": "Well, yeah, and, you know, once upon a time when we had Father Robert, he was our backstop for Lee, and now we got you, so that's great. Yeah, good to be here. Go ahead, go. I was just going to say, this is Tech Weekly Episode 202 for March 24th, 2026, two days, as it happens, before my 71st birthday."
     },
     {
       "start": 137.76,
       "end": 165.98,
-      "text": "So, I will be, yeah, I feel great. So, good. Happy early birthday. And I'm glad you feel good. Security Now, episode 2000 before very much longer. Today's episode is titled Bucket Squatting for, and this has nothing to do with like something you have to do when you're camping. This is about an interesting problem that"
+      "text": "So, I will be, yeah, I feel great. So, good. Happy early birthday. And I'm glad you feel good. Tech Weekly, episode 2000 before very much longer. Today's episode is titled Bucket Squatting for, and this has nothing to do with like something you have to do when you're camping. This is about an interesting problem that"
     },
     {
       "start": 166.87,
@@ -58,7 +58,7 @@
     {
       "start": 253.69,
       "end": 265.65,
-      "text": "We've also got the lack of wisdom of connecting your crypto wallet to an unknown service. Yet another, and what would a Security Now podcast be if we didn't have a Cisco?"
+      "text": "We've also got the lack of wisdom of connecting your crypto wallet to an unknown service. Yet another, and what would a Tech Weekly podcast be if we didn't have a Cisco?"
     },
     {
       "start": 266.95,
@@ -73,7 +73,7 @@
     {
       "start": 319.52,
       "end": 346.9,
-      "text": "where after our wonderful summary of what's to come, we take a moment to cut to an ad break, and Leo will be here for you for that. Hi, Leo. Hi, Micah. Hi, Steve. Sorry I couldn't be here. I'm at RSA right now having a great time, I'm sure. But I did want to come back and tell you about our sponsor for this episode of Security Now, Hoxhunt. Actually, I'm meeting with them at RSA in just a little bit as a security leader."
+      "text": "where after our wonderful summary of what's to come, we take a moment to cut to an ad break, and Lee will be here for you for that. Hi, Lee. Hi, Max. Hi, Sam. Sorry I couldn't be here. I'm at RSA right now having a great time, I'm sure. But I did want to come back and tell you about our sponsor for this episode of Tech Weekly, Acme. Actually, I'm meeting with them at RSA in just a little bit as a security leader."
     },
     {
       "start": 347.49,
@@ -83,12 +83,12 @@
     {
       "start": 374.71,
       "end": 402.83,
-      "text": "Leadership is starting to ask the question you don't have a clear answer to. Is this actually working? Well, Hoxhunt is built to answer that. Hoxhunt empowers your employees to spot and stop phishing attacks. It drives measurable behavior change, and it does it in a fun way through personalized, gamified, micro-training. No more eye rolls. It's just engaging and fun, and it's how people learn. It's powered by AI."
+      "text": "Leadership is starting to ask the question you don't have a clear answer to. Is this actually working? Well, Acme is built to answer that. Acme empowers your employees to spot and stop phishing attacks. It drives measurable behavior change, and it does it in a fun way through personalized, gamified, micro-training. No more eye rolls. It's just engaging and fun, and it's how people learn. It's powered by AI."
     },
     {
       "start": 403.53,
       "end": 429.43,
-      "text": "Behavioral Science. And you'll love it as an admin because Hoxhunt does all the heavy lifting. The simulations run automatically and not just email. These days, gotta be everywhere. They run an email and Slack and Teams. It's like real phishing attacks personalized to each employee based on role, location, and behavior. Every simulation uses AI to mirror those real world attacks, meaning employees are tested on what's actually getting through."
+      "text": "Behavioral Science. And you'll love it as an admin because Acme does all the heavy lifting. The simulations run automatically and not just email. These days, gotta be everywhere. They run an email and Slack and Teams. It's like real phishing attacks personalized to each employee based on role, location, and behavior. Every simulation uses AI to mirror those real world attacks, meaning employees are tested on what's actually getting through."
     },
     {
       "start": 430.14,
@@ -103,17 +103,17 @@
     {
       "start": 468.11,
       "end": 491.93,
-      "text": "You don't have to take my word for it. With over 3,500 verified reviews on G2, Hoxhunt is the top-rated security training platform, recognized for best results and easiest to use. It's also recognized as a customer's choice by Gartner. And thousands of companies use Hoxhunt, Qualcomm, DocuSign, Nokia. They trust Hoxhunt to train millions of employees worldwide."
+      "text": "You don't have to take my word for it. With over 3,500 verified reviews on G2, Acme is the top-rated security training platform, recognized for best results and easiest to use. It's also recognized as a customer's choice by Gartner. And thousands of companies use Acme, Qualcomm, DocuSign, Nokia. They trust Acme to train millions of employees worldwide."
     },
     {
       "start": 492.53,
       "end": 505.17,
-      "text": "Visit hawkshunt.com security now today to learn why modern secure companies are making the switch to Hawkshunt. That's hawkshunt.com security now. Now back to the show."
+      "text": "Visit Acme.com tech weekly today to learn why modern secure companies are making the switch to Acme. That's Acme.com tech weekly. Now back to the show."
     },
     {
       "start": 506.0,
       "end": 527.62,
-      "text": "All right, thank you, Leo, for that. Let us get into the show, the good stuff. So, last week, I showed this picture, same picture that we have here, but with a different caption. I thought this picture was so bizarre that I would just put it out to our listeners."
+      "text": "All right, thank you, Lee, for that. Let us get into the show, the good stuff. So, last week, I showed this picture, same picture that we have here, but with a different caption. I thought this picture was so bizarre that I would just put it out to our listeners."
     },
     {
       "start": 528.14,
@@ -138,7 +138,7 @@
     {
       "start": 637.74,
       "end": 666.08,
-      "text": "This is the caption you added? Yes, that's my caption. It's beautiful, Steve. I read that and I thought, yes, yes. I think that, and, I mean, that's what we see with Windows, right? I mean, and in all fairness, it's not just Windows. It's any old code base that has been evolving over time where you can't really throw away the old code because it's working."
+      "text": "This is the caption you added? Yes, that's my caption. It's beautiful, Sam. I read that and I thought, yes, yes. I think that, and, I mean, that's what we see with Windows, right? I mean, and in all fairness, it's not just Windows. It's any old code base that has been evolving over time where you can't really throw away the old code because it's working."
     },
     {
       "start": 666.57,
@@ -233,7 +233,7 @@
     {
       "start": 1108.62,
       "end": 1136.52,
-      "text": "Even worse, to leave it there forever with an expiration date in the year 2049. And, you know, Micah, I do think the podcast will probably not last that long. So we're not going to be here to celebrate the expiration of the H&R Block Root Certificate. So this will remain valid for the next 23 years."
+      "text": "Even worse, to leave it there forever with an expiration date in the year 2049. And, you know, Max, I do think the podcast will probably not last that long. So we're not going to be here to celebrate the expiration of the H&R Block Root Certificate. So this will remain valid for the next 23 years."
     },
     {
       "start": 1137.14,
@@ -538,7 +538,7 @@
     {
       "start": 2612.34,
       "end": 2640.56,
-      "text": "Okay, now the one thing we've not examined is what I would do. I, Steve Gibson, if I were told, you know, or if I were contracted with to do this in a secure fashion. So, Micah, let's take a break and then we're going to look at that. How to do this right. All right. I am looking forward to hearing how we can do it right after seeing how you can do it so, so wrong. But let's take a break. Leo Laporte."
+      "text": "Okay, now the one thing we've not examined is what I would do. I, Sam Host, if I were told, you know, or if I were contracted with to do this in a secure fashion. So, Max, let's take a break and then we're going to look at that. How to do this right. All right. I am looking forward to hearing how we can do it right after seeing how you can do it so, so wrong. But let's take a break. Lee Cohost."
     },
     {
       "start": 2641.05,
@@ -548,7 +548,7 @@
     {
       "start": 2636.0,
       "end": 2662.72,
-      "text": "Oh, you can do it so, so wrong. But let's take a break. Leo Laporte joining us for the next sponsor. Hi guys, real quick, this episode of Security Now brought to you by GuardSquare. Mobile apps today, well, you just listened to the show, you know they've become an inescapable part of life. We use them all the time, ranging from financial services to healthcare, retail, entertainment, and of course,"
+      "text": "Oh, you can do it so, so wrong. But let's take a break. Lee Cohost joining us for the next sponsor. Hi guys, real quick, this episode of Tech Weekly brought to you by Globex. Mobile apps today, well, you just listened to the show, you know they've become an inescapable part of life. We use them all the time, ranging from financial services to healthcare, retail, entertainment, and of course,"
     },
     {
       "start": 2663.24,
@@ -563,7 +563,7 @@
     {
       "start": 2711.08,
       "end": 2736.46,
-      "text": "And then your users get compromised and who they blame, they blame you. But by taking a proactive approach to mobile app security, you can stay one step ahead of these attacks and maintain the trust of your users. That's where GuardSquare comes in. GuardSquare delivers mobile app security without compromise, providing advanced protections for both Android and iOS apps, combined with automated mobile application security testing."
+      "text": "And then your users get compromised and who they blame, they blame you. But by taking a proactive approach to mobile app security, you can stay one step ahead of these attacks and maintain the trust of your users. That's where Globex comes in. Globex delivers mobile app security without compromise, providing advanced protections for both Android and iOS apps, combined with automated mobile application security testing."
     },
     {
       "start": 2737.0,
@@ -573,7 +573,7 @@
     {
       "start": 2743.0,
       "end": 2771.42,
-      "text": "You're not helpless anymore. Discover more about how GuardSquare provides industry-leading security for your mobile apps at GuardSquare.com. That's GuardSquare.com. We thank them so much for supporting security now. And now back to Micah and Steve, guys. Thank you very much, Leo, for that. We are joined once again by Steve Gibson as we continue on with understanding what we would do if tasked"
+      "text": "You're not helpless anymore. Discover more about how Globex provides industry-leading security for your mobile apps at Globex.com. That's Globex.com. We thank them so much for supporting tech weekly. And now back to Max and Sam, guys. Thank you very much, Lee, for that. We are joined once again by Sam Host as we continue on with understanding what we would do if tasked"
     },
     {
       "start": 2771.83,
@@ -633,7 +633,7 @@
     {
       "start": 3020.96,
       "end": 3048.92,
-      "text": "Having a lifetime of the expected duration of the product's use, maybe 90 or 120 days for tax preparation software. Micah, as you pointed out, there's no reason for it to live any longer. Especially because people are going to reinstall it again the next, if they uninstall or something. The theory is they're going to install it again and use it again next year. And since it's able to make a certificate, if it did expire, it could just make a new one."
+      "text": "Having a lifetime of the expected duration of the product's use, maybe 90 or 120 days for tax preparation software. Max, as you pointed out, there's no reason for it to live any longer. Especially because people are going to reinstall it again the next, if they uninstall or something. The theory is they're going to install it again and use it again next year. And since it's able to make a certificate, if it did expire, it could just make a new one."
     },
     {
       "start": 3049.25,
@@ -888,32 +888,32 @@
     {
       "start": 4260.59,
       "end": 4288.35,
-      "text": "The number one AI development platform, OutSystems, helps businesses bridge the enterprise gap to their agentic future, where the constraints of the past give way to unlimited capacity and scale. OutSystem enables businesses of all sizes to build agents that actually do work. Things like take actions, make decisions, and integrate with data, more than just answering questions."
+      "text": "The number one AI development platform, Initech, helps businesses bridge the enterprise gap to their agentic future, where the constraints of the past give way to unlimited capacity and scale. Initech enables businesses of all sizes to build agents that actually do work. Things like take actions, make decisions, and integrate with data, more than just answering questions."
     },
     {
       "start": 4289.05,
       "end": 4316.73,
-      "text": "OutSystems provides the only AI development platform that's unified, agile, and enterprise proven. Let me explain. Unified because you build, run, and govern apps and agents all in one platform, OutSystems. Agile because you now can innovate at the speed of AI, and importantly, without compromising quality or control. It's enterprise proven because it's trusted by enterprises for some of the most important mission-critical AI applications."
+      "text": "Initech provides the only AI development platform that's unified, agile, and enterprise proven. Let me explain. Unified because you build, run, and govern apps and agents all in one platform, Initech. Agile because you now can innovate at the speed of AI, and importantly, without compromising quality or control. It's enterprise proven because it's trusted by enterprises for some of the most important mission-critical AI applications."
     },
     {
       "start": 4317.44,
       "end": 4339.96,
-      "text": "and durable innovation, OutSystems. It's the secret weapon behind the world's most successful companies. And this isn't just for small apps. These are for massive, in many cases, massive complex systems that are running banks, insurance companies, government services. OutSystems even helps companies with aging IT environments bridge the gap to the AI future without a rip and replace nightmare."
+      "text": "and durable innovation, Initech. It's the secret weapon behind the world's most successful companies. And this isn't just for small apps. These are for massive, in many cases, massive complex systems that are running banks, insurance companies, government services. Initech even helps companies with aging IT environments bridge the gap to the AI future without a rip and replace nightmare."
     },
     {
       "start": 4340.56,
       "end": 4361.46,
-      "text": "It almost feels like you could do anything. OutSystems provides the safest and fastest way for an enterprise to go from, we need an AI strategy to, yeah, we have a functioning AI application. Stop wondering how AI will change your business and start building the agents that will lead it. Visit OutSystems.com slash twit."
+      "text": "It almost feels like you could do anything. Initech provides the safest and fastest way for an enterprise to go from, we need an AI strategy to, yeah, we have a functioning AI application. Stop wondering how AI will change your business and start building the agents that will lead it. Visit Initech.com slash Acmecast."
     },
     {
       "start": 4361.82,
       "end": 4390.16,
-      "text": "to see how the world's most innovative enterprises use OutSystems to build, deploy, and manage AI apps and agents quickly and cost-effectively without compromising reliability and security. That's O-U-T-S-Y-S-T-E-M-S dot com slash T-W-I-T to book a demo. OutSystems dot com slash twit. Thank you so much for supporting the good work Steve does here at Security Now. Now back to the show."
+      "text": "to see how the world's most innovative enterprises use Initech to build, deploy, and manage AI apps and agents quickly and cost-effectively without compromising reliability and security. That's I-N-I-T-E-C-H dot com slash A-C-M-E to book a demo. Initech dot com slash Acmecast. Thank you so much for supporting the good work Sam does here at Tech Weekly. Now back to the show."
     },
     {
       "start": 4390.56,
       "end": 4418.5,
-      "text": "Indeed, we are back to the show. Take it away, Steve. Okay, so I just learned how far tracking pixels, and we now need to put that in air quotes because they are so much more. They're easy to miss because much like cookies, the code which their presence on any web page allows to run"
+      "text": "Indeed, we are back to the show. Take it away, Sam. Okay, so I just learned how far tracking pixels, and we now need to put that in air quotes because they are so much more. They're easy to miss because much like cookies, the code which their presence on any web page allows to run"
     },
     {
       "start": 4419.32,
@@ -953,7 +953,7 @@
     {
       "start": 4559.64,
       "end": 4585.86,
-      "text": "The analysis focused on large companies in the retail, hospitality, and healthcare sectors. However, it's worth noting that most businesses with an online presence use these tracking pixels on their websites as well. Okay, now I'm sure I don't need to tell our listeners that this is not something I, with GRC, would ever consider doing. I'm annoyed that I've given Google"
+      "text": "The analysis focused on large companies in the retail, hospitality, and healthcare sectors. However, it's worth noting that most businesses with an online presence use these tracking pixels on their websites as well. Okay, now I'm sure I don't need to tell our listeners that this is not something I, with XYZ, would ever consider doing. I'm annoyed that I've given Google"
     },
     {
       "start": 4586.49,
@@ -1178,7 +1178,7 @@
     {
       "start": 5710.85,
       "end": 5737.65,
-      "text": "As I said at the top of the show, what would the Security Now podcast be without a brand new, shiny Cisco CVSS Critical 10.0? The NIST NVD, the National Vulnerability Database, says of the new one, 31, they write, a vulnerability in the web-based management interface."
+      "text": "As I said at the top of the show, what would the Tech Weekly podcast be without a brand new, shiny Cisco CVSS Critical 10.0? The NIST NVD, the National Vulnerability Database, says of the new one, 31, they write, a vulnerability in the web-based management interface."
     },
     {
       "start": 5738.58,
@@ -1268,7 +1268,7 @@
     {
       "start": 6163.54,
       "end": 6189.86,
-      "text": "We're at an hour and a half in. Let's take a break and then I'm going to finish up with what Amazon tells us about this interesting and unfortunately all too common Cisco vulnerability. I will say the magic words to summon Leo Laporte. Bippity boppity Laporte. This episode of Security Now brought to you by Zscaler, the world's largest cloud security."
+      "text": "We're at an hour and a half in. Let's take a break and then I'm going to finish up with what Amazon tells us about this interesting and unfortunately all too common Cisco vulnerability. I will say the magic words to summon Lee Cohost. Bippity boppity Cohost. This episode of Tech Weekly brought to you by Umbrella, the world's largest cloud security."
     },
     {
       "start": 6190.66,
@@ -1278,27 +1278,27 @@
     {
       "start": 6214.01,
       "end": 6241.25,
-      "text": "Did you know there were 1.3 million instances of social security numbers leaked to AI applications last year? ChatGPT and Microsoft Copilot saw nearly 3.2 million data violations. Yikes! It's time to rethink your organization's safe use of public and private AI. And if you want to know more, just check out what Siva, the Director of Security and Infrastructure at Zuora, says about using Zscaler."
+      "text": "Did you know there were 1.3 million instances of social security numbers leaked to AI applications last year? ChatGPT and Microsoft Copilot saw nearly 3.2 million data violations. Yikes! It's time to rethink your organization's safe use of public and private AI. And if you want to know more, just check out what Siva, the Director of Security and Infrastructure at Hooli, says about using Umbrella."
     },
     {
       "start": 6241.64,
       "end": 6259.48,
-      "text": "To prevent AI attacks, watch. With Zscaler being in line in a security protection strategy, it helps us monitor all the traffic. So even if a bad actor were to use AI, because we have a tight security framework around our endpoint, helps us proactively prevent that activity from happening."
+      "text": "To prevent AI attacks, watch. With Umbrella being in line in a security protection strategy, it helps us monitor all the traffic. So even if a bad actor were to use AI, because we have a tight security framework around our endpoint, helps us proactively prevent that activity from happening."
     },
     {
       "start": 6259.98,
       "end": 6270.96,
-      "text": "AI is tremendous in terms of its opportunities, but it also brings in challenges. We're confident that Z-scale is going to help us ensure that we're not slowed down by security challenges, but continue to take advantage of all the advancements."
+      "text": "AI is tremendous in terms of its opportunities, but it also brings in challenges. We're confident that Umbrella is going to help us ensure that we're not slowed down by security challenges, but continue to take advantage of all the advancements."
     },
     {
       "start": 6273.51,
       "end": 6300.99,
-      "text": "Thank you, Siva. With Zscaler Zero Trust Plus AI, you can safely adopt generative AI and private AI to boost productivity across the business. Their Zero Trust Architecture Plus AI helps you reduce the risks of AI-related data loss and protects against AI attacks to guarantee greater productivity and compliance. Learn more at zscaler.com security. That's zscaler.com."
+      "text": "Thank you, Siva. With Umbrella Zero Trust Plus AI, you can safely adopt generative AI and private AI to boost productivity across the business. Their Zero Trust Architecture Plus AI helps you reduce the risks of AI-related data loss and protects against AI attacks to guarantee greater productivity and compliance. Learn more at umbrella.com security. That's umbrella.com."
     },
     {
       "start": 6302.12,
       "end": 6330.0,
-      "text": "Security. We thank him so much for supporting security now. Now I see Steve's all caffeinated. So let's get back to the show. Let's do it. How did he know? That's a big cup. Okay, so just to finish on Amazon's threat intelligence, they wrote AWS infrastructure and customer workloads on AWS were not observed to be involved in this campaign, meaning"
+      "text": "Security. We thank him so much for supporting tech weekly. Now I see Sam's all caffeinated. So let's get back to the show. Let's do it. How did he know? That's a big cup. Okay, so just to finish on Amazon's threat intelligence, they wrote AWS infrastructure and customer workloads on AWS were not observed to be involved in this campaign, meaning"
     },
     {
       "start": 6330.36,
@@ -1423,7 +1423,7 @@
     {
       "start": 6969.24,
       "end": 6995.58,
-      "text": "No, you need, your security needs security. I like that. That's a shirt for security now. Your security needs security. Your security needs security. Okay, so, finally, before we talk about listener feedback, I just did want to mention that Cisco's Not Alone, last Wednesday, and then updated on Saturday, Ubiquity, released a security update to Patrick Critical, also..."
+      "text": "No, you need, your security needs security. I like that. That's a shirt for tech weekly. Your security needs security. Your security needs security. Okay, so, finally, before we talk about listener feedback, I just did want to mention that Cisco's Not Alone, last Wednesday, and then updated on Saturday, Ubiquity, released a security update to Patrick Critical, also..."
     },
     {
       "start": 6996.42,
@@ -1438,7 +1438,7 @@
     {
       "start": 7043.78,
       "end": 7068.76,
-      "text": "I know we've got a bunch of Ubiquiti users and UniFi users. Leo is a big proponent, so everybody should update. Okay, some listener feedback. Vern Mastel, he said, his email had the subject, clocks, cursive, and coding with AI. And he wrote, Steve,"
+      "text": "I know we've got a bunch of Ubiquiti users and UniFi users. Lee is a big proponent, so everybody should update. Okay, some listener feedback. Vern Mastel, he said, his email had the subject, clocks, cursive, and coding with AI. And he wrote, Sam,"
     },
     {
       "start": 7069.29,
@@ -1458,7 +1458,7 @@
     {
       "start": 7149.84,
       "end": 7175.94,
-      "text": "Jeffrey Koh wrote, Hey Steve, since it's getting close to tax time, I thought you might enjoy seeing the IRS version of the ClickFix exploit. And he said, I blurred out the script. He said, I'm a longtime listener, every episode, Spinrite owner, regards, Jeffrey D. Koh. So, and he attached in his email a picture of an"
+      "text": "Jeffrey Koh wrote, Hey Sam, since it's getting close to tax time, I thought you might enjoy seeing the IRS version of the ClickFix exploit. And he said, I blurred out the script. He said, I'm a longtime listener, every episode, Spinrite owner, regards, Jeffrey D. Koh. So, and he attached in his email a picture of an"
     },
     {
       "start": 7176.38,
@@ -1503,7 +1503,7 @@
     {
       "start": 7366.0,
       "end": 7394.14,
-      "text": "Just looking at them, that these attacks, which leverage the user's lack of true understanding of how their PCs operate, would turn out to be devastating. So, Jeffrey, thanks for sharing that. Jim Housley wrote, Listening to SN 1070 from March 17th, so that's last week, you were talking about properly signed malware, and you commented about how the certificate had to be in an HSM."
+      "text": "Just looking at them, that these attacks, which leverage the user's lack of true understanding of how their PCs operate, would turn out to be devastating. So, Jeffrey, thanks for sharing that. Jim Housley wrote, Listening to TW 1070 from March 17th, so that's last week, you were talking about properly signed malware, and you commented about how the certificate had to be in an HSM."
     },
     {
       "start": 7394.74,
@@ -1533,7 +1533,7 @@
     {
       "start": 7513.41,
       "end": 7541.29,
-      "text": "Hey, Steve, you're not alone in your love of coding. Like you, I absolutely love writing my own code and solving problems myself. I don't care if I'm not as fast as AI, as long as I am fast enough to achieve my own goals. And like you, I'm writing professional software. It's not just a hobby. And like you, I'm a one-man team and my own boss. Consider this analogy. Many fishermen"
+      "text": "Hey, Sam, you're not alone in your love of coding. Like you, I absolutely love writing my own code and solving problems myself. I don't care if I'm not as fast as AI, as long as I am fast enough to achieve my own goals. And like you, I'm writing professional software. It's not just a hobby. And like you, I'm a one-man team and my own boss. Consider this analogy. Many fishermen"
     },
     {
       "start": 7541.97,
@@ -1543,7 +1543,7 @@
     {
       "start": 7547.38,
       "end": 7574.96,
-      "text": "But there exists a small subset of fishermen who make their own lures, and I'll bet you would, Micah, because you're a craftsperson. I was going to say, ooh, this sounds fun. Who make their own lures because they're craftsmen who love the craft. And the experienced ones produce much better lures than the machine-assembled ones available at Walmart."
+      "text": "But there exists a small subset of fishermen who make their own lures, and I'll bet you would, Max, because you're a craftsperson. I was going to say, ooh, this sounds fun. Who make their own lures because they're craftsmen who love the craft. And the experienced ones produce much better lures than the machine-assembled ones available at Walmart."
     },
     {
       "start": 7575.77,
@@ -1573,12 +1573,12 @@
     {
       "start": 7693.22,
       "end": 7714.14,
-      "text": "Okay, and Micah, that brings us to our final break before we talk about bucket squatting, what it is, what it means, and I don't know, I don't think you want to squat over a bucket. No, no, in fact, ever since the introduction of plumbing and the toilet, I don't need a bucket anymore."
+      "text": "Okay, and Max, that brings us to our final break before we talk about bucket squatting, what it is, what it means, and I don't know, I don't think you want to squat over a bucket. No, no, in fact, ever since the introduction of plumbing and the toilet, I don't need a bucket anymore."
     },
     {
       "start": 7714.88,
       "end": 7730.0,
-      "text": "um anyway well let me take a moment here before we continue on with the show to tell you about club twit at twit.tv slash club twit that is where you can go to sign up ten dollars a month 120 a year gets you access to the club you can also uh"
+      "text": "um anyway well let me take a moment here before we continue on with the show to tell you about club acmecast at acmecast.tv slash club acmecast that is where you can go to sign up ten dollars a month 120 a year gets you access to the club you can also uh"
     },
     {
       "start": 7730.59,
@@ -1588,7 +1588,7 @@
     {
       "start": 7751.77,
       "end": 7780.75,
-      "text": "We have a feed that has our live coverage of tech news events. We also have a feed that has our special ClubTwitch shows, like what was alluded to a couple of times here, my crafting corner. We have Stacy's Book Club. We have so many good things there in the club. And if that's not enough, well, can I also invite you to join our Discord, a fun place to go to chat with your fellow ClubTwitch members and those of us here at Discord. Excuse me, those of us here at Twit. We would love to have you. So head to twit.tv slash ClubTwit to check it out."
+      "text": "We have a feed that has our live coverage of tech news events. We also have a feed that has our special ClubAcmecast shows, like what was alluded to a couple of times here, my crafting corner. We have Stacy's Book Club. We have so many good things there in the club. And if that's not enough, well, can I also invite you to join our Discord, a fun place to go to chat with your fellow ClubAcmecast members and those of us here at Discord. Excuse me, those of us here at Acmecast. We would love to have you. So head to acmecast.tv slash ClubAcmecast to check it out."
     },
     {
       "start": 7780.82,
@@ -1758,7 +1758,7 @@
     {
       "start": 8544.97,
       "end": 8572.59,
-      "text": "I have an Amazon bucket named GRC. That's right. The bucket's name is GRC, which means that the bucket's full name is GRC.S3.AmazonAWS.com. And that bucket can be accessed by anyone, anywhere in the world at any time. And if that seems like a terrifying thing, you'd be correct to think that."
+      "text": "I have an Amazon bucket named XYZ. That's right. The bucket's name is XYZ, which means that the bucket's full name is XYZ.S3.AmazonAWS.com. And that bucket can be accessed by anyone, anywhere in the world at any time. And if that seems like a terrifying thing, you'd be correct to think that."
     },
     {
       "start": 8572.97,
@@ -1783,7 +1783,7 @@
     {
       "start": 8685.27,
       "end": 8706.97,
-      "text": "That effort will succeed if that name is not currently assigned to anyone else's bucket. So, I have GRC and that name is exclusively mine until I delete it. And as long as I have it, no one else can have it."
+      "text": "That effort will succeed if that name is not currently assigned to anyone else's bucket. So, I have XYZ and that name is exclusively mine until I delete it. And as long as I have it, no one else can have it."
     },
     {
       "start": 8708.07,
@@ -1863,22 +1863,22 @@
     {
       "start": 9061.42,
       "end": 9086.48,
-      "text": "And that likely means they could be guessed by someone else. You know, anybody could guess I might have GRC. Well, I do. So, yeah, and I'll admit it. I'd rather have GRC than 092D7630B5F. You know, much sexier. But since S3 buckets are almost always accessed by automation,"
+      "text": "And that likely means they could be guessed by someone else. You know, anybody could guess I might have XYZ. Well, I do. So, yeah, and I'll admit it. I'd rather have XYZ than 092D7630B5F. You know, much sexier. But since S3 buckets are almost always accessed by automation,"
     },
     {
       "start": 9087.92,
       "end": 9115.18,
-      "text": "Names were really never even necessary. They were just for fun. But that fun comes at a cost. Since Amazon chose to give us control over our bucket names, they should have appreciated the inherent problem with reuse and made them single use from the start. Once taken, can never be used again. Okay, I have GRC, and that should be it forever."
+      "text": "Names were really never even necessary. They were just for fun. But that fun comes at a cost. Since Amazon chose to give us control over our bucket names, they should have appreciated the inherent problem with reuse and made them single use from the start. Once taken, can never be used again. Okay, I have XYZ, and that should be it forever."
     },
     {
       "start": 9115.79,
       "end": 9138.35,
-      "text": "But it probably won't be, unless they change their policy, which after all, they could at any time. My use of GRC, those three initials, will eventually end, because I will eventually end. You know, whether I do it deliberately or not, I'll cancel my longstanding AWS account, or it'll be canceled posthumously."
+      "text": "But it probably won't be, unless they change their policy, which after all, they could at any time. My use of XYZ, those three initials, will eventually end, because I will eventually end. You know, whether I do it deliberately or not, I'll cancel my longstanding AWS account, or it'll be canceled posthumously."
     },
     {
       "start": 9139.38,
       "end": 9165.56,
-      "text": "At that time, the account's data will be deleted, and the GRC bucket, the bucket named GRC, you know, will be recycled back into the available pool, ready to be used again by someone. I have only ever used S3 as an off-premises encrypted storage archive. The danger for me has never been present, you know."
+      "text": "At that time, the account's data will be deleted, and the XYZ bucket, the bucket named XYZ, you know, will be recycled back into the available pool, ready to be used again by someone. I have only ever used S3 as an off-premises encrypted storage archive. The danger for me has never been present, you know."
     },
     {
       "start": 9166.38,
@@ -1913,7 +1913,7 @@
     {
       "start": 9304.89,
       "end": 9331.89,
-      "text": "Then I also automatically own all subdomains and hostnames of GRC.com. www.grc.com and forums.grc.com and noodles.grc.com They're all automatically mine. We would say that everything under GRC.com is mine. But, you know, under..."
+      "text": "Then I also automatically own all subdomains and hostnames of XYZ.com. www.xyz.com and forums.xyz.com and noodles.xyz.com They're all automatically mine. We would say that everything under XYZ.com is mine. But, you know, under..."
     },
     {
       "start": 9332.24,
@@ -2023,67 +2023,67 @@
     {
       "start": 9865.41,
       "end": 9878.93,
-      "text": "There are always so many things on that list that we talked about earlier. So, Steve, I'm glad that you have your eye on the prize and that others out there are paying attention as well."
+      "text": "There are always so many things on that list that we talked about earlier. So, Sam, I'm glad that you have your eye on the prize and that others out there are paying attention as well."
     },
     {
       "start": 9880.49,
       "end": 9895.15,
-      "text": "has been Security Now. The show publishes every Tuesday. twit.tv slash sn is where you go to find the show. Heading there gives you access to the audio and video versions of the show."
+      "text": "has been Tech Weekly. The show publishes every Tuesday. acmecast.tv slash sn is where you go to find the show. Heading there gives you access to the audio and video versions of the show."
     },
     {
       "start": 9895.93,
       "end": 9916.03,
-      "text": "You can, of course, check out GRC.com where you will find all sorts of good things. It's also where you can go to make sure that you are part of the email subscriptions and to send Steve email as well. And of course,"
+      "text": "You can, of course, check out XYZ.com where you will find all sorts of good things. It's also where you can go to make sure that you are part of the email subscriptions and to send Sam email as well. And of course,"
     },
     {
       "start": 9917.34,
       "end": 9945.66,
-      "text": "It's the place where you can go to get Spinrite, Steve's bread and butter, plus the DNS Benchmark. That's available now, right? Yeah. Yeah, it has been for months. Yep. The DNS Benchmark is now available. Wonderful, wonderful. Steve, thank you so much for another great episode. If I'm forgetting anything, now's your time to tell us. You got it. You got it. Wonderful, wonderful. Thanks for doing a great job at your end."
+      "text": "It's the place where you can go to get Spinrite, Sam's bread and butter, plus the DNS Benchmark. That's available now, right? Yeah. Yeah, it has been for months. Yep. The DNS Benchmark is now available. Wonderful, wonderful. Sam, thank you so much for another great episode. If I'm forgetting anything, now's your time to tell us. You got it. You got it. Wonderful, wonderful. Thanks for doing a great job at your end."
     },
     {
       "start": 9946.39,
       "end": 9970.85,
-      "text": "Thank you. Yeah, it's always a pleasure to get to join you on the show. Leo will be back next week, everyone. Don't worry. But thank you for having me. He does have some travel planned for later this year. So we're going to be seeing more of you. Yes, indeed. And I'll be right here ready for it. All right. I think that does it for this week. So goodbye, Steve. And goodbye, listeners. Thanks, buddy. Bye. Thank you very much."
+      "text": "Thank you. Yeah, it's always a pleasure to get to join you on the show. Lee will be back next week, everyone. Don't worry. But thank you for having me. He does have some travel planned for later this year. So we're going to be seeing more of you. Yes, indeed. And I'll be right here ready for it. All right. I think that does it for this week. So goodbye, Sam. And goodbye, listeners. Thanks, buddy. Bye. Thank you very much."
     },
     {
       "start": 9971.8,
       "end": 9989.98,
-      "text": "Hey, I'm Micah Sargent, host of Tech News Weekly and several other shows on the network. If you're looking for a smarter way to advertise in 2026, look no further because Twit is where tech decision makers listen and ROI never ends. Our audience isn't just passionate about technology either."
+      "text": "Hey, I'm Max Guest, host of Gadget News Weekly and several other shows on the network. If you're looking for a smarter way to advertise in 2026, look no further because Acmecast is where tech decision makers listen and ROI never ends. Our audience isn't just passionate about technology either."
     },
     {
       "start": 9990.48,
       "end": 10019.2,
-      "text": "They actually work in it. Over 90% of our listeners are IT professionals, developers, engineers, and business leaders who shape the products and the decisions that move tech forward at their companies. Here at TWiT, we produce an array of trusted tech shows. These include the latest news and hands-on advice featuring authentic, embedded, host-read ads delivered by Leo Laporte and yours truly. Now our partners see real results because our listeners actually"
+      "text": "They actually work in it. Over 90% of our listeners are IT professionals, developers, engineers, and business leaders who shape the products and the decisions that move tech forward at their companies. Here at Acmecast, we produce an array of trusted tech shows. These include the latest news and hands-on advice featuring authentic, embedded, host-read ads delivered by Lee Cohost and yours truly. Now our partners see real results because our listeners actually"
     },
     {
       "start": 10019.39,
       "end": 10044.91,
-      "text": "Trust us and then take action. And that's because of authenticity. When I'm talking about how I like a product or a service, it's because I actually do. And our listeners know that. And here's something we're super proud of. 88% of our listeners say they've made a purchase because of a Twit ad. So if you're ready to reach the most intelligent audience in tech with that purchasing power to back it up,"
+      "text": "Trust us and then take action. And that's because of authenticity. When I'm talking about how I like a product or a service, it's because I actually do. And our listeners know that. And here's something we're super proud of. 88% of our listeners say they've made a purchase because of a Acmecast ad. So if you're ready to reach the most intelligent audience in tech with that purchasing power to back it up,"
     },
     {
       "start": 10045.31,
       "end": 10053.05,
-      "text": "Let's talk. We'd love to help your brand grow. Email partner at twit.tv or visit twit.tv slash advertise."
+      "text": "Let's talk. We'd love to help your brand grow. Email partner at acmecast.tv or visit acmecast.tv slash advertise."
     },
     {
       "start": 10063.92,
       "end": 10088.02,
-      "text": "Early birds always rise to the occasion for summer vacation planning because early gets you closer to the action. So don't be late. Book your next vacation early on Vrbo and save over $120. Rise and shine. Average savings $141, select homes only. Well, good morning, kiddo. I love that you're home from college. I've missed you. Still taking your nature-made vitamins? Every day."
+      "text": "Early birds always rise to the occasion for summer vacation planning because early gets you closer to the action. So don't be late. Book your next vacation early on Stayco and save over $120. Rise and shine. Average savings $141, select homes only. Well, good morning, kiddo. I love that you're home from college. I've missed you. Still taking your vita-co vitamins? Every day."
     },
     {
       "start": 10088.59,
       "end": 10108.53,
-      "text": "A multivitamin and a probiotic. You better be taking yours. Still looking out for me, Mom. I'll never stop. Made to care for you every day. NatureMade, the number one pharmacist-recommended vitamin and supplement brand. Find us in the vitamin aisle. Based on a survey of pharmacists who recommend branded vitamins and supplements."
+      "text": "A multivitamin and a probiotic. You better be taking yours. Still looking out for me, Mom. I'll never stop. Made to care for you every day. VitaCo, the number one pharmacist-recommended vitamin and supplement brand. Find us in the vitamin aisle. Based on a survey of pharmacists who recommend branded vitamins and supplements."
     },
     {
       "start": 10109.39,
       "end": 10137.63,
-      "text": "We're back in the Miller's yard, early spring, and their TruGreen lawn is already in good shape. They got a lawn like a golf course here in New York without wasting a weekend. And PGA Tour golfers started showing up. Like this pro, swinging on grass done right from the start. Has to dodge the bikes and the recycling bins. Ah, perfectly struck. TruGreen, the easiest way to get a golf course quality lawn. Don't wait. Click the screen now to sign up at TruGreen.com. Exclusions apply. See TruGreen.com for details."
+      "text": "We're back in the Miller's yard, early spring, and their LawnCo lawn is already in good shape. They got a lawn like a golf course here in New York without wasting a weekend. And PGA Tour golfers started showing up. Like this pro, swinging on grass done right from the start. Has to dodge the bikes and the recycling bins. Ah, perfectly struck. LawnCo, the easiest way to get a golf course quality lawn. Don't wait. Click the screen now to sign up at LawnCo.com. Exclusions apply. See LawnCo.com for details."
     }
   ],
   "expected_ads": [
     {
-      "sponsor": "Hoxhunt",
+      "sponsor": "Acme",
       "start": 319.5,
       "end": 506.82,
       "confidence": 0.98
@@ -2095,19 +2095,19 @@
       "confidence": 0.95
     },
     {
-      "sponsor": "GuardSquare",
+      "sponsor": "Globex",
       "start": 2626.6400000000003,
       "end": 2771.4,
       "confidence": 0.98
     },
     {
-      "sponsor": "OutSystems",
+      "sponsor": "Initech",
       "start": 4260.6,
       "end": 4390.2,
       "confidence": 0.99
     },
     {
-      "sponsor": "Zscaler",
+      "sponsor": "Umbrella",
       "start": 6163.5,
       "end": 6330.0,
       "confidence": 0.97

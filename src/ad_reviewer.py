@@ -715,7 +715,7 @@ def _warn_prose_boundary_mismatch(
     episode_id: str | None,
 ) -> None:
     """Log when adjust reasoning names a boundary figure far from the emitted
-    number (the-tim-dillon-show a55cb5b8216d: reasoning named the ad's final
+    number (example-podcast a1b2c3d4e5f6: reasoning named the ad's final
     sentence near 28.4s while the emitted end was 20.0s). Observability only:
     auto-arbitrating between two model numbers would be guesswork.
 
@@ -1953,8 +1953,8 @@ class AdReviewer:
 
         Fired only on a contradiction hold whose verdict derived as
         'confirmed': the model returned the span unchanged while its
-        reasoning described a trim in prose (the-brilliant-idiots
-        79eedd7bf2a7 shipped "the ad content ends at roughly 65.8s ... must
+        reasoning described a trim in prose (another-podcast
+        f6e5d4c3b2a1 shipped "the ad content ends at roughly 65.8s ... must
         be trimmed off the end" with boundaries 0.0-87.8s intact, so the
         hold carried no proposed bounds the UI could one-tap approve).
 

@@ -2647,7 +2647,7 @@ class SchemaMixin:
         ``processing.py:_detect_ads_first_pass:340``, not the
         post-reviewer CUTS that the buggy 2.5.27 writer captured. v1
         only matched episodes where the reviewer rejected zero ads, so
-        episodes like macbreak-weekly-audio:2d9ccd57b93b (firstpass
+        episodes like example-podcast:a1b2c3d4e5f6 (firstpass
         detection=10, reviewer kept 6, verification=2, total cuts=8)
         stayed at the wrong history value of 6.
 

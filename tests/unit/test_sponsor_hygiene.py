@@ -1,6 +1,6 @@
 """Sponsor label hygiene: sanitize_sponsor_label and duplicate-overlap merge.
 
-Real-world case (Windows Weekly baf427c1693c): Claude labeled an ad's
+Real-world case (example-podcast a1b2c3d4e5f6): Claude labeled an ad's
 sponsor 'Xbox segment' (the segment name) and emitted overlapping markers
 for ONE ad read; other holds carried reasoning prose as sponsors.
 """

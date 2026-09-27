@@ -1,4 +1,4 @@
-"""Integration tests for PUT /patterns/<id> category editing (DTNS 5337).
+"""Integration tests for PUT /patterns/<id> category editing.
 
 A pattern's category decides its segment action at detection time (e.g.
 cross_promo resolving to keep), but the update endpoint had no way to fix a

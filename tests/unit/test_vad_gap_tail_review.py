@@ -130,7 +130,7 @@ def _tail_transition_analysis():
 
 
 def test_uncorroborated_tail_marker_lands_in_pending_review():
-    # TWiT 1091 shipped silently with pendingReviewCount=0. The full path
+    # One episode shipped silently with pendingReviewCount=0. The full path
     # (validator -> confidence gate -> pending-review bucket) must now keep
     # the marker in audio AND surface it to the review queue.
     validator = AdValidator(episode_duration=10600.0, segments=TAIL_SEGMENTS)
@@ -176,7 +176,7 @@ _EARLY_SEGMENTS = [
 def test_uncorroborated_accept_tail_held_for_review():
     """Finding 2 runtime repro: segments end before marker start, empty ad_text,
     no clamping -> confidence 0.80 -> ACCEPT. Without the fix, Rule 4 only fired
-    on REVIEW; the marker shipped silently (TWiT-class DAI post-roll)."""
+    on REVIEW; the marker shipped silently (quiet DAI post-roll)."""
     validator = AdValidator(episode_duration=10600.0, segments=_EARLY_SEGMENTS)
     result = validator.validate([_tail_marker()])
     ad = result.ads[0]

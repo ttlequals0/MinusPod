@@ -45,7 +45,7 @@ class TestSpliceCorroboration:
     def test_vad_gap_clamp_bypassed_by_splice_event(self):
         # Untranscribed tail marker: without corroboration the vad_gap clamp
         # forces it below min_cut_confidence; a splice event at its start
-        # bypasses the clamp (TWiT catch-22, spec 1.1 + 2.3a).
+        # bypasses the clamp (catch-22, spec 1.1 + 2.3a).
         ad = {'start': 3557.6, 'end': 3600.0, 'confidence': 0.85,
               'reason': 'untranscribed tail gap', 'detection_stage': 'vad_gap'}
         corroborated = AdValidator(episode_duration=3600.0,

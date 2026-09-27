@@ -5,10 +5,10 @@ verification pass mis-classified. The guard rejects patterns whose sponsor
 name appears fewer than 2 times (case-insensitive substring count) in the
 extracted ad_text.
 
-The canonical false positive was Pattern #354 (drink-champs, Modelo):
-~870 chars of host conversation about meeting Nas where "Modelo" was
+The canonical false positive was Pattern #354 (example-podcast, Globex):
+~870 chars of host conversation about meeting Jay where "Globex" was
 mentioned exactly once. The verification pass returned this as a
-"missed Modelo ad" and the pattern was written without any occurrence
+"missed Globex ad" and the pattern was written without any occurrence
 check.
 """
 import os
@@ -37,13 +37,13 @@ def _segments_for_text(text: str, start: float = 0.0, end: float = 60.0):
 
 
 def test_create_pattern_rejected_when_sponsor_appears_once(db):
-    """The Modelo false positive: 870 chars of host conversation, brand mentioned 1x."""
+    """The Globex false positive: 870 chars of host conversation, brand mentioned 1x."""
     matcher = TextPatternMatcher(db=db)
     host_chatter = (
-        "This is a fucking performance. Yo, how you get the big, Modelo? "
+        "This is a fucking performance. Yo, how you get the big, Globex? "
         "No, no, no, later, later, later. I'm good. I'm good. We shootin'. "
         "Let's go. Next question. You ever meet Pac, though? No. Never met Pac. "
-        "Biggie. Met Biggie. I got a Nas story. I met Nas in New York, we was "
+        "Rico. Met Rico. I got a Jay story. I met Jay in New York, we was "
         "exchanging numbers, and you know my motherfucking email is qbkiller "
         "at T-Mobile. Oh my God! QB Killer? Yeah. Oh my God. Quarterback. "
         "Yeah, quarterback. Quarterback, bitch."
@@ -51,10 +51,10 @@ def test_create_pattern_rejected_when_sponsor_appears_once(db):
     pattern_id = matcher.create_pattern_from_ad(
         segments=_segments_for_text(host_chatter),
         start=0.0, end=37.0,
-        sponsor='Modelo',
+        sponsor='Globex',
         scope='podcast',
-        podcast_id='drink-champs',
-        episode_id='30c9a2d49f13',
+        podcast_id='example-podcast',
+        episode_id='a1b2c3d4e5f6',
     )
     assert pattern_id is None, (
         "Pattern with sponsor mentioned only once must be rejected"
@@ -88,17 +88,17 @@ def test_create_pattern_allowed_when_brand_lives_inside_url(db):
     """
     matcher = TextPatternMatcher(db=db)
     deleteme_ad = (
-        "Use the promo code TWIT at checkout. The only way to get 20% off "
-        "is to go to joindeleteme.com slash TWIT, joindeleteme, one word, "
-        "dot com slash TWIT, and you gotta use the code TWIT at checkout. "
-        "That's joindeleteme.com slash TWIT, offer code TWIT. Joindeleteme."
+        "Use the promo code SHOW at checkout. The only way to get 20% off "
+        "is to go to joindeleteme.com slash SHOW, joindeleteme, one word, "
+        "dot com slash SHOW, and you gotta use the code SHOW at checkout. "
+        "That's joindeleteme.com slash SHOW, offer code SHOW. Joindeleteme."
     )
     pattern_id = matcher.create_pattern_from_ad(
         segments=_segments_for_text(deleteme_ad),
         start=0.0, end=60.0,
         sponsor='DeleteMe',
         scope='podcast',
-        podcast_id='security-now-audio',
+        podcast_id='another-podcast',
         episode_id='xyz',
     )
     assert pattern_id is not None, (

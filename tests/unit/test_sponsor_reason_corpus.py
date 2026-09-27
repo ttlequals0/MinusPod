@@ -32,9 +32,9 @@ CORPUS = [
     ("Dynamically inserted ad block after 'We'll be right back' transition: "
      "Orange County tourism (pickocny.com), Mattress Warehouse Black Friday "
      "in July, and Amazon back-to-school.", ('Orange County',)),
-    ("Contiguous host-read sponsor block: PestEase (pesti.com/show, 10% off), "
-     "IQ Bar (text keyword to 64000, 20% off), and Jack Archer Jet Setter "
-     "Tech Pant (promo code GetJack, 15% off).", ('PestEase',)),
+    ("Contiguous host-read sponsor block: Hooli (hoolix.com/show, 10% off), "
+     "Stark Bar (text keyword to 64000, 20% off), and Jack Archer Jet Setter "
+     "Tech Pant (promo code GetJack, 15% off).", ('Hooli',)),
     ("DAI ad block: Orange County/pickocny.com tourism, Mattress Warehouse "
      "Black Friday in July, and Amazon back-to-school spots", ('Orange County',)),
     ("Jack Archer Jet Setter Tech Pant sponsor read with promo code GetJack "
@@ -62,16 +62,16 @@ CORPUS = [
      "Squarespace.com/show) followed by Dodge Charger Scat Pack (Dodge.com)",
      ('Squarespace',)),
     # A later brand having a URL must not outrank the first one named.
-    ("Back-to-back host-read sponsor ads: IQ Bar (text keyword to 64000), "
-     "PestEase (Pesti.com/show), and Jack Archer (JackArcher.com promo code "
-     "GetJack)", ('IQ Bar',)),
+    ("Back-to-back host-read sponsor ads: Stark Bar (text keyword to 64000), "
+     "Hooli (Hoolix.com/show), and Jack Archer (JackArcher.com promo code "
+     "GetJack)", ('Stark Bar',)),
     # With no domain to say where the brand ends, the label is capped rather
     # than running on through the product description.
     ("Network-inserted pre-roll ads: LEGO Land Discovery Center Westchester "
-     "Ninjago event with 25% discount CTA, followed by Lincoln Tech",
+     "Ninjago event with 25% discount CTA, followed by Acme Tech",
      ('LEGO Land Discovery Center',)),
-    ("Lincoln Tech dynamically-inserted sponsor spot (career training, "
-     "lincolntech.edu)", ('Lincoln Tech',)),
+    ("Acme Tech dynamically-inserted sponsor spot (career training, "
+     "acmetech.edu)", ('Acme Tech',)),
     # Reasons that name no advertiser must stay empty.
     ("mailing address mentioned in passing", (None,)),
     ("Ad break: Host discusses the news at length", (None,)),

@@ -1717,8 +1717,8 @@ class TextPatternMatcher:
         # Require the brand to appear at least twice in the ad_text. Real
         # ads repeat the brand (intro + outro at minimum); a single mention
         # is a strong signal of a host name-drop rather than a sponsor
-        # read. Pattern #354 (drink-champs Modelo) was the canonical
-        # false-positive: host conversation about "the big Modelo?" got
+        # read. Pattern #354 (one sponsor) was the canonical
+        # false-positive: host conversation about "the big Globex?" got
         # passed to record_verification_misses as a missed ad and turned
         # into a podcast-scoped pattern.
         #

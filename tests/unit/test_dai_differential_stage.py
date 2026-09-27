@@ -194,7 +194,7 @@ def test_merge_hold_survives_fold_when_differential_is_second():
 
 
 def test_merge_upgrades_hold_when_claude_sorts_first():
-    # DTNS 5313: the claude ad started 0.24s before the differential region,
+    # Observed case: the claude ad started 0.24s before the differential region,
     # so it became `last` in the merge and stage priority rewrote its stage
     # to dai_differential BEFORE the upgrade check read it. The check then
     # saw no claude corroborator and re-held the marker despite 72%

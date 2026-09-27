@@ -4,7 +4,7 @@ Pre-2.5.13 the verification-miss path called TextPatternMatcher.create_pattern_f
 with zero filtering. The first-pass learner at
 ad_detector._ad_passes_learning_filters enforced confidence >= 0.85 (0.92 if
 duration > 90s), was_cut == True, and a clean sponsor name. The asymmetry let
-Pattern #354 (drink-champs, Modelo, host conversation about meeting Nas) ship.
+Pattern #354 (example-podcast, Globex, host conversation about meeting Jay) ship.
 
 These tests pin the new filters at the same thresholds so the two auto-pattern
 paths share one trust model.
@@ -34,13 +34,13 @@ def db(tmp_path):
     Database._instance = None
 
 
-def _modelo_window():
+def _globex_window():
     """Pattern #354 source text - host conversation, brand mentioned once."""
     return (
-        "This is a fucking performance. Yo, how you get the big, Modelo? "
+        "This is a fucking performance. Yo, how you get the big, Globex? "
         "No, no, no, later, later, later. I'm good. We shootin'. Let's go. "
-        "Next question. You ever meet Pac, though? No. Never met Pac. Biggie. "
-        "Met Biggie. I got a Nas story."
+        "Next question. You ever meet Pac, though? No. Never met Pac. Rico. "
+        "Met Rico. I got a Jay story."
     )
 
 
@@ -58,17 +58,17 @@ def _segments(text, start=0.0, end=37.0):
 
 def test_low_confidence_verification_miss_is_dropped(db):
     """A verification miss below the first-pass confidence floor never reaches
-    create_pattern_from_ad. The Modelo false positive came in with no
+    create_pattern_from_ad. The Globex false positive came in with no
     confidence floor enforcement at all."""
     svc = PatternService(db=db)
     svc.record_verification_misses(
-        'drink-champs', '30c9a2d49f13',
+        'example-podcast', 'a1b2c3d4e5f6',
         [{
-            'sponsor': 'Modelo', 'start': 0.0, 'end': 37.0,
+            'sponsor': 'Globex', 'start': 0.0, 'end': 37.0,
             'confidence': VERIFICATION_MIN_CONFIDENCE - 0.01,
-            'reason': 'Modelo sponsor mention',
+            'reason': 'Globex sponsor mention',
         }],
-        segments=_segments(_modelo_window()),
+        segments=_segments(_globex_window()),
     )
     # Nothing should have been created (db is empty of patterns).
     assert db.get_ad_patterns(active_only=True) == []
@@ -98,29 +98,29 @@ def test_reasoning_sentence_in_reason_is_dropped(db):
     svc.record_verification_misses(
         'some-show', 'abc',
         [{
-            'sponsor': 'Modelo', 'start': 0.0, 'end': 37.0,
+            'sponsor': 'Globex', 'start': 0.0, 'end': 37.0,
             'confidence': 0.95,
             'reason': 'Inferred from a 26-second silence in transcript',
         }],
-        segments=_segments(_modelo_window()),
+        segments=_segments(_globex_window()),
     )
     assert db.get_ad_patterns(active_only=True) == []
 
 
 def test_sponsor_mentioned_once_in_window_is_dropped(db):
-    """The Modelo shape exactly: high confidence, no reasoning prefix, sponsor
+    """The Globex shape exactly: high confidence, no reasoning prefix, sponsor
     appears once in the transcript window. Real sponsor reads repeat the brand,
     so the second-line gate at this layer prevents the pattern from being
     created even if confidence passes."""
     svc = PatternService(db=db)
     svc.record_verification_misses(
-        'drink-champs', '30c9a2d49f13',
+        'example-podcast', 'a1b2c3d4e5f6',
         [{
-            'sponsor': 'Modelo', 'start': 0.0, 'end': 37.0,
+            'sponsor': 'Globex', 'start': 0.0, 'end': 37.0,
             'confidence': 0.95,
-            'reason': 'Modelo sponsor read',
+            'reason': 'Globex sponsor read',
         }],
-        segments=_segments(_modelo_window()),
+        segments=_segments(_globex_window()),
     )
     assert db.get_ad_patterns(active_only=True) == []
 

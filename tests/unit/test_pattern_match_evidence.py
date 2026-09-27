@@ -18,9 +18,9 @@ def _match(**kw):
 
 class TestPatternMatchEvidence:
     def test_quotes_the_transcript_text_that_matched(self):
-        match = _match(matched_text='slash rogan for a free trial')
+        match = _match(matched_text='slash show for a free trial')
         assert _pattern_match_evidence(match, match.match_type) == (
-            'outro "slash rogan for a free trial" 86%')
+            'outro "slash show for a free trial" 86%')
 
     def test_falls_back_to_the_kind_when_nothing_was_captured(self):
         assert _pattern_match_evidence(_match(), 'outro') == 'outro 86%'

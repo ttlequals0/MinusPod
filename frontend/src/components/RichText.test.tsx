@@ -22,9 +22,9 @@ describe('RichText', () => {
   });
 
   it('keeps an anchor whose text is a name, not a URL', () => {
-    render(<RichText html='<a href="https://twit.tv/people/steve-gibson">Steve Gibson</a>' />);
-    const link = screen.getByRole('link', { name: 'Steve Gibson' });
-    expect(link.getAttribute('href')).toBe('https://twit.tv/people/steve-gibson');
+    render(<RichText html='<a href="https://example.com/people/jane-host">Jane Host</a>' />);
+    const link = screen.getByRole('link', { name: 'Jane Host' });
+    expect(link.getAttribute('href')).toBe('https://example.com/people/jane-host');
   });
 
   it('opens links in a new tab without leaking the opener', () => {
@@ -54,10 +54,10 @@ describe('RichText', () => {
 
   it('renders both shapes in one description', () => {
     render(
-      <RichText html={'<p>Hosted by <a href="https://twit.tv/people/leo">Leo Laporte</a></p><p>Notes: https://grc.com/sn/notes.pdf</p>'} />,
+      <RichText html={'<p>Hosted by <a href="https://example.com/people/sam">Sam Host</a></p><p>Notes: https://example.org/show/notes.pdf</p>'} />,
     );
-    expect(screen.getByRole('link', { name: 'Leo Laporte' })).toBeDefined();
-    expect(screen.getByRole('link', { name: 'https://grc.com/sn/notes.pdf' })).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Sam Host' })).toBeDefined();
+    expect(screen.getByRole('link', { name: 'https://example.org/show/notes.pdf' })).toBeDefined();
   });
 
   describe('refuses unsafe hrefs', () => {

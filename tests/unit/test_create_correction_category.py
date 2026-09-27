@@ -1,4 +1,4 @@
-"""Category on manual ad creation (`create` correction, DTNS 5337).
+"""Category on manual ad creation (`create` correction).
 
 The create correction is the UI's pattern-creation path; the chosen
 category must land on both the new pattern (so future matches resolve the

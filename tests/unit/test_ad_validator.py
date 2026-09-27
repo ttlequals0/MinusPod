@@ -1387,7 +1387,7 @@ class TestConfirmedCorrections:
 class TestAdValidatorVadGapVerification:
     """Tests for vad_gap-specific transcript verification.
 
-    Regression: MacBreak Weekly 1021 (5ef2df166c8e) produced 8 vad_gap
+    Regression: one episode (b2c3d4e5f6a1) produced 8 vad_gap
     markers carrying 'WARN: No ad signals in transcript' that were ACCEPTed
     at adjusted confidence 0.80. Validator must not auto-cut a vad_gap
     marker that has no corroborating sponsor or ad-signal pattern in range.
@@ -1889,7 +1889,7 @@ class TestAudioCorroborationSource:
 
 
 class TestVadGapClampBypass:
-    """TWiT 1091 regression (this-week-in-tech-audio/b37bf6df81a5): a DAI
+    """Regression (example-podcast/a1b2c3d4e5f6): a DAI
     post-roll played ~15 dB quieter, Whisper VAD dropped it, and the vad_gap
     marker covering it (0.75 + 0.05 POST_ROLL boost = 0.80) was clamped to
     0.79 because untranscribed audio can never show ad signals in transcript.
@@ -1986,7 +1986,7 @@ class TestVadGapClampBypass:
 class TestUncorroboratedTailHold:
     """Spec 1.3: a vad_gap marker at the episode tail (end within 5s of EOF)
     that stays REVIEW and uncorroborated is held for review, so it lands in
-    the pending-review UI instead of shipping silently (TWiT 1091 shipped
+    the pending-review UI instead of shipping silently (one episode shipped
     with pendingReviewCount=0).
     """
 

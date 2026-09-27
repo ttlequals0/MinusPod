@@ -8,8 +8,8 @@ rejected zero ads.
 v2 uses (ads_removed - ads_removed_secondpass) which equals post-reviewer
 pass-1 cuts, regardless of how many the reviewer rejected.
 
-The canonical case v2 fixes that v1 missed: macbreak-weekly-audio
-2d9ccd57b93b. firstpass detection=10, reviewer kept 6, verification
+The canonical case v2 fixes that v1 missed: example-podcast
+a1b2c3d4e5f6. firstpass detection=10, reviewer kept 6, verification
 cuts=2, total=8. v1 saw 6 != 10 and skipped. v2 sees 6 == 8 - 2 and
 corrects to 8.
 """
@@ -105,19 +105,19 @@ class TestV2CorrectsReviewerRejectionCases:
     ads, so detection > cuts. v1's predicate missed these because it
     compared against detection count."""
 
-    def test_macbreak_style_case(self, fresh_db_dir):
-        """The exact pattern from macbreak-weekly-audio:2d9ccd57b93b:
+    def test_reviewer_rejected_case(self, fresh_db_dir):
+        """The exact pattern from example-podcast:a1b2c3d4e5f6:
         firstpass detection=10, total cuts=8 (so reviewer-kept-pass-1=6
         and verification=2). Buggy writer captured 6 in history."""
         _reload_db(fresh_db_dir)
         db_path = os.path.join(fresh_db_dir, 'podcast.db')
 
         _seed_state(db_path, episode={
-            'podcast_id': 1, 'podcast_slug': 'macbreak',
-            'episode_id': '2d9ccd57b93b',
+            'podcast_id': 1, 'podcast_slug': 'example-podcast',
+            'episode_id': 'a1b2c3d4e5f6',
             'ads_removed': 8, 'firstpass': 10, 'secondpass': 2,
         }, history_rows=[{
-            'episode_id': '2d9ccd57b93b',
+            'episode_id': 'a1b2c3d4e5f6',
             'processed_at': '2026-05-27T00:55:56Z',
             'ads_detected': 6,
         }])
@@ -128,10 +128,10 @@ class TestV2CorrectsReviewerRejectionCases:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = ?",
-                ('2d9ccd57b93b',),
+                ('a1b2c3d4e5f6',),
             ).fetchone()
         assert row['ads_detected'] == 8, (
-            'macbreak-style row should be corrected to ads_removed (8). '
+            'reviewer-rejected row should be corrected to ads_removed (8). '
             f"got {row['ads_detected']}"
         )
         assert _migration_marker_present(

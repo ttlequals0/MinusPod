@@ -1144,7 +1144,7 @@ class AdValidator:
         """
         if not self.segments:
             # No segments: check vad_gap corroboration early. Untranscribed
-            # audio can never show transcript signals (TWiT 1091 catch-22).
+            # audio can never show transcript signals (catch-22).
             if ad.get('detection_stage') == 'vad_gap':
                 source = self._audio_corroboration_source(ad)
                 if source is not None:

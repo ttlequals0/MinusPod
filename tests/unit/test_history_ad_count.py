@@ -87,7 +87,7 @@ class TestHistoryAdCountIncludesVerification:
 
     def test_zero_pass_1_records_only_verification(self):
         """Pass-1 reviewer rejected everything but verification found ads:
-        this is exactly the ``a40d43aec65b`` scenario that originally
+        this is exactly the ``a1b2c3d4e5f6`` scenario that originally
         prompted the audit. history.ads_detected must reflect the
         verification cuts, not the pre-reviewer 0."""
         db = _make_db()

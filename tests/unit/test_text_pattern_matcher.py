@@ -341,7 +341,7 @@ def _make_bare_matcher():
 class TestConstrainOverlongSpans:
     """Regression tests for the text_pattern over-cut fix.
 
-    Reproduces the Brilliant Idiots case: a merged span whose leading minutes
+    Reproduces an observed case: a merged span whose leading minutes
     are show content with zero sponsor mentions and the real ad only at the
     tail. The matcher must trim the span to the brand-bearing region instead of
     cutting the content.
@@ -669,10 +669,10 @@ class TestFuzzyFindReportsWhatMatched:
 
     def test_returns_the_aligned_text_not_the_window(self):
         text = ('so anyway we were talking about the weather for a while and '
-                'then he said go to squarespace.com slash rogan for a free '
+                'then he said go to squarespace.com slash show for a free '
                 'trial and then we moved on to something else entirely')
         pos, score, matched = self._matcher()._fuzzy_find(
-            text, 'squarespace.com slash rogan for a free trial')
+            text, 'squarespace.com slash show for a free trial')
 
         assert score > 90
         assert 'squarespace' in matched
@@ -688,7 +688,7 @@ class TestFuzzyFindReportsWhatMatched:
 
 class TestFuzzyFindCutoff:
     def test_fixture_transcript_keeps_misspelled_sponsor_variant(self):
-        with open('tests/fixtures/sn1071_transcript.json') as fixture_file:
+        with open('tests/fixtures/example_long_transcript.json') as fixture_file:
             fixture = json.load(fixture_file)
         transcript = ' '.join(segment['text'] for segment in fixture['segments']).lower()
         phrase_words = fixture['segments'][13]['text'].lower().split()[61:70]

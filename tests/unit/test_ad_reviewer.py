@@ -398,16 +398,16 @@ def test_empty_array_yields_reject():
     assert result.rejected_by_reviewer[0]['was_cut'] is False
 
 
-# ---------- Timestamped candidate prompt (a55cb5b8216d regression) ----------
+# ---------- Timestamped candidate prompt (a1b2c3d4e5f6 regression) ----------
 
-def _dillon_segments():
-    """the-tim-dillon-show a55cb5b8216d: DAI candidate 0.0-35.03s. The ad's
+def _dai_candidate_segments():
+    """example-podcast a1b2c3d4e5f6: DAI candidate 0.0-35.03s. The ad's
     final sentence ends at the 28.42s segment edge; no segment edge sits
     near the 20.0s the model emitted (it was an interpolated guess)."""
     return [
-        {'start': 0.0, 'end': 6.5, 'text': 'Shell V-Power Nitro Plus is engineered with four levels of defense.'},
+        {'start': 0.0, 'end': 6.5, 'text': 'Acme Fuel Plus is engineered with four levels of defense.'},
         {'start': 6.5, 'end': 15.0, 'text': 'It removes gunk and protects against wear and corrosion.'},
-        {'start': 15.0, 'end': 28.42, 'text': 'So fuel up with Shell V-Power Nitro Plus today.'},
+        {'start': 15.0, 'end': 28.42, 'text': 'So fuel up with Acme Fuel Plus today.'},
         {'start': 28.42, 'end': 35.03, 'text': 'Welcome back to the show, everybody.'},
         {'start': 35.03, 'end': 60.0, 'text': 'more show content'},
     ]
@@ -472,8 +472,8 @@ def test_resurrect_prompt_candidate_lines_are_timestamped():
     assert 'rejected for low confidence' in prompt
 
 
-def test_tim_dillon_final_sentence_anchor_visible_in_prompt():
-    """Regression a55cb5b8216d: with only the two span-edge anchors the model
+def test_final_sentence_anchor_visible_in_prompt():
+    """Regression a1b2c3d4e5f6: with only the two span-edge anchors the model
     trimmed the candidate to an interpolated end=20.0s while its reasoning
     named the ad's final sentence, which ends at 28.42s. The timestamped
     candidate lines now put that 28.4s edge in the prompt; the behavioral
@@ -481,11 +481,11 @@ def test_tim_dillon_final_sentence_anchor_visible_in_prompt():
     reviewer = _build_reviewer({'review_prompt': 'review'})
     prompt = reviewer._build_user_prompt(
         ad={'start': 0.0, 'end': 35.03},
-        segments=_dillon_segments(),
+        segments=_dai_candidate_segments(),
         episode_meta=_mock_episode_meta(),
         pool='accepted',
     )
-    assert '[15.0s-28.4s] So fuel up with Shell V-Power Nitro Plus today.' in prompt
+    assert '[15.0s-28.4s] So fuel up with Acme Fuel Plus today.' in prompt
     # The old shape gave exactly two anchors ([0.0s] and [35.0s]) with all
     # candidate text between them stripped of timestamps.
     assert '28.4s' in prompt

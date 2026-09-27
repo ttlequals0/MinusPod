@@ -114,7 +114,7 @@ def test_verification_wires_category_actions_into_repair_and_dedup():
          patch.object(detector, '_run_detection_pass', run_pass):
         result = detector.run_verification_detection(
             _WARNING_SEGMENTS, podcast_name='Test', episode_title='Ep',
-            slug='daily-tech-news-show', episode_id='ep1')
+            slug='example-podcast', episode_id='ep1')
 
     assert result['status'] == 'success'
     kwargs = run_pass.call_args.kwargs
@@ -275,7 +275,7 @@ def _run_detect_ads(*, detect_show_segments, segment_actions, ads,
          patch('ad_detector.get_llm_max_retries', return_value=1):
         result = detector.detect_ads(
             _WARNING_SEGMENTS, podcast_name='Test', episode_title='Ep',
-            slug='daily-tech-news-show', episode_id='ep1')
+            slug='example-podcast', episode_id='ep1')
     assert result['status'] == 'success'
     return result, repair_mock
 
@@ -302,7 +302,7 @@ class TestCategoryMissWarning:
 
         warnings = _category_miss_warnings(caplog)
         assert len(warnings) == 1
-        assert 'daily-tech-news-show' in warnings[0].message
+        assert 'example-podcast' in warnings[0].message
         assert '2 of 3' in warnings[0].message
 
     def test_warns_once_when_show_segments_enabled(self, caplog):
@@ -459,7 +459,7 @@ def _detect_ads_with_fake_client(*, detect_show_segments, segment_actions,
          patch('ad_detector.get_llm_max_retries', return_value=1):
         result = detector.detect_ads(
             _WARNING_SEGMENTS, podcast_name='Test', episode_title='Ep',
-            slug='daily-tech-news-show', episode_id='ep1')
+            slug='example-podcast', episode_id='ep1')
     assert result['status'] == 'success'
     return result
 

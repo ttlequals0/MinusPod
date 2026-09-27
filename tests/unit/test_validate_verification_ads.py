@@ -734,7 +734,7 @@ def test_auto_approve_files_confirm_despite_grazing_stale_confirm(monkeypatch):
     reprocess fetched a copy with a shifted DAI timeline -- covers too
     little of the span to force-accept it at recut time. Treating the graze
     as an equivalent confirm skips filing, the caller's recut re-holds the
-    marker, and the approval silently does nothing (DTNS 5313 reprocess).
+    marker, and the approval silently does nothing (seen on a reprocess).
     Only a confirm covering at least half the hold counts as on file."""
     db = MagicMock()
     db.get_false_positive_corrections.return_value = []

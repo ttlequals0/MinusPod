@@ -11,7 +11,7 @@ def _seg(start, end, text=''):
 
 class TestHeadGap:
     def test_head_gap_above_threshold_emits_marker(self):
-        segments = [_seg(10.95, 38.75, 'This is the Daily Tech News...')]
+        segments = [_seg(10.95, 38.75, 'This is the Daily Tech Show...')]
         gaps = detect_vad_gaps(segments, existing_ads=[], episode_duration=2522.0)
         head = [g for g in gaps if g['start'] == 0.0]
         assert len(head) == 1
@@ -187,21 +187,21 @@ class TestEmpty:
         assert detect_vad_gaps([], existing_ads=[], episode_duration=100.0) == []
 
 
-class TestDTNSRegression:
-    """Reproduce the DTNS episode that motivated this feature.
+class TestHeadGapRegression:
+    """Reproduce the episode that motivated this feature.
 
-    Original episode: daily-tech-news-show/18fff54d3363. Whisper's transcript
+    Original episode: example-podcast/a1b2c3d4e5f6. Whisper's transcript
     starts at 10.95s (sped-up DIA legal tail is VAD-dropped). Even if no
     detected ad anchors the head, we should emit a head-gap marker.
     """
     def test_head_gap_emitted_without_existing_ads_anchor(self):
-        segments = [_seg(10.95, 38.75, 'This is the Daily Tech News for Tuesday')]
+        segments = [_seg(10.95, 38.75, 'This is the Daily Tech Show for Tuesday')]
         gaps = detect_vad_gaps(segments, existing_ads=[], episode_duration=2522.0)
         assert any(g['start'] == 0.0 and g['end'] == pytest.approx(10.95) for g in gaps)
 
 
 class TestDAISeamRegression:
-    """the-brilliant-idiots/79eedd7bf2a7: DAI insertion duplicated a few
+    """another-podcast/f6e5d4c3b2a1: DAI insertion duplicated a few
     seconds of show audio around the splice. The line appeared once inside
     the ad span near the seam and verbatim again at 87.8s where the show
     resumed. The mid-gap merge extended the ad end 76.0s -> 87.8s, swallowing
@@ -295,8 +295,8 @@ class TestDAISeamRegression:
         assert existing[0].get('vad_gap_extended') is True
 
 
-class TestMBW1021Regression:
-    """MacBreak Weekly 1021 (5ef2df166c8e) emitted 8 mid-gap markers where
+class TestOneSidedMidGapRegression:
+    """One episode (b2c3d4e5f6a1) emitted 8 mid-gap markers where
     one side had a signoff/resume-like phrase but the other was neutral
     podcast chatter. Each cut 9-44s of legitimate content. Both sides must
     now show context to emit a mid-gap marker.
@@ -316,7 +316,7 @@ class TestMBW1021Regression:
     def test_one_sided_resume_no_signoff_skipped(self):
         segments = [
             _seg(2070.0, 2081.8, 'And the new chip improves performance significantly.'),
-            _seg(2097.6, 2150.0, "Welcome back to MacBreak Weekly, let's continue."),
+            _seg(2097.6, 2150.0, "Welcome back to The Daily Tech Show, let's continue."),
         ]
         gaps = detect_vad_gaps(segments, existing_ads=[], episode_duration=8359.0,
                                mid_min_seconds=8.0)

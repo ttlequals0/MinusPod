@@ -5,7 +5,7 @@ arithmetic (src/ad_reviewer.py:698-720) and never inspects the model's
 reason text (kept.get("reason") at :648 is stored, not evaluated). A model
 response that returns the ad object with unchanged boundaries but a reason
 of "no advertisement content" therefore ships verdict=confirmed and the ad
-is cut (Dillon "Vrbo" 90s false cut; 4 similar TWiT contradictions).
+is cut (a 90s false cut of one sponsor; 4 similar contradictions).
 This is a parser/derivation gap, not malformed model output.
 """
 import os
@@ -72,12 +72,12 @@ NEGATIVE_REASONS = [
     'Window has no ad content at these timestamps',
     'The span contains no ad and should not be cut',
     # Verbatim prod reasonings the original four literal substrings missed
-    # while the spans were cut anyway (monday-morning-podcast 39098646c82c):
+    # while the spans were cut anyway (example-podcast a1b2c3d4e5f6):
     'The candidate boundaries (299.2s-395.4s) contain no advertising content '
     'whatsoever. This is a false positive from the text pattern matcher.',
     'The content within the candidate boundaries is not advertising -- it is '
-    "Bill Burr's own comedic riff on insurance",
-    # Artifact/editorial family seen on TWiT-network episodes:
+    "the host's own comedic riff on insurance",
+    # Artifact/editorial family seen on one network's episodes:
     "The window contains only the words 'and many more.'",
     'This span is a transcription artifact, not advertising content',
     'This is entirely organic conversation between the hosts',
@@ -283,7 +283,7 @@ def test_apply_reviewer_verdict_confirmed_with_recovered_bounds():
 
 
 # ---------- Trim-bounds recovery on confirmed-verdict contradiction holds ----------
-# Prod incident (the-brilliant-idiots 79eedd7bf2a7): reviewer returned
+# Prod incident (another-podcast f6e5d4c3b2a1): reviewer returned
 # 0.0-87.8s unchanged (verdict derived 'confirmed') while its reasoning said
 # the ad ends at ~65.8s and the tail must be trimmed. The hold fired but
 # carried no bounds the UI could one-tap approve. A follow-up LLM call now
@@ -555,22 +555,22 @@ def test_contradicted_confirmed_without_trim_language_skips_recovery_call():
     assert 'reviewer_proposed_start' not in held
 
 
-TOSH_REASONING = (
+SPONSOR_BLOCK_REASONING = (
     "The candidate is a genuine ad break containing three back-to-back "
-    "sponsor reads: Fabletics (837.2s-910.8s), PestEase (911.4s-956.4s), "
-    "and HIMS (956.6s-1024.6s). The original end of 1068.49s overshoots: "
-    "at 1040.9s the 'Tosh Show' bumper begins the return to programming. "
+    "sponsor reads: Acme (837.2s-910.8s), Globex (911.4s-956.4s), "
+    "and Initech (956.6s-1024.6s). The original end of 1068.49s overshoots: "
+    "at 1040.9s the 'Example Show' bumper begins the return to programming. "
     "That interview material is not advertising and should be excluded, "
     "so the end is trimmed back to 1040.9s where the show resumes."
 )
 
-DTNS_OUTRO_REASONING = (
+OUTRO_REASONING = (
     "The span from 2475s to ~2503.6s is the show's own outro. The rest is "
     "a genuine ad break with a Patreon read; the outro portion is not an "
     "ad and the start should move to 2503.6s."
 )
 
-AFFIRMED_TRIM_REASONS = [TOSH_REASONING, DTNS_OUTRO_REASONING]
+AFFIRMED_TRIM_REASONS = [SPONSOR_BLOCK_REASONING, OUTRO_REASONING]
 
 
 @pytest.mark.parametrize("reason", AFFIRMED_TRIM_REASONS)
@@ -793,7 +793,7 @@ def test_negated_phrases_are_not_affirmations(reason):
 
 
 # ---------- Affirmed confirm + trim language routes to recovery as adjust ----------
-# TOSH_REASONING affirms the span IS an ad (reasoning_affirms_ad is True) while
+# SPONSOR_BLOCK_REASONING affirms the span IS an ad (reasoning_affirms_ad is True) while
 # also naming a sub-span trim in prose ("trimmed back to 1040.9s"). The
 # affirmation guard keeps this out of the contradiction-hold branch entirely;
 # it must instead reach the new affirmed-confirm branch, spend one recovery
@@ -801,10 +801,10 @@ def test_negated_phrases_are_not_affirmations(reason):
 
 def _run_affirmed_confirm(followup, reasoning=None, ad=None):
     """Run one review whose main call yields a confirmed verdict with
-    unchanged bounds and affirming/trim reasoning (Tosh-style by default),
+    unchanged bounds and affirming/trim reasoning (sponsor-block style by default),
     and whose follow-up recovery call yields ``followup`` (an _LLMResp or an
     exception instance). Returns (result, llm mock)."""
-    reasoning = reasoning or TOSH_REASONING
+    reasoning = reasoning or SPONSOR_BLOCK_REASONING
     if ad is None:
         ad = {
             'start': 837.2, 'end': 1068.5, 'confidence': 0.95,
@@ -829,7 +829,7 @@ def _run_affirmed_confirm(followup, reasoning=None, ad=None):
 
 
 def test_affirmed_confirm_with_trim_language_applies_recovered_trim():
-    # Reviewer returns unchanged bounds with Tosh-style reasoning. The
+    # Reviewer returns unchanged bounds with sponsor-block reasoning. The
     # affirmation guard keeps it out of the hold path; the trim route
     # recovers (837.2, 1040.9) and the ad is accepted with those bounds.
     result, llm = _run_affirmed_confirm(
@@ -892,14 +892,14 @@ def test_reviewer_end_adjustment_clears_stale_tail_eligibility():
 
 
 def test_affirmed_confirm_with_move_phrasing_applies_recovered_trim():
-    # DTNS_OUTRO_REASONING affirms the span IS an ad while describing the
+    # OUTRO_REASONING affirms the span IS an ad while describing the
     # boundary move in assertion phrasing ("should move to") rather than
     # "trim"/"ends at". _TRIM_LANGUAGE_RE must recognize this phrasing so the
     # affirmed-confirm branch fires the recovery call instead of shipping the
     # unchanged span (which would cut the show's own outro).
     result, llm = _run_affirmed_confirm(
         _resp('{"ad_start": 2503.6, "ad_end": 2563.8}'),
-        reasoning=DTNS_OUTRO_REASONING,
+        reasoning=OUTRO_REASONING,
         ad={'start': 2475.0, 'end': 2563.8, 'confidence': 0.9},
     )
     assert llm.messages_create.call_count == 2
