@@ -5331,8 +5331,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         new_duration = local_audio_processor.get_audio_duration(processed_path)
         if run_stats is not None:
             if 'verification_ads_cut' in run_stats:
-                # Capped here as well, or the run's stat and the history row report
-                # different pass-2 counts.
+                # Capped here as well, or the run's stat and the history row report different pass-2 counts.
                 run_stats['verification_ads_cut'] = verification_count
             # Recomputed here: the caller's copy predates the approvals this recut cut.
             _record_cut_seconds(run_stats, applied_cuts, original_duration, new_duration)
@@ -6367,8 +6366,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                             f"[{slug}:{episode_id}] Text recurrence failed, "
                             f"continuing without hint: {e}")
 
-                # One category action map for detection, validation, review
-                # and pass 2.
+                # One category action map for detection, validation, review and pass 2.
                 segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
 
                 # Stage 3: First-pass detection
