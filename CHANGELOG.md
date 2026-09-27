@@ -11,6 +11,17 @@ release notes.
 
 ## [Unreleased]
 
+## [2.97.28] - 2026-09-26
+
+### Fixed
+
+- When the ad reviewer fails, for example because the LLM provider rejects the request, an ad without independently supported bounds is now held for review as reviewer_failed. Before, it was cut unreviewed. This also covers a failure of the whole review batch. An ad whose bounds are covered by independent evidence (a measured cross-fetch region, a cue pair, template-snapped cues, a fingerprint match or a user confirmation) is still cut and flagged "Reviewer failed; bounds supported". If that support check itself errors during a batch failure, every unconfirmed ad is held.
+- When the reviewer trims an ad edge that no measured evidence supports, and speech runs unbroken past the edge of the inserted region, the edge now stops at the next spoken word instead of the region edge. Previously the cut could clip the first words of show speech after the ad.
+
+### Changed
+
+- The code now documents the two roles of cross-fetch evidence. The region measured as differing across fetches shows the audio is an ad. The probe windows where correlation was computed show whether an edge was measured. A failed or inconclusive review counts that region as support only if at least one probe window measured it. Older markers without recorded probes use the leading window of each region, as before.
+
 ## [2.97.27] - 2026-09-26
 
 ### Fixed
