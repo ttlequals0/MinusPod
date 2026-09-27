@@ -54,7 +54,8 @@ from utils.markers import (
     COARSE_MEMBER_STAGES, EDGE_TOLERANCE, clip_dai_core_spans, clip_merge_spans,
     dai_core_bounds, dai_core_spans, dai_probe_spans, finite_number,
     invalidate_tail_provenance, protected_member_spans,
-    reviewer_independent_spans, span_bounds, spans_match, union_cover,
+    reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
+    union_cover,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
@@ -400,7 +401,7 @@ def reasoning_contradicts_cut(reasoning: str | None) -> bool:
 def _adjusted_ad_copy(ad: dict, start: float, end: float,
                       original_start: float, original_end: float,
                       reasoning: str | None, confidence: float | None,
-                      model: str | None) -> dict:
+                      model: str | None, locked_edges=()) -> dict:
     """Copy of ``ad`` with adjusted bounds and the reviewer bookkeeping
     fields every adjust application must stamp. Single seam so the two
     adjust paths (boundary-delta adjust, affirmed-confirm trim recovery)
@@ -412,6 +413,7 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
     # Persist the trim so re-validation cannot restore the dropped core.
     clip_dai_core_spans(updated, start, end)
     clip_merge_spans(updated, start, end)
+    set_reviewer_locks(updated, locked_edges)
     updated["reviewer_verdict"] = "adjust"
     updated["reviewer_moved"] = True
     updated["reviewer_original_start"] = original_start
@@ -574,24 +576,16 @@ def _edge_matches(value: float, new: float) -> bool:
     return abs(value - new) <= EDGE_TOLERANCE
 
 
-def _edge_transcript_supported(units, edge: str, new: float, old: float) -> bool:
-    """Whether an inward edge lands on a transcript pause with speech dropped past it."""
-    if edge == 'end':
-        matched = [hi for _, hi in units if _edge_matches(hi, new)]
-        if (new >= old - EDGE_TOLERANCE or not matched
-                or not any(new <= lo < old for lo, _ in units)):
-            return False
-        at = max(matched)
-        gap = min((lo for lo, _ in units if lo > at - EDGE_TOLERANCE),
-                  default=math.inf) - at
-    else:
-        matched = [lo for lo, _ in units if _edge_matches(lo, new)]
-        if (new <= old + EDGE_TOLERANCE or not matched
-                or not any(old < hi <= new for _, hi in units)):
-            return False
-        at = min(matched)
-        gap = at - max((hi for _, hi in units if hi < at + EDGE_TOLERANCE),
-                       default=-math.inf)
+def _edge_transcript_supported(units, words, edge: str, new: float, old: float) -> bool:
+    """Whether an inward edge lands on a timed word edge with a pause past it."""
+    if edge == 'start':
+        return _edge_transcript_supported(_negated(units), set(_negated(words)),
+                                          'end', -new, -old)
+    matched = [hi for _, hi in words if _edge_matches(hi, new)]
+    if new >= old - EDGE_TOLERANCE or not matched:
+        return False
+    at = max(matched)
+    gap = min((lo for lo, _ in units if lo > at - EDGE_TOLERANCE), default=math.inf) - at
     crossed = any(lo < at - EDGE_TOLERANCE and hi > at + EDGE_TOLERANCE
                   for lo, hi in units)
     return not crossed and gap >= _SUPPORTED_EDGE_GAP_S
@@ -767,6 +761,8 @@ class ReviewVerdict:
     reject_hold_reason: str | None = None
     # Held because the review abstained or failed and no evidence backs the bounds.
     inconclusive_hold: bool = False
+    # Adjust edges the model gave as numbers that survived the clamp; later stages may not widen them.
+    locked_edges: tuple = ()
 
 
 @dataclass
@@ -1596,10 +1592,10 @@ class AdReviewer:
 
         # Schema asks for start/end; fall back to corrected_/adjusted_ only when
         # the model omits them (some responses carry the correction there).
-        new_start = _first_num(
-            kept, ("start", "corrected_start", "adjusted_start"), original_start)
-        new_end = _first_num(
-            kept, ("end", "corrected_end", "adjusted_end"), original_end)
+        start_keys = ("start", "corrected_start", "adjusted_start")
+        end_keys = ("end", "corrected_end", "adjusted_end")
+        new_start = _first_num(kept, start_keys, original_start)
+        new_end = _first_num(kept, end_keys, original_end)
         reason = kept.get("reason")
         try:
             confidence = float(kept["confidence"]) if "confidence" in kept else None
@@ -1664,9 +1660,15 @@ class AdReviewer:
                 original_start=original_start, original_end=original_end,
                 slug=slug, episode_id=episode_id,
             )
+            locked_edges = tuple(
+                edge for edge, keys, proposed, clamped in (
+                    ("start", start_keys, new_start, clamped_start),
+                    ("end", end_keys, new_end, clamped_end))
+                if _first_num(kept, keys, None) is not None
+                and _edge_matches(clamped, proposed))
             updated = _adjusted_ad_copy(
                 ad, clamped_start, clamped_end, original_start, original_end,
-                reason, confidence, model)
+                reason, confidence, model, locked_edges)
             return (
                 ReviewVerdict(
                     pool=pool, pass_num=pass_num, verdict="adjust",
@@ -1675,6 +1677,7 @@ class AdReviewer:
                     reasoning=reason, confidence=confidence,
                     model_used=model, latency_ms=latency_ms, success=True,
                     structured_is_ad=structured_is_ad,
+                    locked_edges=locked_edges,
                 ),
                 updated,
             )
@@ -1753,7 +1756,7 @@ class AdReviewer:
             words = _word_units(segments)
             independent = reviewer_independent_spans(ad)
             cap_start = cap_end = None
-            if _edge_transcript_supported(units, 'start', clamped_start,
+            if _edge_transcript_supported(units, words, 'start', clamped_start,
                                           original_start):
                 floor_start = _supported_edge_floor(
                     ad, independent, 'start', clamped_start, original_start, original_end)
@@ -1761,7 +1764,7 @@ class AdReviewer:
                 cap_start = _speech_capped_floor(
                     units, words, independent, 'start', clamped_start, floor_start)
                 floor_start = floor_start if cap_start is None else cap_start
-            if _edge_transcript_supported(units, 'end', clamped_end,
+            if _edge_transcript_supported(units, words, 'end', clamped_end,
                                           original_end):
                 floor_end = _supported_edge_floor(
                     ad, independent, 'end', clamped_end, original_start, original_end)

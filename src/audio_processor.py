@@ -11,7 +11,7 @@ from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.paths import resolve_data_dir
-from utils.markers import quote_edge_valid, word_timed_edge_valid
+from utils.markers import quote_edge_valid, reviewer_edge_locked, word_timed_edge_valid
 from config import (
     FFMPEG_LONG_TIMEOUT,
     MIN_AD_DURATION_FOR_REMOVAL, POST_ROLL_TRIM_THRESHOLD, MERGE_GAP_SECONDS,
@@ -288,9 +288,11 @@ class AudioProcessor:
         for ad in sorted_segments:
             confirmed_cut = bool((ad.get('validation') or {}).get('user_confirmed'))
             precise_start = (quote_edge_valid(ad, 'start')
-                             or word_timed_edge_valid(ad, 'start'))
+                             or word_timed_edge_valid(ad, 'start')
+                             or reviewer_edge_locked(ad, 'start'))
             precise_end = (quote_edge_valid(ad, 'end')
-                           or word_timed_edge_valid(ad, 'end'))
+                           or word_timed_edge_valid(ad, 'end')
+                           or reviewer_edge_locked(ad, 'end'))
             gap = (ad['start'] - current_segment['end']
                    if current_segment else 0.0)
             if (current_segment

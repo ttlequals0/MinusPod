@@ -44,6 +44,7 @@ from utils.markers import (
     note_fold,
     quote_edge_valid,
     recorded_member_spans,
+    reviewer_edge_locked,
     subtract_spans,
     union_cover,
     word_timed_edge_valid,
@@ -1547,14 +1548,16 @@ class AdValidator:
             if core_start is not None:
                 if (core_start < ad['start']
                         and not quote_edge_valid(ad, 'start')
-                        and not word_timed_edge_valid(ad, 'start')):
+                        and not word_timed_edge_valid(ad, 'start')
+                        and not reviewer_edge_locked(ad, 'start')):
                     result.corrections.append(
                         f"Restored start {ad['start']:.1f}s to measured DAI "
                         f"core {core_start:.1f}s")
                     ad['start'] = core_start
                 if (core_end > ad['end']
                         and not quote_edge_valid(ad, 'end')
-                        and not word_timed_edge_valid(ad, 'end')):
+                        and not word_timed_edge_valid(ad, 'end')
+                        and not reviewer_edge_locked(ad, 'end')):
                     result.corrections.append(
                         f"Restored end {ad['end']:.1f}s to measured DAI "
                         f"core {core_end:.1f}s")
@@ -1613,7 +1616,8 @@ class AdValidator:
             return ads
 
         if (quote_edge_valid(last_ad, 'end')
-                or word_timed_edge_valid(last_ad, 'end')):
+                or word_timed_edge_valid(last_ad, 'end')
+                or reviewer_edge_locked(last_ad, 'end')):
             return ads
 
         gap_to_end = self.episode_duration - last_ad['end']
@@ -1734,6 +1738,12 @@ class AdValidator:
             # Each marker can satisfy the adjacency-only safety limit on its
             # own. Keep them distinct when their union would evade that cap.
             if adjacency_extension > MAX_ADJACENT_AUTO_EXTENSION_SECONDS:
+                merged.append(current.copy())
+                continue
+
+            # A gap past a reviewer-locked edge stays in the audio.
+            if gap > 0 and (reviewer_edge_locked(last, 'end')
+                            or reviewer_edge_locked(current, 'start')):
                 merged.append(current.copy())
                 continue
 

@@ -8,12 +8,15 @@ from tests.app_bootstrap import bootstrap
 bootstrap('reviewer_dai_core_supported_trim_test_')
 
 from ad_detector import dai_differential_ads
-from ad_reviewer import AdReviewer, _edge_transcript_supported, _speech_units
+from ad_reviewer import (AdReviewer, _edge_transcript_supported, _speech_units,
+                         _word_units)
 from ad_validator import AdValidator, ValidationResult
+from audio_analysis.base import AudioAnalysisResult
+from audio_processor import AudioProcessor
 from main_app import processing
-from utils.markers import (DAI_PROBE_SPANS, carve_fragment, clip_dai_core_spans,
-                           dai_probe_spans, merge_dai_core_spans,
-                           reviewer_independent_spans)
+from utils.markers import (DAI_PROBE_SPANS, EDGE_TOLERANCE, carve_fragment,
+                           clip_dai_core_spans, dai_probe_spans, merge_dai_core_spans,
+                           reviewer_edge_locked, reviewer_independent_spans)
 from tests.unit.test_keep_bypass import _run_pipeline
 from tests.unit.test_processing_boundary_safety import _reviewer
 
@@ -24,10 +27,20 @@ class _LLMResp:
     model: str = 'test-model'
 
 
+def _worded(start, end, text):
+    """Segment with its tokens spread evenly over [start, end] as timed words."""
+    tokens = text.split()
+    step = (end - start) / len(tokens)
+    words = [{'word': w, 'start': round(start + i * step, 2),
+              'end': round(start + (i + 1) * step, 2)} for i, w in enumerate(tokens)]
+    words[-1]['end'] = end
+    return {'start': start, 'end': end, 'text': text, 'words': words}
+
+
 SEGMENTS = [
-    {'start': 0.68, 'end': 20.42, 'text': 'This episode is brought to you by Acme.'},
-    {'start': 20.68, 'end': 49.0, 'text': 'Acme makes the best widgets around.'},
-    {'start': 49.28, 'end': 58.2, 'text': 'Visit acme.example, Acme delivers.'},
+    _worded(0.68, 20.42, 'This episode is brought to you by Acme.'),
+    _worded(20.68, 49.0, 'Acme makes the best widgets around.'),
+    _worded(49.28, 58.2, 'Visit acme.example, Acme delivers.'),
     {'start': 61.06, 'end': 87.16, 'text': 'Welcome back to the show, today we talk about gardens.'},
     {'start': 87.83, 'end': 105.89, 'text': 'Our guest has grown tomatoes for decades.'},
 ]
@@ -107,26 +120,53 @@ def test_unsupported_end_keeps_floor_when_segment_straddles(monkeypatch):
     assert cuts == [(0.0, 73.2)]
 
 
-def test_end_edge_supported_by_segment_end_and_gap():
-    assert _edge_transcript_supported(_speech_units(SEGMENTS), 'end', 58.2, 73.2)
-    # 3.2 is no segment edge; 20.42 is followed 0.26 s later by speech.
-    assert not _edge_transcript_supported(_speech_units(SEGMENTS), 'start', 3.2, 0.0)
-    assert not _edge_transcript_supported(_speech_units(SEGMENTS), 'end', 20.42, 73.2)
-    # Not inward, or no speech between the new and old edge.
-    assert not _edge_transcript_supported(_speech_units(SEGMENTS), 'end', 58.2, 58.2)
-    assert not _edge_transcript_supported(_speech_units(SEGMENTS), 'end', 58.2, 60.0)
+def _supported(segments, edge, new, old):
+    return _edge_transcript_supported(_speech_units(segments), _word_units(segments),
+                                      edge, new, old)
+
+
+def test_end_edge_supported_by_word_end_and_gap():
+    assert _supported(SEGMENTS, 'end', 58.2, 73.2)
+    # 3.2 is no word edge; 20.42 is followed 0.26 s later by speech.
+    assert not _supported(SEGMENTS, 'start', 3.2, 0.0)
+    assert not _supported(SEGMENTS, 'end', 20.42, 73.2)
+    # Not inward.
+    assert not _supported(SEGMENTS, 'end', 58.2, 58.2)
+    # No speech in the released span is still supported.
+    assert _supported(SEGMENTS, 'end', 58.2, 60.0)
     # Rounded to one decimal, as the prompt shows it.
-    rounded = [dict(SEGMENTS[2], end=58.23), SEGMENTS[3]]
-    assert _edge_transcript_supported(_speech_units(rounded), 'end', 58.2, 73.2)
+    rounded = [_worded(49.28, 58.23, 'Visit Acme.'), SEGMENTS[3]]
+    assert _supported(rounded, 'end', 58.2, 73.2)
 
 
 def test_start_edge_supported_mirrors_end():
-    segments = [{'start': 0.0, 'end': 10.0, 'text': 'Show talk.'},
-                {'start': 11.0, 'end': 40.0, 'text': 'Brought to you by Acme.'}]
-    assert _edge_transcript_supported(_speech_units(segments), 'start', 11.0, 0.0)
-    assert not _edge_transcript_supported(_speech_units(segments), 'start', 11.0, 10.5)
-    close = [dict(segments[0], end=10.9), segments[1]]
-    assert not _edge_transcript_supported(_speech_units(close), 'start', 11.0, 0.0)
+    segments = [_worded(0.0, 10.0, 'Show talk.'),
+                _worded(11.0, 40.0, 'Brought to you by Acme.')]
+    assert _supported(segments, 'start', 11.0, 0.0)
+    assert _supported(segments, 'start', 11.0, 10.5)
+    close = [_worded(0.0, 10.9, 'Show talk.'), segments[1]]
+    assert not _supported(close, 'start', 11.0, 0.0)
+    assert not _supported([{'start': 0.0, 'end': 10.0, 'text': 'Show talk.'},
+                           {'start': 11.0, 'end': 40.0, 'text': 'Acme.'}],
+                          'start', 11.0, 0.0)
+
+
+def test_word_end_before_long_pause_is_supported_without_released_speech():
+    segments = [_worded(2940.0, 2959.57, 'Visit acme.example today.'),
+                _worded(2966.47, 2980.0, 'Welcome back to the show.')]
+    assert _supported(segments, 'end', 2959.57, 2961.04)
+
+
+def test_segment_end_without_word_timings_is_unsupported():
+    segments = [{'start': 2940.0, 'end': 2959.57, 'text': 'Visit acme.example today.'},
+                {'start': 2966.47, 'end': 2980.0, 'text': 'Welcome back to the show.'}]
+    assert not _supported(segments, 'end', 2959.57, 2961.04)
+
+
+def test_word_end_with_next_word_close_is_unsupported():
+    segments = [_worded(2940.0, 2959.57, 'Visit acme.example today.'),
+                _worded(2959.77, 2980.0, 'Welcome back to the show.')]
+    assert not _supported(segments, 'end', 2959.57, 2961.04)
 
 
 def test_word_edges_support_a_trim_inside_a_segment():
@@ -135,7 +175,7 @@ def test_word_edges_support_a_trim_inside_a_segment():
                            {'word': 'rocks.', 'start': 5.0, 'end': 12.0},
                            {'word': 'Welcome', 'start': 14.0, 'end': 20.0},
                            {'word': 'back.', 'start': 20.0, 'end': 30.0}]}]
-    assert _edge_transcript_supported(_speech_units(segments), 'end', 12.0, 30.0)
+    assert _supported(segments, 'end', 12.0, 30.0)
 
 
 def test_independent_spans_cover_measured_evidence():
@@ -346,3 +386,152 @@ def test_unsupported_start_off_word_lands_on_straddling_word_end():
     bounds = reviewer._clamp_proposed_bounds(
         _start_marker(), 10.1, 40.0, 9.5, 40.0, 60, 'slug', 'ep', segments=segments)
     assert bounds == pytest.approx((10.0, 40.0))
+
+
+# Released span 2959.57-2961.04 holds no transcribed speech; the show resumes at 2966.47.
+OUTRO_SEGMENTS = [
+    _worded(2790.0, 2801.8, 'That is all for the first half.'),
+    _worded(2802.09, 2900.0, 'This episode is brought to you by Acme.'),
+    _worded(2900.2, 2959.57, 'Visit acme.example, Acme delivers.'),
+    _worded(2966.47, 2990.0, 'Our guest grows tomatoes in the garden.'),
+]
+
+
+def _outro_marker(probes):
+    return {'start': 2820.81, 'end': 2961.04, 'confidence': 0.95,
+            'detection_stage': 'dai_differential', 'category': 'sponsor',
+            'sponsor': 'Acme', 'reason': 'Dynamically inserted: audio differs across fetches',
+            'dai_core_spans': [{'start': 2820.81, 'end': 2961.04}],
+            DAI_PROBE_SPANS: probes}
+
+
+def _splice(events):
+    analysis = AudioAnalysisResult()
+    analysis.splice_evidence = {'events': events, 'calibration': {'status': 'calibrated'}}
+    return analysis
+
+
+def _run_reviewed(monkeypatch, marker, segments, bounds, duration, events=()):
+    reviewer = _reviewer()
+    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)
+    body = f'[{{"start": {bounds[0]}, "end": {bounds[1]}, "is_ad": true, "confidence": 0.94}}]'
+    monkeypatch.setattr('ad_reviewer.call_llm_for_window',
+                        lambda **kwargs: (_LLMResp(body), None))
+    run = _run_pipeline([marker], {'sponsor': 'remove'}, segments=segments,
+                        real_refine_reviewer=True, real_sweeps=True,
+                        audio_analysis_result=_splice(list(events)), duration=duration)
+    assert run['result'] is True
+    cuts = run['local_ap'].process_episode.call_args.args[1]
+    return run, [(c['start'], c['end']) for c in cuts]
+
+
+def _run_outro(monkeypatch, probes):
+    return _run_reviewed(monkeypatch, _outro_marker(probes), OUTRO_SEGMENTS,
+                         (2802.09, 2959.57), 3600.0)
+
+
+def _assert_bounds(run, cuts, start, end):
+    saved = _saved_marker(run)
+    assert (saved['start'], saved['end']) == pytest.approx((start, end), abs=EDGE_TOLERANCE)
+    assert cuts == [pytest.approx((start, end), abs=EDGE_TOLERANCE)]
+    return saved
+
+
+def test_word_supported_end_crosses_core_without_released_speech(monkeypatch):
+    run, cuts = _run_outro(monkeypatch, [{'start': 2821.31, 'end': 2825.31}])
+    saved = _assert_bounds(run, cuts, 2802.09, 2959.57)
+    assert saved['dai_core_spans'][-1]['end'] == pytest.approx(2959.57)
+    AdValidator(episode_duration=3600.0, segments=[])._clamp_boundaries(
+        [saved], ValidationResult(ads=[]))
+    assert saved['end'] == pytest.approx(2959.57)
+
+
+def test_probe_over_released_span_keeps_core_end(monkeypatch):
+    _, cuts = _run_outro(monkeypatch, [{'start': 2821.31, 'end': 2825.31},
+                                      {'start': 2959.0, 'end': 2961.04}])
+    assert len(cuts) == 1 and cuts[0][1] == pytest.approx(2961.04)
+
+
+MIDROLL_SEGMENTS = [
+    _worded(3760.0, 3772.67, 'That wraps the first story.'),
+    _worded(3773.63, 3849.02, 'This episode is brought to you by Acme widgets.'),
+    _worded(3851.5, 3856.0, 'Visit acme.example for a free trial.'),
+    _worded(3858.0, 3890.0, 'Our guest grows tomatoes in the garden.'),
+]
+
+
+def _midroll_marker(probes, end=3851.08):
+    return {'start': 3773.39, 'end': end, 'confidence': 0.95,
+            'detection_stage': 'dai_differential', 'category': 'sponsor',
+            'sponsor': 'Acme', 'reason': 'Dynamically inserted: audio differs across fetches',
+            'dai_core_spans': [{'start': 3773.39, 'end': end}],
+            DAI_PROBE_SPANS: probes}
+
+
+def test_tail_completion_keeps_reviewer_locked_end(monkeypatch):
+    run, cuts = _run_reviewed(
+        monkeypatch, _midroll_marker([{'start': 3773.89, 'end': 3777.89}]),
+        MIDROLL_SEGMENTS, (3773.63, 3849.02), 3950.0,
+        events=[{'time': 3857.0, 'type': 'deep_silence', 'depth_dbfs': -70.0}])
+    saved = _assert_bounds(run, cuts, 3773.63, 3849.02)
+    assert saved['reviewer_locked_start'] == pytest.approx(3773.63)
+    assert saved['reviewer_locked_end'] == pytest.approx(3849.02)
+    assert not saved.get('tail_completed')
+
+
+def test_terminal_snap_keeps_reviewer_locked_start(monkeypatch):
+    run, cuts = _run_reviewed(
+        monkeypatch, _midroll_marker([{'start': 3773.89, 'end': 3777.89}], end=3850.5),
+        MIDROLL_SEGMENTS[:2], (3773.63, 3849.02), 3850.5,
+        events=[{'time': 3772.94, 'type': 'deep_silence', 'depth_dbfs': -70.0}])
+    saved = _assert_bounds(run, cuts, 3773.63, 3849.02)
+    assert 'terminal_snap' not in saved
+
+
+def test_probe_over_released_start_keeps_core_start(monkeypatch):
+    run, cuts = _run_reviewed(
+        monkeypatch, _midroll_marker([{'start': 3773.39, 'end': 3777.39}]),
+        MIDROLL_SEGMENTS, (3773.63, 3849.02), 3950.0)
+    saved = _saved_marker(run)
+    assert saved['start'] == pytest.approx(3773.39)
+    assert 'reviewer_locked_start' not in saved
+
+
+def test_splice_snap_keeps_reviewer_locked_end():
+    ad = {'start': 10.0, 'end': 40.0, 'end_extended_by_content': True,
+          'reviewer_locked_end': 40.0}
+    events = [{'time': 42.0, 'type': 'deep_silence', 'depth_dbfs': -70.0}]
+    snapped = processing._snap_completed_cut_tails_to_splice(
+        's', 'e', [ad], [ad], [], _splice(events))
+    assert snapped[0]['end'] == 40.0
+    unlocked = dict(ad, reviewer_locked_end=None)
+    snapped = processing._snap_completed_cut_tails_to_splice(
+        's', 'e', [unlocked], [unlocked], [], _splice(events))
+    assert snapped[0]['end'] == 42.0
+
+
+def test_validator_keeps_reviewer_locked_edges():
+    validator = AdValidator(episode_duration=100.0, segments=[])
+    ad = {'start': 12.0, 'end': 80.0, 'reviewer_locked_start': 12.0,
+          'reviewer_locked_end': 80.0,
+          'dai_core_spans': [{'start': 10.0, 'end': 82.0}]}
+    validator._clamp_boundaries([ad], ValidationResult(ads=[]))
+    assert (ad['start'], ad['end']) == (12.0, 80.0)
+    validator._extend_trailing_ad([ad], ValidationResult(ads=[]))
+    assert ad['end'] == 80.0
+    later = {'start': 80.5, 'end': 95.0}
+    merged = validator._merge_close_ads([ad, later], ValidationResult(ads=[]))
+    assert [(m['start'], m['end']) for m in merged] == [(12.0, 80.0), (80.5, 95.0)]
+
+
+def test_render_keeps_reviewer_locked_end_before_episode_end():
+    ad = {'start': 12.0, 'end': 80.0, 'reviewer_locked_end': 80.0}
+    cuts = AudioProcessor().compute_applied_cuts([ad], 100.0)
+    assert [(c['start'], c['end']) for c in cuts] == [(12.0, 80.0)]
+
+
+def test_human_widened_edge_is_no_longer_locked():
+    assert reviewer_edge_locked({'end': 80.0, 'reviewer_locked_end': 80.0}, 'end')
+    assert reviewer_edge_locked({'end': 70.0, 'reviewer_locked_end': 80.0}, 'end')
+    assert not reviewer_edge_locked({'end': 85.0, 'reviewer_locked_end': 80.0}, 'end')
+    assert not reviewer_edge_locked({'start': 5.0, 'reviewer_locked_start': 12.0}, 'start')

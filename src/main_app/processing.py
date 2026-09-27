@@ -56,7 +56,8 @@ from differential_fetcher import (
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import (carve_fragment, clip_dai_core_spans, clip_merge_spans,
                            fold_marker_pair, foldable_twin,
-                           invalidate_tail_provenance, spans_match, subtract_spans)
+                           invalidate_tail_provenance, reviewer_edge_locked,
+                           set_reviewer_locks, spans_match, subtract_spans)
 from utils.time import (
     adjust_timestamp, epoch_to_iso, merge_cut_spans, overlap_ratio,
     ranges_overlap, span_inside_any_cut, utc_now_iso,
@@ -2518,6 +2519,7 @@ def _apply_reviewer_verdict_to_ad(ad, v):
         ad['end'] = v.adjusted_end
         clip_dai_core_spans(ad, v.adjusted_start, v.adjusted_end)
         clip_merge_spans(ad, v.adjusted_start, v.adjusted_end)
+        set_reviewer_locks(ad, v.locked_edges)
     elif v.verdict == 'reject':
         ad['was_cut'] = False
         ad['source'] = 'reviewer'
@@ -2666,6 +2668,14 @@ def _find_master(all_ads, ad):
     return None
 
 
+def _keep_locked_edges(before, after):
+    """Undo any sweep result that widened a reviewer-locked edge."""
+    return [old if ((new['start'] < old['start'] and reviewer_edge_locked(old, 'start'))
+                    or (new['end'] > old['end'] and reviewer_edge_locked(old, 'end')))
+            else new
+            for old, new in zip(before, after, strict=True)]
+
+
 def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validation,
                           segments, audio_analysis_result, episode_duration,
                           podcast_name=None):
@@ -2708,6 +2718,7 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
         coverage_ads=coverage_ads, blocking_ads=blocking_ads,
         podcast_name=podcast_name,
     )
+    snapped = _keep_locked_edges(ads_to_remove, snapped)
     changed = False
     for old, new in zip(ads_to_remove, snapped, strict=True):
         if new['start'] >= old['start']:
@@ -2737,7 +2748,7 @@ def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation
     pass in _refine_boundaries never sees that. Without the reviewer enabled,
     _refine_boundaries already extended these ends and a second pass would
     just compound the extension window, so the sweep is gated on the reviewer.
-    End-only: starts don't drift short.
+    End-only: starts don't drift short. Reviewer-locked ends are left alone.
 
     Mutates matching ``all_ads_with_validation`` entries in place and re-saves
     combined ads when anything changed. Returns the (possibly extended) cut list.
@@ -2753,6 +2764,7 @@ def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation
         ads_to_remove, segments, extend_start=False, podcast_name=podcast_name,
         barriers=all_ads_with_validation,
     )
+    extended = _keep_locked_edges(ads_to_remove, extended)
 
     changed = False
     for old, new in zip(ads_to_remove, extended, strict=True):
@@ -2806,6 +2818,7 @@ def _snap_completed_cut_tails_to_splice(
         coverage_ads=all_ads_with_validation,
         podcast_name=podcast_name,
     )
+    snapped = _keep_locked_edges(ads_to_remove, snapped)
     changed = False
     for old, new in zip(ads_to_remove, snapped, strict=True):
         if new['end'] <= old['end']:

@@ -67,6 +67,25 @@ def invalidate_word_timed_edges(marker: dict) -> None:
             marker.pop(f'word_timed_{edge}', None)
 
 
+def reviewer_edge_locked(marker: dict, edge: str) -> bool:
+    """Whether a reviewer-validated bound forbids widening this edge."""
+    locked = finite_number(marker.get(f'reviewer_locked_{edge}'))
+    current = finite_number(marker.get(edge))
+    if locked is None or current is None:
+        return False
+    if edge == 'start':
+        return current >= locked - EDGE_TOLERANCE
+    return current <= locked + EDGE_TOLERANCE
+
+
+def set_reviewer_locks(marker: dict, edges) -> None:
+    """Lock the named edges at their current values and clear the others."""
+    for edge in ('start', 'end'):
+        marker.pop(f'reviewer_locked_{edge}', None)
+    for edge in edges:
+        marker[f'reviewer_locked_{edge}'] = marker[edge]
+
+
 # Both-edges tolerance for treating two markers as the same span. Matches
 # find_marker_in_list, the reject path, and the review listing, so every
 # consumer agrees on what one span means.
