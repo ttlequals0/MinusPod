@@ -56,7 +56,7 @@ def list_detections():
     corrections = db.get_review_corrections()
     items = flatten_detections(rows, corrections)
     counts = summarize_detections(items)
-    counts['pendingByHoldReason'] = db.count_pending_holds_by_reason()
+    counts['pendingByHoldReason'] = db.count_pending_holds_by_reason(feed)
     items = filter_detections(items, status=status, feed=feed, q=q,
                               reviewer=reviewer, hold_reason=hold_reason)
     # Summarised before the category filter so byCategory keeps every bucket

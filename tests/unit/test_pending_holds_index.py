@@ -129,6 +129,19 @@ def test_count_pending_holds_by_reason(db):
     }
 
 
+def test_count_pending_holds_by_reason_scoped_to_feed(db):
+    db.create_podcast('other-feed', 'https://example.com/other.xml', title='Other Feed')
+    db.upsert_episode('other-feed', 'ep-9', original_url='https://example.com/ep-9.mp3',
+                      title='ep-9', status='processed')
+    db.save_episode_details(SLUG, 'ep-1', ad_markers=[HELD])
+    db.save_episode_details('other-feed', 'ep-9', ad_markers=[HELD, VARIANTS[6]])
+    assert db.count_pending_holds_by_reason(SLUG) == {'max_duration': 1}
+    assert db.count_pending_holds_by_reason('other-feed') == {
+        'max_duration': 1, 'verification_miss': 1}
+    assert db.count_pending_holds_by_reason() == {
+        'max_duration': 2, 'verification_miss': 1}
+
+
 def test_all_hold_reasons_covers_every_constant():
     constants = {v for k, v in vars(config).items() if k.startswith('HOLD_REASON_')}
     assert ALL_HOLD_REASONS == constants

@@ -571,11 +571,18 @@ class EpisodeMixin:
              if isinstance(m, dict) and is_pending_review(m)
              and m.get('start') is not None and m.get('end') is not None])
 
-    def count_pending_holds_by_reason(self) -> dict[str, int]:
-        """Pending holds per hold reason; holds with no reason are left out."""
+    def count_pending_holds_by_reason(self, feed_slug: str | None = None) -> dict[str, int]:
+        """Pending holds per hold reason, optionally for one feed; holds with no reason are left out."""
+        sql = ("SELECT h.hold_reason, COUNT(*) AS n FROM pending_holds h "
+               "JOIN episodes e ON e.id = h.episode_pk "
+               "JOIN podcasts p ON p.id = e.podcast_id "
+               "WHERE h.hold_reason IS NOT NULL")
+        params = ()
+        if feed_slug:
+            sql += " AND p.slug = ?"
+            params = (feed_slug,)
         rows = self.get_connection().execute(
-            "SELECT hold_reason, COUNT(*) AS n FROM pending_holds "
-            "WHERE hold_reason IS NOT NULL GROUP BY hold_reason").fetchall()
+            sql + " GROUP BY h.hold_reason", params).fetchall()
         return {row['hold_reason']: row['n'] for row in rows}
 
     def save_original_transcript(self, slug: str, episode_id: str, transcript_text: str):

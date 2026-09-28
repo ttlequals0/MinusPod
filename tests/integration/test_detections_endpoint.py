@@ -154,6 +154,22 @@ def test_hold_reason_filter_and_counts(app_client, seeded_detections):
     body = app_client.get(
         '/api/v1/detections?holdReason=max_duration').get_json()
     assert [d['start'] for d in body['detections']] == [10.0]
+    other = 'example-other'
+    db.create_podcast(other, 'https://example.com/other.xml', title='Other Feed')
+    try:
+        db.upsert_episode(other, 'det-ep-2', original_url='https://example.com/e2.mp3',
+                          title='Episode Two', status='processed')
+        db.save_episode_details(other, 'det-ep-2', ad_markers=[
+            {'start': 5.0, 'end': 35.0, 'held_for_review': True, 'was_cut': False,
+             'hold_reason': 'max_duration'}])
+        counts = app_client.get('/api/v1/detections').get_json()['counts']
+        assert counts['pendingByHoldReason'] == {'max_duration': 2, 'verification_miss': 2}
+        counts = app_client.get(f'/api/v1/detections?feed={slug}').get_json()['counts']
+        assert counts['pendingByHoldReason'] == {'max_duration': 1, 'verification_miss': 2}
+        counts = app_client.get(f'/api/v1/detections?feed={other}').get_json()['counts']
+        assert counts['pendingByHoldReason'] == {'max_duration': 1}
+    finally:
+        db.delete_podcast(other)
 
 
 def test_resolved_detection_leaves_needs_review(app_client, seeded_detections):
