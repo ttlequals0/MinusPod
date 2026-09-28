@@ -7,13 +7,14 @@ for readability; behavior is unchanged from the pre-split module.
 import logging
 import json
 import re
+from collections.abc import Callable
 from typing import NamedTuple
 
 from sponsor_service import SponsorService
 from utils.prompt import (
     format_sponsor_block, render_prompt, strip_comments_from_prompt
 )
-from utils.text import truncate
+from utils.text import truncate, word_boundary_re
 from utils.time import parse_timestamp
 from utils.llm_response import extract_json_ads_array
 from utils.constants import (
@@ -36,6 +37,9 @@ logger = logging.getLogger('podcast.claude')
 # this ratio the shorter one is a fragment of the longer, which is worth
 # keeping rather than discarding.
 DUPLICATE_MIN_LENGTH_RATIO = 0.8
+
+# A real read names its sponsor repeatedly; one passing mention of a common word does not count.
+SPAN_SPONSOR_MIN_MENTIONS = 2
 
 def _singular(key: str) -> str:
     """Drop one trailing plural. rstrip('s') stemmed 'names' to 'name' but also
@@ -382,9 +386,32 @@ def _names_known_sponsor(summary: list[str], quotes: list[str],
         sponsor_service.find_sponsor_in_text(t) for t in summary)
 
 
+def segment_span_text(segments: list[dict]) -> Callable[[float, float], str]:
+    """Callable returning the joined text of the segments overlapping [start, end]."""
+    def span_text(start: float, end: float) -> str:
+        return ' '.join(seg.get('text', '') for seg in segments
+                        if seg['end'] > start and seg['start'] < end)
+    return span_text
+
+
+def _span_names_sponsor(text: str, episode_sponsors: EpisodeSponsors | None,
+                        sponsor_service) -> bool:
+    """Whether the span transcript names one known sponsor at least twice."""
+    patterns = [p for p in (episode_sponsors or ()) if p is not None]
+    if not any(len(p.findall(text)) >= SPAN_SPONSOR_MIN_MENTIONS for p in patterns):
+        name = sponsor_service.find_sponsor_in_text(text) if sponsor_service else None
+        if not name:
+            return False
+        pattern = (sponsor_service.compiled_brand_patterns().get(name)
+                   or word_boundary_re([name]))
+        return len(pattern.findall(text)) >= SPAN_SPONSOR_MIN_MENTIONS
+    return True
+
+
 def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
                    episode_id: str = None, sponsor_service=None,
-                   episode_sponsors: EpisodeSponsors | None = None) -> dict | None:
+                   episode_sponsors: EpisodeSponsors | None = None,
+                   span_text: Callable[[float, float], str] | None = None) -> dict | None:
     """Post-parse normalization shared by the timestamp-mode and segment-id-mode
     parsers: degenerate-range rejection, is_ad/classification filters, sponsor
     name + reason/description extraction, confidence normalization, the
@@ -491,6 +518,13 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
                               _as_text(ad.get('end_text'))) if t]
         has_known_sponsor = _names_known_sponsor(
             summary, quotes, episode_sponsors, sponsor_service)
+    # A truncated reason can omit the sponsor the span transcript names.
+    found_in_span = (
+        not has_sponsor_field and not has_known_sponsor and not has_ad_language
+        and span_text is not None and duration >= CONTENT_DURATION_THRESHOLD
+        and norm_conf >= LOW_CONFIDENCE
+        and _span_names_sponsor(span_text(start, end), episode_sponsors, sponsor_service))
+    has_known_sponsor = has_known_sponsor or found_in_span
 
     if not has_sponsor_field and not has_known_sponsor and not has_ad_language:
         # Low confidence + no evidence = reject regardless of duration
@@ -519,7 +553,8 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
                 f"reason: {reason[:100] if reason else 'None'}"
             )
 
-    logger.info(f"[{slug}:{episode_id}] Extracted ad: {start:.1f}s-{end:.1f}s, reason='{reason}', fields={list(ad.keys())}")
+    span_note = ' (sponsor found in span transcript)' if found_in_span else ''
+    logger.info(f"[{slug}:{episode_id}] Extracted ad: {start:.1f}s-{end:.1f}s, reason='{reason}', fields={list(ad.keys())}{span_note}")
     ad_entry = {
         'start': start,
         'end': end,
@@ -544,7 +579,8 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                               episode_id: str = None,
                               sponsor_service=None,
                               compliance_meta: dict | None = None,
-                              episode_sponsors: EpisodeSponsors | None = None) -> list[dict]:
+                              episode_sponsors: EpisodeSponsors | None = None,
+                              span_text: Callable[[float, float], str] | None = None) -> list[dict]:
     """Parse ad segments from Claude's JSON response.
 
     ``compliance_meta``: optional out-param dict (same pattern as
@@ -613,7 +649,7 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                     end = parse_timestamp(end_val)
                     ad_entry = _normalize_ad(
                         ad, start, end, slug, episode_id, sponsor_service,
-                        episode_sponsors)
+                        episode_sponsors, span_text)
                     if ad_entry is not None:
                         valid_ads.append(ad_entry)
                 except ValueError as e:
@@ -713,6 +749,7 @@ def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
     invented timestamp is not -- that asymmetry is the point of this mode).
     """
     by_sid = {seg['sid']: seg for seg in window_segments if 'sid' in seg}
+    span_text = segment_span_text(window_segments)
     resolved = []
     for ad in ads:
         lo = min(ad['start_id'], ad['end_id'])
@@ -728,7 +765,7 @@ def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
         end = seg_hi['end']
         try:
             ad_entry = _normalize_ad(raw, start, end, slug, episode_id,
-                                     sponsor_service, episode_sponsors)
+                                     sponsor_service, episode_sponsors, span_text)
         except (ValueError, TypeError) as e:
             logger.warning(
                 f"[{slug}:{episode_id}] Skipping ad with invalid field "
