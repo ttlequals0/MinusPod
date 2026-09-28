@@ -175,3 +175,28 @@ def test_migration_carves_legacy_partial_cut_rows(temp_db):
     assert [(m['start'], m['end'], m['was_cut']) for m in stored] == [
         (60.0, 90.0, True), (90.0, 120.0, False)]
     assert all(m['carved_from'] == {'start': 60.0, 'end': 120.0} for m in stored)
+
+
+def _held_legacy():
+    return {'start': 60.0, 'end': 120.0, 'was_cut': False, 'held_for_review': True,
+            'hold_reason': 'no_cue_evidence',
+            'partial_cut_spans': [{'start': 60.0, 'end': 90.0}]}
+
+
+def test_held_legacy_partial_cut_stays_whole_on_load():
+    markers = [_held_legacy()]
+    normalize_loaded_markers(markers)
+    expected = _held_legacy()
+    expected.pop('partial_cut_spans')
+    assert markers == [expected]
+
+
+def test_migration_leaves_held_legacy_partial_cut_row_whole(temp_db):
+    _seed(temp_db, [_held_legacy()])
+
+    conn = _run(temp_db)
+
+    stored = json.loads(_raw(conn))
+    assert len(stored) == 1
+    assert (stored[0]['start'], stored[0]['end'], stored[0]['held_for_review']) == (60.0, 120.0, True)
+    assert 'partial_cut_spans' not in stored[0] and 'carved_from' not in stored[0]

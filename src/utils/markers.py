@@ -4,7 +4,7 @@ import math
 
 from config import (CORRECTION_MATCH_MIN_COVERAGE, FINGERPRINT_CHUNK_SIZE,
                     PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS,
-                    repair_segment_category)
+                    is_pending_review, repair_segment_category)
 from utils.time import overlap_ratio
 
 
@@ -253,7 +253,9 @@ def _expand_legacy_partial_cut(marker: dict) -> list[dict]:
     covered = [(s['start'], s['end']) for s in _valid_spans(marker, 'partial_cut_spans')]
     marker.pop('partial_cut_spans', None)
     start, end = finite_number(marker.get('start')), finite_number(marker.get('end'))
-    if marker.get('was_cut') or not covered or start is None or end is None:
+    # A pending marker stays whole: carving would multiply pending counts and holds.
+    if (marker.get('was_cut') or is_pending_review(marker) or not covered
+            or start is None or end is None):
         return [marker]
     return carve_partly_cut(marker, start, end, covered) or [marker]
 
