@@ -130,6 +130,7 @@ class TestSpliceVetoSponsorWaiver:
                 in ad['validation']['flags'])
         assert 'Splice veto waived for 1000.0s-1187.0s: sponsor confirmed by registry' \
             in caplog.text
+        assert caplog.text.count('treating as confirmed') == 1
 
     @pytest.mark.parametrize('stage', ['claude', 'text_pattern'])
     def test_transcript_confirmed_is_accepted(self, stage):

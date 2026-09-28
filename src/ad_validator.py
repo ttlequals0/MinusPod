@@ -1062,7 +1062,8 @@ class AdValidator:
         decision = self._make_decision(confidence, flags, duration)
 
         # Apply per-feed hold rules after the base decision.
-        decision = self._apply_hold_rules(ad, decision, confidence, flags, duration)
+        decision = self._apply_hold_rules(ad, decision, confidence, flags, duration,
+                                          confirmation_source)
         # Only a human decides what an auto-approval left of a hold.
         if remainder_reason and decision != Decision.REJECT:
             if not ad.get('held_for_review'):
@@ -1343,7 +1344,8 @@ class AdValidator:
             return Decision.REVIEW
 
     def _apply_hold_rules(self, ad: dict, decision: Decision, confidence: float,
-                          flags: list[str], duration: float) -> Decision:
+                          flags: list[str], duration: float,
+                          confirmation_source: str | None) -> Decision:
         """Apply per-feed hold rules after the base decision.
 
         A held ad gets decision=REVIEW with held_for_review=True so the gate
@@ -1425,11 +1427,10 @@ class AdValidator:
                 and self._splice_calibrated()
                 and self._audio_corroboration_source(ad) is None):
             # A sponsor the span itself names stands in for audio evidence; model prose does not.
-            source = self._sponsor_confirmation_source(ad)
-            if source in ('transcript', 'registry'):
-                flags.append(f"INFO: Splice veto waived, sponsor confirmed by {source}")
+            if confirmation_source in ('transcript', 'registry'):
+                flags.append(f"INFO: Splice veto waived, sponsor confirmed by {confirmation_source}")
                 logger.info(f"Splice veto waived for {ad['start']:.1f}s-{ad['end']:.1f}s: "
-                            f"sponsor confirmed by {source}")
+                            f"sponsor confirmed by {confirmation_source}")
             else:
                 self._mark_held(ad, flags, HOLD_REASON_NO_SPLICE)
                 return Decision.REVIEW
