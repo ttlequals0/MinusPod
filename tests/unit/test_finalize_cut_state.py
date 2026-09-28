@@ -321,6 +321,17 @@ class TestRecutOrderAndFailure:
         assert [(b['start'], b['end']) for b in m['captured']['cut_barriers']] == [
             (560.0, 590.0)]
 
+    def test_an_approved_hold_is_not_a_render_cut_barrier(self):
+        a = _marker(10.0, 40.0)
+        approved = _marker(5.0, 60.0, held_for_review=True,
+                           hold_reason='no_splice_evidence')
+        fresh = {'start': 560.0, 'end': 590.0, 'held_for_review': True,
+                 'hold_reason': 'no_splice_evidence'}
+        m = _run_recut([a], [a, approved, fresh],
+                       render=lambda segs: [applied_cut(10.0, 40.0)])
+        assert [(b['start'], b['end']) for b in m['captured']['cut_barriers']] == [
+            (560.0, 590.0)]
+
     def test_assets_receive_exactly_the_saved_markers_and_cuts(self):
         a, b = _marker(10.0, 40.0), _marker(100.0, 104.0)
         applied = [applied_cut(10.0, 40.0)]

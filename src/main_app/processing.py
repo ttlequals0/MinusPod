@@ -3638,7 +3638,8 @@ def _pending_hold_barriers(markers, cuts):
     seen = {id(cut) for cut in cuts}
     barriers = []
     for m in markers or []:
-        if m.get('held_for_review') and id(m) not in seen:
+        # Not is_pending_review: that counts a fresh hold with no was_cut as cut.
+        if m.get('held_for_review') and not m.get('was_cut') and id(m) not in seen:
             seen.add(id(m))
             barriers.append(m)
     return barriers
