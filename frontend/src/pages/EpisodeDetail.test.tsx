@@ -1319,7 +1319,7 @@ describe('Segment category chips (#565)', () => {
 
   it('names the detection a carved fragment came from', async () => {
     const carvedFrom = { start: 60, end: 120 };
-    const hint = `Part of ${formatTimestamp(60)} - ${formatTimestamp(120)} (the render removed only part of it)`;
+    const hint = `Split from detection ${formatTimestamp(60)} - ${formatTimestamp(120)}`;
     renderDetail(makeEpisode({
       adMarkers: [{ start: 60, end: 90, confidence: 0.9, category: 'sponsor', carved_from: carvedFrom }],
       pendingReviewMarkers: [],
@@ -1337,7 +1337,7 @@ describe('Segment category chips (#565)', () => {
       rejectedAdMarkers: [{ start: 5, end: 20, confidence: 0.4, category: 'sponsor' }],
     }));
     expect(await screen.findByText('Detections Not Cut (1)')).not.toBeNull();
-    expect(screen.queryByText(/^Part of /)).toBeNull();
+    expect(screen.queryByText(/^Split from detection /)).toBeNull();
   });
 });
 

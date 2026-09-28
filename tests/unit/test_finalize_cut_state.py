@@ -124,6 +124,22 @@ class TestFinalizeCutState:
         assert all_ads == first
         assert len(all_ads) == 3
 
+    def test_pass2_cut_re_carves_a_pass1_remainder(self):
+        a = _marker(10.0, 50.0, validation={'decision': 'ACCEPT', 'flags': []})
+        all_ads, ads_to_remove = [a], [a]
+        pass1 = [applied_cut(10.0, 30.0)]
+        processing._finalize_cut_state(all_ads, ads_to_remove, pass1, 600.0)
+        final = [*pass1, applied_cut(40.0, 50.0)]
+        processing._finalize_cut_state(all_ads, [*ads_to_remove], final, 600.0)
+        assert [(m['start'], m['end'], m['was_cut']) for m in all_ads] == [
+            (10.0, 30.0, True), (30.0, 40.0, False), (40.0, 50.0, True)]
+        assert all(m['carved_from'] == {'start': 10.0, 'end': 50.0} for m in all_ads)
+        assert [m['validation']['flags'] for m in all_ads] == [
+            [], ['INFO: Left in audio by the render'], []]
+        first = copy.deepcopy(all_ads)
+        processing._finalize_cut_state(all_ads, [*ads_to_remove], final, 600.0)
+        assert all_ads == first
+
     def test_carved_fragment_is_not_learned(self, monkeypatch):
         a = _marker(10.0, 50.0)
         all_ads, ads_to_remove = [a], [a]

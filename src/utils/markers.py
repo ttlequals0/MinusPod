@@ -787,9 +787,10 @@ def carve_partly_cut(marker: dict, start: float, end: float, covered) -> list[di
         fragment['carved_from'] = dict(origin)
         fragment['was_cut'] = was_cut
         validation = fragment.get('validation')
-        if not was_cut and isinstance(validation, dict):
+        if isinstance(validation, dict):
+            flags = [f for f in validation.get('flags') or [] if f != CARVED_REMAINDER_FLAG]
             fragment['validation'] = dict(
-                validation, flags=[*(validation.get('flags') or []), CARVED_REMAINDER_FLAG])
+                validation, flags=flags if was_cut else [*flags, CARVED_REMAINDER_FLAG])
         fragments.append(fragment)
     return fragments
 

@@ -113,12 +113,12 @@ function toOriginalAd(segment: AdSegment) {
   };
 }
 
-// This row is one piece of a detection the render removed only in part.
+// This row is one piece of a detection the render split.
 function CarvedFromHint({ segment }: { segment: AdSegment }) {
   if (!segment.carved_from) return null;
   return (
     <p className="text-sm text-muted-foreground mt-1 font-mono">
-      Part of {formatTimestamp(segment.carved_from.start)} - {formatTimestamp(segment.carved_from.end)} (the render removed only part of it)
+      Split from detection {formatTimestamp(segment.carved_from.start)} - {formatTimestamp(segment.carved_from.end)}
     </p>
   );
 }

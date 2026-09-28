@@ -2776,14 +2776,18 @@ def _finalize_cut_state(all_ads, ads_to_remove, applied_cuts, duration, tag=''):
     for marker in markers.values():
         marker.pop('partial_cut_spans', None)
         is_requested = id(marker) in requested
-        marker['was_cut'] = (is_requested
+        # A pass-1 remainder is re-carved when a later pass cuts part of it.
+        eligible = is_requested or 'carved_from' in marker
+        marker['was_cut'] = (eligible
                              and _covering_group(groups, marker, duration) is not None)
-        if not is_requested or marker['was_cut']:
+        if not eligible or marker['was_cut']:
             continue
         start, end = _clamped_span(marker, duration)
-        covered = [(max(start, g[0]), min(end, g[1])) for g in groups]
-        fragments = carve_partly_cut(marker, start, end, [c for c in covered if c[1] > c[0]])
+        fragments = carve_partly_cut(marker, start, end, [
+            (max(start, g[0]), min(end, g[1])) for g in groups])
         if not fragments:
+            if not is_requested:
+                continue
             audio_logger.info(
                 f"{tag} Marker {marker['start']:.1f}s-{marker['end']:.1f}s is not fully "
                 f"inside the rendered cuts; marking as not cut")
