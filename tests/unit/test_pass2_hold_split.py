@@ -597,3 +597,47 @@ def test_verification_pass_reviews_every_disjoint_subspan_of_a_hold():
     assert run.output[7] == 2
     assert _spans(hold['pass2_released_spans']) == [(1992.9, 2103.5), (2124.9, 2195.4)]
     assert run.output[1] == []
+
+
+# ---------- Confirmed-correction clamp ----------
+
+def _detection(start, end, confidence=0.97):
+    return {'start': start, 'end': end, 'confidence': confidence, 'category': 'sponsor',
+            'sponsor': 'Acme', 'reason': 'Acme sponsor read', 'detection_stage': 'claude'}
+
+
+def _clamp_validate(detection, confirm):
+    segments = [{'start': 0.0, 'end': 3000.0, 'text': 'Acme sponsor read, visit acme.com'}]
+    validator = AdValidator(episode_duration=3000.0, segments=segments,
+                            confirmed_corrections=[confirm], min_cut_confidence=0.8)
+    return sorted(validator.validate([detection]).ads, key=lambda a: a['start'])
+
+
+def test_plain_confirm_clamp_leaves_its_remainder_as_a_candidate():
+    # Production shape: a plain confirm of 1963.37-2012.88 and a re-detection to 2020.4.
+    confirm = {'start': 1963.37, 'end': 2012.88, 'correction_type': 'confirm'}
+    ads = _clamp_validate(_detection(1963.4, 2020.4), confirm)
+
+    assert _spans(ads) == [(1963.4, 2012.88), (2012.88, 2020.4)]
+    approved, remainder = ads
+    assert approved['validation']['user_confirmed'] is True
+    assert 'user_confirmed' not in remainder['validation']
+    assert 'INFO: User confirmed as ad' not in remainder['validation']['flags']
+    assert remainder['_skip_pattern_learning'] is True
+
+
+@pytest.mark.parametrize('kind', ['confirm', 'boundary_adjustment'])
+def test_trim_or_adjustment_clamp_keeps_the_trimmed_part_out(kind):
+    confirm = {'start': 1000.0, 'end': 1100.0, 'correction_type': kind,
+               'confirmed_span': {'start': 1000.0, 'end': 1060.0}}
+    ads = _clamp_validate(_detection(1000.0, 1100.0), confirm)
+    assert _spans(ads) == [(1000.0, 1060.0)]
+
+
+def test_short_clamp_remainder_is_dropped_with_a_reason(caplog):
+    confirm = {'start': 1000.0, 'end': 1100.0, 'correction_type': 'confirm'}
+    with caplog.at_level(logging.INFO):
+        ads = _clamp_validate(_detection(1000.0, 1105.0), confirm)
+    assert _spans(ads) == [(1000.0, 1100.0)]
+    assert any('1100.0s-1105.0s' in r.getMessage() and 'too short' in r.getMessage()
+               for r in caplog.records)

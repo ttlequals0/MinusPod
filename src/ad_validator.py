@@ -705,7 +705,12 @@ class AdValidator:
                     ad, span, seen_start, seen_end, reason))
             for lo, hi in ((ad['start'], seen_start),
                            (seen_end, ad['end'])):
+                if hi <= lo:
+                    continue
                 if hi - lo < MIN_AD_DURATION:
+                    logger.info(
+                        f"Dropping {lo:.1f}s-{hi:.1f}s beyond a confirmed span: "
+                        f"too short to validate on its own")
                     continue
                 # Clipped members let the estimated-remainder split judge it.
                 residue = self._narrowed(
