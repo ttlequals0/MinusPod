@@ -11,6 +11,7 @@ from collections.abc import Callable
 from typing import NamedTuple
 
 from sponsor_service import SponsorService
+from text_pattern_matcher import _segments_for_pattern_learning
 from utils.prompt import (
     format_sponsor_block, render_prompt, strip_comments_from_prompt
 )
@@ -387,10 +388,18 @@ def _names_known_sponsor(summary: list[str], quotes: list[str],
 
 
 def segment_span_text(segments: list[dict]) -> Callable[[float, float], str]:
-    """Callable returning the joined text of the segments overlapping [start, end]."""
+    """Callable returning the text inside [start, end], boundary segments clipped to their words."""
     def span_text(start: float, end: float) -> str:
-        return ' '.join(seg.get('text', '') for seg in segments
-                        if seg['end'] > start and seg['start'] < end)
+        parts = []
+        for seg in segments:
+            if seg['end'] <= start or seg['start'] >= end:
+                continue
+            clipped = None
+            if seg['start'] < start or seg['end'] > end:
+                clipped = _segments_for_pattern_learning([seg], start, end)
+            parts.append(seg.get('text', '') if clipped is None
+                         else ' '.join(word['text'] for word in clipped))
+        return ' '.join(parts)
     return span_text
 
 

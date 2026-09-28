@@ -548,6 +548,16 @@ def test_segment_span_text_joins_the_overlapping_segments():
     assert segment_span_text(segments)(10.0, 30.0) == 'inside one inside two'
 
 
+def test_segment_span_text_clips_boundary_segments_to_the_window():
+    segments = [{'start': 0.0, 'end': 20.0, 'text': 'Acme rocks. inside',
+                 'words': [{'start': 0.0, 'end': 5.0, 'word': 'Acme'},
+                           {'start': 5.0, 'end': 9.0, 'word': 'rocks.'},
+                           {'start': 12.0, 'end': 18.0, 'word': 'inside'}]},
+                {'start': 20.0, 'end': 30.0, 'text': 'middle'},
+                {'start': 30.0, 'end': 40.0, 'text': 'untimed tail'}]
+    assert segment_span_text(segments)(10.0, 35.0) == 'inside middle untimed tail'
+
+
 def _read_segments(start, end):
     return [{'start': float(t), 'end': float(t) + 10.0,
              'text': 'Acme makes it easy' if start <= t < end else 'show talk'}
