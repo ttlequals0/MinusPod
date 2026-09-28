@@ -9,11 +9,23 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.34] - 2026-09-28
+
+### Fixed
+
+- When a pass-2 finding overlaps a pass-1 hold, the parts outside the hold are no longer discarded. They go through validation and review like any other pass-2 finding. The hold itself is still decided on the full finding. An outside part can now be cut while an estimated-pattern hold next to it stays pending, so an episode may show a partial cut beside a held marker.
+- A hold with several supported reads inside it can now have each read reviewed and released separately. Before, only one span per hold was reviewed.
+- Ad validation no longer auto-rejects ads whose reason contains a word ending in "no" before "ad" or "sponsor", such as "Casino ad" being read as "no ad". Contributed in #793, fixes #792.
+- Pending holds now block gap merges and the end-of-file extension in the pass-1 render and in recuts. A cut before a pending hold no longer runs through the hold to the end of the file. The held audio stays in until it is reviewed.
+
+### Added
+
+- Every pass-2 span now ends with one logged outcome: cut, held, kept, rejected, covered or dropped, with the reason and its bounds in original time. Run stats count each outcome.
+
 ## [2.97.33] - 2026-09-28
 
 ### Fixed
 
-- Ad validation no longer auto-rejects ads whose reason contains a word ending in "no" before "ad" or "sponsor" (for example "Casino ad" read as "no ad").
 - Common host-read closings now count as commercial language when a sponsor is confirmed. They are a call to action before the sponsor's domain ("learn more at acme.com"), a domain read aloud or spelled out ("acme dot com", "A-C-M-E.com"), and a thank-you that names the sponsor ("thanks to Acme for supporting the show"). The domain must match the sponsor. A written domain with no call to action, a plain "thanks to Acme", and "our friends at Acme" do not count, since news and conversation use them too.
 - A span that names its own sponsor in the transcript or the sponsor registry is no longer held for lacking splice evidence. A sponsor named only in the model's reason still holds.
 - The long-window sponsor check now reads the span's transcript, not just the model's reason, so a truncated reason no longer drops a real read. The transcript must name the same sponsor at least twice, and a segment at the edge of the span counts only its words inside the span. A brand known only from the sponsor registry also needs commercial language in the span, as the splice check requires. A brand named twice in conversation does not count.
