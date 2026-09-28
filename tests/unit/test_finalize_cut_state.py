@@ -84,8 +84,7 @@ class TestFinalizeCutState:
             (10.0, 30.0, True), (30.0, 50.0, False)]
         assert all(m['carved_from'] == {'start': 10.0, 'end': 50.0} for m in all_ads)
         assert ads_to_remove == [all_ads[0]] and ads_to_remove[0] is all_ads[0]
-        assert all_ads[0]['validation']['flags'] == []
-        assert all_ads[1]['validation']['flags'] == ['INFO: Left in audio by the render']
+        assert [m['validation']['flags'] for m in all_ads] == [[], []]
         assert a['validation']['flags'] == []
         assert not any(m.get('held_for_review') for m in all_ads)
         assert all('partial_cut_spans' not in m for m in all_ads)
@@ -134,24 +133,20 @@ class TestFinalizeCutState:
         assert [(m['start'], m['end'], m['was_cut']) for m in all_ads] == [
             (10.0, 30.0, True), (30.0, 40.0, False), (40.0, 50.0, True)]
         assert all(m['carved_from'] == {'start': 10.0, 'end': 50.0} for m in all_ads)
-        assert [m['validation']['flags'] for m in all_ads] == [
-            [], ['INFO: Left in audio by the render'], []]
         first = copy.deepcopy(all_ads)
         processing._finalize_cut_state(all_ads, [*ads_to_remove], final, 600.0)
         assert all_ads == first
 
-    def test_remainder_fully_cut_later_drops_the_left_in_audio_flag(self):
+    def test_remainder_fully_cut_later_is_marked_cut(self):
         a = _marker(10.0, 50.0, validation={'decision': 'ACCEPT', 'flags': ['WARN: x']})
         all_ads, ads_to_remove = [a], [a]
         pass1 = [applied_cut(10.0, 30.0)]
         processing._finalize_cut_state(all_ads, ads_to_remove, pass1, 600.0)
-        remainder_flags = all_ads[1]['validation']['flags']
         processing._finalize_cut_state(
             all_ads, [*ads_to_remove], [*pass1, applied_cut(30.0, 50.0)], 600.0)
         assert [(m['start'], m['end'], m['was_cut'], m['validation']['flags'])
                 for m in all_ads] == [(10.0, 30.0, True, ['WARN: x']),
                                       (30.0, 50.0, True, ['WARN: x'])]
-        assert remainder_flags == ['WARN: x', 'INFO: Left in audio by the render']
 
     def test_carved_fragment_is_not_learned(self, monkeypatch):
         a = _marker(10.0, 50.0)

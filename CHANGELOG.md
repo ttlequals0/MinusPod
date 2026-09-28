@@ -17,7 +17,6 @@ release notes.
 - Cross-fetch comparison no longer marks show audio as different when the refetched copy has an ad inserted where the processed copy has none. A block with no match is now probed at the offsets on both sides of it, not only at the interpolated one.
 - Pass-2 auto-approval now files one confirm per span, even when two held markers cover the same audio. A reviewer hold still gets its own confirm when the other hold has a different reason, since only a confirm with a matching reason releases it.
 - Deactivating a pattern through the API or by merging patterns now records when it was disabled. Deactivating it again keeps the first time. Reactivating it clears the time, and the API also clears the disabled reason.
-- A remainder that a later pass cuts completely no longer keeps its flag saying it stayed in the audio.
 
 ### Changed
 

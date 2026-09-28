@@ -96,8 +96,7 @@ def test_legacy_partial_cut_spans_expand_on_load():
         (110.0, 120.0, False), (200.0, 230.0, True)]
     assert all(m['carved_from'] == {'start': 60.0, 'end': 120.0} for m in markers[:4])
     assert all('partial_cut_spans' not in m for m in markers)
-    assert markers[1]['validation']['flags'] == ['INFO: Left in audio by the render']
-    assert markers[0]['validation']['flags'] == []
+    assert all(m['validation']['flags'] == [] for m in markers[:4])
     assert normalize_loaded_markers(markers) == markers
 
 

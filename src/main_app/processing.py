@@ -56,8 +56,8 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import (CARVED_REMAINDER_FLAG, EDGE_TOLERANCE, auto_confirm_releases, carve_fragment,
-                           carve_partly_cut, covering_confirm,
+from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, carve_fragment,
+                           carve_partly_cut, covering_confirm, is_carved,
                            clip_merge_spans, finite_number,
                            fold_marker_pair, foldable_twin, invalidate_tail_provenance,
                            parse_ad_markers,
@@ -1814,7 +1814,7 @@ def _learn_from_applied_cut_ads(slug, episode_id, cut_ads, markers,
         marker = _find_master(markers, ad)
         # A carved fragment is part of a read, not a whole one.
         if (marker is None or not ad.get('was_cut') or not marker.get('was_cut')
-                or 'carved_from' in marker or is_pending_review(marker)
+                or is_carved(marker) or is_pending_review(marker)
                 or marker.get('action_applied') not in ('remove', 'beep')
                 or marker['start'] != ad['start'] or marker['end'] != ad['end']
                 or not _covered_by_cuts(marker, applied_cuts, original_duration)):
@@ -2767,14 +2767,6 @@ def _covering_group(groups, marker, duration):
                  if g[0] - EDGE_TOLERANCE <= start and end <= g[1] + EDGE_TOLERANCE), None)
 
 
-def _clear_remainder_flag(marker):
-    """Drop the left-in-audio flag from a remainder a later pass cut, without touching shared lists."""
-    validation = marker.get('validation')
-    if isinstance(validation, dict) and CARVED_REMAINDER_FLAG in (validation.get('flags') or []):
-        marker['validation'] = dict(validation, flags=[
-            f for f in validation['flags'] if f != CARVED_REMAINDER_FLAG])
-
-
 def _finalize_cut_state(all_ads, ads_to_remove, applied_cuts, duration, tag=''):
     """Set was_cut from the rendered cuts, carving partly cut markers; returns the cut groups."""
     groups = _cut_groups(applied_cuts)
@@ -2783,14 +2775,11 @@ def _finalize_cut_state(all_ads, ads_to_remove, applied_cuts, duration, tag=''):
     markers = {id(m): m for m in [*all_ads, *ads_to_remove]}
     carved = {}
     for marker in markers.values():
-        marker.pop('partial_cut_spans', None)
         is_requested = id(marker) in requested
         # A pass-1 remainder is re-carved when a later pass cuts part of it.
-        eligible = is_requested or 'carved_from' in marker
+        eligible = is_requested or is_carved(marker)
         marker['was_cut'] = (eligible
                              and _covering_group(groups, marker, duration) is not None)
-        if marker['was_cut'] and not is_requested:
-            _clear_remainder_flag(marker)
         if not eligible or marker['was_cut']:
             continue
         start, end = _clamped_span(marker, duration)

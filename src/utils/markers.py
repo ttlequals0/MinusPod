@@ -18,7 +18,6 @@ DAI_PROBE_LEAD_S = 0.5
 DAI_PROBE_REF_S = 4.0
 
 EDGE_TOLERANCE = 0.05
-CARVED_REMAINDER_FLAG = 'INFO: Left in audio by the render'
 COVERAGE_GAP_TOLERANCE = 3.0
 
 
@@ -796,6 +795,11 @@ def carve_fragment(parent: dict, start: float, end: float) -> dict:
     return fragment
 
 
+def is_carved(marker: dict) -> bool:
+    """Whether the marker is a fragment carved from a wider detected span."""
+    return 'carved_from' in marker
+
+
 def carve_partly_cut(marker: dict, start: float, end: float, covered) -> list[dict]:
     """Cut fragments over covered, uncut remainders elsewhere in [start, end]; [] if none covered."""
     covered = [(lo, hi) for lo, hi in covered if hi - lo > EDGE_TOLERANCE]
@@ -810,11 +814,6 @@ def carve_partly_cut(marker: dict, start: float, end: float, covered) -> list[di
         fragment = carve_fragment(marker, lo, hi)
         fragment['carved_from'] = dict(origin)
         fragment['was_cut'] = was_cut
-        validation = fragment.get('validation')
-        if isinstance(validation, dict):
-            flags = [f for f in validation.get('flags') or [] if f != CARVED_REMAINDER_FLAG]
-            fragment['validation'] = dict(
-                validation, flags=flags if was_cut else [*flags, CARVED_REMAINDER_FLAG])
         fragments.append(fragment)
     return fragments
 
