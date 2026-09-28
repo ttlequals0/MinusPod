@@ -31,6 +31,7 @@ from utils.markers import (
     clip_dai_core_spans,
     clip_merge_spans,
     COVERAGE_GAP_TOLERANCE,
+    covering_confirm,
     EDGE_TOLERANCE,
     dai_core_bounds,
     drop_stale_reviewer_locks,
@@ -560,39 +561,13 @@ class AdValidator:
         """Check if a time range overlaps with any user-marked false positive."""
         return self._overlaps_corrections(self.false_positive_corrections, start, end, overlap_threshold)
 
-    def _overlaps_confirmed(self, start: float, end: float,
-                            overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> bool:
-        """Check if a time range overlaps with any user-confirmed correction."""
-        return self._overlaps_corrections(self.confirmed_corrections, start, end, overlap_threshold)
-
     def _matching_confirmed(self, start: float, end: float,
                             overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE,
                             skip_auto_filed: bool = False) -> dict | None:
-        """Return a user-confirmed correction covering >= threshold of the
-        range, or None. Mirrors _overlaps_confirmed but yields the match so
-        the caller can honor an exact ``confirmed_span``. Corrections arrive
-        newest first, so the latest overlapping user decision is authoritative.
-        """
-        segment_duration = end - start
-        if segment_duration < 0.001:
-            return None
-        for corr in self.confirmed_corrections:
-            if skip_auto_filed and corr.get('auto_filed'):
-                continue
-            confirmed_span = corr.get('confirmed_span')
-            matches_original = (
-                overlap_ratio(corr['start'], corr['end'], start, end)
-                >= overlap_threshold
-            )
-            matches_approved = (
-                confirmed_span
-                and overlap_ratio(
-                    confirmed_span['start'], confirmed_span['end'], start, end)
-                >= overlap_threshold
-            )
-            if matches_original or matches_approved:
-                return corr
-        return None
+        """Newest confirm covering >= threshold of the range, so callers can honor its confirmed_span."""
+        return covering_confirm(start, end, self.confirmed_corrections,
+                                include_auto_filed=not skip_auto_filed,
+                                threshold=overlap_threshold)
 
     def validate(self, ads: list[dict],
                  audio_analysis: dict | None = None,

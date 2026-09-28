@@ -79,16 +79,26 @@ def is_reviewer_rejected(marker: dict) -> bool:
             and not marker.get('held_for_review'))
 
 
-def _confirm_covers(corr: dict, marker: dict) -> bool:
-    spans = [corr, corr.get('confirmed_span') or corr]
-    return any(overlap_ratio(s['start'], s['end'], marker['start'], marker['end'])
-               >= CORRECTION_MATCH_MIN_COVERAGE for s in spans)
+def covering_confirm(start, end, confirmed, *, include_auto_filed=True, where=None,
+                     threshold=CORRECTION_MATCH_MIN_COVERAGE) -> dict | None:
+    """First (newest) confirm whose original or confirmed_span covers >= threshold of the range."""
+    if start is None or end is None or end - start < 0.001:
+        return None
+    for corr in confirmed or []:
+        if not include_auto_filed and corr.get('auto_filed'):
+            continue
+        if where is not None and not where(corr):
+            continue
+        for span in (corr, corr.get('confirmed_span')):
+            if span and overlap_ratio(span['start'], span['end'], start, end) >= threshold:
+                return corr
+    return None
 
 
 def explicit_override(marker: dict, confirmed: list[dict]) -> bool:
     """Whether a user (not auto-filed) confirm or boundary adjustment covers the marker."""
-    return any(not corr.get('auto_filed') and _confirm_covers(corr, marker)
-               for corr in confirmed or [])
+    return covering_confirm(marker['start'], marker['end'], confirmed,
+                            include_auto_filed=False) is not None
 
 
 def reviewer_hold_stands(marker: dict, confirmed: list[dict]) -> bool:
@@ -97,9 +107,9 @@ def reviewer_hold_stands(marker: dict, confirmed: list[dict]) -> bool:
     if (not marker.get('held_for_review') or marker.get('was_cut')
             or reason not in REVIEWER_HOLD_REASONS or explicit_override(marker, confirmed)):
         return False
-    return not (reason in PASS2_REVIEWED_RELEASE_HOLD_REASONS and any(
-        corr.get('auto_filed') and corr.get('hold_reason') == reason
-        and _confirm_covers(corr, marker) for corr in confirmed or []))
+    return not (reason in PASS2_REVIEWED_RELEASE_HOLD_REASONS and covering_confirm(
+        marker['start'], marker['end'], confirmed,
+        where=lambda c: c.get('auto_filed') and c.get('hold_reason') == reason) is not None)
 
 
 def reviewer_edge_locked(marker: dict, edge: str) -> bool:

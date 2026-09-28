@@ -3319,6 +3319,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
             # silently does nothing (seen on a production reprocess).
             span = _pass2_confirm_span(m)
             target = span or m
+            # Not covering_confirm: a stale wide original must not count once a confirmed_span exists.
             if any(overlap_ratio((c.get('confirmed_span') or c)['start'],
                                  (c.get('confirmed_span') or c)['end'],
                                  target['start'], target['end'])
