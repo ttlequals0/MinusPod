@@ -6,20 +6,14 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from database import Database
 from pattern_service import PatternService
 
 _EXPLICIT = '2021-05-06T07:08:09Z'
 
 
 @pytest.fixture
-def db(tmp_path):
-    Database._instance = None
-    if hasattr(Database, '_initialized'):
-        Database._initialized = False
-    instance = Database(data_dir=str(tmp_path))
-    yield instance
-    Database._instance = None
+def db(temp_db):
+    return temp_db
 
 
 def _pattern(db, text, sponsor_id=None):

@@ -7,17 +7,11 @@ import tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='pattern-disable-api-test-'))
 
+from tests.app_bootstrap import authenticate_test_client  # noqa: E402
+
 _READ = ('Acme makes great widgets for busy people everywhere. '
          'Visit acme dot com slash deal for twenty percent off your first order.')
 _OLD_STAMP = '2020-01-02T03:04:05Z'
-
-
-def _csrf(app_client):
-    with app_client.session_transaction() as sess:
-        sess['authenticated'] = True
-    app_client.get('/api/v1/auth/status')
-    cookie = app_client.get_cookie('minuspod_csrf')
-    return {'X-CSRF-Token': cookie.value} if cookie else {}
 
 
 def _pattern(db):
@@ -28,7 +22,8 @@ def _pattern(db):
 
 
 def _put(app_client, pid, body):
-    r = app_client.put(f'/api/v1/patterns/{pid}', json=body, headers=_csrf(app_client))
+    r = app_client.put(f'/api/v1/patterns/{pid}', json=body,
+                       headers=authenticate_test_client(app_client))
     assert r.status_code == 200, r.get_data(as_text=True)
 
 
