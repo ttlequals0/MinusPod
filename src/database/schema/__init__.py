@@ -3546,7 +3546,8 @@ class SchemaMixin:
             while True:
                 batch = conn.execute(
                     "SELECT episode_id, ad_markers_json FROM episode_details "
-                    "WHERE episode_id > ? AND ad_markers_json LIKE '%dai_core_spans%' "
+                    "WHERE episode_id > ? AND (ad_markers_json LIKE '%dai_core_spans%' "
+                    "OR ad_markers_json LIKE '%partial_cut_spans%') "
                     "ORDER BY episode_id LIMIT ?",
                     (last_id, _COLLAPSE_BATCH_ROWS)
                 ).fetchall()

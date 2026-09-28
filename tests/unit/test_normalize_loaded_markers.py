@@ -162,3 +162,16 @@ def test_legacy_partial_cut_spans_expand_on_load():
     assert markers[1]['validation']['flags'] == ['INFO: Left in audio by the render']
     assert markers[0]['validation']['flags'] == []
     assert normalize_loaded_markers(markers) == markers
+
+
+def test_migration_carves_legacy_partial_cut_rows(temp_db):
+    legacy = {'start': 60.0, 'end': 120.0, 'was_cut': False,
+              'partial_cut_spans': [{'start': 60.0, 'end': 90.0}]}
+    _seed(temp_db, [legacy])
+
+    conn = _run(temp_db)
+
+    stored = json.loads(_raw(conn))
+    assert [(m['start'], m['end'], m['was_cut']) for m in stored] == [
+        (60.0, 90.0, True), (90.0, 120.0, False)]
+    assert all(m['carved_from'] == {'start': 60.0, 'end': 120.0} for m in stored)
