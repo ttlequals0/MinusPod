@@ -506,23 +506,15 @@ def test_single_passing_mention_in_the_span_does_not_admit_a_long_window():
         segments=_span_segments('Stay calm, the hosts say, and recap the week.')) is None
 
 
-def _offsets_registry(*names):
-    registry = MagicMock(spec=['brand_mention_offsets', 'find_sponsor_in_text'])
-    registry.find_sponsor_in_text.return_value = None
-    patterns = {n: word_boundary_re([n]) for n in names}
-    registry.brand_mention_offsets.side_effect = lambda text: pattern_offsets(text, patterns)
-    return registry
-
-
 def test_registry_sponsor_in_the_span_admits_a_long_window():
     ad = {'confidence': 0.95, 'reason': _CUT_REASON}
-    assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=_offsets_registry('Acme'),
+    assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=_registry('Acme'),
                          segments=_span_segments(_ACME_READ)) is not None
 
 
 def test_a_repeated_registry_sponsor_counts_past_a_single_common_word_brand():
     ad = {'confidence': 0.95, 'reason': _CUT_REASON}
-    registry = _offsets_registry('Calm', 'Acme')
+    registry = _registry('Calm', 'Acme')
     text = 'Stay calm. ' + _ACME_READ
     assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=registry,
                          segments=_span_segments(text)) is not None

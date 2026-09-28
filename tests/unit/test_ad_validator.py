@@ -11,7 +11,7 @@ from audio_processor import AudioProcessor
 from sponsor_service import SponsorService
 from utils.markers import mark_distinct_merge
 from utils.text import word_boundary_re
-from tests.unit.marker_test_utils import registry_confirms
+from tests.unit.marker_test_utils import RegistryStub, registry_confirms
 from config import (
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
     HOLD_REASON_UNCORROBORATED_TAIL,
@@ -2253,14 +2253,6 @@ def test_merge_preserves_vad_adjacency_extension_limit():
     assert merged[1]['start'] == 202.0
 
 
-def _all_offsets(text, needle):
-    """Every start offset of `needle` in `text`."""
-    pos = text.find(needle)
-    while pos != -1:
-        yield pos
-        pos = text.find(needle, pos + 1)
-
-
 class TestRegistryConfirmsLongAds:
     """A real multi-sponsor break was rejected on length alone.
 
@@ -2286,23 +2278,9 @@ class TestRegistryConfirmsLongAds:
         return {'start': 1692.8, 'end': 2066.3, 'confidence': 0.8,
                 'reason': 'Wayfair, Warby Parker: ad break', 'detection_stage': 'claude'}
 
-    class _Registry:
-        """Stands in for the seeded registry: both brands in ADS_TEXT are
-        seed sponsors, and 'warbyparker.com' matches the spaced name too."""
-
-        VARIANTS = {'Wayfair': ('wayfair',),
-                    'Warby Parker': ('warby parker', 'warbyparker')}
-
-        def brand_mention_offsets(self, text):
-            low = (text or '').lower()
-            found = {}
-            for name, variants in self.VARIANTS.items():
-                offsets = sorted(
-                    pos for variant in variants
-                    for pos in _all_offsets(low, variant))
-                if offsets:
-                    found[name] = offsets
-            return found
+    # Both brands in ADS_TEXT are seed sponsors; 'warbyparker.com' matches the spaced name too.
+    _REGISTRY = RegistryStub({'Wayfair': ('wayfair',),
+                              'Warby Parker': ('warby parker', 'warbyparker')})
 
     def test_long_break_is_held_without_the_registry(self):
         v = AdValidator(3700.0, self._segments(), episode_description='',
@@ -2313,7 +2291,7 @@ class TestRegistryConfirmsLongAds:
 
     def test_the_registry_confirms_it_and_it_is_accepted(self):
         v = AdValidator(3700.0, self._segments(), episode_description='',
-                        min_cut_confidence=0.80, sponsor_service=self._Registry())
+                        min_cut_confidence=0.80, sponsor_service=self._REGISTRY)
         result = v.validate([self._ad()])
         assert result.ads[0]['validation']['decision'] == 'ACCEPT'
 
@@ -2321,7 +2299,7 @@ class TestRegistryConfirmsLongAds:
         segs = self._segments()
         segs[1]['text'] = 'just a very long stretch of ordinary conversation ' * 12
         v = AdValidator(3700.0, segs, episode_description='',
-                        min_cut_confidence=0.80, sponsor_service=self._Registry())
+                        min_cut_confidence=0.80, sponsor_service=self._REGISTRY)
         ad = v.validate([self._ad()]).ads[0]
         assert ad['validation']['decision'] != 'ACCEPT'
 
@@ -2331,7 +2309,7 @@ class TestRegistryConfirmsLongAds:
         segs = self._segments()
         segs[1]['text'] = 'ordinary conversation with no brand named at all ' * 12
         v = AdValidator(3700.0, segs, episode_description='',
-                        min_cut_confidence=0.80, sponsor_service=self._Registry())
+                        min_cut_confidence=0.80, sponsor_service=self._REGISTRY)
         assert v._sponsor_confirmation_source(self._ad()) is None
 
     def test_a_registry_failure_does_not_break_validation(self):
@@ -2449,16 +2427,13 @@ class TestRegistryNeedsMoreThanOneMention:
     """A misdetected span of several minutes will often contain one organic
     brand mention; that is not a sponsor read."""
 
-    class _Registry:
-        def brand_mention_offsets(self, text):
-            offsets = list(_all_offsets((text or '').lower(), 'acme'))
-            return {'Acme': offsets} if offsets else {}
+    _REGISTRY = RegistryStub({'Acme': ('acme',)})
 
     def _validator(self, ad_text):
         segments = [{'start': 0.0, 'end': 400.0, 'text': ad_text}]
         return AdValidator(3600.0, segments, episode_description='',
                            min_cut_confidence=0.80,
-                           sponsor_service=self._Registry())
+                           sponsor_service=self._REGISTRY)
 
     def test_a_single_passing_mention_does_not_confirm(self):
         v = self._validator('we talked about Acme once today and then moved on')
@@ -2472,19 +2447,10 @@ class TestRegistryNeedsMoreThanOneMention:
     def test_one_mention_each_of_two_brands_does_not_confirm(self):
         """Summed across brands, two name-drops in a long span read as a
         sponsor read. One brand has to be named twice."""
-        class _TwoBrands:
-            def brand_mention_offsets(self, text):
-                found = {}
-                for name in ('Slack', 'Zoom'):
-                    offsets = list(_all_offsets((text or '').lower(), name.lower()))
-                    if offsets:
-                        found[name] = offsets
-                return found
-
         segments = [{'start': 0.0, 'end': 400.0,
                      'text': 'we moved the Slack thread into a Zoom call'}]
         v = AdValidator(3600.0, segments, episode_description='',
-                        min_cut_confidence=0.80, sponsor_service=_TwoBrands())
+                        min_cut_confidence=0.80, sponsor_service=RegistryStub({'Slack': ('slack',), 'Zoom': ('zoom',)}))
 
         assert registry_confirms(v, {'start': 0.0, 'end': 400.0}) is False
 
