@@ -78,13 +78,12 @@ class Pass2Ledger:
                     self.record(ad, 'dropped:pass_failed')
 
     def settle(self, cut, held, kept):
-        """Record the markers the pass ends with."""
-        for ad in cut:
-            self.record(ad, 'cut')
-        for ad in held:
-            self.record(ad, f"held:{ad.get('hold_reason') or 'unknown'}")
-        for ad in kept:
-            self.record(ad, 'kept')
+        """Record the markers the pass ends with and stamp each with its outcome."""
+        for ad, outcome in [*((ad, 'cut') for ad in cut),
+                            *((ad, f"held:{ad.get('hold_reason') or 'unknown'}") for ad in held),
+                            *((ad, 'kept') for ad in kept)]:
+            self.record(ad, outcome)
+            ad['pass2_outcome'] = outcome
 
     def emit(self, slug=None, episode_id=None, run_stats=None):
         """Log one line per span and count the outcomes into run_stats."""

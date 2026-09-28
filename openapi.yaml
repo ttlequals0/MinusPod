@@ -12738,6 +12738,12 @@ components:
           type: string
           nullable: true
           description: Reviewer explanation when the reviewer evaluated this marker.
+        pass2_outcome:
+          type: string
+          description: >-
+            Set on a marker pass 2 ended with: cut, kept, or held:<hold_reason>.
+            Spans pass 2 discarded are only logged and counted in run stats.
+          example: cut
         pass2_hold_review:
           type: object
           nullable: true

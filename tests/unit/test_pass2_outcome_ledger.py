@@ -292,3 +292,11 @@ def test_validator_clamp_past_the_audio_end_is_not_called_covered(caplog):
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
         ledger.emit('example-podcast', 'a1b2c3d4e5f6')
     assert _ledger_lines(caplog.records) == [(610.0, 640.0, 'dropped:validator_clamped')]
+
+
+def test_surviving_markers_carry_their_outcome(caplog):
+    run = _run([(200.0, 260.0), (400.0, 460.0, 0.7), (600.0, 660.0, 0.95, 'self_promo'),
+                (1400.0, 1460.0, 0.3)], caplog=caplog)
+    stamped = sorted((a['start'], a['pass2_outcome']) for a in [*run.output[1], *run.output[3]])
+    assert stamped == [(200.0, 'cut'), (400.0, 'held:verification_miss'), (600.0, 'kept')]
+    assert run.stats['pass2_outcomes']['dropped:below_miss_floor'] == 1
