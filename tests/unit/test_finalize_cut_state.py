@@ -140,6 +140,19 @@ class TestFinalizeCutState:
         processing._finalize_cut_state(all_ads, [*ads_to_remove], final, 600.0)
         assert all_ads == first
 
+    def test_remainder_fully_cut_later_drops_the_left_in_audio_flag(self):
+        a = _marker(10.0, 50.0, validation={'decision': 'ACCEPT', 'flags': ['WARN: x']})
+        all_ads, ads_to_remove = [a], [a]
+        pass1 = [applied_cut(10.0, 30.0)]
+        processing._finalize_cut_state(all_ads, ads_to_remove, pass1, 600.0)
+        remainder_flags = all_ads[1]['validation']['flags']
+        processing._finalize_cut_state(
+            all_ads, [*ads_to_remove], [*pass1, applied_cut(30.0, 50.0)], 600.0)
+        assert [(m['start'], m['end'], m['was_cut'], m['validation']['flags'])
+                for m in all_ads] == [(10.0, 30.0, True, ['WARN: x']),
+                                      (30.0, 50.0, True, ['WARN: x'])]
+        assert remainder_flags == ['WARN: x', 'INFO: Left in audio by the render']
+
     def test_carved_fragment_is_not_learned(self, monkeypatch):
         a = _marker(10.0, 50.0)
         all_ads, ads_to_remove = [a], [a]
