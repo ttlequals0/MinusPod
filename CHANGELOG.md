@@ -9,6 +9,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.33] - 2026-09-28
+
+### Fixed
+
+- Common host-read closings now count as commercial language when a sponsor is confirmed: "learn more at acme.com", a spelled-out domain such as "acme dot com", and "thanks to Acme for supporting the show". The domain must match the sponsor, so an unrelated link does not count.
+- A span that names its own sponsor in the transcript or the sponsor registry is no longer held for lacking splice evidence. A sponsor named only in the model's reason still holds.
+- The long-window sponsor check now reads the span's transcript, not just the model's reason, so a truncated reason no longer drops a real read. The transcript must name the same sponsor at least twice.
+
+### Changed
+
+- When a pass-2 hold review leaves the hold in place, the marker now records the span, the verdict and the reason as `pass2_hold_review`. The episode view shows them on their own line under the hold. Pass-1 reviewer reasoning is left as it was.
+
 ## [2.97.32] - 2026-09-28
 
 ### Fixed
