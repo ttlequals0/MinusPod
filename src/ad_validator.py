@@ -2,6 +2,7 @@
 import math
 import re
 import logging
+from itertools import pairwise
 from typing import ClassVar
 from dataclasses import dataclass, field
 from enum import Enum
@@ -71,6 +72,7 @@ _REMAINDER_DROPPED_KEYS = (
     '_confirmed_correction', '_has_confirmed_correction_candidate',
     '_matches_false_positive_correction', '_saved_was_cut', 'pass2_corroborated',
     'pass2_corroborated_span', 'pass2_hold_review', 'pass2_reviewed_release',
+    'pass2_released_spans',
 )
 
 
@@ -582,6 +584,8 @@ class AdValidator:
                     split_ads.append(carve_fragment(ad, hi, ad['end']))
             ads = split_ads
 
+        ads = self._split_multi_release_holds(ads)
+
         # Human false-positive decisions apply to the detected span the user
         # actually reviewed. Preserve that match before measured DAI bounds
         # restore portions removed by an automatic snap. Keep matching and
@@ -592,11 +596,14 @@ class AdValidator:
         for ad in ads:
             ad['_matches_false_positive_correction'] = (
                 self._overlaps_false_positive(ad['start'], ad['end']))
+            pinned = ad.pop('_pinned_release_confirm', None)
             if ad.get('_user_kept_by_trim'):
                 continue
             # An auto-filed confirm never outranks a standing reviewer reject.
-            confirmed = self._matching_confirmed(
-                ad['start'], ad['end'], skip_auto_filed=ad.get('_reviewer_rejected', False))
+            confirmed = (pinned if pinned is not None and not ad.get('_reviewer_rejected')
+                         else self._matching_confirmed(
+                             ad['start'], ad['end'],
+                             skip_auto_filed=ad.get('_reviewer_rejected', False)))
             if confirmed is None:
                 continue
             span = confirmed.get('confirmed_span')
@@ -1448,6 +1455,37 @@ class AdValidator:
         invalidate_quote_alignment(piece)
         invalidate_word_timed_edges(piece)
         return piece
+
+    def _split_multi_release_holds(self, ads: list[dict]) -> list[dict]:
+        """Give each auto-filed release of one hold its own piece of the marker."""
+        out = []
+        for ad in ads:
+            newest = self._matching_confirmed(ad['start'], ad['end'])
+            if newest is None or not newest.get('auto_filed'):
+                out.append(ad)
+                continue
+            releases = sorted(
+                (c for c in self.confirmed_corrections
+                 if c.get('auto_filed') and c.get('confirmed_span')
+                 and (c['start'], c['end']) == (newest['start'], newest['end'])
+                 and c['confirmed_span']['start'] < ad['end']
+                 and c['confirmed_span']['end'] > ad['start']),
+                key=lambda c: c['confirmed_span']['start'])
+            if len(releases) == 1 and releases[0] is not newest:
+                ad['_pinned_release_confirm'] = releases[0]
+            if len(releases) < 2 or any(
+                    a['confirmed_span']['end'] > b['confirmed_span']['start']
+                    for a, b in pairwise(releases)):
+                out.append(ad)
+                continue
+            # Cut at each release's end, so the gap before the next stays in one held piece.
+            edges = [ad['start'], *(c['confirmed_span']['end'] for c in releases[:-1]), ad['end']]
+            keep_members = self._has_estimated_edge(ad)
+            for confirm, (lo, hi) in zip(releases, pairwise(edges), strict=True):
+                piece = self._narrowed(ad, lo, hi, keep_members=keep_members)
+                piece['_pinned_release_confirm'] = confirm
+                out.append(piece)
+        return out
 
     def _held_remainders(self, ad: dict, span: dict, seen_start: float,
                          seen_end: float, reason: str) -> list[dict]:

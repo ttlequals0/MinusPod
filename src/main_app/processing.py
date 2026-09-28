@@ -2475,31 +2475,41 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
     )
     by_key = {(sub['start'], sub['end']): (sub, hold) for sub, hold in candidates}
     released = 0
+    released_by_hold = {}
     for v in result.verdicts:
         sub, hold = by_key.get((v.original_start, v.original_end), (None, None))
-        # A fast-path corroboration already owns the hold's approved span.
-        if (hold is None or hold.get('pass2_reviewed_release')
-                or hold.get('pass2_corroborated')):
+        if hold is None:
             continue
-        span = _released_span(v, sub, hold, protection.barriers_orig(exclude=[hold]))
+        prior = released_by_hold.get(id(hold))
+        # A fast-path corroboration already owns the hold's approved span.
+        if prior is None and (hold.get('pass2_reviewed_release')
+                              or hold.get('pass2_corroborated')):
+            continue
+        span = _released_span(v, sub, hold, [
+            *protection.barriers_orig(exclude=[hold]), *(prior or [])])
         if span is None:
             reason = v.reasoning or f"Review returned {v.verdict}"
             # Diagnostic only: no reviewer_verdict, source or reviewer_reasoning on the hold.
-            hold['pass2_hold_review'] = {
-                'span': [float(sub['start']), float(sub['end'])],
-                'verdict': v.verdict, 'reason': reason}
+            if prior is None:
+                hold['pass2_hold_review'] = {
+                    'span': [float(sub['start']), float(sub['end'])],
+                    'verdict': v.verdict, 'reason': reason}
             audio_logger.info(
                 f"[{ctx.slug}:{ctx.episode_id}] Review of {sub['start']:.1f}s-"
                 f"{sub['end']:.1f}s inside hold {hold['start']:.1f}s-"
                 f"{hold['end']:.1f}s returned {v.verdict}; the hold stays whole. "
                 f"Reason: {reason}")
             continue
-        hold['pass2_reviewed_release'] = span
+        if prior is None:
+            hold['pass2_reviewed_release'] = span
+            hold['pass2_corroborated'] = True
+            hold['pass2_corroborated_span'] = dict(span)
+            hold.setdefault('validation', {}).setdefault('flags', []).append(
+                'INFO: Pass-2 subspan confirmed by review')
         hold.pop('pass2_hold_review', None)
-        hold['pass2_corroborated'] = True
-        hold['pass2_corroborated_span'] = dict(span)
-        hold.setdefault('validation', {}).setdefault('flags', []).append(
-            'INFO: Pass-2 subspan confirmed by review')
+        released_by_hold.setdefault(id(hold), []).append(span)
+        hold['pass2_released_spans'] = sorted(
+            released_by_hold[id(hold)], key=lambda s: s['start'])
         released += 1
         audio_logger.info(
             f"[{ctx.slug}:{ctx.episode_id}] Review released {span['start']:.1f}s-"
@@ -3318,25 +3328,28 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
                     f"{m['start']:.1f}s-{m['end']:.1f}s: a user "
                     f"rejection covers the span")
                 continue
-            target = _pass2_confirm_span(m) or m
-            if any(overlap_seconds(target['start'], target['end'], r['start'], r['end']) > 0
-                   for r in reviewer_rejects):
+            released = m.get('pass2_released_spans') or []
+            spans = []
+            for span in released if len(released) > 1 else [_pass2_confirm_span(m)]:
+                target = span or m
+                if not any(overlap_seconds(target['start'], target['end'], r['start'], r['end']) > 0
+                           for r in reviewer_rejects):
+                    spans.append(span)
+            if not spans:
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Not auto-approving hold "
                     f"{m['start']:.1f}s-{m['end']:.1f}s: the reviewer "
                     f"rejected overlapping audio")
                 continue
-            approvable.append(m)
-        holds = approvable
-        if not holds:
+            approvable.append((m, spans))
+        if not approvable:
             return 0
         # Confirms on file plus those filed this run, so overlapping or duplicate holds file once.
         known = [*(confirmed_corrections or [])]
         filed_ids = set()
-        for m in holds:
+        for m, span in ((m, span) for m, spans in approvable for span in spans):
             # Reprocess idempotency: skip only on a confirm that would force-accept
             # this span at recut; a stale confirm that merely grazes it must not count.
-            span = _pass2_confirm_span(m)
             target = span or m
             reason = m.get('hold_reason')
             match = covering_confirm(
@@ -3380,7 +3393,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
                 + (f" trimmed to {span['start']:.1f}s-{span['end']:.1f}s"
                    if trimmed else "")
                 + ": pass-2 independently re-detected the span as an ad")
-        return len(holds)
+        return len(approvable)
     except Exception as e:
         audio_logger.warning(
             f"[{slug}:{episode_id}] Auto-approve failed: {e}; "

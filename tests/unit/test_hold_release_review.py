@@ -235,13 +235,22 @@ def test_edges_move_inward_off_a_split_word():
     assert _inside_word_edge(segments, 1040.5, 'start') == 1040.5
 
 
-def test_one_candidate_per_hold():
+def test_disjoint_findings_give_one_candidate_each():
     hold = _hold(1000.0, 1100.0)
     proc = [_proc(1010.0, 1030.0), _proc(1050.0, 1090.0)]
     orig = [_orig(1010.0, 1030.0), _orig(1050.0, 1090.0)]
     *_rest, candidates = _gate(proc, orig, [hold])
-    [(orig_sub, _owner)] = candidates
-    assert (orig_sub['start'], orig_sub['end']) == (1050.0, 1090.0)
+    assert [(s['start'], s['end']) for s, _h in candidates] == [
+        (1010.0, 1030.0), (1050.0, 1090.0)]
+    assert all(h is hold for _s, h in candidates)
+
+
+def test_overlapping_findings_keep_the_longest_candidate():
+    hold = _hold(1000.0, 1100.0)
+    proc = [_proc(1010.0, 1030.0), _proc(1020.0, 1090.0), _proc(1040.0, 1060.0)]
+    orig = [_orig(1010.0, 1030.0), _orig(1020.0, 1090.0), _orig(1040.0, 1060.0)]
+    *_rest, candidates = _gate(proc, orig, [hold])
+    assert [(s['start'], s['end']) for s, _h in candidates] == [(1020.0, 1090.0)]
 
 
 def test_released_hold_gives_no_second_candidate():

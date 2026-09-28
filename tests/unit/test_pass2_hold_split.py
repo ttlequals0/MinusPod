@@ -10,7 +10,8 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('pass2_hold_split_test_')
 
-from ad_reviewer import ReviewResult
+from ad_reviewer import ReviewResult, ReviewVerdict
+from ad_validator import AdValidator, Decision
 from audio_processor import AudioProcessor, get_replacement_duration
 from config import is_pending_review
 from main_app import processing
@@ -447,3 +448,152 @@ def test_parent_copy_is_unaffected_by_later_fragment_mutation():
     before = copy.deepcopy(collected)
     _split(collected, [hold])
     assert collected == before
+
+
+# ---------- Several supported subspans of one hold ----------
+
+def _verdict(kind, start, end, adjusted=None):
+    return ReviewVerdict(
+        pool='accepted', pass_num=2, verdict=kind, original_start=start,
+        original_end=end, adjusted_start=adjusted[0] if adjusted else None,
+        adjusted_end=adjusted[1] if adjusted else None,
+        reasoning='Sponsor read for Acme', confidence=0.9, model_used='test-model')
+
+
+def _release(monkeypatch, hold, subs, verdicts):
+    pairs = [_pair(*sub) for sub in subs]
+    *_rest, candidates = _gate(pairs, [hold])
+    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(processing, '_build_reviewer', lambda db, det: SimpleNamespace(
+        review=lambda **kw: ReviewResult(verdicts=list(verdicts))))
+    monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
+                        lambda: 'test-model', raising=False)
+    monkeypatch.setattr(processing.ad_detector, 'get_verification_provider',
+                        lambda: None, raising=False)
+    protection = processing.build_protection(
+        kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=[hold],
+        pass1_cuts=[])
+    return candidates, processing._review_hold_release_candidates(
+        _ctx(), candidates, [], protection)
+
+
+def _approval_db(monkeypatch):
+    db = MagicMock()
+    db.get_false_positive_corrections.return_value = []
+    db.get_confirmed_corrections.return_value = []
+    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
+    monkeypatch.setattr(processing, 'db', db)
+    monkeypatch.setattr(processing, 'storage', MagicMock())
+    return db
+
+
+def test_every_approved_subspan_of_a_hold_is_released(monkeypatch):
+    # Production shape: two reads inside one no-splice hold, both confirmed by review.
+    hold = _hold(1992.9, 2198.9)
+    candidates, released = _release(
+        monkeypatch, hold, [(1992.9, 2103.5, 0.98), (2124.9, 2195.4, 0.98)],
+        [_verdict('confirmed', 1992.9, 2103.5), _verdict('confirmed', 2124.9, 2195.4)])
+
+    assert [(s['start'], s['end']) for s, _h in candidates] == [
+        (1992.9, 2103.5), (2124.9, 2195.4)]
+    assert released == 2
+    assert hold['pass2_released_spans'] == [
+        {'start': 1992.9, 'end': 2103.5}, {'start': 2124.9, 'end': 2195.4}]
+    assert is_pending_review(hold)
+
+    db = _approval_db(monkeypatch)
+    assert processing._file_corroborated_hold_approvals('s', 'e', [hold]) == 1
+    filed = [c.kwargs for c in db.create_pattern_correction.call_args_list]
+    assert [f['corrected_bounds'] for f in filed] == [
+        {'start': 1992.9, 'end': 2103.5}, {'start': 2124.9, 'end': 2195.4}]
+    assert {tuple(f['original_bounds'].values()) for f in filed} == {(1992.9, 2198.9)}
+
+
+def test_a_rejected_subspan_leaves_only_the_approved_one_released(monkeypatch):
+    hold = _hold(1000.0, 1200.0)
+    _candidates, released = _release(
+        monkeypatch, hold, [(1010.0, 1050.0), (1100.0, 1150.0)],
+        [_verdict('reject', 1010.0, 1050.0), _verdict('confirmed', 1100.0, 1150.0)])
+    assert released == 1
+    assert hold['pass2_released_spans'] == [{'start': 1100.0, 'end': 1150.0}]
+    assert hold['pass2_reviewed_release'] == {'start': 1100.0, 'end': 1150.0}
+
+
+def test_an_adjust_into_an_already_released_subspan_is_not_released(monkeypatch):
+    hold = _hold(1000.0, 1200.0)
+    _candidates, released = _release(
+        monkeypatch, hold, [(1010.0, 1050.0), (1100.0, 1150.0)],
+        [_verdict('confirmed', 1010.0, 1050.0),
+         _verdict('adjust', 1100.0, 1150.0, adjusted=(1040.0, 1150.0))])
+    assert released == 1
+    assert hold['pass2_released_spans'] == [{'start': 1010.0, 'end': 1050.0}]
+
+
+def test_a_fast_path_corroboration_still_owns_the_hold(monkeypatch):
+    hold = _hold(1000.0, 1100.0)
+    _candidates, released = _release(
+        monkeypatch, hold, [(1000.0, 1100.0)], [_verdict('confirmed', 1000.0, 1100.0)])
+    assert released == 0
+    assert 'pass2_released_spans' not in hold
+
+
+def _recut_validate(markers, confirms):
+    validator = AdValidator(episode_duration=3000.0, segments=[],
+                            confirmed_corrections=confirms, min_cut_confidence=0.8)
+    return validator.validate(markers).ads
+
+
+def _release_confirm(hold_span, span, reason=NO_SPLICE):
+    return {'start': hold_span[0], 'end': hold_span[1], 'correction_type': 'confirm',
+            'auto_filed': True, 'hold_reason': reason,
+            'confirmed_span': {'start': span[0], 'end': span[1]}}
+
+
+def test_recut_cuts_each_released_subspan_and_holds_the_rest():
+    hold = _hold(1000.0, 1200.0)
+    hold.update(confidence=0.95, reason='Acme sponsor read', detection_stage='claude')
+    # Newest first, as the loader returns them.
+    confirms = [_release_confirm((1000.0, 1200.0), (1100.0, 1150.0)),
+                _release_confirm((1000.0, 1200.0), (1010.0, 1050.0))]
+
+    ads = _recut_validate([hold], confirms)
+
+    got = sorted((a['start'], a['end'], a['validation']['decision'],
+                  a.get('hold_reason')) for a in ads)
+    assert got == [
+        (1000.0, 1010.0, 'REVIEW', NO_SPLICE),
+        (1010.0, 1050.0, 'ACCEPT', None),
+        (1050.0, 1100.0, 'REVIEW', NO_SPLICE),
+        (1100.0, 1150.0, 'ACCEPT', None),
+        (1150.0, 1200.0, 'REVIEW', NO_SPLICE)]
+
+    saved = []
+    for a in ads:
+        a = {k: v for k, v in a.items() if k != 'validation'}
+        a['was_cut'] = not a.get('held_for_review')
+        saved.append(a)
+    again = _recut_validate(saved, confirms)
+    assert sorted((a['start'], a['end'], a['validation']['decision']) for a in again) == [
+        (s, e, d) for s, e, d, _r in got]
+
+
+def test_newer_user_confirm_outranks_the_split():
+    hold = _hold(1000.0, 1200.0)
+    hold.update(confidence=0.95, reason='Acme sponsor read', detection_stage='claude')
+    user = {'start': 1000.0, 'end': 1200.0, 'correction_type': 'confirm'}
+    confirms = [user, _release_confirm((1000.0, 1200.0), (1100.0, 1150.0)),
+                _release_confirm((1000.0, 1200.0), (1010.0, 1050.0))]
+    ads = _recut_validate([hold], confirms)
+    assert [(a['start'], a['end'], a['validation']['decision']) for a in ads] == [
+        (1000.0, 1200.0, Decision.ACCEPT.value)]
+
+
+def test_verification_pass_reviews_every_disjoint_subspan_of_a_hold():
+    hold = _hold(1992.9, 2198.9)
+    run = _run_pass2([hold], [(1992.9, 2103.5, 0.98), (2124.9, 2195.4, 0.98)],
+                     reviewer_verdicts=[_verdict('confirmed', 1992.9, 2103.5),
+                                        _verdict('confirmed', 2124.9, 2195.4)])
+    assert run.hold_reviews == [[(1992.9, 2103.5), (2124.9, 2195.4)]]
+    assert run.output[7] == 2
+    assert _spans(hold['pass2_released_spans']) == [(1992.9, 2103.5), (2124.9, 2195.4)]
+    assert run.output[1] == []
