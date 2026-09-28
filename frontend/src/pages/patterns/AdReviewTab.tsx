@@ -5,6 +5,7 @@ import {
   type DetectionReviewerFilter,
   type DetectionSort,
   type DetectionStatusFilter,
+  type HoldReason,
   type ReviewDetection,
 } from '../../api/detections';
 import { feedsQueryOptions } from '../../api/feeds';
@@ -31,12 +32,35 @@ const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['all', 'All'],
 ];
 
+const HOLD_REASON_LABELS: Record<HoldReason, string> = {
+  max_duration: 'Over max duration',
+  no_cue_evidence: 'No cue evidence',
+  no_splice_evidence: 'No splice evidence',
+  uncorroborated_tail: 'Uncorroborated tail',
+  reviewer_contradiction: 'Reviewer contradiction',
+  reviewer_boundary_conflict: 'Reviewer boundary conflict',
+  reviewer_inconclusive_bounds: 'Unverified bounds',
+  reviewer_failed: 'Reviewer unavailable',
+  reviewer_reject_conflict: 'Reviewer reject conflict',
+  estimated_pattern_bounds: 'Estimated bounds',
+  verification_miss: 'Verification catch',
+  verification_kept_conflict: 'Verification kept conflict',
+  differential_uncorroborated: 'Differential hold',
+  large_vad_gap_extension: 'VAD extension limit',
+  cue_template_unproven: 'Unproven cue',
+  cue_low_confidence: 'Low-confidence cue',
+};
+
+// Hold reasons only exist on pending detections.
+const HOLD_REASON_STATUSES: DetectionStatusFilter[] = ['needs_review', 'pending'];
+
 export default function AdReviewTab() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<DetectionStatusFilter>('needs_review');
   const [feed, setFeed] = useState('');
   const [category, setCategory] = useState('');
   const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('');
+  const [holdReason, setHoldReason] = useState<HoldReason | ''>('');
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<DetectionSort>('date');
@@ -62,13 +86,14 @@ export default function AdReviewTab() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['detections', page, status, feed, category, reviewer, debouncedQ, sort, order],
+    queryKey: ['detections', page, status, feed, category, reviewer, holdReason, debouncedQ, sort, order],
     queryFn: () => getDetections({
       page,
       status,
       feed: feed || undefined,
       category: category || undefined,
       reviewer: reviewer || undefined,
+      holdReason: holdReason || undefined,
       q: debouncedQ || undefined,
       sort,
       order,
@@ -79,6 +104,11 @@ export default function AdReviewTab() {
   const sortedFeeds = feeds ? sortFeeds(feeds, 'title') : undefined;
 
   const counts = data?.counts;
+  const holdReasonOptions = (Object.entries(HOLD_REASON_LABELS) as Array<[HoldReason, string]>)
+    .map(([value, label]): [string, string] => {
+      const n = counts?.pendingByHoldReason?.[value];
+      return [value, n ? `${label} (${n})` : label];
+    });
 
   return (
     <div>
@@ -136,9 +166,18 @@ export default function AdReviewTab() {
         onOrderChange={(v) => { setOrder(v); setPage(1); }}
         status={{
           value: status,
-          onChange: (v) => { setStatus(v); setPage(1); },
+          onChange: (v) => {
+            setStatus(v);
+            if (!HOLD_REASON_STATUSES.includes(v)) setHoldReason('');
+            setPage(1);
+          },
           options: STATUS_OPTIONS,
         }}
+        holdReason={HOLD_REASON_STATUSES.includes(status) ? {
+          value: holdReason,
+          onChange: (v) => { setHoldReason(v as HoldReason | ''); setPage(1); },
+          options: holdReasonOptions,
+        } : undefined}
       />
 
       <PendingRecutsBar />

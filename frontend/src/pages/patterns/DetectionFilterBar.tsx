@@ -32,6 +32,12 @@ interface StatusConfig {
   options: Array<[DetectionStatusFilter, string]>;
 }
 
+interface HoldReasonConfig {
+  value: string;
+  onChange: (next: string) => void;
+  options: Array<[string, string]>;
+}
+
 interface Props {
   // Distinguishes the two tabs' label/control pairs when both are mounted.
   idPrefix: string;
@@ -51,6 +57,8 @@ interface Props {
   // Ad Review filters by review state; Detected Ads is already scoped to cut
   // ads, so it passes nothing and the select is omitted.
   status?: StatusConfig;
+  // Only meaningful while the status filter selects pending holds.
+  holdReason?: HoldReasonConfig;
 }
 
 // Shared filter bar for the Ad Review and Detected Ads tabs. The two were
@@ -59,6 +67,7 @@ interface Props {
 export function DetectionFilterBar({
   idPrefix, feeds, feed, onFeedChange, category, onCategoryChange,
   reviewer, onReviewerChange, q, onQChange, sort, onSortChange, order, onOrderChange, status,
+  holdReason,
 }: Props) {
   return (
     <div className="bg-card rounded-lg border border-border p-4 mb-6 flex flex-wrap gap-4 items-center">
@@ -72,6 +81,22 @@ export function DetectionFilterBar({
             className={SELECT_CLASS}
           >
             {status.options.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {holdReason && (
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <label htmlFor={`${idPrefix}-hold-reason`} className="text-sm text-muted-foreground shrink-0">Hold reason</label>
+          <select
+            id={`${idPrefix}-hold-reason`}
+            value={holdReason.value}
+            onChange={(e) => holdReason.onChange(e.target.value)}
+            className={SELECT_CLASS}
+          >
+            <option value="">Any reason</option>
+            {holdReason.options.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
           </select>

@@ -4729,6 +4729,14 @@ paths:
           schema:
             type: string
             enum: [adjusted, unadjusted]
+        - name: holdReason
+          in: query
+          description: >-
+            Keep only pending-review detections held for this reason. Omit for
+            no filter.
+          schema:
+            type: string
+            enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence]
       responses:
         '200':
           description: Paginated detection list
@@ -4756,6 +4764,12 @@ paths:
                       accepted: { type: integer }
                       confirmed: { type: integer }
                       dismissed: { type: integer }
+                      pendingByHoldReason:
+                        type: object
+                        description: >-
+                          Pending-review detections per hold reason, across all
+                          feeds. Holds with no recorded reason are not counted.
+                        additionalProperties: { type: integer }
                   cutSummary:
                     type: object
                     description: >-
@@ -12809,6 +12823,11 @@ components:
             Whether the span was moved from its pass-1 bounds, by the
             reviewer or by a human approving a trimmed boundary. Use this
             instead of inferring a move from reviewerVerdict/reviewerOriginalStart/End.
+        holdReason:
+          type: string
+          nullable: true
+          description: Why the detection is held for review; null unless status is pending
+          enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, null]
         status:
           type: string
           enum: [accepted, rejected, pending]

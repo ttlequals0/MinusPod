@@ -7,6 +7,7 @@ from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
 # Shared with the stats mixin so both agree on what counts as processed.
+from config import is_pending_review
 from database.stats import _PROCESSED_EPISODE_EXISTS_SQL
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
@@ -546,6 +547,9 @@ class EpisodeMixin:
                  second_pass_prompt, second_pass_response)
             )
 
+        if ad_markers is not None:
+            self._sync_pending_holds(conn, db_episode_id, ad_markers)
+
         # pending_review_count lives in episodes (denormalized; avoids JSON parse in list)
         if pending_review_count is not None:
             conn.execute(
@@ -554,6 +558,25 @@ class EpisodeMixin:
             )
 
         conn.commit()
+
+    @staticmethod
+    def _sync_pending_holds(conn, db_episode_id: int, markers: list) -> None:
+        """Replace the episode's pending_holds rows with its is_pending_review markers."""
+        conn.execute("DELETE FROM pending_holds WHERE episode_pk = ?", (db_episode_id,))
+        conn.executemany(
+            "INSERT INTO pending_holds (episode_pk, marker_start, marker_end, hold_reason) "
+            "VALUES (?, ?, ?, ?)",
+            [(db_episode_id, m['start'], m['end'], m.get('hold_reason'))
+             for m in markers
+             if isinstance(m, dict) and is_pending_review(m)
+             and m.get('start') is not None and m.get('end') is not None])
+
+    def count_pending_holds_by_reason(self) -> dict[str, int]:
+        """Pending holds per hold reason; holds with no reason are left out."""
+        rows = self.get_connection().execute(
+            "SELECT hold_reason, COUNT(*) AS n FROM pending_holds "
+            "WHERE hold_reason IS NOT NULL GROUP BY hold_reason").fetchall()
+        return {row['hold_reason']: row['n'] for row in rows}
 
     def save_original_transcript(self, slug: str, episode_id: str, transcript_text: str):
         """Save original (pre-cut) transcript. Write-once: never overwrites an existing value."""
@@ -866,6 +889,7 @@ class EpisodeMixin:
             "UPDATE episodes SET pending_review_count = 0 WHERE id = ?",
             (db_episode_id,)
         )
+        conn.execute("DELETE FROM pending_holds WHERE episode_pk = ?", (db_episode_id,))
         if commit:
             conn.commit()
         logger.debug(f"[{slug}:{episode_id}] Cleared episode details from database")
@@ -898,6 +922,7 @@ class EpisodeMixin:
             "UPDATE episodes SET pending_review_count = 0 WHERE id = ?",
             (db_episode_id,)
         )
+        conn.execute("DELETE FROM pending_holds WHERE episode_pk = ?", (db_episode_id,))
         conn.commit()
         logger.debug(
             f"[{slug}:{episode_id}] Cleared ad-detection data "
@@ -1165,6 +1190,10 @@ class EpisodeMixin:
             f"UPDATE episodes SET pending_review_count = 0 WHERE id IN ({placeholders})",  # noqa: S608
             db_ids
         )
+        conn.execute(
+            f"DELETE FROM pending_holds WHERE episode_pk IN ({placeholders})",  # noqa: S608
+            db_ids
+        )
         conn.commit()
 
     def batch_clear_episode_ad_data(self, slug: str, episode_ids: list[str]) -> None:
@@ -1188,6 +1217,10 @@ class EpisodeMixin:
         )
         conn.execute(
             f"UPDATE episodes SET pending_review_count = 0 WHERE id IN ({placeholders})",  # noqa: S608
+            db_ids
+        )
+        conn.execute(
+            f"DELETE FROM pending_holds WHERE episode_pk IN ({placeholders})",  # noqa: S608
             db_ids
         )
         conn.commit()
@@ -1646,6 +1679,12 @@ class EpisodeMixin:
         params = [podcast['id']] + list(episode_ids)
         conn.execute(
             f"DELETE FROM auto_process_queue WHERE podcast_id = ? AND episode_id IN ({placeholders})",  # noqa: S608
+            params
+        )
+        # Explicit as well as cascaded: the cascade needs foreign_keys on.
+        conn.execute(
+            f"DELETE FROM pending_holds WHERE episode_pk IN (SELECT id FROM episodes "  # noqa: S608
+            f"WHERE podcast_id = ? AND episode_id IN ({placeholders}))",
             params
         )
         cursor = conn.execute(

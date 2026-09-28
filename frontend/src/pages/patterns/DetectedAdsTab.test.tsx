@@ -60,7 +60,7 @@ function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
     patternId: null, detectionStage: 'first_pass',
     category: 'sponsor', actionApplied: 'remove',
     reviewerVerdict: null, reviewerOriginalStart: null, reviewerOriginalEnd: null,
-    reviewerMoved: false,
+    reviewerMoved: false, holdReason: null,
     status: 'accepted', resolution: 'unresolved',
     ...over,
   };

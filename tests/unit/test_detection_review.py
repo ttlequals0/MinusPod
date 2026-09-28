@@ -36,6 +36,22 @@ KEPT = {'start': 300.0, 'end': 330.0, 'confidence': 1.0, 'was_cut': False,
 
 
 class TestFlatten:
+    def test_hold_reason_only_on_pending_markers(self):
+        held = {**HELD, 'hold_reason': 'max_duration'}
+        held_cut = {**HELD, 'start': 250.0, 'end': 260.0, 'was_cut': True,
+                    'hold_reason': 'no_cue_evidence'}
+        rejected = {**REJECTED, 'hold_reason': 'max_duration'}
+        items = flatten_detections([_row(markers=[held, held_cut, rejected, ACCEPTED])], [])
+        by_start = {i['start']: i['holdReason'] for i in items}
+        assert by_start == {200.0: 'max_duration', 250.0: None, 100.0: None, 10.0: None}
+
+    def test_filter_by_hold_reason(self):
+        a = {**HELD, 'hold_reason': 'max_duration'}
+        b = {**HELD, 'start': 400.0, 'end': 430.0, 'hold_reason': 'verification_miss'}
+        items = flatten_detections([_row(markers=[a, b, REJECTED])], [])
+        out = filter_detections(items, status='needs_review', hold_reason='verification_miss')
+        assert [i['start'] for i in out] == [400.0]
+
     def test_status_buckets_match_episode_endpoint(self):
         items = flatten_detections([_row(markers=[ACCEPTED, REJECTED, HELD])], [])
         by_start = {i['start']: i for i in items}

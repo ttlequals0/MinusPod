@@ -56,7 +56,7 @@ function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
     patternId: null, detectionStage: 'first_pass',
     category: null, actionApplied: null,
     reviewerVerdict: null, reviewerOriginalStart: null, reviewerOriginalEnd: null,
-    reviewerMoved: false,
+    reviewerMoved: false, holdReason: null,
     status: 'rejected', resolution: 'unresolved',
     ...over,
   };
@@ -360,5 +360,42 @@ describe('AdReviewTab loading placeholder', () => {
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
     expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});
+
+describe('AdReviewTab hold-reason filter', () => {
+  it('shows the select for needs_review and pending only, with per-reason counts', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [detection()], total: 1, page: 1, totalPages: 1, limit: 20,
+      counts: { ...COUNTS, pendingByHoldReason: { verification_miss: 3 } },
+    });
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    const select = screen.getByLabelText('Hold reason');
+    expect(within(select).getByRole('option', { name: 'Verification catch (3)' })).toBeTruthy();
+    expect(within(select).getByRole('option', { name: 'Over max duration' })).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText('Status'), 'pending');
+    expect(screen.getByLabelText('Hold reason')).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText('Status'), 'accepted');
+    expect(screen.queryByLabelText('Hold reason')).toBeNull();
+  });
+
+  it('sends the selected reason with page 1 and drops it when the status leaves pending', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    expect(mockGetDetections.mock.calls[0][0].holdReason).toBeUndefined();
+    await user.selectOptions(screen.getByLabelText('Hold reason'), 'max_duration');
+    await waitFor(() => {
+      expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
+        holdReason: 'max_duration', page: 1,
+      });
+    });
+    await user.selectOptions(screen.getByLabelText('Status'), 'all');
+    await waitFor(() => {
+      expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ status: 'all' });
+    });
+    expect(mockGetDetections.mock.lastCall?.[0].holdReason).toBeUndefined();
   });
 });

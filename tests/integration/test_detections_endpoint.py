@@ -56,6 +56,7 @@ def test_default_returns_needs_review_only(app_client, seeded_detections):
     assert body['counts'] == {
         'total': 3, 'needsReview': 2, 'pending': 1, 'rejected': 1,
         'accepted': 1, 'confirmed': 0, 'dismissed': 0,
+        'pendingByHoldReason': {},
     }
 
 
@@ -94,6 +95,7 @@ def test_pagination_limits(app_client, seeded_detections):
 
 @pytest.mark.parametrize('query', [
     'status=bogus', 'sort=bogus', 'order=sideways', 'reviewer=bogus',
+    'holdReason=bogus',
 ])
 def test_invalid_params_return_400(app_client, seeded_detections, query):
     _csrf(app_client)
@@ -124,6 +126,34 @@ def test_reviewer_filter_narrows_rows_and_cut_summary(app_client, seeded_detecti
         '/api/v1/detections?status=all&reviewer=unadjusted').get_json()
     assert [d['start'] for d in body['detections']] == [100.0]
     assert body['detections'][0]['reviewerOriginalStart'] is None
+
+
+def test_hold_reason_filter_and_counts(app_client, seeded_detections):
+    _csrf(app_client)
+    db = seeded_detections['db']
+    slug = seeded_detections['slug']
+    db.save_episode_details(slug, 'det-ep-1', ad_markers=[
+        {'start': 10.0, 'end': 40.0, 'held_for_review': True, 'was_cut': False,
+         'hold_reason': 'max_duration'},
+        {'start': 100.0, 'end': 130.0, 'held_for_review': True, 'was_cut': False,
+         'hold_reason': 'verification_miss'},
+        {'start': 200.0, 'end': 230.0, 'held_for_review': True, 'was_cut': False,
+         'hold_reason': 'verification_miss'},
+        {'start': 300.0, 'end': 330.0, 'held_for_review': True, 'was_cut': True,
+         'hold_reason': 'max_duration'},
+    ])
+    body = app_client.get(
+        '/api/v1/detections?status=pending&holdReason=verification_miss').get_json()
+    assert [d['start'] for d in body['detections']] == [200.0, 100.0]
+    assert all(d['holdReason'] == 'verification_miss' for d in body['detections'])
+    assert body['counts']['pendingByHoldReason'] == {
+        'max_duration': 1, 'verification_miss': 2,
+    }
+    # Pre-filter counts are unaffected by the hold-reason filter.
+    assert body['counts']['pending'] == 3
+    body = app_client.get(
+        '/api/v1/detections?holdReason=max_duration').get_json()
+    assert [d['start'] for d in body['detections']] == [10.0]
 
 
 def test_resolved_detection_leaves_needs_review(app_client, seeded_detections):

@@ -93,6 +93,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
                 'reviewerOriginalStart': marker.get('reviewer_original_start'),
                 'reviewerOriginalEnd': marker.get('reviewer_original_end'),
                 'reviewerMoved': _reviewer_moved_from_marker(marker),
+                'holdReason': marker.get('hold_reason') if is_pending_review(marker) else None,
                 'status': marker_status(marker),
                 'resolution': marker_resolution(marker, episode_corrections),
             })
@@ -172,7 +173,8 @@ def filter_detections(items: list[dict], status: str = 'needs_review',
                       feed: str | None = None,
                       q: str | None = None,
                       category: str | None = None,
-                      reviewer: str | None = None) -> list[dict]:
+                      reviewer: str | None = None,
+                      hold_reason: str | None = None) -> list[dict]:
     out = items
     if status == 'needs_review':
         out = [i for i in out if awaits_decision(i)]
@@ -182,6 +184,8 @@ def filter_detections(items: list[dict], status: str = 'needs_review',
         out = [i for i in out if not i.get('category')]
     elif category:
         out = [i for i in out if i.get('category') == category]
+    if hold_reason:
+        out = [i for i in out if i.get('holdReason') == hold_reason]
     if reviewer == 'adjusted':
         out = [i for i in out if reviewer_moved(i)]
     elif reviewer == 'unadjusted':

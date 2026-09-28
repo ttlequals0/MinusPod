@@ -7,7 +7,7 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, get_feed_auth_key,
 )
-from config import SEGMENT_CATEGORIES
+from config import ALL_HOLD_REASONS, SEGMENT_CATEGORIES
 from detection_review import (
     UNSET_CATEGORY, filter_detections, flatten_detections, paginate,
     sort_detections, summarize_cut_detections, summarize_detections,
@@ -48,13 +48,17 @@ def list_detections():
     reviewer = request.args.get('reviewer') or None
     if reviewer is not None and reviewer not in VALID_REVIEWER:
         return error_response(f"Invalid reviewer '{reviewer}'", 400)
+    hold_reason = request.args.get('holdReason') or None
+    if hold_reason is not None and hold_reason not in ALL_HOLD_REASONS:
+        return error_response(f"Invalid holdReason '{hold_reason}'", 400)
 
     rows = db.get_detection_rows()
     corrections = db.get_review_corrections()
     items = flatten_detections(rows, corrections)
     counts = summarize_detections(items)
+    counts['pendingByHoldReason'] = db.count_pending_holds_by_reason()
     items = filter_detections(items, status=status, feed=feed, q=q,
-                              reviewer=reviewer)
+                              reviewer=reviewer, hold_reason=hold_reason)
     # Summarised before the category filter so byCategory keeps every bucket
     # while the podcast and search filters still narrow the header.
     cut_summary = summarize_cut_detections(

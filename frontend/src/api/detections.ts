@@ -1,4 +1,5 @@
 import { apiRequest, buildQueryString } from './client';
+import type { AdSegment } from './types';
 
 export type DetectionStatus = 'accepted' | 'rejected' | 'pending';
 export type DetectionResolution = 'unresolved' | 'confirmed' | 'dismissed';
@@ -6,6 +7,7 @@ export type DetectionStatusFilter =
   | 'needs_review' | 'pending' | 'rejected' | 'accepted' | 'all';
 export type DetectionSort = 'date' | 'confidence' | 'podcast';
 export type DetectionReviewerFilter = '' | 'adjusted' | 'unadjusted';
+export type HoldReason = NonNullable<AdSegment['hold_reason']>;
 
 export interface ReviewDetection {
   feedSlug: string;
@@ -34,6 +36,8 @@ export interface ReviewDetection {
   // approving a trimmed boundary); use this instead of inferring a move
   // from reviewerVerdict/reviewerOriginalStart/End.
   reviewerMoved: boolean;
+  // Null unless the detection is pending review.
+  holdReason: HoldReason | null;
   episodeDuration: number | null;
   status: DetectionStatus;
   resolution: DetectionResolution;
@@ -47,6 +51,7 @@ export interface DetectionCounts {
   accepted: number;
   confirmed: number;
   dismissed: number;
+  pendingByHoldReason: Partial<Record<HoldReason, number>>;
 }
 
 export interface CutSummary {
@@ -79,6 +84,7 @@ export type DetectionListParams = {
   order?: 'asc' | 'desc';
   category?: string;
   reviewer?: DetectionReviewerFilter;
+  holdReason?: HoldReason;
 };
 
 export async function getDetections(
