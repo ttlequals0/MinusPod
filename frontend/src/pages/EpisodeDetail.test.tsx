@@ -180,8 +180,9 @@ describe('Held for Review section: rendering', () => {
     await waitFor(() => {
       expect(screen.getByTestId('held-for-review-section')).toBeDefined();
     });
-    // Two rows: two timespan pairs.
-    expect(screen.getAllByText(/Held/).length).toBeGreaterThanOrEqual(2);
+    // Two rows, each chip labeled by its hold reason.
+    expect(screen.getByText('Over max duration')).toBeDefined();
+    expect(screen.getByText('No cue evidence')).toBeDefined();
   });
 
   it('does not render the section when pendingReviewMarkers is empty', async () => {
@@ -220,7 +221,7 @@ describe('Held for Review section: rendering', () => {
     expect(screen.getByTitle('No audio-cue evidence')).toBeDefined();
   });
 
-  it('labels a verification_miss marker "Verification catch" instead of the generic Held chip', async () => {
+  it('labels a verification_miss marker "Verification catch"', async () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, hold_reason: 'verification_miss' }] }));
     await waitFor(() => {
       expect(screen.getByTestId('held-for-review-section')).toBeDefined();
@@ -824,7 +825,7 @@ describe('Differential status and corroboration badges', () => {
     await waitFor(() => expect(screen.getByTestId('held-for-review-section')).toBeDefined());
     expect(screen.getByText('Reviewer abstained')).toBeDefined();
     expect(screen.getByText('The review did not have enough context.')).toBeDefined();
-    expect(screen.getByText('Held')).toBeDefined();
+    expect(screen.getByText('Over max duration')).toBeDefined();
   });
 });
 

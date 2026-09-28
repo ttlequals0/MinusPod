@@ -24,6 +24,7 @@ release notes.
 - A marker the render removed only in part is now split into cut and uncut fragments. Each fragment records the detected span it came from in `carved_from`, which replaces `partial_cut_spans` in the marker schema. An uncut remainder that a later pass cuts in part is split again. Episodes saved with `partial_cut_spans` are split the same way when loaded, except that a marker still pending review stays whole. Carved fragments do not seed learned patterns.
 - Reviewer rejects are now enforced inside validation, so every recut follows one code path. Behavior is unchanged.
 - Recuts now log the resolved category action map, as full runs do.
+- The episode view names the hold reason on every held marker instead of a generic Held chip.
 - DAI markers saved before probe windows were recorded are normalized when loaded. Probe windows are no longer inferred at each use.
 
 ### Added

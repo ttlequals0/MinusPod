@@ -45,6 +45,7 @@ import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonSt
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
 import { fileInputBase, focusRing } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
+import { HOLD_REASON_LABELS } from '../utils/holdReason';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -1519,22 +1520,8 @@ function EpisodeDetail() {
                 : segment.hold_reason === 'cue_low_confidence'
                 ? 'The cue match fell below the cut-confidence threshold'
                 : 'Held for manual review';
-              const holdLabel = segment.hold_reason === 'verification_miss'
-                ? 'Verification catch'
-                : segment.hold_reason === 'reviewer_inconclusive_bounds'
-                ? 'Unverified bounds'
-                : segment.hold_reason === 'reviewer_failed'
-                ? 'Reviewer unavailable'
-                : segment.hold_reason === 'estimated_pattern_bounds'
-                ? 'Estimated bounds'
-                : segment.hold_reason === 'differential_uncorroborated'
-                ? 'Differential hold'
-                : segment.hold_reason === 'large_vad_gap_extension'
-                ? 'VAD extension limit'
-                : segment.hold_reason === 'cue_template_unproven'
-                ? 'Unproven cue'
-                : segment.hold_reason === 'cue_low_confidence'
-                ? 'Low-confidence cue'
+              const holdLabel = segment.hold_reason
+                ? HOLD_REASON_LABELS[segment.hold_reason]
                 : 'Held';
               const confirmStatus = rowSaveStatus(segment, 'confirm');
               const trimmedStatus = rowSaveStatus(segment, 'confirm-trimmed');
