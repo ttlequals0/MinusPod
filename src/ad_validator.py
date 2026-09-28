@@ -268,14 +268,27 @@ class AdValidator:
     COMMERCIAL_CONTEXT_RE = re.compile(
         r'\b(?:use\s+(?:promo\s+)?code\s+\w+|promo\s+code|'
         r'(?:\d+\s*%|(?:\d+|ten|fifteen|twenty|thirty|forty|fifty)\s+percent)'
-        r'\s+off|free\s+(?:trial|shipping)|'
+        r'\s+off|free\s+(?:trial|shipping)|learn\s+more\s+at|'
         r'book\s+a\s+call|request\s+a\s+demo)\b', re.IGNORECASE)
+    # Group 1 of each framing pattern is the text that must name the sponsor.
     SPONSOR_FRAMING_RE = re.compile(
-        r'\b(?:sponsored\s+by|brought\s+to\s+you\s+by)\s+'
+        r'\b(?:sponsored\s+by|brought\s+to\s+you\s+by|thanks\s+to|'
+        r'our\s+(?:friends|sponsors?)\s+at)\s+'
         r'([^.!?]{1,80})', re.IGNORECASE)
+    SPONSOR_THANKS_RE = re.compile(
+        r'\bthanks?\s+(?:you\s+)?(?:to\s+)?([^.!?]{1,80}?)\s+'
+        r'for\s+(?:supporting|sponsoring)\b', re.IGNORECASE)
+    SPONSOR_IS_SPONSOR_RE = re.compile(
+        r'([^.!?,]{1,80})\s+is\s+(?:a|our)\s+sponsor\b', re.IGNORECASE)
+    # Group 1 of each link pattern is the domain label; squash_brand drops
+    # the hyphens and spaces of a spelled-out one ("A-C-M-E.com").
     BRAND_LINK_RE = re.compile(
-        r'\b(?:visit|go\s+to|head\s+to|shop\s+at)\s+'
+        r'\b(?:visit|go\s+to|head\s+to|shop\s+at|learn\s+more\s+at|'
+        r'check\s+(?:them|it)\s+out\s+at|find\s+out\s+more\s+at)\s+'
         r'([a-z0-9-]+)\.(?:com|io|org|net)\b', re.IGNORECASE)
+    BARE_LINK_RE = re.compile(
+        r'\b((?:[a-z0-9]\s){2,}[a-z0-9]|[a-z0-9-]+)'
+        r'(?:\.|\s+dot\s+)(?:com|io|org|net)\b', re.IGNORECASE)
 
     VAGUE_REASONS: ClassVar[list[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
@@ -479,21 +492,28 @@ class AdValidator:
             nearby = text + ' ' + (relevant[index + 1] if index + 1 < len(relevant) else '')
             if self.COMMERCIAL_CONTEXT_RE.search(text):
                 return True
-            for framing in self.SPONSOR_FRAMING_RE.finditer(nearby):
-                framed = framing.group(1)
+            for framing in self._framed_texts(nearby):
                 if self.sponsor_service:
                     try:
-                        if sponsor in self.sponsor_service.brand_mention_offsets(framed):
+                        if sponsor in self.sponsor_service.brand_mention_offsets(framing):
                             return True
                     except Exception as e:
                         logger.debug(f"Sponsor registry lookup failed: {e}")
                 name = word_boundary_re((sponsor,))
-                if name and name.search(framed):
+                if name and name.search(framing):
                     return True
             if any(squash_brand(link.group(1)) == squash_brand(sponsor)
-                   for link in self.BRAND_LINK_RE.finditer(nearby)):
+                   for pattern in (self.BRAND_LINK_RE, self.BARE_LINK_RE)
+                   for link in pattern.finditer(nearby)):
                 return True
         return False
+
+    def _framed_texts(self, text: str):
+        """Each span of `text` that a sponsor-framing phrase attributes."""
+        for pattern in (self.SPONSOR_FRAMING_RE, self.SPONSOR_THANKS_RE,
+                        self.SPONSOR_IS_SPONSOR_RE):
+            for match in pattern.finditer(text):
+                yield match.group(1)
 
     def _sponsor_confirmation_source(self, ad: dict) -> str | None:
         """Where the ad's sponsor was confirmed: 'transcript' (a description
