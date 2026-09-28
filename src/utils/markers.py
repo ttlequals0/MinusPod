@@ -226,24 +226,14 @@ def dai_probe_window(start: float, end: float) -> tuple[float, float]:
     return lead, lead + ref
 
 
-def _probe_span_dicts(marker: dict) -> list[dict]:
-    """Recorded probe spans; legacy markers get theirs from normalize_loaded_markers."""
-    return _valid_spans(marker, DAI_PROBE_SPANS)
-
-
-def _legacy_probe_spans(marker: dict) -> list[dict]:
-    """Leading window of each core span, as markers saved before probes were recorded."""
-    return [{'start': s['start'],
-             'end': min(s['end'], s['start'] + DAI_PROBE_LEAD_S
-                        + min(DAI_PROBE_REF_S, s['end'] - s['start']))}
-            for s in _valid_dai_core_spans(marker)]
-
-
 def _normalize_legacy_probes(marker: dict) -> None:
-    """Record probe spans on a marker saved before DAI probes existed."""
+    """Record probe spans on a marker saved before DAI probes existed: each core span's leading window."""
     if isinstance(marker.get(DAI_PROBE_SPANS), list):
         return
-    probes = _legacy_probe_spans(marker)
+    probes = [{'start': s['start'],
+               'end': min(s['end'], s['start'] + DAI_PROBE_LEAD_S
+                          + min(DAI_PROBE_REF_S, s['end'] - s['start']))}
+              for s in _valid_dai_core_spans(marker)]
     if probes:
         marker[DAI_PROBE_SPANS] = probes
 
@@ -264,7 +254,8 @@ def normalize_loaded_markers(markers: list) -> list:
     """Bring persisted markers up to the current shape in place; returns the list."""
     expanded = []
     for marker in markers:
-        if not isinstance(marker, dict):
+        if not isinstance(marker, dict) or (
+                DAI_CORE_SPANS not in marker and 'partial_cut_spans' not in marker):
             expanded.append(marker)
             continue
         _normalize_legacy_probes(marker)
@@ -293,7 +284,7 @@ def dai_core_spans(marker: dict) -> list[tuple[float, float]]:
 
 def dai_probe_spans(marker: dict) -> list[tuple[float, float]]:
     """(start, end) windows of a marker's DAI regions that were measured."""
-    return [(s['start'], s['end']) for s in _probe_span_dicts(marker)]
+    return [(s['start'], s['end']) for s in _valid_spans(marker, DAI_PROBE_SPANS)]
 
 
 def merge_dai_core_spans(target: dict, other: dict) -> None:
@@ -301,7 +292,7 @@ def merge_dai_core_spans(target: dict, other: dict) -> None:
     spans = _valid_dai_core_spans(target) + _valid_dai_core_spans(other)
     if not spans:
         return
-    probes = _probe_span_dicts(target) + _probe_span_dicts(other)
+    probes = _valid_spans(target, DAI_PROBE_SPANS) + _valid_spans(other, DAI_PROBE_SPANS)
     spans.sort(key=lambda span: span['start'])
     merged = [spans[0]]
     for span in spans[1:]:
@@ -318,7 +309,7 @@ def clip_dai_core_spans(marker: dict, start: float, end: float) -> None:
     core = _valid_dai_core_spans(marker)
     _clip_spans(marker, DAI_CORE_SPANS, core, start, end)
     if DAI_CORE_SPANS in marker:
-        _clip_spans(marker, DAI_PROBE_SPANS, _probe_span_dicts(marker),
+        _clip_spans(marker, DAI_PROBE_SPANS, _valid_spans(marker, DAI_PROBE_SPANS),
                     start, end, keep_empty=True)
     else:
         marker.pop(DAI_PROBE_SPANS, None)

@@ -43,7 +43,7 @@ from config import (
     CORRECTION_ORIGIN_AUTO_PASS2, PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     count_pending_review,
 )
-from utils.markers import collapse_duplicate_markers, normalize_loaded_markers
+from utils.markers import collapse_duplicate_markers
 
 
 @contextmanager
@@ -1533,9 +1533,6 @@ class SchemaMixin:
         # 2.95.2: one-shot fold of duplicate pass-1/pass-2 markers for the same span
         # (they used to double-count pending_review_count); write path no longer produces them.
         self._collapse_duplicate_ad_markers(conn)
-
-        # 2.97.32: record DAI probe spans on markers saved before probes existed.
-        self._normalize_legacy_dai_probe_spans(conn)
 
         # 2.97.32: tag pass-2 auto-filed confirms by origin; runs after the
         # sponsor FK rebuild so the column exists in its final table.
@@ -3524,55 +3521,6 @@ class SchemaMixin:
             # next boot.
             conn.rollback()
             logger.warning(f"Migration: duplicate ad-marker collapse failed: {e}")
-
-    def _normalize_legacy_dai_probe_spans(self, conn):
-        """One-shot: rewrite only the ad_markers_json rows that load-time normalization changes."""
-        gate = 'normalize_legacy_dai_probe_spans_once'
-        if conn.execute(
-            "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)
-        ).fetchone():
-            return
-        try:
-            rewritten = 0
-            last_id = 0
-            while True:
-                batch = conn.execute(
-                    "SELECT episode_id, ad_markers_json FROM episode_details "
-                    "WHERE episode_id > ? AND (ad_markers_json LIKE '%dai_core_spans%' "
-                    "OR ad_markers_json LIKE '%partial_cut_spans%') "
-                    "ORDER BY episode_id LIMIT ?",
-                    (last_id, _COLLAPSE_BATCH_ROWS)
-                ).fetchall()
-                if not batch:
-                    break
-                last_id = batch[-1]['episode_id']
-                for row in batch:
-                    try:
-                        markers = json.loads(row['ad_markers_json'])
-                        if not isinstance(markers, list):
-                            continue
-                        before = json.dumps(markers)
-                        after = json.dumps(normalize_loaded_markers(markers))
-                    except Exception as e:
-                        logger.warning(
-                            f"Migration: legacy DAI probe normalization skipped "
-                            f"episode_id={row['episode_id']}: {e}")
-                        continue
-                    if after == before:
-                        continue
-                    conn.execute(
-                        "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
-                        (after, row['episode_id'])
-                    )
-                    rewritten += 1
-            conn.execute(
-                "INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
-            conn.commit()
-            logger.info(f"legacy DAI probe normalization: {rewritten} episode(s) rewritten")
-        except Exception as e:
-            # Gate stays unset on failure, so the next boot retries.
-            conn.rollback()
-            logger.warning(f"Migration: legacy DAI probe normalization failed: {e}")
 
     def _backfill_correction_origin(self, conn):
         """One-shot: set origin and source_hold_reason on confirms filed with the pass-2 snippet."""

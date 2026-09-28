@@ -5,7 +5,6 @@ and user corrections. The resulting prior feeds two consumers:
 - a scrutiny hint appended to the first-pass LLM prompt, and
 - per-feed position boosts in AdValidator (replacing the global zones).
 """
-import json
 import logging
 import statistics
 from dataclasses import dataclass
@@ -20,6 +19,7 @@ from config import (
     POSITIONAL_PRIOR_MAX_DURATION_RATIO, POSITIONAL_PRIOR_HISTOGRAM_BUCKETS,
     CORRECTION_MATCH_MIN_COVERAGE,
 )
+from utils.markers import parse_ad_markers
 from utils.time import format_duration, overlap_ratio, ranges_overlap
 
 logger = logging.getLogger(__name__)
@@ -274,13 +274,10 @@ def _load_history(db, slug: str, exclude_episode_id: str | None = None) -> tuple
 
     episodes = []
     for row in rows:
-        try:
-            markers = json.loads(row['ad_markers_json'])
-        except (json.JSONDecodeError, TypeError):
+        markers = parse_ad_markers(row['ad_markers_json'])
+        if markers is None:
             logger.warning(f"[{slug}:{row['episode_id']}] Skipping episode with "
                            f"unparseable ad_markers_json in positional prior")
-            continue
-        if not isinstance(markers, list):
             continue
         episodes.append({
             'episode_id': row['episode_id'],

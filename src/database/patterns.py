@@ -5,6 +5,7 @@ import logging
 from config import (
     CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, SEGMENT_CATEGORIES,
 )
+from utils.markers import parse_ad_markers
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
 
 logger = logging.getLogger(__name__)
@@ -903,14 +904,8 @@ def suppress_differential_fp_texts(db) -> int:
             "SELECT ad_markers_json FROM episode_details WHERE episode_id = ?",
             (episode_matches[0]['id'],)
         ).fetchone()
-        if not episode_row or not episode_row['ad_markers_json']:
-            continue
-
-        try:
-            markers = json.loads(episode_row['ad_markers_json'])
-        except (json.JSONDecodeError, TypeError):
-            continue
-        if not isinstance(markers, list):
+        markers = parse_ad_markers(episode_row['ad_markers_json']) if episode_row else None
+        if markers is None:
             continue
 
         matched = False

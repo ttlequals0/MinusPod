@@ -22,10 +22,10 @@ release notes.
 ### Changed
 
 - Confirms filed by pass-2 auto-approval are now stored with their origin instead of being recognized by a text prefix. Existing rows are migrated at startup. The episode view labels them "Auto-approved", and episode corrections in the API include an `origin` field. These confirms no longer feed the positional prior or the pattern backfill from corrections, so neither learns from the pipeline's own output.
-- A marker the render removed only in part is now split into cut and uncut fragments. Each fragment records the detected span it came from in `carved_from`, which replaces `partial_cut_spans` in the marker schema. An uncut remainder that a later pass cuts in part is split again. Episodes saved with `partial_cut_spans` are split the same way when loaded and migrated at startup, except that a marker still pending review stays whole. Carved fragments do not seed learned patterns.
+- A marker the render removed only in part is now split into cut and uncut fragments. Each fragment records the detected span it came from in `carved_from`, which replaces `partial_cut_spans` in the marker schema. An uncut remainder that a later pass cuts in part is split again. Episodes saved with `partial_cut_spans` are split the same way when loaded, except that a marker still pending review stays whole. Carved fragments do not seed learned patterns.
 - Reviewer rejects are now enforced inside validation, so every recut follows one code path. Behavior is unchanged.
 - Recuts now log the resolved category action map, as full runs do.
-- DAI markers saved before probe windows were recorded are normalized when loaded and migrated at startup. Probe windows are no longer inferred at each use.
+- DAI markers saved before probe windows were recorded are normalized when loaded. Probe windows are no longer inferred at each use.
 
 ### Added
 
