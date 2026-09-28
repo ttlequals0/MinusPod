@@ -274,7 +274,6 @@ class AdValidator:
     SPONSOR_FRAMING_RE = re.compile(
         r'\b(?:sponsored\s+by|brought\s+to\s+you\s+by|our\s+sponsors?\s+at)\s+'
         r'([^.!?]{1,80})', re.IGNORECASE)
-    # Exact: group 1 must be the brand alone.
     SPONSOR_THANKS_RE = re.compile(
         r'\bthanks?\s+(?:you\s+)?(?:to\s+)?([^.!?]{1,80}?)\s+'
         r'for\s+(?:supporting|sponsoring)\b', re.IGNORECASE)
@@ -292,6 +291,10 @@ class AdValidator:
         r"(?<![\w'])((?:[a-z0-9][\s-]){2,}[a-z0-9](?=\.|\s+dot\s)|"
         r"[a-z0-9-]+(?=\s+dot\s))(?:\.|\s+dot\s+)(?:com|io|org|net)\b",
         re.IGNORECASE)
+    # (pattern, exact): an exact pattern's group 1 must be the brand alone.
+    FRAMING_PATTERNS = ((SPONSOR_FRAMING_RE, False), (SPONSOR_THANKS_RE, True),
+                        (SPONSOR_IS_SPONSOR_RE, True))
+    LINK_PATTERNS = (BRAND_LINK_RE, BARE_LINK_RE)
 
     VAGUE_REASONS: ClassVar[list[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
@@ -374,8 +377,6 @@ class AdValidator:
         self.episode_description = episode_description or ""
         self.description_sponsors = extract_description_sponsors(
             self.episode_description)
-        # One alternation for the whole set: _is_sponsor_confirmed otherwise
-        # recompiled a regex per sponsor per ad.
         self._description_sponsor_re = word_boundary_re(self.description_sponsors)
         self.false_positive_corrections = false_positive_corrections or []
         self.confirmed_corrections = confirmed_corrections or []
@@ -467,48 +468,34 @@ class AdValidator:
     def _bounded_text_segments(self, ad: dict) -> list[str]:
         return bounded_segment_texts(self.segments, ad['start'], ad['end'])
 
+    def _text_names_sponsor(self, text: str, sponsor: str, name_re) -> bool:
+        if self.sponsor_service:
+            try:
+                if sponsor in self.sponsor_service.brand_mention_offsets(text):
+                    return True
+            except Exception as e:
+                logger.debug(f"Sponsor registry lookup failed: {e}")
+        return bool(name_re and name_re.search(text))
+
     def _has_local_commercial_context(self, relevant: list[str], sponsor: str) -> bool:
+        name_re = word_boundary_re((sponsor,))
         for index, text in enumerate(relevant):
-            brand_here = False
-            if self.sponsor_service:
-                try:
-                    brand_here = sponsor in self.sponsor_service.brand_mention_offsets(text)
-                except Exception as e:
-                    logger.debug(f"Sponsor registry lookup failed: {e}")
-            if not brand_here:
-                name = word_boundary_re((sponsor,))
-                brand_here = bool(name and name.search(text))
-            if not brand_here:
+            if not self._text_names_sponsor(text, sponsor, name_re):
                 continue
-            nearby = text + ' ' + (relevant[index + 1] if index + 1 < len(relevant) else '')
             if self.COMMERCIAL_CONTEXT_RE.search(text):
                 return True
-            for framing, exact in self._framed_texts(nearby):
-                if exact:
-                    if self._matches_expected_sponsor(framing.strip(), sponsor):
+            nearby = text + ' ' + (relevant[index + 1] if index + 1 < len(relevant) else '')
+            for pattern, exact in self.FRAMING_PATTERNS:
+                for match in pattern.finditer(nearby):
+                    framing = match.group(1)
+                    if (self._matches_expected_sponsor(framing.strip(), sponsor) if exact
+                            else self._text_names_sponsor(framing, sponsor, name_re)):
                         return True
-                    continue
-                if self.sponsor_service:
-                    try:
-                        if sponsor in self.sponsor_service.brand_mention_offsets(framing):
-                            return True
-                    except Exception as e:
-                        logger.debug(f"Sponsor registry lookup failed: {e}")
-                name = word_boundary_re((sponsor,))
-                if name and name.search(framing):
-                    return True
             if any(squash_brand(link.group(1)) == squash_brand(sponsor)
-                   for pattern in (self.BRAND_LINK_RE, self.BARE_LINK_RE)
+                   for pattern in self.LINK_PATTERNS
                    for link in pattern.finditer(nearby)):
                 return True
         return False
-
-    def _framed_texts(self, text: str):
-        """(span, exact) for each span a sponsor-framing phrase attributes."""
-        for pattern in (self.SPONSOR_FRAMING_RE, self.SPONSOR_THANKS_RE,
-                        self.SPONSOR_IS_SPONSOR_RE):
-            for match in pattern.finditer(text):
-                yield match.group(1), pattern is not self.SPONSOR_FRAMING_RE
 
     def _sponsor_confirmation_source(self, ad: dict) -> str | None:
         """Where the ad's sponsor was confirmed: 'transcript' (a description
@@ -537,11 +524,6 @@ class AdValidator:
                 return 'reason'
 
         return None
-
-    def _is_sponsor_confirmed(self, ad: dict) -> bool:
-        """Whether the ad names a confirmed sponsor at all; the duration
-        allowance takes any source, including the model's own reason."""
-        return self._sponsor_confirmation_source(ad) is not None
 
     def _overlaps_corrections(self, corrections: list[dict], start: float, end: float,
                                overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> bool:

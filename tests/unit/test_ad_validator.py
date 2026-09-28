@@ -2332,7 +2332,7 @@ class TestRegistryConfirmsLongAds:
         segs[1]['text'] = 'ordinary conversation with no brand named at all ' * 12
         v = AdValidator(3700.0, segs, episode_description='',
                         min_cut_confidence=0.80, sponsor_service=self._Registry())
-        assert v._is_sponsor_confirmed(self._ad()) is False
+        assert v._sponsor_confirmation_source(self._ad()) is None
 
     def test_a_registry_failure_does_not_break_validation(self):
         class Boom:
@@ -3124,7 +3124,6 @@ class TestSponsorConfirmedIsEvidenceNotProse:
         ad = self._ad('Acme read, host delivered')
 
         assert v._sponsor_confirmation_source(ad) == 'reason'
-        assert v._is_sponsor_confirmed(ad) is True
 
     def test_a_reason_only_match_is_not_stored_as_confirmed(self):
         v = self._validator('nothing promotional in this stretch at all')

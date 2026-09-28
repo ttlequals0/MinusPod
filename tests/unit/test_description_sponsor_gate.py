@@ -57,23 +57,23 @@ class TestWordBoundaryConfirmation:
         v = _validator('<a href="https://wsj.com/x">WSJ</a>',
                        self._segments('The wsjournal covered it at length.'),
                        sponsors={'wsj'})
-        assert v._is_sponsor_confirmed(dict(self.ADS)) is False
+        assert v._sponsor_confirmation_source(dict(self.ADS)) is None
 
     def test_the_same_token_standing_alone_confirms(self):
         v = _validator('', self._segments('Brought to you by WSJ this week.'),
                        sponsors={'wsj'})
-        assert v._is_sponsor_confirmed(dict(self.ADS)) is True
+        assert v._sponsor_confirmation_source(dict(self.ADS)) is not None
 
     def test_a_real_brand_still_confirms_from_the_reason(self):
         v = _validator('<a href="https://betterhelp.com/show">BetterHelp</a>',
                        self._segments('Ordinary conversation here.'))
         ad = dict(self.ADS, reason='BetterHelp sponsor read with a code')
-        assert v._is_sponsor_confirmed(ad) is True
+        assert v._sponsor_confirmation_source(ad) is not None
 
     def test_a_real_brand_still_confirms_from_the_transcript(self):
         v = _validator('<a href="https://betterhelp.com/show">BetterHelp</a>',
                        self._segments('Try BetterHelp and get ten percent off.'))
-        assert v._is_sponsor_confirmed(dict(self.ADS)) is True
+        assert v._sponsor_confirmation_source(dict(self.ADS)) is not None
 
     def test_the_match_is_case_insensitive(self):
         assert word_boundary_re(['betterhelp']).search('Visit BetterHelp today')
