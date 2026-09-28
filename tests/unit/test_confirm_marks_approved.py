@@ -429,3 +429,8 @@ def test_auto_filed_confirm_remainder_is_not_a_keep_range(temp_db, monkeypatch):
     assert corrections[0]['hold_reason'] == 'estimated_pattern_bounds'
     assert corrections[0]['confirmed_span'] == {'start': 2485.2, 'end': 2545.3}
     assert user_trimmed_keep_ranges(corrections) == []
+    row = temp_db.get_connection().execute(
+        "SELECT origin, source_hold_reason FROM pattern_corrections "
+        "WHERE podcast_id = ? AND episode_id = ?", (podcast_id, eid)).fetchone()
+    assert dict(row) == {'origin': 'auto_pass2',
+                         'source_hold_reason': 'estimated_pattern_bounds'}

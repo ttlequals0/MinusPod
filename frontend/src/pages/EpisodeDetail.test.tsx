@@ -2213,3 +2213,37 @@ describe('Run controls while a job is in flight', () => {
     expect(await screen.findByText(/Total spend/)).toBeDefined();
   });
 });
+
+describe('Correction badges', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const confirm = (origin?: 'user' | 'auto_pass2') => ({
+    id: 1,
+    correction_type: 'confirm' as const,
+    original_bounds: { start: 10, end: 40 },
+    created_at: '2026-01-01T00:00:00Z',
+    origin,
+  });
+
+  it('labels a pass-2 auto-filed confirm Auto-approved', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }],
+      corrections: [confirm('auto_pass2')],
+    }));
+    await waitFor(() => expect(screen.getByText('Auto-approved')).toBeDefined());
+    expect(screen.queryByText('Confirmed')).toBeNull();
+  });
+
+  it('labels a user confirm Confirmed', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }],
+      corrections: [confirm('user')],
+    }));
+    await waitFor(() => expect(screen.getByText('Confirmed')).toBeDefined());
+    expect(screen.queryByText('Auto-approved')).toBeNull();
+  });
+});

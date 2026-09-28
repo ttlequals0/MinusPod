@@ -1,15 +1,13 @@
 """Ad patterns and corrections mixin for MinusPod database."""
 import json
 import logging
-import re
 
-from config import PASS2_AUTOAPPROVE_SNIPPET_PREFIX, SEGMENT_CATEGORIES
+from config import (
+    CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, SEGMENT_CATEGORIES,
+)
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
 
 logger = logging.getLogger(__name__)
-
-# The hold reason inside the snippet _file_corroborated_hold_approvals writes.
-_AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
 
 def _parse_bounds(raw: str | None) -> dict | None:
@@ -412,7 +410,8 @@ class PatternMixin:
                                    corrected_bounds: dict = None, text_snippet: str = None,
                                    sponsor_id: int = None,
                                    source_hold_reason: str = None,
-                                   podcast_id: int = None) -> int:
+                                   podcast_id: int = None,
+                                   origin: str = CORRECTION_ORIGIN_USER) -> int:
         """Create a pattern correction record. Returns correction ID.
 
         source_hold_reason records which hold gate produced a
@@ -424,12 +423,12 @@ class PatternMixin:
             """INSERT INTO pattern_corrections
                (pattern_id, episode_id, podcast_title, episode_title, correction_type,
                 original_bounds, corrected_bounds, text_snippet, sponsor_id, podcast_id,
-                source_hold_reason)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                source_hold_reason, origin)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (pattern_id, episode_id, podcast_title, episode_title, correction_type,
              json.dumps(original_bounds) if original_bounds else None,
              json.dumps(corrected_bounds) if corrected_bounds else None,
-             text_snippet, sponsor_id, podcast_id, source_hold_reason)
+             text_snippet, sponsor_id, podcast_id, source_hold_reason, origin)
         )
         conn.commit()
         return cursor.lastrowid
@@ -655,7 +654,8 @@ class PatternMixin:
         """Get all corrections for a specific episode, newest first."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT id, correction_type, original_bounds, corrected_bounds, created_at
+            """SELECT id, correction_type, original_bounds, corrected_bounds, created_at,
+                      origin
                FROM pattern_corrections
                WHERE episode_id = ? AND podcast_id = ?
                ORDER BY id DESC""",
@@ -735,7 +735,7 @@ class PatternMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT correction_type, original_bounds, corrected_bounds,
-                      text_snippet
+                      origin, source_hold_reason
                FROM pattern_corrections
                WHERE podcast_id = ? AND episode_id = ?
                  AND correction_type IN ('confirm', 'boundary_adjustment')
@@ -753,13 +753,10 @@ class PatternMixin:
                 if confirmed_span:
                     bounds['confirmed_span'] = confirmed_span
                 bounds['correction_type'] = row['correction_type']
-                snippet = row['text_snippet'] or ''
-                if snippet.startswith(PASS2_AUTOAPPROVE_SNIPPET_PREFIX):
+                if row['origin'] == CORRECTION_ORIGIN_AUTO_PASS2:
                     bounds['auto_filed'] = True
-                    reason = _AUTO_FILED_REASON_RE.match(
-                        snippet[len(PASS2_AUTOAPPROVE_SNIPPET_PREFIX):])
-                    if reason:
-                        bounds['hold_reason'] = reason.group(1)
+                    if row['source_hold_reason']:
+                        bounds['hold_reason'] = row['source_hold_reason']
                 results.append(bounds)
         return results
 
@@ -774,7 +771,8 @@ class PatternMixin:
         orig_start/orig_end (the bounds of the marker the user adjusted) so
         the learner can match the adjustment to its marker. Rows without
         valid bounds are skipped. Only corrections for episode_ids are
-        returned, keeping the query bounded to the learning window.
+        returned, keeping the query bounded to the learning window. Pass-2
+        auto-filed confirms are excluded so the prior never learns its own output.
         """
         if not episode_ids:
             return []
@@ -790,8 +788,9 @@ class PatternMixin:
             WHERE p.slug = ?
             AND pc.correction_type IN
                 ('false_positive', 'confirm', 'boundary_adjustment', 'create')
+            AND NOT (pc.correction_type = 'confirm' AND pc.origin = ?)
             AND pc.episode_id IN ({placeholders})
-        ''', [podcast_slug] + list(episode_ids))  # noqa: S608
+        ''', [podcast_slug, CORRECTION_ORIGIN_AUTO_PASS2] + list(episode_ids))  # noqa: S608
 
         results = []
         for row in cursor.fetchall():

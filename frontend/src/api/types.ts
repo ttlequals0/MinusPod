@@ -543,6 +543,8 @@ export interface EpisodeCorrection {
   original_bounds: { start: number; end: number };
   corrected_bounds?: { start: number; end: number };
   created_at: string;
+  // Absent from builds before the origin column existed.
+  origin?: 'user' | 'auto_pass2';
 }
 
 export interface AdSegment {

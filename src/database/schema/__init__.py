@@ -27,6 +27,9 @@ _SEARCH_CHANGE_TRIGGER_NAMES = (
 )
 _SEARCH_CHANGE_TRIGGER_MARKER = 'search_change_triggers_v1'
 
+# The hold reason inside the snippet _file_corroborated_hold_approvals writes.
+_AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
+
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import SCHEMA_SQL, TABLE_DDL
@@ -36,7 +39,10 @@ from database.search import (
     SEARCH_INDEX_DDL,
 )
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
-from config import count_pending_review
+from config import (
+    CORRECTION_ORIGIN_AUTO_PASS2, PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
+    count_pending_review,
+)
 from utils.markers import collapse_duplicate_markers
 
 
@@ -534,6 +540,7 @@ class SchemaMixin:
             ('podcast_id', 'INTEGER REFERENCES podcasts(id) ON DELETE SET NULL'),
             ('source_hold_reason', 'TEXT'),
             ('fp_suppressed', 'INTEGER DEFAULT 0'),
+            ('origin', "TEXT NOT NULL DEFAULT 'user'"),
         ]
         for col, definition in pcorr_migrations:
             self._add_column_if_missing(conn, 'pattern_corrections', col, definition, pcorr_cols)
@@ -1526,6 +1533,10 @@ class SchemaMixin:
         # 2.95.2: one-shot fold of duplicate pass-1/pass-2 markers for the same span
         # (they used to double-count pending_review_count); write path no longer produces them.
         self._collapse_duplicate_ad_markers(conn)
+
+        # 2.97.32: tag pass-2 auto-filed confirms by origin; runs after the
+        # sponsor FK rebuild so the column exists in its final table.
+        self._backfill_correction_origin(conn)
 
         # 2.5.7: retire kitchen-sink ad_patterns that name multiple foreign
         # sponsors in their text_template. The merge guard prevents new ones
@@ -3511,6 +3522,44 @@ class SchemaMixin:
             conn.rollback()
             logger.warning(f"Migration: duplicate ad-marker collapse failed: {e}")
 
+    def _backfill_correction_origin(self, conn):
+        """One-shot: set origin and source_hold_reason on confirms filed with the pass-2 snippet."""
+        marker = 'backfill_correction_origin_once'
+        if conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)
+        ).fetchone():
+            return
+        try:
+            rows = conn.execute(
+                "SELECT id, text_snippet FROM pattern_corrections "
+                "WHERE correction_type = 'confirm' AND origin = 'user' "
+                "AND text_snippet LIKE ?",
+                (PASS2_AUTOAPPROVE_SNIPPET_PREFIX + '%',)
+            ).fetchall()
+            tagged = 0
+            for row in rows:
+                snippet = row['text_snippet']
+                # LIKE is case-insensitive; the writer's prefix is exact.
+                if not snippet.startswith(PASS2_AUTOAPPROVE_SNIPPET_PREFIX):
+                    continue
+                reason = _AUTO_FILED_REASON_RE.match(
+                    snippet[len(PASS2_AUTOAPPROVE_SNIPPET_PREFIX):])
+                conn.execute(
+                    "UPDATE pattern_corrections SET origin = ?, "
+                    "source_hold_reason = COALESCE(source_hold_reason, ?) WHERE id = ?",
+                    (CORRECTION_ORIGIN_AUTO_PASS2,
+                     reason.group(1) if reason else None, row['id'])
+                )
+                tagged += 1
+            conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (marker,))
+            conn.commit()
+            if tagged:
+                logger.info(f"Migration: tagged {tagged} auto-filed confirm correction(s) with origin")
+        except Exception as e:
+            # Gate stays unset, so this retries on the next boot.
+            conn.rollback()
+            logger.warning(f"Migration: correction origin backfill failed: {e}")
+
     def _migrate_fingerprint_cascade(self, conn):
         """2.88.2: give audio_fingerprints.pattern_id an FK with ON DELETE CASCADE.
 
@@ -3832,7 +3881,8 @@ class SchemaMixin:
                     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                     sponsor_id INTEGER REFERENCES known_sponsors(id),
                     source_hold_reason TEXT,
-                    fp_suppressed INTEGER DEFAULT 0
+                    fp_suppressed INTEGER DEFAULT 0,
+                    origin TEXT NOT NULL DEFAULT 'user'
                 )
             """)
             new_pc_cols = [

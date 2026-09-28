@@ -316,6 +316,9 @@ PASS2_AUTOAPPROVE_TRIM_SLACK_S = 0.5
 # text_snippet prefix of pass-2 auto-filed confirms; those rows never become
 # user keep ranges, so a machine trim cannot protect audio from later cuts.
 PASS2_AUTOAPPROVE_SNIPPET_PREFIX = 'auto-approved: pass-2'
+# pattern_corrections.origin values: a user decision vs a pass-2 auto-filed confirm.
+CORRECTION_ORIGIN_USER = 'user'
+CORRECTION_ORIGIN_AUTO_PASS2 = 'auto_pass2'
 
 # Validation flag on a reviewer reject a recut kept out of the audio.
 REVIEWER_REJECT_PRESERVED_FLAG = 'reviewer_reject_preserved'

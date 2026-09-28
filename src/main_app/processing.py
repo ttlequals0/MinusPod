@@ -85,6 +85,7 @@ from config import (
     PASS2_AUTOAPPROVE_HOLD_REASONS, PASS2_REVIEWED_RELEASE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
+    CORRECTION_ORIGIN_AUTO_PASS2,
     REVIEWER_REJECT_PRESERVED_FLAG,
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
@@ -3340,6 +3341,8 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
                     f"{PASS2_AUTOAPPROVE_SNIPPET_PREFIX} corroborated "
                     f"{m.get('hold_reason')} hold"),
                 podcast_id=podcast['id'],
+                source_hold_reason=m.get('hold_reason'),
+                origin=CORRECTION_ORIGIN_AUTO_PASS2,
             )
             audio_logger.info(
                 f"[{slug}:{episode_id}] Auto-approving hold "

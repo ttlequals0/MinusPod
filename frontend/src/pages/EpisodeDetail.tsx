@@ -22,7 +22,7 @@ import { isActionBlocked } from '../utils/processingStage';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
-import type { AdSegment, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass } from '../api/types';
+import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
@@ -92,6 +92,14 @@ function btnClass(status: string, idleClass: string): string {
   if (status === 'success') return 'bg-success/20 text-success-on-tint';
   if (status === 'error') return 'bg-destructive/20 text-destructive-on-tint';
   return idleClass;
+}
+
+// Badge text for a correction; a confirm the verification pass filed reads "Auto-approved".
+function correctionBadgeLabel(correction: EpisodeCorrection): string {
+  if (correction.correction_type === 'confirm') {
+    return correction.origin === 'auto_pass2' ? 'Auto-approved' : 'Confirmed';
+  }
+  return correction.correction_type === 'false_positive' ? 'Not an ad' : 'Adjusted';
 }
 
 // Row-identity payload the corrections API keys on. One builder so the
@@ -1318,9 +1326,7 @@ function EpisodeDetail() {
                             ? tint.warning
                             : tint.blue
                         }`}>
-                          {correction.correction_type === 'confirm' ? 'Confirmed'
-                           : correction.correction_type === 'false_positive' ? 'Not an ad'
-                           : 'Adjusted'}
+                          {correctionBadgeLabel(correction)}
                         </span>
                       );
                     }
@@ -1595,7 +1601,8 @@ function EpisodeDetail() {
                             ? tint.success
                             : tint.warning
                         }`}>
-                          {segment.approved || correction?.correction_type === 'confirm' ? 'Confirmed' : 'Not an ad'}
+                          {correction?.correction_type === 'confirm' ? correctionBadgeLabel(correction)
+                           : segment.approved ? 'Confirmed' : 'Not an ad'}
                         </span>
                       )}
                     </div>
@@ -1807,7 +1814,7 @@ function EpisodeDetail() {
                                 ? tint.success
                                 : tint.warning
                             }`}>
-                              {correction.correction_type === 'confirm' ? 'Confirmed' : 'Not an ad'}
+                              {correction.correction_type === 'confirm' ? correctionBadgeLabel(correction) : 'Not an ad'}
                             </span>
                           )}
                         </div>

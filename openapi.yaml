@@ -3679,6 +3679,13 @@ paths:
       summary: Export patterns
       description: Export all patterns as JSON for backup or transfer
       operationId: exportPatterns
+      parameters:
+        - name: include_corrections
+          in: query
+          description: Attach each pattern's pattern_corrections rows as `corrections`. Rows are exported whole, including `origin` (user or auto_pass2).
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: Exported patterns
@@ -11687,6 +11694,11 @@ components:
               description: Template cue detections for this episode (advisory telemetry; never changes the cut)
               items:
                 $ref: '#/components/schemas/CueDetection'
+            corrections:
+              type: array
+              description: Corrections recorded for this episode, newest first.
+              items:
+                $ref: '#/components/schemas/EpisodeCorrection'
             daiDifferential:
               type:
                 - object
@@ -12178,6 +12190,42 @@ components:
           description: >-
             How the cost was arrived at. mixed means the grouped calls did
             not agree on one source; unknown pairs with a null costUsd.
+
+    EpisodeCorrection:
+      type: object
+      properties:
+        id:
+          type: integer
+        correction_type:
+          type: string
+          enum: [false_positive, boundary_adjustment, confirm, promotion, auto_promotion, create]
+        original_bounds:
+          type:
+            - object
+            - 'null'
+          description: Bounds of the marker the correction applies to; null for create.
+          properties:
+            start:
+              type: number
+            end:
+              type: number
+        corrected_bounds:
+          type:
+            - object
+            - 'null'
+          description: User-set bounds for create, boundary_adjustment and trimmed confirms.
+          properties:
+            start:
+              type: number
+            end:
+              type: number
+        created_at:
+          type: string
+          format: date-time
+        origin:
+          type: string
+          enum: [user, auto_pass2]
+          description: user for a decision made in the UI or API; auto_pass2 for a confirm the verification pass filed when it re-detected a held ad.
 
     EpisodeProcessingRun:
       type: object

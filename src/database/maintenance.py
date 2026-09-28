@@ -448,6 +448,7 @@ class MaintenanceMixin:
             FROM pattern_corrections pc
             WHERE pc.correction_type = 'confirm'
               AND pc.pattern_id IS NULL
+              AND COALESCE(pc.origin, 'user') = 'user'
         ''')
         corrections = cursor.fetchall()
 
