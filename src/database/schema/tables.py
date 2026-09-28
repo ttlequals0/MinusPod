@@ -282,7 +282,8 @@ TABLE_DDL['pattern_corrections'] = """CREATE TABLE IF NOT EXISTS pattern_correct
     sponsor_id INTEGER REFERENCES known_sponsors(id),
     source_hold_reason TEXT,
     fp_suppressed INTEGER DEFAULT 0,
-    origin TEXT NOT NULL DEFAULT 'user'
+    origin TEXT NOT NULL DEFAULT 'user',
+    hold_id TEXT
 )"""
 
 TABLE_DDL['processing_runs'] = """CREATE TABLE IF NOT EXISTS processing_runs (

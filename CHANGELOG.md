@@ -21,6 +21,7 @@ release notes.
 ### Added
 
 - Every pass-2 span now ends with one logged outcome: cut, held, kept, rejected, covered or dropped, with the reason and its bounds in original time. Run stats count each outcome.
+- Confirms filed by pass-2 auto-approval now record the hold they released (`hold_id`). Releases of one hold stay grouped when a reprocess moves the hold's edges. A hold gets its id when first held, and holds saved before this release get one when loaded. Older confirms have no hold id and still group by exact hold bounds.
 
 ## [2.97.33] - 2026-09-28
 

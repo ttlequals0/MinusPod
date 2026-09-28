@@ -414,7 +414,8 @@ class PatternMixin:
                                    sponsor_id: int = None,
                                    source_hold_reason: str = None,
                                    podcast_id: int = None,
-                                   origin: str = CORRECTION_ORIGIN_USER) -> int:
+                                   origin: str = CORRECTION_ORIGIN_USER,
+                                   hold_id: str = None) -> int:
         """Create a pattern correction record. Returns correction ID.
 
         source_hold_reason records which hold gate produced a
@@ -426,12 +427,12 @@ class PatternMixin:
             """INSERT INTO pattern_corrections
                (pattern_id, episode_id, podcast_title, episode_title, correction_type,
                 original_bounds, corrected_bounds, text_snippet, sponsor_id, podcast_id,
-                source_hold_reason, origin)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                source_hold_reason, origin, hold_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (pattern_id, episode_id, podcast_title, episode_title, correction_type,
              json.dumps(original_bounds) if original_bounds else None,
              json.dumps(corrected_bounds) if corrected_bounds else None,
-             text_snippet, sponsor_id, podcast_id, source_hold_reason, origin)
+             text_snippet, sponsor_id, podcast_id, source_hold_reason, origin, hold_id)
         )
         conn.commit()
         return cursor.lastrowid
@@ -738,7 +739,7 @@ class PatternMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT correction_type, original_bounds, corrected_bounds,
-                      origin, source_hold_reason
+                      origin, source_hold_reason, hold_id
                FROM pattern_corrections
                WHERE podcast_id = ? AND episode_id = ?
                  AND correction_type IN ('confirm', 'boundary_adjustment')
@@ -760,6 +761,8 @@ class PatternMixin:
                     bounds['auto_filed'] = True
                     if row['source_hold_reason']:
                         bounds['hold_reason'] = row['source_hold_reason']
+                    if row['hold_id']:
+                        bounds['hold_id'] = row['hold_id']
                 results.append(bounds)
         return results
 

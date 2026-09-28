@@ -41,6 +41,7 @@ KEPT_SPAN_CONTAINMENT_MIN = 0.9
 _HOLD_SPLIT_DROPPED_KEYS = (
     'held_for_review', 'was_cut', 'hold_reason', 'validation', 'pass2_corroborated',
     'pass2_corroborated_span', '_hold_release_of', 'detection_stage', 'user_confirmed',
+    'hold_id',
 )
 
 

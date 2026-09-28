@@ -1,6 +1,7 @@
 """Marker-dict bookkeeping shared by the detector, validator, and reviewer."""
 import json
 import math
+import uuid
 
 from config import (CORRECTION_MATCH_MIN_COVERAGE, FINGERPRINT_CHUNK_SIZE,
                     PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS,
@@ -257,10 +258,18 @@ def _expand_legacy_partial_cut(marker: dict) -> list[dict]:
     return carve_partly_cut(marker, start, end, covered) or [marker]
 
 
+def ensure_hold_id(marker: dict) -> None:
+    """Give a held marker a stable identity once; copies and carved fragments keep it."""
+    if marker.get('held_for_review') and not marker.get('hold_id'):
+        marker['hold_id'] = uuid.uuid4().hex[:12]
+
+
 def normalize_loaded_markers(markers: list) -> list:
     """Bring persisted markers up to the current shape in place; returns the list."""
     expanded = []
     for marker in markers:
+        if isinstance(marker, dict):
+            ensure_hold_id(marker)
         if not isinstance(marker, dict) or (
                 DAI_CORE_SPANS not in marker and 'partial_cut_spans' not in marker):
             expanded.append(marker)

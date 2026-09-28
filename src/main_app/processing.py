@@ -57,6 +57,7 @@ from differential_fetcher import (
 )
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, carve_fragment,
+                           ensure_hold_id,
                            carve_partly_cut, covering_confirm, is_carved,
                            clip_merge_spans, finite_number,
                            fold_marker_pair, foldable_twin, invalidate_tail_provenance,
@@ -2801,6 +2802,9 @@ def _finalize_cut_state(all_ads, ads_to_remove, applied_cuts, duration, tag=''):
         eligible = is_requested or is_carved(marker)
         marker['was_cut'] = (eligible
                              and _covering_group(groups, marker, duration) is not None)
+        # Holds stamped outside the validator get their identity before anything can file it.
+        if is_pending_review(marker):
+            ensure_hold_id(marker)
         if not eligible or marker['was_cut']:
             continue
         start, end = _clamped_span(marker, duration)
@@ -3396,9 +3400,10 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
                 podcast_id=podcast['id'],
                 source_hold_reason=reason,
                 origin=CORRECTION_ORIGIN_AUTO_PASS2,
+                hold_id=m.get('hold_id'),
             )
             entry = {'start': m['start'], 'end': m['end'],
-                     'auto_filed': True, 'hold_reason': reason,
+                     'auto_filed': True, 'hold_reason': reason, 'hold_id': m.get('hold_id'),
                      **({'confirmed_span': dict(span)} if trimmed else {})}
             known.append(entry)
             filed_ids.add(id(entry))

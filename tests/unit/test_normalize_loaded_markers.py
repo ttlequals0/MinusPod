@@ -111,4 +111,5 @@ def test_held_legacy_partial_cut_stays_whole_on_load():
     normalize_loaded_markers(markers)
     expected = _held_legacy()
     expected.pop('partial_cut_spans')
+    assert len(markers[0].pop('hold_id')) == 12
     assert markers == [expected]

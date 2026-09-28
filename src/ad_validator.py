@@ -30,6 +30,7 @@ from config import (
 )
 from utils.markers import (
     carve_fragment,
+    ensure_hold_id,
     clip_dai_core_spans,
     clip_merge_spans,
     COVERAGE_GAP_TOLERANCE,
@@ -1465,10 +1466,13 @@ class AdValidator:
 
     def _split_multi_release_holds(self, ads: list[dict]) -> list[dict]:
         """Give each auto-filed release of one hold its own piece of the marker."""
-        by_hold = {}
+        # Releases of one hold share its id; rows filed before hold ids share its exact bounds.
+        by_bounds, by_id = {}, {}
         for c in self.confirmed_corrections:
             if c.get('auto_filed') and c.get('confirmed_span'):
-                by_hold.setdefault((c['start'], c['end']), []).append(c)
+                by_bounds.setdefault((c['start'], c['end']), []).append(c)
+                if c.get('hold_id'):
+                    by_id.setdefault(c['hold_id'], []).append(c)
         out = []
         for ad in ads:
             if ad.get('_reviewer_rejected') or ad.get('_user_kept_by_trim'):
@@ -1483,8 +1487,10 @@ class AdValidator:
             if not newest.get('auto_filed'):
                 out.append(ad)
                 continue
+            group = {id(c): c for c in [*by_bounds.get((newest['start'], newest['end']), []),
+                                        *by_id.get(newest.get('hold_id'), [])]}
             releases = sorted(
-                (c for c in by_hold.get((newest['start'], newest['end']), [])
+                (c for c in group.values()
                  if c['confirmed_span']['start'] < ad['end']
                  and c['confirmed_span']['end'] > ad['start']),
                 key=lambda c: c['confirmed_span']['start'])
@@ -1576,6 +1582,7 @@ class AdValidator:
         """Set held_for_review state on the ad dict and append a flag entry."""
         ad['held_for_review'] = True
         ad['hold_reason'] = reason
+        ensure_hold_id(ad)
         flags.append(f"INFO: Held for review ({reason})")
         # Split remainders keep the same hold_reason; tag the log line only.
         log_reason = reason

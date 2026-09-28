@@ -541,6 +541,8 @@ class SchemaMixin:
             ('source_hold_reason', 'TEXT'),
             ('fp_suppressed', 'INTEGER DEFAULT 0'),
             ('origin', "TEXT NOT NULL DEFAULT 'user'"),
+            # 2.97.34: the hold an auto-filed confirm released; older rows group by bounds.
+            ('hold_id', 'TEXT'),
         ]
         for col, definition in pcorr_migrations:
             self._add_column_if_missing(conn, 'pattern_corrections', col, definition, pcorr_cols)
@@ -3882,7 +3884,8 @@ class SchemaMixin:
                     sponsor_id INTEGER REFERENCES known_sponsors(id),
                     source_hold_reason TEXT,
                     fp_suppressed INTEGER DEFAULT 0,
-                    origin TEXT NOT NULL DEFAULT 'user'
+                    origin TEXT NOT NULL DEFAULT 'user',
+                    hold_id TEXT
                 )
             """)
             new_pc_cols = [
