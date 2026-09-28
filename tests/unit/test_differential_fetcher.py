@@ -402,3 +402,68 @@ def test_matched_block_low_corr_is_not_retried(monkeypatch):
     diffs = [r for r in result['regions'] if r['kind'] == 'differential']
     assert len(diffs) == 1
     assert diffs[0]['corr'] == 0.2
+
+
+# --- Their-copy insertions: unmatched blocks probed at both neighbours ------
+
+def _insertion_segments():
+    return _blocks([('a', 6, 31, 220.0), ('b', 9, 32, 330.0),
+                    ('c', 12, 33, 440.0), ('d', 7, 34, 550.0),
+                    ('e', 10, 35, 660.0), ('ad', 20, 36, None),
+                    ('ours', 11, 37, None), ('fill', 14, 38, None)])
+
+
+def _their_insertion_pair():
+    """Refetch glues a 20s ad onto the head of C, so C is chain-unmatched."""
+    seg = _insertion_segments()
+    sil = ('sil', 0.4)
+    run_pcm, run_marks = _assemble(
+        [seg['a'], sil, seg['b'], sil, seg['c'], sil, seg['d'], sil, seg['e']])
+    ref_pcm, ref_marks = _assemble(
+        [seg['a'], sil, seg['b'], sil, np.concatenate([seg['ad'], seg['c']]),
+         sil, seg['d'], sil, seg['e']])
+    return run_pcm, run_marks, ref_pcm, ref_marks
+
+
+def test_their_insertion_yields_no_differential_regions():
+    run_pcm, run_marks, ref_pcm, ref_marks = _their_insertion_pair()
+
+    result = df._align_and_diff_pcm(run_pcm, ref_pcm, run_marks, ref_marks)
+
+    assert result['status'] == 'no_differential'
+    assert all(r['kind'] == 'identical' for r in result['regions'])
+
+
+def test_their_insertion_with_straddling_anchors_stays_identical():
+    # Interpolating between anchors either side of the insertion gives a ramp
+    # (about +7.5s at C) where the true offset steps to +20s.
+    run_pcm, run_marks, ref_pcm, ref_marks = _their_insertion_pair()
+
+    result = df._align_and_diff_pcm(run_pcm, ref_pcm, run_marks, ref_marks,
+                                    anchor_pairs=[(1.0, 1.0), (40.0, 60.0)])
+
+    assert result['status'] == 'no_differential'
+    assert all(r['kind'] == 'identical' for r in result['regions'])
+
+
+def test_our_unmatched_ad_stays_differential_beside_their_insertion():
+    # Our 11s ad sits where the refetch has a 14s fill; the refetch also glues
+    # a 20s ad onto C. Only our ad block is differential.
+    seg = _insertion_segments()
+    sil = ('sil', 0.4)
+    run_pcm, run_marks = _assemble(
+        [seg['a'], sil, seg['b'], sil, seg['ours'], sil, seg['c'], sil,
+         seg['d'], sil, seg['e']])
+    ref_pcm, ref_marks = _assemble(
+        [seg['a'], sil, seg['b'], sil, seg['fill'], sil,
+         np.concatenate([seg['ad'], seg['c']]), sil, seg['d'], sil, seg['e']])
+
+    result = df._align_and_diff_pcm(run_pcm, ref_pcm, run_marks, ref_marks)
+
+    assert result['status'] == 'ok'
+    diffs = [r for r in result['regions'] if r['kind'] == 'differential']
+    assert len(diffs) == 1
+    # Our ad spans silence midpoints 15.6s-27.0s.
+    assert abs(diffs[0]['start_s'] - 15.6) <= 0.1
+    assert abs(diffs[0]['end_s'] - 27.0) <= 0.1
+    assert diffs[0]['corr'] < df.XCORR_MIN_CORR

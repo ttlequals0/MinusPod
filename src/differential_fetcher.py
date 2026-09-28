@@ -218,19 +218,19 @@ def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
 
 
 def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
-                 end: float, offset: float, *, allow_retry: bool = False):
+                 end: float, offsets: list, *, allow_retry: bool = False):
     """Measure one silence-delimited run block against the refetch.
 
     Returns (kind, corr): ('identical'|'differential', float) for a usable
     probe, ('unknown', None) when the block is too short to probe or the
     probe window is unusable (silent template, window outside either file).
 
-    With allow_retry (unmatched blocks probed at an inherited neighbor
-    offset), a block scoring below XCORR_MIN_CORR gets ONE retry with a
-    doubled search window (drift re-probe): an inherited offset that is
-    stale by more than XCORR_SEARCH_S -- e.g. silencedetect missed a mark
-    on the refetch -- would otherwise mislabel identical audio as
-    differential. The measured corr is the best of the probes.
+    Each candidate offset is probed and the best corr kept. With allow_retry
+    (unmatched blocks probed at inherited neighbor offsets), a best score
+    below XCORR_MIN_CORR gets ONE retry at offsets[0] with a doubled search
+    window (drift re-probe): an inherited offset stale by more than
+    XCORR_SEARCH_S, e.g. silencedetect missed a mark on the refetch, would
+    otherwise mislabel identical audio as differential.
     Chain-matched blocks carry their own exact offset, so they are never
     retried: a low score there is a real difference, not drift.
     """
@@ -240,14 +240,22 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
     ref_s = min(XCORR_REF_S, block_len)
     # Lead past the half-silence at the block edge when there is room.
     run_t = dai_probe_window(start, end)[0]
-    corr = _block_correlation(run_pcm, ref_pcm, run_t, offset, ref_s=ref_s)
+    corr, best_offset = None, None
+    for offset in offsets:
+        c = _block_correlation(run_pcm, ref_pcm, run_t, offset, ref_s=ref_s)
+        if c is not None and (corr is None or c > corr):
+            corr, best_offset = c, offset
     if corr is None:
         return 'unknown', None
     if corr < XCORR_MIN_CORR and allow_retry:
-        retry = _block_correlation(run_pcm, ref_pcm, run_t, offset,
+        retry = _block_correlation(run_pcm, ref_pcm, run_t, offsets[0],
                                    ref_s=ref_s, search_s=XCORR_SEARCH_S * 2)
-        if retry is not None:
-            corr = max(corr, retry)
+        if retry is not None and retry > corr:
+            corr, best_offset = retry, offsets[0]
+    if len(offsets) > 1:
+        logger.debug('Unmatched block %.1f-%.1fs: best offset %+.2fs of %s, '
+                     'corr %.3f', start, end, best_offset,
+                     [round(o, 2) for o in offsets], corr)
     kind = 'identical' if corr >= XCORR_MIN_CORR else 'differential'
     return kind, corr
 
@@ -285,20 +293,16 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
     carries a measured corr: 'identical' and 'differential' from the peak
     NCC of the block's own probe, 'unknown' (corr None) when the block
     could not be measured. Unmatched blocks (no duration-matched refetch
-    counterpart -- typically DAI fills of differing length) are probed at
-    the nearest matched block's offset; with ``anchor_pairs`` (2.76.0) they
-    are probed at the cue-anchored interpolated offset instead, so an
-    inherited offset staler than the search window no longer needs the
-    doubled-window drift retry to score identical audio identical.
-    Chain-matched blocks keep their own exact offsets either way.
+    counterpart, typically DAI fills of differing length) are probed at the
+    cue-anchored offset (when ``anchor_pairs`` is given) and at both
+    neighbouring matched blocks' offsets, keeping the best corr: an ad
+    inserted only in the refetch steps the offset between neighbours.
+    Chain-matched blocks keep their own exact offsets.
     """
     pairs = _chain_marks(run_marks, ref_marks)
     offsets = {i: ref_marks[j] - run_marks[i] for i, j in pairs}
     n_blocks = len(run_marks) - 1
 
-    # Nearest matched offset for unmatched blocks: prefer the previous
-    # matched block (same piecewise-constant offset segment), fall back to
-    # the next one at the file head.
     next_offset = [None] * n_blocks
     upcoming = None
     for i in range(n_blocks - 1, -1, -1):
@@ -312,15 +316,18 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
         start, end = run_marks[i], run_marks[i + 1]
         if i in offsets:
             last_offset = offsets[i]
-            offset = last_offset
-        elif anchor_pairs:
-            offset = _anchor_offset(anchor_pairs, start)
+            candidates = [last_offset]
         else:
-            offset = last_offset if last_offset is not None else next_offset[i]
-        if offset is None:
+            anchor = _anchor_offset(anchor_pairs, start) if anchor_pairs else None
+            candidates = []
+            for c in (anchor, last_offset, next_offset[i]):
+                if c is not None and all(abs(c - k) > XCORR_SEARCH_S
+                                         for k in candidates):
+                    candidates.append(c)
+        if not candidates:
             kind, corr = 'unknown', None
         else:
-            kind, corr = _probe_block(run_pcm, ref_pcm, start, end, offset,
+            kind, corr = _probe_block(run_pcm, ref_pcm, start, end, candidates,
                                       allow_retry=i not in offsets)
         blocks.append({'start_s': start, 'end_s': end,
                        'kind': kind, 'corr': corr})
