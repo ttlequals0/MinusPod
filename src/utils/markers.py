@@ -539,7 +539,7 @@ def member_label(member: dict) -> tuple[str | None, str | None]:
             member.get('category') or None)
 
 
-def _labels_compatible(a: tuple, b: tuple) -> bool:
+def labels_compatible(a: tuple, b: tuple) -> bool:
     """Whether two member labels agree; a missing component matches anything."""
     return all(x is None or y is None or x == y for x, y in zip(a, b, strict=True))
 
@@ -552,7 +552,7 @@ def _coalesce_coarse_members(spans: list[dict]) -> list[dict]:
         prior = next(
             (m for m in merged if m.get('stage') == stage
              and stage in COARSE_MEMBER_STAGES
-             and _labels_compatible(member_label(m), member_label(span))
+             and labels_compatible(member_label(m), member_label(span))
              and span['start'] <= m['end'] and span['end'] >= m['start']),
             None) if stage in COARSE_MEMBER_STAGES else None
         if prior is None:

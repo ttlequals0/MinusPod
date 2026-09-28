@@ -40,10 +40,10 @@ from utils.constants import (
 )
 from utils.community_tags import UNIVERSAL_TAG
 from utils.language import get_pattern_language
-from utils.markers import member_label
+from utils.markers import labels_compatible, member_label
 from utils.pattern_catalog import scoped_catalog
 from utils.pattern_similarity import similarity, canonicalize_for_dedupe
-from utils.time import utc_now_iso
+from utils.time import overlap_seconds, utc_now_iso
 
 logger = logging.getLogger('podcast.textmatch')
 
@@ -1531,18 +1531,17 @@ class TextPatternMatcher:
         # matches against the same list.
         rows = self._brand_rows()
         members, cuts, brands = self.split_sources(ad or {}, sponsor, rows)
-        member_sponsors = {(m.get('sponsor') or '').strip().lower()
-                           for m in members if (m.get('sponsor') or '').strip()}
+        member_sponsors = {member_label(m)[0] for m in members} - {None}
         merged_distinct = bool((ad or {}).get('merged_distinct_ads'))
         labeled = [m for m in members if member_label(m) != (None, None)]
-        intro = outro = None
+        intro_label = outro_label = (None, None)
         if labeled:
-            intro = next((m for m in labeled if m['start'] <= start + 1.0), labeled[0])
-            outro = next((m for m in reversed(labeled) if m['end'] >= end - 1.0),
-                         labeled[-1])
+            intro_label = member_label(
+                next((m for m in labeled if m['start'] <= start + 1.0), labeled[0]))
+            outro_label = member_label(
+                next((m for m in reversed(labeled) if m['end'] >= end - 1.0), labeled[-1]))
         # A differing label only counts when both reads name it.
-        bundled = intro is not None and any(
-            a and b and a != b for a, b in zip(member_label(intro), member_label(outro), strict=True))
+        bundled = bool(labeled) and not labels_compatible(intro_label, outro_label)
         contaminated = (len(member_sponsors) > 1 or bundled
                         or bool(self._contaminating_brands(ad_text, sponsor, rows)))
         if (end - start <= max_duration
@@ -1560,7 +1559,7 @@ class TextPatternMatcher:
                 logger.info("Skipping pattern learning: merged ads have no reliable divider")
                 return []
             if bundled:
-                (a_sp, a_cat), (b_sp, b_cat) = member_label(intro), member_label(outro)
+                (a_sp, a_cat), (b_sp, b_cat) = intro_label, outro_label
                 logger.info(
                     f"Skipping pattern learning: intro and outro come from different reads "
                     f"({a_cat}/{a_sp} vs {b_cat}/{b_sp}) and no divider was found")
@@ -1577,11 +1576,11 @@ class TextPatternMatcher:
         if bundled:
             logger.info(
                 f"Splitting bundled span {start:.0f}-{end:.0f}s: intro from "
-                f"{member_label(intro)[1]}/{member_label(intro)[0]}, outro from "
-                f"{member_label(outro)[1]}/{member_label(outro)[0]}")
-        # The caller's sponsor names the opening read only when the intro agrees.
+                f"{intro_label[1]}/{intro_label[0]}, outro from "
+                f"{outro_label[1]}/{outro_label[0]}")
+        # The caller's sponsor names the opening read only when the intro names it too.
         opening_sponsor = sponsor if not bundled or (
-            member_label(intro)[0] == (sponsor or '').strip().lower()) else None
+            intro_label[0] == member_label({'sponsor': sponsor})[0]) else None
         logger.info(
             f"Splitting {end - start:.0f}s span into {len(pieces)} pieces "
             f"for pattern learning"
@@ -1598,9 +1597,9 @@ class TextPatternMatcher:
                 continue
             # A self-promo piece keeps its own category rather than the span's.
             overlap, cover = max(
-                ((min(m['end'], piece['end']) - max(m['start'], piece['start']), m)
+                ((overlap_seconds(m['start'], m['end'], piece['start'], piece['end']), m)
                  for m in labeled if m.get('category')),
-                key=lambda pair: pair[0], default=(0, None))
+                key=lambda pair: pair[0], default=(0.0, None))
             piece_category = cover['category'] if overlap > 0 else category
             created.extend(
                 create(piece['start'], piece['end'],
