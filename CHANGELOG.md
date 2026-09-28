@@ -13,9 +13,9 @@ release notes.
 
 ### Fixed
 
-- Common host-read closings now count as commercial language when a sponsor is confirmed: "learn more at acme.com", a spelled-out domain such as "acme dot com", and "thanks to Acme for supporting the show". The domain must match the sponsor, so an unrelated link does not count.
+- Common host-read closings now count as commercial language when a sponsor is confirmed. They are a call to action before the sponsor's domain ("learn more at acme.com"), a domain read aloud or spelled out ("acme dot com", "A-C-M-E.com"), and a thank-you that names the sponsor ("thanks to Acme for supporting the show"). The domain must match the sponsor. A written domain with no call to action, a plain "thanks to Acme", and "our friends at Acme" do not count, since news and conversation use them too.
 - A span that names its own sponsor in the transcript or the sponsor registry is no longer held for lacking splice evidence. A sponsor named only in the model's reason still holds.
-- The long-window sponsor check now reads the span's transcript, not just the model's reason, so a truncated reason no longer drops a real read. The transcript must name the same sponsor at least twice.
+- The long-window sponsor check now reads the span's transcript, not just the model's reason, so a truncated reason no longer drops a real read. The transcript must name the same sponsor at least twice, and a segment at the edge of the span counts only its words inside the span.
 
 ### Changed
 
