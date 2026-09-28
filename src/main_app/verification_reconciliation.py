@@ -1,5 +1,7 @@
 """Pass-2 verification reconciliation: validating, gating, and recutting
 pass-2 ad candidates against pass-1 output."""
+import functools
+import inspect
 import logging
 from dataclasses import dataclass, field
 
@@ -49,10 +51,32 @@ class Pass2Ledger:
 
     def __init__(self):
         self._entries = {}
+        self._superseded = {}
 
     def record(self, span, outcome):
         """Record outcome for the original-coordinate span dict, keyed by identity."""
         self._entries[id(span)] = (span, span['start'], span['end'], outcome)
+
+    def supersede(self, span):
+        """Mark a span whose outcome other entries already describe."""
+        self._superseded[id(span)] = span
+
+    def record_carved(self, original, labelled_spans):
+        """Record each part of original inside labelled_spans, earlier labels first."""
+        taken = []
+        for src in labelled_spans or []:
+            lo, hi = max(original['start'], src['start']), min(original['end'], src['end'])
+            if hi > lo:
+                for a, b in subtract_spans([(lo, hi)], taken):
+                    self.record({'start': a, 'end': b}, src['label'])
+            taken.append((src['start'], src['end']))
+
+    def fail(self, *groups):
+        """Record every candidate without an outcome yet as dropped by the failed pass."""
+        for group in groups:
+            for ad in group or []:
+                if id(ad) not in self._entries and id(ad) not in self._superseded:
+                    self.record(ad, 'dropped:pass_failed')
 
     def settle(self, cut, held, kept):
         """Record the markers the pass ends with."""
@@ -63,16 +87,34 @@ class Pass2Ledger:
         for ad in kept:
             self.record(ad, 'kept')
 
-    def emit(self, slug, episode_id, run_stats=None):
+    def emit(self, slug=None, episode_id=None, run_stats=None):
         """Log one line per span and count the outcomes into run_stats."""
+        prefix = f"[{slug}:{episode_id}] " if slug else ''
         counts = {}
         for start, end, outcome in sorted(
                 (start, end, outcome) for _span, start, end, outcome in self._entries.values()):
-            audio_logger.info(
-                f"[{slug}:{episode_id}] Pass-2 span {start:.1f}s-{end:.1f}s: {outcome}")
+            audio_logger.info(f"{prefix}Pass-2 span {start:.1f}s-{end:.1f}s: {outcome}")
             counts[outcome] = counts.get(outcome, 0) + 1
         if run_stats is not None:
             run_stats['pass2_outcomes'] = counts
+
+
+def owns_ledger_when_absent(func):
+    """Give a caller that passes no ledger its own, emitted when func returns."""
+    signature = inspect.signature(func)
+
+    @functools.wraps(func)
+    def wrapper(*args, ledger=None, **kwargs):
+        if ledger is not None:
+            return func(*args, ledger=ledger, **kwargs)
+        ledger = Pass2Ledger()
+        result = func(*args, ledger=ledger, **kwargs)
+        bound = signature.bind_partial(*args, **kwargs).arguments
+        ctx = bound.get('ctx')
+        ledger.emit(bound.get('slug', getattr(ctx, 'slug', None)),
+                    bound.get('episode_id', getattr(ctx, 'episode_id', None)))
+        return result
+    return wrapper
 
 
 def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
@@ -256,13 +298,15 @@ def _matches_false_positive_correction(orig_ad, false_positive_corrections):
         for corr in false_positive_corrections or [])
 
 
+@owns_ledger_when_absent
 def _split_pass2_candidates_around_spans(processed_ads, original_ads,
                                           barriers_processed, pass1_cuts,
                                           barrier_label, timestamp_map=None,
-                                          ledger=None, consumed_outcome=None):
+                                          ledger=None, carved_labels=None):
     """Split paired pass-2 candidates around protected processed spans.
 
-    A candidate wholly inside the spans is recorded in ledger as consumed_outcome.
+    ``carved_labels`` are original-time {start, end, label} spans naming the
+    outcome of each carved-off part; without them carved parts are not recorded.
     """
     if not barriers_processed:
         return processed_ads, original_ads
@@ -280,8 +324,6 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
     for processed, original in zip(processed_ads, original_ads, strict=True):
         whole = (processed['start'], processed['end'])
         fragments = subtract_spans([whole], barriers)
-        if not fragments and ledger is not None:
-            ledger.record(original, consumed_outcome)
         if fragments == [whole]:
             surviving_processed.append(processed)
             surviving_original.append(original)
@@ -291,6 +333,7 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
             f"Pass-2 candidate {processed['start']:.1f}s-"
             f"{processed['end']:.1f}s split around {barrier_label} into "
             f"{len(fragments)} removable fragment(s)")
+        ledger.record_carved(original, carved_labels)
         # The parent cleared the renderer's duration floor before a protected
         # span carved it; validation still decides whether each piece is a cut.
         trusted_fragment = (
@@ -314,11 +357,11 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
     return surviving_processed, surviving_original
 
 
+@owns_ledger_when_absent
 def _exclude_kept_spans_from_verification(verification_ads_processed,
                                            verification_ads_original,
                                            pass1_kept_markers, pass1_cuts, ledger=None):
     """Drop or split pass-2 findings over kept spans; returns (processed, original, conflicts)."""
-    ledger = ledger if ledger is not None else Pass2Ledger()
     if not pass1_kept_markers:
         return verification_ads_processed, verification_ads_original, []
     keep_barriers = [{'start': start, 'end': end} for start, end, *_ in merge_cut_spans(
@@ -344,7 +387,9 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
             timestamp_map = _build_timestamp_map(pass1_cuts)
         fragments = list(zip(*_split_pass2_candidates_around_spans(
             [ad], [orig_ad], keep_barriers, pass1_cuts, 'kept audio',
-            timestamp_map=timestamp_map), strict=True))
+            timestamp_map=timestamp_map, ledger=ledger,
+            carved_labels=labelled_spans(pass1_kept_markers, 'kept:pass1_keep')),
+            strict=True))
         for proc, orig in fragments:
             if orig['end'] <= orig['start']:
                 # A fragment inside a replacement beep has no original audio to cut.
@@ -363,17 +408,18 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     return surviving_processed, surviving_original, conflicts
 
 
+@owns_ledger_when_absent
 def _split_pass2_candidates_around_holds(parents, pass1_held_markers, pass1_cuts,
                                          ledger=None):
     """Carve hold-overlapping pass-2 findings into their parts outside the holds."""
-    ledger = ledger if ledger is not None else Pass2Ledger()
     if not parents:
         return [], []
     barriers = [{'start': start, 'end': end} for start, end, *_ in merge_cut_spans(
         _pass2_keep_barriers_processed(pass1_held_markers, pass1_cuts))]
+    # The gate already recorded the in-hold parts as covered:pass1_hold.
     carved = _split_pass2_candidates_around_spans(
         [p for p, _ in parents], [o for _, o in parents], barriers, pass1_cuts,
-        'held audio')
+        'held audio', ledger=ledger)
     surviving_processed = []
     surviving_original = []
     for proc, orig in zip(*carved, strict=True):
@@ -406,12 +452,12 @@ class HoldSplitFragments:
     held: list = field(default_factory=list)
 
 
+@owns_ledger_when_absent
 def _gate_hold_split_fragments(slug, episode_id, parents, pass1_held_markers,
                                pass1_cuts, false_positive_corrections, protection,
                                validate, gate, ledger=None):
     """Run the parts of hold-overlapping findings outside the holds through the pass-2 checks."""
     # validate and gate take (processed, original); gate must not see the pass-1 holds.
-    ledger = ledger if ledger is not None else Pass2Ledger()
     processed, original = _split_pass2_candidates_around_holds(
         parents, pass1_held_markers, pass1_cuts, ledger=ledger)
     pairs = []
@@ -424,7 +470,7 @@ def _gate_hold_split_fragments(slug, episode_id, parents, pass1_held_markers,
         return HoldSplitFragments()
     processed, original = _split_pass2_candidates_around_spans(
         [p for p, _ in pairs], [o for _, o in pairs], protection.hard_proc,
-        pass1_cuts, 'protected audio', ledger=ledger, consumed_outcome='dropped:protected')
+        pass1_cuts, 'protected audio', ledger=ledger, carved_labels=protection.hard_sources)
     processed, original = validate(processed, original)
     pairs = []
     for proc, orig in zip(processed, original, strict=True):
@@ -477,6 +523,7 @@ def _add_release_candidate(release_by_hold, orig_ad, hold, overlapping,
     return True
 
 
+@owns_ledger_when_absent
 def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_ads_original,
                                           min_cut_confidence,
@@ -529,7 +576,6 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     (processed, original) pair so the caller can keep its parts outside the hold.
     ``ledger`` records the parts inside holds as covered and below-floor misses as dropped.
     """
-    ledger = ledger if ledger is not None else Pass2Ledger()
     if verification_miss_hold_min_confidence is None:
         verification_miss_hold_min_confidence = registry_get_default(
             'verification_miss_hold_min_confidence')
@@ -564,7 +610,8 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                     {'start': max(orig_ad['start'], h['start']),
                      'end': min(orig_ad['end'], h['end'])} for h in overlapping]):
                 if hi > lo:
-                    ledger.record({'start': lo, 'end': hi}, 'covered')
+                    ledger.record({'start': lo, 'end': hi}, 'covered:pass1_hold')
+            ledger.supersede(orig_ad)
             # A pass-2 cut overlapping a pass-1 held span would destroy the
             # audio the hold protects; drop it (never cut). The pass-1 held
             # marker already represents the region, so no second held marker
@@ -651,6 +698,11 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     return (v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count, candidates)
 
 
+def labelled_spans(markers, label):
+    """Original-time {start, end, label} spans for record_carved."""
+    return [{'start': m['start'], 'end': m['end'], 'label': label} for m in markers or []]
+
+
 def _covered_by_cuts(ad, applied_cuts, total_duration=None, tolerance=0.01):
     """True when ``ad`` falls inside one of the cuts ffmpeg applied.
 
@@ -664,6 +716,7 @@ def _covered_by_cuts(ad, applied_cuts, total_duration=None, tolerance=0.01):
                for c in applied_cuts)
 
 
+@owns_ledger_when_absent
 def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                recut_applied, verification_ads_processed,
                                verification_ads_original, total_duration=None,
@@ -693,10 +746,4 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                 if u is ui_ad:
                     del v_ads_for_ui[i]
                     break
-            if ledger is not None:
-                ledger.record(ui_ad, 'dropped:recut_filtered')
-                continue
-        audio_logger.info(
-            f"[{slug}:{episode_id}] Pass 2 ad {ad['start']:.1f}s-{ad['end']:.1f}s "
-            f"was filtered out of the recut; not counting it as removed"
-        )
+            ledger.record(ui_ad, 'dropped:recut_filtered')

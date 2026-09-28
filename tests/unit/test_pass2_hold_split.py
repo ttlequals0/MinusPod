@@ -169,7 +169,6 @@ def test_gap_between_two_holds_becomes_a_candidate():
 
 
 def test_short_fragment_of_a_short_parent_is_dropped_with_a_reason(caplog):
-    # The reason is the pass-2 outcome ledger line, which replaced the per-site drop line.
     ledger = Pass2Ledger()
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
         proc, orig = _split_pass2_candidates_around_holds(
@@ -414,7 +413,6 @@ def test_fragment_matching_a_user_rejection_is_dropped(caplog):
             gate=lambda proc, orig: (list(proc), list(orig), [], 0, []), ledger=ledger)
         ledger.emit('example-podcast', 'a1b2c3d4e5f6')
     assert _spans(result.original) == [(990.0, 1000.0)]
-    # The outcome ledger line replaced the per-site rejection line.
     assert any('Pass-2 span 1100.0s-1200.0s: rejected:fp_correction' in r.getMessage()
                for r in caplog.records)
 

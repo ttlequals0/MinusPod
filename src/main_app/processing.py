@@ -201,6 +201,8 @@ from main_app.verification_reconciliation import (
     _split_pass2_candidates_around_spans,
     _matches_false_positive_correction,
     Pass2Ledger,
+    labelled_spans,
+    owns_ledger_when_absent,
     _proposed_span_agrees,  # noqa: F401 re-exported for processing.<name> test patch targets
 )
 # Singletons created in main_app/__init__.py before this submodule is
@@ -1948,8 +1950,10 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map,
             kept_processed, kept_original)
 
 
+@owns_ledger_when_absent
 def _exclude_category_kept_spans(processed_ads, original_ads,
-                                  kept_processed, pass1_cuts, ledger=None):
+                                  kept_processed, pass1_cuts, ledger=None,
+                                  kept_original=None):
     """Subtract category-kept pass-2 spans from remaining candidates.
 
     Heuristic roll detection can overlap an LLM marker whose category action
@@ -1959,7 +1963,8 @@ def _exclude_category_kept_spans(processed_ads, original_ads,
     """
     return _split_pass2_candidates_around_spans(
         processed_ads, original_ads, kept_processed, pass1_cuts,
-        'category-kept audio', ledger=ledger, consumed_outcome='dropped:inside_kept')
+        'category-kept audio', ledger=ledger,
+        carved_labels=labelled_spans(kept_original, 'kept:category_keep'))
 
 
 def _stamp_pass2_cut_actions(processed_cuts, original_cuts, actions_map):
@@ -1976,6 +1981,7 @@ def _stamp_pass2_cut_actions(processed_cuts, original_cuts, actions_map):
         marker['action_applied'] = action
 
 
+@owns_ledger_when_absent
 def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts, ledger=None):
     """Make actual pass-2 cuts disjoint when their render actions differ.
 
@@ -2020,7 +2026,8 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts, ledg
         [pair[0] for pair in beep_pairs],
         pass1_cuts,
         'beep-replacement audio',
-        ledger=ledger, consumed_outcome='covered',
+        ledger=ledger,
+        carved_labels=labelled_spans([pair[1] for pair in beep_pairs], 'covered:beep'),
     )
     reconciled = [*beep_pairs, *zip(remove_processed, remove_original, strict=True)]
     reconciled.sort(key=lambda pair: pair[0]['start'])
@@ -2170,6 +2177,7 @@ def _log_reviewer_verdicts(slug, episode_id, pass_num, verdicts):
     )
 
 
+@owns_ledger_when_absent
 def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence,
@@ -2200,7 +2208,6 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     podcast_description = ctx.podcast_description
     episode_description = ctx.episode_description
     clear_fallback(episode_id, PASS_REVIEWER_2)
-    ledger = ledger if ledger is not None else Pass2Ledger()
 
     if not _ad_review_enabled(db):
         return
@@ -3156,6 +3163,7 @@ def _finalize_user_confirmed_bounds(
     return ads_to_remove
 
 
+@owns_ledger_when_absent
 def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 verification_ads_original, verification_segments,
                                 ads_to_remove, episode_description,
@@ -3183,7 +3191,8 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     timeline. Validator-only copies stay in the ordered span list so a
     removable candidate cannot be merged or extended through them.
 
-    ``ledger`` records rejected candidates and those merged into a sibling.
+    ``ledger`` records rejected candidates, those merged into a sibling and
+    those clamped away past the end of the audio.
 
     Returns (verification_ads_processed, verification_ads_original).
     """
@@ -3262,7 +3271,7 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         orig = ad.pop('_orig_twin', None)
         seen.add(id(orig))
         if ad.get('validation', {}).get('decision') == 'REJECT':
-            if ledger is not None and orig is not None:
+            if orig is not None:
                 ledger.record(orig, 'rejected:validator')
             continue
         if orig is None:
@@ -3274,10 +3283,12 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
             continue
         kept_processed.append(ad)
         kept_original.append(orig)
-    if ledger is not None:
-        for orig in verification_ads_original:
-            if id(orig) not in seen:
-                ledger.record(orig, 'covered')
+    for proc, orig in zip(verification_ads_processed, verification_ads_original, strict=True):
+        if id(orig) in seen:
+            continue
+        merged = any(k['start'] <= proc['start'] + EDGE_TOLERANCE
+                     and proc['end'] <= k['end'] + EDGE_TOLERANCE for k in kept_processed)
+        ledger.record(orig, 'covered' if merged else 'dropped:validator_clamped')
     return kept_processed, kept_original
 
 
@@ -3539,6 +3550,7 @@ def _rerender_crosspass_from_original(slug, episode_id, original_audio_path,
     return rerendered_path, applied, True
 
 
+@owns_ledger_when_absent
 def _drop_uncovered_crosspass_ads(slug, episode_id, processed_ads, original_ads,
                                   applied_cuts, total_duration, ledger=None):
     """Keep pass-2 UI markers only when the final original render covers them."""
@@ -3551,12 +3563,7 @@ def _drop_uncovered_crosspass_ads(slug, episode_id, processed_ads, original_ads,
             original_ads.remove(original)
         processed['was_cut'] = False
         original['was_cut'] = False
-        if ledger is not None:
-            ledger.record(original, 'dropped:recut_filtered')
-            continue
-        audio_logger.info(
-            f"[{slug}:{episode_id}] Pass 2 ad {original['start']:.1f}s-"
-            f"{original['end']:.1f}s was filtered out of cross-pass rerender")
+        ledger.record(original, 'dropped:recut_filtered')
 
 
 def _protected_ranges_in_processed_audio(ranges, pass1_cuts):
@@ -3587,6 +3594,8 @@ class Protection:
     """Pass-1 cuts the processed mapping was built from."""
     hard_labelled: list
     """Unmerged hard sources labelled keep or user_reject, for the reviewer prompt."""
+    hard_sources: list
+    """Unmerged hard sources labelled with the pass-2 outcome of audio they carve off."""
 
     def barriers_orig(self, exclude=()):
         """Hard ranges plus every hold not in exclude (matched by identity)."""
@@ -3617,6 +3626,10 @@ def build_protection(kept, category_kept, user_trims, fp_corrections, holds,
         hard_labelled=_labelled_protected_spans(
             [*(kept or []), *(category_kept or [])],
             [*(user_trims or []), *(fp_corrections or [])]),
+        hard_sources=[*labelled_spans(fp_corrections, 'rejected:fp_correction'),
+                      *labelled_spans(kept, 'kept:pass1_keep'),
+                      *labelled_spans(category_kept, 'kept:category_keep'),
+                      *labelled_spans(user_trims, 'kept:user_trim')],
     )
 
 
@@ -3727,6 +3740,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     kept_conflicts = []
     hard_protection = None
     ledger = Pass2Ledger()
+    verification_ads_original = []
 
     def current_protection():
         # Hard sources are fixed after the category partition; only the holds grow.
@@ -3806,6 +3820,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             audio_logger.warning(
                 f"[{slug}:{episode_id}] Verification incomplete ({v_status}{detail}); "
                 "not reporting a clean scan")
+            ledger.fail(verification_ads_original)
+            ledger.emit(slug, episode_id, run_stats)
             return (verification_count, v_ads_for_ui, v_cuts_for_assets,
                     v_ads_held, processed_path, verification_cue_count,
                     False, v_corroborated_count)
@@ -3861,6 +3877,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             category_kept_processed,
             pass1_cuts,
             ledger=ledger,
+            kept_original=category_kept,
         )
         # After the category partition, so every Protection carries the category keeps.
         hard_protection = build_protection(
@@ -3874,7 +3891,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             verification_ads_original,
             current_protection().hard_proc,
             pass1_cuts, 'protected audio',
-            ledger=ledger, consumed_outcome='dropped:protected')
+            ledger=ledger, carved_labels=hard_protection.hard_sources)
         had_verification_candidates = bool(verification_ads_processed)
         if verification_ads_processed:
             audio_logger.info(f"[{slug}:{episode_id}] Verification found {len(verification_ads_processed)} missed ads")
@@ -3978,7 +3995,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 v_ads_to_cut, v_ads_for_ui = _split_pass2_candidates_around_spans(
                     v_ads_to_cut, v_ads_for_ui, protection.hard_proc,
                     pass1_cuts, 'protected audio',
-                    ledger=ledger, consumed_outcome='dropped:protected')
+                    ledger=ledger, carved_labels=protection.hard_sources)
 
                 if v_ads_to_cut:
                     # Probed above, before the recut deletes the pre-recut
@@ -4052,6 +4069,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         audio_logger.error(f"[{slug}:{episode_id}] Verification pass failed: {e}")
         # The pass did not complete; callers must not report a clean scan.
         verification_ok = False
+        ledger.fail(v_ads_for_ui, v_ads_held, category_kept, kept_conflicts,
+                    verification_ads_original)
+        ledger.emit(slug, episode_id, run_stats)
 
     # Category keeps persist with the pass-2 markers but were never holds.
     return (verification_count, v_ads_for_ui, v_cuts_for_assets,

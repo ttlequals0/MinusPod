@@ -1101,7 +1101,6 @@ class TestExcludeKeptSpansFromVerification:
         assert out_orig == []
         assert conflicts == []
         assert 'held_for_review' not in orig_overlap
-        # The outcome ledger line replaced the per-site drop line, in original time.
         assert any('Pass-2 span 504.0s-514.0s: dropped:inside_kept' in r.message
                    for r in caplog.records)
 

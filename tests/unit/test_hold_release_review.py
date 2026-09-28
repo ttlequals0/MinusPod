@@ -117,7 +117,6 @@ def test_supported_subspan_inside_hold_becomes_a_release_candidate():
 
 
 def test_finding_sent_to_hold_review_is_not_logged_as_dropped(caplog):
-    # The in-hold part is reported once by the pass-2 outcome ledger, not a per-site drop line.
     ledger = Pass2Ledger()
     with caplog.at_level('INFO', logger='podcast.audio'):
         _gate([_proc(1040.0, 1060.0)], [_orig(1040.0, 1060.0)], [_hold(1000.0, 1100.0)],
@@ -131,7 +130,7 @@ def test_finding_sent_to_hold_review_is_not_logged_as_dropped(caplog):
         'Sent pass-2 span 1040.0s-1060.0s to hold review']
     assert not any('Dropping' in m for m in messages)
     assert [m for m in messages if 'Pass-2 span ' in m] == [
-        '[example-podcast:a1b2c3d4e5f6] Pass-2 span 1040.0s-1060.0s: covered'] * 2
+        '[example-podcast:a1b2c3d4e5f6] Pass-2 span 1040.0s-1060.0s: covered:pass1_hold'] * 2
 
 
 def test_candidate_is_clipped_to_the_hold_in_original_coordinates():

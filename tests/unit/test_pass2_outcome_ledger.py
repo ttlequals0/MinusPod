@@ -48,8 +48,8 @@ def _ledger_lines(records):
             for m in (LINE.search(r.getMessage()) for r in records) if m]
 
 
-def _run(findings, *, holds=(), cuts=(), kept=(), fp=(), validator_rejects=(),
-         reviewer_rejects=(), caplog=None):
+def _run(findings, *, holds=(), cuts=(), kept=(), fp=(), trims=(), validator_rejects=(),
+         reviewer_rejects=(), status=None, reviewer_error=None, caplog=None):
     """Drive _run_verification_pass with detection, validation and the reviewer stubbed."""
     audio = MagicMock()
     audio.get_audio_duration.return_value = 6000.0
@@ -78,6 +78,8 @@ def _run(findings, *, holds=(), cuts=(), kept=(), fp=(), validator_rejects=(),
         return proc, orig
 
     def pass2_reviewer(ctx, cut, ui, held, proc, orig, *args, ledger=None, **kwargs):
+        if reviewer_error:
+            raise reviewer_error
         for p, o in list(zip(cut, ui, strict=True)):
             if (o['start'], o['end']) in reviewer_rejects:
                 cut.remove(p)
@@ -97,11 +99,12 @@ def _run(findings, *, holds=(), cuts=(), kept=(), fp=(), validator_rejects=(),
         verifier_cls.return_value.verify.return_value = {
             'ads': [o for _p, o in pairs], 'ads_processed': [p for p, _o in pairs],
             'segments': [{'start': 0.0, 'end': 6000.0, 'text': 'Acme sponsor read'}],
+            'status': status,
         }
         output = processing._run_verification_pass(
             _ctx(), '/tmp/pass1-output.mp3', [dict(c) for c in cuts], False, 0.8,
             audio, None, original_segments=[], pass1_held_markers=list(holds),
-            pass1_kept_markers=list(kept), pass1_trim_ranges=[],
+            pass1_kept_markers=list(kept), pass1_trim_ranges=list(trims),
             segment_actions={'sponsor': 'remove', 'self_promo': 'keep'},
             false_positive_corrections=list(fp), run_stats=run_stats)
     return SimpleNamespace(output=output, lines=_ledger_lines(caplog.records),
@@ -126,34 +129,72 @@ def test_one_line_and_one_count_per_outcome(caplog):
         (600.0, 660.0, 'kept'),
         (800.0, 860.0, 'rejected:fp_correction'),
         (1000.0, 1060.0, 'rejected:validator'),
-        (1200.0, 1260.0, 'covered'),
+        (1200.0, 1260.0, 'covered:pass1_hold'),
         (1400.0, 1460.0, 'dropped:below_miss_floor'),
         (1610.0, 1660.0, 'dropped:inside_kept'),
         (1800.0, 1860.0, 'rejected:reviewer'),
     ]
     assert run.stats['pass2_outcomes'] == {
         'cut': 1, 'held:verification_miss': 1, 'kept': 1, 'rejected:fp_correction': 1,
-        'rejected:validator': 1, 'covered': 1, 'dropped:below_miss_floor': 1,
+        'rejected:validator': 1, 'covered:pass1_hold': 1, 'dropped:below_miss_floor': 1,
         'dropped:inside_kept': 1, 'rejected:reviewer': 1}
 
 
 def test_finding_split_around_a_hold_gets_one_line_per_fragment(caplog):
     run = _run([(900.0, 1200.0)], holds=[_hold(1000.0, 1100.0)], caplog=caplog)
     assert sorted(run.lines) == [
-        (900.0, 1000.0, 'cut'), (1000.0, 1100.0, 'covered'), (1100.0, 1200.0, 'cut')]
-    assert run.stats['pass2_outcomes'] == {'cut': 2, 'covered': 1}
+        (900.0, 1000.0, 'cut'), (1000.0, 1100.0, 'covered:pass1_hold'),
+        (1100.0, 1200.0, 'cut')]
+    assert run.stats['pass2_outcomes'] == {'cut': 2, 'covered:pass1_hold': 1}
 
 
 def test_short_fragment_beside_a_hold_is_dropped_with_its_own_line(caplog):
     run = _run([(95.0, 104.0)], holds=[_hold(100.0, 130.0)], caplog=caplog)
     assert sorted(run.lines) == [
-        (95.0, 100.0, 'dropped:short_fragment'), (100.0, 104.0, 'covered')]
+        (95.0, 100.0, 'dropped:short_fragment'), (100.0, 104.0, 'covered:pass1_hold')]
 
 
 def test_bounds_are_in_original_time_across_a_pass1_cut(caplog):
     cuts = [{'start': 100.0, 'end': 200.0}]
     run = _run([(900.0, 1100.0)], holds=[_hold(1000.0, 1100.0)], cuts=cuts, caplog=caplog)
-    assert sorted(run.lines) == [(900.0, 1000.0, 'cut'), (1000.0, 1100.0, 'covered')]
+    assert sorted(run.lines) == [(900.0, 1000.0, 'cut'), (1000.0, 1100.0, 'covered:pass1_hold')]
+
+
+def test_carved_off_parts_are_labelled_by_what_protects_them(caplog):
+    run = _run([(100.0, 400.0)],
+               kept=[{'start': 120.0, 'end': 140.0, 'action_applied': 'keep'}],
+               fp=[{'start': 200.0, 'end': 220.0}], trims=[{'start': 300.0, 'end': 320.0}],
+               caplog=caplog)
+    assert sorted(run.lines) == [
+        (100.0, 120.0, 'cut'), (120.0, 140.0, 'kept:pass1_keep'), (140.0, 200.0, 'cut'),
+        (200.0, 220.0, 'rejected:fp_correction'), (220.0, 300.0, 'cut'),
+        (300.0, 320.0, 'kept:user_trim'), (320.0, 400.0, 'cut')]
+
+
+def test_failed_status_flushes_every_candidate(caplog):
+    run = _run([(200.0, 260.0), (500.0, 560.0)], status='detection_failed', caplog=caplog)
+    assert sorted(run.lines) == [(200.0, 260.0, 'dropped:pass_failed'),
+                                 (500.0, 560.0, 'dropped:pass_failed')]
+    assert run.stats['pass2_outcomes'] == {'dropped:pass_failed': 2}
+
+
+def test_exception_flushes_every_unsettled_candidate(caplog):
+    run = _run([(200.0, 260.0), (400.0, 460.0, 0.3), (900.0, 1200.0)],
+               holds=[_hold(1000.0, 1100.0)], reviewer_error=RuntimeError('boom'),
+               caplog=caplog)
+    assert run.output[6] is False
+    assert sorted(run.lines) == [
+        (200.0, 260.0, 'dropped:pass_failed'), (400.0, 460.0, 'dropped:below_miss_floor'),
+        (900.0, 1000.0, 'dropped:pass_failed'), (1000.0, 1100.0, 'covered:pass1_hold'),
+        (1100.0, 1200.0, 'dropped:pass_failed')]
+
+
+def test_helper_without_a_ledger_logs_its_own_lines(caplog):
+    with caplog.at_level(logging.INFO, logger='podcast.audio'):
+        processing._gate_verification_ads_by_confidence(
+            [{'start': 10.0, 'end': 40.0, 'confidence': 0.2}],
+            [{'start': 10.0, 'end': 40.0, 'confidence': 0.2}], min_cut_confidence=0.8)
+    assert _ledger_lines(caplog.records) == [(10.0, 40.0, 'dropped:below_miss_floor')]
 
 
 def test_later_record_replaces_an_earlier_outcome(caplog):
@@ -175,7 +216,7 @@ SLOT = 400.0
 
 def _scenario(seed):
     rng = random.Random(seed)
-    findings, holds, kept, fp = [], [], [], []
+    findings, holds, kept, fp, trims = [], [], [], [], []
     for i in range(6):
         base = 100.0 + SLOT * i
         if rng.random() < 0.6:
@@ -186,12 +227,14 @@ def _scenario(seed):
                          'action_applied': 'keep'})
         if rng.random() < 0.3:
             fp.append({'start': base + 70.0, 'end': base + 85.0})
+        if rng.random() < 0.3:
+            trims.append({'start': base + 250.0, 'end': base + 265.0})
         # Half the findings start just before the hold, leaving a short outside part.
         start = round(base + rng.choice([rng.uniform(0.0, 190.0), rng.uniform(93.0, 99.5)]), 1)
         end = round(min(base + 380.0, start + rng.uniform(4.0, 260.0)), 1)
         findings.append((start, end, rng.choice([0.3, 0.7, 0.95, 0.95]),
                          rng.choice(['sponsor'] * 5 + ['self_promo'])))
-    return findings, holds, kept, fp
+    return findings, holds, kept, fp, trims
 
 
 def _slot(span):
@@ -200,9 +243,10 @@ def _slot(span):
 
 @pytest.mark.parametrize('seed', range(40))
 def test_every_fragment_has_exactly_one_line(seed, caplog):
-    findings, holds, kept, fp = _scenario(seed)
+    findings, holds, kept, fp, trims = _scenario(seed)
     cuts = [{'start': 20.0, 'end': 60.0}]
-    run = _run(findings, holds=holds, cuts=cuts, kept=kept, fp=fp, caplog=caplog)
+    run = _run(findings, holds=holds, cuts=cuts, kept=kept, fp=fp, trims=trims,
+               caplog=caplog)
 
     assert len(run.lines) == len(set(run.lines))
     assert sum(run.stats['pass2_outcomes'].values()) == len(run.lines)
@@ -217,15 +261,14 @@ def test_every_fragment_has_exactly_one_line(seed, caplog):
                     else f"held:{ad['hold_reason']}" if ad.get('held_for_review')
                     else 'cut')
         assert outcomes == [expected]
-    protected = [(s['start'], s['end']) for s in (*kept, *fp)]
     for i, (fs, fe, *_rest) in enumerate(findings):
         lines = sorted((s, e) for s, e, _o in run.lines if _slot((s, e)) == i)
         assert lines, (i, fs, fe, run.lines)
         # Lines of one finding never overlap, so no audio is reported twice.
         for (_s1, e1), (s2, _e2) in zip(lines, lines[1:], strict=False):
             assert s2 >= e1 - 0.1, (i, lines)
-        # Nothing outside protected audio ends without a line.
-        missing = subtract_spans(subtract_spans([(fs, fe)], protected), lines)
+        # No part of the finding, protected or not, ends without a line.
+        missing = subtract_spans([(fs, fe)], lines)
         assert all(hi - lo <= 0.1 for lo, hi in missing), (i, fs, fe, missing, run.lines)
 
 
@@ -263,3 +306,14 @@ def test_validator_reject_is_recorded_once(caplog):
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
         ledger.emit('example-podcast', 'a1b2c3d4e5f6')
     assert _ledger_lines(caplog.records) == [(100.0, 130.0, 'rejected:validator')]
+
+
+def test_validator_clamp_past_the_audio_end_is_not_called_covered(caplog):
+    processed = [{'start': 100.0, 'end': 130.0, 'confidence': 0.9},
+                 {'start': 610.0, 'end': 640.0, 'confidence': 0.9}]
+    original = [dict(p) for p in processed]
+    (_proc, kept_orig), ledger = _validate_with_ledger(processed, original)
+    assert kept_orig == [original[0]]
+    with caplog.at_level(logging.INFO, logger='podcast.audio'):
+        ledger.emit('example-podcast', 'a1b2c3d4e5f6')
+    assert _ledger_lines(caplog.records) == [(610.0, 640.0, 'dropped:validator_clamped')]
