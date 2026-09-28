@@ -5,10 +5,11 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('reviewer_policy_section_test_')
 
-from ad_reviewer import POLICY_LINE_CAP, AdReviewer, _capped_line, _format_policy_section
+from ad_reviewer import (POLICY_LINE_CAP, AdReviewer, _capped_line, _edge_item,
+                         _format_policy_section)
 from database import DEFAULT_REVIEW_PROMPT
 from main_app import processing
-from utils.markers import note_merged_members
+from utils.markers import hard_members, note_merged_members
 
 ACTIONS = {'sponsor': 'remove', 'cross_promo': 'remove', 'self_promo': 'keep'}
 SEGMENTS = [
@@ -219,3 +220,16 @@ def test_coarse_transcript_edges_are_labelled_unmeasured():
     ad['merged_member_spans'].pop()
 
     assert 'Measured edges: start unmeasured, end unmeasured' in _prompt(ad=ad)
+
+
+def test_measured_inner_member_labels_the_edge_under_a_coarse_outer_one():
+    ad = {'start': 100.0, 'end': 200.0, 'merged_protected_start': 100.0,
+          'merged_protected_end': 200.0, 'merged_member_spans': [
+        {'start': 100.0, 'end': 200.0, 'stage': 'claude', 'confidence': 0.95,
+         'precise_start': False, 'precise_end': False},
+        {'start': 110.0, 'end': 190.0, 'stage': 'fingerprint',
+         'fingerprint_match_start': 110.0, 'fingerprint_match_end': 190.0}]}
+    hard = hard_members(ad, 0.8)
+
+    assert _edge_item(ad, 'start', 0.8, hard) == 'start 110.0s (fingerprint)'
+    assert _edge_item(ad, 'end', 0.8, hard) == 'end 190.0s (fingerprint)'

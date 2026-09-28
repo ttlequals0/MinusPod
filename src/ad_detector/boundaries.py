@@ -21,6 +21,7 @@ from utils.markers import (
     note_fold,
     note_merged_members,
     quote_edge_valid as _quote_edge_valid,
+    recorded_member_spans,
     word_timed_edge_valid,
 )
 from utils.text import get_transcript_text_for_range
@@ -1671,19 +1672,35 @@ def effective_resolved_action(marker: dict,
 
 
 def _clip_estimated_keep(keep: dict, keep_action, other: dict, other_action) -> dict:
-    """An estimated keep contests a precise remove only over its matched text."""
+    """An estimated keep contests a precise remove only over its matched text and measured keep members."""
     if (keep_action != 'keep' or other_action != 'remove' or not keep.get('span_estimated')
             or not any(_quote_edge_valid(other, edge) or word_timed_edge_valid(other, edge)
                        for edge in ('start', 'end'))):
         return keep
     text = estimated_text_bounds(keep)
-    if text is None or text[1] <= text[0] or text == (keep['start'], keep['end']):
+    if text is None or text[1] <= text[0]:
+        logger.info(
+            f"Not clipping estimated {keep.get('category')!r} keep "
+            f"{keep['start']:.1f}s-{keep['end']:.1f}s: no matched text bounds")
+        return keep
+    spans = [text, *((m['start'], m['end']) for m in recorded_member_spans(keep)
+                     if not m.get('span_estimated'))]
+    lo = max(keep['start'], min(s for s, _ in spans))
+    hi = min(keep['end'], max(e for _, e in spans))
+    if (lo, hi) == (keep['start'], keep['end']):
         return keep
     logger.info(
         f"Clipping estimated {keep.get('category')!r} keep "
-        f"{keep['start']:.1f}s-{keep['end']:.1f}s to its matched text "
-        f"{text[0]:.1f}s-{text[1]:.1f}s against a precise remove")
-    return carve_fragment(keep, *text)
+        f"{keep['start']:.1f}s-{keep['end']:.1f}s to {lo:.1f}s-{hi:.1f}s "
+        f"against a precise remove")
+    return carve_fragment(keep, lo, hi)
+
+
+def _in_start_order(new_last, entries):
+    """Fold new_last into entries when an entry now starts before it."""
+    if new_last is not None and any(e['start'] < new_last['start'] for e in entries):
+        return None, sorted([new_last, *entries], key=lambda a: a['start'])
+    return new_last, entries
 
 
 def split_conflicting_action_span(last: dict, current: dict,
@@ -1733,7 +1750,7 @@ def split_conflicting_action_span(last: dict, current: dict,
     last = _clip_estimated_keep(last, effective_last_action, current, effective_current_action)
     current = _clip_estimated_keep(current, effective_current_action, last, effective_last_action)
     if current['start'] >= last['end'] or current['end'] <= last['start']:
-        return last, [current.copy()]
+        return _in_start_order(last, [current.copy()])
     if ((last_action is None or current_action is None)
             and current['end'] > last['end']):
         # Legacy no-action behavior: the earlier marker owns a partial
@@ -1746,15 +1763,18 @@ def split_conflicting_action_span(last: dict, current: dict,
             >= priority.get(effective_last_action, 0))
     )
     if not current_wins:
-        if current['end'] <= last['end']:
+        # A clipped keep can start after current, leaving current a head to keep.
+        entries = [carve(current, lo, hi) for lo, hi in
+                   ((current['start'], min(current['end'], last['start'])),
+                    (max(current['start'], last['end']), current['end'])) if lo < hi]
+        if not entries:
             logger.info(
                 f"Dropping {current.get('category')!r} span "
                 f"{current['start']:.1f}s-{current['end']:.1f}s nested inside "
                 f"higher-priority {last.get('category')!r} span "
                 f"{last['start']:.1f}s-{last['end']:.1f}s"
             )
-            return last, []
-        return last, [carve(current, last['end'], current['end'])]
+        return _in_start_order(last, entries)
 
     if current['end'] <= last['end']:
         before = carve(last, last['start'], current['start'])

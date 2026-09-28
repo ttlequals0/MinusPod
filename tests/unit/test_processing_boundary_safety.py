@@ -1,5 +1,7 @@
 """Accepted reviewer abstentions must not reach either audio cut pass."""
 from types import SimpleNamespace
+
+import pytest
 from unittest.mock import MagicMock
 
 from tests.app_bootstrap import bootstrap
@@ -8,7 +10,8 @@ bootstrap('processing_boundary_safety_test_')
 
 from ad_detector import AdDetector
 from ad_reviewer import AdReviewer, split_resurrection_pool
-from ad_detector.boundaries import _merge_ad_pair, effective_resolved_action
+from ad_detector.boundaries import (_merge_ad_pair, effective_resolved_action,
+                                   split_conflicting_action_span)
 from ad_validator import AdValidator, Decision, user_trimmed_keep_ranges
 from audio_processor import AudioProcessor
 from config import (HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
@@ -384,3 +387,61 @@ def test_reviewer_inward_trim_after_kept_promo_still_cuts():
     assert (out['start'], out['end']) == (2141.21, 2187.36)
     applied = AudioProcessor().compute_applied_cuts([out], 2400.0, hard_barriers=keeps)
     assert [(c['start'], c['end']) for c in applied] == [(2141.21, 2187.36)]
+
+
+SHORT_KEEP_MAP = {'sponsor': 'remove', 'self_promo': 'keep'}
+
+
+def _precise_read(start, end):
+    return {'start': start, 'end': end, 'confidence': 0.96, 'detection_stage': 'claude',
+            'category': 'sponsor', 'reason': 'Acme sponsor read',
+            'word_timed_start': start, 'word_timed_end': end}
+
+
+def _estimated_promo(start, end, text_start, text_end):
+    return {'start': start, 'end': end, 'confidence': 0.9, 'detection_stage': 'text_pattern',
+            'category': 'self_promo', 'pattern_defined': False, 'span_estimated': True,
+            'text_start': text_start, 'text_end': text_end, 'reason': 'Show promo text'}
+
+
+@pytest.mark.parametrize('read_end,expected', [
+    (200.0, [(120.0, 170.0, 'sponsor'), (170.0, 180.0, 'self_promo'),
+             (180.0, 200.0, 'sponsor')]),
+    (175.0, [(120.0, 170.0, 'sponsor'), (170.0, 180.0, 'self_promo')]),
+])
+def test_leading_estimate_keeps_the_read_before_the_matched_text(read_end, expected):
+    merged = _merge([_estimated_promo(100.0, 180.0, 170.0, 180.0),
+                     _precise_read(120.0, read_end)], SHORT_KEEP_MAP)
+
+    assert _spans(merged) == expected
+
+
+@pytest.mark.parametrize('stage', ['claude', 'cue_pair'])
+def test_measured_keep_member_is_never_clipped_to_the_text(stage):
+    detected = {'start': 100.0, 'end': 160.0, 'confidence': 0.9, 'detection_stage': stage,
+                'category': 'self_promo', 'reason': 'Show promo'}
+    merged = _merge([detected, _estimated_promo(101.0, 180.0, 101.0, 120.0),
+                     _precise_read(150.0, 250.0)], SHORT_KEEP_MAP)
+
+    assert _spans(merged) == [(100.0, 160.0, 'self_promo'), (160.0, 250.0, 'sponsor')]
+
+
+def test_estimated_keep_without_text_bounds_is_logged_and_left_whole(caplog):
+    promo = _estimated_promo(100.0, 180.0, None, None)
+    with caplog.at_level('INFO'):
+        merged = _merge([promo, _precise_read(150.0, 250.0)], SHORT_KEEP_MAP)
+
+    assert (100.0, 180.0, 'self_promo') in _spans(merged)
+    assert any('no matched text bounds' in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.parametrize('keep_first', [True, False])
+def test_disjoint_after_clip_both_survive_in_start_order(keep_first):
+    promo, read = _estimated_promo(100.0, 180.0, 100.0, 110.0), _precise_read(150.0, 250.0)
+    last, current = (promo, read) if keep_first else (read, promo)
+    new_last, entries = split_conflicting_action_span(
+        last, current, SHORT_KEEP_MAP[last['category']], SHORT_KEEP_MAP[current['category']])
+
+    out = ([new_last] if new_last else []) + entries
+    assert [(a['start'], a['end']) for a in out] == [(100.0, 110.0), (150.0, 250.0)]
+    assert next(a for a in out if a['category'] == 'sponsor') == read

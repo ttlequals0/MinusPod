@@ -1105,9 +1105,12 @@ def _member_item(member: dict) -> str:
 
 def _edge_item(ad: dict, edge: str, min_conf: float, hard: list[dict]) -> str:
     support = edge_support(ad, edge, min_conf, hard)
-    # A coarse transcript edge is not a measurement.
-    if support['measured'] is None or (support['source'] == 'transcript'
-                                       and not support['precise']):
+    if support['source'] == 'transcript' and not support['precise']:
+        # A coarse transcript edge is not a measurement; fall back to an inner measured one.
+        support = edge_support(ad, edge, min_conf, [
+            m for m in hard if m.get('stage') not in COARSE_MEMBER_STAGES
+            or m.get(f'precise_{edge}')])
+    if support['measured'] is None:
         return f"{edge} unmeasured"
     precise = ', precise' if support['precise'] else ''
     return f"{edge} {support['measured']:.1f}s ({support['source']}{precise})"
