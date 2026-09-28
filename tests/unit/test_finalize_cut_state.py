@@ -255,6 +255,7 @@ def _run_recut(ads_to_remove, all_ads, render, *, new_duration=600.0,
         local_ap.get_audio_duration.side_effect = lambda path: next(durations)
 
         def _render(work_path, segs, cut_barriers=None, hard_barriers=None):
+            captured['cut_barriers'] = cut_barriers
             calls.render()
             applied = render(segs)
             return None if applied is None else ('/tmp/fcs-cut.mp3', applied)
@@ -310,6 +311,15 @@ class TestRecutOrderAndFailure:
         assert m['result'] is True
         order = [c[0] for c in m['calls'].method_calls]
         assert order == ['render', 'move', 'assets', 'save', 'finalize']
+
+    def test_every_pending_hold_is_a_render_cut_barrier(self):
+        a = _marker(10.0, 40.0)
+        hold = _marker(560.0, 590.0, was_cut=False, held_for_review=True,
+                       hold_reason='no_splice_evidence')
+        m = _run_recut([a], [a, hold], render=lambda segs: [applied_cut(10.0, 40.0)])
+        assert m['result'] is True
+        assert [(b['start'], b['end']) for b in m['captured']['cut_barriers']] == [
+            (560.0, 590.0)]
 
     def test_assets_receive_exactly_the_saved_markers_and_cuts(self):
         a, b = _marker(10.0, 40.0), _marker(100.0, 104.0)

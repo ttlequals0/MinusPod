@@ -195,6 +195,7 @@ from main_app.verification_reconciliation import (
     _covered_by_cuts,
     _drop_uncovered_pass2_ads,
     _exclude_kept_spans_from_verification,
+    _gate_hold_split_fragments,
     _gate_verification_ads_by_confidence,
     _pass2_keep_barriers_processed,  # noqa: F401 re-exported for processing.<name> test patch targets
     _split_pass2_candidates_around_spans,
@@ -3597,6 +3598,17 @@ def build_protection(kept, category_kept, user_trims, fp_corrections, holds,
     )
 
 
+def _pending_hold_barriers(markers, cuts):
+    """Held markers a render must neither bridge with a gap merge nor extend over."""
+    seen = {id(cut) for cut in cuts}
+    barriers = []
+    for m in markers or []:
+        if m.get('held_for_review') and id(m) not in seen:
+            seen.add(id(m))
+            barriers.append(m)
+    return barriers
+
+
 def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
                             local_audio_processor,
                             cut_barriers=None, hard_barriers=None):
@@ -3865,19 +3877,49 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 )
 
             if verification_ads_processed:
+                def gate(processed, original, held_markers=None, hold_overlaps=None):
+                    return _gate_verification_ads_by_confidence(
+                        processed, original, min_cut_confidence,
+                        pass1_held_markers=held_markers,
+                        verification_miss_hold_min_confidence=verification_miss_hold_min_confidence,
+                        verification_miss_autocut_min_confidence=verification_miss_autocut_min_confidence,
+                        hard_barriers_orig=current_protection().hard_orig,
+                        segments=original_segments,
+                        cue_gate_enabled=cue_gate_enabled,
+                        hold_overlaps=hold_overlaps,
+                    )
+
+                def validate_fragments(processed, original):
+                    if not verification_segments:
+                        return processed, original
+                    return _validate_verification_ads(
+                        slug, episode_id, processed, original, verification_segments,
+                        pass1_cuts, episode_description, min_cut_confidence, db,
+                        processed_duration=processed_duration,
+                        max_ad_duration_override=max_ad_duration_override,
+                        cue_gate_enabled=cue_gate_enabled,
+                        podcast_id=ctx.podcast_id,
+                        segment_actions=segment_actions,
+                        keep_barriers_processed=current_protection().barriers_proc(),
+                    )
+
                 # Confidence gate and re-cut
+                hold_overlaps = []
                 (v_ads_to_cut, v_ads_for_ui, gated_held, v_corroborated_count,
-                 hold_release_candidates) = _gate_verification_ads_by_confidence(
+                 hold_release_candidates) = gate(
                     verification_ads_processed, verification_ads_original,
-                    min_cut_confidence,
-                    pass1_held_markers=pass1_held_markers,
-                    verification_miss_hold_min_confidence=verification_miss_hold_min_confidence,
-                    verification_miss_autocut_min_confidence=verification_miss_autocut_min_confidence,
-                    hard_barriers_orig=current_protection().hard_orig,
-                    segments=original_segments,
-                    cue_gate_enabled=cue_gate_enabled,
-                )
+                    held_markers=pass1_held_markers, hold_overlaps=hold_overlaps)
                 v_ads_held.extend(gated_held)
+                # Holds were decided on the full finding; the parts outside them are new candidates.
+                fragments = _gate_hold_split_fragments(
+                    slug, episode_id, hold_overlaps, pass1_held_markers, pass1_cuts,
+                    false_positive_corrections, current_protection(),
+                    validate_fragments, gate)
+                v_ads_to_cut.extend(fragments.to_cut)
+                v_ads_for_ui.extend(fragments.for_ui)
+                v_ads_held.extend(fragments.held)
+                verification_ads_processed = [*verification_ads_processed, *fragments.processed]
+                verification_ads_original = [*verification_ads_original, *fragments.original]
 
                 # Reviewer adjustments map back only when they stay in
                 # surviving, unprotected original audio.
@@ -5352,7 +5394,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         # protection the pass-2 recut threads through).
         with _measure_run_stage('cut'):
             result = local_audio_processor.process_episode(
-                work_path, audio_segments, cut_barriers=reviewer_holds,
+                work_path, audio_segments,
+                cut_barriers=_pending_hold_barriers(
+                    [*reviewer_holds, *all_ads_with_validation], ads_to_remove),
                 hard_barriers=[*keep_ads, *trim_ranges, *corrections[0],
                                *reviewer_rejects])
         if not result:
@@ -6623,7 +6667,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # pass-2 and manual recut paths.
             with _measure_run_stage('cut'):
                 result = local_audio_processor.process_episode(
-                    audio_path, audio_segments, hard_barriers=pass1_hard)
+                    audio_path, audio_segments,
+                    cut_barriers=_pending_hold_barriers(
+                        all_ads_with_validation, ads_to_remove),
+                    hard_barriers=pass1_hard)
             if not result:
                 raise Exception(
                     f"FFMPEG processing failed for {len(ads_to_remove)} ad segments "

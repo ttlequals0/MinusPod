@@ -448,6 +448,19 @@ class TestKeepBypass:
         assert ('INFO: Pass 2 also held this span (cue_unproven)'
                 in marker['validation']['flags'])
 
+    def test_pass1_holds_are_render_cut_barriers(self):
+        sponsor = _sponsor_ad()
+        held = dict(_cross_promo_ad(), start=50.0, end=90.0)
+        segment_actions = {'sponsor': 'remove', 'cross_promo': 'remove',
+                           'self_promo': 'remove', 'interaction': 'remove',
+                           'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+
+        m = _run_pipeline([sponsor, held], segment_actions,
+                          held_categories=['cross_promo'])
+
+        barriers = m['local_ap'].process_episode.call_args.kwargs['cut_barriers']
+        assert [(b['start'], b['end']) for b in barriers] == [(50.0, 90.0)]
+
     def test_all_remove_is_byte_identical(self):
         sponsor = _sponsor_ad()
         cross_promo = _cross_promo_ad()

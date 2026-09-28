@@ -1,6 +1,7 @@
 """Pass-2 verification reconciliation: validating, gating, and recutting
 pass-2 ad candidates against pass-1 output."""
 import logging
+from dataclasses import dataclass, field
 
 from audio_processor import get_replacement_duration
 from config import (
@@ -35,6 +36,12 @@ audio_logger = logging.getLogger('podcast.audio')
 # it. Below this the finding reaches well past the keep, and dropping it whole
 # would discard audio the operator never ruled on.
 KEPT_SPAN_CONTAINMENT_MIN = 0.9
+
+# Parent verdict state a fragment outside a hold must not inherit.
+_HOLD_SPLIT_DROPPED_KEYS = (
+    'held_for_review', 'was_cut', 'hold_reason', 'validation', 'pass2_corroborated',
+    'pass2_corroborated_span', '_hold_release_of', 'detection_stage', 'user_confirmed',
+)
 
 
 def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
@@ -325,6 +332,94 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     return surviving_processed, surviving_original, conflicts
 
 
+def _split_pass2_candidates_around_holds(parents, pass1_held_markers, pass1_cuts):
+    """Carve hold-overlapping pass-2 findings into their parts outside the holds."""
+    if not parents:
+        return [], []
+    barriers = [{'start': start, 'end': end} for start, end, *_ in merge_cut_spans(
+        _pass2_keep_barriers_processed(pass1_held_markers, pass1_cuts))]
+    carved = _split_pass2_candidates_around_spans(
+        [p for p, _ in parents], [o for _, o in parents], barriers, pass1_cuts,
+        'held audio')
+    surviving_processed = []
+    surviving_original = []
+    for proc, orig in zip(*carved, strict=True):
+        if orig['end'] <= orig['start'] or any(
+                c['start'] <= orig['start'] and orig['end'] <= c['end']
+                for c in pass1_cuts or []):
+            audio_logger.info(
+                f"Pass-2 fragment {proc['start']:.1f}s-{proc['end']:.1f}s "
+                f"(processed) beside held audio lies inside a replacement beep; dropping it")
+            continue
+        if (proc['end'] - proc['start'] < MIN_AD_DURATION
+                and not proc.get('_measured_split_fragment')):
+            audio_logger.info(
+                f"Pass-2 fragment {proc['start']:.1f}s-{proc['end']:.1f}s "
+                f"(processed) left beside held audio is too short; dropping it")
+            continue
+        for fragment in (proc, orig):
+            for key in [*_HOLD_SPLIT_DROPPED_KEYS,
+                        *(k for k in fragment if k.startswith('reviewer_'))]:
+                fragment.pop(key, None)
+            fragment['split_from_hold'] = True
+        surviving_processed.append(proc)
+        surviving_original.append(orig)
+    return surviving_processed, surviving_original
+
+
+@dataclass
+class HoldSplitFragments:
+    """Outside-hold fragments after validation, and how the gate routed them."""
+    processed: list = field(default_factory=list)
+    original: list = field(default_factory=list)
+    to_cut: list = field(default_factory=list)
+    for_ui: list = field(default_factory=list)
+    held: list = field(default_factory=list)
+
+
+def _gate_hold_split_fragments(slug, episode_id, parents, pass1_held_markers,
+                               pass1_cuts, false_positive_corrections, protection,
+                               validate, gate):
+    """Run the parts of hold-overlapping findings outside the holds through the pass-2 checks."""
+    # validate and gate take (processed, original); gate must not see the pass-1 holds.
+    processed, original = _split_pass2_candidates_around_holds(
+        parents, pass1_held_markers, pass1_cuts)
+    pairs = []
+    for proc, orig in zip(processed, original, strict=True):
+        if _matches_false_positive_correction(orig, false_positive_corrections):
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Pass-2 fragment {orig['start']:.1f}s-"
+                f"{orig['end']:.1f}s matches a user false-positive rejection; dropping it")
+            continue
+        pairs.append((proc, orig))
+    if not pairs:
+        return HoldSplitFragments()
+    processed, original = _split_pass2_candidates_around_spans(
+        [p for p, _ in pairs], [o for _, o in pairs], protection.hard_proc,
+        pass1_cuts, 'protected audio')
+    processed, original = validate(processed, original)
+    pairs = []
+    for proc, orig in zip(processed, original, strict=True):
+        hold = next((h for h in pass1_held_markers or []
+                     if overlap_seconds(orig['start'], orig['end'], h['start'], h['end'])
+                     > EDGE_TOLERANCE), None)
+        if hold is not None:
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Pass-2 fragment {orig['start']:.1f}s-"
+                f"{orig['end']:.1f}s reaches into hold {hold['start']:.1f}s-"
+                f"{hold['end']:.1f}s after validation; dropping it")
+            continue
+        pairs.append((proc, orig))
+    if not pairs:
+        return HoldSplitFragments()
+    processed, original = [p for p, _ in pairs], [o for _, o in pairs]
+    to_cut, for_ui, held, _count, _candidates = gate(processed, original)
+    audio_logger.info(
+        f"[{slug}:{episode_id}] {len(processed)} pass-2 fragment(s) outside held "
+        f"spans: {len(to_cut)} cut, {len(held)} held")
+    return HoldSplitFragments(processed, original, to_cut, for_ui, held)
+
+
 def _add_release_candidate(release_by_hold, orig_ad, hold, overlapping,
                            min_cut_confidence, hard_barriers_orig, segments):
     """Record the finding's supported span in hold as a review candidate, longest per hold; True if recorded."""
@@ -357,7 +452,7 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_miss_hold_min_confidence=None,
                                           verification_miss_autocut_min_confidence=None,
                                           hard_barriers_orig=None, segments=None,
-                                          cue_gate_enabled=False):
+                                          cue_gate_enabled=False, hold_overlaps=None):
     """Confidence gate pass-2 ads.
 
     Returns (v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count,
@@ -396,6 +491,9 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     Missing kwargs fall back to the settings-registry defaults so direct
     callers (tests, ad-hoc gate invocations) get the same behavior as an
     unconfigured install.
+
+    ``hold_overlaps``, when a list, receives a pre-gate copy of each hold-overlapping
+    (processed, original) pair so the caller can keep its parts outside the hold.
     """
     if verification_miss_hold_min_confidence is None:
         verification_miss_hold_min_confidence = registry_get_default(
@@ -425,6 +523,8 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                        if ranges_overlap(orig_ad['start'], orig_ad['end'],
                                          m['start'], m['end'])]
         if overlapping:
+            if hold_overlaps is not None:
+                hold_overlaps.append((dict(ad), dict(orig_ad)))
             # A pass-2 cut overlapping a pass-1 held span would destroy the
             # audio the hold protects; drop it (never cut). The pass-1 held
             # marker already represents the region, so no second held marker
