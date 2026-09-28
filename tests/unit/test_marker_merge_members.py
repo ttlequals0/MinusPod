@@ -666,6 +666,24 @@ def test_member_spans_leave_unknown_labels_unset():
                for m in base['merged_member_spans'])
 
 
+def test_coalesce_joins_unlabeled_window_with_labeled_one():
+    base = _ad(0.0, 60.0, 'claude')
+    note_merged_members(base, _ad(40.0, 130.0, 'claude', sponsor='Acme Tools',
+                                  category='sponsor'))
+
+    spans = base['merged_member_spans']
+    assert member_bases(spans) == [{'start': 0.0, 'end': 130.0, 'stage': 'claude'}]
+    assert (spans[0].get('sponsor'), spans[0].get('category')) == ('Acme Tools', 'sponsor')
+
+
+def test_coalesce_keeps_different_sponsors_apart_when_category_is_missing():
+    base = _ad(0.0, 60.0, 'claude', sponsor='Acme Tools')
+    note_merged_members(base, _ad(40.0, 130.0, 'claude', sponsor='Globex',
+                                  category='sponsor'))
+
+    assert len(base['merged_member_spans']) == 2
+
+
 def test_coalesce_keeps_differently_labeled_windows_apart():
     base = _ad(0.0, 60.0, 'claude', sponsor='example-podcast', category='self_promo')
     note_merged_members(base, _ad(40.0, 130.0, 'claude', sponsor='Acme Tools',

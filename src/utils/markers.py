@@ -540,20 +540,28 @@ def member_label(member: dict) -> tuple[str | None, str | None]:
             member.get('category') or None)
 
 
+def _labels_compatible(a: tuple, b: tuple) -> bool:
+    """Whether two member labels agree; a missing component matches anything."""
+    return all(x is None or y is None or x == y for x, y in zip(a, b, strict=True))
+
+
 def _coalesce_coarse_members(spans: list[dict]) -> list[dict]:
-    """Union overlapping same-stage, same-label coarse members: two LLM windows over one ad are one member."""
+    """Union overlapping same-stage, compatibly labeled coarse members: two LLM windows over one ad are one member."""
     merged: list[dict] = []
     for span in spans:
         stage = span.get('stage')
         prior = next(
             (m for m in merged if m.get('stage') == stage
              and stage in COARSE_MEMBER_STAGES
-             and member_label(m) == member_label(span)
+             and _labels_compatible(member_label(m), member_label(span))
              and span['start'] <= m['end'] and span['end'] >= m['start']),
             None) if stage in COARSE_MEMBER_STAGES else None
         if prior is None:
             merged.append(span)
             continue
+        for key in ('sponsor', 'category'):
+            if not prior.get(key) and span.get(key):
+                prior[key] = span[key]
         _take_coarse_edge(prior, span, 'start', min)
         _take_coarse_edge(prior, span, 'end', max)
         # The weakest member bounds what the coalesced span proves; unknown is weakest.
