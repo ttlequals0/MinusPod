@@ -467,7 +467,9 @@ def test_auto_filed_confirm_cuts_the_subspan_and_holds_the_remainders(reason):
     hold = _hold(1000.0, 1100.0, reason)
     hold.update(confidence=0.95, reason='Acme sponsor read', detection_stage='claude',
                 pass2_corroborated=True,
-                pass2_corroborated_span={'start': 1040.0, 'end': 1060.0})
+                pass2_corroborated_span={'start': 1040.0, 'end': 1060.0},
+                pass2_hold_review={'span': [1040.0, 1060.0], 'verdict': 'inconclusive',
+                                   'reason': 'timeout'})
     confirm = _auto_confirm((1000.0, 1100.0), (1040.0, 1060.0))
 
     ads = _recut_validate([hold], confirm)
@@ -482,6 +484,7 @@ def test_auto_filed_confirm_cuts_the_subspan_and_holds_the_remainders(reason):
         assert rest['hold_reason'] == reason
         assert rest['pass2_hold_remainder'] is True
         assert 'pass2_corroborated' not in rest
+        assert 'pass2_hold_review' not in rest
 
     # A second recut over the saved result keeps the same three markers.
     saved = []

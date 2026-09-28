@@ -69,7 +69,7 @@ logger = logging.getLogger(__name__)
 _REMAINDER_DROPPED_KEYS = (
     '_confirmed_correction', '_has_confirmed_correction_candidate',
     '_matches_false_positive_correction', '_saved_was_cut', 'pass2_corroborated',
-    'pass2_corroborated_span', 'pass2_reviewed_release',
+    'pass2_corroborated_span', 'pass2_hold_review', 'pass2_reviewed_release',
 )
 
 
