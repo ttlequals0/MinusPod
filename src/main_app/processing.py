@@ -5221,6 +5221,16 @@ def _restore_saved_markers(slug, episode_id, episode_data):
         audio_logger.error(f"[{slug}:{episode_id}] Could not restore markers after a failed run: {err}")
 
 
+def _log_segment_action_map(slug, episode_id, segment_actions, podcast):
+    """Log the resolved action map; a run that folds approvals into a recut logs it twice."""
+    feed_overrides = resolve_segment_category_actions_map(
+        (podcast or {}).get('segment_category_actions'), baseline={})
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Segment action map: "
+        + ', '.join(f"{k}={v}" for k, v in segment_actions.items())
+        + f"; feed overrides: {', '.join(feed_overrides) or 'none'}")
+
+
 def _recut_episode(slug, episode_id, episode_title, podcast_name,
                     episode_description, start_time, cancel_event=None,
                     run_stats=None, verification_count=0,
@@ -5278,11 +5288,13 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
         # Resolve podcast_id once from the episode row so _build_recut_ad_list's
         # per-feed override lookup uses it instead of the slug fallback.
+        podcast = podcast_row or db.get_podcast_by_slug(slug)
         recut_podcast_id = ((episode_data or {}).get('podcast_id')
-                            or (db.get_podcast_by_slug(slug) or {}).get('id'))
+                            or (podcast or {}).get('id'))
         # Resolved once and reused below so a category now resolving 'keep'
         # comes back out of ads_to_remove, beating an older approval.
-        segment_actions = db.resolve_segment_actions(slug)
+        segment_actions = db.resolve_segment_actions(slug, podcast=podcast)
+        _log_segment_action_map(slug, episode_id, segment_actions, podcast)
         corrections = _load_user_corrections(slug, episode_id, db)
         (ads_to_remove, all_ads_with_validation, keep_ads, reviewer_rejects,
          reviewer_holds) = _build_recut_ad_list(
@@ -6372,12 +6384,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
                 # One category action map for detection, validation, review and pass 2.
                 segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
-                feed_overrides = resolve_segment_category_actions_map(
-                    (podcast_settings or {}).get('segment_category_actions'), baseline={})
-                audio_logger.info(
-                    f"[{slug}:{episode_id}] Segment action map: "
-                    + ', '.join(f"{k}={v}" for k, v in segment_actions.items())
-                    + f"; feed overrides: {', '.join(feed_overrides) or 'none'}")
+                _log_segment_action_map(slug, episode_id, segment_actions, podcast_settings)
 
                 # Stage 3: First-pass detection
                 _reserve_provider()

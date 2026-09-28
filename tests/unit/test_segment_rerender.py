@@ -49,7 +49,8 @@ def _marker(start, end, category, action_applied, was_cut, **overrides):
 
 
 def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
-               confirmed_corrections=(), render_calls=None, fp_corrections=()):
+               confirmed_corrections=(), render_calls=None, fp_corrections=(),
+               podcast_row=None):
     """Drive _recut_episode with _build_recut_ad_list mocked to return the
     given (ads_to_remove, all_ads) after the builder's keep partition against
     the current action map. Audio processor is mocked out (no ffmpeg). Returns
@@ -92,7 +93,7 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
 
         result = processing._recut_episode(
             'segrerender-feed', 'ep1', 'Episode', 'Podcast', 'desc',
-            time.time(), cancel_event=None)
+            time.time(), cancel_event=None, podcast_row=podcast_row)
 
         assert result is True
         audio_segments = local_ap.process_episode.call_args.args[1]
@@ -104,6 +105,20 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
 
 
 class TestRecutReResolvesAgainstCurrentMap:
+    def test_recut_logs_resolved_action_map_once(self, caplog):
+        marker = _marker(10.0, 20.0, 'sponsor', 'remove', True)
+        actions = dict(ALL_REMOVE, self_promo='keep')
+        podcast_row = {'id': 1, 'segment_category_actions': '{"self_promo": "keep"}'}
+
+        with caplog.at_level('INFO', logger='podcast.audio'):
+            _run_recut([marker], [marker], actions, podcast_row=podcast_row)
+
+        lines = [r.getMessage() for r in caplog.records
+                 if 'Segment action map' in r.getMessage()]
+        assert len(lines) == 1
+        assert 'self_promo=keep' in lines[0] and 'sponsor=remove' in lines[0]
+        assert lines[0].endswith('feed overrides: self_promo')
+
     def test_flipped_map_keep_to_remove_cuts_previously_kept_marker(self):
         # Stale stored action_applied='keep' from a run where cross_promo
         # resolved 'keep'; the map has since flipped it back to 'remove'.
