@@ -72,3 +72,8 @@ def test_content_naming_a_registry_brand_is_held():
     ad = _validate(CONTENT + ['show talk'] * 8, service=_service('Amazon'))
     assert ad['validation']['decision'] == Decision.REVIEW.value
     assert ad['hold_reason'] == 'no_splice_evidence'
+
+
+def test_conversational_registry_brand_without_a_closing_is_held():
+    ad = _validate(HOST_READ[:7], service=_service('Acme'), sponsor='Acme')
+    assert ad['hold_reason'] == 'no_splice_evidence'
