@@ -2,7 +2,7 @@
 import copy
 import logging
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -19,47 +19,18 @@ from main_app.verification_reconciliation import (
     Pass2Ledger, _gate_hold_split_fragments, _gate_verification_ads_by_confidence,
     _split_pass2_candidates_around_holds,
 )
+from tests.unit.pass2_test_utils import (
+    NO_SPLICE, _ad, _ctx, _hold, _pair, _spans, drive_verification_pass,
+)
 from utils.time import adjust_timestamp, overlap_seconds
 
-NO_SPLICE = 'no_splice_evidence'
 INCONCLUSIVE = 'reviewer_inconclusive_bounds'
-
-
-def _hold(start, end, reason=NO_SPLICE):
-    return {'start': start, 'end': end, 'held_for_review': True,
-            'was_cut': False, 'hold_reason': reason, 'sponsor': 'Acme'}
-
-
-def _ad(start, end, confidence=0.95, **extra):
-    return {'start': start, 'end': end, 'confidence': confidence,
-            'sponsor': 'Acme', 'reason': 'Acme sponsor read', 'category': 'sponsor',
-            'validation': {'decision': 'ACCEPT', 'adjusted_confidence': confidence},
-            **extra}
-
-
-def _pair(start, end, confidence=0.95, cuts=(), **extra):
-    beep = get_replacement_duration()
-    orig = _ad(start, end, confidence, **extra)
-    proc = dict(orig, start=adjust_timestamp(start, list(cuts), beep),
-                end=adjust_timestamp(end, list(cuts), beep))
-    return proc, orig
-
-
-def _spans(ads):
-    return [(round(a['start'], 2), round(a['end'], 2)) for a in ads]
 
 
 def _gate(pairs, holds, **kwargs):
     return _gate_verification_ads_by_confidence(
         [p for p, _ in pairs], [o for _, o in pairs], min_cut_confidence=0.8,
         pass1_held_markers=holds, **kwargs)
-
-
-def _ctx():
-    return SimpleNamespace(
-        slug='example-podcast', episode_id='a1b2c3d4e5f6', podcast_id=1,
-        podcast_name='Example Podcast', episode_title='Episode',
-        podcast_description='', episode_description='')
 
 
 # ---------- Gate: the hold decision is unchanged, the parent is collected ----------
@@ -233,74 +204,20 @@ def test_fragment_sheds_the_parent_verdict_state():
 
 # ---------- Verification pass: fragments go through the normal pass-2 pipeline ----------
 
-def _run_pass2(holds, findings, *, cuts=(), kept=(), trims=(), fp=(), review=None,
-               reviewer_verdicts=None, cue_gate_enabled=False):
-    """Drive _run_verification_pass with detection, validation and the reviewers stubbed."""
-    audio = MagicMock()
-    audio.get_audio_duration.return_value = 3000.0
-    processor = AudioProcessor()
-    rendered = {}
-
-    def render(path, segs, cut_barriers=None, hard_barriers=None):
-        rendered.update(requested=[dict(s) for s in segs], cut_barriers=cut_barriers,
-                        hard_barriers=hard_barriers)
-        return '/tmp/hold-split-recut.mp3', processor.compute_applied_cuts(
-            segs, 3000.0, cut_barriers, hard_barriers=hard_barriers)
-
-    audio.process_episode.side_effect = render
-    fake_db = MagicMock()
-    floors = {'verification_miss_hold_min_confidence': 0.6,
-              'verification_miss_autocut_min_confidence': 0.0}
-    fake_db.get_setting_float.side_effect = lambda key, default=None: floors.get(key, default)
-    fake_db.get_false_positive_corrections.return_value = list(fp)
-    fake_db.get_setting.return_value = 'false'
-    validated = []
-
-    def validate(*args, **kwargs):
-        validated.append({'orig': _spans(args[3]), 'kwargs': kwargs})
-        return list(args[2]), list(args[3])
-
+def _run_pass2(holds, findings, *, review=None, reviewer_verdicts=None, **kwargs):
+    """Drive the verification pass, recording what the pass-2 reviewer saw."""
     reviewer_seen = {}
 
-    def pass2_reviewer(ctx, cut, ui, held, proc, orig, *args, **kwargs):
+    def pass2_reviewer(ctx, cut, ui, held, proc, orig, *args, **kw):
         reviewer_seen.update(cut=_spans(cut), ui=_spans(ui), pool=_spans(orig),
-                             barriers=_spans(kwargs['protected_original_ranges']))
+                             barriers=_spans(kw['protected_original_ranges']))
         if review:
             review(cut, ui, held, proc, orig)
 
-    hold_reviews = []
-
-    def hold_review(**kwargs):
-        hold_reviews.append(_spans(kwargs['accepted_ads']))
-        return ReviewResult(verdicts=list(reviewer_verdicts or []))
-
-    pairs = [_pair(*f, cuts=cuts) for f in findings]
-    with patch.object(processing, 'db', fake_db), \
-         patch.object(processing, 'storage'), \
-         patch('verification_pass.VerificationPass') as verifier_cls, \
-         patch.object(processing, '_apply_pass2_heuristic_rolls'), \
-         patch.object(processing, '_validate_verification_ads', side_effect=validate), \
-         patch.object(processing, '_apply_pass2_reviewer', side_effect=pass2_reviewer), \
-         patch.object(processing, '_ad_review_enabled',
-                      lambda db: reviewer_verdicts is not None), \
-         patch.object(processing, '_build_reviewer',
-                      lambda db, det: SimpleNamespace(review=hold_review)), \
-         patch.object(processing.ad_detector, 'get_verification_model',
-                      lambda: 'test-model', create=True), \
-         patch.object(processing.ad_detector, 'get_verification_provider',
-                      lambda: None, create=True):
-        verifier_cls.return_value.verify.return_value = {
-            'ads': [o for _p, o in pairs], 'ads_processed': [p for p, _o in pairs],
-            'segments': [{'start': 0.0, 'end': 3000.0, 'text': 'Acme sponsor read'}],
-        }
-        output = processing._run_verification_pass(
-            _ctx(), '/tmp/pass1-output.mp3', [dict(c) for c in cuts], False, 0.8,
-            audio, None, original_segments=[], pass1_held_markers=holds,
-            pass1_kept_markers=list(kept), pass1_trim_ranges=list(trims),
-            segment_actions={'sponsor': 'remove'},
-            false_positive_corrections=list(fp), cue_gate_enabled=cue_gate_enabled)
-    return SimpleNamespace(output=output, rendered=rendered, validated=validated,
-                           reviewer=reviewer_seen, hold_reviews=hold_reviews)
+    run = drive_verification_pass(findings, holds=holds, pass2_reviewer=pass2_reviewer,
+                                  hold_verdicts=reviewer_verdicts, **kwargs)
+    run.reviewer = reviewer_seen
+    return run
 
 
 def _assert_clear_of(ads, spans):

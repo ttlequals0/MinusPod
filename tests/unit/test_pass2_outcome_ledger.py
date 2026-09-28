@@ -2,8 +2,7 @@
 import logging
 import random
 import re
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -11,36 +10,12 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('pass2_outcome_ledger_test_')
 
-from audio_processor import AudioProcessor, get_replacement_duration
 from main_app import processing
 from main_app.verification_reconciliation import Pass2Ledger
+from tests.unit.pass2_test_utils import NO_SPLICE, _hold, drive_verification_pass
 from utils.markers import subtract_spans
-from utils.time import adjust_timestamp
 
 LINE = re.compile(r'Pass-2 span (-?\d+\.\d)s-(-?\d+\.\d)s: (\S+)$')
-NO_SPLICE = 'no_splice_evidence'
-
-
-def _hold(start, end, reason=NO_SPLICE):
-    return {'start': start, 'end': end, 'held_for_review': True,
-            'was_cut': False, 'hold_reason': reason, 'sponsor': 'Acme'}
-
-
-def _pair(start, end, confidence=0.95, category='sponsor', cuts=()):
-    beep = get_replacement_duration()
-    orig = {'start': start, 'end': end, 'confidence': confidence, 'sponsor': 'Acme',
-            'reason': 'Acme sponsor read', 'category': category,
-            'validation': {'decision': 'ACCEPT', 'adjusted_confidence': confidence}}
-    proc = dict(orig, start=adjust_timestamp(start, list(cuts), beep),
-                end=adjust_timestamp(end, list(cuts), beep))
-    return proc, orig
-
-
-def _ctx():
-    return SimpleNamespace(
-        slug='example-podcast', episode_id='a1b2c3d4e5f6', podcast_id=1,
-        podcast_name='Example Podcast', episode_title='Episode',
-        podcast_description='', episode_description='')
 
 
 def _ledger_lines(records):
@@ -48,29 +23,10 @@ def _ledger_lines(records):
             for m in (LINE.search(r.getMessage()) for r in records) if m]
 
 
-def _run(findings, *, holds=(), cuts=(), kept=(), fp=(), trims=(), validator_rejects=(),
-         reviewer_rejects=(), status=None, reviewer_error=None, reviewer_widen=None,
-         recut_error=None, caplog=None):
-    """Drive _run_verification_pass with detection, validation and the reviewer stubbed."""
-    audio = MagicMock()
-    audio.get_audio_duration.return_value = 6000.0
-    processor = AudioProcessor()
-
-    def render(path, segs, cut_barriers=None, hard_barriers=None):
-        if recut_error:
-            raise recut_error
-        return '/tmp/ledger-recut.mp3', processor.compute_applied_cuts(
-            segs, 6000.0, cut_barriers, hard_barriers=hard_barriers)
-
-    audio.process_episode.side_effect = render
-    fake_db = MagicMock()
-    floors = {'verification_miss_hold_min_confidence': 0.6,
-              'verification_miss_autocut_min_confidence': 0.0}
-    fake_db.get_setting_float.side_effect = lambda key, default=None: floors.get(key, default)
-    fake_db.get_false_positive_corrections.return_value = list(fp)
-    fake_db.get_setting.return_value = 'false'
-
-    def validate(*args, ledger=None, **kwargs):
+def _run(findings, *, validator_rejects=(), reviewer_rejects=(), reviewer_error=None,
+         reviewer_widen=None, caplog=None, **kwargs):
+    """Drive the verification pass with ledger-aware validator and reviewer stubs."""
+    def validate(*args, ledger=None, **_kwargs):
         proc, orig = [], []
         for p, o in zip(args[2], args[3], strict=True):
             if (o['start'], o['end']) in validator_rejects:
@@ -80,7 +36,7 @@ def _run(findings, *, holds=(), cuts=(), kept=(), fp=(), trims=(), validator_rej
             orig.append(o)
         return proc, orig
 
-    def pass2_reviewer(ctx, cut, ui, held, proc, orig, *args, ledger=None, **kwargs):
+    def pass2_reviewer(ctx, cut, ui, held, proc, orig, *args, ledger=None, **_kwargs):
         if reviewer_error:
             raise reviewer_error
         for p, o in zip(cut, ui, strict=True):
@@ -92,29 +48,11 @@ def _run(findings, *, holds=(), cuts=(), kept=(), fp=(), trims=(), validator_rej
                 ui.remove(o)
                 ledger.record(o, 'rejected:reviewer')
 
-    pairs = [_pair(*f, cuts=cuts) for f in findings]
-    run_stats = {}
-    with patch.object(processing, 'db', fake_db), \
-         patch.object(processing, 'storage'), \
-         patch('verification_pass.VerificationPass') as verifier_cls, \
-         patch.object(processing, '_apply_pass2_heuristic_rolls'), \
-         patch.object(processing, '_validate_verification_ads', side_effect=validate), \
-         patch.object(processing, '_apply_pass2_reviewer', side_effect=pass2_reviewer), \
-         patch.object(processing, '_ad_review_enabled', lambda db: False), \
-         caplog.at_level(logging.INFO, logger='podcast.audio'):
-        verifier_cls.return_value.verify.return_value = {
-            'ads': [o for _p, o in pairs], 'ads_processed': [p for p, _o in pairs],
-            'segments': [{'start': 0.0, 'end': 6000.0, 'text': 'Acme sponsor read'}],
-            'status': status,
-        }
-        output = processing._run_verification_pass(
-            _ctx(), '/tmp/pass1-output.mp3', [dict(c) for c in cuts], False, 0.8,
-            audio, None, original_segments=[], pass1_held_markers=list(holds),
-            pass1_kept_markers=list(kept), pass1_trim_ranges=list(trims),
-            segment_actions={'sponsor': 'remove', 'self_promo': 'keep'},
-            false_positive_corrections=list(fp), run_stats=run_stats)
-    return SimpleNamespace(output=output, lines=_ledger_lines(caplog.records),
-                           stats=run_stats)
+    with caplog.at_level(logging.INFO, logger='podcast.audio'):
+        run = drive_verification_pass(findings, duration=6000.0, validate=validate,
+                                      pass2_reviewer=pass2_reviewer, **kwargs)
+    run.lines = _ledger_lines(caplog.records)
+    return run
 
 
 def test_one_line_and_one_count_per_outcome(caplog):
