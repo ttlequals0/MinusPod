@@ -1,25 +1,17 @@
 """Unit tests for the recut cut-list helpers (issue #422)."""
 import json
-import os
 import shutil
 import subprocess
-import sys
-import tempfile
 import time
 from contextlib import ExitStack
 from unittest.mock import patch
 
 import pytest
 
-# Bind a temp data dir via env (Storage reads MINUSPOD_DATA_DIR natively) so
-# importing main_app does not mkdir /app/data. Using the env var instead of
-# rebinding Database.__init__.__defaults__ at import time keeps this module from
-# poisoning sibling test modules' singleton state (finding: import poisoning).
-_test_data_dir = tempfile.mkdtemp(prefix='recut_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+# bootstrap seeds OPENAI_MODEL so an app DB first created here has a model.
+_test_data_dir = bootstrap('recut_test_')
 
 from ad_chapters import AdChapterConfig
 from config import PASS2_REVIEWED_RELEASE_HOLD_REASONS
@@ -31,7 +23,7 @@ def _isolate_db(monkeypatch):
     """Pin the Database singleton to this module's dir per test so collection
     order cannot leave it bound to a sibling module's dir."""
     import database
-    database.Database._instance = None
+    monkeypatch.setattr(database.Database, '_instance', None)
     monkeypatch.setenv('DATA_DIR', _test_data_dir)
     yield
 
