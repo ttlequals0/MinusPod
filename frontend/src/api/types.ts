@@ -567,6 +567,12 @@ export interface AdSegment {
   reviewer_original_end?: number;
   reviewer_reasoning?: string;
   reviewer_confidence?: number;
+  // Why a pass-2 review inside this hold did not release it; the hold stays pending.
+  pass2_hold_review?: {
+    span: [number, number];
+    verdict: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure' | 'inconclusive';
+    reason: string;
+  };
   reviewer_model?: string;
   source?: 'reviewer' | 'validator';
   // Phase C held-for-review fields.

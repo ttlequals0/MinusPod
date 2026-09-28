@@ -2482,10 +2482,17 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
             continue
         span = _released_span(v, sub, hold, protection.barriers_orig(exclude=[hold]))
         if span is None:
+            reason = v.reasoning or f"Review returned {v.verdict}"
+            # No reviewer_verdict or source: the hold must not read as reviewer-held or rejected.
+            hold['reviewer_reasoning'] = reason
+            hold['pass2_hold_review'] = {
+                'span': [float(sub['start']), float(sub['end'])],
+                'verdict': v.verdict, 'reason': reason}
             audio_logger.info(
                 f"[{ctx.slug}:{ctx.episode_id}] Review of {sub['start']:.1f}s-"
                 f"{sub['end']:.1f}s inside hold {hold['start']:.1f}s-"
-                f"{hold['end']:.1f}s returned {v.verdict}; the hold stays whole")
+                f"{hold['end']:.1f}s returned {v.verdict}; the hold stays whole. "
+                f"Reason: {reason}")
             continue
         hold['pass2_reviewed_release'] = span
         hold['pass2_corroborated'] = True

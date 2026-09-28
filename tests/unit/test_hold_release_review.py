@@ -1,4 +1,5 @@
 """Pass-2 evidence inside a pass-1 hold is reviewed at its own span, not dropped."""
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -8,11 +9,14 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('hold_release_review_test_')
 
-from ad_reviewer import ReviewResult, ReviewVerdict, split_resurrection_pool
+from ad_reviewer import (
+    ReviewResult, ReviewVerdict, _review_inconclusive_reason, split_resurrection_pool,
+)
 from ad_validator import AdValidator, Decision
 from audio_processor import get_replacement_duration
 from config import is_pending_review
 from main_app import processing
+from utils.markers import is_reviewer_rejected, reviewer_hold_stands
 from main_app.verification_reconciliation import (
     _gate_verification_ads_by_confidence, _inside_word_edge,
 )
@@ -328,6 +332,9 @@ def test_unsuccessful_review_keeps_the_whole_hold(monkeypatch, verdict):
     released, _calls = _review(monkeypatch, candidates, [verdict])
 
     assert released == 0
+    record = hold.pop('pass2_hold_review')
+    assert record['verdict'] == verdict.verdict and record['span'] == [1040.0, 1060.0]
+    assert hold.pop('reviewer_reasoning') == record['reason']
     assert hold == before
     db = _approval_db(monkeypatch)
     assert processing._file_corroborated_hold_approvals('s', 'e', [hold]) == 0
@@ -512,3 +519,72 @@ def test_user_trimmed_confirm_still_keeps_the_trimmed_audio_unheld():
     ads = _recut_validate([hold], confirm)
 
     assert not any(a.get('pass2_hold_remainder') for a in ads)
+
+
+class _AbstainError(Exception):
+    body = {'error': {'reason': 'insufficient_evidence', 'stage': 'evidence',
+                      'score': 0.41, 'threshold': 0.6}}
+
+
+def test_inconclusive_hold_review_records_the_reason(monkeypatch, caplog):
+    candidates = _candidate()
+    hold = candidates[0][1]
+    reason = _review_inconclusive_reason(_AbstainError())
+    with caplog.at_level('INFO', logger='podcast.audio'):
+        released, _calls = _review(monkeypatch, candidates, [
+            _verdict('inconclusive', 1040.0, 1060.0, reasoning=reason)])
+    assert released == 0
+    line = next(r.getMessage() for r in caplog.records
+                if 'returned inconclusive' in r.getMessage())
+    assert reason in line
+    assert hold['reviewer_reasoning'] == reason
+    assert hold['pass2_hold_review'] == {
+        'span': [1040.0, 1060.0], 'verdict': 'inconclusive', 'reason': reason}
+    # The hold stays a plain hold: no reviewer verdict or source is stamped.
+    assert 'reviewer_verdict' not in hold and 'source' not in hold
+    assert 'pass2_reviewed_release' not in hold
+    assert is_pending_review(hold)
+    assert not is_reviewer_rejected(hold)
+    assert not reviewer_hold_stands(hold, [])
+
+
+def test_confirmed_hold_review_records_no_inconclusive_reason(monkeypatch):
+    candidates = _candidate()
+    hold = candidates[0][1]
+    released, _calls = _review(monkeypatch, candidates,
+                               [_verdict('confirmed', 1040.0, 1060.0)])
+    assert released == 1
+    assert hold['pass2_reviewed_release'] == {'start': 1040.0, 'end': 1060.0}
+    assert 'pass2_hold_review' not in hold and 'reviewer_reasoning' not in hold
+
+
+def test_recut_after_inconclusive_hold_review_keeps_the_hold_pending(monkeypatch):
+    hold = dict(_hold(1000.0, 1100.0, 'max_duration'), confidence=0.95, reason='sponsor read')
+    candidates = [(_orig(1040.0, 1060.0), hold)]
+    _review(monkeypatch, candidates, [_verdict(
+        'inconclusive', 1040.0, 1060.0,
+        reasoning=_review_inconclusive_reason(_AbstainError()))])
+    stored = {k: v for k, v in hold.items() if not k.startswith('_')}
+
+    db = MagicMock()
+    db.get_episode.return_value = {'ad_markers_json': json.dumps([stored])}
+    db.get_episode_corrections.return_value = []
+    db.get_false_positive_corrections.return_value = []
+    db.get_confirmed_corrections.return_value = []
+    db.get_podcast_by_slug.return_value = {'id': 42}
+    db.get_podcast_cue_settings_overrides.return_value = {'max_ad_duration_override': 60.0}
+    db.get_episode_audio_analysis.return_value = None
+    db.get_episode_dai_differential.return_value = None
+    db.resolve_segment_actions.return_value = {}
+    db.get_setting.return_value = None
+    db.get_setting_bool.side_effect = lambda k, **kw: kw.get('default', False)
+    db.get_setting_float.side_effect = lambda k, default=None: default
+    monkeypatch.setattr(processing, 'db', db)
+
+    ads_to_remove, all_ads, _keep, rejects, reviewer_holds = (
+        processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80))
+    assert ads_to_remove == [] and rejects == [] and reviewer_holds == []
+    [after] = all_ads
+    assert is_pending_review(after)
+    assert after['hold_reason'] == 'max_duration'
+    assert 'reviewer_verdict' not in after and 'source' not in after

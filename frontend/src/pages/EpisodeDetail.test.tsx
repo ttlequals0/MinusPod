@@ -892,6 +892,17 @@ describe('New hold reasons: tooltip titles', () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, hold_reason: 'no_splice_evidence' }] }));
     await waitFor(() => expect(screen.getByTitle('No splice artifact found at either edge')).toBeDefined());
   });
+
+  it('shows why a pass-2 review left a no_splice_evidence hold in place', async () => {
+    const reason = 'Reviewer abstained: insufficient evidence. Original marker retained.';
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{
+      ...heldMarker,
+      hold_reason: 'no_splice_evidence',
+      reviewer_reasoning: reason,
+      pass2_hold_review: { span: [1040, 1060], verdict: 'inconclusive', reason },
+    }] }));
+    await waitFor(() => expect(screen.getByText(reason)).toBeDefined());
+  });
 });
 
 describe('Held for Review section: playback', () => {
