@@ -522,16 +522,28 @@ def test_one_sponsor_named_twice_admits_a_long_window():
         segments=_span_segments('Acme came up, then Acme again.')) is not None
 
 
+# Production shape: a host read naming the brand nine times with a closing link.
+_ACME_HOST_READ = ' '.join(['Acme is the easiest way to protect your home.'] * 9
+                           + ['Learn more at acme.com.'])
+
+
 def test_registry_sponsor_in_the_span_admits_a_long_window():
     ad = {'confidence': 0.95, 'reason': _CUT_REASON}
     assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=_registry('Acme'),
-                         segments=_span_segments(_ACME_READ)) is not None
+                         segments=_span_segments(_ACME_HOST_READ)) is not None
+
+
+def test_registry_brand_repeated_in_plain_speech_does_not_admit_a_long_window():
+    ad = {'confidence': 0.95, 'reason': _CUT_REASON}
+    text = 'We moved the Slack thread over to email, then back to Slack later.'
+    assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=_registry('Slack'),
+                         segments=_span_segments(text)) is None
 
 
 def test_a_repeated_registry_sponsor_counts_past_a_single_common_word_brand():
     ad = {'confidence': 0.95, 'reason': _CUT_REASON}
     registry = _registry('Calm', 'Acme')
-    text = 'Stay calm. ' + _ACME_READ
+    text = 'Stay calm. ' + _ACME_HOST_READ
     assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=registry,
                          segments=_span_segments(text)) is not None
 

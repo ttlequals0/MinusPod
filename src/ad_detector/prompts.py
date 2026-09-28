@@ -10,12 +10,13 @@ import re
 from collections import Counter
 from typing import NamedTuple
 
+from sponsor_context import text_has_commercial_context
 from sponsor_service import SponsorService
 from text_pattern_matcher import bounded_segment_texts
 from utils.prompt import (
     format_sponsor_block, render_prompt, strip_comments_from_prompt
 )
-from utils.text import most_mentioned, truncate
+from utils.text import truncate
 from utils.time import parse_timestamp
 from utils.llm_response import extract_json_ads_array
 from utils.constants import (
@@ -25,6 +26,7 @@ from utils.constants import (
     is_sponsor_reasoning_rationale,
     mentions_advertising,
     NOT_AD_CLASSIFICATIONS,
+    squash_brand,
 )
 from config import (
     LOW_CONFIDENCE, CONFIDENCE_STRING_MAP,
@@ -397,8 +399,16 @@ def _span_names_sponsor(segments: list[dict], start: float, end: float,
                  for m in p.finditer(text)}
         if max(Counter(names.values()).values(), default=0) >= SPAN_SPONSOR_MIN_MENTIONS:
             return True
-    return bool(sponsor_service) and most_mentioned(
-        sponsor_service.brand_mention_offsets(text))[1] >= SPAN_SPONSOR_MIN_MENTIONS
+    if not sponsor_service:
+        return False
+    offsets = sponsor_service.brand_mention_offsets(text)
+    # Registry names can be everyday words, so a registry brand also needs commercial context.
+    return any(
+        len(found) >= SPAN_SPONSOR_MIN_MENTIONS and text_has_commercial_context(
+            text, brand,
+            names_sponsor=lambda t, b: b in sponsor_service.brand_mention_offsets(t),
+            matches_expected=lambda f, b: squash_brand(f) == squash_brand(b))
+        for brand, found in offsets.items())
 
 
 def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,

@@ -56,6 +56,7 @@ from utils.markers import (
 from differential_fetcher import differential_region_overlapping
 from community_export import brand_match_candidates
 from text_pattern_matcher import bounded_segment_texts
+from sponsor_context import text_has_commercial_context
 from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS, extract_description_sponsors
 from utils.constants import squash_brand
 from utils.text import extract_text_from_segments, most_mentioned, word_boundary_re
@@ -265,36 +266,6 @@ class AdValidator:
         re.IGNORECASE
     )
 
-    COMMERCIAL_CONTEXT_RE = re.compile(
-        r'\b(?:use\s+(?:promo\s+)?code\s+\w+|promo\s+code|'
-        r'(?:\d+\s*%|(?:\d+|ten|fifteen|twenty|thirty|forty|fifty)\s+percent)'
-        r'\s+off|free\s+(?:trial|shipping)|'
-        r'book\s+a\s+call|request\s+a\s+demo)\b', re.IGNORECASE)
-    # Group 1 of each framing pattern is the text that must name the sponsor.
-    SPONSOR_FRAMING_RE = re.compile(
-        r'\b(?:sponsored\s+by|brought\s+to\s+you\s+by|our\s+sponsors?\s+at)\s+'
-        r'([^.!?]{1,80})', re.IGNORECASE)
-    SPONSOR_THANKS_RE = re.compile(
-        r'\bthanks?\s+(?:you\s+)?(?:to\s+)?([^.!?]{1,80}?)\s+'
-        r'for\s+(?:supporting|sponsoring)\b', re.IGNORECASE)
-    SPONSOR_IS_SPONSOR_RE = re.compile(
-        r'([^.!?,;]{1,80})\s+is\s+(?:a|our)\s+sponsor(?=\s*(?:[.!?,;]|$))',
-        re.IGNORECASE)
-    # Group 1 of each link pattern is the domain label; squash_brand drops
-    # the hyphens and spaces of a spelled-out one ("A-C-M-E.com").
-    BRAND_LINK_RE = re.compile(
-        r'\b(?:visit|go\s+to|head\s+to|shop\s+at|learn\s+more\s+at|'
-        r'check\s+(?:them|it)\s+out\s+at|find\s+out\s+more\s+at)\s+'
-        r'([a-z0-9-]+)\.(?:com|io|org|net)\b', re.IGNORECASE)
-    # Read-aloud only: a spelled-out label or a spoken "dot com".
-    BARE_LINK_RE = re.compile(
-        r"(?<![\w'])((?:[a-z0-9][\s-]){2,}[a-z0-9](?=\.|\s+dot\s)|"
-        r"[a-z0-9-]+(?=\s+dot\s))(?:\.|\s+dot\s+)(?:com|io|org|net)\b",
-        re.IGNORECASE)
-    # (pattern, exact): an exact pattern's group 1 must be the brand alone.
-    FRAMING_PATTERNS = ((SPONSOR_FRAMING_RE, False), (SPONSOR_THANKS_RE, True),
-                        (SPONSOR_IS_SPONSOR_RE, True))
-    LINK_PATTERNS = (BRAND_LINK_RE, BARE_LINK_RE)
     # Sources that are evidence from the span itself, unlike the model's reason.
     SPAN_CONFIRMATION_SOURCES = frozenset({'transcript', 'registry'})
 
@@ -477,23 +448,12 @@ class AdValidator:
 
     def _has_local_commercial_context(self, relevant: list[str], sponsor: str) -> bool:
         name_re = word_boundary_re((sponsor,))
-        for index, text in enumerate(relevant):
-            if not self._text_names_sponsor(text, sponsor, name_re):
-                continue
-            if self.COMMERCIAL_CONTEXT_RE.search(text):
-                return True
-            nearby = text + ' ' + (relevant[index + 1] if index + 1 < len(relevant) else '')
-            for pattern, exact in self.FRAMING_PATTERNS:
-                for match in pattern.finditer(nearby):
-                    framing = match.group(1)
-                    if (self._matches_expected_sponsor(framing.strip(), sponsor) if exact
-                            else self._text_names_sponsor(framing, sponsor, name_re)):
-                        return True
-            if any(squash_brand(link.group(1)) == squash_brand(sponsor)
-                   for pattern in self.LINK_PATTERNS
-                   for link in pattern.finditer(nearby)):
-                return True
-        return False
+        return any(text_has_commercial_context(
+            text, sponsor,
+            names_sponsor=lambda t, s: self._text_names_sponsor(t, s, name_re),
+            matches_expected=self._matches_expected_sponsor,
+            following=relevant[index + 1] if index + 1 < len(relevant) else '')
+            for index, text in enumerate(relevant))
 
     def _sponsor_confirmation_source(self, ad: dict) -> str | None:
         """Where the ad's sponsor was confirmed: 'transcript' (a description
