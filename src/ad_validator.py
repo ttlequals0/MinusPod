@@ -408,7 +408,7 @@ class AdValidator:
             logger.info(f"Using learned positional prior: "
                         f"{len(self.positional_prior.zones)} zones")
 
-    def _registry_confirms(self, ad: dict) -> bool:
+    def _registry_confirms(self, ad: dict, texts: list[str]) -> bool:
         """Whether the ad's own audio names a sponsor from the registry.
 
         A repeated name confirms only the marker's advertiser, and only when
@@ -416,7 +416,7 @@ class AdValidator:
         """
         if not self.sponsor_service:
             return False
-        ad_text = ' '.join(self._bounded_text_segments(ad))
+        ad_text = ' '.join(texts)
         if not ad_text:
             return False
         try:
@@ -441,7 +441,7 @@ class AdValidator:
                 f"{ad['start']:.1f}s-{ad['end']:.1f}s ({len(offsets)} named once); "
                 f"not treating as confirmed")
             return False
-        if not self._has_local_commercial_context(ad, found):
+        if not self._has_local_commercial_context(texts, found):
             logger.info(
                 f"Registry sponsor '{found}' repeated without commercial "
                 f"language in {ad['start']:.1f}s-{ad['end']:.1f}s")
@@ -467,8 +467,7 @@ class AdValidator:
     def _bounded_text_segments(self, ad: dict) -> list[str]:
         return bounded_segment_texts(self.segments, ad['start'], ad['end'])
 
-    def _has_local_commercial_context(self, ad: dict, sponsor: str) -> bool:
-        relevant = self._bounded_text_segments(ad)
+    def _has_local_commercial_context(self, relevant: list[str], sponsor: str) -> bool:
         for index, text in enumerate(relevant):
             brand_here = False
             if self.sponsor_service:
@@ -517,17 +516,17 @@ class AdValidator:
         'reason' (only the detection model's own prose names it), or None.
         Prose is checked last: it is the one source the model wrote itself.
         """
+        texts = self._bounded_text_segments(ad)
         if self._description_sponsor_re is not None:
-            named = self._description_sponsor_re.search(
-                ' '.join(self._bounded_text_segments(ad)))
+            named = self._description_sponsor_re.search(' '.join(texts))
             if (named and (not ad.get('sponsor') or self._matches_expected_sponsor(
                     named.group(0), ad['sponsor']))
-                    and self._has_local_commercial_context(ad, named.group(0))):
+                    and self._has_local_commercial_context(texts, named.group(0))):
                 logger.info(f"Sponsor '{named.group(0)}' found in ad transcript, "
                             f"confirmed in description")
                 return 'transcript'
 
-        if self._registry_confirms(ad):
+        if self._registry_confirms(ad, texts):
             return 'registry'
 
         if self._description_sponsor_re is not None:

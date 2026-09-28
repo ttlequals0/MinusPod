@@ -11,6 +11,7 @@ from audio_processor import AudioProcessor
 from sponsor_service import SponsorService
 from utils.markers import mark_distinct_merge
 from utils.text import word_boundary_re
+from tests.unit.marker_test_utils import registry_confirms
 from config import (
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
     HOLD_REASON_UNCORROBORATED_TAIL,
@@ -2461,12 +2462,12 @@ class TestRegistryNeedsMoreThanOneMention:
 
     def test_a_single_passing_mention_does_not_confirm(self):
         v = self._validator('we talked about Acme once today and then moved on')
-        assert v._registry_confirms({'start': 0.0, 'end': 400.0}) is False
+        assert registry_confirms(v, {'start': 0.0, 'end': 400.0}) is False
 
     def test_a_repeated_mention_confirms(self):
         v = self._validator('Acme protects you. Go to Acme dot com slash pod '
                             'for twenty percent off your first order')
-        assert v._registry_confirms({'start': 0.0, 'end': 400.0}) is True
+        assert registry_confirms(v, {'start': 0.0, 'end': 400.0}) is True
 
     def test_one_mention_each_of_two_brands_does_not_confirm(self):
         """Summed across brands, two name-drops in a long span read as a
@@ -2485,7 +2486,7 @@ class TestRegistryNeedsMoreThanOneMention:
         v = AdValidator(3600.0, segments, episode_description='',
                         min_cut_confidence=0.80, sponsor_service=_TwoBrands())
 
-        assert v._registry_confirms({'start': 0.0, 'end': 400.0}) is False
+        assert registry_confirms(v, {'start': 0.0, 'end': 400.0}) is False
 
 
 def test_registry_confirmation_names_expected_advertiser_in_commercial_text(temp_db):
@@ -2501,26 +2502,26 @@ def test_registry_confirmation_names_expected_advertiser_in_commercial_text(temp
     validator = AdValidator(3600.0, segments, episode_description='',
                             sponsor_service=registry)
     candidate = {'start': 100.0, 'end': 140.0, 'sponsor': 'Example Cloud'}
-    assert validator._registry_confirms(candidate) is False
+    assert registry_confirms(validator, candidate) is False
 
     segments[0]['text'] = ('Example Cloud makes support simpler. '
                            'Visit examplecloud.com for a free trial.')
     segments[1]['text'] = 'Use code PODCAST at Example Cloud to save.'
-    assert validator._registry_confirms(candidate) is True
+    assert registry_confirms(validator, candidate) is True
 
     segments[0]['text'] = ('Example Cloud announced a filing. '
                            'Example Cloud shares rose on the news.')
     segments[1]['text'] = 'The hosts discuss the report and its impact.'
-    assert validator._registry_confirms(candidate) is False
+    assert registry_confirms(validator, candidate) is False
 
     segments[1]['text'] = 'See the link in our show notes for the report.'
-    assert validator._registry_confirms(candidate) is False
+    assert registry_confirms(validator, candidate) is False
 
     segments[1]['text'] = 'This next break is sponsored by Widget Labs.'
-    assert validator._registry_confirms(candidate) is False
+    assert registry_confirms(validator, candidate) is False
 
     segments[1]['text'] = 'Widget Labs offers a free trial this week.'
-    assert validator._registry_confirms(candidate) is False
+    assert registry_confirms(validator, candidate) is False
 
 
 def test_description_confirmation_requires_expected_brand_and_local_pitch(temp_db):
@@ -2567,11 +2568,11 @@ def test_commercial_signal_before_partial_segment_is_not_confirmation(temp_db):
     candidate = {'start': 115.0, 'end': 140.0, 'sponsor': 'Example Cloud',
                  'reason': 'Sponsor read'}
 
-    assert validator._registry_confirms(candidate) is False
+    assert registry_confirms(validator, candidate) is False
     assert validator._sponsor_confirmation_source(candidate) is None
 
     segments[0].pop('words')
-    assert validator._registry_confirms(candidate) is False
+    assert registry_confirms(validator, candidate) is False
 
 
 def test_brand_mentions_before_partial_segment_do_not_confirm(temp_db):
@@ -2589,7 +2590,7 @@ def test_brand_mentions_before_partial_segment_do_not_confirm(temp_db):
                             sponsor_service=SponsorService(temp_db))
     candidate = {'start': 115.0, 'end': 140.0, 'sponsor': 'Example Cloud',
                  'reason': 'Sponsor read'}
-    assert validator._registry_confirms(candidate) is False
+    assert registry_confirms(validator, candidate) is False
 
     text = 'Example Cloud announced results. Visit widgetlabs.com for details.'
     segments[0]['text'] = text

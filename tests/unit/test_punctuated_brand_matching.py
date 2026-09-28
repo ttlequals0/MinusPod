@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from ad_validator import AdValidator
 from sponsor_service import SponsorService
 from text_pattern_matcher import TextPatternMatcher
+from tests.unit.marker_test_utils import registry_confirms
 
 AD_TEXT = ('Liquid I.V. keeps you hydrated all day. Get your first order of '
            'Liquid I.V. with promo code POD at checkout.')
@@ -36,7 +37,7 @@ class TestTheValidatorConfirmsIt:
             episode_description='', min_cut_confidence=0.80,
             sponsor_service=SponsorService(temp_db))
 
-        assert validator._registry_confirms({'start': 0.0, 'end': 400.0}) is True
+        assert registry_confirms(validator, {'start': 0.0, 'end': 400.0}) is True
 
 
 class TestLearningSeesTheContamination:

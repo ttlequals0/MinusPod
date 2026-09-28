@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_validator import AdValidator, Decision
 from utils.text import word_boundary_re
+from tests.unit.marker_test_utils import registry_confirms
 
 CLOSING = ("Learn more at acme.com. That's A-C-M-E.com. "
            "Let me thank them so much for supporting the show.")
@@ -32,11 +33,15 @@ def _validator(text, registry=True):
 _SPAN = {'start': 0.0, 'end': 400.0}
 
 
+def _commercial(v, sponsor='Acme'):
+    return v._has_local_commercial_context(v._bounded_text_segments(_SPAN), sponsor)
+
+
 class TestCommercialContext:
     def test_production_closing_is_commercial(self):
         v = _validator(CLOSING)
-        assert v._has_local_commercial_context(_SPAN, 'Acme') is True
-        assert v._registry_confirms(dict(_SPAN)) is True
+        assert _commercial(v) is True
+        assert registry_confirms(v, dict(_SPAN)) is True
 
     @pytest.mark.parametrize('text', [
         'Acme keeps you safe, find it at Acme dot com.',
@@ -46,8 +51,7 @@ class TestCommercialContext:
         "Acme is great. That's A-C-M-E.com.",
     ])
     def test_bare_and_spelled_links_are_commercial(self, text):
-        assert _validator(text, registry=False)._has_local_commercial_context(
-            _SPAN, 'Acme') is True
+        assert _commercial(_validator(text, registry=False)) is True
 
     @pytest.mark.parametrize('text', [
         'Thanks to Acme for supporting the show.',
@@ -58,30 +62,29 @@ class TestCommercialContext:
         'This week, Acme is our sponsor.',
     ])
     def test_framing_phrases_are_commercial(self, text):
-        assert _validator(text, registry=False)._has_local_commercial_context(
-            _SPAN, 'Acme') is True
+        assert _commercial(_validator(text, registry=False)) is True
 
     def test_conversational_mention_is_not_commercial(self):
         v = _validator('I use Acme at home, Acme is fine')
-        assert v._has_local_commercial_context(_SPAN, 'Acme') is False
-        assert v._registry_confirms(dict(_SPAN)) is False
+        assert _commercial(v) is False
+        assert registry_confirms(v, dict(_SPAN)) is False
 
     def test_thanks_for_listening_is_not_sponsor_framing(self):
         v = _validator('Thank you for listening, Acme was mentioned earlier.',
                        registry=False)
-        assert v._has_local_commercial_context(_SPAN, 'Acme') is False
+        assert _commercial(v) is False
 
     @pytest.mark.parametrize('registry', [True, False])
     def test_learn_more_at_another_domain_is_not_commercial(self, registry):
         v = _validator('Learn more at wikipedia.org, Acme did well.',
                        registry=registry)
-        assert v._has_local_commercial_context(_SPAN, 'Acme') is False
+        assert _commercial(v) is False
 
     @pytest.mark.parametrize('registry', [True, False])
     def test_thanks_to_someone_else_is_not_sponsor_framing(self, registry):
         v = _validator('Thanks to our listeners, Acme came up again.',
                        registry=registry)
-        assert v._has_local_commercial_context(_SPAN, 'Acme') is False
+        assert _commercial(v) is False
 
     @pytest.mark.parametrize('registry', [True, False])
     @pytest.mark.parametrize('text', [
@@ -94,11 +97,11 @@ class TestCommercialContext:
     ])
     def test_content_phrasing_is_not_commercial(self, text, registry):
         v = _validator(text, registry=registry)
-        assert v._has_local_commercial_context(_SPAN, 'Acme') is False
+        assert _commercial(v) is False
 
     def test_other_domain_is_not_commercial(self):
         v = _validator('Acme came up. Go to othersite.com today.', registry=False)
-        assert v._has_local_commercial_context(_SPAN, 'Acme') is False
+        assert _commercial(v) is False
 
 
 def _calibrated_no_events():
