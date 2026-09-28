@@ -59,6 +59,7 @@ class Pass2Ledger:
 
     def supersede(self, span):
         """Mark a span whose outcome other entries already describe."""
+        self._entries.pop(id(span), None)
         self._superseded[id(span)] = span
 
     def record_carved(self, original, labelled_spans):
@@ -462,39 +463,44 @@ def _gate_hold_split_fragments(slug, episode_id, parents, pass1_held_markers,
     # validate and gate take (processed, original); gate must not see the pass-1 holds.
     processed, original = _split_pass2_candidates_around_holds(
         parents, pass1_held_markers, pass1_cuts, ledger=ledger)
-    pairs = []
-    for proc, orig in zip(processed, original, strict=True):
-        if _matches_false_positive_correction(orig, false_positive_corrections):
-            ledger.record(orig, 'rejected:fp_correction')
-            continue
-        pairs.append((proc, orig))
-    if not pairs:
-        return HoldSplitFragments()
-    processed, original = _split_pass2_candidates_around_spans(
-        [p for p, _ in pairs], [o for _, o in pairs], protection.hard_proc,
-        pass1_cuts, 'protected audio', ledger=ledger, carved_labels=protection.hard_sources)
-    processed, original = validate(processed, original)
-    pairs = []
-    for proc, orig in zip(processed, original, strict=True):
-        hold = next((h for h in pass1_held_markers or []
-                     if overlap_seconds(orig['start'], orig['end'], h['start'], h['end'])
-                     > EDGE_TOLERANCE), None)
-        if hold is not None:
-            audio_logger.info(
-                f"[{slug}:{episode_id}] Pass-2 fragment {orig['start']:.1f}s-"
-                f"{orig['end']:.1f}s reaches into hold {hold['start']:.1f}s-"
-                f"{hold['end']:.1f}s after validation")
-            ledger.record(orig, 'dropped:reaches_hold')
-            continue
-        pairs.append((proc, orig))
-    if not pairs:
-        return HoldSplitFragments()
-    processed, original = [p for p, _ in pairs], [o for _, o in pairs]
-    to_cut, for_ui, held, _count, _candidates = gate(processed, original)
-    audio_logger.info(
-        f"[{slug}:{episode_id}] {len(processed)} pass-2 fragment(s) outside held "
-        f"spans: {len(to_cut)} cut, {len(held)} held")
-    return HoldSplitFragments(processed, original, to_cut, for_ui, held)
+    try:
+        pairs = []
+        for proc, orig in zip(processed, original, strict=True):
+            if _matches_false_positive_correction(orig, false_positive_corrections):
+                ledger.record(orig, 'rejected:fp_correction')
+                continue
+            pairs.append((proc, orig))
+        if not pairs:
+            return HoldSplitFragments()
+        processed, original = _split_pass2_candidates_around_spans(
+            [p for p, _ in pairs], [o for _, o in pairs], protection.hard_proc,
+            pass1_cuts, 'protected audio', ledger=ledger, carved_labels=protection.hard_sources)
+        processed, original = validate(processed, original)
+        pairs = []
+        for proc, orig in zip(processed, original, strict=True):
+            hold = next((h for h in pass1_held_markers or []
+                         if overlap_seconds(orig['start'], orig['end'], h['start'], h['end'])
+                         > EDGE_TOLERANCE), None)
+            if hold is not None:
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Pass-2 fragment {orig['start']:.1f}s-"
+                    f"{orig['end']:.1f}s reaches into hold {hold['start']:.1f}s-"
+                    f"{hold['end']:.1f}s after validation")
+                ledger.record(orig, 'dropped:reaches_hold')
+                continue
+            pairs.append((proc, orig))
+        if not pairs:
+            return HoldSplitFragments()
+        processed, original = [p for p, _ in pairs], [o for _, o in pairs]
+        to_cut, for_ui, held, _count, _candidates = gate(processed, original)
+        audio_logger.info(
+            f"[{slug}:{episode_id}] {len(processed)} pass-2 fragment(s) outside held "
+            f"spans: {len(to_cut)} cut, {len(held)} held")
+        return HoldSplitFragments(processed, original, to_cut, for_ui, held)
+    except Exception:
+        # The carved parents are superseded, so only these fragments can carry the failure.
+        ledger.fail(original)
+        raise
 
 
 def _add_release_candidate(release_by_hold, orig_ad, hold, overlapping,

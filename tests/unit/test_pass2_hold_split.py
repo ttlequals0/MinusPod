@@ -64,16 +64,30 @@ def _ctx():
 
 # ---------- Gate: the hold decision is unchanged, the parent is collected ----------
 
+def _expect(cut=(), n=0, corroborated=(), candidates=()):
+    return {'cut': list(cut), 'n': n, 'corroborated': list(corroborated),
+            'candidates': list(candidates)}
+
+
+# Expected decisions as the gate made them before findings were split around holds.
 GATE_SHAPES = [
-    ([(2104.57, 2198.87, 0.98)], [(2124.95, 2198.87, NO_SPLICE)]),
-    ([(1825.7, 2001.4, 0.94)], [(1963.37, 2012.88, INCONCLUSIVE)]),
-    ([(900.0, 1110.0, 0.95)], [(1000.0, 1100.0, NO_SPLICE)]),
-    ([(1040.0, 1300.0, 0.95)], [(1000.0, 1100.0, NO_SPLICE)]),
-    ([(990.0, 1210.0, 0.95)], [(1000.0, 1100.0, NO_SPLICE), (1110.0, 1200.0, NO_SPLICE)]),
-    ([(1040.0, 1060.0, 0.95), (1080.0, 1140.0, 0.95)], [(1000.0, 1100.0, INCONCLUSIVE)]),
-    ([(950.0, 1100.0, 0.7)], [(1000.0, 1100.0, NO_SPLICE)]),
-    ([(1000.0, 1100.0, 0.95)], [(1000.0, 1100.0, 'estimated_pattern_bounds')]),
-    ([(500.0, 560.0, 0.95)], [(1000.0, 1100.0, NO_SPLICE)]),
+    ([(2104.57, 2198.87, 0.98)], [(2124.95, 2198.87, NO_SPLICE)],
+     _expect(n=1, corroborated=[(2124.95, 2198.87, {'start': 2124.95, 'end': 2198.87})])),
+    ([(1825.7, 2001.4, 0.94)], [(1963.37, 2012.88, INCONCLUSIVE)],
+     _expect(candidates=[(1963.37, 2001.4, 1963.37)])),
+    ([(900.0, 1110.0, 0.95)], [(1000.0, 1100.0, NO_SPLICE)],
+     _expect(candidates=[(1000.0, 1100.0, 1000.0)])),
+    ([(1040.0, 1300.0, 0.95)], [(1000.0, 1100.0, NO_SPLICE)],
+     _expect(candidates=[(1040.0, 1100.0, 1000.0)])),
+    ([(990.0, 1210.0, 0.95)], [(1000.0, 1100.0, NO_SPLICE), (1110.0, 1200.0, NO_SPLICE)],
+     _expect(candidates=[(1000.0, 1100.0, 1000.0), (1110.0, 1200.0, 1110.0)])),
+    # Intentional change: every disjoint subspan is a candidate, not only the first.
+    ([(1040.0, 1060.0, 0.95), (1080.0, 1140.0, 0.95)], [(1000.0, 1100.0, INCONCLUSIVE)],
+     _expect(candidates=[(1040.0, 1060.0, 1000.0), (1080.0, 1100.0, 1000.0)])),
+    ([(950.0, 1100.0, 0.7)], [(1000.0, 1100.0, NO_SPLICE)], _expect()),
+    ([(1000.0, 1100.0, 0.95)], [(1000.0, 1100.0, 'estimated_pattern_bounds')],
+     _expect(n=1, corroborated=[(1000.0, 1100.0, {'start': 1000.0, 'end': 1100.0})])),
+    ([(500.0, 560.0, 0.95)], [(1000.0, 1100.0, NO_SPLICE)], _expect(cut=[(500.0, 560.0)])),
 ]
 
 
@@ -92,11 +106,13 @@ def _gate_snapshot(findings, holds, collect):
     }, collected
 
 
-@pytest.mark.parametrize('findings,holds', GATE_SHAPES)
-def test_collecting_parents_leaves_every_gate_decision_unchanged(findings, holds):
-    without, _ = _gate_snapshot(findings, holds, collect=False)
-    with_parents, _ = _gate_snapshot(findings, holds, collect=True)
-    assert with_parents == without
+@pytest.mark.parametrize('collect', [False, True])
+@pytest.mark.parametrize('findings,holds,expected', GATE_SHAPES)
+def test_gate_decisions_match_the_pre_split_snapshot(findings, holds, expected, collect):
+    snapshot, _ = _gate_snapshot(findings, holds, collect=collect)
+    assert {key: snapshot[key] for key in expected} == expected
+    assert snapshot['ui'] == expected['cut']
+    assert snapshot['held'] == []
 
 
 def test_corroboration_and_release_spans_are_computed_on_the_full_finding():
@@ -435,6 +451,31 @@ def test_fragment_moved_into_a_hold_by_validation_is_dropped():
     assert 'pass2_corroborated' not in hold
 
 
+def test_failure_after_the_carve_records_the_outside_parts(caplog):
+    hold = _hold(1000.0, 1100.0)
+    protection = processing.build_protection(
+        kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=[],
+        pass1_cuts=[])
+    ledger = Pass2Ledger()
+    collected = []
+    _gate([_pair(900.0, 1200.0)], [hold], hold_overlaps=collected, ledger=ledger)
+
+    def boom(proc, orig):
+        raise RuntimeError('validator failed')
+
+    with pytest.raises(RuntimeError):
+        _gate_hold_split_fragments(
+            'example-podcast', 'a1b2c3d4e5f6', collected, [hold], [], [], protection,
+            validate=boom, gate=None, ledger=ledger)
+    with caplog.at_level(logging.INFO, logger='podcast.audio'):
+        ledger.emit('example-podcast', 'a1b2c3d4e5f6')
+    lines = [r.getMessage().split('] ', 1)[1] for r in caplog.records
+             if 'Pass-2 span' in r.getMessage()]
+    assert lines == ['Pass-2 span 900.0s-1000.0s: dropped:pass_failed',
+                     'Pass-2 span 1000.0s-1100.0s: covered:pass1_hold',
+                     'Pass-2 span 1100.0s-1200.0s: dropped:pass_failed']
+
+
 def test_hold_is_a_cut_barrier_for_the_trailing_extension():
     # A fragment ending near the file end must not extend over a hold after it.
     hold = _hold(2980.0, 2995.0)
@@ -523,6 +564,19 @@ def test_a_rejected_subspan_leaves_only_the_approved_one_released(monkeypatch):
     assert released == 1
     assert hold['pass2_released_spans'] == [{'start': 1100.0, 'end': 1150.0}]
     assert hold['pass2_reviewed_release'] == {'start': 1100.0, 'end': 1150.0}
+
+
+def test_a_rejected_later_subspan_is_logged_as_held_not_the_whole_hold(monkeypatch, caplog):
+    hold = _hold(1000.0, 1200.0)
+    with caplog.at_level(logging.INFO, logger='podcast.audio'):
+        _candidates, released = _release(
+            monkeypatch, hold, [(1010.0, 1050.0), (1100.0, 1150.0)],
+            [_verdict('confirmed', 1010.0, 1050.0), _verdict('reject', 1100.0, 1150.0)])
+    assert released == 1
+    messages = [r.getMessage() for r in caplog.records]
+    assert any('subspan 1100.0s-1150.0s of hold 1000.0s-1200.0s stays held' in m
+               for m in messages)
+    assert not any('the hold stays whole' in m for m in messages)
 
 
 def test_an_adjust_into_an_already_released_subspan_is_not_released(monkeypatch):

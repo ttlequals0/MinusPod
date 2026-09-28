@@ -225,6 +225,23 @@ def test_later_record_replaces_an_earlier_outcome(caplog):
     assert stats == {'pass2_outcomes': {'cut': 1}}
 
 
+def test_carving_a_recorded_span_removes_its_earlier_line(caplog):
+    # A below-floor miss the reviewer resurrects, then carved by a beep sibling.
+    ledger = Pass2Ledger()
+    orig = {'start': 100.0, 'end': 160.0}
+    ledger.record(orig, 'dropped:below_miss_floor')
+    beep = {'start': 140.0, 'end': 200.0}
+    _proc, fragments = processing._split_pass2_candidates_around_spans(
+        [dict(orig)], [orig], [beep], [], 'beep-replacement audio', ledger=ledger,
+        carved_labels=[dict(beep, label='covered:beep')])
+    ledger.settle(cut=fragments, held=[], kept=[])
+    stats = {}
+    with caplog.at_level(logging.INFO, logger='podcast.audio'):
+        ledger.emit('example-podcast', 'a1b2c3d4e5f6', stats)
+    assert _ledger_lines(caplog.records) == [(100.0, 140.0, 'cut'), (140.0, 160.0, 'covered:beep')]
+    assert stats == {'pass2_outcomes': {'cut': 1, 'covered:beep': 1}}
+
+
 # ---------- Property: every fragment the pass produces has exactly one line ----------
 
 SLOT = 400.0

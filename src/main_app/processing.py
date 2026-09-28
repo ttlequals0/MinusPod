@@ -2497,10 +2497,14 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
                 hold['pass2_hold_review'] = {
                     'span': [float(sub['start']), float(sub['end'])],
                     'verdict': v.verdict, 'reason': reason}
+                outcome = 'the hold stays whole'
+            else:
+                outcome = (f"subspan {sub['start']:.1f}s-{sub['end']:.1f}s of hold "
+                           f"{hold['start']:.1f}s-{hold['end']:.1f}s stays held")
             audio_logger.info(
                 f"[{ctx.slug}:{ctx.episode_id}] Review of {sub['start']:.1f}s-"
                 f"{sub['end']:.1f}s inside hold {hold['start']:.1f}s-"
-                f"{hold['end']:.1f}s returned {v.verdict}; the hold stays whole. "
+                f"{hold['end']:.1f}s returned {v.verdict}; {outcome}. "
                 f"Reason: {reason}")
             continue
         if prior is None:
