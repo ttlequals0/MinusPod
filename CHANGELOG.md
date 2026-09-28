@@ -29,7 +29,7 @@ release notes.
 
 ### Added
 
-- Pending holds are indexed by hold reason. The ad review list can filter pending detections by hold reason, shows the pending count for each reason in the selected feed, and returns `holdReason` on each detection. The detections endpoint accepts a `holdReason` query parameter and reports `counts.pendingByHoldReason`.
+- The ad review list can filter pending detections by hold reason, shows the pending count for each reason in the selected feed, and returns `holdReason` on each detection. The detections endpoint accepts a `holdReason` query parameter and reports `counts.pendingByHoldReason`.
 
 ## [2.97.31] - 2026-09-27
 

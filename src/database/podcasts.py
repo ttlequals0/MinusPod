@@ -589,9 +589,6 @@ class PodcastMixin:
             "DELETE FROM ad_reviewer_log WHERE podcast_id = ?", (slug,))
         conn.execute(
             "DELETE FROM addressing_log WHERE podcast_slug = ?", (slug,))
-        conn.execute(
-            "DELETE FROM pending_holds WHERE episode_pk IN (SELECT e.id FROM episodes e "
-            "JOIN podcasts p ON p.id = e.podcast_id WHERE p.slug = ?)", (slug,))
 
         cursor = conn.execute(
             "DELETE FROM podcasts WHERE slug = ?", (slug,)

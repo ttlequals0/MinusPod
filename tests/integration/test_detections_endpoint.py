@@ -154,6 +154,10 @@ def test_hold_reason_filter_and_counts(app_client, seeded_detections):
     body = app_client.get(
         '/api/v1/detections?holdReason=max_duration').get_json()
     assert [d['start'] for d in body['detections']] == [10.0]
+    # Status and search filters leave the per-reason counts alone.
+    for query in ('status=accepted', 'status=all', 'q=nomatch'):
+        counts = app_client.get(f'/api/v1/detections?{query}').get_json()['counts']
+        assert counts['pendingByHoldReason'] == {'max_duration': 1, 'verification_miss': 2}
     other = 'example-other'
     db.create_podcast(other, 'https://example.com/other.xml', title='Other Feed')
     try:

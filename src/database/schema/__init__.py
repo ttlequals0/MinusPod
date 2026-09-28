@@ -174,7 +174,6 @@ class SchemaMixin:
         'upload_reservations',
         'feed_subscriber_keys',
         'provider_spend_reservations',
-        'pending_holds',
     )
 
     def _create_new_tables_only(self, conn):
@@ -238,10 +237,6 @@ class SchemaMixin:
             "CREATE INDEX IF NOT EXISTS idx_upload_reservations_owner "
             "ON upload_reservations(owner_pid, owner_pid_start, state)"
         )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_pending_holds_episode ON pending_holds(episode_pk)")
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_pending_holds_reason ON pending_holds(hold_reason)")
 
         conn.commit()
         if not sentinel_existed:
@@ -1541,9 +1536,6 @@ class SchemaMixin:
 
         # 2.97.32: record DAI probe spans on markers saved before probes existed.
         self._normalize_legacy_dai_probe_spans(conn)
-
-        # 2.97.32: seed the pending_holds index from markers saved before it existed.
-        self._backfill_pending_holds(conn)
 
         # 2.97.32: tag pass-2 auto-filed confirms by origin; runs after the
         # sponsor FK rebuild so the column exists in its final table.
@@ -3581,48 +3573,6 @@ class SchemaMixin:
             # Gate stays unset on failure, so the next boot retries.
             conn.rollback()
             logger.warning(f"Migration: legacy DAI probe normalization failed: {e}")
-
-    def _backfill_pending_holds(self, conn):
-        """One-shot: build pending_holds from every stored ad_markers_json row."""
-        gate = 'backfill_pending_holds_once'
-        if conn.execute(
-            "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)
-        ).fetchone():
-            return
-        try:
-            episodes = 0
-            last_id = 0
-            while True:
-                batch = conn.execute(
-                    "SELECT episode_id, ad_markers_json FROM episode_details "
-                    "WHERE episode_id > ? AND ad_markers_json LIKE '%held_for_review%' "
-                    "ORDER BY episode_id LIMIT ?",
-                    (last_id, _COLLAPSE_BATCH_ROWS)
-                ).fetchall()
-                if not batch:
-                    break
-                last_id = batch[-1]['episode_id']
-                for row in batch:
-                    # Contained per row so one bad row cannot block every boot.
-                    try:
-                        markers = json.loads(row['ad_markers_json'])
-                        if not isinstance(markers, list):
-                            continue
-                        self._sync_pending_holds(conn, row['episode_id'], markers)
-                    except Exception as e:
-                        logger.warning(
-                            f"Migration: pending-holds backfill skipped "
-                            f"episode_id={row['episode_id']}: {e}")
-                        continue
-                    episodes += 1
-            conn.execute(
-                "INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
-            conn.commit()
-            logger.info(f"pending-holds backfill: {episodes} episode(s) indexed")
-        except Exception as e:
-            # Gate stays unset on failure, so the next boot retries.
-            conn.rollback()
-            logger.warning(f"Migration: pending-holds backfill failed: {e}")
 
     def _backfill_correction_origin(self, conn):
         """One-shot: set origin and source_hold_reason on confirms filed with the pass-2 snippet."""

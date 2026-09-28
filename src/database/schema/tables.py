@@ -638,16 +638,6 @@ TABLE_DDL['llm_call_usage'] = """CREATE TABLE IF NOT EXISTS llm_call_usage (
     reserved_tokens INTEGER
 )"""
 
-# Derived index of pending holds (is_pending_review markers); ad_markers_json stays the
-# source of truth. No uniqueness: duplicate-bounds markers exist.
-TABLE_DDL['pending_holds'] = """CREATE TABLE IF NOT EXISTS pending_holds (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    episode_pk INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
-    marker_start REAL NOT NULL,
-    marker_end REAL NOT NULL,
-    hold_reason TEXT
-)"""
-
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -834,8 +824,4 @@ CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_slot_created ON llm_call_
 """ + TABLE_DDL['addressing_log'] + """;
 CREATE INDEX IF NOT EXISTS idx_addressing_log_episode ON addressing_log(episode_id);
 CREATE INDEX IF NOT EXISTS idx_addressing_log_podcast ON addressing_log(podcast_slug);
-
-""" + TABLE_DDL['pending_holds'] + """;
-CREATE INDEX IF NOT EXISTS idx_pending_holds_episode ON pending_holds(episode_pk);
-CREATE INDEX IF NOT EXISTS idx_pending_holds_reason ON pending_holds(hold_reason);
 """

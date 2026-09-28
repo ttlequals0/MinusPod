@@ -1,5 +1,6 @@
 """Cross-episode ad detection review: /detections endpoint."""
 import logging
+from collections import Counter
 
 from flask import request
 
@@ -56,8 +57,11 @@ def list_detections():
     corrections = db.get_review_corrections()
     items = flatten_detections(rows, corrections)
     counts = summarize_detections(items)
-    counts['pendingByHoldReason'] = db.count_pending_holds_by_reason(feed)
-    items = filter_detections(items, status=status, feed=feed, q=q,
+    items = filter_detections(items, status='all', feed=feed)
+    # Follows the feed filter only, so the chips keep their counts under the other filters.
+    counts['pendingByHoldReason'] = dict(Counter(
+        i['holdReason'] for i in items if i['holdReason']))
+    items = filter_detections(items, status=status, q=q,
                               reviewer=reviewer, hold_reason=hold_reason)
     # Summarised before the category filter so byCategory keeps every bucket
     # while the podcast and search filters still narrow the header.
