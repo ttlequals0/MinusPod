@@ -334,7 +334,6 @@ def test_unsuccessful_review_keeps_the_whole_hold(monkeypatch, verdict):
     assert released == 0
     record = hold.pop('pass2_hold_review')
     assert record['verdict'] == verdict.verdict and record['span'] == [1040.0, 1060.0]
-    assert hold.pop('reviewer_reasoning') == record['reason']
     assert hold == before
     db = _approval_db(monkeypatch)
     assert processing._file_corroborated_hold_approvals('s', 'e', [hold]) == 0
@@ -537,7 +536,7 @@ def test_inconclusive_hold_review_records_the_reason(monkeypatch, caplog):
     line = next(r.getMessage() for r in caplog.records
                 if 'returned inconclusive' in r.getMessage())
     assert reason in line
-    assert hold['reviewer_reasoning'] == reason
+    assert 'reviewer_reasoning' not in hold
     assert hold['pass2_hold_review'] == {
         'span': [1040.0, 1060.0], 'verdict': 'inconclusive', 'reason': reason}
     # The hold stays a plain hold: no reviewer verdict or source is stamped.
@@ -556,6 +555,27 @@ def test_confirmed_hold_review_records_no_inconclusive_reason(monkeypatch):
     assert released == 1
     assert hold['pass2_reviewed_release'] == {'start': 1040.0, 'end': 1060.0}
     assert 'pass2_hold_review' not in hold and 'reviewer_reasoning' not in hold
+
+
+def test_release_clears_a_stale_hold_review(monkeypatch):
+    candidates = _candidate()
+    hold = candidates[0][1]
+    hold['pass2_hold_review'] = {'span': [1040.0, 1060.0], 'verdict': 'inconclusive',
+                                 'reason': 'Reviewer abstained.'}
+    released, _calls = _review(monkeypatch, candidates,
+                               [_verdict('confirmed', 1040.0, 1060.0)])
+    assert released == 1
+    assert 'pass2_hold_review' not in hold
+
+
+def test_hold_review_keeps_the_pass1_reviewer_reasoning(monkeypatch):
+    hold = dict(_hold(1000.0, 1100.0, INCONCLUSIVE),
+                reviewer_reasoning='Reviewer abstained: transcript gap.')
+    candidates = [(_orig(1040.0, 1060.0), hold)]
+    _review(monkeypatch, candidates, [_verdict(
+        'reject', 1040.0, 1060.0, reasoning='Host conversation')])
+    assert hold['reviewer_reasoning'] == 'Reviewer abstained: transcript gap.'
+    assert hold['pass2_hold_review']['reason'] == 'Host conversation'
 
 
 def test_recut_after_inconclusive_hold_review_keeps_the_hold_pending(monkeypatch):

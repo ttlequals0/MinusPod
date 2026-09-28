@@ -12741,7 +12741,7 @@ components:
         pass2_hold_review:
           type: object
           nullable: true
-          description: Set on a held marker when review of a pass-2 span inside it did not release the hold. The hold stays pending; reviewer_reasoning carries the same reason.
+          description: Set on a held marker when review of a pass-2 span inside it did not release the hold. The hold stays pending; cleared when a later review releases it. Diagnostic only, separate from reviewer_reasoning.
           properties:
             span:
               type: array

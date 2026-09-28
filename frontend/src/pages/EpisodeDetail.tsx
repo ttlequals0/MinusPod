@@ -1613,12 +1613,19 @@ function EpisodeDetail() {
                     || segment.hold_reason === 'reviewer_inconclusive_bounds'
                     || segment.hold_reason === 'reviewer_failed'
                     || segment.hold_reason === 'reviewer_reject_conflict'
-                    || segment.reviewer_verdict === 'inconclusive'
-                    || segment.pass2_hold_review)
+                    || segment.reviewer_verdict === 'inconclusive')
                     && segment.reviewer_reasoning && (
                     <p className="text-sm text-muted-foreground mt-1">
                       <span className="font-medium">Reviewer:</span>{' '}
                       {segment.reviewer_reasoning}
+                    </p>
+                  )}
+                  {segment.pass2_hold_review && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <span className="font-medium">
+                        Pass-2 review of {formatTimestamp(segment.pass2_hold_review.span[0])}-{formatTimestamp(segment.pass2_hold_review.span[1])}:
+                      </span>{' '}
+                      {segment.pass2_hold_review.verdict}. {segment.pass2_hold_review.reason}
                     </p>
                   )}
                   {!correction && !segment.approved && (

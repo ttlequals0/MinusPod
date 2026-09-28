@@ -893,15 +893,17 @@ describe('New hold reasons: tooltip titles', () => {
     await waitFor(() => expect(screen.getByTitle('No splice artifact found at either edge')).toBeDefined());
   });
 
-  it('shows why a pass-2 review left a no_splice_evidence hold in place', async () => {
+  it('labels the pass-2 review apart from the pass-1 reviewer note', async () => {
     const reason = 'Reviewer abstained: insufficient evidence. Original marker retained.';
     renderDetail(makeEpisode({ pendingReviewMarkers: [{
       ...heldMarker,
-      hold_reason: 'no_splice_evidence',
-      reviewer_reasoning: reason,
+      hold_reason: 'reviewer_inconclusive_bounds',
+      reviewer_reasoning: 'Reviewer abstained: transcript gap.',
       pass2_hold_review: { span: [1040, 1060], verdict: 'inconclusive', reason },
     }] }));
-    await waitFor(() => expect(screen.getByText(reason)).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Pass-2 review of 17:20-17:40:')).toBeDefined());
+    expect(screen.getByText(`inconclusive. ${reason}`, { exact: false })).toBeDefined();
+    expect(screen.getByText('Reviewer abstained: transcript gap.')).toBeDefined();
   });
 });
 

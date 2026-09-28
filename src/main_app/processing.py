@@ -2483,8 +2483,7 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         span = _released_span(v, sub, hold, protection.barriers_orig(exclude=[hold]))
         if span is None:
             reason = v.reasoning or f"Review returned {v.verdict}"
-            # No reviewer_verdict or source: the hold must not read as reviewer-held or rejected.
-            hold['reviewer_reasoning'] = reason
+            # Diagnostic only: no reviewer_verdict, source or reviewer_reasoning on the hold.
             hold['pass2_hold_review'] = {
                 'span': [float(sub['start']), float(sub['end'])],
                 'verdict': v.verdict, 'reason': reason}
@@ -2495,6 +2494,7 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
                 f"Reason: {reason}")
             continue
         hold['pass2_reviewed_release'] = span
+        hold.pop('pass2_hold_review', None)
         hold['pass2_corroborated'] = True
         hold['pass2_corroborated_span'] = dict(span)
         hold.setdefault('validation', {}).setdefault('flags', []).append(
