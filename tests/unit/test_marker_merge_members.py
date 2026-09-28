@@ -645,3 +645,35 @@ def test_clip_merge_spans_drops_a_fingerprint_member_whose_match_leaves_the_rang
     assert [m['stage'] for m in recorded_member_spans(marker)] == ['claude']
     assert 'fingerprint_match_start' not in marker
     assert 'fingerprint_match_end' not in marker
+
+
+def test_member_spans_record_sponsor_and_category():
+    base = _ad(0.0, 40.0, 'claude', sponsor='example-podcast', category='Self-Promo')
+    note_merged_members(base, _ad(41.0, 130.0, 'fingerprint', sponsor='Acme Tools',
+                                  category='sponsor'))
+
+    labels = [(m.get('sponsor'), m.get('category')) for m in base['merged_member_spans']]
+    assert labels == [('example-podcast', 'self_promo'), ('Acme Tools', 'sponsor')]
+    assert [(m.get('sponsor'), m.get('category'))
+            for m in recorded_member_spans(base)] == labels
+
+
+def test_member_spans_leave_unknown_labels_unset():
+    base = _ad(0.0, 40.0, 'claude', sponsor='', category='pre-roll')
+    note_merged_members(base, _ad(41.0, 80.0, 'claude'))
+
+    assert all('sponsor' not in m and 'category' not in m
+               for m in base['merged_member_spans'])
+
+
+def test_coalesce_keeps_differently_labeled_windows_apart():
+    base = _ad(0.0, 60.0, 'claude', sponsor='example-podcast', category='self_promo')
+    note_merged_members(base, _ad(40.0, 130.0, 'claude', sponsor='Acme Tools',
+                                  category='sponsor'))
+    base['end'] = 130.0
+    note_merged_members(base, _ad(100.0, 150.0, 'claude', sponsor='acme tools',
+                                  category='sponsor'))
+
+    assert member_bases(base['merged_member_spans']) == [
+        {'start': 0.0, 'end': 60.0, 'stage': 'claude'},
+        {'start': 40.0, 'end': 150.0, 'stage': 'claude'}]

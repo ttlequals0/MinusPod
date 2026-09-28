@@ -3,7 +3,8 @@ import json
 import math
 
 from config import (CORRECTION_MATCH_MIN_COVERAGE, FINGERPRINT_CHUNK_SIZE,
-                    PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS)
+                    PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS,
+                    repair_segment_category)
 from utils.time import overlap_ratio
 
 
@@ -357,7 +358,7 @@ MERGED_MEMBER_SPANS = 'merged_member_spans'
 # Per-member evidence recorded at merge time, before merges move the edges.
 _MEMBER_FIELDS = ('confidence', 'precise_start', 'precise_end',
                   'fingerprint_match_start', 'fingerprint_match_end',
-                  'span_estimated', 'pattern_id')
+                  'span_estimated', 'pattern_id', 'sponsor', 'category')
 
 # Stages measured from audio or matched transcript text, not proposed by a model.
 # dai_differential is not one: a cross-fetch diff earns KeepDifferentialOverride
@@ -492,6 +493,13 @@ def member_spans(marker: dict) -> list[dict]:
     member = {'start': lo, 'end': hi, 'stage': stage}
     if marker.get('span_estimated') and not marker.get('pattern_defined'):
         member['span_estimated'] = True
+    # Labels let pattern learning tell a self-promo intro from the sponsor read after it.
+    sponsor = marker.get('sponsor')
+    if isinstance(sponsor, str) and sponsor.strip():
+        member['sponsor'] = sponsor.strip()
+    category = repair_segment_category(marker.get('category'))
+    if category:
+        member['category'] = category
     if stage in COARSE_MEMBER_STAGES:
         confidence = finite_number(marker.get('confidence'))
         if confidence is not None:
@@ -524,15 +532,22 @@ def _take_coarse_edge(prior: dict, span: dict, edge: str, pick) -> None:
         prior[key] = flag
 
 
+def member_label(member: dict) -> tuple[str | None, str | None]:
+    """(lowercased sponsor, category) a member was recorded with."""
+    return ((member.get('sponsor') or '').strip().lower() or None,
+            member.get('category') or None)
+
+
 def _coalesce_coarse_members(spans: list[dict]) -> list[dict]:
-    """Union overlapping same-stage coarse members: two LLM windows over one ad
-    are one member, not two the reviewer has to keep separately."""
+    """Union overlapping same-stage, same-label coarse members: two LLM windows
+    over one ad are one member, not two the reviewer has to keep separately."""
     merged: list[dict] = []
     for span in spans:
         stage = span.get('stage')
         prior = next(
             (m for m in merged if m.get('stage') == stage
              and stage in COARSE_MEMBER_STAGES
+             and member_label(m) == member_label(span)
              and span['start'] <= m['end'] and span['end'] >= m['start']),
             None) if stage in COARSE_MEMBER_STAGES else None
         if prior is None:

@@ -97,7 +97,8 @@ def marker_split_sources(marker: dict) -> tuple[list[dict], list[float]]:
         lo, hi = finite_number(raw.get('start')), finite_number(raw.get('end'))
         if lo is not None and hi is not None and hi > lo:
             members.append({'start': lo, 'end': hi,
-                            'sponsor': raw.get('sponsor')})
+                            'sponsor': raw.get('sponsor'),
+                            'category': raw.get('category')})
     members.sort(key=lambda member: member['start'])
 
     cores = []

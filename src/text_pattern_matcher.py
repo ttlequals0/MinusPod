@@ -40,6 +40,7 @@ from utils.constants import (
 )
 from utils.community_tags import UNIVERSAL_TAG
 from utils.language import get_pattern_language
+from utils.markers import member_label
 from utils.pattern_catalog import scoped_catalog
 from utils.pattern_similarity import similarity, canonicalize_for_dedupe
 from utils.time import utc_now_iso
@@ -1512,11 +1513,11 @@ class TextPatternMatcher:
         from split_planning import build_split_candidates, build_split_pieces
 
         def create(piece_start, piece_end, piece_sponsor,
-                   from_split=False, piece_text=None):
+                   from_split=False, piece_text=None, piece_category=category):
             pattern_id = self.create_pattern_from_ad(
                 learning_segments, piece_start, piece_end, sponsor=piece_sponsor,
                 scope=scope, podcast_id=podcast_id, network_id=network_id,
-                episode_id=episode_id, category=category,
+                episode_id=episode_id, category=piece_category,
                 from_split=from_split, ad_text=piece_text, brand_rows=rows)
             return ([{'id': pattern_id, 'start': piece_start, 'end': piece_end}]
                     if pattern_id else [])
@@ -1533,7 +1534,16 @@ class TextPatternMatcher:
         member_sponsors = {(m.get('sponsor') or '').strip().lower()
                            for m in members if (m.get('sponsor') or '').strip()}
         merged_distinct = bool((ad or {}).get('merged_distinct_ads'))
-        contaminated = (len(member_sponsors) > 1
+        labeled = [m for m in members if member_label(m) != (None, None)]
+        intro = outro = None
+        if labeled:
+            intro = next((m for m in labeled if m['start'] <= start + 1.0), labeled[0])
+            outro = next((m for m in reversed(labeled) if m['end'] >= end - 1.0),
+                         labeled[-1])
+        # A differing label only counts when both reads name it.
+        bundled = intro is not None and any(
+            a and b and a != b for a, b in zip(member_label(intro), member_label(outro), strict=True))
+        contaminated = (len(member_sponsors) > 1 or bundled
                         or bool(self._contaminating_brands(ad_text, sponsor, rows)))
         if (end - start <= max_duration
                 and len(find_transition_offsets(ad_text)) <= 1
@@ -1549,6 +1559,12 @@ class TextPatternMatcher:
             if merged_distinct:
                 logger.info("Skipping pattern learning: merged ads have no reliable divider")
                 return []
+            if bundled:
+                (a_sp, a_cat), (b_sp, b_cat) = member_label(intro), member_label(outro)
+                logger.info(
+                    f"Skipping pattern learning: intro and outro come from different reads "
+                    f"({a_cat}/{a_sp} vs {b_cat}/{b_sp}) and no divider was found")
+                return []
             # Nothing to split on; create_pattern_from_ad logs why it declines.
             return create(start, end, sponsor, piece_text=ad_text)
         if any(span['start'] < cut < span['end']
@@ -1558,6 +1574,14 @@ class TextPatternMatcher:
 
         pieces = build_split_pieces(spans, start, end, times, brands=brands,
                                     compiled=patterns)
+        if bundled:
+            logger.info(
+                f"Splitting bundled span {start:.0f}-{end:.0f}s: intro from "
+                f"{'/'.join(map(str, member_label(intro)))}, outro from "
+                f"{'/'.join(map(str, member_label(outro)))}")
+        # The caller's sponsor names the opening read only when the intro agrees.
+        opening_sponsor = sponsor if not bundled or (
+            member_label(intro)[0] == (sponsor or '').strip().lower()) else None
         logger.info(
             f"Splitting {end - start:.0f}s span into {len(pieces)} pieces "
             f"for pattern learning"
@@ -1566,16 +1590,23 @@ class TextPatternMatcher:
         for index, piece in enumerate(pieces):
             # No divider sits near the span start, so the caller's sponsor names
             # the opening read; giving it to a later piece would mislabel it.
-            piece_sponsor = piece['sponsor'] or (sponsor if index == 0 else None)
+            piece_sponsor = piece['sponsor'] or (opening_sponsor if index == 0 else None)
             if not piece_sponsor:
                 logger.debug(
                     f"Split piece {piece['start']:.0f}-{piece['end']:.0f}s has no "
                     f"sponsor of its own; not learned")
                 continue
+            # A self-promo piece keeps its own category rather than the span's.
+            overlap, cover = max(
+                ((min(m['end'], piece['end']) - max(m['start'], piece['start']), m)
+                 for m in labeled if m.get('category')),
+                key=lambda pair: pair[0], default=(0, None))
+            piece_category = cover['category'] if overlap > 0 else category
             created.extend(
                 create(piece['start'], piece['end'],
                        canonical_sponsor(piece_sponsor),
-                       from_split=True, piece_text=piece['text']))
+                       from_split=True, piece_text=piece['text'],
+                       piece_category=piece_category))
         return created
 
     def create_pattern_from_ad(
