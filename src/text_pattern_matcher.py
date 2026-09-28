@@ -105,6 +105,20 @@ def _segments_for_pattern_learning(segments, start, end):
     return clipped
 
 
+def bounded_segment_texts(segments, start, end) -> list[str]:
+    """Text of each segment overlapping [start, end]; an edge segment keeps only its in-span words."""
+    texts = []
+    for seg in segments:
+        seg_start, seg_end = seg.get('start', 0), seg.get('end', 0)
+        if seg_start >= end or seg_end <= start:
+            continue
+        if seg_start >= start and seg_end <= end:
+            texts.append(seg.get('text', ''))
+        else:
+            clipped = _segments_for_pattern_learning([seg], start, end)
+            texts.append(' '.join(word['text'] for word in clipped) if clipped else '')
+    return texts
+
 def is_defined_pattern(pattern: dict) -> bool:
     """Tier-1 trust: user-created or community patterns; auto-learned are not."""
     return (pattern.get('created_by') == 'user'

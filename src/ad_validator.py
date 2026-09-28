@@ -55,7 +55,7 @@ from utils.markers import (
 )
 from differential_fetcher import differential_region_overlapping
 from community_export import brand_match_candidates
-from text_pattern_matcher import _segments_for_pattern_learning
+from text_pattern_matcher import bounded_segment_texts
 from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS, extract_description_sponsors
 from utils.constants import squash_brand
 from utils.text import extract_text_from_segments, word_boundary_re
@@ -465,18 +465,7 @@ class AdValidator:
         return False
 
     def _bounded_text_segments(self, ad: dict) -> list[str]:
-        # Deliberately narrow: a boundary segment counts only by its words inside the ad.
-        relevant = []
-        for seg in self.segments:
-            if seg.get('start', 0) >= ad['end'] or seg.get('end', 0) <= ad['start']:
-                continue
-            if seg.get('start', 0) >= ad['start'] and seg.get('end', 0) <= ad['end']:
-                relevant.append(seg.get('text', ''))
-            else:
-                clipped = _segments_for_pattern_learning(
-                    [seg], ad['start'], ad['end'])
-                relevant.append(' '.join(word['text'] for word in clipped) if clipped else '')
-        return relevant
+        return bounded_segment_texts(self.segments, ad['start'], ad['end'])
 
     def _has_local_commercial_context(self, ad: dict, sponsor: str) -> bool:
         relevant = self._bounded_text_segments(ad)

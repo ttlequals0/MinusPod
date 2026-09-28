@@ -555,7 +555,7 @@ def test_segment_span_text_clips_boundary_segments_to_the_window():
                            {'start': 12.0, 'end': 18.0, 'word': 'inside'}]},
                 {'start': 20.0, 'end': 30.0, 'text': 'middle'},
                 {'start': 30.0, 'end': 40.0, 'text': 'untimed tail'}]
-    assert segment_span_text(segments)(10.0, 35.0) == 'inside middle untimed tail'
+    assert segment_span_text(segments)(10.0, 35.0).split() == ['inside', 'middle']
 
 
 def _read_segments(start, end):
