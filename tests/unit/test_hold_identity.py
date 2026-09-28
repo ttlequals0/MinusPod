@@ -55,6 +55,16 @@ def test_a_legacy_hold_gets_an_identity_at_load():
     assert 'hold_id' not in markers[1]
 
 
+def test_a_legacy_hold_gets_the_same_identity_on_every_load():
+    def load():
+        return normalize_loaded_markers([
+            {'start': 10.0, 'end': 40.0, 'held_for_review': True, 'hold_reason': NO_SPLICE},
+            {'start': 50.0, 'end': 80.0, 'held_for_review': True, 'hold_reason': NO_SPLICE}])
+    first, second = load(), load()
+    assert [m['hold_id'] for m in first] == [m['hold_id'] for m in second]
+    assert first[0]['hold_id'] != first[1]['hold_id']
+
+
 def test_a_hold_stamped_outside_the_validator_gets_an_identity_at_render():
     hold = {'start': 500.0, 'end': 560.0, 'held_for_review': True,
             'hold_reason': 'differential_uncorroborated'}
@@ -71,8 +81,8 @@ def test_a_fragment_outside_a_hold_does_not_inherit_its_identity():
     assert fragments and all('hold_id' not in f for f in fragments)
 
 
-def test_releases_of_a_hold_whose_edges_moved_still_group():
-    # Filed before and after a reprocess nudged the hold's start.
+def test_releases_of_a_stored_hold_whose_edges_moved_still_group():
+    # Filed before and after a recut from stored markers nudged the hold's start.
     confirms = [_release_confirm((1002.0, 1200.0), (1100.0, 1150.0), 'a1b2c3d4e5f6'),
                 _release_confirm((1000.0, 1200.0), (1010.0, 1050.0), 'a1b2c3d4e5f6')]
     got = _validate(_held_marker(1002.0, 1200.0, 'a1b2c3d4e5f6'), confirms)

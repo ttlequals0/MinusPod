@@ -186,6 +186,16 @@ def test_fold_merges_validation_instead_of_replacing_it():
     assert keep['validation']['flags'] == ['HOLD: cue unproven', 'INFO: kept']
 
 
+def test_fold_winner_does_not_inherit_the_losers_pass2_outcome():
+    keep = {'start': 500.0, 'end': 520.0, 'was_cut': False, 'action_applied': 'keep'}
+    held = {'start': 500.2, 'end': 519.8, 'was_cut': False, 'held_for_review': True,
+            'hold_reason': 'cue_unproven', 'pass2_outcome': 'held:cue_unproven'}
+
+    fold_marker_pair(keep, held)
+
+    assert 'pass2_outcome' not in keep
+
+
 def test_fold_does_not_shadow_a_hold_reason_already_cleared():
     keep = {'start': 500.0, 'end': 520.0, 'was_cut': False,
             'action_applied': 'keep', 'held_for_review': False,

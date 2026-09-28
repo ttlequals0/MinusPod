@@ -1,4 +1,5 @@
 """Marker-dict bookkeeping shared by the detector, validator, and reviewer."""
+import hashlib
 import json
 import math
 import uuid
@@ -264,12 +265,19 @@ def ensure_hold_id(marker: dict) -> None:
         marker['hold_id'] = uuid.uuid4().hex[:12]
 
 
+def _legacy_hold_id(marker: dict) -> str:
+    """Derive a hold id from bounds and reason so repeated loads agree until it is saved."""
+    key = f"{marker.get('start') or 0.0:.2f}-{marker.get('end') or 0.0:.2f}-{marker.get('hold_reason')}"
+    return hashlib.sha1(key.encode(), usedforsecurity=False).hexdigest()[:12]
+
+
 def normalize_loaded_markers(markers: list) -> list:
     """Bring persisted markers up to the current shape in place; returns the list."""
     expanded = []
     for marker in markers:
-        if isinstance(marker, dict):
-            ensure_hold_id(marker)
+        if (isinstance(marker, dict) and marker.get('held_for_review')
+                and not marker.get('hold_id')):
+            marker['hold_id'] = _legacy_hold_id(marker)
         if not isinstance(marker, dict) or (
                 DAI_CORE_SPANS not in marker and 'partial_cut_spans' not in marker):
             expanded.append(marker)
@@ -827,7 +835,8 @@ def carve_partly_cut(marker: dict, start: float, end: float, covered) -> list[di
 
 
 # Verdict fields the winning record owns on a fold, absences included.
-_FOLD_VERDICT_FIELDS = ('action_applied', 'held_for_review', 'hold_reason')
+# pass2_outcome is here so a pass-1 winner never inherits a pass-2 outcome.
+_FOLD_VERDICT_FIELDS = ('action_applied', 'held_for_review', 'hold_reason', 'pass2_outcome')
 
 
 def _stayed_in_audio(marker: dict) -> bool:
