@@ -51,7 +51,7 @@ from reprocess_modes import (
     clear_episode_for_mode, reset_episode_for_reprocess,
 )
 from split_planning import build_split_candidates, build_split_pieces
-from utils.markers import find_marker_in_list
+from utils.markers import find_marker_in_list, parse_ad_markers
 from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
@@ -667,7 +667,7 @@ def get_episode(slug, episode_id):
     kept_markers = []
     if episode.get('ad_markers_json'):
         try:
-            all_markers = json.loads(episode['ad_markers_json'])
+            all_markers = parse_ad_markers(episode['ad_markers_json']) or []
             for marker in all_markers:
                 decision = marker.get('validation', {}).get('decision', 'ACCEPT')
                 # Markers persisted by a failed run were never cut.
@@ -1289,12 +1289,7 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
 
 def _markers_from_row(episode):
     """Parsed ad markers from an episode row; None when absent or unreadable."""
-    if not episode.get('ad_markers_json'):
-        return None
-    try:
-        return json.loads(episode['ad_markers_json'])
-    except (json.JSONDecodeError, TypeError):
-        return None
+    return parse_ad_markers(episode.get('ad_markers_json'))
 
 
 def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcast_name, stamp):

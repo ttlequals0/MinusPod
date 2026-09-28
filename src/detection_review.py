@@ -6,11 +6,10 @@ and a resolution derived from corrections: false_positive dismisses, while
 confirm and boundary_adjustment (an Edit that kept the ad) confirm.
 Kept free of Flask and DB imports so it can be unit tested directly.
 """
-import json
 import math
 
 from config import SEGMENT_CATEGORIES, is_pending_review
-from utils.markers import spans_match
+from utils.markers import parse_ad_markers, spans_match
 
 # Filter value and summary key for markers no stage classified. Not a member of
 # SEGMENT_CATEGORIES: unset is the absence of a category, not a category.
@@ -58,11 +57,8 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
 
     items = []
     for row in rows:
-        try:
-            markers = json.loads(row['ad_markers_json'])
-        except (TypeError, ValueError):
-            continue
-        if not isinstance(markers, list):
+        markers = parse_ad_markers(row['ad_markers_json'])
+        if markers is None:
             continue
         episode_corrections = by_episode.get((row.get('podcast_id'), row['episode_id']), [])
         for marker in markers:

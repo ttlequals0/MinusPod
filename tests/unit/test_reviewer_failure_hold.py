@@ -14,6 +14,7 @@ from config import (HOLD_REASON_REVIEWER_FAILED, PASS2_AUTOAPPROVE_HOLD_REASONS,
 from ad_reviewer import inconclusive_bounds_supported, stamp_reviewer_fields
 from main_app import processing
 from main_app.verification_reconciliation import _gate_verification_ads_by_confidence
+from utils.markers import normalize_loaded_markers
 from tests.unit.marker_test_utils import _ad
 from tests.unit.test_keep_bypass import _run_pipeline
 from tests.unit.test_processing_boundary_safety import _meta, _reviewer
@@ -60,7 +61,8 @@ def test_failure_with_full_dai_core_is_accepted_with_flag(monkeypatch):
     _fail_review(monkeypatch)
     ad = {'start': 3544.2, 'end': 3680.7, 'confidence': 0.95,
           'detection_stage': 'dai_differential',
-          'dai_core_spans': [{'start': 3544.2, 'end': 3680.7}]}
+          'dai_core_spans': [{'start': 3544.2, 'end': 3680.7}],
+          'dai_probe_spans': [{'start': 3544.7, 'end': 3548.7}]}
     result = _review(_reviewer(), ad)
     assert result.accepted_after_review == [ad]
     assert result.held_by_inconclusive == []
@@ -143,7 +145,8 @@ def _batch_failure_ads():
                    'detection_stage': 'claude', 'sponsor': 'Acme'}
     supported = {'start': 3573.2, 'end': 3680.7, 'confidence': 0.98,
                  'detection_stage': 'dai_differential',
-                 'dai_core_spans': [{'start': 3573.2, 'end': 3680.7}]}
+                 'dai_core_spans': [{'start': 3573.2, 'end': 3680.7}],
+                 'dai_probe_spans': [{'start': 3573.7, 'end': 3577.7}]}
     confirmed = {'start': 3492.9, 'end': 3544.2, 'confidence': 0.98,
                  'validation': {'user_confirmed': True}}
     return unsupported, supported, confirmed
@@ -202,8 +205,9 @@ def test_core_with_probe_window_is_supported():
     assert inconclusive_bounds_supported(ad, None)
 
 
-def test_legacy_core_without_probe_key_is_supported():
-    assert inconclusive_bounds_supported(_dai_ad(), None)
+def test_legacy_core_without_probe_key_is_supported_once_loaded():
+    assert not inconclusive_bounds_supported(_dai_ad(), None)
+    assert inconclusive_bounds_supported(normalize_loaded_markers([_dai_ad()])[0], None)
 
 
 def test_second_failure_holds_every_unconfirmed_ad(monkeypatch, caplog):

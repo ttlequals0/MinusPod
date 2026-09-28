@@ -194,10 +194,12 @@ def test_abstained_partial_dai_holds_but_full_dai_cuts(monkeypatch):
                         lambda **kwargs: (None, InconclusiveError()))
     partial = {'start': 2279.5, 'end': 2393.3, 'confidence': 0.98,
                'detection_stage': 'dai_differential',
-               'dai_core_spans': [{'start': 2320.22, 'end': 2393.3}]}
+               'dai_core_spans': [{'start': 2320.22, 'end': 2393.3}],
+               'dai_probe_spans': [{'start': 2320.72, 'end': 2324.72}]}
     full = {'start': 0.0, 'end': 60.0, 'confidence': 0.98,
             'detection_stage': 'dai_differential',
-            'dai_core_spans': [{'start': 0.0, 'end': 60.0}]}
+            'dai_core_spans': [{'start': 0.0, 'end': 60.0}],
+            'dai_probe_spans': [{'start': 0.5, 'end': 4.5}]}
     result = reviewer.review([partial, full], [], [], _meta(), 1, 'test-model')
     assert result.accepted_after_review == [full]
     assert result.held_by_inconclusive[0]['start'] == 2279.5

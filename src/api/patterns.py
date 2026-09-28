@@ -10,7 +10,7 @@ from config import (
     resolve_max_boundary_shift,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
-from utils.markers import clip_merge_spans, find_marker_in_list
+from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
 from pattern_service import PatternService, compute_pattern_trust
@@ -646,13 +646,7 @@ def _insert_manual_marker(episode, start, end, sponsor_name, reason,
     start. Returns the full marker list; the new marker's pattern_id is
     None and must be backfilled by the caller after pattern creation.
     """
-    markers = []
-    raw_markers = episode.get('ad_markers_json')
-    if raw_markers:
-        try:
-            markers = json.loads(raw_markers)
-        except (TypeError, ValueError):
-            markers = []
+    markers = parse_ad_markers(episode.get('ad_markers_json')) or []
     # If the user left "Reason" blank, synthesize one so the EpisodeDetail
     # page row has something to render (it shows segment.reason for the
     # description line). Without this, manual markers appear as just a
@@ -1287,13 +1281,7 @@ def _matches_held_marker(m, start, end, tol):
 def _load_episode_markers(db, slug, episode_id):
     """(episode row, parsed markers) from a single row load."""
     episode = db.get_episode(slug, episode_id) or {}
-    raw = episode.get('ad_markers_json')
-    if not raw:
-        return episode, None
-    try:
-        return episode, json.loads(raw)
-    except (TypeError, ValueError):
-        return episode, None
+    return episode, parse_ad_markers(episode.get('ad_markers_json'))
 
 
 def _load_markers(db, slug, episode_id):

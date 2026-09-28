@@ -1,4 +1,5 @@
 """Marker-dict bookkeeping shared by the detector, validator, and reviewer."""
+import json
 import math
 
 from config import (CORRECTION_MATCH_MIN_COVERAGE, FINGERPRINT_CHUNK_SIZE,
@@ -224,13 +225,48 @@ def dai_probe_window(start: float, end: float) -> tuple[float, float]:
 
 
 def _probe_span_dicts(marker: dict) -> list[dict]:
-    """Recorded probe spans, or the leading window of each core span on legacy markers."""
-    if isinstance(marker.get(DAI_PROBE_SPANS), list):
-        return _valid_spans(marker, DAI_PROBE_SPANS)
+    """Recorded probe spans; legacy markers get theirs from normalize_loaded_markers."""
+    return _valid_spans(marker, DAI_PROBE_SPANS)
+
+
+def _legacy_probe_spans(marker: dict) -> list[dict]:
+    """Leading window of each core span, as markers saved before probes were recorded."""
     return [{'start': s['start'],
              'end': min(s['end'], s['start'] + DAI_PROBE_LEAD_S
                         + min(DAI_PROBE_REF_S, s['end'] - s['start']))}
             for s in _valid_dai_core_spans(marker)]
+
+
+def _normalize_legacy_probes(marker: dict) -> None:
+    """Record probe spans on a marker saved before DAI probes existed."""
+    if isinstance(marker.get(DAI_PROBE_SPANS), list):
+        return
+    probes = _legacy_probe_spans(marker)
+    if probes:
+        marker[DAI_PROBE_SPANS] = probes
+
+
+def normalize_loaded_markers(markers: list) -> list:
+    """Bring persisted markers up to the current shape in place; returns the list."""
+    for marker in markers:
+        if not isinstance(marker, dict):
+            continue
+        _normalize_legacy_probes(marker)
+        # Legacy partial_cut_spans expansion (carved fragments) slots in here.
+    return markers
+
+
+def parse_ad_markers(raw) -> list[dict] | None:
+    """Parsed and normalized ad_markers_json; None when absent, unreadable or not a list."""
+    if not raw:
+        return None
+    try:
+        markers = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(markers, list):
+        return None
+    return normalize_loaded_markers(markers)
 
 
 def dai_core_spans(marker: dict) -> list[tuple[float, float]]:
@@ -263,12 +299,9 @@ def merge_dai_core_spans(target: dict, other: dict) -> None:
 def clip_dai_core_spans(marker: dict, start: float, end: float) -> None:
     """Clip a marker's DAI evidence to a newly split/clamped range."""
     core = _valid_dai_core_spans(marker)
-    if core:
-        # Materialize legacy probes first so the fallback never follows a clipped start.
-        marker[DAI_PROBE_SPANS] = _probe_span_dicts(marker)
     _clip_spans(marker, DAI_CORE_SPANS, core, start, end)
     if DAI_CORE_SPANS in marker:
-        _clip_spans(marker, DAI_PROBE_SPANS, marker[DAI_PROBE_SPANS],
+        _clip_spans(marker, DAI_PROBE_SPANS, _probe_span_dicts(marker),
                     start, end, keep_empty=True)
     else:
         marker.pop(DAI_PROBE_SPANS, None)

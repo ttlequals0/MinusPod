@@ -59,6 +59,7 @@ from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import (EDGE_TOLERANCE, carve_fragment,
                            clip_merge_spans, finite_number,
                            fold_marker_pair, foldable_twin, invalidate_tail_provenance,
+                           parse_ad_markers,
                            reviewer_edge_locked, reviewer_hold_stands,
                            reviewer_reject_stands,
                            set_reviewer_locks, spans_match, subtract_spans)
@@ -4986,11 +4987,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     from ad_validator import Decision
 
     episode = db.get_episode(slug, episode_id) or {}
-    raw = episode.get('ad_markers_json')
-    try:
-        all_ads = json.loads(raw) if raw else []
-    except (TypeError, ValueError):
-        all_ads = []
+    all_ads = parse_ad_markers(episode.get('ad_markers_json')) or []
     if not all_ads:
         return [], [], [], [], []
 
@@ -5218,11 +5215,11 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
 
 def _restore_saved_markers(slug, episode_id, episode_data):
     """Put back the markers a failed run replaced, so they match the published audio."""
-    raw = (episode_data or {}).get('ad_markers_json')
-    if not raw:
+    markers = parse_ad_markers((episode_data or {}).get('ad_markers_json'))
+    if markers is None:
         return
     try:
-        storage.save_combined_ads(slug, episode_id, json.loads(raw))
+        storage.save_combined_ads(slug, episode_id, markers)
     except Exception as err:
         audio_logger.error(f"[{slug}:{episode_id}] Could not restore markers after a failed run: {err}")
 
