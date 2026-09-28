@@ -6,7 +6,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from ad_validator import AdValidator
+from ad_validator import AdValidator, Decision
+from utils.text import word_boundary_re
 
 CLOSING = ("Learn more at acme.com. That's A-C-M-E.com. "
            "Let me thank them so much for supporting the show.")
@@ -74,3 +75,54 @@ class TestCommercialContext:
         v = _validator('Acme came up. Go to othersite.com today.', registry=False)
         assert v._has_local_commercial_context(_SPAN, 'Acme') is False
 
+
+def _calibrated_no_events():
+    return {'splice_evidence': {'version': 1, 'events': [],
+                                'calibration': {'status': 'calibrated'}}}
+
+
+class TestSpliceVetoSponsorWaiver:
+    """A 187 s cut on a calibrated feed with no audio corroboration."""
+
+    def _run(self, text, stage='claude', registry=False, description=None,
+             reason='Sponsor read'):
+        segments = [{'start': 1000.0, 'end': 1187.0, 'text': text}]
+        v = AdValidator(3600.0, segments, episode_description='',
+                        sponsor_service=_Registry() if registry else None)
+        if description:
+            v._description_sponsor_re = word_boundary_re((description,))
+        ad = {'start': 1000.0, 'end': 1187.0, 'confidence': 0.95,
+              'reason': reason, 'detection_stage': stage}
+        return v.validate([ad], audio_analysis=_calibrated_no_events()).ads[0]
+
+    @pytest.mark.parametrize('stage', ['claude', 'text_pattern'])
+    def test_registry_confirmed_is_accepted(self, stage, caplog):
+        with caplog.at_level('INFO'):
+            ad = self._run(CLOSING, stage=stage, registry=True)
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert not ad.get('held_for_review')
+        assert ('INFO: Splice veto waived, sponsor confirmed by registry'
+                in ad['validation']['flags'])
+        assert 'Splice veto waived for 1000.0s-1187.0s: sponsor confirmed by registry' \
+            in caplog.text
+
+    @pytest.mark.parametrize('stage', ['claude', 'text_pattern'])
+    def test_transcript_confirmed_is_accepted(self, stage):
+        ad = self._run(CLOSING, stage=stage, description='Acme')
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert ('INFO: Splice veto waived, sponsor confirmed by transcript'
+                in ad['validation']['flags'])
+
+    @pytest.mark.parametrize('stage', ['claude', 'text_pattern'])
+    def test_reason_only_is_held(self, stage):
+        ad = self._run('ordinary conversation about the week', stage=stage,
+                       description='Acme', reason='Acme sponsor read')
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['hold_reason'] == 'no_splice_evidence'
+
+    @pytest.mark.parametrize('stage', ['claude', 'text_pattern'])
+    def test_unconfirmed_is_held(self, stage):
+        ad = self._run('I use Acme at home, Acme is fine', stage=stage,
+                       registry=True)
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['hold_reason'] == 'no_splice_evidence'

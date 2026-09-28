@@ -1417,8 +1417,15 @@ class AdValidator:
                 and ad.get('detection_stage') in ('claude', 'text_pattern')
                 and self._splice_calibrated()
                 and self._audio_corroboration_source(ad) is None):
-            self._mark_held(ad, flags, HOLD_REASON_NO_SPLICE)
-            return Decision.REVIEW
+            # A sponsor the span itself names stands in for audio evidence; model prose does not.
+            source = self._sponsor_confirmation_source(ad)
+            if source in ('transcript', 'registry'):
+                flags.append(f"INFO: Splice veto waived, sponsor confirmed by {source}")
+                logger.info(f"Splice veto waived for {ad['start']:.1f}s-{ad['end']:.1f}s: "
+                            f"sponsor confirmed by {source}")
+            else:
+                self._mark_held(ad, flags, HOLD_REASON_NO_SPLICE)
+                return Decision.REVIEW
 
         # Rule 4: an uncorroborated vad_gap marker at the episode tail must
         # surface in the pending-review queue instead of shipping silently.
