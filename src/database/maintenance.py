@@ -6,6 +6,7 @@ import time
 from datetime import timedelta
 from pathlib import Path
 
+from config import CORRECTION_ORIGIN_USER
 from utils.text import extract_text_in_range
 from utils.time import ISO_FORMAT, utc_now
 
@@ -448,8 +449,8 @@ class MaintenanceMixin:
             FROM pattern_corrections pc
             WHERE pc.correction_type = 'confirm'
               AND pc.pattern_id IS NULL
-              AND COALESCE(pc.origin, 'user') = 'user'
-        ''')
+              AND pc.origin = ?
+        ''', (CORRECTION_ORIGIN_USER,))
         corrections = cursor.fetchall()
 
         for correction in corrections:

@@ -40,7 +40,7 @@ from database.search import (
 )
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
 from config import (
-    CORRECTION_ORIGIN_AUTO_PASS2, PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
+    CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     count_pending_review,
 )
 from utils.markers import collapse_duplicate_markers
@@ -3524,17 +3524,17 @@ class SchemaMixin:
 
     def _backfill_correction_origin(self, conn):
         """One-shot: set origin and source_hold_reason on confirms filed with the pass-2 snippet."""
-        marker = 'backfill_correction_origin_once'
+        gate = 'backfill_correction_origin_once'
         if conn.execute(
-            "SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)
+            "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)
         ).fetchone():
             return
         try:
             rows = conn.execute(
                 "SELECT id, text_snippet FROM pattern_corrections "
-                "WHERE correction_type = 'confirm' AND origin = 'user' "
+                "WHERE correction_type = 'confirm' AND origin = ? "
                 "AND text_snippet LIKE ?",
-                (PASS2_AUTOAPPROVE_SNIPPET_PREFIX + '%',)
+                (CORRECTION_ORIGIN_USER, PASS2_AUTOAPPROVE_SNIPPET_PREFIX + '%')
             ).fetchall()
             tagged = 0
             for row in rows:
@@ -3551,7 +3551,7 @@ class SchemaMixin:
                      reason.group(1) if reason else None, row['id'])
                 )
                 tagged += 1
-            conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (marker,))
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
             conn.commit()
             if tagged:
                 logger.info(f"Migration: tagged {tagged} auto-filed confirm correction(s) with origin")
