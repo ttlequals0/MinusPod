@@ -1089,16 +1089,20 @@ class TestExcludeKeptSpansFromVerification:
         orig_overlap = {'start': 504.0, 'end': 514.0, 'confidence': 0.95,
                         'sponsor': 'Acme'}
 
+        ledger = processing.Pass2Ledger()
         with patch.object(processing, 'get_replacement_duration', return_value=1.0), \
                 caplog.at_level(logging.DEBUG, logger='podcast.audio'):
             out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
-                [proc_overlap], [orig_overlap], [self.KEPT_MARKER], self.PASS1_CUTS)
+                [proc_overlap], [orig_overlap], [self.KEPT_MARKER], self.PASS1_CUTS,
+                ledger=ledger)
+            ledger.emit('example-podcast', 'a1b2c3d4e5f6')
 
         assert out_proc == []
         assert out_orig == []
         assert conflicts == []
         assert 'held_for_review' not in orig_overlap
-        assert any('the category action keeps' in r.message
+        # The outcome ledger line replaced the per-site drop line, in original time.
+        assert any('Pass-2 span 504.0s-514.0s: dropped:inside_kept' in r.message
                    for r in caplog.records)
 
         # Nothing routes to a cut: the kept span is never cut through.

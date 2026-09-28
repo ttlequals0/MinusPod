@@ -44,6 +44,37 @@ _HOLD_SPLIT_DROPPED_KEYS = (
 )
 
 
+class Pass2Ledger:
+    """The final outcome of each pass-2 span; recording a span again replaces its outcome."""
+
+    def __init__(self):
+        self._entries = {}
+
+    def record(self, span, outcome):
+        """Record outcome for the original-coordinate span dict, keyed by identity."""
+        self._entries[id(span)] = (span, span['start'], span['end'], outcome)
+
+    def settle(self, cut, held, kept):
+        """Record the markers the pass ends with."""
+        for ad in cut:
+            self.record(ad, 'cut')
+        for ad in held:
+            self.record(ad, f"held:{ad.get('hold_reason') or 'unknown'}")
+        for ad in kept:
+            self.record(ad, 'kept')
+
+    def emit(self, slug, episode_id, run_stats=None):
+        """Log one line per span and count the outcomes into run_stats."""
+        counts = {}
+        for start, end, outcome in sorted(
+                (start, end, outcome) for _span, start, end, outcome in self._entries.values()):
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Pass-2 span {start:.1f}s-{end:.1f}s: {outcome}")
+            counts[outcome] = counts.get(outcome, 0) + 1
+        if run_stats is not None:
+            run_stats['pass2_outcomes'] = counts
+
+
 def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
                                   verification_ads_original, verification_segments,
                                   ads_to_remove, podcast_name, skip_patterns):
@@ -227,8 +258,12 @@ def _matches_false_positive_correction(orig_ad, false_positive_corrections):
 
 def _split_pass2_candidates_around_spans(processed_ads, original_ads,
                                           barriers_processed, pass1_cuts,
-                                          barrier_label, timestamp_map=None):
-    """Split paired pass-2 candidates around protected processed spans."""
+                                          barrier_label, timestamp_map=None,
+                                          ledger=None, consumed_outcome=None):
+    """Split paired pass-2 candidates around protected processed spans.
+
+    A candidate wholly inside the spans is recorded in ledger as consumed_outcome.
+    """
     if not barriers_processed:
         return processed_ads, original_ads
     if len(processed_ads) != len(original_ads):
@@ -245,6 +280,8 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
     for processed, original in zip(processed_ads, original_ads, strict=True):
         whole = (processed['start'], processed['end'])
         fragments = subtract_spans([whole], barriers)
+        if not fragments and ledger is not None:
+            ledger.record(original, consumed_outcome)
         if fragments == [whole]:
             surviving_processed.append(processed)
             surviving_original.append(original)
@@ -279,8 +316,9 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
 
 def _exclude_kept_spans_from_verification(verification_ads_processed,
                                            verification_ads_original,
-                                           pass1_kept_markers, pass1_cuts):
+                                           pass1_kept_markers, pass1_cuts, ledger=None):
     """Drop or split pass-2 findings over kept spans; returns (processed, original, conflicts)."""
+    ledger = ledger if ledger is not None else Pass2Ledger()
     if not pass1_kept_markers:
         return verification_ads_processed, verification_ads_original, []
     keep_barriers = [{'start': start, 'end': end} for start, end, *_ in merge_cut_spans(
@@ -300,11 +338,7 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
         span = ad['end'] - ad['start']
         inside = min(1.0, covered / span) if span > 0 else 0.0
         if inside >= KEPT_SPAN_CONTAINMENT_MIN:
-            audio_logger.info(
-                f"Pass-2 finding {ad['start']:.1f}s-{ad['end']:.1f}s "
-                f"(processed) lies inside a span the category action keeps; "
-                f"dropping it"
-            )
+            ledger.record(orig_ad, 'dropped:inside_kept')
             continue
         if timestamp_map is None:
             timestamp_map = _build_timestamp_map(pass1_cuts)
@@ -322,18 +356,17 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
                 continue
             if (proc['end'] - proc['start'] < MIN_AD_DURATION
                     and not proc.get('_measured_split_fragment')):
-                audio_logger.info(
-                    f"Pass-2 fragment {proc['start']:.1f}s-{proc['end']:.1f}s "
-                    f"(processed) left beside kept audio is too short; dropping it"
-                )
+                ledger.record(orig, 'dropped:short_fragment')
                 continue
             surviving_processed.append(proc)
             surviving_original.append(orig)
     return surviving_processed, surviving_original, conflicts
 
 
-def _split_pass2_candidates_around_holds(parents, pass1_held_markers, pass1_cuts):
+def _split_pass2_candidates_around_holds(parents, pass1_held_markers, pass1_cuts,
+                                         ledger=None):
     """Carve hold-overlapping pass-2 findings into their parts outside the holds."""
+    ledger = ledger if ledger is not None else Pass2Ledger()
     if not parents:
         return [], []
     barriers = [{'start': start, 'end': end} for start, end, *_ in merge_cut_spans(
@@ -347,15 +380,11 @@ def _split_pass2_candidates_around_holds(parents, pass1_held_markers, pass1_cuts
         if orig['end'] <= orig['start'] or any(
                 c['start'] <= orig['start'] and orig['end'] <= c['end']
                 for c in pass1_cuts or []):
-            audio_logger.info(
-                f"Pass-2 fragment {proc['start']:.1f}s-{proc['end']:.1f}s "
-                f"(processed) beside held audio lies inside a replacement beep; dropping it")
+            ledger.record(orig, 'dropped:beep_interior')
             continue
         if (proc['end'] - proc['start'] < MIN_AD_DURATION
                 and not proc.get('_measured_split_fragment')):
-            audio_logger.info(
-                f"Pass-2 fragment {proc['start']:.1f}s-{proc['end']:.1f}s "
-                f"(processed) left beside held audio is too short; dropping it")
+            ledger.record(orig, 'dropped:short_fragment')
             continue
         for fragment in (proc, orig):
             for key in [*_HOLD_SPLIT_DROPPED_KEYS,
@@ -379,24 +408,23 @@ class HoldSplitFragments:
 
 def _gate_hold_split_fragments(slug, episode_id, parents, pass1_held_markers,
                                pass1_cuts, false_positive_corrections, protection,
-                               validate, gate):
+                               validate, gate, ledger=None):
     """Run the parts of hold-overlapping findings outside the holds through the pass-2 checks."""
     # validate and gate take (processed, original); gate must not see the pass-1 holds.
+    ledger = ledger if ledger is not None else Pass2Ledger()
     processed, original = _split_pass2_candidates_around_holds(
-        parents, pass1_held_markers, pass1_cuts)
+        parents, pass1_held_markers, pass1_cuts, ledger=ledger)
     pairs = []
     for proc, orig in zip(processed, original, strict=True):
         if _matches_false_positive_correction(orig, false_positive_corrections):
-            audio_logger.info(
-                f"[{slug}:{episode_id}] Pass-2 fragment {orig['start']:.1f}s-"
-                f"{orig['end']:.1f}s matches a user false-positive rejection; dropping it")
+            ledger.record(orig, 'rejected:fp_correction')
             continue
         pairs.append((proc, orig))
     if not pairs:
         return HoldSplitFragments()
     processed, original = _split_pass2_candidates_around_spans(
         [p for p, _ in pairs], [o for _, o in pairs], protection.hard_proc,
-        pass1_cuts, 'protected audio')
+        pass1_cuts, 'protected audio', ledger=ledger, consumed_outcome='dropped:protected')
     processed, original = validate(processed, original)
     pairs = []
     for proc, orig in zip(processed, original, strict=True):
@@ -407,7 +435,8 @@ def _gate_hold_split_fragments(slug, episode_id, parents, pass1_held_markers,
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-2 fragment {orig['start']:.1f}s-"
                 f"{orig['end']:.1f}s reaches into hold {hold['start']:.1f}s-"
-                f"{hold['end']:.1f}s after validation; dropping it")
+                f"{hold['end']:.1f}s after validation")
+            ledger.record(orig, 'dropped:reaches_hold')
             continue
         pairs.append((proc, orig))
     if not pairs:
@@ -455,7 +484,8 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_miss_hold_min_confidence=None,
                                           verification_miss_autocut_min_confidence=None,
                                           hard_barriers_orig=None, segments=None,
-                                          cue_gate_enabled=False, hold_overlaps=None):
+                                          cue_gate_enabled=False, hold_overlaps=None,
+                                          ledger=None):
     """Confidence gate pass-2 ads.
 
     Returns (v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count,
@@ -497,7 +527,9 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
 
     ``hold_overlaps``, when a list, receives a pre-gate copy of each hold-overlapping
     (processed, original) pair so the caller can keep its parts outside the hold.
+    ``ledger`` records the parts inside holds as covered and below-floor misses as dropped.
     """
+    ledger = ledger if ledger is not None else Pass2Ledger()
     if verification_miss_hold_min_confidence is None:
         verification_miss_hold_min_confidence = registry_get_default(
             'verification_miss_hold_min_confidence')
@@ -528,6 +560,11 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
         if overlapping:
             if hold_overlaps is not None:
                 hold_overlaps.append((dict(ad), dict(orig_ad)))
+            for lo, hi, *_ in merge_cut_spans([
+                    {'start': max(orig_ad['start'], h['start']),
+                     'end': min(orig_ad['end'], h['end'])} for h in overlapping]):
+                if hi > lo:
+                    ledger.record({'start': lo, 'end': hi}, 'covered')
             # A pass-2 cut overlapping a pass-1 held span would destroy the
             # audio the hold protects; drop it (never cut). The pass-1 held
             # marker already represents the region, so no second held marker
@@ -564,10 +601,6 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                     audio_logger.info(
                         f"Sent pass-2 span {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s "
                         f"to hold review")
-                else:
-                    audio_logger.info(
-                        f"Dropping pass-2 cut {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s: "
-                        f"overlaps a pass-1 held span")
             ad['was_cut'] = False
             orig_ad['was_cut'] = False
             # Held so the resurrection pool can never cut audio a hold protects.
@@ -604,11 +637,13 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             v_ads_held.append(orig_ad)
         else:
             ad['was_cut'] = False
+            # A resurrect verdict may still cut it; the ledger keeps the last outcome.
+            ledger.record(orig_ad, 'dropped:below_miss_floor')
             audio_logger.info(
-                f"Dropping standalone pass-2 miss {orig_ad['start']:.1f}s-"
+                f"Standalone pass-2 miss {orig_ad['start']:.1f}s-"
                 f"{orig_ad['end']:.1f}s (sponsor={orig_ad.get('sponsor')!r}, "
-                f"confidence={conf:.2f}, below verification-miss hold floor "
-                f"{verification_miss_hold_min_confidence:.2f})"
+                f"confidence={conf:.2f}) is below verification-miss hold floor "
+                f"{verification_miss_hold_min_confidence:.2f}"
             )
     # A later finding may have fast-path corroborated a hold after it got a candidate.
     candidates = [(sub, hold) for hold, subs in release_by_hold.values()
@@ -631,7 +666,8 @@ def _covered_by_cuts(ad, applied_cuts, total_duration=None, tolerance=0.01):
 
 def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                recut_applied, verification_ads_processed,
-                               verification_ads_original, total_duration=None):
+                               verification_ads_original, total_duration=None,
+                               ledger=None):
     """Drop pass-2 ads the recut did not actually remove (e.g. <10s filtered).
 
     Mutates v_ads_to_cut / v_ads_for_ui in place so the count and the UI list
@@ -657,6 +693,9 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                 if u is ui_ad:
                     del v_ads_for_ui[i]
                     break
+            if ledger is not None:
+                ledger.record(ui_ad, 'dropped:recut_filtered')
+                continue
         audio_logger.info(
             f"[{slug}:{episode_id}] Pass 2 ad {ad['start']:.1f}s-{ad['end']:.1f}s "
             f"was filtered out of the recut; not counting it as removed"

@@ -18,7 +18,7 @@ from config import is_pending_review
 from main_app import processing
 from utils.markers import is_reviewer_rejected, reviewer_hold_stands
 from main_app.verification_reconciliation import (
-    _gate_verification_ads_by_confidence, _inside_word_edge,
+    Pass2Ledger, _gate_verification_ads_by_confidence, _inside_word_edge,
 )
 from utils.time import adjust_timestamp
 from verification_pass import _build_timestamp_map, _map_to_original
@@ -117,16 +117,21 @@ def test_supported_subspan_inside_hold_becomes_a_release_candidate():
 
 
 def test_finding_sent_to_hold_review_is_not_logged_as_dropped(caplog):
+    # The in-hold part is reported once by the pass-2 outcome ledger, not a per-site drop line.
+    ledger = Pass2Ledger()
     with caplog.at_level('INFO', logger='podcast.audio'):
-        _gate([_proc(1040.0, 1060.0)], [_orig(1040.0, 1060.0)], [_hold(1000.0, 1100.0)])
+        _gate([_proc(1040.0, 1060.0)], [_orig(1040.0, 1060.0)], [_hold(1000.0, 1100.0)],
+              ledger=ledger)
         _gate([_proc(1040.0, 1060.0, 0.5)], [_orig(1040.0, 1060.0, 0.5)],
-              [_hold(1000.0, 1100.0)])
+              [_hold(1000.0, 1100.0)], ledger=ledger)
+        ledger.emit('example-podcast', 'a1b2c3d4e5f6')
 
     messages = [r.getMessage() for r in caplog.records]
     assert [m for m in messages if m.startswith('Sent pass-2 span')] == [
         'Sent pass-2 span 1040.0s-1060.0s to hold review']
-    assert [m for m in messages if m.startswith('Dropping pass-2 cut')] == [
-        'Dropping pass-2 cut 1040.0s-1060.0s: overlaps a pass-1 held span']
+    assert not any('Dropping' in m for m in messages)
+    assert [m for m in messages if 'Pass-2 span ' in m] == [
+        '[example-podcast:a1b2c3d4e5f6] Pass-2 span 1040.0s-1060.0s: covered'] * 2
 
 
 def test_candidate_is_clipped_to_the_hold_in_original_coordinates():

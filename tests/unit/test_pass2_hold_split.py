@@ -16,7 +16,7 @@ from audio_processor import AudioProcessor, get_replacement_duration
 from config import is_pending_review
 from main_app import processing
 from main_app.verification_reconciliation import (
-    _gate_hold_split_fragments, _gate_verification_ads_by_confidence,
+    Pass2Ledger, _gate_hold_split_fragments, _gate_verification_ads_by_confidence,
     _split_pass2_candidates_around_holds,
 )
 from utils.time import adjust_timestamp, overlap_seconds
@@ -169,10 +169,15 @@ def test_gap_between_two_holds_becomes_a_candidate():
 
 
 def test_short_fragment_of_a_short_parent_is_dropped_with_a_reason(caplog):
+    # The reason is the pass-2 outcome ledger line, which replaced the per-site drop line.
+    ledger = Pass2Ledger()
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
-        proc, orig = _split([_pair(95.0, 104.0)], [_hold(100.0, 130.0)])
+        proc, orig = _split_pass2_candidates_around_holds(
+            [_pair(95.0, 104.0)], [_hold(100.0, 130.0)], [], ledger=ledger)
+        ledger.emit('example-podcast', 'a1b2c3d4e5f6')
     assert proc == [] and orig == []
-    assert any('beside held audio is too short' in r.getMessage() for r in caplog.records)
+    assert any('Pass-2 span 95.0s-100.0s: dropped:short_fragment' in r.getMessage()
+               for r in caplog.records)
 
 
 def test_short_fragment_of_a_measured_parent_survives():
@@ -400,14 +405,17 @@ def test_fragment_matching_a_user_rejection_is_dropped(caplog):
         kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=[],
         pass1_cuts=[])
     parents = [_pair(990.0, 1200.0)]
+    ledger = Pass2Ledger()
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
         result = _gate_hold_split_fragments(
             'example-podcast', 'a1b2c3d4e5f6', parents, [hold], [],
             [{'start': 1090.0, 'end': 1160.0}], protection,
             validate=lambda proc, orig: (proc, orig),
-            gate=lambda proc, orig: (list(proc), list(orig), [], 0, []))
+            gate=lambda proc, orig: (list(proc), list(orig), [], 0, []), ledger=ledger)
+        ledger.emit('example-podcast', 'a1b2c3d4e5f6')
     assert _spans(result.original) == [(990.0, 1000.0)]
-    assert any('matches a user false-positive rejection' in r.getMessage()
+    # The outcome ledger line replaced the per-site rejection line.
+    assert any('Pass-2 span 1100.0s-1200.0s: rejected:fp_correction' in r.getMessage()
                for r in caplog.records)
 
 
@@ -641,3 +649,14 @@ def test_short_clamp_remainder_is_dropped_with_a_reason(caplog):
     assert _spans(ads) == [(1000.0, 1100.0)]
     assert any('1100.0s-1105.0s' in r.getMessage() and 'too short' in r.getMessage()
                for r in caplog.records)
+
+
+@pytest.mark.parametrize('flag', ['_reviewer_rejected', '_user_kept_by_trim'])
+def test_rejected_or_kept_marker_is_not_split_by_releases(flag):
+    validator = AdValidator(
+        episode_duration=3000.0, segments=[], min_cut_confidence=0.8,
+        confirmed_corrections=[_release_confirm((1000.0, 1200.0), (1100.0, 1150.0)),
+                               _release_confirm((1000.0, 1200.0), (1010.0, 1050.0))])
+    marker = dict(_hold(1000.0, 1200.0), **{flag: True})
+    assert validator._split_multi_release_holds([marker]) == [marker]
+    assert '_pinned_release_confirm' not in marker
