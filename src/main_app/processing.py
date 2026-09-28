@@ -5215,8 +5215,13 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
 
 def _restore_saved_markers(slug, episode_id, episode_data):
     """Put back the markers a failed run replaced, so they match the published audio."""
-    markers = parse_ad_markers((episode_data or {}).get('ad_markers_json'))
+    raw = (episode_data or {}).get('ad_markers_json')
+    if not raw:
+        return
+    markers = parse_ad_markers(raw)
     if markers is None:
+        audio_logger.error(f"[{slug}:{episode_id}] Could not restore markers after a failed run: "
+                           "unreadable ad_markers_json")
         return
     try:
         storage.save_combined_ads(slug, episode_id, markers)

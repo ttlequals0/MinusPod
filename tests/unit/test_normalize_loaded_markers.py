@@ -1,5 +1,6 @@
 """Legacy marker normalization at load and the one-shot at-rest migration."""
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -11,6 +12,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 from api.episodes import _markers_from_row  # noqa: E402
 from api.patterns import _insert_manual_marker, _load_episode_markers  # noqa: E402
+from main_app import processing  # noqa: E402
 from utils.markers import (DAI_PROBE_SPANS, clip_dai_core_spans,  # noqa: E402
                            normalize_loaded_markers, parse_ad_markers)
 
@@ -106,11 +108,31 @@ def test_migration_rewrites_legacy_rows_and_sets_gate(temp_db):
 def test_migration_leaves_unchanged_and_unreadable_rows_byte_identical(temp_db):
     _seed(temp_db, [_modern()])
     conn = temp_db.get_connection()
-    for raw in ('[ {"start": 5.0, "end": 20.0} ]', '{not json'):
+    # Both pass the LIKE prefilter; non-canonical spacing shows a rewrite would be caught.
+    modern = ('[ {"start": 100.0, "end": 160.0, "dai_core_spans": [{"start": 100.0, "end": 160.0}],'
+              ' "dai_probe_spans": [{"start": 100.5, "end": 104.5}]} ]')
+    for raw in (modern, '[{"dai_core_spans": '):
         conn.execute("UPDATE episode_details SET ad_markers_json = ?", (raw,))
         conn.commit()
         _run(temp_db)
         assert _raw(conn) == raw
+        assert conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+
+
+def test_restore_saved_markers_logs_unreadable_json(monkeypatch, caplog):
+    saved = []
+    monkeypatch.setattr(processing.storage, 'save_combined_ads',
+                        lambda *a: saved.append(a))
+    with caplog.at_level(logging.ERROR, logger='podcast.audio'):
+        processing._restore_saved_markers('example-podcast', 'a1b2c3d4e5f6',
+                                          {'ad_markers_json': '{bad json'})
+        processing._restore_saved_markers('example-podcast', 'a1b2c3d4e5f6',
+                                          {'ad_markers_json': None})
+    assert saved == []
+    assert [r.getMessage() for r in caplog.records].count(
+        '[example-podcast:a1b2c3d4e5f6] Could not restore markers after a failed run: '
+        'unreadable ad_markers_json') == 1
 
 
 def test_migration_is_gated(temp_db):
