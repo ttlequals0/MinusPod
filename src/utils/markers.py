@@ -101,6 +101,11 @@ def explicit_override(marker: dict, confirmed: list[dict]) -> bool:
                             include_auto_filed=False) is not None
 
 
+def reviewer_reject_stands(marker: dict, confirmed: list[dict]) -> bool:
+    """Whether a reviewer reject survives: only a user confirm or adjustment lifts it."""
+    return is_reviewer_rejected(marker) and not explicit_override(marker, confirmed)
+
+
 def reviewer_hold_stands(marker: dict, confirmed: list[dict]) -> bool:
     """Whether a pending reviewer hold survives a recut: no user override, no pass-2 release."""
     reason = marker.get('hold_reason')

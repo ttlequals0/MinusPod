@@ -57,10 +57,10 @@ from differential_fetcher import (
 )
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.markers import (EDGE_TOLERANCE, carve_fragment,
-                           clip_merge_spans, explicit_override, finite_number,
+                           clip_merge_spans, finite_number,
                            fold_marker_pair, foldable_twin, invalidate_tail_provenance,
-                           is_reviewer_rejected, reviewer_edge_locked,
-                           reviewer_hold_stands,
+                           reviewer_edge_locked, reviewer_hold_stands,
+                           reviewer_reject_stands,
                            set_reviewer_locks, spans_match, subtract_spans)
 from utils.pattern_catalog import pattern_catalog_scope
 from utils.time import (
@@ -86,7 +86,6 @@ from config import (
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     CORRECTION_ORIGIN_AUTO_PASS2,
-    REVIEWER_REJECT_PRESERVED_FLAG,
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
     PROCESSING_MODE_CUE_ONLY,
@@ -3285,8 +3284,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
             corrections or _load_user_corrections(slug, episode_id, db))
         fp_corrections = fp_corrections or []
         reviewer_rejects = [
-            r for r in markers if is_reviewer_rejected(r)
-            and not explicit_override(r, confirmed_corrections)]
+            r for r in markers if reviewer_reject_stands(r, confirmed_corrections)]
         approvable = []
         for m in holds:
             if any(ranges_overlap(m['start'], m['end'], fp['start'], fp['end'])
@@ -5011,9 +5009,9 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     # A standing reviewer reject outranks the saved-cut stamp; only a user override lifts it.
     # A pending reviewer hold stays pending unless a user or its own pass-2 approval releases it.
     for a in all_ads:
-        if is_reviewer_rejected(a) and not explicit_override(a, confirmed_corrections):
-            a['_reviewer_rejected'] = True
-        elif reviewer_hold_stands(a, confirmed_corrections):
+        if reviewer_reject_stands(a, confirmed_corrections):
+            continue  # AdValidator derives and finalizes the reject
+        if reviewer_hold_stands(a, confirmed_corrections):
             a['_reviewer_held'] = a['hold_reason']
         elif a.get('was_cut'):
             a['_saved_was_cut'] = True
@@ -5056,16 +5054,6 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     for ad in validation_result.ads:
         if ad.pop('_reviewer_rejected', False):
             reviewer_rejects.append(ad)
-            ad.pop('_saved_was_cut', None)
-            ad.pop('held_for_review', None)
-            ad.pop('hold_reason', None)
-            validation = ad.setdefault('validation', {})
-            validation['decision'] = Decision.REJECT.value
-            validation.pop('user_confirmed', None)
-            validation.pop('confirmed_span', None)
-            flags = validation.setdefault('flags', [])
-            if REVIEWER_REJECT_PRESERVED_FLAG not in flags:
-                flags.append(REVIEWER_REJECT_PRESERVED_FLAG)
             continue
         held_reason = ad.pop('_reviewer_held', None)
         if held_reason:

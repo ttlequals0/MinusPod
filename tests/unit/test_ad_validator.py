@@ -3136,3 +3136,64 @@ class TestSponsorConfirmedIsEvidenceNotProse:
         ad = v._validate_ad(self._ad('sponsor read'))
 
         assert ad['validation']['sponsor_confirmed'] is True
+
+
+def _reviewer_reject(start=300.0, end=330.0, was_cut=True):
+    return {'start': start, 'end': end, 'confidence': 0.97, 'reason': 'Acme sponsor read',
+            'detection_stage': 'claude', 'was_cut': was_cut, 'source': 'reviewer',
+            'reviewer_verdict': 'reject'}
+
+
+def test_validator_preserves_standing_reviewer_reject():
+    result = AdValidator(episode_duration=3600.0).validate([_reviewer_reject()])
+
+    ad = result.ads[0]
+    assert ad['validation']['decision'] == Decision.REJECT.value
+    assert 'reviewer_reject_preserved' in ad['validation']['flags']
+    assert not ad.get('held_for_review')
+    assert ad['_reviewer_rejected'] is True
+    assert result.rejected == 1
+
+
+def test_validator_user_confirm_lifts_reviewer_reject():
+    confirmed = [{'start': 300.0, 'end': 330.0, 'correction_type': 'confirm'}]
+    ad = AdValidator(episode_duration=3600.0, confirmed_corrections=confirmed).validate(
+        [_reviewer_reject()]).ads[0]
+
+    assert ad['validation']['decision'] == Decision.ACCEPT.value
+    assert ad['validation']['user_confirmed'] is True
+    assert '_reviewer_rejected' not in ad
+
+
+def test_validator_auto_filed_confirm_does_not_lift_reviewer_reject():
+    confirmed = [{'start': 300.0, 'end': 330.0, 'correction_type': 'confirm',
+                  'auto_filed': True}]
+    ad = AdValidator(episode_duration=3600.0, confirmed_corrections=confirmed).validate(
+        [_reviewer_reject()]).ads[0]
+
+    assert ad['validation']['decision'] == Decision.REJECT.value
+    assert not ad['validation'].get('user_confirmed')
+    assert 'reviewer_reject_preserved' in ad['validation']['flags']
+
+
+def test_reviewer_reject_does_not_merge_with_neighbor_cut():
+    neighbor = {'start': 270.0, 'end': 298.0, 'confidence': 0.95,
+                'reason': 'Acme promo', 'detection_stage': 'claude', 'was_cut': True}
+    ads = AdValidator(episode_duration=3600.0).validate(
+        [neighbor, _reviewer_reject(start=300.0)]).ads
+
+    assert [(a['start'], a['end']) for a in ads] == [(270.0, 298.0), (300.0, 330.0)]
+    assert ads[1]['validation']['decision'] == Decision.REJECT.value
+
+
+def test_fresh_detections_never_stamped():
+    fresh = [
+        {'start': 100.0, 'end': 160.0, 'confidence': 0.95, 'reason': 'Acme sponsor read',
+         'detection_stage': 'claude'},
+        {'start': 400.0, 'end': 430.0, 'confidence': 0.4, 'reason': 'possible promo',
+         'detection_stage': 'claude'},
+    ]
+    ads = AdValidator(episode_duration=3600.0).validate(fresh).ads
+
+    assert all('_reviewer_rejected' not in a for a in ads)
+    assert all('reviewer_reject_preserved' not in a['validation']['flags'] for a in ads)

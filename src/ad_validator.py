@@ -25,6 +25,7 @@ from config import (
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
     HOLD_REASON_LARGE_VAD_GAP,
     MAX_ADJACENT_AUTO_EXTENSION_SECONDS, MERGE_GAP_SECONDS, is_pending_review,
+    REVIEWER_REJECT_PRESERVED_FLAG,
 )
 from utils.markers import (
     carve_fragment,
@@ -47,6 +48,7 @@ from utils.markers import (
     quote_edge_valid,
     recorded_member_spans,
     reviewer_edge_locked,
+    reviewer_reject_stands,
     subtract_spans,
     union_cover,
     word_timed_edge_valid,
@@ -600,6 +602,9 @@ class AdValidator:
         ads = [ad.copy() for ad in ads]
         for ad in ads:
             ad.pop('_user_kept_by_trim', None)
+            # Stamped before the trim split so carved fragments inherit it.
+            if reviewer_reject_stands(ad, self.confirmed_corrections):
+                ad['_reviewer_rejected'] = True
         for protected in user_trimmed_keep_ranges(self.confirmed_corrections):
             split_ads = []
             for ad in ads:
@@ -788,6 +793,8 @@ class AdValidator:
         # Step 4: Validate each ad
         for ad in ads:
             validated = self._validate_ad(ad)
+            if validated.get('_reviewer_rejected'):
+                self._preserve_reviewer_reject(validated)
             result.ads.append(validated)
 
             decision = validated.get('validation', {}).get('decision', 'REVIEW')
@@ -813,6 +820,20 @@ class AdValidator:
                 logger.warning(f"Validation warning: {warning}")
 
         return result
+
+    @staticmethod
+    def _preserve_reviewer_reject(ad: dict) -> None:
+        """Force a standing reviewer reject to an uncut REJECT."""
+        ad.pop('_saved_was_cut', None)
+        ad.pop('held_for_review', None)
+        ad.pop('hold_reason', None)
+        validation = ad.setdefault('validation', {})
+        validation['decision'] = Decision.REJECT.value
+        validation.pop('user_confirmed', None)
+        validation.pop('confirmed_span', None)
+        flags = validation.setdefault('flags', [])
+        if REVIEWER_REJECT_PRESERVED_FLAG not in flags:
+            flags.append(REVIEWER_REJECT_PRESERVED_FLAG)
 
     def _validate_ad(self, ad: dict) -> dict:
         """Validate a single ad marker.

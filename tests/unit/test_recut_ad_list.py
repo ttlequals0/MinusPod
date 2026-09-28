@@ -1424,3 +1424,23 @@ def test_approval_fold_recut_keeps_reviewer_reject_conflict_hold(tmp_path):
     _assert_still_held(_find(saved['markers'], held), 'reviewer_reject_conflict')
     assert not any(c['start'] < held[1] and c['end'] > held[0] for c in saved['cuts'])
     assert any(c['start'] <= 31.0 and c['end'] >= 39.5 for c in saved['cuts'])
+
+
+def test_recut_does_not_stamp_reviewer_rejected(monkeypatch):
+    import ad_validator
+    seen = []
+    orig = ad_validator.AdValidator.validate
+
+    def spy(self, ads_arg, **kw):
+        seen.extend(dict(a) for a in ads_arg)
+        return orig(self, ads_arg, **kw)
+
+    monkeypatch.setattr(ad_validator.AdValidator, 'validate', spy)
+    _stub_recut_db(monkeypatch, [_cut(100.0, 160.0), _reject(R1, was_cut=True)])
+
+    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+        'slug', 'ep', _reject_segments(), 3600.0, '', 0.80)
+
+    assert seen and all('_reviewer_rejected' not in a for a in seen)
+    assert _spans(ads_to_remove) == {(100.0, 160.0)}
+    assert _find(all_ads, R1)['validation']['decision'] == 'REJECT'
