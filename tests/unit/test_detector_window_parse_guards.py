@@ -7,12 +7,11 @@ from tests.app_bootstrap import bootstrap
 bootstrap('window_guards_test_')
 
 from ad_detector import AdDetector, _known_sponsor_matchers
-from ad_detector.prompts import (EpisodeSponsors, _normalize_ad, parse_ads_from_response,
-                                 segment_span_text)
+from ad_detector.prompts import EpisodeSponsors, _normalize_ad, parse_ads_from_response
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_normalize import extract_description_sponsors
 from utils.constants import REASON_DESCRIPTION_MAX
-from text_pattern_matcher import TextMatch
+from text_pattern_matcher import TextMatch, bounded_segment_texts
 from utils.text import pattern_offsets, word_boundary_re
 from verification_pass import VerificationPass
 
@@ -468,11 +467,8 @@ _CUT_REASON = 'Extended host-read segment covering several product features and'
 _SPAN_START, _SPAN_END = 1000.0, 1188.0
 
 
-def _span_text(text):
-    def span_text(start, end):
-        assert (start, end) == (_SPAN_START, _SPAN_END)
-        return text
-    return span_text
+def _span_segments(text):
+    return [{'start': _SPAN_START, 'end': _SPAN_END, 'text': text}]
 
 
 _ACME_READ = ' '.join(['Acme makes it easy, try Acme today.'] * 5)
@@ -483,7 +479,7 @@ def test_long_window_with_a_cut_reason_is_kept_when_the_span_names_the_sponsor(c
     sponsors = EpisodeSponsors(None, word_boundary_re(['Acme']))
     with caplog.at_level(logging.INFO, logger='podcast.claude'):
         kept = _normalize_ad(ad, _SPAN_START, _SPAN_END, episode_sponsors=sponsors,
-                             span_text=_span_text(_ACME_READ))
+                             segments=_span_segments(_ACME_READ))
     assert kept is not None
     assert '(sponsor found in span transcript)' in caplog.text
 
@@ -495,7 +491,7 @@ def test_long_window_is_rejected_when_the_span_names_no_known_sponsor(caplog):
         dropped = _normalize_ad(
             ad, _SPAN_START, _SPAN_END, episode_sponsors=sponsors,
             sponsor_service=_registry('Globex'),
-            span_text=_span_text('The hosts talk about the history of bridges.'))
+            segments=_span_segments('The hosts talk about the history of bridges.'))
     assert dropped is None
     assert 'no sponsor identified in reason' in caplog.text
 
@@ -505,7 +501,7 @@ def test_single_passing_mention_in_the_span_does_not_admit_a_long_window():
     sponsors = EpisodeSponsors(None, word_boundary_re(['Calm']))
     assert _normalize_ad(
         ad, _SPAN_START, _SPAN_END, episode_sponsors=sponsors,
-        span_text=_span_text('Stay calm, the hosts say, and recap the week.')) is None
+        segments=_span_segments('Stay calm, the hosts say, and recap the week.')) is None
 
 
 def _offsets_registry(*names):
@@ -519,7 +515,7 @@ def _offsets_registry(*names):
 def test_registry_sponsor_in_the_span_admits_a_long_window():
     ad = {'confidence': 0.95, 'reason': _CUT_REASON}
     assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=_offsets_registry('Acme'),
-                         span_text=_span_text(_ACME_READ)) is not None
+                         segments=_span_segments(_ACME_READ)) is not None
 
 
 def test_a_repeated_registry_sponsor_counts_past_a_single_common_word_brand():
@@ -527,35 +523,35 @@ def test_a_repeated_registry_sponsor_counts_past_a_single_common_word_brand():
     registry = _offsets_registry('Calm', 'Acme')
     text = 'Stay calm. ' + _ACME_READ
     assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=registry,
-                         span_text=_span_text(text)) is not None
+                         segments=_span_segments(text)) is not None
 
 
-def test_parse_ads_from_response_forwards_span_text():
+def test_parse_ads_from_response_forwards_segments():
     response = (f'[{{"start": {_SPAN_START}, "end": {_SPAN_END}, '
                 f'"confidence": 0.95, "reason": "{_CUT_REASON}"}}]')
     sponsors = EpisodeSponsors(None, word_boundary_re(['Acme']))
     assert parse_ads_from_response(response, episode_sponsors=sponsors) == []
     assert len(parse_ads_from_response(
         response, episode_sponsors=sponsors,
-        span_text=_span_text(_ACME_READ))) == 1
+        segments=_span_segments(_ACME_READ))) == 1
 
 
-def test_segment_span_text_joins_the_overlapping_segments():
+def test_bounded_segment_texts_keeps_the_overlapping_segments():
     segments = [{'start': 0.0, 'end': 10.0, 'text': 'before'},
                 {'start': 10.0, 'end': 20.0, 'text': 'inside one'},
                 {'start': 20.0, 'end': 30.0, 'text': 'inside two'},
                 {'start': 30.0, 'end': 40.0, 'text': 'after'}]
-    assert segment_span_text(segments)(10.0, 30.0) == 'inside one inside two'
+    assert bounded_segment_texts(segments, 10.0, 30.0) == ['inside one', 'inside two']
 
 
-def test_segment_span_text_clips_boundary_segments_to_the_window():
+def test_bounded_segment_texts_clips_boundary_segments_to_the_window():
     segments = [{'start': 0.0, 'end': 20.0, 'text': 'Acme rocks. inside',
                  'words': [{'start': 0.0, 'end': 5.0, 'word': 'Acme'},
                            {'start': 5.0, 'end': 9.0, 'word': 'rocks.'},
                            {'start': 12.0, 'end': 18.0, 'word': 'inside'}]},
                 {'start': 20.0, 'end': 30.0, 'text': 'middle'},
                 {'start': 30.0, 'end': 40.0, 'text': 'untimed tail'}]
-    assert segment_span_text(segments)(10.0, 35.0).split() == ['inside', 'middle']
+    assert bounded_segment_texts(segments, 10.0, 35.0) == ['inside', 'middle', '']
 
 
 def _read_segments(start, end):
@@ -564,7 +560,7 @@ def _read_segments(start, end):
             for t in range(0, 600, 10)]
 
 
-def test_window_passes_span_text_to_the_gate():
+def test_window_passes_segments_to_the_gate():
     response = ('[{"start": 20.0, "end": 180.0, "confidence": 0.95, '
                 f'"reason": "{_CUT_REASON}"}}]')
     window = {'start': 0.0, 'end': 600.0, 'segments': _read_segments(20, 180)}
@@ -575,7 +571,7 @@ def test_window_passes_span_text_to_the_gate():
     assert _run_window(response, window=window, episode_sponsors=sponsors).ads == []
 
 
-def test_segment_id_window_passes_span_text_to_the_gate():
+def test_segment_id_window_passes_segments_to_the_gate():
     response = f'[{{"start_id": 2, "end_id": 17, "confidence": 0.95, "reason": "{_CUT_REASON}"}}]'
     segments = [dict(seg, sid=i) for i, seg in enumerate(_read_segments(20, 180))]
     window = {'start': 0.0, 'end': 600.0, 'segments': segments}

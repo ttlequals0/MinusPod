@@ -145,7 +145,6 @@ from .prompts import (
     parse_ads_from_response,
     parse_id_ads_from_response,
     resolve_segment_id_ads,
-    segment_span_text,
     extract_json_ads_array,
     CATEGORY_REPAIR_SYSTEM_PROMPT,
     CATEGORY_REPAIR_JSON_SCHEMA,
@@ -1301,7 +1300,7 @@ class AdDetector:
                     response_text, slug, episode_id,
                     sponsor_service=self.sponsor_service,
                     episode_sponsors=episode_sponsors,
-                    span_text=segment_span_text(window_segments))
+                    segments=window_segments)
                 ads_proposed = len(window_ads)
                 if validate_timestamps:
                     window_ads = validate_ad_timestamps(
@@ -1313,7 +1312,7 @@ class AdDetector:
                 sponsor_service=self.sponsor_service,
                 compliance_meta=compliance_meta,
                 episode_sponsors=episode_sponsors,
-                span_text=segment_span_text(window_segments))
+                segments=window_segments)
             compliant = not compliance_meta['extraction_failed']
             ads_proposed = len(window_ads)
             if validate_timestamps:
