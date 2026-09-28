@@ -4767,8 +4767,9 @@ paths:
                       pendingByHoldReason:
                         type: object
                         description: >-
-                          Pending-review detections per hold reason. Follows the
-                          feed filter; holds with no recorded reason are not counted.
+                          Pending-review detections per hold reason. Counts follow
+                          the feed and status filters; holds with no recorded reason
+                          are not counted.
                         additionalProperties: { type: integer }
                   cutSummary:
                     type: object

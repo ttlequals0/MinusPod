@@ -57,11 +57,11 @@ def list_detections():
     corrections = db.get_review_corrections()
     items = flatten_detections(rows, corrections)
     counts = summarize_detections(items)
-    items = filter_detections(items, status='all', feed=feed)
-    # Follows the feed filter only, so the chips keep their counts under the other filters.
+    items = filter_detections(items, status=status, feed=feed)
+    # Counted before the hold-reason filter so each chip matches the rows it would show.
     counts['pendingByHoldReason'] = dict(Counter(
         i['holdReason'] for i in items if i['holdReason']))
-    items = filter_detections(items, status=status, q=q,
+    items = filter_detections(items, status='all', q=q,
                               reviewer=reviewer, hold_reason=hold_reason)
     # Summarised before the category filter so byCategory keeps every bucket
     # while the podcast and search filters still narrow the header.

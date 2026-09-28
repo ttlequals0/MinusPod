@@ -141,23 +141,30 @@ def test_hold_reason_filter_and_counts(app_client, seeded_detections):
          'hold_reason': 'verification_miss'},
         {'start': 300.0, 'end': 330.0, 'held_for_review': True, 'was_cut': True,
          'hold_reason': 'max_duration'},
+        {'start': 400.0, 'end': 430.0, 'held_for_review': True, 'was_cut': False,
+         'hold_reason': 'max_duration', 'action_applied': 'keep'},
     ])
     body = app_client.get(
-        '/api/v1/detections?status=pending&holdReason=verification_miss').get_json()
+        '/api/v1/detections?holdReason=verification_miss').get_json()
     assert [d['start'] for d in body['detections']] == [200.0, 100.0]
     assert all(d['holdReason'] == 'verification_miss' for d in body['detections'])
     assert body['counts']['pendingByHoldReason'] == {
         'max_duration': 1, 'verification_miss': 2,
     }
-    # Pre-filter counts are unaffected by the hold-reason filter.
-    assert body['counts']['pending'] == 3
     body = app_client.get(
         '/api/v1/detections?holdReason=max_duration').get_json()
     assert [d['start'] for d in body['detections']] == [10.0]
-    # Status and search filters leave the per-reason counts alone.
-    for query in ('status=accepted', 'status=all', 'q=nomatch'):
+    # Counts follow the status filter so each chip matches the rows it would show.
+    for query, expected in (
+            ('status=pending', {'max_duration': 2, 'verification_miss': 2}),
+            ('status=all', {'max_duration': 2, 'verification_miss': 2}),
+            ('status=accepted', {}),
+            ('q=nomatch', {'max_duration': 1, 'verification_miss': 2})):
         counts = app_client.get(f'/api/v1/detections?{query}').get_json()['counts']
-        assert counts['pendingByHoldReason'] == {'max_duration': 1, 'verification_miss': 2}
+        assert counts['pendingByHoldReason'] == expected
+    body = app_client.get(
+        '/api/v1/detections?status=pending&holdReason=max_duration').get_json()
+    assert body['total'] == body['counts']['pendingByHoldReason']['max_duration']
     other = 'example-other'
     db.create_podcast(other, 'https://example.com/other.xml', title='Other Feed')
     try:
