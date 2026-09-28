@@ -43,8 +43,13 @@ def test_auto_confirm_releases():
     auto = {'auto_filed': True, 'hold_reason': 'reviewer_contradiction'}
     assert auto_confirm_releases(auto, 'reviewer_contradiction')
     assert not auto_confirm_releases(auto, 'reviewer_boundary_conflict')
-    assert auto_confirm_releases(auto, 'max_duration')
     assert not auto_confirm_releases({'hold_reason': 'max_duration'}, 'max_duration')
+
+
+def test_auto_confirm_for_another_reason_does_not_release_a_non_reviewer_hold():
+    auto = {'auto_filed': True, 'hold_reason': 'differential_uncorroborated'}
+    assert not auto_confirm_releases(auto, 'uncorroborated_tail')
+    assert auto_confirm_releases({**auto, 'hold_reason': 'uncorroborated_tail'}, 'uncorroborated_tail')
 
 
 def test_where_filter():

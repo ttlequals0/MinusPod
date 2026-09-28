@@ -101,9 +101,8 @@ def covering_confirm(start, end, confirmed, *, where=None,
 
 
 def auto_confirm_releases(corr: dict, hold_reason) -> bool:
-    """Whether an auto-filed confirm releases a hold: reviewer holds need a same-reason confirm."""
-    return bool(corr.get('auto_filed')) and (
-        hold_reason not in REVIEWER_HOLD_REASONS or corr.get('hold_reason') == hold_reason)
+    """Whether an auto-filed confirm releases a hold: only one filed for the same hold reason."""
+    return bool(corr.get('auto_filed')) and corr.get('hold_reason') == hold_reason
 
 
 def explicit_override(marker: dict, confirmed: list[dict]) -> bool:

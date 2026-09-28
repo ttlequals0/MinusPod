@@ -934,12 +934,9 @@ def test_auto_approve_files_one_confirm_for_repeated_hold_object(monkeypatch):
     assert db.create_pattern_correction.call_count == 1
 
 
-@pytest.mark.parametrize('order,expected', [
-    ((0, 1), ['differential_uncorroborated', 'reviewer_contradiction']),
-    ((1, 0), ['reviewer_contradiction']),
-])
-def test_auto_approve_files_reason_matched_confirm_for_reviewer_hold(monkeypatch, order, expected):
-    """A reviewer hold needs a same-reason confirm; any covering confirm releases the other."""
+@pytest.mark.parametrize('order', [(0, 1), (1, 0)])
+def test_auto_approve_files_reason_matched_confirm_per_hold_reason(monkeypatch, order):
+    """Overlapping holds with different reasons each file their own confirm."""
     diff = _diff_hold(100.0, 200.0)
     rev = _diff_hold(105.0, 200.0)
     rev['hold_reason'] = 'reviewer_contradiction'
@@ -952,7 +949,7 @@ def test_auto_approve_files_reason_matched_confirm_for_reviewer_hold(monkeypatch
         'slug', 'ep', [pair[i] for i in order]) == 2
     reasons = sorted(c.kwargs['source_hold_reason']
                      for c in db.create_pattern_correction.call_args_list)
-    assert reasons == expected
+    assert reasons == ['differential_uncorroborated', 'reviewer_contradiction']
 
 
 def test_auto_approve_files_for_reviewer_hold_despite_other_reason_auto_confirm(monkeypatch):

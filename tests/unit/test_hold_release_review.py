@@ -394,7 +394,8 @@ def test_repeated_detection_files_one_confirm(monkeypatch):
     hold = candidates[0][1]
     _review(monkeypatch, candidates, [_verdict('confirmed', 1040.0, 1060.0)])
     filed = {'start': 1000.0, 'end': 1100.0, 'correction_type': 'confirm',
-             'auto_filed': True, 'confirmed_span': {'start': 1040.0, 'end': 1060.0}}
+             'auto_filed': True, 'hold_reason': hold['hold_reason'],
+             'confirmed_span': {'start': 1040.0, 'end': 1060.0}}
     db = _approval_db(monkeypatch, confirmed=[filed])
 
     *_rest, again = _gate([_proc(1040.0, 1060.0)], [_orig(1040.0, 1060.0)], [hold])
