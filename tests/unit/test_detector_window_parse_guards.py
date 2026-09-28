@@ -506,6 +506,22 @@ def test_single_passing_mention_in_the_span_does_not_admit_a_long_window():
         segments=_span_segments('Stay calm, the hosts say, and recap the week.')) is None
 
 
+def test_two_sponsors_named_once_each_do_not_admit_a_long_window():
+    ad = {'confidence': 0.95, 'reason': _CUT_REASON}
+    sponsors = EpisodeSponsors(word_boundary_re(['Acme', 'Globex']), None)
+    assert _normalize_ad(
+        ad, _SPAN_START, _SPAN_END, episode_sponsors=sponsors,
+        segments=_span_segments('Acme came up once, and so did Globex.')) is None
+
+
+def test_one_sponsor_named_twice_admits_a_long_window():
+    ad = {'confidence': 0.95, 'reason': _CUT_REASON}
+    sponsors = EpisodeSponsors(word_boundary_re(['Acme', 'Globex']), word_boundary_re(['Acme']))
+    assert _normalize_ad(
+        ad, _SPAN_START, _SPAN_END, episode_sponsors=sponsors,
+        segments=_span_segments('Acme came up, then Acme again.')) is not None
+
+
 def test_registry_sponsor_in_the_span_admits_a_long_window():
     ad = {'confidence': 0.95, 'reason': _CUT_REASON}
     assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=_registry('Acme'),

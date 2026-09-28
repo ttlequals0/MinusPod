@@ -7,6 +7,7 @@ for readability; behavior is unchanged from the pre-split module.
 import logging
 import json
 import re
+from collections import Counter
 from typing import NamedTuple
 
 from sponsor_service import SponsorService
@@ -14,7 +15,7 @@ from text_pattern_matcher import bounded_segment_texts
 from utils.prompt import (
     format_sponsor_block, render_prompt, strip_comments_from_prompt
 )
-from utils.text import most_mentioned, pattern_offsets, truncate
+from utils.text import most_mentioned, truncate
 from utils.time import parse_timestamp
 from utils.llm_response import extract_json_ads_array
 from utils.constants import (
@@ -391,10 +392,10 @@ def _span_names_sponsor(segments: list[dict], start: float, end: float,
     """Whether the span transcript names one known sponsor at least twice."""
     text = ' '.join(bounded_segment_texts(segments, start, end))
     if episode_sponsors is not None:
-        audio_re, summary_re = episode_sponsors
-        patterns = {k: p for k, p in (('audio', audio_re), ('summary', summary_re))
-                    if p is not None}
-        if most_mentioned(pattern_offsets(text, patterns))[1] >= SPAN_SPONSOR_MIN_MENTIONS:
+        # Keyed by offset so a name both matchers carry counts once.
+        names = {m.start(): m.group(0).lower() for p in episode_sponsors if p is not None
+                 for m in p.finditer(text)}
+        if max(Counter(names.values()).values(), default=0) >= SPAN_SPONSOR_MIN_MENTIONS:
             return True
     return bool(sponsor_service) and most_mentioned(
         sponsor_service.brand_mention_offsets(text))[1] >= SPAN_SPONSOR_MIN_MENTIONS
