@@ -14,7 +14,7 @@ from text_pattern_matcher import bounded_segment_texts
 from utils.prompt import (
     format_sponsor_block, render_prompt, strip_comments_from_prompt
 )
-from utils.text import truncate
+from utils.text import most_mentioned, pattern_offsets, truncate
 from utils.time import parse_timestamp
 from utils.llm_response import extract_json_ads_array
 from utils.constants import (
@@ -392,12 +392,12 @@ def _span_names_sponsor(segments: list[dict], start: float, end: float,
     text = ' '.join(bounded_segment_texts(segments, start, end))
     if episode_sponsors is not None:
         audio_re, summary_re = episode_sponsors
-        if any(p is not None and len(p.findall(text)) >= SPAN_SPONSOR_MIN_MENTIONS
-               for p in (audio_re, summary_re)):
+        patterns = {k: p for k, p in (('audio', audio_re), ('summary', summary_re))
+                    if p is not None}
+        if most_mentioned(pattern_offsets(text, patterns))[1] >= SPAN_SPONSOR_MIN_MENTIONS:
             return True
-    return bool(sponsor_service) and any(
-        len(v) >= SPAN_SPONSOR_MIN_MENTIONS
-        for v in sponsor_service.brand_mention_offsets(text).values())
+    return bool(sponsor_service) and most_mentioned(
+        sponsor_service.brand_mention_offsets(text))[1] >= SPAN_SPONSOR_MIN_MENTIONS
 
 
 def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,

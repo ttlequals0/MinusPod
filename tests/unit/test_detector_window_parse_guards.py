@@ -201,6 +201,8 @@ def _registry(*names):
     registry = MagicMock()
     registry.find_sponsor_in_text.side_effect = lambda text: next(
         (n for n in names if n.lower() in text.lower()), None)
+    patterns = {n: word_boundary_re([n]) for n in names}
+    registry.brand_mention_offsets.side_effect = lambda text: pattern_offsets(text, patterns)
     return registry
 
 

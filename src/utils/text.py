@@ -45,6 +45,14 @@ def pattern_offsets(text: str, patterns: dict) -> dict[str, list[int]]:
     return found
 
 
+def most_mentioned(offsets: dict[str, list[int]]) -> tuple[str | None, int]:
+    """The name with the most offsets (earliest first on a tie) and its count; (None, 0) when empty."""
+    if not offsets:
+        return None, 0
+    name = max(offsets, key=lambda n: (len(offsets[n]), -offsets[n][0]))
+    return name, len(offsets[name])
+
+
 def truncate(text: str, limit: int) -> str:
     """Cut text to limit characters, ellipsis included in the count."""
     if not text or len(text) <= limit:

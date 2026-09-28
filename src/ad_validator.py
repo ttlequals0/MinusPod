@@ -58,7 +58,7 @@ from community_export import brand_match_candidates
 from text_pattern_matcher import bounded_segment_texts
 from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS, extract_description_sponsors
 from utils.constants import squash_brand
-from utils.text import extract_text_from_segments, word_boundary_re
+from utils.text import extract_text_from_segments, most_mentioned, word_boundary_re
 from utils.time import overlap_ratio
 from ad_detector.boundaries import effective_resolved_action
 
@@ -295,6 +295,8 @@ class AdValidator:
     FRAMING_PATTERNS = ((SPONSOR_FRAMING_RE, False), (SPONSOR_THANKS_RE, True),
                         (SPONSOR_IS_SPONSOR_RE, True))
     LINK_PATTERNS = (BRAND_LINK_RE, BARE_LINK_RE)
+    # Sources that are evidence from the span itself, unlike the model's reason.
+    SPAN_CONFIRMATION_SOURCES = frozenset({'transcript', 'registry'})
 
     VAGUE_REASONS: ClassVar[list[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
@@ -425,17 +427,13 @@ class AdValidator:
         except Exception as e:
             logger.debug(f"Sponsor registry lookup failed: {e}")
             return False
-        if not offsets:
-            return False
         expected = ad.get('sponsor')
         if expected:
             offsets = {name: positions for name, positions in offsets.items()
                        if self._matches_expected_sponsor(name, expected)}
-            if not offsets:
-                return False
-        found = max(offsets, key=lambda name: (len(offsets[name]),
-                                               -offsets[name][0]))
-        mentions = len(offsets[found])
+        found, mentions = most_mentioned(offsets)
+        if found is None:
+            return False
         if mentions < 2:
             logger.info(
                 f"No registry sponsor named twice in "
@@ -1050,7 +1048,7 @@ class AdValidator:
             # Read by the reviewer's reject floor: evidence only when the
             # transcript or the registry named the sponsor. The detection
             # model's own reason is not evidence against that same model.
-            'sponsor_confirmed': confirmation_source in ('transcript', 'registry'),
+            'sponsor_confirmed': confirmation_source in self.SPAN_CONFIRMATION_SOURCES,
         }
 
         return ad
@@ -1397,7 +1395,7 @@ class AdValidator:
                 and self._splice_calibrated()
                 and self._audio_corroboration_source(ad) is None):
             # A sponsor the span itself names stands in for audio evidence; model prose does not.
-            if confirmation_source in ('transcript', 'registry'):
+            if confirmation_source in self.SPAN_CONFIRMATION_SOURCES:
                 flags.append(f"INFO: Splice veto waived, sponsor confirmed by {confirmation_source}")
                 logger.info(f"Splice veto waived for {ad['start']:.1f}s-{ad['end']:.1f}s: "
                             f"sponsor confirmed by {confirmation_source}")
