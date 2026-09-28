@@ -49,13 +49,16 @@ def _ledger_lines(records):
 
 
 def _run(findings, *, holds=(), cuts=(), kept=(), fp=(), trims=(), validator_rejects=(),
-         reviewer_rejects=(), status=None, reviewer_error=None, caplog=None):
+         reviewer_rejects=(), status=None, reviewer_error=None, reviewer_widen=None,
+         recut_error=None, caplog=None):
     """Drive _run_verification_pass with detection, validation and the reviewer stubbed."""
     audio = MagicMock()
     audio.get_audio_duration.return_value = 6000.0
     processor = AudioProcessor()
 
     def render(path, segs, cut_barriers=None, hard_barriers=None):
+        if recut_error:
+            raise recut_error
         return '/tmp/ledger-recut.mp3', processor.compute_applied_cuts(
             segs, 6000.0, cut_barriers, hard_barriers=hard_barriers)
 
@@ -80,6 +83,9 @@ def _run(findings, *, holds=(), cuts=(), kept=(), fp=(), trims=(), validator_rej
     def pass2_reviewer(ctx, cut, ui, held, proc, orig, *args, ledger=None, **kwargs):
         if reviewer_error:
             raise reviewer_error
+        for p, o in zip(cut, ui, strict=True):
+            if reviewer_widen and (o['start'], o['end']) == reviewer_widen[0]:
+                p['start'], p['end'] = o['start'], o['end'] = reviewer_widen[1]
         for p, o in list(zip(cut, ui, strict=True)):
             if (o['start'], o['end']) in reviewer_rejects:
                 cut.remove(p)
@@ -187,6 +193,16 @@ def test_exception_flushes_every_unsettled_candidate(caplog):
         (200.0, 260.0, 'dropped:pass_failed'), (400.0, 460.0, 'dropped:below_miss_floor'),
         (900.0, 1000.0, 'dropped:pass_failed'), (1000.0, 1100.0, 'covered:pass1_hold'),
         (1100.0, 1200.0, 'dropped:pass_failed')]
+
+
+def test_recut_failure_after_a_protected_carve_reports_each_part_once(caplog):
+    run = _run([(150.0, 400.0)], trims=[{'start': 120.0, 'end': 140.0}],
+               reviewer_widen=((150.0, 400.0), (100.0, 400.0)),
+               recut_error=RuntimeError('boom'), caplog=caplog)
+    assert run.output[6] is False
+    assert sorted(run.lines) == [
+        (100.0, 120.0, 'dropped:pass_failed'), (120.0, 140.0, 'kept:user_trim'),
+        (140.0, 400.0, 'dropped:pass_failed')]
 
 
 def test_helper_without_a_ledger_logs_its_own_lines(caplog):

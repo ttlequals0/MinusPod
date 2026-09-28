@@ -649,6 +649,14 @@ def test_short_clamp_remainder_is_dropped_with_a_reason(caplog):
                for r in caplog.records)
 
 
+def test_unflagged_marker_with_the_same_releases_is_split():
+    validator = AdValidator(
+        episode_duration=3000.0, segments=[], min_cut_confidence=0.8,
+        confirmed_corrections=[_release_confirm((1000.0, 1200.0), (1100.0, 1150.0)),
+                               _release_confirm((1000.0, 1200.0), (1010.0, 1050.0))])
+    assert len(validator._split_multi_release_holds([_hold(1000.0, 1200.0)])) > 1
+
+
 @pytest.mark.parametrize('flag', ['_reviewer_rejected', '_user_kept_by_trim'])
 def test_rejected_or_kept_marker_is_not_split_by_releases(flag):
     validator = AdValidator(

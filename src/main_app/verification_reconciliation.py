@@ -334,6 +334,8 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
             f"{processed['end']:.1f}s split around {barrier_label} into "
             f"{len(fragments)} removable fragment(s)")
         ledger.record_carved(original, carved_labels)
+        # Its fragments and carved parts carry its outcome now.
+        ledger.supersede(original)
         # The parent cleared the renderer's duration floor before a protected
         # span carved it; validation still decides whether each piece is a cut.
         trusted_fragment = (
