@@ -225,6 +225,16 @@ class PatternMixin:
                 fields.append(f"{key} = ?")
                 values.append(json.dumps(value) if isinstance(value, list) else value)
 
+        # SET reads the pre-update row, so re-disabling keeps the original stamp.
+        if 'is_active' in kwargs and 'disabled_at' not in kwargs:
+            if kwargs['is_active']:
+                fields.append("disabled_at = NULL")
+            else:
+                fields.append(
+                    "disabled_at = CASE WHEN is_active = 1 "
+                    "THEN strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+                    "ELSE COALESCE(disabled_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now')) END")
+
         if not fields:
             return False
 

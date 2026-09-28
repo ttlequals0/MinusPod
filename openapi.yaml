@@ -3560,7 +3560,11 @@ paths:
               properties:
                 is_active:
                   type: boolean
-                  description: Whether the pattern is active
+                  description: >-
+                    Whether the pattern is active. False stamps disabled_at
+                    (an already disabled pattern keeps its original time);
+                    true clears disabled_at, and disabled_reason too unless
+                    the request sends one.
                 sponsor:
                   type: string
                   description: Sponsor name for this pattern
