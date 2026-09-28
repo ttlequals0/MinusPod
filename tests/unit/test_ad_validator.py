@@ -639,6 +639,42 @@ class TestNotAdPatternsRegex:
 
         assert result.rejected == 1
 
+    def test_word_ending_in_no_not_matched(self):
+        """Regression: 'Casino ad' must NOT read as 'no ad'."""
+        validator = AdValidator(episode_duration=600.0, segments=[])
+
+        for reason in ('Hard Rock Bet Casino ad followed by an audiobook promo',
+                       'Mid-roll break including Hard Rock Bet Casino advertisement',
+                       'Hard Rock Bet Casino sponsorship and audiobook promo'):
+            ad = {
+                'start': 100.0,
+                'end': 200.0,
+                'confidence': 0.99,
+                'reason': reason,
+            }
+
+            result = validator.validate([ad])
+
+            assert result.rejected == 0, f"{reason!r} should not be rejected"
+            assert not any('not an ad' in f for f in result.ads[0]['validation']['flags'])
+
+    def test_no_ad_still_matched(self):
+        """'no ad' / 'no sponsor' as whole words MUST still trigger rejection."""
+        validator = AdValidator(episode_duration=600.0, segments=[])
+
+        for reason in ('There is no ad in this window',
+                       'No sponsor read here, just the host'):
+            ad = {
+                'start': 100.0,
+                'end': 200.0,
+                'confidence': 0.80,
+                'reason': reason,
+            }
+
+            result = validator.validate([ad])
+
+            assert result.rejected == 1, f"{reason!r} should be rejected"
+
     def test_not_an_ad_still_matched(self):
         """'not an ad' MUST still trigger rejection."""
         validator = AdValidator(episode_duration=600.0, segments=[])

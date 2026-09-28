@@ -280,16 +280,18 @@ class AdValidator:
     # The second branch only matches "(show|episode|regular|actual) content" when
     # preceded by assertion verbs (is, appears to be, etc.) or at start-of-string.
     # This avoids false positives on phrases like "transition from show content".
+    # The "no"/"not" branches start at a word boundary: without it "Casino ad"
+    # and "Casino sponsorship" match "no ad" / "no sponsor".
     NOT_AD_PATTERNS = re.compile(
-        r'not\s+an?\s+(ad|advertisement|sponsor|promo|commercial)|'
+        r'\bnot\s+an?\s+(ad|advertisement|sponsor|promo|commercial)|'
         r'(?:^|(?:is|appears\s+to\s+be|seems\s+like|contains)\s+)(episode|show|regular|actual)\s+content|'
         r'this\s+is\s+(not|n\'t)\s+|'
         r'does\s+not\s+appear\s+to\s+be|'
-        r'no\s+(ad|advertisement|sponsor)|'
+        r'\bno\s+(ad|advertisement|sponsor)|'
         # The model also denies ad content in prose: "no promotional copy is
         # present in the transcript for this gap". A content noun is required
         # so a real read described as having "no promotional code" survives.
-        r'no\s+promotional\s+(?:copy|content|language|material|pitch)|'
+        r'\bno\s+promotional\s+(?:copy|content|language|material|pitch)|'
         r'false\s+positive',
         re.IGNORECASE
     )
