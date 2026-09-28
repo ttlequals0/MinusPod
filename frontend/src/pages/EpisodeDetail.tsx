@@ -1529,6 +1529,7 @@ function EpisodeDetail() {
               const heldKey = `held-${segment.start}-${segment.end}`;
               const heldPlaying = markerAudition.playingKey === heldKey;
               const originalAd = toOriginalAd(segment);
+              const pass2Review = segment.pass2_hold_review;
               return (
                 <div
                   key={index}
@@ -1620,12 +1621,12 @@ function EpisodeDetail() {
                       {segment.reviewer_reasoning}
                     </p>
                   )}
-                  {segment.pass2_hold_review && (
+                  {pass2Review && (
                     <p className="text-sm text-muted-foreground mt-1">
                       <span className="font-medium">
-                        Pass-2 review of {formatTimestamp(segment.pass2_hold_review.span[0])}-{formatTimestamp(segment.pass2_hold_review.span[1])}:
+                        Pass-2 review of {formatTimestamp(pass2Review.span[0])}-{formatTimestamp(pass2Review.span[1])}:
                       </span>{' '}
-                      {segment.pass2_hold_review.verdict}. {segment.pass2_hold_review.reason}
+                      {pass2Review.verdict}. {pass2Review.reason}
                     </p>
                   )}
                   {!correction && !segment.approved && (

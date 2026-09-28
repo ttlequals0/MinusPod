@@ -570,7 +570,7 @@ export interface AdSegment {
   // Why a pass-2 review inside this hold did not release it; the hold stays pending.
   pass2_hold_review?: {
     span: [number, number];
-    verdict: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure' | 'inconclusive';
+    verdict: NonNullable<AdSegment['reviewer_verdict']>;
     reason: string;
   };
   reviewer_model?: string;
