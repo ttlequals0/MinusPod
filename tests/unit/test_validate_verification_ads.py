@@ -934,6 +934,47 @@ def test_auto_approve_files_one_confirm_for_repeated_hold_object(monkeypatch):
     assert db.create_pattern_correction.call_count == 1
 
 
+@pytest.mark.parametrize('order,expected', [
+    ((0, 1), ['differential_uncorroborated', 'reviewer_contradiction']),
+    ((1, 0), ['reviewer_contradiction']),
+])
+def test_auto_approve_files_reason_matched_confirm_for_reviewer_hold(monkeypatch, order, expected):
+    """A reviewer hold needs a same-reason confirm; any covering confirm releases the other."""
+    diff = _diff_hold(100.0, 200.0)
+    rev = _diff_hold(105.0, 200.0)
+    rev['hold_reason'] = 'reviewer_contradiction'
+    pair = [diff, rev]
+    for hold in pair:
+        hold['pass2_corroborated'] = True
+    db = _auto_approve_env(monkeypatch)
+
+    assert processing_mod._file_corroborated_hold_approvals(
+        'slug', 'ep', [pair[i] for i in order]) == 2
+    reasons = sorted(c.kwargs['source_hold_reason']
+                     for c in db.create_pattern_correction.call_args_list)
+    assert reasons == expected
+
+
+def test_auto_approve_files_for_reviewer_hold_despite_other_reason_auto_confirm(monkeypatch):
+    """An auto confirm on file for another reason does not cover a reviewer hold."""
+    rev = _diff_hold(100.0, 200.0)
+    rev['hold_reason'] = 'reviewer_contradiction'
+    rev['pass2_corroborated'] = True
+    db = _auto_approve_env(monkeypatch)
+    on_file = [{'start': 100.0, 'end': 200.0, 'auto_filed': True,
+                'hold_reason': 'differential_uncorroborated'}]
+    monkeypatch.setattr(processing_mod, '_load_user_corrections',
+                        lambda s, e, d: ([], on_file))
+
+    processing_mod._file_corroborated_hold_approvals('slug', 'ep', [rev])
+    assert db.create_pattern_correction.call_count == 1
+
+    on_file[0]['hold_reason'] = 'reviewer_contradiction'
+    db.create_pattern_correction.reset_mock()
+    processing_mod._file_corroborated_hold_approvals('slug', 'ep', [rev])
+    db.create_pattern_correction.assert_not_called()
+
+
 def test_auto_approve_files_both_for_disjoint_holds(monkeypatch):
     """Disjoint corroborated holds each get their own confirm."""
     holds = []

@@ -85,6 +85,7 @@ from config import (
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
     PASS2_AUTOAPPROVE_HOLD_REASONS, PASS2_REVIEWED_RELEASE_HOLD_REASONS,
+    REVIEWER_HOLD_REASONS,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     CORRECTION_ORIGIN_AUTO_PASS2,
@@ -3351,7 +3352,12 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
             span = _pass2_confirm_span(m)
             target = span or m
             # Not covering_confirm: a stale wide original must not count once a confirmed_span exists.
+            reason = m.get('hold_reason')
             def covers(c):
+                # A reviewer hold releases only on a same-reason auto confirm (reviewer_hold_stands).
+                if (reason in REVIEWER_HOLD_REASONS and c.get('auto_filed')
+                        and c.get('hold_reason') != reason):
+                    return False
                 c = c.get('confirmed_span') or c
                 return (overlap_ratio(c['start'], c['end'], target['start'], target['end'])
                         >= CORRECTION_MATCH_MIN_COVERAGE)
@@ -3377,12 +3383,13 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
                     if trimmed else None),
                 text_snippet=(
                     f"{PASS2_AUTOAPPROVE_SNIPPET_PREFIX} corroborated "
-                    f"{m.get('hold_reason')} hold"),
+                    f"{reason} hold"),
                 podcast_id=podcast['id'],
-                source_hold_reason=m.get('hold_reason'),
+                source_hold_reason=reason,
                 origin=CORRECTION_ORIGIN_AUTO_PASS2,
             )
             filed.append({'start': m['start'], 'end': m['end'],
+                          'auto_filed': True, 'hold_reason': reason,
                           **({'confirmed_span': dict(span)} if trimmed else {})})
             audio_logger.info(
                 f"[{slug}:{episode_id}] Auto-approving hold "
