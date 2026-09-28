@@ -49,3 +49,16 @@ def test_merge_disables_with_timestamp(db):
         row = db.get_ad_pattern_by_id(pid)
         assert not row['is_active']
         assert row['disabled_at']
+
+
+def test_reactivation_clears_disabled_reason_unless_supplied(db):
+    pid = _pattern(db, 'Acme has a special offer for listeners. Visit acme.com.')
+    db.update_ad_pattern(pid, is_active=False, disabled_reason='too broad')
+
+    db.update_ad_pattern(pid, is_active=True)
+    row = db.get_ad_pattern_by_id(pid)
+    assert row['disabled_at'] is None and row['disabled_reason'] is None
+
+    db.update_ad_pattern(pid, is_active=False, disabled_reason='too broad')
+    db.update_ad_pattern(pid, is_active=True, disabled_reason='kept note')
+    assert db.get_ad_pattern_by_id(pid)['disabled_reason'] == 'kept note'

@@ -373,8 +373,6 @@ def update_pattern(pattern_id):
                'is_active', 'disabled_reason', 'scope', 'category'}
 
     updates = {k: v for k, v in data.items() if k in allowed}
-    if updates.get('is_active'):
-        updates.setdefault('disabled_reason', None)
 
     # Category decides the pattern's segment action at detection time
     # (e.g. cross_promo resolving to keep); null clears it back to the

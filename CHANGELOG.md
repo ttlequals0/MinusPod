@@ -16,7 +16,7 @@ release notes.
 - Pattern learning no longer merges a self-promo intro and the sponsor read after it into one pattern with an inflated duration. Merged markers keep each member's sponsor and category. When the opening and closing reads of a span name different sponsors or categories, the span is split at a divider, and each piece takes its own read's category. With no divider, the span is not learned.
 - Cross-fetch comparison no longer marks show audio as different when the refetched copy has an ad inserted where the processed copy has none. A block with no match is now probed at the offsets on both sides of it, not only at the interpolated one.
 - Pass-2 auto-approval now files one confirm per span, even when two held markers cover the same audio. A reviewer hold still gets its own confirm when the other hold has a different reason, since only a confirm with a matching reason releases it.
-- Deactivating a pattern through the API or by merging patterns now records when it was disabled. Deactivating it again keeps the first time. Reactivating it clears the time, and the API also clears the disabled reason.
+- Deactivating a pattern through the API or by merging patterns now records when it was disabled. Deactivating it again keeps the first time. Reactivating it clears the time and the disabled reason.
 
 ### Changed
 

@@ -228,6 +228,8 @@ class PatternMixin:
         if 'is_active' in kwargs and 'disabled_at' not in kwargs:
             if kwargs['is_active']:
                 fields.append("disabled_at = NULL")
+                if 'disabled_reason' not in kwargs:
+                    fields.append("disabled_reason = NULL")
             else:
                 fields.append(
                     "disabled_at = CASE WHEN is_active = 1 "
