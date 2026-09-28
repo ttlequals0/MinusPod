@@ -5291,13 +5291,13 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
         # Resolve podcast_id once from the episode row so _build_recut_ad_list's
         # per-feed override lookup uses it instead of the slug fallback.
-        podcast = podcast_row or db.get_podcast_by_slug(slug)
+        podcast_row = podcast_row or db.get_podcast_by_slug(slug)
         recut_podcast_id = ((episode_data or {}).get('podcast_id')
-                            or (podcast or {}).get('id'))
+                            or (podcast_row or {}).get('id'))
         # Resolved once and reused below so a category now resolving 'keep'
         # comes back out of ads_to_remove, beating an older approval.
-        segment_actions = db.resolve_segment_actions(slug, podcast=podcast)
-        _log_segment_action_map(slug, episode_id, segment_actions, podcast)
+        segment_actions = db.resolve_segment_actions(slug, podcast=podcast_row)
+        _log_segment_action_map(slug, episode_id, segment_actions, podcast_row)
         corrections = _load_user_corrections(slug, episode_id, db)
         (ads_to_remove, all_ads_with_validation, keep_ads, reviewer_rejects,
          reviewer_holds) = _build_recut_ad_list(
