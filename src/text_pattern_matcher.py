@@ -1577,8 +1577,8 @@ class TextPatternMatcher:
         if bundled:
             logger.info(
                 f"Splitting bundled span {start:.0f}-{end:.0f}s: intro from "
-                f"{'/'.join(map(str, member_label(intro)))}, outro from "
-                f"{'/'.join(map(str, member_label(outro)))}")
+                f"{member_label(intro)[1]}/{member_label(intro)[0]}, outro from "
+                f"{member_label(outro)[1]}/{member_label(outro)[0]}")
         # The caller's sponsor names the opening read only when the intro agrees.
         opening_sponsor = sponsor if not bundled or (
             member_label(intro)[0] == (sponsor or '').strip().lower()) else None

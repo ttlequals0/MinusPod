@@ -202,14 +202,9 @@ def test_self_promo_intro_and_sponsor_outro_are_not_learned_as_one(db, caplog,
                  'sponsor': 'Acme Tools', 'category': 'sponsor'},
             ]})
     rows = db.get_ad_patterns(podcast_id='example-podcast')
-    assert not any(abs((p.get('avg_duration') or 0) - 100.0) < 5 for p in rows)
-    if created:
-        assert [(round(c['start']), round(c['end'])) for c in created] == [(25, 100)]
-        assert {db.get_ad_pattern_by_id(c['id'])['sponsor'] for c in created} == {
-            'Acme Tools'}
-        assert "Splitting bundled span 0-100s" in caplog.text
-    else:
-        assert "intro and outro come from different reads" in caplog.text
+    assert [(round(c['start']), round(c['end'])) for c in created] == [(25, 100)]
+    assert [p['sponsor'] for p in rows] == ['Acme Tools']
+    assert "Splitting bundled span 0-100s: intro from self_promo/" in caplog.text
 
 
 def test_bundled_span_without_a_divider_is_skipped(db, caplog):
