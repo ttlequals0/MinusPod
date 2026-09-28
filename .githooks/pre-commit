@@ -60,13 +60,14 @@ while IFS= read -r path; do
 done < <(git diff --cached --name-only --diff-filter=ACM)
 
 # ASCII-only guard: block em-dashes, the star glyph, and smart quotes.
-# Scope: everything staged EXCEPT CHANGELOG.md (frozen) and the
-# benchmarks/llm/results/ tree (LLM-generated artifacts). Matches the
-# CLAUDE.md "ASCII only" rule.
+# Scope: everything staged EXCEPT CHANGELOG.md (frozen), the
+# benchmarks/llm/results/ tree (LLM-generated artifacts), and the
+# benchmarks/llm/data/ corpus (source podcast transcripts/metadata).
+# Matches the CLAUDE.md "ASCII only" rule.
 while IFS= read -r path; do
     [ -z "$path" ] && continue
     case "$path" in
-        CHANGELOG.md|benchmarks/llm/results/*) continue ;;
+        CHANGELOG.md|benchmarks/llm/results/*|benchmarks/llm/data/*) continue ;;
     esac
     if git diff --cached --numstat -- "$path" | awk '$1 == "-" && $2 == "-"' | grep -q .; then
         continue
