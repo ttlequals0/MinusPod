@@ -71,6 +71,18 @@ class TestCommercialContext:
                        registry=False)
         assert v._has_local_commercial_context(_SPAN, 'Acme') is False
 
+    @pytest.mark.parametrize('registry', [True, False])
+    def test_learn_more_at_another_domain_is_not_commercial(self, registry):
+        v = _validator('Learn more at wikipedia.org, Acme did well.',
+                       registry=registry)
+        assert v._has_local_commercial_context(_SPAN, 'Acme') is False
+
+    @pytest.mark.parametrize('registry', [True, False])
+    def test_thanks_to_someone_else_is_not_sponsor_framing(self, registry):
+        v = _validator('Thanks to our listeners, Acme came up again.',
+                       registry=registry)
+        assert v._has_local_commercial_context(_SPAN, 'Acme') is False
+
     def test_other_domain_is_not_commercial(self):
         v = _validator('Acme came up. Go to othersite.com today.', registry=False)
         assert v._has_local_commercial_context(_SPAN, 'Acme') is False

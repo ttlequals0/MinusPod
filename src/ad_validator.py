@@ -268,13 +268,16 @@ class AdValidator:
     COMMERCIAL_CONTEXT_RE = re.compile(
         r'\b(?:use\s+(?:promo\s+)?code\s+\w+|promo\s+code|'
         r'(?:\d+\s*%|(?:\d+|ten|fifteen|twenty|thirty|forty|fifty)\s+percent)'
-        r'\s+off|free\s+(?:trial|shipping)|learn\s+more\s+at|'
+        r'\s+off|free\s+(?:trial|shipping)|'
         r'book\s+a\s+call|request\s+a\s+demo)\b', re.IGNORECASE)
     # Group 1 of each framing pattern is the text that must name the sponsor.
     SPONSOR_FRAMING_RE = re.compile(
-        r'\b(?:sponsored\s+by|brought\s+to\s+you\s+by|thanks\s+to|'
+        r'\b(?:sponsored\s+by|brought\s+to\s+you\s+by|'
         r'our\s+(?:friends|sponsors?)\s+at)\s+'
         r'([^.!?]{1,80})', re.IGNORECASE)
+    # Anchored: the brand must open the captured text.
+    SPONSOR_THANKS_TO_RE = re.compile(
+        r'\bthanks\s+to\s+([^.!?]{1,80})', re.IGNORECASE)
     SPONSOR_THANKS_RE = re.compile(
         r'\bthanks?\s+(?:you\s+)?(?:to\s+)?([^.!?]{1,80}?)\s+'
         r'for\s+(?:supporting|sponsoring)\b', re.IGNORECASE)
@@ -492,15 +495,16 @@ class AdValidator:
             nearby = text + ' ' + (relevant[index + 1] if index + 1 < len(relevant) else '')
             if self.COMMERCIAL_CONTEXT_RE.search(text):
                 return True
-            for framing in self._framed_texts(nearby):
+            for framing, anchored in self._framed_texts(nearby):
                 if self.sponsor_service:
                     try:
-                        if sponsor in self.sponsor_service.brand_mention_offsets(framing):
+                        offsets = self.sponsor_service.brand_mention_offsets(framing)
+                        if sponsor in offsets and (not anchored or 0 in offsets[sponsor]):
                             return True
                     except Exception as e:
                         logger.debug(f"Sponsor registry lookup failed: {e}")
                 name = word_boundary_re((sponsor,))
-                if name and name.search(framing):
+                if name and (name.match if anchored else name.search)(framing):
                     return True
             if any(squash_brand(link.group(1)) == squash_brand(sponsor)
                    for pattern in (self.BRAND_LINK_RE, self.BARE_LINK_RE)
@@ -509,11 +513,11 @@ class AdValidator:
         return False
 
     def _framed_texts(self, text: str):
-        """Each span of `text` that a sponsor-framing phrase attributes."""
-        for pattern in (self.SPONSOR_FRAMING_RE, self.SPONSOR_THANKS_RE,
-                        self.SPONSOR_IS_SPONSOR_RE):
+        """(span, anchored) for each span a sponsor-framing phrase attributes."""
+        for pattern in (self.SPONSOR_FRAMING_RE, self.SPONSOR_THANKS_TO_RE,
+                        self.SPONSOR_THANKS_RE, self.SPONSOR_IS_SPONSOR_RE):
             for match in pattern.finditer(text):
-                yield match.group(1)
+                yield match.group(1), pattern is self.SPONSOR_THANKS_TO_RE
 
     def _sponsor_confirmation_source(self, ad: dict) -> str | None:
         """Where the ad's sponsor was confirmed: 'transcript' (a description
