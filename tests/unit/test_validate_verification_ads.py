@@ -909,6 +909,45 @@ def test_auto_approve_full_coverage_files_untrimmed_confirm(monkeypatch):
     assert db.create_pattern_correction.call_args.kwargs['corrected_bounds'] is None
 
 
+def test_auto_approve_files_one_confirm_for_duplicate_holds(monkeypatch):
+    """Duplicate holds attested by one pass-2 span file a single confirm."""
+    holds = []
+    for _ in range(2):
+        hold = _diff_hold(100.0, 200.0)
+        hold['pass2_corroborated'] = True
+        hold['pass2_corroborated_span'] = {'start': 120.0, 'end': 200.0}
+        holds.append(hold)
+    db = _auto_approve_env(monkeypatch)
+
+    assert processing_mod._file_corroborated_hold_approvals(
+        'slug', 'ep', holds) == 2
+    assert db.create_pattern_correction.call_count == 1
+
+
+def test_auto_approve_files_one_confirm_for_repeated_hold_object(monkeypatch):
+    """The same hold dict listed twice files once."""
+    hold = _diff_hold(100.0, 200.0)
+    hold['pass2_corroborated'] = True
+    db = _auto_approve_env(monkeypatch)
+
+    processing_mod._file_corroborated_hold_approvals('slug', 'ep', [hold, hold])
+    assert db.create_pattern_correction.call_count == 1
+
+
+def test_auto_approve_files_both_for_disjoint_holds(monkeypatch):
+    """Disjoint corroborated holds each get their own confirm."""
+    holds = []
+    for start, end in ((100.0, 200.0), (500.0, 600.0)):
+        hold = _diff_hold(start, end)
+        hold['pass2_corroborated'] = True
+        holds.append(hold)
+    db = _auto_approve_env(monkeypatch)
+
+    assert processing_mod._file_corroborated_hold_approvals(
+        'slug', 'ep', holds) == 2
+    assert db.create_pattern_correction.call_count == 2
+
+
 def test_proposed_span_outside_hold_does_not_corroborate():
     # Reviewer relocated the ad entirely past the hold and pass 2 found the
     # relocated span while only touching the hold edge. Corroborating would

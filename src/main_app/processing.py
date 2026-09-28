@@ -3306,7 +3306,13 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
         holds = approvable
         if not holds:
             return 0
+        # Confirms filed this run, so overlapping or duplicate holds file once.
+        filed = []
+        seen = set()
         for m in holds:
+            if id(m) in seen:
+                continue
+            seen.add(id(m))
             # Reprocess idempotency: a confirm already on file needs no
             # second row -- but only one that would actually force-accept
             # this span at recut time (validator criterion: it covers at
@@ -3318,11 +3324,17 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
             span = _pass2_confirm_span(m)
             target = span or m
             # Not covering_confirm: a stale wide original must not count once a confirmed_span exists.
-            if any(overlap_ratio((c.get('confirmed_span') or c)['start'],
-                                 (c.get('confirmed_span') or c)['end'],
-                                 target['start'], target['end'])
-                   >= CORRECTION_MATCH_MIN_COVERAGE
-                   for c in confirmed_corrections or []):
+            def covers(c):
+                c = c.get('confirmed_span') or c
+                return (overlap_ratio(c['start'], c['end'], target['start'], target['end'])
+                        >= CORRECTION_MATCH_MIN_COVERAGE)
+            if any(covers(c) for c in confirmed_corrections or []):
+                continue
+            if any(covers(c) for c in filed):
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Not filing a second confirm for hold "
+                    f"{m['start']:.1f}s-{m['end']:.1f}s: this run already filed "
+                    f"one covering it")
                 continue
             # Trim the confirm to the pass-2-attested sub-span (same shape a
             # human trimmed approval files); the validator clamps the cut to
@@ -3343,6 +3355,8 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
                 source_hold_reason=m.get('hold_reason'),
                 origin=CORRECTION_ORIGIN_AUTO_PASS2,
             )
+            filed.append({'start': m['start'], 'end': m['end'],
+                          **({'confirmed_span': dict(span)} if trimmed else {})})
             audio_logger.info(
                 f"[{slug}:{episode_id}] Auto-approving hold "
                 f"{m['start']:.1f}s-{m['end']:.1f}s"
