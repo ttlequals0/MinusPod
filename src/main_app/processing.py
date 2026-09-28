@@ -3631,16 +3631,21 @@ def build_protection(kept, category_kept, user_trims, fp_corrections, holds,
     )
 
 
-def _pending_hold_barriers(markers, cuts):
-    """Held markers a render must neither bridge with a gap merge nor extend over."""
+def _render_barriers(hard, markers, cuts=(), pass1_cuts=None):
+    """Render kwargs: cuts clip at hard ranges and never bridge or extend over a pending hold.
+
+    With pass1_cuts the holds are mapped onto the pass-1 output timeline, where hard already is.
+    """
     seen = {id(cut) for cut in cuts}
-    barriers = []
+    holds = []
     for m in markers or []:
         # Not is_pending_review: that counts a fresh hold with no was_cut as cut.
         if m.get('held_for_review') and not m.get('was_cut') and id(m) not in seen:
             seen.add(id(m))
-            barriers.append(m)
-    return barriers
+            holds.append(m)
+    if pass1_cuts is not None:
+        holds = _protected_ranges_in_processed_audio(holds, pass1_cuts)
+    return {'cut_barriers': holds, 'hard_barriers': list(hard or [])}
 
 
 def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
@@ -3973,10 +3978,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     # file: the coverage check needs the bounds the recut
                     # clamped to.
                     pre_recut_duration = processed_duration
-                    crosspass_protected = protection.barriers_orig()
                     crosspass_plan = _crosspass_cut_plan(
                         pass1_cuts, pass1_markers, v_ads_for_ui,
-                        original_segments, crosspass_protected,
+                        original_segments, protection.barriers_orig(),
                         _setting_float(
                             db, 'min_content_between_ads_seconds',
                             MIN_CONTENT_BETWEEN_ADS_SECONDS, allow_zero=True))
@@ -3986,8 +3990,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                         processed_path, recut_applied, recut_ok = _rerender_crosspass_from_original(
                             slug, episode_id, original_audio_path, processed_path,
                             crosspass_plan, local_audio_processor,
-                            cut_barriers=crosspass_protected,
-                            hard_barriers=protection.hard_orig)
+                            **_render_barriers(protection.hard_orig, protection.holds_orig))
                     else:
                         audio_logger.info(
                             f"[{slug}:{episode_id}] Re-cutting pass 1 output for "
@@ -3995,8 +3998,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                         processed_path, recut_applied, recut_ok = _recut_processed_audio(
                             slug, episode_id, processed_path, v_ads_to_cut,
                             local_audio_processor,
-                            cut_barriers=protection.barriers_proc(),
-                            hard_barriers=protection.hard_proc,
+                            **_render_barriers(protection.hard_proc, protection.holds_orig,
+                                               pass1_cuts=protection.pass1_cuts),
                         )
                     if recut_ok:
                         if crosspass_plan and original_audio_path:
@@ -5420,10 +5423,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         with _measure_run_stage('cut'):
             result = local_audio_processor.process_episode(
                 work_path, audio_segments,
-                cut_barriers=_pending_hold_barriers(
-                    [*reviewer_holds, *all_ads_with_validation], ads_to_remove),
-                hard_barriers=[*keep_ads, *trim_ranges, *corrections[0],
-                               *reviewer_rejects])
+                **_render_barriers(
+                    [*keep_ads, *trim_ranges, *corrections[0], *reviewer_rejects],
+                    [*reviewer_holds, *all_ads_with_validation], ads_to_remove))
         if not result:
             raise Exception("FFMPEG processing failed during recut")
         processed_path, applied_cuts = result
@@ -6693,9 +6695,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             with _measure_run_stage('cut'):
                 result = local_audio_processor.process_episode(
                     audio_path, audio_segments,
-                    cut_barriers=_pending_hold_barriers(
-                        all_ads_with_validation, ads_to_remove),
-                    hard_barriers=pass1_hard)
+                    **_render_barriers(pass1_hard, all_ads_with_validation, ads_to_remove))
             if not result:
                 raise Exception(
                     f"FFMPEG processing failed for {len(ads_to_remove)} ad segments "
