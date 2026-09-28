@@ -19,6 +19,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from main_app import processing
+from main_app.verification_reconciliation import Pass2Ledger
 from ad_reviewer import ReviewResult, ReviewVerdict, log_contradiction_event
 from config import (HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
                     HOLD_REASON_REVIEWER_CONTRADICTION, is_pending_review)
@@ -286,6 +287,20 @@ def test_pass2_adjust_inside_pass1_cut_is_dropped(monkeypatch):
     assert ui == []
     assert held == []
     assert processed['was_cut'] is False
+
+
+def test_pass2_adjust_inside_pass1_cut_without_a_ui_twin_is_covered(monkeypatch):
+    original, processed = _pair(120.0, 180.0, 10.0, 70.0)
+    verdict = _verdict('adjust', 120.0, 180.0, AFFIRMING, adjusted=(130.0, 170.0),
+                       pool='resurrection')
+    ledger, stats = Pass2Ledger(), {}
+
+    _run_pass2(monkeypatch, [verdict], [], [], [], [processed], [original],
+               resurrection_eligible=[original], ledger=ledger,
+               pass1_cuts=[{'start': 100.0, 'end': 200.0}])
+    ledger.emit(run_stats=stats)
+
+    assert stats['pass2_outcomes'] == {'covered': 1}
 
 
 def test_pass2_adjust_crossing_protected_range_is_held(monkeypatch):

@@ -11,8 +11,8 @@ from tests.app_bootstrap import bootstrap
 bootstrap('pass2_outcome_ledger_test_')
 
 from main_app import processing
-from main_app.verification_reconciliation import Pass2Ledger
-from tests.unit.pass2_test_utils import NO_SPLICE, _hold, drive_verification_pass
+from main_app.verification_reconciliation import Pass2Ledger, _drop_uncovered_pass2_ads
+from tests.unit.pass2_test_utils import NO_SPLICE, _hold, _pair, drive_verification_pass
 from utils.markers import subtract_spans
 
 LINE = re.compile(r'Pass-2 span (-?\d+\.\d)s-(-?\d+\.\d)s: (\S+)$')
@@ -24,9 +24,14 @@ def _ledger_lines(records):
 
 
 def _run(findings, *, validator_rejects=(), reviewer_rejects=(), reviewer_error=None,
-         reviewer_widen=None, caplog=None, **kwargs):
+         reviewer_widen=None, validator_error_on=None, caplog=None, **kwargs):
     """Drive the verification pass with ledger-aware validator and reviewer stubs."""
+    calls = []
+
     def validate(*args, ledger=None, **_kwargs):
+        calls.append(1)
+        if len(calls) == validator_error_on:
+            raise RuntimeError('boom')
         proc, orig = [], []
         for p, o in zip(args[2], args[3], strict=True):
             if (o['start'], o['end']) in validator_rejects:
@@ -143,6 +148,45 @@ def test_recut_failure_after_a_protected_carve_reports_each_part_once(caplog):
         (140.0, 400.0, 'dropped:pass_failed')]
 
 
+def test_validation_failure_after_a_protected_carve_reports_each_part(caplog):
+    run = _run([(40.0, 80.0)], trims=[{'start': 50.0, 'end': 60.0}], validator_error_on=1,
+               caplog=caplog)
+    assert run.output[6] is False
+    assert sorted(run.lines) == [
+        (40.0, 50.0, 'dropped:pass_failed'), (50.0, 60.0, 'kept:user_trim'),
+        (60.0, 80.0, 'dropped:pass_failed')]
+
+
+def test_fragment_validation_failure_after_a_protected_carve_reports_each_part(caplog):
+    run = _run([(900.0, 1200.0)], holds=[_hold(1000.0, 1100.0)],
+               trims=[{'start': 1150.0, 'end': 1160.0}], validator_error_on=2, caplog=caplog)
+    assert run.output[6] is False
+    assert sorted(run.lines) == [
+        (900.0, 1000.0, 'dropped:pass_failed'), (1000.0, 1100.0, 'covered:pass1_hold'),
+        (1100.0, 1150.0, 'dropped:pass_failed'), (1150.0, 1160.0, 'kept:user_trim'),
+        (1160.0, 1200.0, 'dropped:pass_failed')]
+
+
+def test_findings_all_inside_protected_audio_log_a_clean_scan(caplog):
+    run = _run([(300.0, 320.0)], trims=[{'start': 295.0, 'end': 325.0}], caplog=caplog)
+    assert run.validated == []
+    assert run.lines == [(300.0, 320.0, 'kept:user_trim')]
+    assert any(r.getMessage().endswith('Verification: clean') for r in caplog.records)
+
+
+def test_a_filtered_cut_without_a_ui_twin_is_recorded_in_original_time(caplog):
+    cuts = [{'start': 100.0, 'end': 200.0}]
+    proc, _orig = _pair(400.0, 410.0, cuts=cuts)
+    ledger = Pass2Ledger()
+    to_cut = [proc]
+    _drop_uncovered_pass2_ads('example-podcast', 'a1b2c3d4e5f6', to_cut, [], [], [], [],
+                              pass1_cuts=cuts, ledger=ledger)
+    assert to_cut == []
+    with caplog.at_level(logging.INFO, logger='podcast.audio'):
+        ledger.emit('example-podcast', 'a1b2c3d4e5f6')
+    assert _ledger_lines(caplog.records) == [(400.0, 410.0, 'dropped:recut_filtered')]
+
+
 def test_helper_records_into_the_ledger_it_is_given(caplog):
     ledger = Pass2Ledger()
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
@@ -216,20 +260,21 @@ def _slot(span):
     return int((span[0] - 100.0) // SLOT)
 
 
+@pytest.mark.parametrize('validator_error_on', [None, 1, 2])
 @pytest.mark.parametrize('seed', range(40))
-def test_every_fragment_has_exactly_one_line(seed, caplog):
+def test_every_fragment_has_exactly_one_line(seed, validator_error_on, caplog):
     findings, holds, kept, fp, trims = _scenario(seed)
     cuts = [{'start': 20.0, 'end': 60.0}]
     run = _run(findings, holds=holds, cuts=cuts, kept=kept, fp=fp, trims=trims,
-               caplog=caplog)
+               validator_error_on=validator_error_on, caplog=caplog)
 
     assert len(run.lines) == len(set(run.lines))
     assert sum(run.stats['pass2_outcomes'].values()) == len(run.lines)
     by_span = {}
     for start, end, outcome in run.lines:
         by_span.setdefault((start, end), []).append(outcome)
-    # Each marker the pass returns is a final fragment with its one line.
-    for ad in [*run.output[1], *run.output[3]]:
+    # Each marker a completed pass returns is a final fragment with its one line.
+    for ad in [*run.output[1], *run.output[3]] if run.output[6] else []:
         outcomes = by_span.get((round(ad['start'], 1), round(ad['end'], 1)), [])
         assert len(outcomes) == 1, (ad['start'], ad['end'], run.lines)
         expected = ('kept' if ad.get('action_applied') == 'keep'

@@ -474,19 +474,24 @@ def _run_candidate_stages(slug, episode_id, processed, original, barriers, prote
     With holds=None the gate sees no holds, so a fragment validation moved into one is dropped.
     """
     ledger = ledger or Pass2Ledger()
-    processed, original = _drop_matching(
-        processed, original, lambda o: _matches_false_positive_correction(o, fp),
-        'rejected:fp_correction', ledger)
-    processed, original = _split_pass2_candidates_around_spans(
-        processed, original, protection.hard_proc, protection.pass1_cuts,
-        'protected audio', ledger=ledger, carved_labels=protection.hard_sources)
-    processed, original = validate(processed, original, barriers)
-    if holds is None:
+    try:
         processed, original = _drop_matching(
-            processed, original,
-            lambda o: _reaches_hold(slug, episode_id, o, protection.holds_orig),
-            'dropped:reaches_hold', ledger)
-    return processed, original, gate(processed, original, holds, hold_overlaps)
+            processed, original, lambda o: _matches_false_positive_correction(o, fp),
+            'rejected:fp_correction', ledger)
+        processed, original = _split_pass2_candidates_around_spans(
+            processed, original, protection.hard_proc, protection.pass1_cuts,
+            'protected audio', ledger=ledger, carved_labels=protection.hard_sources)
+        processed, original = validate(processed, original, barriers)
+        if holds is None:
+            processed, original = _drop_matching(
+                processed, original,
+                lambda o: _reaches_hold(slug, episode_id, o, protection.holds_orig),
+                'dropped:reaches_hold', ledger)
+        return processed, original, gate(processed, original, holds, hold_overlaps)
+    except Exception:
+        # Split children exist only here, so they carry the failure.
+        ledger.fail(original)
+        raise
 
 
 def _gate_hold_split_fragments(slug, episode_id, parents, protection, fp, validate, gate,
@@ -497,16 +502,10 @@ def _gate_hold_split_fragments(slug, episode_id, parents, protection, fp, valida
         parents, protection.holds_orig, protection.pass1_cuts, ledger=ledger)
     if not processed:
         return HoldSplitFragments()
-    try:
-        # Holds were decided on the full findings; the fragment gate sees none.
-        processed, original, (to_cut, for_ui, held, _count, _candidates) = (
-            _run_candidate_stages(
-                slug, episode_id, processed, original, protection.barriers_proc(),
-                protection, validate, gate, fp=fp, ledger=ledger))
-    except Exception:
-        # The carved parents are superseded, so only these fragments can carry the failure.
-        ledger.fail(original)
-        raise
+    # Holds were decided on the full findings; the fragment gate sees none.
+    processed, original, (to_cut, for_ui, held, _count, _candidates) = _run_candidate_stages(
+        slug, episode_id, processed, original, protection.barriers_proc(),
+        protection, validate, gate, fp=fp, ledger=ledger)
     audio_logger.info(
         f"[{slug}:{episode_id}] {len(processed)} pass-2 fragment(s) outside held "
         f"spans: {len(to_cut)} cut, {len(held)} held")
@@ -736,7 +735,7 @@ def _covered_by_cuts(ad, applied_cuts, total_duration=None, tolerance=0.01):
 def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                recut_applied, verification_ads_processed,
                                verification_ads_original, total_duration=None,
-                               ledger=None):
+                               pass1_cuts=None, ledger=None):
     """Drop pass-2 ads the recut did not actually remove (e.g. <10s filtered).
 
     Mutates v_ads_to_cut / v_ads_for_ui in place so the count and the UI list
@@ -763,4 +762,8 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                 if u is ui_ad:
                     del v_ads_for_ui[i]
                     break
-            ledger.record(ui_ad, 'dropped:recut_filtered')
+        else:
+            ts_map, beep = _build_timestamp_map(pass1_cuts or []), get_replacement_duration()
+            ui_ad = {'start': _map_to_original(ad['start'], ts_map, beep),
+                     'end': _map_to_original(ad['end'], ts_map, beep)}
+        ledger.record(ui_ad, 'dropped:recut_filtered')

@@ -2339,7 +2339,9 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                     proc_ad['was_cut'] = False
                 if ui_ad in v_ads_for_ui:
                     v_ads_for_ui.remove(ui_ad)
-                    ledger.record(ui_ad, 'covered')
+                covered_ad = ui_ad or original_by_key.get(key)
+                if covered_ad is not None:
+                    ledger.record(covered_ad, 'covered')
                 continue
             crosses_cut = adjusted_start is None or any(
                 ranges_overlap(adjusted_start, adjusted_end, cut['start'], cut['end'])
@@ -3887,6 +3889,12 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             user_trims=pass1_trim_ranges,
             fp_corrections=false_positive_corrections,
             holds=[], pass1_cuts=pass1_cuts)
+        # Split here so findings wholly inside protected audio still log a clean scan.
+        (verification_ads_processed,
+         verification_ads_original) = _split_pass2_candidates_around_spans(
+            verification_ads_processed, verification_ads_original, hard_protection.hard_proc,
+            pass1_cuts, 'protected audio', ledger=ledger,
+            carved_labels=hard_protection.hard_sources)
         had_verification_candidates = bool(verification_ads_processed)
         if verification_ads_processed:
             audio_logger.info(f"[{slug}:{episode_id}] Verification found {len(verification_ads_processed)} missed ads")
@@ -4018,7 +4026,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                                 slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                 recut_applied, verification_ads_processed,
                                 verification_ads_original, pre_recut_duration,
-                                ledger=ledger,
+                                pass1_cuts=pass1_cuts, ledger=ledger,
                             )
                             verification_count = len(v_ads_to_cut)
                             v_cuts_for_assets = _pass2_cuts_in_original(
