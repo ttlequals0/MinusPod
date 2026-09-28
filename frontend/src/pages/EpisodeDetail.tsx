@@ -1800,7 +1800,7 @@ function EpisodeDetail() {
                                 ? tint.success
                                 : tint.warning
                             }`}>
-                              {correction.correction_type === 'confirm' ? correctionBadgeLabel(correction) : 'Not an ad'}
+                              {correctionBadgeLabel(correction)}
                             </span>
                           )}
                         </div>
