@@ -43,6 +43,7 @@ class TestCommercialContext:
         'Acme is great. That is A C M E dot com.',
         'Acme is great. Check them out at acme.com.',
         'Acme is great. Find out more at acme.io.',
+        "Acme is great. That's A-C-M-E.com.",
     ])
     def test_bare_and_spelled_links_are_commercial(self, text):
         assert _validator(text, registry=False)._has_local_commercial_context(
@@ -51,11 +52,10 @@ class TestCommercialContext:
     @pytest.mark.parametrize('text', [
         'Thanks to Acme for supporting the show.',
         'Thank you to Acme for sponsoring this episode.',
-        'Thanks to Acme, we can keep going.',
-        'This one comes from our friends at Acme.',
+        'Thanks to Acme for sponsoring this episode.',
         'A word from our sponsor at Acme.',
-        'Acme is a sponsor of the show.',
-        'Acme is our sponsor this week.',
+        'Acme is our sponsor.',
+        'This week, Acme is our sponsor.',
     ])
     def test_framing_phrases_are_commercial(self, text):
         assert _validator(text, registry=False)._has_local_commercial_context(
@@ -81,6 +81,19 @@ class TestCommercialContext:
     def test_thanks_to_someone_else_is_not_sponsor_framing(self, registry):
         v = _validator('Thanks to our listeners, Acme came up again.',
                        registry=registry)
+        assert v._has_local_commercial_context(_SPAN, 'Acme') is False
+
+    @pytest.mark.parametrize('registry', [True, False])
+    @pytest.mark.parametrize('text', [
+        'Acme reported earnings. Acme.com revenue rose nine percent.',
+        'Thanks to Acme, shipping is faster.',
+        'Our friends at Acme decided to raise prices.',
+        'Acme is a sponsor of the league now.',
+        'Acme is our sponsor this week.',
+        'Thank you for listening, Acme came up.',
+    ])
+    def test_content_phrasing_is_not_commercial(self, text, registry):
+        v = _validator(text, registry=registry)
         assert v._has_local_commercial_context(_SPAN, 'Acme') is False
 
     def test_other_domain_is_not_commercial(self):

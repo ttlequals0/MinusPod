@@ -272,26 +272,26 @@ class AdValidator:
         r'book\s+a\s+call|request\s+a\s+demo)\b', re.IGNORECASE)
     # Group 1 of each framing pattern is the text that must name the sponsor.
     SPONSOR_FRAMING_RE = re.compile(
-        r'\b(?:sponsored\s+by|brought\s+to\s+you\s+by|'
-        r'our\s+(?:friends|sponsors?)\s+at)\s+'
+        r'\b(?:sponsored\s+by|brought\s+to\s+you\s+by|our\s+sponsors?\s+at)\s+'
         r'([^.!?]{1,80})', re.IGNORECASE)
-    # Anchored: the brand must open the captured text.
-    SPONSOR_THANKS_TO_RE = re.compile(
-        r'\bthanks\s+to\s+([^.!?]{1,80})', re.IGNORECASE)
+    # Exact: group 1 must be the brand alone.
     SPONSOR_THANKS_RE = re.compile(
         r'\bthanks?\s+(?:you\s+)?(?:to\s+)?([^.!?]{1,80}?)\s+'
         r'for\s+(?:supporting|sponsoring)\b', re.IGNORECASE)
     SPONSOR_IS_SPONSOR_RE = re.compile(
-        r'([^.!?,]{1,80})\s+is\s+(?:a|our)\s+sponsor\b', re.IGNORECASE)
+        r'([^.!?,;]{1,80})\s+is\s+(?:a|our)\s+sponsor(?=\s*(?:[.!?,;]|$))',
+        re.IGNORECASE)
     # Group 1 of each link pattern is the domain label; squash_brand drops
     # the hyphens and spaces of a spelled-out one ("A-C-M-E.com").
     BRAND_LINK_RE = re.compile(
         r'\b(?:visit|go\s+to|head\s+to|shop\s+at|learn\s+more\s+at|'
         r'check\s+(?:them|it)\s+out\s+at|find\s+out\s+more\s+at)\s+'
         r'([a-z0-9-]+)\.(?:com|io|org|net)\b', re.IGNORECASE)
+    # Read-aloud only: a spelled-out label or a spoken "dot com".
     BARE_LINK_RE = re.compile(
-        r'\b((?:[a-z0-9]\s){2,}[a-z0-9]|[a-z0-9-]+)'
-        r'(?:\.|\s+dot\s+)(?:com|io|org|net)\b', re.IGNORECASE)
+        r"(?<![\w'])((?:[a-z0-9][\s-]){2,}[a-z0-9](?=\.|\s+dot\s)|"
+        r"[a-z0-9-]+(?=\s+dot\s))(?:\.|\s+dot\s+)(?:com|io|org|net)\b",
+        re.IGNORECASE)
 
     VAGUE_REASONS: ClassVar[list[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
@@ -495,16 +495,19 @@ class AdValidator:
             nearby = text + ' ' + (relevant[index + 1] if index + 1 < len(relevant) else '')
             if self.COMMERCIAL_CONTEXT_RE.search(text):
                 return True
-            for framing, anchored in self._framed_texts(nearby):
+            for framing, exact in self._framed_texts(nearby):
+                if exact:
+                    if self._matches_expected_sponsor(framing.strip(), sponsor):
+                        return True
+                    continue
                 if self.sponsor_service:
                     try:
-                        offsets = self.sponsor_service.brand_mention_offsets(framing)
-                        if sponsor in offsets and (not anchored or 0 in offsets[sponsor]):
+                        if sponsor in self.sponsor_service.brand_mention_offsets(framing):
                             return True
                     except Exception as e:
                         logger.debug(f"Sponsor registry lookup failed: {e}")
                 name = word_boundary_re((sponsor,))
-                if name and (name.match if anchored else name.search)(framing):
+                if name and name.search(framing):
                     return True
             if any(squash_brand(link.group(1)) == squash_brand(sponsor)
                    for pattern in (self.BRAND_LINK_RE, self.BARE_LINK_RE)
@@ -513,11 +516,11 @@ class AdValidator:
         return False
 
     def _framed_texts(self, text: str):
-        """(span, anchored) for each span a sponsor-framing phrase attributes."""
-        for pattern in (self.SPONSOR_FRAMING_RE, self.SPONSOR_THANKS_TO_RE,
-                        self.SPONSOR_THANKS_RE, self.SPONSOR_IS_SPONSOR_RE):
+        """(span, exact) for each span a sponsor-framing phrase attributes."""
+        for pattern in (self.SPONSOR_FRAMING_RE, self.SPONSOR_THANKS_RE,
+                        self.SPONSOR_IS_SPONSOR_RE):
             for match in pattern.finditer(text):
-                yield match.group(1), pattern is self.SPONSOR_THANKS_TO_RE
+                yield match.group(1), pattern is not self.SPONSOR_FRAMING_RE
 
     def _sponsor_confirmation_source(self, ad: dict) -> str | None:
         """Where the ad's sponsor was confirmed: 'transcript' (a description
