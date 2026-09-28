@@ -76,19 +76,70 @@ class TestFinalizeCutState:
         processing._finalize_cut_state([a], [a], [applied_cut(580.0, 600.0)], 600.0)
         assert a['was_cut'] is True
 
-    def test_partial_coverage_is_not_cut_and_records_the_covered_span(self):
+    def test_partial_coverage_carves_cut_and_uncut_fragments(self):
+        a = _marker(10.0, 50.0, validation={'decision': 'ACCEPT', 'flags': []})
+        all_ads, ads_to_remove = [a], [a]
+        processing._finalize_cut_state(all_ads, ads_to_remove, [applied_cut(10.0, 30.0)], 600.0)
+        assert [(m['start'], m['end'], m['was_cut']) for m in all_ads] == [
+            (10.0, 30.0, True), (30.0, 50.0, False)]
+        assert all(m['carved_from'] == {'start': 10.0, 'end': 50.0} for m in all_ads)
+        assert ads_to_remove == [all_ads[0]] and ads_to_remove[0] is all_ads[0]
+        assert all_ads[0]['validation']['flags'] == []
+        assert all_ads[1]['validation']['flags'] == ['INFO: Left in audio by the render']
+        assert a['validation']['flags'] == []
+        assert not any(m.get('held_for_review') for m in all_ads)
+        assert all('partial_cut_spans' not in m for m in all_ads)
+
+    def test_middle_cut_leaves_two_remainders(self):
+        a = _marker(10.0, 70.0)
+        all_ads = [_marker(0.0, 5.0, was_cut=False), a, _marker(100.0, 110.0, was_cut=False)]
+        processing._finalize_cut_state(all_ads, [a], [applied_cut(30.0, 50.0)], 600.0)
+        assert [(m['start'], m['end'], m['was_cut']) for m in all_ads] == [
+            (0.0, 5.0, False), (10.0, 30.0, False), (30.0, 50.0, True),
+            (50.0, 70.0, False), (100.0, 110.0, False)]
+
+    def test_rebuilt_request_and_master_are_both_carved(self):
+        master = _marker(10.0, 50.0)
+        rebuilt = dict(master)
+        all_ads, ads_to_remove = [master], [rebuilt]
+        processing._finalize_cut_state(all_ads, ads_to_remove, [applied_cut(10.0, 30.0)], 600.0)
+        assert [(m['start'], m['end'], m['was_cut']) for m in all_ads] == [
+            (10.0, 30.0, True), (30.0, 50.0, False)]
+        assert [(m['start'], m['end'], m['was_cut']) for m in ads_to_remove] == [
+            (10.0, 30.0, True)]
+
+    def test_sliver_of_coverage_does_not_carve(self):
         a = _marker(10.0, 50.0)
-        processing._finalize_cut_state([a], [a], [applied_cut(10.0, 30.0)], 600.0)
-        assert a['was_cut'] is False
-        assert a['partial_cut_spans'] == [{'start': 10.0, 'end': 30.0}]
-        processing._finalize_cut_state([a], [a], [applied_cut(10.0, 50.0)], 600.0)
-        assert a['was_cut'] is True
-        assert 'partial_cut_spans' not in a
+        all_ads = [a]
+        processing._finalize_cut_state(all_ads, [a], [applied_cut(0.0, 10.03)], 600.0)
+        assert all_ads == [a] and a['was_cut'] is False and 'carved_from' not in a
+
+    def test_carve_is_idempotent_across_two_finalize_calls(self):
+        a, b = _marker(10.0, 50.0), _marker(100.0, 120.0)
+        all_ads, ads_to_remove = [a, b], [a, b]
+        cuts = [applied_cut(10.0, 30.0), applied_cut(100.0, 120.0)]
+        processing._finalize_cut_state(all_ads, ads_to_remove, cuts, 600.0)
+        first = copy.deepcopy(all_ads)
+        processing._finalize_cut_state(all_ads, [*ads_to_remove], cuts, 600.0)
+        assert all_ads == first
+        assert len(all_ads) == 3
+
+    def test_carved_fragment_is_not_learned(self, monkeypatch):
+        a = _marker(10.0, 50.0)
+        all_ads, ads_to_remove = [a], [a]
+        cuts = [applied_cut(10.0, 30.0)]
+        processing._finalize_cut_state(all_ads, ads_to_remove, cuts, 600.0)
+        learn = MagicMock(return_value=1)
+        monkeypatch.setattr(processing.ad_detector, 'learn_from_detections', learn)
+        assert processing._learn_from_applied_cut_ads(
+            'example-podcast', 'a1b2c3d4e5f6', ads_to_remove, all_ads,
+            cuts, 600.0, [], 'unused.wav') == 0
+        learn.assert_not_called()
 
     def test_is_idempotent(self):
         markers = [_marker(10.0, 40.0), _marker(40.5, 70.0), _marker(100.0, 104.0),
-                   _marker(200.0, 260.0)]
-        cuts = [applied_cut(10.0, 70.0), applied_cut(200.0, 230.0)]
+                   _marker(200.0, 260.0), _marker(300.0, 340.0)]
+        cuts = [applied_cut(10.0, 70.0), applied_cut(200.0, 230.0), applied_cut(320.0, 340.0)]
         processing._finalize_cut_state(markers, list(markers), cuts, 600.0)
         first = copy.deepcopy(markers)
         processing._finalize_cut_state(markers, list(markers), cuts, 600.0)
@@ -261,3 +312,15 @@ class TestRecutOrderAndFailure:
         assert run_stats['seconds_removed'] == 59.0
         assert run_stats['source_seconds_removed'] == 70.0
         assert run_stats['replacement_seconds_added'] == 11.0
+
+    def test_recut_counts_the_cut_fragment_of_a_partly_rendered_marker(self):
+        a, b = _marker(10.0, 40.0), _marker(100.0, 160.0)
+        all_ads = [a, b]
+        run_stats = {'markers': {'cut': 0, 'held': 0, 'not_cut': 0}}
+        m = _run_recut([a, b], all_ads, render=lambda segs: [
+            applied_cut(10.0, 40.0), applied_cut(100.0, 130.0)], run_stats=run_stats)
+        saved = _saves(m)[-1]
+        assert [(s['start'], s['end'], s['was_cut']) for s in saved] == [
+            (10.0, 40.0, True), (100.0, 130.0, True), (130.0, 160.0, False)]
+        assert run_stats['markers']['cut'] == 2
+        assert run_stats['markers']['not_cut'] == 1

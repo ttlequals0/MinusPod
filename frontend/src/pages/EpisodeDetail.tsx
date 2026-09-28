@@ -113,14 +113,12 @@ function toOriginalAd(segment: AdSegment) {
   };
 }
 
-// A render removed part of this uncut marker; list those parts for the reviewer.
-function PartialCutHint({ segment }: { segment: AdSegment }) {
-  if (!segment.partial_cut_spans?.length) return null;
+// This row is one piece of a detection the render removed only in part.
+function CarvedFromHint({ segment }: { segment: AdSegment }) {
+  if (!segment.carved_from) return null;
   return (
     <p className="text-sm text-muted-foreground mt-1 font-mono">
-      Partly cut: {segment.partial_cut_spans
-        .map((span) => `${formatTimestamp(span.start)} - ${formatTimestamp(span.end)}`)
-        .join(', ')}
+      Part of {formatTimestamp(segment.carved_from.start)} - {formatTimestamp(segment.carved_from.end)} (the render removed only part of it)
     </p>
   );
 }
@@ -1355,6 +1353,7 @@ function EpisodeDetail() {
                     Reviewer: {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                   </p>
                 )}
+                <CarvedFromHint segment={segment} />
                 {segment.reviewer_verdict && segment.reviewer_reasoning && (
                   <ExpandableText
                     label="reviewer note"
@@ -1615,7 +1614,7 @@ function EpisodeDetail() {
                       {segment.validation.flags.join(', ')}
                     </p>
                   )}
-                  <PartialCutHint segment={segment} />
+                  <CarvedFromHint segment={segment} />
                   {segment.reason && (
                     <p className="text-sm text-muted-foreground mt-1">
                       <span className="font-medium">Match:</span>{' '}
@@ -1827,7 +1826,7 @@ function EpisodeDetail() {
                           {segment.validation.flags.join(', ')}
                         </p>
                       )}
-                      <PartialCutHint segment={segment} />
+                      <CarvedFromHint segment={segment} />
                       {segment.reason && (
                         <ExpandableText
                           label="match"

@@ -12706,16 +12706,14 @@ components:
         held_for_review:
           type: boolean
           description: True when this marker remains in the audio pending a human decision.
-        partial_cut_spans:
-          type: array
-          description: Set only on a marker that was requested as a cut but lies partly outside the rendered cuts. It stays was_cut=false and lists the parts of it that were removed.
-          items:
-            type: object
-            properties:
-              start:
-                type: number
-              end:
-                type: number
+        carved_from:
+          type: object
+          description: Set on a fragment of a marker the render removed only in part; names the detected span.
+          properties:
+            start:
+              type: number
+            end:
+              type: number
         hold_reason:
           type: string
           nullable: true

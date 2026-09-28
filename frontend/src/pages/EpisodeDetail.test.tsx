@@ -1317,29 +1317,27 @@ describe('Segment category chips (#565)', () => {
     expect(screen.getByText('Kept')).not.toBeNull();
   });
 
-  it('lists the partly cut spans of an uncut marker', async () => {
+  it('names the detection a carved fragment came from', async () => {
+    const carvedFrom = { start: 60, end: 120 };
+    const hint = `Part of ${formatTimestamp(60)} - ${formatTimestamp(120)} (the render removed only part of it)`;
     renderDetail(makeEpisode({
-      pendingReviewMarkers: [{ ...heldMarker, partial_cut_spans: [{ start: 70, end: 80 }] }],
+      adMarkers: [{ start: 60, end: 90, confidence: 0.9, category: 'sponsor', carved_from: carvedFrom }],
+      pendingReviewMarkers: [],
       rejectedAdMarkers: [{
-        start: 60, end: 120, confidence: 0.9, category: 'sponsor',
-        partial_cut_spans: [{ start: 60, end: 90 }, { start: 100, end: 110 }],
+        start: 90, end: 120, confidence: 0.9, category: 'sponsor', carved_from: carvedFrom,
       }],
     }));
     expect(await screen.findByText('Detections Not Cut (1)')).not.toBeNull();
-    const hints = screen.getAllByText(/^Partly cut:/).map((el) => el.textContent);
-    expect(hints).toEqual([
-      `Partly cut: ${formatTimestamp(70)} - ${formatTimestamp(80)}`,
-      `Partly cut: ${formatTimestamp(60)} - ${formatTimestamp(90)}, ${formatTimestamp(100)} - ${formatTimestamp(110)}`,
-    ]);
+    expect(screen.getAllByText(hint)).toHaveLength(2);
   });
 
-  it('shows no partly cut hint on a marker without partial spans', async () => {
+  it('shows no carved hint on a marker that was not carved', async () => {
     renderDetail(makeEpisode({
       pendingReviewMarkers: [],
       rejectedAdMarkers: [{ start: 5, end: 20, confidence: 0.4, category: 'sponsor' }],
     }));
     expect(await screen.findByText('Detections Not Cut (1)')).not.toBeNull();
-    expect(screen.queryByText(/^Partly cut:/)).toBeNull();
+    expect(screen.queryByText(/^Part of /)).toBeNull();
   });
 });
 

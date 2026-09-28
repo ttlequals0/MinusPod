@@ -17,6 +17,7 @@ DAI_PROBE_LEAD_S = 0.5
 DAI_PROBE_REF_S = 4.0
 
 EDGE_TOLERANCE = 0.05
+CARVED_REMAINDER_FLAG = 'INFO: Left in audio by the render'
 COVERAGE_GAP_TOLERANCE = 3.0
 
 
@@ -246,13 +247,26 @@ def _normalize_legacy_probes(marker: dict) -> None:
         marker[DAI_PROBE_SPANS] = probes
 
 
+def _expand_legacy_partial_cut(marker: dict) -> list[dict]:
+    """Carved fragments for a marker saved with partial_cut_spans; [marker] otherwise."""
+    covered = [(s['start'], s['end']) for s in _valid_spans(marker, 'partial_cut_spans')]
+    marker.pop('partial_cut_spans', None)
+    start, end = finite_number(marker.get('start')), finite_number(marker.get('end'))
+    if marker.get('was_cut') or not covered or start is None or end is None:
+        return [marker]
+    return carve_partly_cut(marker, start, end, covered) or [marker]
+
+
 def normalize_loaded_markers(markers: list) -> list:
     """Bring persisted markers up to the current shape in place; returns the list."""
+    expanded = []
     for marker in markers:
         if not isinstance(marker, dict):
+            expanded.append(marker)
             continue
         _normalize_legacy_probes(marker)
-        # Legacy partial_cut_spans expansion (carved fragments) slots in here.
+        expanded.extend(_expand_legacy_partial_cut(marker))
+    markers[:] = expanded
     return markers
 
 
@@ -756,6 +770,28 @@ def carve_fragment(parent: dict, start: float, end: float) -> dict:
     fragment['end'] = end
     clip_dai_core_spans(fragment, start, end)
     return fragment
+
+
+def carve_partly_cut(marker: dict, start: float, end: float, covered) -> list[dict]:
+    """Cut fragments over covered, uncut remainders elsewhere in [start, end]; [] if none covered."""
+    covered = [(lo, hi) for lo, hi in covered if hi - lo > EDGE_TOLERANCE]
+    if not covered:
+        return []
+    uncovered = [(lo, hi) for lo, hi in subtract_spans([(start, end)], covered)
+                 if hi - lo > EDGE_TOLERANCE]
+    origin = marker.get('carved_from') or {'start': marker['start'], 'end': marker['end']}
+    fragments = []
+    for lo, hi, was_cut in sorted([(lo, hi, True) for lo, hi in covered]
+                                  + [(lo, hi, False) for lo, hi in uncovered]):
+        fragment = carve_fragment(marker, lo, hi)
+        fragment['carved_from'] = dict(origin)
+        fragment['was_cut'] = was_cut
+        validation = fragment.get('validation')
+        if not was_cut and isinstance(validation, dict):
+            fragment['validation'] = dict(
+                validation, flags=[*(validation.get('flags') or []), CARVED_REMAINDER_FLAG])
+        fragments.append(fragment)
+    return fragments
 
 
 # Verdict fields the winning record owns on a fold, absences included.

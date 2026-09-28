@@ -145,3 +145,20 @@ def test_migration_is_gated(temp_db):
     temp_db._normalize_legacy_dai_probe_spans(conn)
 
     assert DAI_PROBE_SPANS not in json.loads(_raw(conn))[0]
+
+
+def test_legacy_partial_cut_spans_expand_on_load():
+    legacy = {'start': 60.0, 'end': 120.0, 'was_cut': False, 'category': 'sponsor',
+              'validation': {'decision': 'ACCEPT', 'flags': []},
+              'partial_cut_spans': [{'start': 60.0, 'end': 90.0}, {'start': 100.0, 'end': 110.0}]}
+    cut = {'start': 200.0, 'end': 230.0, 'was_cut': True}
+    markers = [legacy, cut]
+    assert normalize_loaded_markers(markers) is markers
+    assert [(m['start'], m['end'], m['was_cut']) for m in markers] == [
+        (60.0, 90.0, True), (90.0, 100.0, False), (100.0, 110.0, True),
+        (110.0, 120.0, False), (200.0, 230.0, True)]
+    assert all(m['carved_from'] == {'start': 60.0, 'end': 120.0} for m in markers[:4])
+    assert all('partial_cut_spans' not in m for m in markers)
+    assert markers[1]['validation']['flags'] == ['INFO: Left in audio by the render']
+    assert markers[0]['validation']['flags'] == []
+    assert normalize_loaded_markers(markers) == markers

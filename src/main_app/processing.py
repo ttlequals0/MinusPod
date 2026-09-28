@@ -56,7 +56,7 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import (EDGE_TOLERANCE, carve_fragment,
+from utils.markers import (EDGE_TOLERANCE, carve_fragment, carve_partly_cut,
                            clip_merge_spans, finite_number,
                            fold_marker_pair, foldable_twin, invalidate_tail_provenance,
                            parse_ad_markers,
@@ -1811,8 +1811,9 @@ def _learn_from_applied_cut_ads(slug, episode_id, cut_ads, markers,
     learnable = []
     for ad in cut_ads:
         marker = _find_master(markers, ad)
+        # A carved fragment is part of a read, not a whole one.
         if (marker is None or not ad.get('was_cut') or not marker.get('was_cut')
-                or is_pending_review(marker)
+                or 'carved_from' in marker or is_pending_review(marker)
                 or marker.get('action_applied') not in ('remove', 'beep')
                 or marker['start'] != ad['start'] or marker['end'] != ad['end']
                 or not _covered_by_cuts(marker, applied_cuts, original_duration)):
@@ -2766,11 +2767,12 @@ def _covering_group(groups, marker, duration):
 
 
 def _finalize_cut_state(all_ads, ads_to_remove, applied_cuts, duration, tag=''):
-    """Set was_cut on every marker from the rendered cuts; returns the rendered cut groups."""
+    """Set was_cut from the rendered cuts, carving partly cut markers; returns the cut groups."""
     groups = _cut_groups(applied_cuts)
     masters = [_find_master(all_ads, ad) for ad in ads_to_remove]
     requested = {id(ad) for ad in [*ads_to_remove, *masters] if ad is not None}
     markers = {id(m): m for m in [*all_ads, *ads_to_remove]}
+    carved = {}
     for marker in markers.values():
         marker.pop('partial_cut_spans', None)
         is_requested = id(marker) in requested
@@ -2778,15 +2780,24 @@ def _finalize_cut_state(all_ads, ads_to_remove, applied_cuts, duration, tag=''):
                              and _covering_group(groups, marker, duration) is not None)
         if not is_requested or marker['was_cut']:
             continue
-        # A partly rendered marker stays uncut; the removed part is recorded for the editor.
         start, end = _clamped_span(marker, duration)
-        partial = [{'start': max(start, g[0]), 'end': min(end, g[1])}
-                   for g in groups if min(end, g[1]) > max(start, g[0])]
-        if partial:
-            marker['partial_cut_spans'] = partial
+        covered = [(max(start, g[0]), min(end, g[1])) for g in groups]
+        fragments = carve_partly_cut(marker, start, end, [c for c in covered if c[1] > c[0]])
+        if not fragments:
+            audio_logger.info(
+                f"{tag} Marker {marker['start']:.1f}s-{marker['end']:.1f}s is not fully "
+                f"inside the rendered cuts; marking as not cut")
+            continue
+        carved[id(marker)] = fragments
+        n_cut = sum(1 for f in fragments if f['was_cut'])
         audio_logger.info(
-            f"{tag} Marker {marker['start']:.1f}s-{marker['end']:.1f}s is not fully "
-            f"inside the rendered cuts; marking as not cut")
+            f"{tag} Marker {marker['start']:.1f}s-{marker['end']:.1f}s partly rendered; "
+            f"carved into {n_cut} cut and {len(fragments) - n_cut} uncut fragment(s)")
+    if carved:
+        # Mutated in place: pass 1's ads_to_remove list reaches the final call.
+        all_ads[:] = [f for m in all_ads for f in carved.get(id(m), [m])]
+        ads_to_remove[:] = [f for m in ads_to_remove
+                            for f in carved.get(id(m), [m]) if f['was_cut'] or id(m) not in carved]
     return groups
 
 
