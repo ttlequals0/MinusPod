@@ -539,8 +539,7 @@ def member_label(member: dict) -> tuple[str | None, str | None]:
 
 
 def _coalesce_coarse_members(spans: list[dict]) -> list[dict]:
-    """Union overlapping same-stage, same-label coarse members: two LLM windows
-    over one ad are one member, not two the reviewer has to keep separately."""
+    """Union overlapping same-stage, same-label coarse members: two LLM windows over one ad are one member."""
     merged: list[dict] = []
     for span in spans:
         stage = span.get('stage')

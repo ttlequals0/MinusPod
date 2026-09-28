@@ -1,5 +1,4 @@
-"""pattern_corrections.origin: backfill of pass-2 auto-filed confirms, the
-readers that key on it, and survival through the sponsor FK table rebuild."""
+"""pattern_corrections.origin backfill, readers, and survival through the sponsor FK rebuild."""
 from tests.unit.test_migration_sponsor_fk import _rebuild_pre_migration_shape
 
 GATE = 'backfill_correction_origin_once'
