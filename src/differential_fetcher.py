@@ -168,46 +168,59 @@ def _chain_marks(run_marks: list, ref_marks: list) -> list:
     return pairs
 
 
+def _prepare_template(run_pcm: np.ndarray, run_t: float, ref_s: float):
+    """Mean-removed run reference at run_t with its norm; None when short or silent."""
+    ref_len = int(ref_s * PCM_RATE)
+    a0 = int(run_t * PCM_RATE)
+    template = run_pcm[a0:a0 + ref_len].astype(np.float64)
+    if len(template) < ref_len:
+        return None
+    template = template - template.mean()
+    t_norm = np.sqrt(np.sum(template ** 2))
+    if t_norm < 1e-9:
+        return None
+    # Template spectra keyed by FFT size, filled on first use.
+    return {'template': template, 'norm': t_norm, 'spectra': {}}
+
+
 def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
                        coarse_offset: float, *, ref_s: float = XCORR_REF_S,
-                       search_s: float = XCORR_SEARCH_S):
+                       search_s: float = XCORR_SEARCH_S, prepared=None):
     """Peak normalized cross-correlation of one run block against the refetch.
 
     Correlates a ref_s reference from the run file at run_t against the
     refetch file within +-search_s of the coarse silence-chain offset.
     FFT-based so a 4s reference over an 8s search span stays cheap.
     Returns the peak NCC in [-1, 1], or None when a window falls outside
-    either file or the reference is silent.
+    either file or the reference is silent. `prepared` is the block's
+    _prepare_template result, so several offsets share one template.
 
     Only the correlation confidence is consumed: the coarse silence-midpoint
     boundaries already meet the 0.5s region tolerance and the +-3s downstream
     corroboration, so the sub-sample peak lag is not fed back into region
     boundaries and is not returned.
     """
-    ref_len = int(ref_s * PCM_RATE)
-    a0 = int(run_t * PCM_RATE)
-    template = run_pcm[a0:a0 + ref_len].astype(np.float64)
-    if len(template) < ref_len:
+    if prepared is None:
+        prepared = _prepare_template(run_pcm, run_t, ref_s)
+    if prepared is None:
         return None
+    template, t_norm = prepared['template'], prepared['norm']
+    ref_len = len(template)
     b0 = max(0, int((run_t + coarse_offset - search_s) * PCM_RATE))
     b1 = int((run_t + coarse_offset + search_s) * PCM_RATE) + ref_len
     haystack = ref_pcm[b0:b1].astype(np.float64)
     if len(haystack) < ref_len:
         return None
-
-    template = template - template.mean()
     haystack = haystack - haystack.mean()
-    t_norm = np.sqrt(np.sum(template ** 2))
-    if t_norm < 1e-9:
-        return None
 
     n_lags = len(haystack) - ref_len + 1
     nfft = 1
     while nfft < len(haystack) + ref_len:
         nfft <<= 1
-    corr = np.fft.irfft(
-        np.fft.rfft(haystack, nfft) * np.conj(np.fft.rfft(template, nfft)),
-        nfft)[:n_lags]
+    spectrum = prepared['spectra'].get(nfft)
+    if spectrum is None:
+        spectrum = prepared['spectra'][nfft] = np.conj(np.fft.rfft(template, nfft))
+    corr = np.fft.irfft(np.fft.rfft(haystack, nfft) * spectrum, nfft)[:n_lags]
     # Sliding L2 norm of every haystack window. The haystack mean is removed
     # once globally rather than per-window: an approximation that holds for
     # AC-coupled audio and keeps normalization O(n).
@@ -240,19 +253,21 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
     ref_s = min(XCORR_REF_S, block_len)
     # Lead past the half-silence at the block edge when there is room.
     run_t = dai_probe_window(start, end)[0]
+    prepared = _prepare_template(run_pcm, run_t, ref_s)
     corr, best_offset = None, None
     for offset in offsets:
-        c = _block_correlation(run_pcm, ref_pcm, run_t, offset, ref_s=ref_s)
+        c = _block_correlation(run_pcm, ref_pcm, run_t, offset, ref_s=ref_s,
+                               prepared=prepared)
         if c is not None and (corr is None or c > corr):
             corr, best_offset = c, offset
     if corr is None:
         return 'unknown', None
     if corr < XCORR_MIN_CORR and allow_retry:
-        retry = _block_correlation(run_pcm, ref_pcm, run_t, offsets[0],
-                                   ref_s=ref_s, search_s=XCORR_SEARCH_S * 2)
+        retry = _block_correlation(run_pcm, ref_pcm, run_t, offsets[0], ref_s=ref_s,
+                                   search_s=XCORR_SEARCH_S * 2, prepared=prepared)
         if retry is not None and retry > corr:
             corr, best_offset = retry, offsets[0]
-    if len(offsets) > 1:
+    if len(offsets) > 1 and logger.isEnabledFor(logging.DEBUG):
         logger.debug('Unmatched block %.1f-%.1fs: best offset %+.2fs of %s, '
                      'corr %.3f', start, end, best_offset,
                      [round(o, 2) for o in offsets], corr)
