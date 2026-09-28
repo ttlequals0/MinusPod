@@ -205,7 +205,6 @@ from main_app.verification_reconciliation import (
     _unzip,
     Pass2Ledger,
     labelled_spans,
-    owns_ledger_when_absent,
     _proposed_span_agrees,  # noqa: F401 re-exported for processing.<name> test patch targets
 )
 # Singletons created in main_app/__init__.py before this submodule is
@@ -1953,7 +1952,6 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map,
             kept_processed, kept_original)
 
 
-@owns_ledger_when_absent
 def _exclude_category_kept_spans(processed_ads, original_ads,
                                   kept_processed, pass1_cuts, ledger=None,
                                   kept_original=None):
@@ -1984,7 +1982,6 @@ def _stamp_pass2_cut_actions(processed_cuts, original_cuts, actions_map):
         marker['action_applied'] = action
 
 
-@owns_ledger_when_absent
 def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts, ledger=None):
     """Make actual pass-2 cuts disjoint when their render actions differ.
 
@@ -2176,7 +2173,6 @@ def _log_reviewer_verdicts(slug, episode_id, pass_num, verdicts):
     )
 
 
-@owns_ledger_when_absent
 def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence,
@@ -2200,6 +2196,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     resurrected non-held reject would become a cue-less auto-cut, violating the
     gate's guarantee.
     """
+    ledger = ledger or Pass2Ledger()
     slug = ctx.slug
     episode_id = ctx.episode_id
     podcast_name = ctx.podcast_name
@@ -3166,7 +3163,6 @@ def _finalize_user_confirmed_bounds(
     return ads_to_remove
 
 
-@owns_ledger_when_absent
 def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 verification_ads_original, verification_segments,
                                 ads_to_remove, episode_description,
@@ -3199,6 +3195,7 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
 
     Returns (verification_ads_processed, verification_ads_original).
     """
+    ledger = ledger or Pass2Ledger()
     # Pass-1 cut user-rejections in original time; verification
     # operates on cut audio, so map them to processed coordinates
     # before the validator can use them to auto-reject overlaps.
@@ -3551,10 +3548,10 @@ def _rerender_crosspass_from_original(slug, episode_id, original_audio_path,
     return rerendered_path, applied, True
 
 
-@owns_ledger_when_absent
 def _drop_uncovered_crosspass_ads(slug, episode_id, processed_ads, original_ads,
                                   applied_cuts, total_duration, ledger=None):
     """Keep pass-2 UI markers only when the final original render covers them."""
+    ledger = ledger or Pass2Ledger()
     for processed, original in list(zip(processed_ads, original_ads, strict=False)):
         if _covered_by_cuts(original, applied_cuts, total_duration):
             continue

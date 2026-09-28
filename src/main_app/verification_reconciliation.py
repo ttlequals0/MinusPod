@@ -1,7 +1,5 @@
 """Pass-2 verification reconciliation: validating, gating, and recutting
 pass-2 ad candidates against pass-1 output."""
-import functools
-import inspect
 import logging
 from dataclasses import dataclass, field
 
@@ -50,8 +48,8 @@ class Pass2Ledger:
     """The final outcome of each pass-2 span; recording a span again replaces its outcome."""
 
     def __init__(self):
+        # id(span) -> (span, start, end, outcome); outcome None marks a superseded span.
         self._entries = {}
-        self._superseded = {}
 
     def record(self, span, outcome):
         """Record outcome for the original-coordinate span dict, keyed by identity."""
@@ -59,8 +57,7 @@ class Pass2Ledger:
 
     def supersede(self, span):
         """Mark a span whose outcome other entries already describe."""
-        self._entries.pop(id(span), None)
-        self._superseded[id(span)] = span
+        self.record(span, None)
 
     def record_carved(self, original, labelled_spans):
         """Record each part of original inside labelled_spans, earlier labels first."""
@@ -76,7 +73,7 @@ class Pass2Ledger:
         """Record every candidate without an outcome yet as dropped by the failed pass."""
         for group in groups:
             for ad in group or []:
-                if id(ad) not in self._entries and id(ad) not in self._superseded:
+                if id(ad) not in self._entries:
                     self.record(ad, 'dropped:pass_failed')
 
     def settle(self, cut, held, kept):
@@ -93,29 +90,12 @@ class Pass2Ledger:
         prefix = f"[{slug}:{episode_id}] " if slug else ''
         counts = {}
         for start, end, outcome in sorted(
-                (start, end, outcome) for _span, start, end, outcome in self._entries.values()):
+                (start, end, outcome) for _span, start, end, outcome in self._entries.values()
+                if outcome is not None):
             audio_logger.info(f"{prefix}Pass-2 span {start:.1f}s-{end:.1f}s: {outcome}")
             counts[outcome] = counts.get(outcome, 0) + 1
         if run_stats is not None:
             run_stats['pass2_outcomes'] = counts
-
-
-def owns_ledger_when_absent(func):
-    """Give a caller that passes no ledger its own, emitted when func returns."""
-    signature = inspect.signature(func)
-
-    @functools.wraps(func)
-    def wrapper(*args, ledger=None, **kwargs):
-        if ledger is not None:
-            return func(*args, ledger=ledger, **kwargs)
-        ledger = Pass2Ledger()
-        result = func(*args, ledger=ledger, **kwargs)
-        bound = signature.bind_partial(*args, **kwargs).arguments
-        ctx = bound.get('ctx')
-        ledger.emit(bound.get('slug', getattr(ctx, 'slug', None)),
-                    bound.get('episode_id', getattr(ctx, 'episode_id', None)))
-        return result
-    return wrapper
 
 
 def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
@@ -321,7 +301,6 @@ def _matches_false_positive_correction(orig_ad, false_positive_corrections):
         for corr in false_positive_corrections or [])
 
 
-@owns_ledger_when_absent
 def _split_pass2_candidates_around_spans(processed_ads, original_ads,
                                           barriers_processed, pass1_cuts,
                                           barrier_label, timestamp_map=None,
@@ -334,6 +313,7 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
     ``fragment_policy`` 'keep' turns a fragment inside a beep into a conflict hold
     appended to ``conflicts``, 'hold' drops it; both drop short unmeasured fragments.
     """
+    ledger = ledger or Pass2Ledger()
     if not barriers_processed:
         return processed_ads, original_ads
     if len(processed_ads) != len(original_ads):
@@ -410,11 +390,11 @@ def _fragment_survives(processed, original, policy, pass1_cuts, ledger, conflict
     return True
 
 
-@owns_ledger_when_absent
 def _exclude_kept_spans_from_verification(verification_ads_processed,
                                            verification_ads_original,
                                            pass1_kept_markers, pass1_cuts, ledger=None):
     """Drop or split pass-2 findings over kept spans; returns (processed, original, conflicts)."""
+    ledger = ledger or Pass2Ledger()
     if not pass1_kept_markers:
         return verification_ads_processed, verification_ads_original, []
     keep_barriers = _merged_barriers_processed(pass1_kept_markers, pass1_cuts)
@@ -447,7 +427,6 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     return surviving_processed, surviving_original, conflicts
 
 
-@owns_ledger_when_absent
 def _split_pass2_candidates_around_holds(parents, holds, pass1_cuts, ledger=None):
     """Carve hold-overlapping pass-2 findings into their parts outside the holds."""
     if not parents:
@@ -487,7 +466,6 @@ def _reaches_hold(slug, episode_id, orig, holds):
     return hold is not None
 
 
-@owns_ledger_when_absent
 def _run_candidate_stages(slug, episode_id, processed, original, barriers, protection,
                           validate, gate, fp=(), holds=None, hold_overlaps=None,
                           ledger=None):
@@ -495,6 +473,7 @@ def _run_candidate_stages(slug, episode_id, processed, original, barriers, prote
 
     With holds=None the gate sees no holds, so a fragment validation moved into one is dropped.
     """
+    ledger = ledger or Pass2Ledger()
     processed, original = _drop_matching(
         processed, original, lambda o: _matches_false_positive_correction(o, fp),
         'rejected:fp_correction', ledger)
@@ -510,10 +489,10 @@ def _run_candidate_stages(slug, episode_id, processed, original, barriers, prote
     return processed, original, gate(processed, original, holds, hold_overlaps)
 
 
-@owns_ledger_when_absent
 def _gate_hold_split_fragments(slug, episode_id, parents, protection, fp, validate, gate,
                                ledger=None):
     """Run the parts of hold-overlapping findings outside the holds through the pass-2 checks."""
+    ledger = ledger or Pass2Ledger()
     processed, original = _split_pass2_candidates_around_holds(
         parents, protection.holds_orig, protection.pass1_cuts, ledger=ledger)
     if not processed:
@@ -562,7 +541,6 @@ def _add_release_candidate(release_by_hold, orig_ad, hold, overlapping,
     return True
 
 
-@owns_ledger_when_absent
 def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_ads_original,
                                           min_cut_confidence,
@@ -615,6 +593,7 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     (processed, original) pair so the caller can keep its parts outside the hold.
     ``ledger`` records the parts inside holds as covered and below-floor misses as dropped.
     """
+    ledger = ledger or Pass2Ledger()
     if verification_miss_hold_min_confidence is None:
         verification_miss_hold_min_confidence = registry_get_default(
             'verification_miss_hold_min_confidence')
@@ -754,7 +733,6 @@ def _covered_by_cuts(ad, applied_cuts, total_duration=None, tolerance=0.01):
                for c in applied_cuts)
 
 
-@owns_ledger_when_absent
 def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                recut_applied, verification_ads_processed,
                                verification_ads_original, total_duration=None,
@@ -765,6 +743,7 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
     only claim cuts that exist in the audio. Merged-away ads still count: a
     merged span covers its members.
     """
+    ledger = ledger or Pass2Ledger()
     twin = {id(p): o for p, o in zip(verification_ads_processed,
                                      verification_ads_original, strict=True)}
     # Action reconciliation can replace a candidate with split copies after

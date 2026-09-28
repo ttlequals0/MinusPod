@@ -205,11 +205,15 @@ def test_recut_failure_after_a_protected_carve_reports_each_part_once(caplog):
         (140.0, 400.0, 'dropped:pass_failed')]
 
 
-def test_helper_without_a_ledger_logs_its_own_lines(caplog):
+def test_helper_records_into_the_ledger_it_is_given(caplog):
+    ledger = Pass2Ledger()
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
         processing._gate_verification_ads_by_confidence(
             [{'start': 10.0, 'end': 40.0, 'confidence': 0.2}],
-            [{'start': 10.0, 'end': 40.0, 'confidence': 0.2}], min_cut_confidence=0.8)
+            [{'start': 10.0, 'end': 40.0, 'confidence': 0.2}], min_cut_confidence=0.8,
+            ledger=ledger)
+        assert _ledger_lines(caplog.records) == []
+        ledger.emit('example-podcast', 'a1b2c3d4e5f6')
     assert _ledger_lines(caplog.records) == [(10.0, 40.0, 'dropped:below_miss_floor')]
 
 
