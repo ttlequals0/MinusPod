@@ -195,11 +195,14 @@ from main_app.verification_reconciliation import (
     _covered_by_cuts,
     _drop_uncovered_pass2_ads,
     _exclude_kept_spans_from_verification,
+    _drop_matching,
     _gate_hold_split_fragments,
     _gate_verification_ads_by_confidence,
     _pass2_keep_barriers_processed,  # noqa: F401 re-exported for processing.<name> test patch targets
+    _run_candidate_stages,
     _split_pass2_candidates_around_spans,
     _matches_false_positive_correction,
+    _unzip,
     Pass2Ledger,
     labelled_spans,
     owns_ledger_when_absent,
@@ -2006,10 +2009,7 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts, ledg
         for processed, original in zip(processed_cuts, original_cuts, strict=True)
         if processed.get('action_applied') != 'beep'
     ]
-    remove_processed, remove_original = (
-        [pair[0] for pair in remove_pairs],
-        [pair[1] for pair in remove_pairs],
-    )
+    remove_processed, remove_original = _unzip(remove_pairs)
     for beep_processed, beep_original in beep_pairs:
         if any(
             beep_processed['start'] < remove_processed_ad['end']
@@ -2031,8 +2031,7 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts, ledg
     )
     reconciled = [*beep_pairs, *zip(remove_processed, remove_original, strict=True)]
     reconciled.sort(key=lambda pair: pair[0]['start'])
-    return ([pair[0] for pair in reconciled],
-            [pair[1] for pair in reconciled])
+    return _unzip(reconciled)
 
 
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
@@ -2483,17 +2482,17 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         sub, hold = by_key.get((v.original_start, v.original_end), (None, None))
         if hold is None:
             continue
-        prior = released_by_hold.get(id(hold))
+        prior = released_by_hold.get(id(hold), [])
+        first = not prior
         # A fast-path corroboration already owns the hold's approved span.
-        if prior is None and (hold.get('pass2_reviewed_release')
-                              or hold.get('pass2_corroborated')):
+        if first and (hold.get('pass2_reviewed_release') or hold.get('pass2_corroborated')):
             continue
         span = _released_span(v, sub, hold, [
-            *protection.barriers_orig(exclude=[hold]), *(prior or [])])
+            *protection.barriers_orig(exclude=[hold]), *prior])
         if span is None:
             reason = v.reasoning or f"Review returned {v.verdict}"
             # Diagnostic only: no reviewer_verdict, source or reviewer_reasoning on the hold.
-            if prior is None:
+            if first:
                 hold['pass2_hold_review'] = {
                     'span': [float(sub['start']), float(sub['end'])],
                     'verdict': v.verdict, 'reason': reason}
@@ -2507,7 +2506,7 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
                 f"{hold['end']:.1f}s returned {v.verdict}; {outcome}. "
                 f"Reason: {reason}")
             continue
-        if prior is None:
+        if first:
             hold['pass2_reviewed_release'] = span
             hold['pass2_corroborated'] = True
             hold['pass2_corroborated_span'] = dict(span)
@@ -3350,12 +3349,10 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
                     f"rejection covers the span")
                 continue
             released = m.get('pass2_released_spans') or []
-            spans = []
-            for span in released if len(released) > 1 else [_pass2_confirm_span(m)]:
-                target = span or m
-                if not any(overlap_seconds(target['start'], target['end'], r['start'], r['end']) > 0
-                           for r in reviewer_rejects):
-                    spans.append(span)
+            spans = released if len(released) > 1 else [_pass2_confirm_span(m)]
+            spans = [span for span in spans if not any(
+                overlap_seconds((span or m)['start'], (span or m)['end'],
+                                r['start'], r['end']) > 0 for r in reviewer_rejects)]
             if not spans:
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Not auto-approving hold "
@@ -3795,8 +3792,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 verification_pairs.append((original, processed))
             else:
                 ledger.record(original, 'dropped:opening_exclusion')
-        verification_ads_original = [pair[0] for pair in verification_pairs]
-        verification_ads_processed = [pair[1] for pair in verification_pairs]
+        verification_ads_original, verification_ads_processed = _unzip(verification_pairs)
         verification_segments = verification_result.get('segments', [])
         verification_cue_count = verification_result.get('audio_cue_count', 0)
         storage.save_ads_json(slug, episode_id, verification_result, pass_number=2)
@@ -3838,16 +3834,10 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             pass1_cuts, podcast_name, skip_patterns,
         )
         # Same >=50% rule the validator applies, before any carve hides the overlap.
-        fp_pairs = []
-        for processed, original in zip(
-                verification_ads_processed, verification_ads_original, strict=True):
-            if _matches_false_positive_correction(
-                    original, false_positive_corrections):
-                ledger.record(original, 'rejected:fp_correction')
-                continue
-            fp_pairs.append((processed, original))
-        verification_ads_processed = [pair[0] for pair in fp_pairs]
-        verification_ads_original = [pair[1] for pair in fp_pairs]
+        verification_ads_processed, verification_ads_original = _drop_matching(
+            verification_ads_processed, verification_ads_original,
+            lambda o: _matches_false_positive_correction(o, false_positive_corrections),
+            'rejected:fp_correction', ledger)
         # A pass-1 keep is operator intent. Settle overlaps before category
         # partitioning so a same-category keep does not become a duplicate
         # pass-2 marker and only fragments outside the keep reach validation.
@@ -3890,13 +3880,6 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             user_trims=pass1_trim_ranges,
             fp_corrections=false_positive_corrections,
             holds=[], pass1_cuts=pass1_cuts)
-        (verification_ads_processed,
-         verification_ads_original) = _split_pass2_candidates_around_spans(
-            verification_ads_processed,
-            verification_ads_original,
-            current_protection().hard_proc,
-            pass1_cuts, 'protected audio',
-            ledger=ledger, carved_labels=hard_protection.hard_sources)
         had_verification_candidates = bool(verification_ads_processed)
         if verification_ads_processed:
             audio_logger.info(f"[{slug}:{episode_id}] Verification found {len(verification_ads_processed)} missed ads")
@@ -3907,63 +3890,49 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             # coverage check below needs the same pre-recut bounds.
             processed_duration = local_audio_processor.get_audio_duration(processed_path)
 
-            # Validate verification ads
-            if verification_segments:
-                verification_ads_processed, verification_ads_original = _validate_verification_ads(
-                    slug, episode_id, verification_ads_processed,
-                    verification_ads_original, verification_segments,
-                    pass1_cuts, episode_description,
-                    min_cut_confidence, db,
+            def validate(processed, original, barriers):
+                if not verification_segments:
+                    return processed, original
+                return _validate_verification_ads(
+                    slug, episode_id, processed, original, verification_segments,
+                    pass1_cuts, episode_description, min_cut_confidence, db,
                     processed_duration=processed_duration,
                     max_ad_duration_override=max_ad_duration_override,
                     cue_gate_enabled=cue_gate_enabled,
                     podcast_id=ctx.podcast_id,
                     segment_actions=segment_actions,
-                    keep_barriers_processed=current_protection().hard_proc,
+                    keep_barriers_processed=barriers,
                     ledger=ledger,
                 )
 
+            def gate(processed, original, held_markers, hold_overlaps):
+                return _gate_verification_ads_by_confidence(
+                    processed, original, min_cut_confidence,
+                    pass1_held_markers=held_markers,
+                    verification_miss_hold_min_confidence=verification_miss_hold_min_confidence,
+                    verification_miss_autocut_min_confidence=verification_miss_autocut_min_confidence,
+                    hard_barriers_orig=hard_protection.hard_orig,
+                    segments=original_segments,
+                    cue_gate_enabled=cue_gate_enabled,
+                    hold_overlaps=hold_overlaps,
+                    ledger=ledger,
+                )
+
+            # The FP check ran above, before any carve hid the overlap.
+            hold_overlaps = []
+            (verification_ads_processed, verification_ads_original,
+             gated) = _run_candidate_stages(
+                slug, episode_id, verification_ads_processed, verification_ads_original,
+                hard_protection.hard_proc, current_protection(), validate, gate,
+                holds=pass1_held_markers or [], hold_overlaps=hold_overlaps, ledger=ledger)
+
             if verification_ads_processed:
-                def gate(processed, original, held_markers=None, hold_overlaps=None):
-                    return _gate_verification_ads_by_confidence(
-                        processed, original, min_cut_confidence,
-                        pass1_held_markers=held_markers,
-                        verification_miss_hold_min_confidence=verification_miss_hold_min_confidence,
-                        verification_miss_autocut_min_confidence=verification_miss_autocut_min_confidence,
-                        hard_barriers_orig=current_protection().hard_orig,
-                        segments=original_segments,
-                        cue_gate_enabled=cue_gate_enabled,
-                        hold_overlaps=hold_overlaps,
-                        ledger=ledger,
-                    )
-
-                def validate_fragments(processed, original):
-                    if not verification_segments:
-                        return processed, original
-                    return _validate_verification_ads(
-                        slug, episode_id, processed, original, verification_segments,
-                        pass1_cuts, episode_description, min_cut_confidence, db,
-                        processed_duration=processed_duration,
-                        max_ad_duration_override=max_ad_duration_override,
-                        cue_gate_enabled=cue_gate_enabled,
-                        podcast_id=ctx.podcast_id,
-                        segment_actions=segment_actions,
-                        keep_barriers_processed=current_protection().barriers_proc(),
-                        ledger=ledger,
-                    )
-
-                # Confidence gate and re-cut
-                hold_overlaps = []
                 (v_ads_to_cut, v_ads_for_ui, gated_held, v_corroborated_count,
-                 hold_release_candidates) = gate(
-                    verification_ads_processed, verification_ads_original,
-                    held_markers=pass1_held_markers, hold_overlaps=hold_overlaps)
+                 hold_release_candidates) = gated
                 v_ads_held.extend(gated_held)
-                # Holds were decided on the full finding; the parts outside them are new candidates.
                 fragments = _gate_hold_split_fragments(
-                    slug, episode_id, hold_overlaps, pass1_held_markers, pass1_cuts,
-                    false_positive_corrections, current_protection(),
-                    validate_fragments, gate, ledger=ledger)
+                    slug, episode_id, hold_overlaps, current_protection(),
+                    false_positive_corrections, validate, gate, ledger=ledger)
                 v_ads_to_cut.extend(fragments.to_cut)
                 v_ads_for_ui.extend(fragments.for_ui)
                 v_ads_held.extend(fragments.held)

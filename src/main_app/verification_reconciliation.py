@@ -287,6 +287,28 @@ def _pass2_keep_barriers_processed(pass1_kept_markers, pass1_cuts):
     ]
 
 
+def _merged_barriers_processed(markers, cuts):
+    """Markers on the pass-1 timeline, merged into {start, end} barrier spans."""
+    return [{'start': start, 'end': end} for start, end, *_ in merge_cut_spans(
+        _pass2_keep_barriers_processed(markers, cuts))]
+
+
+def _unzip(pairs):
+    """Split (processed, original) pairs into two parallel lists."""
+    return [p for p, _ in pairs], [o for _, o in pairs]
+
+
+def _drop_matching(processed, original, matches, outcome, ledger):
+    """Record each pair whose original matches as outcome; return the rest."""
+    kept = []
+    for proc, orig in zip(processed, original, strict=True):
+        if matches(orig):
+            ledger.record(orig, outcome)
+        else:
+            kept.append((proc, orig))
+    return _unzip(kept)
+
+
 def _matches_false_positive_correction(orig_ad, false_positive_corrections):
     """Same >=50%-of-segment rule as AdValidator._overlaps_false_positive."""
     duration = orig_ad['end'] - orig_ad['start']
@@ -303,11 +325,14 @@ def _matches_false_positive_correction(orig_ad, false_positive_corrections):
 def _split_pass2_candidates_around_spans(processed_ads, original_ads,
                                           barriers_processed, pass1_cuts,
                                           barrier_label, timestamp_map=None,
-                                          ledger=None, carved_labels=None):
+                                          ledger=None, carved_labels=None,
+                                          fragment_policy=None, conflicts=None):
     """Split paired pass-2 candidates around protected processed spans.
 
     ``carved_labels`` are original-time {start, end, label} spans naming the
     outcome of each carved-off part; without them carved parts are not recorded.
+    ``fragment_policy`` 'keep' turns a fragment inside a beep into a conflict hold
+    appended to ``conflicts``, 'hold' drops it; both drop short unmeasured fragments.
     """
     if not barriers_processed:
         return processed_ads, original_ads
@@ -354,10 +379,35 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
             if trusted_fragment:
                 fragment_processed['_measured_split_fragment'] = True
                 fragment_original['_measured_split_fragment'] = True
+            if fragment_policy is not None and not _fragment_survives(
+                    fragment_processed, fragment_original, fragment_policy, pass1_cuts,
+                    ledger, conflicts):
+                continue
             surviving_processed.append(fragment_processed)
             surviving_original.append(fragment_original)
 
     return surviving_processed, surviving_original
+
+
+def _fragment_survives(processed, original, policy, pass1_cuts, ledger, conflicts):
+    """Apply a split policy to one carved fragment; False when it is held or dropped."""
+    # Keep splits test only the inverted mapping, as before; a hold also owns its cut region.
+    if original['end'] <= original['start'] or (
+            policy == 'hold' and _covered_by_cuts(original, pass1_cuts, tolerance=0)):
+        if policy == 'hold':
+            ledger.record(original, 'dropped:beep_interior')
+            return False
+        original['start'], original['end'] = original['end'], original['start']
+        original['held_for_review'] = True
+        original['was_cut'] = False
+        original['hold_reason'] = HOLD_REASON_VERIFICATION_KEPT_CONFLICT
+        conflicts.append(original)
+        return False
+    if (processed['end'] - processed['start'] < MIN_AD_DURATION
+            and not processed.get('_measured_split_fragment')):
+        ledger.record(original, 'dropped:short_fragment')
+        return False
+    return True
 
 
 @owns_ledger_when_absent
@@ -367,8 +417,7 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     """Drop or split pass-2 findings over kept spans; returns (processed, original, conflicts)."""
     if not pass1_kept_markers:
         return verification_ads_processed, verification_ads_original, []
-    keep_barriers = [{'start': start, 'end': end} for start, end, *_ in merge_cut_spans(
-        _pass2_keep_barriers_processed(pass1_kept_markers, pass1_cuts))]
+    keep_barriers = _merged_barriers_processed(pass1_kept_markers, pass1_cuts)
     surviving_processed = []
     surviving_original = []
     conflicts = []
@@ -388,61 +437,31 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
             continue
         if timestamp_map is None:
             timestamp_map = _build_timestamp_map(pass1_cuts)
-        fragments = list(zip(*_split_pass2_candidates_around_spans(
+        processed, original = _split_pass2_candidates_around_spans(
             [ad], [orig_ad], keep_barriers, pass1_cuts, 'kept audio',
             timestamp_map=timestamp_map, ledger=ledger,
-            carved_labels=labelled_spans(pass1_kept_markers, 'kept:pass1_keep')),
-            strict=True))
-        for proc, orig in fragments:
-            if orig['end'] <= orig['start']:
-                # A fragment inside a replacement beep has no original audio to cut.
-                orig['start'], orig['end'] = orig['end'], orig['start']
-                orig['held_for_review'] = True
-                orig['was_cut'] = False
-                orig['hold_reason'] = HOLD_REASON_VERIFICATION_KEPT_CONFLICT
-                conflicts.append(orig)
-                continue
-            if (proc['end'] - proc['start'] < MIN_AD_DURATION
-                    and not proc.get('_measured_split_fragment')):
-                ledger.record(orig, 'dropped:short_fragment')
-                continue
-            surviving_processed.append(proc)
-            surviving_original.append(orig)
+            carved_labels=labelled_spans(pass1_kept_markers, 'kept:pass1_keep'),
+            fragment_policy='keep', conflicts=conflicts)
+        surviving_processed.extend(processed)
+        surviving_original.extend(original)
     return surviving_processed, surviving_original, conflicts
 
 
 @owns_ledger_when_absent
-def _split_pass2_candidates_around_holds(parents, pass1_held_markers, pass1_cuts,
-                                         ledger=None):
+def _split_pass2_candidates_around_holds(parents, holds, pass1_cuts, ledger=None):
     """Carve hold-overlapping pass-2 findings into their parts outside the holds."""
     if not parents:
         return [], []
-    barriers = [{'start': start, 'end': end} for start, end, *_ in merge_cut_spans(
-        _pass2_keep_barriers_processed(pass1_held_markers, pass1_cuts))]
     # The gate already recorded the in-hold parts as covered:pass1_hold.
-    carved = _split_pass2_candidates_around_spans(
-        [p for p, _ in parents], [o for _, o in parents], barriers, pass1_cuts,
-        'held audio', ledger=ledger)
-    surviving_processed = []
-    surviving_original = []
-    for proc, orig in zip(*carved, strict=True):
-        if orig['end'] <= orig['start'] or any(
-                c['start'] <= orig['start'] and orig['end'] <= c['end']
-                for c in pass1_cuts or []):
-            ledger.record(orig, 'dropped:beep_interior')
-            continue
-        if (proc['end'] - proc['start'] < MIN_AD_DURATION
-                and not proc.get('_measured_split_fragment')):
-            ledger.record(orig, 'dropped:short_fragment')
-            continue
-        for fragment in (proc, orig):
-            for key in [*_HOLD_SPLIT_DROPPED_KEYS,
-                        *(k for k in fragment if k.startswith('reviewer_'))]:
-                fragment.pop(key, None)
-            fragment['split_from_hold'] = True
-        surviving_processed.append(proc)
-        surviving_original.append(orig)
-    return surviving_processed, surviving_original
+    processed, original = _split_pass2_candidates_around_spans(
+        *_unzip(parents), _merged_barriers_processed(holds, pass1_cuts), pass1_cuts,
+        'held audio', ledger=ledger, fragment_policy='hold')
+    for fragment in (*processed, *original):
+        for key in [*_HOLD_SPLIT_DROPPED_KEYS,
+                    *(k for k in fragment if k.startswith('reviewer_'))]:
+            fragment.pop(key, None)
+        fragment['split_from_hold'] = True
+    return processed, original
 
 
 @dataclass
@@ -455,52 +474,64 @@ class HoldSplitFragments:
     held: list = field(default_factory=list)
 
 
-@owns_ledger_when_absent
-def _gate_hold_split_fragments(slug, episode_id, parents, pass1_held_markers,
-                               pass1_cuts, false_positive_corrections, protection,
-                               validate, gate, ledger=None):
-    """Run the parts of hold-overlapping findings outside the holds through the pass-2 checks."""
-    # validate and gate take (processed, original); gate must not see the pass-1 holds.
-    processed, original = _split_pass2_candidates_around_holds(
-        parents, pass1_held_markers, pass1_cuts, ledger=ledger)
-    try:
-        pairs = []
-        for proc, orig in zip(processed, original, strict=True):
-            if _matches_false_positive_correction(orig, false_positive_corrections):
-                ledger.record(orig, 'rejected:fp_correction')
-                continue
-            pairs.append((proc, orig))
-        if not pairs:
-            return HoldSplitFragments()
-        processed, original = _split_pass2_candidates_around_spans(
-            [p for p, _ in pairs], [o for _, o in pairs], protection.hard_proc,
-            pass1_cuts, 'protected audio', ledger=ledger, carved_labels=protection.hard_sources)
-        processed, original = validate(processed, original)
-        pairs = []
-        for proc, orig in zip(processed, original, strict=True):
-            hold = next((h for h in pass1_held_markers or []
-                         if overlap_seconds(orig['start'], orig['end'], h['start'], h['end'])
-                         > EDGE_TOLERANCE), None)
-            if hold is not None:
-                audio_logger.info(
-                    f"[{slug}:{episode_id}] Pass-2 fragment {orig['start']:.1f}s-"
-                    f"{orig['end']:.1f}s reaches into hold {hold['start']:.1f}s-"
-                    f"{hold['end']:.1f}s after validation")
-                ledger.record(orig, 'dropped:reaches_hold')
-                continue
-            pairs.append((proc, orig))
-        if not pairs:
-            return HoldSplitFragments()
-        processed, original = [p for p, _ in pairs], [o for _, o in pairs]
-        to_cut, for_ui, held, _count, _candidates = gate(processed, original)
+def _reaches_hold(slug, episode_id, orig, holds):
+    """True, with a log line, when validation moved a fragment into a hold."""
+    hold = next((h for h in holds
+                 if overlap_seconds(orig['start'], orig['end'], h['start'], h['end'])
+                 > EDGE_TOLERANCE), None)
+    if hold is not None:
         audio_logger.info(
-            f"[{slug}:{episode_id}] {len(processed)} pass-2 fragment(s) outside held "
-            f"spans: {len(to_cut)} cut, {len(held)} held")
-        return HoldSplitFragments(processed, original, to_cut, for_ui, held)
+            f"[{slug}:{episode_id}] Pass-2 fragment {orig['start']:.1f}s-"
+            f"{orig['end']:.1f}s reaches into hold {hold['start']:.1f}s-"
+            f"{hold['end']:.1f}s after validation")
+    return hold is not None
+
+
+@owns_ledger_when_absent
+def _run_candidate_stages(slug, episode_id, processed, original, barriers, protection,
+                          validate, gate, fp=(), holds=None, hold_overlaps=None,
+                          ledger=None):
+    """FP check, hard split, validation, gate; returns (processed, original, gate result).
+
+    With holds=None the gate sees no holds, so a fragment validation moved into one is dropped.
+    """
+    processed, original = _drop_matching(
+        processed, original, lambda o: _matches_false_positive_correction(o, fp),
+        'rejected:fp_correction', ledger)
+    processed, original = _split_pass2_candidates_around_spans(
+        processed, original, protection.hard_proc, protection.pass1_cuts,
+        'protected audio', ledger=ledger, carved_labels=protection.hard_sources)
+    processed, original = validate(processed, original, barriers)
+    if holds is None:
+        processed, original = _drop_matching(
+            processed, original,
+            lambda o: _reaches_hold(slug, episode_id, o, protection.holds_orig),
+            'dropped:reaches_hold', ledger)
+    return processed, original, gate(processed, original, holds, hold_overlaps)
+
+
+@owns_ledger_when_absent
+def _gate_hold_split_fragments(slug, episode_id, parents, protection, fp, validate, gate,
+                               ledger=None):
+    """Run the parts of hold-overlapping findings outside the holds through the pass-2 checks."""
+    processed, original = _split_pass2_candidates_around_holds(
+        parents, protection.holds_orig, protection.pass1_cuts, ledger=ledger)
+    if not processed:
+        return HoldSplitFragments()
+    try:
+        # Holds were decided on the full findings; the fragment gate sees none.
+        processed, original, (to_cut, for_ui, held, _count, _candidates) = (
+            _run_candidate_stages(
+                slug, episode_id, processed, original, protection.barriers_proc(),
+                protection, validate, gate, fp=fp, ledger=ledger))
     except Exception:
         # The carved parents are superseded, so only these fragments can carry the failure.
         ledger.fail(original)
         raise
+    audio_logger.info(
+        f"[{slug}:{episode_id}] {len(processed)} pass-2 fragment(s) outside held "
+        f"spans: {len(to_cut)} cut, {len(held)} held")
+    return HoldSplitFragments(processed, original, to_cut, for_ui, held)
 
 
 def _add_release_candidate(release_by_hold, orig_ad, hold, overlapping,
@@ -612,13 +643,12 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                        if ranges_overlap(orig_ad['start'], orig_ad['end'],
                                          m['start'], m['end'])]
         if overlapping:
-            if hold_overlaps is not None:
+            # Only a finding reaching past its holds has parts left to cut.
+            if hold_overlaps is not None and subtract_spans(
+                    [(orig_ad['start'], orig_ad['end'])],
+                    [(h['start'], h['end']) for h in overlapping]):
                 hold_overlaps.append((dict(ad), dict(orig_ad)))
-            for lo, hi, *_ in merge_cut_spans([
-                    {'start': max(orig_ad['start'], h['start']),
-                     'end': min(orig_ad['end'], h['end'])} for h in overlapping]):
-                if hi > lo:
-                    ledger.record({'start': lo, 'end': hi}, 'covered:pass1_hold')
+            ledger.record_carved(orig_ad, labelled_spans(overlapping, 'covered:pass1_hold'))
             ledger.supersede(orig_ad)
             # A pass-2 cut overlapping a pass-1 held span would destroy the
             # audio the hold protects; drop it (never cut). The pass-1 held

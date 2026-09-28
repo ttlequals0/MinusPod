@@ -414,19 +414,27 @@ def test_fragment_validation_sees_the_hold_as_a_barrier():
     assert (1000.0, 1100.0) in _spans(fragment_call['kwargs']['keep_barriers_processed'])
 
 
-def test_fragment_matching_a_user_rejection_is_dropped(caplog):
-    hold = _hold(1000.0, 1100.0)
-    protection = processing.build_protection(
-        kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=[],
+def _protection(*holds):
+    return processing.build_protection(
+        kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=list(holds),
         pass1_cuts=[])
+
+
+def _passthrough(proc, orig, _barriers):
+    return proc, orig
+
+
+def _gate_all(proc, orig, _holds, _overlaps):
+    return list(proc), list(orig), [], 0, []
+
+
+def test_fragment_matching_a_user_rejection_is_dropped(caplog):
     parents = [_pair(990.0, 1200.0)]
     ledger = Pass2Ledger()
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
         result = _gate_hold_split_fragments(
-            'example-podcast', 'a1b2c3d4e5f6', parents, [hold], [],
-            [{'start': 1090.0, 'end': 1160.0}], protection,
-            validate=lambda proc, orig: (proc, orig),
-            gate=lambda proc, orig: (list(proc), list(orig), [], 0, []), ledger=ledger)
+            'example-podcast', 'a1b2c3d4e5f6', parents, _protection(_hold(1000.0, 1100.0)),
+            [{'start': 1090.0, 'end': 1160.0}], _passthrough, _gate_all, ledger=ledger)
         ledger.emit('example-podcast', 'a1b2c3d4e5f6')
     assert _spans(result.original) == [(990.0, 1000.0)]
     assert any('Pass-2 span 1100.0s-1200.0s: rejected:fp_correction' in r.getMessage()
@@ -435,38 +443,31 @@ def test_fragment_matching_a_user_rejection_is_dropped(caplog):
 
 def test_fragment_moved_into_a_hold_by_validation_is_dropped():
     hold = _hold(1000.0, 1100.0)
-    protection = processing.build_protection(
-        kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=[],
-        pass1_cuts=[])
 
-    def widen(proc, orig):
+    def widen(proc, orig, _barriers):
         return [dict(p, end=p['end'] + 5.0) for p in proc], [
             dict(o, end=o['end'] + 5.0) for o in orig]
 
     result = _gate_hold_split_fragments(
-        'example-podcast', 'a1b2c3d4e5f6', [_pair(900.0, 1100.0)], [hold], [], [],
-        protection, validate=widen,
-        gate=lambda proc, orig: (list(proc), list(orig), [], 0, []))
+        'example-podcast', 'a1b2c3d4e5f6', [_pair(900.0, 1100.0)], _protection(hold), [],
+        widen, _gate_all)
     assert result.to_cut == [] and result.original == []
     assert 'pass2_corroborated' not in hold
 
 
 def test_failure_after_the_carve_records_the_outside_parts(caplog):
     hold = _hold(1000.0, 1100.0)
-    protection = processing.build_protection(
-        kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=[],
-        pass1_cuts=[])
     ledger = Pass2Ledger()
     collected = []
     _gate([_pair(900.0, 1200.0)], [hold], hold_overlaps=collected, ledger=ledger)
 
-    def boom(proc, orig):
+    def boom(proc, orig, _barriers):
         raise RuntimeError('validator failed')
 
     with pytest.raises(RuntimeError):
         _gate_hold_split_fragments(
-            'example-podcast', 'a1b2c3d4e5f6', collected, [hold], [], [], protection,
-            validate=boom, gate=None, ledger=ledger)
+            'example-podcast', 'a1b2c3d4e5f6', collected, _protection(hold), [], boom,
+            None, ledger=ledger)
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
         ledger.emit('example-podcast', 'a1b2c3d4e5f6')
     lines = [r.getMessage().split('] ', 1)[1] for r in caplog.records

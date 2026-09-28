@@ -1465,23 +1465,30 @@ class AdValidator:
 
     def _split_multi_release_holds(self, ads: list[dict]) -> list[dict]:
         """Give each auto-filed release of one hold its own piece of the marker."""
+        by_hold = {}
+        for c in self.confirmed_corrections:
+            if c.get('auto_filed') and c.get('confirmed_span'):
+                by_hold.setdefault((c['start'], c['end']), []).append(c)
         out = []
         for ad in ads:
             if ad.get('_reviewer_rejected') or ad.get('_user_kept_by_trim'):
                 out.append(ad)
                 continue
             newest = self._matching_confirmed(ad['start'], ad['end'])
-            if newest is None or not newest.get('auto_filed'):
+            if newest is None:
+                out.append(ad)
+                continue
+            # Reused by the confirm matching in validate() instead of a second scan.
+            ad['_pinned_release_confirm'] = newest
+            if not newest.get('auto_filed'):
                 out.append(ad)
                 continue
             releases = sorted(
-                (c for c in self.confirmed_corrections
-                 if c.get('auto_filed') and c.get('confirmed_span')
-                 and (c['start'], c['end']) == (newest['start'], newest['end'])
-                 and c['confirmed_span']['start'] < ad['end']
+                (c for c in by_hold.get((newest['start'], newest['end']), [])
+                 if c['confirmed_span']['start'] < ad['end']
                  and c['confirmed_span']['end'] > ad['start']),
                 key=lambda c: c['confirmed_span']['start'])
-            if len(releases) == 1 and releases[0] is not newest:
+            if len(releases) == 1:
                 ad['_pinned_release_confirm'] = releases[0]
             if len(releases) < 2 or any(
                     a['confirmed_span']['end'] > b['confirmed_span']['start']
