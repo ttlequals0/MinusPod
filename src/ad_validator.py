@@ -1467,6 +1467,9 @@ class AdValidator:
         """Give each auto-filed release of one hold its own piece of the marker."""
         out = []
         for ad in ads:
+            if ad.get('_reviewer_rejected') or ad.get('_user_kept_by_trim'):
+                out.append(ad)
+                continue
             newest = self._matching_confirmed(ad['start'], ad['end'])
             if newest is None or not newest.get('auto_filed'):
                 out.append(ad)
