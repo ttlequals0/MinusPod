@@ -13,7 +13,7 @@ from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_normalize import extract_description_sponsors
 from utils.constants import REASON_DESCRIPTION_MAX
 from text_pattern_matcher import TextMatch
-from utils.text import word_boundary_re
+from utils.text import pattern_offsets, word_boundary_re
 from verification_pass import VerificationPass
 
 
@@ -508,12 +508,26 @@ def test_single_passing_mention_in_the_span_does_not_admit_a_long_window():
         span_text=_span_text('Stay calm, the hosts say, and recap the week.')) is None
 
 
+def _offsets_registry(*names):
+    registry = MagicMock(spec=['brand_mention_offsets', 'find_sponsor_in_text'])
+    registry.find_sponsor_in_text.return_value = None
+    patterns = {n: word_boundary_re([n]) for n in names}
+    registry.brand_mention_offsets.side_effect = lambda text: pattern_offsets(text, patterns)
+    return registry
+
+
 def test_registry_sponsor_in_the_span_admits_a_long_window():
     ad = {'confidence': 0.95, 'reason': _CUT_REASON}
-    registry = _registry('Acme')
-    registry.compiled_brand_patterns.return_value = {'Acme': word_boundary_re(['Acme'])}
-    assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=registry,
+    assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=_offsets_registry('Acme'),
                          span_text=_span_text(_ACME_READ)) is not None
+
+
+def test_a_repeated_registry_sponsor_counts_past_a_single_common_word_brand():
+    ad = {'confidence': 0.95, 'reason': _CUT_REASON}
+    registry = _offsets_registry('Calm', 'Acme')
+    text = 'Stay calm. ' + _ACME_READ
+    assert _normalize_ad(ad, _SPAN_START, _SPAN_END, sponsor_service=registry,
+                         span_text=_span_text(text)) is not None
 
 
 def test_parse_ads_from_response_forwards_span_text():

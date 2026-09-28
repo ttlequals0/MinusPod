@@ -14,7 +14,7 @@ from sponsor_service import SponsorService
 from utils.prompt import (
     format_sponsor_block, render_prompt, strip_comments_from_prompt
 )
-from utils.text import truncate, word_boundary_re
+from utils.text import truncate
 from utils.time import parse_timestamp
 from utils.llm_response import extract_json_ads_array
 from utils.constants import (
@@ -398,14 +398,11 @@ def _span_names_sponsor(text: str, episode_sponsors: EpisodeSponsors | None,
                         sponsor_service) -> bool:
     """Whether the span transcript names one known sponsor at least twice."""
     patterns = [p for p in (episode_sponsors or ()) if p is not None]
-    if not any(len(p.findall(text)) >= SPAN_SPONSOR_MIN_MENTIONS for p in patterns):
-        name = sponsor_service.find_sponsor_in_text(text) if sponsor_service else None
-        if not name:
-            return False
-        pattern = (sponsor_service.compiled_brand_patterns().get(name)
-                   or word_boundary_re([name]))
-        return len(pattern.findall(text)) >= SPAN_SPONSOR_MIN_MENTIONS
-    return True
+    if any(len(p.findall(text)) >= SPAN_SPONSOR_MIN_MENTIONS for p in patterns):
+        return True
+    return bool(sponsor_service) and any(
+        len(v) >= SPAN_SPONSOR_MIN_MENTIONS
+        for v in sponsor_service.brand_mention_offsets(text).values())
 
 
 def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
