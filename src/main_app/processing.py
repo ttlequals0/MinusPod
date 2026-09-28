@@ -56,8 +56,8 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import (CARVED_REMAINDER_FLAG, EDGE_TOLERANCE, carve_fragment,
-                           carve_partly_cut,
+from utils.markers import (CARVED_REMAINDER_FLAG, EDGE_TOLERANCE, auto_confirm_releases, carve_fragment,
+                           carve_partly_cut, covering_confirm,
                            clip_merge_spans, finite_number,
                            fold_marker_pair, foldable_twin, invalidate_tail_provenance,
                            parse_ad_markers,
@@ -85,7 +85,6 @@ from config import (
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
     PASS2_AUTOAPPROVE_HOLD_REASONS, PASS2_REVIEWED_RELEASE_HOLD_REASONS,
-    REVIEWER_HOLD_REASONS,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     CORRECTION_ORIGIN_AUTO_PASS2,
@@ -3334,40 +3333,25 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
         holds = approvable
         if not holds:
             return 0
-        # Confirms filed this run, so overlapping or duplicate holds file once.
-        filed = []
-        seen = set()
+        # Confirms on file plus those filed this run, so overlapping or duplicate holds file once.
+        known = [*(confirmed_corrections or [])]
+        filed_ids = set()
         for m in holds:
-            if id(m) in seen:
-                continue
-            seen.add(id(m))
-            # Reprocess idempotency: a confirm already on file needs no
-            # second row -- but only one that would actually force-accept
-            # this span at recut time (validator criterion: it covers at
-            # least half the span). A mere graze, typical of a stale confirm
-            # from a previous fetch's shifted DAI timeline, must not count:
-            # skipping on a graze runs the recut without a matching confirm,
-            # the validator re-holds the marker, and the auto-approval
-            # silently does nothing (seen on a production reprocess).
+            # Reprocess idempotency: skip only on a confirm that would force-accept
+            # this span at recut; a stale confirm that merely grazes it must not count.
             span = _pass2_confirm_span(m)
             target = span or m
-            # Not covering_confirm: a stale wide original must not count once a confirmed_span exists.
             reason = m.get('hold_reason')
-            def covers(c):
-                # A reviewer hold releases only on a same-reason auto confirm (reviewer_hold_stands).
-                if (reason in REVIEWER_HOLD_REASONS and c.get('auto_filed')
-                        and c.get('hold_reason') != reason):
-                    return False
-                c = c.get('confirmed_span') or c
-                return (overlap_ratio(c['start'], c['end'], target['start'], target['end'])
-                        >= CORRECTION_MATCH_MIN_COVERAGE)
-            if any(covers(c) for c in confirmed_corrections or []):
-                continue
-            if any(covers(c) for c in filed):
-                audio_logger.info(
-                    f"[{slug}:{episode_id}] Not filing a second confirm for hold "
-                    f"{m['start']:.1f}s-{m['end']:.1f}s: this run already filed "
-                    f"one covering it")
+            match = covering_confirm(
+                target['start'], target['end'], known,
+                where=lambda c: not c.get('auto_filed') or auto_confirm_releases(c, reason),
+                prefer_confirmed_span=True)
+            if match is not None:
+                if id(match) in filed_ids:
+                    audio_logger.info(
+                        f"[{slug}:{episode_id}] Not filing a second confirm for hold "
+                        f"{m['start']:.1f}s-{m['end']:.1f}s: this run already filed "
+                        f"one covering it")
                 continue
             # Trim the confirm to the pass-2-attested sub-span (same shape a
             # human trimmed approval files); the validator clamps the cut to
@@ -3388,9 +3372,11 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
                 source_hold_reason=reason,
                 origin=CORRECTION_ORIGIN_AUTO_PASS2,
             )
-            filed.append({'start': m['start'], 'end': m['end'],
-                          'auto_filed': True, 'hold_reason': reason,
-                          **({'confirmed_span': dict(span)} if trimmed else {})})
+            entry = {'start': m['start'], 'end': m['end'],
+                     'auto_filed': True, 'hold_reason': reason,
+                     **({'confirmed_span': dict(span)} if trimmed else {})}
+            known.append(entry)
+            filed_ids.add(id(entry))
             audio_logger.info(
                 f"[{slug}:{episode_id}] Auto-approving hold "
                 f"{m['start']:.1f}s-{m['end']:.1f}s"

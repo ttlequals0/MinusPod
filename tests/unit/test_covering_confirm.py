@@ -7,7 +7,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_validator import AdValidator
-from utils.markers import covering_confirm, explicit_override
+from utils.markers import auto_confirm_releases, covering_confirm, explicit_override
 
 
 def test_returns_newest_first_match():
@@ -29,7 +29,22 @@ def test_matches_on_original_only():
 def test_skips_auto_filed_when_excluded():
     auto = {'start': 100.0, 'end': 160.0, 'auto_filed': True}
     assert covering_confirm(100.0, 160.0, [auto]) is auto
-    assert covering_confirm(100.0, 160.0, [auto], include_auto_filed=False) is None
+    assert covering_confirm(100.0, 160.0, [auto], where=lambda c: not c.get('auto_filed')) is None
+
+
+def test_prefer_confirmed_span_ignores_a_stale_original():
+    corr = {'start': 100.0, 'end': 160.0, 'confirmed_span': {'start': 0.0, 'end': 10.0}}
+    assert covering_confirm(100.0, 160.0, [corr], prefer_confirmed_span=True) is None
+    plain = {'start': 100.0, 'end': 160.0}
+    assert covering_confirm(100.0, 160.0, [plain], prefer_confirmed_span=True) is plain
+
+
+def test_auto_confirm_releases():
+    auto = {'auto_filed': True, 'hold_reason': 'reviewer_contradiction'}
+    assert auto_confirm_releases(auto, 'reviewer_contradiction')
+    assert not auto_confirm_releases(auto, 'reviewer_boundary_conflict')
+    assert auto_confirm_releases(auto, 'max_duration')
+    assert not auto_confirm_releases({'hold_reason': 'max_duration'}, 'max_duration')
 
 
 def test_where_filter():

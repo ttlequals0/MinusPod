@@ -564,12 +564,11 @@ class AdValidator:
         return self._overlaps_corrections(self.false_positive_corrections, start, end, overlap_threshold)
 
     def _matching_confirmed(self, start: float, end: float,
-                            overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE,
                             skip_auto_filed: bool = False) -> dict | None:
-        """Newest confirm covering >= threshold of the range, so callers can honor its confirmed_span."""
-        return covering_confirm(start, end, self.confirmed_corrections,
-                                include_auto_filed=not skip_auto_filed,
-                                threshold=overlap_threshold)
+        """Newest confirm covering the range, so callers can honor its confirmed_span."""
+        return covering_confirm(
+            start, end, self.confirmed_corrections,
+            where=(lambda c: not c.get('auto_filed')) if skip_auto_filed else None)
 
     def validate(self, ads: list[dict],
                  audio_analysis: dict | None = None,
