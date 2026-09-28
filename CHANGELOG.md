@@ -9,6 +9,28 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.32] - 2026-09-27
+
+### Fixed
+
+- Pattern learning no longer merges a self-promo intro and the sponsor read after it into one pattern with an inflated duration. Merged markers keep each member's sponsor and category. When the opening and closing reads of a span name different sponsors or categories, the span is split at a divider, and each piece takes its own read's category. With no divider, the span is not learned.
+- Cross-fetch comparison no longer marks show audio as different when the refetched copy has an ad inserted where the processed copy has none. A block with no match is now probed at the offsets on both sides of it, not only at the interpolated one.
+- Pass-2 auto-approval now files one confirm per span, even when two held markers cover the same audio.
+- Deactivating a pattern through the API or by merging patterns now records when it was disabled. Deactivating it again keeps the first time. Reactivating it clears the time, and the API also clears the disabled reason.
+- A remainder that a later pass cuts completely no longer keeps its flag saying it stayed in the audio.
+
+### Changed
+
+- Confirms filed by pass-2 auto-approval are now stored with their origin instead of being recognized by a text prefix. Existing rows are migrated at startup. The episode view labels them "Auto-approved", and episode corrections in the API include an `origin` field. These confirms no longer feed the positional prior or the pattern backfill from corrections, so neither learns from the pipeline's own output.
+- A marker the render removed only in part is now split into cut and uncut fragments. Each fragment records the detected span it came from in `carved_from`, which replaces `partial_cut_spans` in the marker schema. An uncut remainder that a later pass cuts in part is split again. Episodes saved with `partial_cut_spans` are split the same way when loaded and migrated at startup. Carved fragments do not seed learned patterns.
+- Reviewer rejects are now enforced inside validation, so every recut follows one code path. Behavior is unchanged.
+- Recuts now log the resolved category action map, as full runs do.
+- DAI markers saved before probe windows were recorded are normalized when loaded and migrated at startup. Probe windows are no longer inferred at each use.
+
+### Added
+
+- Pending holds are indexed by hold reason. The ad review list can filter pending detections by hold reason, shows the pending count for each reason, and returns `holdReason` on each detection. The detections endpoint accepts a `holdReason` query parameter and reports `counts.pendingByHoldReason`.
+
 ## [2.97.31] - 2026-09-27
 
 ### Fixed
