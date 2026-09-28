@@ -835,8 +835,8 @@ def carve_partly_cut(marker: dict, start: float, end: float, covered) -> list[di
 
 
 # Verdict fields the winning record owns on a fold, absences included.
-# pass2_outcome is here so a pass-1 winner never inherits a pass-2 outcome.
-_FOLD_VERDICT_FIELDS = ('action_applied', 'held_for_review', 'hold_reason', 'pass2_outcome')
+# A winner never inherits the loser's hold id or pass-2 outcome.
+_FOLD_VERDICT_FIELDS = ('action_applied', 'held_for_review', 'hold_reason', 'hold_id', 'pass2_outcome')
 
 
 def _stayed_in_audio(marker: dict) -> bool:

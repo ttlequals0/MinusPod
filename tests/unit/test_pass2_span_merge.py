@@ -196,6 +196,16 @@ def test_fold_winner_does_not_inherit_the_losers_pass2_outcome():
     assert 'pass2_outcome' not in keep
 
 
+def test_fold_winner_that_was_not_held_does_not_inherit_the_losers_hold_id():
+    keep = {'start': 500.0, 'end': 520.0, 'was_cut': False, 'action_applied': 'keep'}
+    held = {'start': 500.2, 'end': 519.8, 'was_cut': False, 'held_for_review': True,
+            'hold_reason': 'cue_unproven', 'hold_id': 'a1b2c3d4e5f6'}
+
+    fold_marker_pair(keep, held)
+
+    assert 'hold_id' not in keep
+
+
 def test_fold_does_not_shadow_a_hold_reason_already_cleared():
     keep = {'start': 500.0, 'end': 520.0, 'was_cut': False,
             'action_applied': 'keep', 'held_for_review': False,
