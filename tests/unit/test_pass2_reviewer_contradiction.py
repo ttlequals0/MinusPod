@@ -77,7 +77,7 @@ def _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     stub = SimpleNamespace(review=_review)
     monkeypatch.setattr(processing, '_build_reviewer', lambda db, det: stub)
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
-                        lambda: 'test-model', raising=False)
+                        lambda: 'test-model')
     processing._apply_pass2_reviewer(
         _ctx(), v_ads_to_cut, v_ads_for_ui, v_ads_held,
         ads_processed, ads_original, [], 0.80, **kwargs,

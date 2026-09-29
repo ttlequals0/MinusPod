@@ -193,6 +193,8 @@ def test_fragment_sheds_the_parent_verdict_state():
     proc.update(was_cut=True)
     orig.update(held_for_review=True, hold_reason=NO_SPLICE, was_cut=False)
     out_proc, out_orig = _split([(proc, orig)], [_hold(1000.0, 1100.0)])
+    assert _spans(out_orig) == [(900.0, 1000.0), (1100.0, 1110.0)]
+    assert len(out_proc) == 2
     for frag in (*out_proc, *out_orig):
         for key in ('held_for_review', 'was_cut', 'hold_reason', 'validation',
                     'pass2_corroborated', 'pass2_corroborated_span', '_hold_release_of',
@@ -439,9 +441,9 @@ def _release(monkeypatch, hold, subs, verdicts):
     monkeypatch.setattr(processing, '_build_reviewer', lambda db, det: SimpleNamespace(
         review=lambda **kw: ReviewResult(verdicts=list(verdicts))))
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
-                        lambda: 'test-model', raising=False)
+                        lambda: 'test-model')
     monkeypatch.setattr(processing.ad_detector, 'get_verification_provider',
-                        lambda: None, raising=False)
+                        lambda: None)
     protection = processing.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=[hold],
         pass1_cuts=[])

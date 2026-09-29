@@ -98,9 +98,9 @@ def drive_verification_pass(findings, *, holds=(), cuts=(), kept=(), trims=(), f
          patch.object(processing, '_build_reviewer',
                       lambda db, det: SimpleNamespace(review=hold_review)), \
          patch.object(processing.ad_detector, 'get_verification_model',
-                      lambda: 'test-model', create=True), \
+                      lambda: 'test-model'), \
          patch.object(processing.ad_detector, 'get_verification_provider',
-                      lambda: None, create=True):
+                      lambda: None):
         verifier_cls.return_value.verify.return_value = {
             'ads': [o for _p, o in pairs], 'ads_processed': [p for p, _o in pairs],
             'segments': [{'start': 0.0, 'end': duration, 'text': 'Acme sponsor read'}],

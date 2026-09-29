@@ -75,9 +75,9 @@ def _review(monkeypatch, candidates, verdicts, protection=None, enabled=True):
     monkeypatch.setattr(processing, '_build_reviewer',
                         lambda db, det: SimpleNamespace(review=review))
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
-                        lambda: 'test-model', raising=False)
+                        lambda: 'test-model')
     monkeypatch.setattr(processing.ad_detector, 'get_verification_provider',
-                        lambda: None, raising=False)
+                        lambda: None)
     holds = [c[1] for c in candidates]
     protection = protection or processing.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[],
@@ -281,7 +281,7 @@ def test_resurrect_band_finding_over_a_hold_is_never_cut(monkeypatch):
     monkeypatch.setattr(processing, '_build_reviewer',
                         lambda db, det: SimpleNamespace(review=lambda **kw: result))
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
-                        lambda: 'test-model', raising=False)
+                        lambda: 'test-model')
     processing._apply_pass2_reviewer(_ctx(), cut, ui, held, proc, orig, [], 0.8)
 
     assert cut == [] and ui == []

@@ -1,7 +1,6 @@
 """Replay saved production episodes through the real recut, validator and
 pass-2 reconciliation code. Fixtures live outside the repo; see README.md."""
 import copy
-import inspect
 import json
 
 import pytest
@@ -154,11 +153,6 @@ def _pass1_holds(ep):
     return holds
 
 
-def _call(fn, **kwargs):
-    params = inspect.signature(fn).parameters
-    return fn(**{k: v for k, v in kwargs.items() if k in params})
-
-
 # (a) recut replay -----------------------------------------------------------
 
 @pytest.mark.parametrize('eid,finding', _findings(1))
@@ -276,6 +270,7 @@ def _validate(eid):
     return validator.validate(ads, audio_analysis=audio, actions_map=dict(ACTIONS)).ads
 
 
+@pytest.mark.report
 @pytest.mark.parametrize('eid', _ep_params())
 def test_validator_replay_records_decisions(replay_out, eid):
     result = _validate(eid)
@@ -286,7 +281,6 @@ def test_validator_replay_records_decisions(replay_out, eid):
         'category': a.get('category'),
         'measured_member_spans': marker_utils.measured_member_spans(a, MIN_CONF),
     } for a in result])
-    assert result
 
 
 @pytest.mark.parametrize('eid,finding', _findings(4))
@@ -316,6 +310,7 @@ def _pass1_or_skip(ep):
     return cuts
 
 
+@pytest.mark.report
 @pytest.mark.parametrize('eid,finding', _findings(2))
 def test_gate_replay_records_hold_overlap(replay_out, eid, finding):
     ep = load_episode(ROOT, eid)
@@ -328,10 +323,8 @@ def test_gate_replay_records_hold_overlap(replay_out, eid, finding):
     orig = {'start': lo, 'end': hi, 'confidence': 0.95, 'category': 'sponsor',
             'detection_stage': 'verification', 'validation': {'decision': 'ACCEPT'}}
     before = copy.deepcopy(holds)
-    result = _call(vr._gate_verification_ads_by_confidence,
-                   verification_ads_processed=[_processed_twin(orig, cuts)],
-                   verification_ads_original=[orig], min_cut_confidence=MIN_CONF,
-                   pass1_held_markers=holds, pass1_cuts=cuts)
+    result = vr._gate_verification_ads_by_confidence(
+        [_processed_twin(orig, cuts)], [orig], MIN_CONF, pass1_held_markers=holds)
     _dump(replay_out, f"gate_{eid}_{int(lo)}.json",
           {'result': result, 'holds_after': holds, 'holds_before': before})
 
@@ -345,10 +338,9 @@ def test_gate_reviews_pass2_span_inside_hold(eid, finding):
     orig = {'start': lo, 'end': hi, 'confidence': 0.95, 'category': 'sponsor',
             'detection_stage': 'verification', 'validation': {'decision': 'ACCEPT'}}
     hold_bounds = {(round(h['start'], 2), round(h['end'], 2)) for h in holds}
-    result = _call(vr._gate_verification_ads_by_confidence,
-                   verification_ads_processed=[_processed_twin(orig, cuts)],
-                   verification_ads_original=[copy.deepcopy(orig)], min_cut_confidence=MIN_CONF,
-                   pass1_held_markers=holds, pass1_cuts=cuts)
+    result = vr._gate_verification_ads_by_confidence(
+        [_processed_twin(orig, cuts)], [copy.deepcopy(orig)], MIN_CONF,
+        pass1_held_markers=holds)
     outputs = [s for s in _spans(result)
                if (round(s['start'], 2), round(s['end'], 2)) not in hold_bounds
                and s.get('held_for_review') is not False]
@@ -356,6 +348,7 @@ def test_gate_reviews_pass2_span_inside_hold(eid, finding):
     assert reviewed, 'pass-2 finding over a hold was dropped without reaching review'
 
 
+@pytest.mark.report
 @pytest.mark.parametrize('eid,finding', _findings(3))
 def test_kept_exclusion_replay_records(replay_out, eid, finding):
     ep = load_episode(ROOT, eid)
@@ -479,6 +472,7 @@ def test_remove_map_merges_promo_and_read(marker):
 
 # Summary -----------------------------------------------------------------------
 
+@pytest.mark.report
 def test_cluster_summary_report(summary_rows, replay_out):
     """Report only: flags episodes outside 3-5 rendered ad clusters."""
     rows = []

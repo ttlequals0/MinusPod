@@ -551,13 +551,20 @@ def test_pass2_ad_reaching_past_estimated_hold_does_not_approve():
     proc = [_plain_proc(2485.2, 2565.3, confidence=0.98)]
     orig = [_orig(2485.2, 2565.3, 'estimated')]
     hold = _held_marker(2457.8, 2545.3, hold_reason='estimated_pattern_bounds')
+    overlaps = []
 
-    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
-        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    cut, ui, held, n, candidates = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold], hold_overlaps=overlaps,
     )
 
-    assert n == 0
+    assert (cut, ui, held, n) == ([], [], [], 0)
     assert 'pass2_corroborated' not in hold
+    # The part inside the hold goes to review; the part past it to the hold split.
+    [(candidate, candidate_hold)] = candidates
+    assert (candidate['start'], candidate['end']) == (2485.2, 2545.3)
+    assert candidate_hold is hold
+    assert [(p['start'], p['end'], o['marker']) for p, o in overlaps] == [
+        (2485.2, 2565.3, 'estimated')]
 
 
 def test_partial_coverage_still_blocks_differential_hold_approval():
@@ -565,13 +572,19 @@ def test_partial_coverage_still_blocks_differential_hold_approval():
     proc = [_plain_proc(2485.2, 2545.1, confidence=0.98)]
     orig = [_orig(2485.2, 2545.1, 'diff')]
     hold = _held_marker(2457.8, 2545.3, hold_reason='differential_uncorroborated')
+    overlaps = []
 
-    _cut, _ui, _held, n, _rel = _gate_verification_ads_by_confidence(
-        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    cut, ui, held, n, candidates = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold], hold_overlaps=overlaps,
     )
 
-    assert n == 0
+    assert (cut, ui, held, n) == ([], [], [], 0)
     assert 'pass2_corroborated' not in hold
+    # Not approved on coverage: the supported span goes to review instead.
+    [(candidate, candidate_hold)] = candidates
+    assert (candidate['start'], candidate['end']) == (2485.2, 2545.3)
+    assert candidate_hold is hold
+    assert overlaps == []
 
 
 def test_boundary_conflict_hold_is_stamped_by_a_corroborating_pass2_ad():
@@ -1360,6 +1373,8 @@ def test_auto_approve_span_touching_a_reviewer_reject_files(monkeypatch):
 
     assert n == 1
     db.create_pattern_correction.assert_called_once()
+    assert db.create_pattern_correction.call_args.kwargs['corrected_bounds'] == {
+        'start': 4875.8, 'end': 5000.0}
 
 
 def test_pass2_validation_uses_the_run_fp_snapshot_not_the_db():

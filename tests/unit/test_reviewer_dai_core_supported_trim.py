@@ -206,16 +206,11 @@ def test_differential_ads_record_each_block_probe_window():
 def test_normalize_loaded_markers_materializes_legacy_probes():
     marker = _marker()
     del marker[DAI_PROBE_SPANS]
+    assert dai_probe_spans(marker) == []
     short = {'dai_core_spans': [{'start': 10.0, 'end': 12.0}]}
     normalized = normalize_loaded_markers([marker, short])
     assert normalized[0][DAI_PROBE_SPANS] == [{'start': 0.0, 'end': 4.5}]
     assert normalized[1][DAI_PROBE_SPANS] == [{'start': 10.0, 'end': 12.0}]
-
-
-def test_dai_probe_spans_without_key_is_empty_after_fallback_removal():
-    marker = _marker()
-    del marker[DAI_PROBE_SPANS]
-    assert dai_probe_spans(marker) == []
 
 
 def test_probe_spans_ride_merges_clips_and_fragments():

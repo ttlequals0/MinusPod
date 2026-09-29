@@ -130,6 +130,7 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
         _spans(crosspass.call_args.args[4]))
     # The hold blocks gap merges; hard ranges clip every cut.
     assert (400.0, 420.0) in _spans(audio.process_episode.call_args.kwargs['cut_barriers'])
+    assert (300.0, 320.0) not in _spans(audio.process_episode.call_args.kwargs['cut_barriers'])
     # A user rejection is a hard render barrier, like a keep.
     assert {(300.0, 320.0), (500.0, 510.0)} <= set(
         _spans(audio.process_episode.call_args.kwargs['hard_barriers']))

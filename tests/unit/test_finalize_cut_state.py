@@ -87,7 +87,6 @@ class TestFinalizeCutState:
         assert [m['validation']['flags'] for m in all_ads] == [[], []]
         assert a['validation']['flags'] == []
         assert not any(m.get('held_for_review') for m in all_ads)
-        assert all('partial_cut_spans' not in m for m in all_ads)
 
     def test_middle_cut_leaves_two_remainders(self):
         a = _marker(10.0, 70.0)

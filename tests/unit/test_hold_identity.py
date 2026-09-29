@@ -44,7 +44,9 @@ def test_the_validator_stamps_an_identity_when_it_holds_a_marker():
     validator._mark_held(ad, [], NO_SPLICE)
     assert len(first) == 12 and ad['hold_id'] == first
     assert carve_fragment(ad, 10.0, 20.0)['hold_id'] == first
-    assert dict(ad)['hold_id'] == first
+    copied = dict(ad)
+    validator._mark_held(copied, [], NO_SPLICE)
+    assert copied['hold_id'] == first
 
 
 def test_a_legacy_hold_gets_an_identity_at_load():

@@ -14,6 +14,10 @@ _SUMMARY_KEY = pytest.StashKey[list]()
 _CORROBORATES_RE = re.compile(r'corroborates (\S+) hold ([\d.]+)s-([\d.]+)s')
 
 
+def pytest_configure(config):
+    config.addinivalue_line('markers', 'report: writes replay output for inspection, asserts nothing')
+
+
 def fixtures_dir():
     raw = os.environ.get(FIXTURES_ENV)
     return Path(raw).expanduser() if raw else None
