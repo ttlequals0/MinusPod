@@ -13,7 +13,7 @@ from config import (
     REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL, MID_ROLL_1,
     POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN,
     MERGE_GAP_THRESHOLD, MAX_SILENT_GAP,
-    SILENT_REMAINDER_MIN_COVERAGE, SILENT_REMAINDER_GAP_S,
+    SILENT_REMAINDER_MIN_COVERAGE,
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
     HOLD_REASON_NO_SPLICE, VETO_MIN_CUT_SECONDS,
     HOLD_REASON_UNCORROBORATED_TAIL,
@@ -1535,11 +1535,13 @@ class AdValidator:
                 remainder_spans = []
                 silent = []
                 cut_lo, cut_hi = lo, hi
+                cap = self._silent_absorb_cap(ad)
                 # Each remainder shares an edge with the measured cut by construction.
                 for a, b in ((ad['start'], lo), (hi, ad['end'])):
                     if b - a < MIN_AD_DURATION:
                         continue
-                    if self._silent_remainder(a, b, barriers):
+                    if (max(cut_hi, b) - min(cut_lo, a) <= cap
+                            and self._silent_remainder(a, b, barriers)):
                         silent.append((a, b))
                         cut_lo, cut_hi = min(cut_lo, a), max(cut_hi, b)
                         logger.info(f"Cut silent estimated remainder {a:.1f}s-{b:.1f}s "
@@ -1571,6 +1573,15 @@ class AdValidator:
         out.sort(key=lambda a: a['start'])
         return out
 
+    def _silent_absorb_cap(self, ad: dict) -> float:
+        """Longest cut silence may grow to without tripping a duration hold or reject."""
+        cap = (self.max_ad_duration_confirmed
+               if ad.get('confidence', 1.0) >= HIGH_CONFIDENCE_OVERRIDE
+               else self.max_ad_duration)
+        if self.max_ad_duration_override is not None:
+            cap = min(cap, self.max_ad_duration_override)
+        return cap
+
     def _silent_remainder(self, start: float, end: float,
                           barriers: list[tuple[float, float]]) -> bool:
         """Whether audio analysis measured the remainder as silence, with no show cue or barrier in it."""
@@ -1589,7 +1600,7 @@ class AdValidator:
             a, b = finite_number(span.get('start')), finite_number(span.get('end'))
             if a is not None and b is not None and min(b, hi) > max(a, lo):
                 clipped.append((max(a, lo), min(b, hi)))
-        covered = sum(b - a for a, b in merge_runs(clipped, gap=SILENT_REMAINDER_GAP_S))
+        covered = sum(b - a for a, b in merge_runs(clipped))
         return hi > lo and covered >= SILENT_REMAINDER_MIN_COVERAGE * (hi - lo)
 
     def _mark_held(self, ad: dict, flags: list[str], reason: str) -> None:

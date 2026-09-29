@@ -2926,7 +2926,7 @@ def _silence(*spans, signals=()):
             'signals': list(signals)}
 
 
-# Two silence runs 0.4 s apart in the lead still count as one.
+# The lead's 0.4 s non-silent gap still leaves it over 95% silent.
 _BOTH_SILENT = _silence((792.7, 803.0), (803.4, 815.5), (995.2, 1002.7))
 
 
@@ -2975,6 +2975,44 @@ def test_partly_silent_remainder_is_held():
 
     assert _spans(result) == [(792.6, 815.6), (815.6, 1002.8)]
     assert result.ads[0]['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
+def _remainder_with_silences(spans):
+    ad = {'start': 90.0, 'end': 160.0, 'confidence': 0.95, 'reason': 'Acme read',
+          'detection_stage': 'claude'}
+    mark_distinct_merge(ad, {'start': 100.0, 'end': 160.0, 'confidence': 0.95,
+                             'detection_stage': 'text_pattern', 'span_estimated': True,
+                             'text_start': 100.0, 'text_end': 110.0,
+                             'has_estimated_pattern_member': True})
+    ad['start'], ad['end'] = 90.0, 170.0
+    return AdValidator(3600.0, [{'start': 90.0, 'end': 160.0, 'text': 'Acme read'}],
+                       splice_veto_enabled=False).validate(
+        [ad], audio_analysis=_silence(*spans))
+
+
+def test_sparse_silence_is_not_a_silent_remainder():
+    # 0.3 s of silence every 0.8 s across the 10 s remainder, about 39%.
+    spans = [(160.0 + i * 0.8, 160.3 + i * 0.8) for i in range(13)]
+    assert _spans(_remainder_with_silences(spans)) == [(90.0, 160.0), (160.0, 170.0)]
+
+
+def test_near_continuous_silence_is_a_silent_remainder():
+    assert _spans(_remainder_with_silences([(160.0, 164.9), (165.1, 170.0)])) == [
+        (90.0, 170.0)]
+
+
+def test_silent_remainders_stay_held_when_the_cut_would_pass_the_feed_cap():
+    validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False,
+                            max_ad_duration_override=200.0)
+
+    result = validator.validate([_outro_estimate()], audio_analysis=_BOTH_SILENT)
+
+    # The 7.7 s tail fits under the cap; the 23 s lead would push the cut past it.
+    assert _spans(result) == [(792.6, 815.6), (815.6, 1002.8)]
+    lead, cut = result.ads
+    assert cut['validation']['decision'] == Decision.ACCEPT.value
+    assert not cut.get('held_for_review')
+    assert lead['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
 
 
 def test_long_silent_remainder_is_cut():
