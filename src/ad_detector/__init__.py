@@ -1013,15 +1013,11 @@ class AdDetector:
         return configured_mode, effective_mode
 
     @staticmethod
-    def _detection_line_segments(segments):
-        return timed_line_segments(segments)
-
-    @staticmethod
     def _format_transcript_lines(window_segments, addressing_mode):
         if addressing_mode == 'segment_ids':
             return [f"[{seg['sid']}] {seg['text']}" for seg in window_segments]
         return [f"[{seg['start']:.1f}s - {seg['end']:.1f}s] {seg['text']}"
-                for seg in AdDetector._detection_line_segments(window_segments)]
+                for seg in timed_line_segments(window_segments)]
 
     @staticmethod
     def _align_numeric_edges_to_word_lines(ads, window_segments):
@@ -1902,7 +1898,7 @@ class AdDetector:
             # when that draw landed on segment_ids.
             configured_mode, addressing_mode = self._effective_addressing_mode(
                 slug=slug, episode_id=episode_id)
-            detection_segments = self._detection_line_segments(segments)
+            detection_segments = timed_line_segments(segments)
             if addressing_mode == 'segment_ids':
                 for sid, seg in enumerate(detection_segments):
                     seg['sid'] = sid
@@ -3372,7 +3368,7 @@ class AdDetector:
             # verification is a separate sample from pass 1's draw.
             configured_mode, addressing_mode = self._effective_addressing_mode(
                 slug=slug, episode_id=episode_id)
-            detection_segments = self._detection_line_segments(segments)
+            detection_segments = timed_line_segments(segments)
             if addressing_mode == 'segment_ids':
                 for sid, seg in enumerate(detection_segments):
                     seg['sid'] = sid

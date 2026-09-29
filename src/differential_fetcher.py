@@ -243,7 +243,7 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
 
     Each candidate offset is probed and the best corr kept. With allow_retry
     (unmatched blocks probed at inherited neighbor offsets), a best score
-    below XCORR_MIN_CORR gets ONE retry at offsets[0] with a doubled search
+    below XCORR_MIN_CORR gets ONE retry at the best offset with a doubled search
     window (drift re-probe): an inherited offset stale by more than
     XCORR_SEARCH_S, e.g. silencedetect missed a mark on the refetch, would
     otherwise mislabel identical audio as differential.
@@ -266,10 +266,10 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
     if corr is None:
         return 'unknown', None
     if corr < XCORR_MIN_CORR and allow_retry:
-        retry = _block_correlation(run_pcm, ref_pcm, run_t, offsets[0], ref_s=ref_s,
+        retry = _block_correlation(run_pcm, ref_pcm, run_t, best_offset, ref_s=ref_s,
                                    search_s=XCORR_SEARCH_S * 2, prepared=prepared)
         if retry is not None and retry > corr:
-            corr, best_offset = retry, offsets[0]
+            corr = retry
     if len(offsets) > 1 and logger.isEnabledFor(logging.DEBUG):
         logger.debug('Unmatched block %.1f-%.1fs: best offset %+.2fs of %s, '
                      'corr %.3f', start, end, best_offset,

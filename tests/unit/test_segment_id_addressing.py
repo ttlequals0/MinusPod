@@ -140,7 +140,7 @@ def test_segment_ids_resolve_word_timed_ad_inside_mixed_segment():
         ],
     }
     detector = AdDetector(api_key='test-key')
-    lines = detector._detection_line_segments([segment])
+    lines = boundaries.timed_line_segments([segment])
     for sid, line in enumerate(lines):
         line['sid'] = sid
     assert [line['text'] for line in lines] == [
@@ -437,7 +437,7 @@ def test_already_timed_lines_are_not_split_again(monkeypatch):
         'words': [{'start': 10.0 + i, 'end': 10.5 + i, 'word': token}
                   for i, token in enumerate(tokens)],
     }
-    lines = AdDetector._detection_line_segments([segment])
+    lines = boundaries.timed_line_segments([segment])
     expected = AdDetector._format_transcript_lines([segment], 'timestamps')
     calls = []
     real = boundaries._timed_utterances

@@ -508,3 +508,23 @@ def test_run_only_postroll_is_differential():
 
     diffs = [r for r in result['regions'] if r['kind'] == 'differential']
     assert [(round(r['start_s'], 1), round(r['end_s'], 1)) for r in diffs] == [(31.0, 43.2)]
+
+
+def test_drift_retry_reprobes_the_best_candidate(monkeypatch):
+    # The next-neighbour offset wins the first round but is stale; its doubled window finds the match.
+    calls = []
+
+    def correlation(run_pcm, ref_pcm, run_t, offset, *, ref_s, search_s=df.XCORR_SEARCH_S,
+                    prepared=None):
+        calls.append((offset, search_s))
+        if search_s > df.XCORR_SEARCH_S:
+            return 0.9 if offset == 12.0 else 0.3
+        return {-4.0: 0.2, 12.0: 0.5}[offset]
+
+    monkeypatch.setattr(df, '_block_correlation', correlation)
+    monkeypatch.setattr(df, '_prepare_template', lambda *a, **k: None)
+    kind, corr = df._probe_block(np.zeros(1), np.zeros(1), 0.0, 20.0, [-4.0, 12.0],
+                                 allow_retry=True)
+
+    assert calls[-1] == (12.0, df.XCORR_SEARCH_S * 2)
+    assert (kind, corr) == ('identical', 0.9)

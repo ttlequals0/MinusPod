@@ -265,3 +265,31 @@ def test_byte_counter_rotates_at_the_same_record_as_a_stat(tmp_path, monkeypatch
     line = sizes[0]
     per_file = 400 // line
     assert sizes == [line * (i % per_file + 1) for i in range(12)]
+
+
+def test_export_keeps_only_the_newest_records_while_scanning(tmp_path, monkeypatch):
+    directory = tmp_path / 'logs' / 'diagnostics'
+    directory.mkdir(parents=True)
+    base = datetime(2026, 1, 2, 12, tzinfo=timezone.utc)
+    total = diagnostic_log.MAX_EXPORT_RECORDS + 50
+    # Two files with interleaved times, so read order is not time order.
+    for name, parity in (('a', 0), ('b', 1)):
+        (directory / f'diagnostic-{name}.jsonl').write_text(''.join(
+            json.dumps({'ts': (base + timedelta(milliseconds=i)).isoformat().replace('+00:00', 'Z'),
+                        'level': 'INFO', 'category': 'api',
+                        'source': 'diagnostic_log.py', 'line': 1}) + '\n'
+            for i in range(total) if i % 2 == parity))
+    held = []
+    real_push = diagnostic_log.heapq.heappush
+    monkeypatch.setattr(diagnostic_log.heapq, 'heappush',
+                        lambda heap, item: real_push(heap, item) or held.append(len(heap)))
+
+    result = export(tmp_path, base - timedelta(hours=1), base + timedelta(hours=1))
+
+    events = result['events']
+    assert len(events) == diagnostic_log.MAX_EXPORT_RECORDS
+    assert result['truncated'] is True
+    assert events[0]['ts'] == (base + timedelta(milliseconds=50)).isoformat(
+        timespec='milliseconds').replace('+00:00', 'Z')
+    assert [e['ts'] for e in events] == sorted(e['ts'] for e in events)
+    assert max(held) == diagnostic_log.MAX_EXPORT_RECORDS

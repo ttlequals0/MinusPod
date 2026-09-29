@@ -1,4 +1,5 @@
 """Bounded, payload-free operational diagnostics for self-hosted support."""
+import heapq
 import json
 import logging
 import os
@@ -252,6 +253,7 @@ def _parse_time(value: str | None, default: datetime) -> datetime:
 def export(data_dir, start: datetime, end: datetime) -> dict:
     """Return bounded diagnostic metadata for a UTC time range."""
     records = []
+    matched = 0
     bytes_read = 0
     retention_cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
     try:
@@ -305,16 +307,21 @@ def export(data_dir, start: datetime, end: datetime) -> dict:
                     except (ValueError, KeyError, TypeError, json.JSONDecodeError):
                         continue
                     if retention_cutoff <= event_time <= end and start <= event_time:
-                        records.append(event)
+                        matched += 1
+                        # Newest MAX_EXPORT_RECORDS by (ts, read order), the order a stable sort keeps.
+                        entry = (event['ts'], matched, event)
+                        if len(records) < MAX_EXPORT_RECORDS:
+                            heapq.heappush(records, entry)
+                        else:
+                            heapq.heappushpop(records, entry)
         except (OSError, UnicodeError):
             continue
         if exhausted:
             break
-    records.sort(key=lambda event: event['ts'])
-    events = records[-MAX_EXPORT_RECORDS:]
+    events = [event for _ts, _order, event in sorted(records)]
     return {
         'events': events,
-        'truncated': truncated or len(records) > MAX_EXPORT_RECORDS,
+        'truncated': truncated or matched > MAX_EXPORT_RECORDS,
         'coverage': {
             'firstEvent': events[0]['ts'] if events else None,
             'lastEvent': events[-1]['ts'] if events else None,
