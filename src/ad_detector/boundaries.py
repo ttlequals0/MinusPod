@@ -538,7 +538,8 @@ def timed_line_segments(segments: list[dict]) -> list[dict]:
     """Split reliable word timing into transcript lines without losing words."""
     lines = []
     for seg in segments:
-        utterances = _timed_utterances(seg)
+        # An already split line re-splits to itself; windows are built from split lines.
+        utterances = None if seg.get('word_timed_line') else _timed_utterances(seg)
         if utterances is None:
             lines.append(seg.copy())
             continue

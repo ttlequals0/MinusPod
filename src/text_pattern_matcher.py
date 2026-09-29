@@ -197,7 +197,8 @@ FUZZY_DISCRIMINATIVE_LENGTH = 60
 # above every scaled threshold, so a short verbatim-common phrase matched
 # anywhere it appeared; local extraction already floors well above this.
 MIN_FUZZY_VARIANT_CHARS = 20
-
+# Sentence boundary followed by a capitalized word.
+_CLAUSE_SPLIT_RE = re.compile(r'(?<=[.!?])\s+(?=[A-Z])')
 
 
 def required_fuzzy_score(phrase_len: int) -> float:
@@ -681,6 +682,7 @@ class TextPatternMatcher:
         # advisory evidence, but do not let that outro or its template set a cut.
         content_patterns = []
         phrase_patterns = []
+        sponsor_brands = {}
         for pattern in applicable_patterns:
             if pattern.is_defined or not pattern.outro_variants:
                 content_patterns.append(pattern)
@@ -688,7 +690,7 @@ class TextPatternMatcher:
                 continue
             trusted_outros = [
                 phrase for phrase in pattern.outro_variants
-                if self._outro_has_ad_evidence(phrase, pattern.sponsor)
+                if self._outro_has_ad_evidence(phrase, pattern.sponsor, sponsor_brands)
             ]
             phrase_patterns.append(replace(pattern, outro_variants=trusted_outros))
             if len(trusted_outros) == len(pattern.outro_variants):
@@ -721,15 +723,24 @@ class TextPatternMatcher:
         )
         return matches
 
-    def _outro_has_ad_evidence(self, phrase: str, sponsor: str | None) -> bool:
+    def _outro_has_ad_evidence(self, phrase: str, sponsor: str | None,
+                               sponsor_brands: dict | None = None) -> bool:
+        """Whether a clause of phrase names sponsor with an offer or its domain.
+
+        sponsor_brands memoizes each sponsor's matcher for one detection pass.
+        """
         if not sponsor:
             return False
-        names = brand_match_candidates(self._get_sponsor_row(sponsor))
-        brand = word_boundary_re(names)
+        if sponsor_brands is None:
+            sponsor_brands = {}
+        if sponsor not in sponsor_brands:
+            names = brand_match_candidates(self._get_sponsor_row(sponsor))
+            sponsor_brands[sponsor] = (word_boundary_re(names),
+                                       {squash_brand(name) for name in names})
+        brand, domains = sponsor_brands[sponsor]
         if brand is None:
             return False
-        domains = {squash_brand(name) for name in names}
-        for clause in re.split(r'(?<=[.!?])\s+(?=[A-Z])', phrase):
+        for clause in _CLAUSE_SPLIT_RE.split(phrase):
             if not brand.search(clause):
                 continue
             if COMMERCIAL_CONTEXT_RE.search(clause):

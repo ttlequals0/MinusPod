@@ -2,6 +2,7 @@
 import logging
 from unittest.mock import MagicMock, patch
 
+import ad_detector.boundaries as boundaries
 from ad_detector import AdDetector
 from ad_validator import AdValidator, Decision
 from ad_detector.prompts import (
@@ -427,3 +428,20 @@ def test_mixed_id_and_timestamp_objects_keeps_id_ad():
     resolved = resolve_segment_id_ads(ads, SEGS)
     assert resolved[0]['start'] == 20.0
     assert resolved[0]['end'] == 50.0
+
+
+def test_already_timed_lines_are_not_split_again(monkeypatch):
+    tokens = ['Host', 'story.', 'Our', 'sponsor', 'is', 'Acme.']
+    segment = {
+        'start': 10.0, 'end': 16.0, 'text': ' '.join(tokens),
+        'words': [{'start': 10.0 + i, 'end': 10.5 + i, 'word': token}
+                  for i, token in enumerate(tokens)],
+    }
+    lines = AdDetector._detection_line_segments([segment])
+    expected = AdDetector._format_transcript_lines([segment], 'timestamps')
+    calls = []
+    real = boundaries._timed_utterances
+    monkeypatch.setattr(boundaries, '_timed_utterances',
+                        lambda seg: calls.append(seg) or real(seg))
+    assert AdDetector._format_transcript_lines(lines, 'timestamps') == expected
+    assert calls == []

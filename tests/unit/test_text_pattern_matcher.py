@@ -849,6 +849,29 @@ def test_auto_pattern_outro_needs_sponsor_link_or_offer(temp_db):
         assert matcher._outro_has_ad_evidence(f'Find Acme at acme.{ending}.', 'Acme') is True
 
 
+def test_outro_sponsor_lookup_runs_once_per_sponsor_per_pass(temp_db, monkeypatch):
+    sponsor_id = temp_db.create_known_sponsor('Acme')
+    intro = 'This episode is brought to you by Acme and its new service.'
+    show = 'Tell me what happened when you got home. Welcome back to the show.'
+    for n in range(3):
+        temp_db.create_ad_pattern(
+            scope='global', sponsor_id=sponsor_id,
+            text_template=f'{intro} Acme helps with task {n}. {show}',
+            intro_variants=[intro], outro_variants=[show, f'{show} Part {n}.'],
+            duration=60.0)
+    matcher = TextPatternMatcher(db=temp_db)
+    lookups = []
+    real_lookup = temp_db.get_known_sponsor_by_name
+    monkeypatch.setattr(temp_db, 'get_known_sponsor_by_name',
+                        lambda name: lookups.append(name) or real_lookup(name))
+    segments = [{'start': 60.0, 'end': 120.0, 'text': f'{intro} Acme helps. {show}'}]
+
+    matcher.find_matches(segments)
+    assert lookups == ['Acme']
+    matcher.find_matches(segments)
+    assert lookups == ['Acme', 'Acme']
+
+
 def test_catalog_read_failure_skips_stale_patterns_then_recovers(temp_db, monkeypatch):
     transcript = ('This episode is sponsored by Acme. '
                   'Visit acme.com and use code PODCAST for a free trial.')
