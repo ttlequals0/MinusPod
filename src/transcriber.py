@@ -22,7 +22,7 @@ from user_agent import download_user_agent
 from utils.audio import get_audio_duration
 from utils.errors import (
     ServiceUnavailableError, AudioTooLargeError, AudioExtractionError,
-    AudioExtractionTimeout,
+    AudioExtractionTimeout, LocalTranscriptionUnavailableError,
 )
 from utils.time import format_vtt_timestamp, parse_iso_utc, utc_now, utc_now_iso
 from utils.gpu import (clear_gpu_memory, get_available_memory_gb,
@@ -79,10 +79,30 @@ os.environ.setdefault('HF_HOME', cache_dir)
 os.environ.setdefault('HUGGINGFACE_HUB_CACHE', os.path.join(cache_dir, 'hub'))
 os.environ.setdefault('XDG_CACHE_HOME', cache_dir)
 
-import ctranslate2
-from faster_whisper import WhisperModel, BatchedInferencePipeline
+# Remote-only installs do not ship the local stack; keep the module importable
+# so WHISPER_BACKEND=openai-api still works without it (#795).
+try:
+    import ctranslate2
+    from faster_whisper import WhisperModel, BatchedInferencePipeline
+    _LOCAL_IMPORT_ERROR: ImportError | None = None
+except ImportError as e:
+    ctranslate2 = WhisperModel = BatchedInferencePipeline = None
+    _LOCAL_IMPORT_ERROR = e
 
 logger = logging.getLogger(__name__)
+
+
+def _local_unavailable_message() -> str:
+    return (
+        f"Local Whisper backend needs faster-whisper and ctranslate2 "
+        f"({_LOCAL_IMPORT_ERROR}); install them or set WHISPER_BACKEND=openai-api "
+        f"with WHISPER_API_BASE_URL and WHISPER_API_KEY"
+    )
+
+
+def _require_local_transcription() -> None:
+    if _LOCAL_IMPORT_ERROR is not None:
+        raise LocalTranscriptionUnavailableError(_local_unavailable_message())
 
 # Whisper's encoder window. A clip handed to BatchedInferencePipeline longer
 # than this is silently truncated to its first 30s.
@@ -201,6 +221,14 @@ def get_local_transcriber_health() -> dict:
     reports the latest one; no attempt yet reads as available.
     """
     device = resolve_whisper_device()
+    if _LOCAL_IMPORT_ERROR is not None:
+        return {
+            'backend': WHISPER_BACKEND_LOCAL,
+            'device': device,
+            'available': False,
+            'reason': _local_unavailable_message(),
+            'lastOutcome': None,
+        }
     outcome = _latest_local_outcome(device)
     last_outcome = None
     if outcome is not None:
@@ -1247,6 +1275,7 @@ class WhisperModelSingleton:
             cls.unload_model()
 
         if cls._instance is None:
+            _require_local_transcription()
             model_size = reload_model or cls.get_configured_model()
             device = resolve_whisper_device()
             configured_compute_type = _get_whisper_compute_type()
@@ -1417,6 +1446,12 @@ class Transcriber:
         # Last local transcribe() outcome (batch_size/retry_count/device/etc),
         # read by callers that want it beside the per-phase stats (#519).
         self.last_transcription_stats = None
+        if (_LOCAL_IMPORT_ERROR is not None
+                and _get_whisper_settings()['backend'] != WHISPER_BACKEND_API):
+            logger.warning(
+                "Local Whisper packages are missing; transcription will fail until "
+                "they are installed or WHISPER_BACKEND is set to openai-api"
+            )
 
     def _transcribe_via_api(
         self,
@@ -2109,6 +2144,8 @@ class Transcriber:
                 preprocessed=preprocessed,
                 vad_filter=vad_filter,
             )
+        # Outside the try below so the actionable message is not swallowed.
+        _require_local_transcription()
 
         language_setting = _effective_language(language_override, whisper_settings)
         transcribe_language = None if language_setting == 'auto' else (language_setting or 'en')
@@ -2611,6 +2648,7 @@ class Transcriber:
                     audio_path, duration, whisper_settings,
                     language_override=language_override,
                 )
+        _require_local_transcription()
 
         # Get current model and device for memory calculation
         model_name = WhisperModelSingleton.get_configured_model()

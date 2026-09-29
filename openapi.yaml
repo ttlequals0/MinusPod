@@ -14592,6 +14592,12 @@ components:
                 episode after episode is visible instead of silent. On the
                 API backend, false when no base URL is configured, and
                 otherwise the last cached probe result.
+            reason:
+              type: string
+              description: >-
+                Local backend only, and present only when the faster-whisper
+                or ctranslate2 package is missing. Says what to install or
+                which backend to switch to.
             device:
               type: string
               enum: [cpu, cuda]

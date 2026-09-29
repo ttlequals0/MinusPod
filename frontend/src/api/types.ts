@@ -1279,6 +1279,8 @@ export interface SystemStatus {
     backend: 'local' | 'openai-api';
     // Local backend only; the remote one reports probe state instead.
     device?: string | null;
+    // Local backend only: set when the local Whisper packages are missing.
+    reason?: string;
     lastOutcome?: {
       status?: string;
       backend?: string;

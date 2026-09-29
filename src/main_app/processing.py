@@ -173,7 +173,7 @@ from utils.constants import (
 from utils.episode_paths import episode_relative_path
 from utils.errors import (
     AudioExtractionTimeout, AudioNotReadyError, AudioTooLargeError,
-    ServiceUnavailableError,
+    LocalTranscriptionUnavailableError, ServiceUnavailableError,
 )
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.http import safe_url_for_log
@@ -303,6 +303,10 @@ def is_transient_error(error: Exception) -> bool:
     # Oversized enclosures never shrink on retry; the operator can raise
     # MAX_AUDIO_DOWNLOAD_MB and reprocess (#493).
     if isinstance(error, AudioTooLargeError):
+        return False
+
+    # Missing local Whisper packages need an install or a backend change (#795).
+    if isinstance(error, LocalTranscriptionUnavailableError):
         return False
 
     # Network/connection errors are transient

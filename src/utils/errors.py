@@ -20,6 +20,10 @@ class ServiceUnavailableError(Exception):
         self.service = service  # 'llm' or 'whisper'
 
 
+class LocalTranscriptionUnavailableError(RuntimeError):
+    """The local Whisper backend is selected but its packages are not installed."""
+
+
 class AudioExtractionError(Exception):
     """ffmpeg could not extract or decode audio chunks from the source file.
 

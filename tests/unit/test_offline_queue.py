@@ -18,7 +18,9 @@ from main_app import db
 from main_app.processing import _handle_processing_failure, is_transient_error
 from offline_queue import offline_queue_tick
 from utils.circuit_breaker import CircuitBreakerOpen
-from utils.errors import ServiceUnavailableError, AudioTooLargeError
+from utils.errors import (
+    ServiceUnavailableError, AudioTooLargeError, LocalTranscriptionUnavailableError,
+)
 
 
 class TestIsConnectivityError:
@@ -296,3 +298,21 @@ class TestServiceAlerts:
             offline_queue_tick(db)
         mock_fire.assert_called_once_with(service='llm', requeued=1)
         assert db.get_episode(SLUG, seeded_episode)['status'] == 'pending'
+
+
+class TestLocalTranscriptionUnavailableEpisodeOutcome:
+    """Missing local Whisper packages never self-resolve, so the episode must
+    fail permanently instead of deferring as a whisper outage (#795)."""
+
+    MISSING = LocalTranscriptionUnavailableError(
+        "Local Whisper backend needs faster-whisper and ctranslate2")
+
+    def test_not_transient(self):
+        assert is_transient_error(self.MISSING) is False
+
+    def test_not_deferred_when_offline_queue_enabled(self, seeded_episode):
+        db.set_setting('offline_queue_enabled', 'true')
+        _fail(seeded_episode, self.MISSING)
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['status'] == 'permanently_failed'
+        assert not episode.get('deferred_at')
