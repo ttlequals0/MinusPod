@@ -542,7 +542,10 @@ class AudioProcessor:
             filter_str = ';'.join(filter_parts)
             if filter_str:
                 filter_str += ';'
-            filter_str += ''.join(concat_parts) + f"concat=n={len(concat_parts)}:v=0:a=1[out]"
+            # lame rejects short final frames with too little plane padding (#796);
+            # 1152 is the mp3 frame size, so padding the last chunk matches what lame does anyway.
+            filter_str += (''.join(concat_parts) + f"concat=n={len(concat_parts)}:v=0:a=1,"
+                           "asetnsamples=n=1152:p=1[out]")
 
             # Remap embedded chapters (ID3v2 CHAP) onto the cut timeline.
             # ffmpeg copies the input's chapters by default, and their

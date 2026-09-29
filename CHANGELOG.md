@@ -15,7 +15,8 @@ release notes.
 - The replacement audio is now resampled and reformatted to the episode's sample rate and channel layout
   before it is joined to the episode. ffmpeg no longer inserts that conversion on its own. Fixes the
   libmp3lame "inadequate AVFrame plane padding" failure on ffmpeg 9 (#796) and applies to uploaded
-  replacement audio as well as the shipped clip.
+  replacement audio as well as the shipped clip. The encoder also receives full-size frames, so a short
+  trailing frame cannot trip the check.
 
 ## [2.97.36] - 2026-09-29
 

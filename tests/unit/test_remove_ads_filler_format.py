@@ -34,6 +34,7 @@ def _branches(graph):
 
 ONE_AD = [{'start': 100.0, 'end': 160.0}]
 TWO_ADS = [{'start': 100.0, 'end': 160.0}, {'start': 300.0, 'end': 360.0}]
+ASETNSAMPLES = ',asetnsamples=n=1152:p=1[out]'
 STEREO_CHAIN = ('aresample=44100,aformat=sample_fmts=fltp:'
                 'sample_rates=44100:channel_layouts=stereo')
 
@@ -45,6 +46,7 @@ def test_filler_branches_conformed_to_episode(monkeypatch, ads):
     assert len(beeps) == len(ads)
     for b in beeps:
         assert re.search(re.escape(',' + STEREO_CHAIN) + r'\[beep\d+\]$', b), b
+    assert graph.endswith(ASETNSAMPLES)
     assert content
     for c in content:
         assert 'aformat' not in c and 'aresample' not in c
@@ -54,6 +56,7 @@ def test_probe_failure_keeps_current_graph(monkeypatch):
     graph = _filter_graph(monkeypatch, None, TWO_ADS)
     assert 'aformat' not in graph
     assert 'aresample' not in graph
+    assert graph.endswith(ASETNSAMPLES)
 
 
 def test_mono_without_layout_falls_back_to_mono(monkeypatch):
