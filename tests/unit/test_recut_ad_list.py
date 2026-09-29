@@ -16,6 +16,7 @@ _test_data_dir = bootstrap('recut_test_')
 from ad_chapters import AdChapterConfig
 from config import PASS2_REVIEWED_RELEASE_HOLD_REASONS
 from main_app import processing
+from utils.markers import explicit_override
 
 
 @pytest.fixture(autouse=True)
@@ -127,6 +128,82 @@ def test_apply_boundary_adjustments_newest_wins(monkeypatch):
     processing._apply_boundary_adjustments('slug', 'ep', ads)
     assert ads[0]['start'] == 110.0
     assert ads[0]['end'] == 150.0
+
+
+def _split_adjustment(orig_start, orig_end, piece_start, piece_end):
+    """The boundary_adjustment row a split writes for piece 0."""
+    return {'correction_type': 'boundary_adjustment',
+            'original_bounds': {'start': orig_start, 'end': orig_end},
+            'corrected_bounds': {'start': piece_start, 'end': piece_end}}
+
+
+def _pin_corrections(monkeypatch, corrections):
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
+
+
+def test_apply_boundary_adjustments_leaves_split_pieces_alone(monkeypatch):
+    # Issue #794: the longer second piece must not be remapped onto piece 0.
+    ads = [{'start': 1000.0, 'end': 1150.0, 'sponsor': 'Acme'},
+           {'start': 1150.0, 'end': 1400.0, 'sponsor': 'Acme'}]
+    _pin_corrections(monkeypatch, [_split_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
+    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    assert [(a['start'], a['end']) for a in ads] == [(1000.0, 1150.0), (1150.0, 1400.0)]
+
+
+def test_apply_boundary_adjustments_leaves_three_split_pieces_alone(monkeypatch):
+    ads = [{'start': 1000.0, 'end': 1100.0}, {'start': 1100.0, 'end': 1300.0},
+           {'start': 1300.0, 'end': 1400.0}]
+    _pin_corrections(monkeypatch, [_split_adjustment(1000.0, 1400.0, 1000.0, 1100.0)])
+    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    assert [(a['start'], a['end']) for a in ads] == [
+        (1000.0, 1100.0), (1100.0, 1300.0), (1300.0, 1400.0)]
+
+
+def test_apply_boundary_adjustments_already_trimmed_is_idempotent(monkeypatch):
+    # The satisfied newest trim still shields the marker from an older one.
+    ads = [{'start': 105.0, 'end': 150.0}]
+    _pin_corrections(monkeypatch, [
+        _split_adjustment(100.0, 160.0, 105.0, 150.0),
+        _split_adjustment(100.0, 160.0, 101.0, 159.0),
+    ])
+    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    assert (ads[0]['start'], ads[0]['end']) == (105.0, 150.0)
+
+
+def test_apply_boundary_adjustments_split_recut_twice_is_stable(monkeypatch):
+    ads = [{'start': 1000.0, 'end': 1150.0}, {'start': 1150.0, 'end': 1400.0}]
+    _pin_corrections(monkeypatch, [_split_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
+    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    first = [dict(a) for a in ads]
+    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    assert ads == first
+
+
+def test_build_recut_ad_list_cuts_both_split_pieces(monkeypatch):
+    ads = [{'start': 1000.0, 'end': 1150.0, 'confidence': 1.0, 'sponsor': 'Acme',
+            'reason': 'Split from 1000.0s-1400.0s block'},
+           {'start': 1150.0, 'end': 1400.0, 'confidence': 1.0, 'sponsor': 'Acme',
+            'reason': 'Split from 1000.0s-1400.0s block'}]
+    _stub_recut_db(monkeypatch, ads, confirmed=[{
+        'start': 1000.0, 'end': 1400.0, 'correction_type': 'boundary_adjustment',
+        'confirmed_span': {'start': 1000.0, 'end': 1150.0}}])
+    monkeypatch.setattr(
+        processing.db, 'get_episode_corrections',
+        lambda podcast_id, eid: [_split_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
+    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80)
+    assert sorted((a['start'], a['end']) for a in ads_to_remove) == [
+        (1000.0, 1150.0), (1150.0, 1400.0)]
+    assert len(all_ads) == 2
+
+
+def test_explicit_override_recognises_split_piece_zero():
+    confirmed = [{'start': 1000.0, 'end': 1400.0, 'correction_type': 'boundary_adjustment',
+                  'confirmed_span': {'start': 1000.0, 'end': 1150.0}}]
+    assert explicit_override({'start': 1000.0, 'end': 1150.0}, confirmed)
 
 
 def test_final_confirmed_bounds_sync_cut_and_master(monkeypatch):

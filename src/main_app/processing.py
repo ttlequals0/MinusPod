@@ -5029,8 +5029,9 @@ def _best_overlap_ad(all_ads, start, end, exclude_ids=None):
 
 def _apply_boundary_adjustments(slug, episode_id, all_ads):
     """Override ad bounds with the user's boundary_adjustment corrections so a
-    recut cuts the adjusted spans. Each is matched to its ad by original-bounds
-    overlap; newest wins; unmatched corrections are skipped."""
+    recut cuts the adjusted spans. Each is matched to an ad already at its
+    corrected bounds, else by original-bounds overlap; newest wins; unmatched
+    corrections are skipped."""
     podcast = db.get_podcast_by_slug(slug)
     corrections = db.get_episode_corrections(podcast['id'], episode_id) if podcast else []
     adjusted = set()
@@ -5043,6 +5044,18 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
         o_start, o_end = orig.get('start'), orig.get('end')
         n_start, n_end = new.get('start'), new.get('end')
         if None in (o_start, o_end, n_start, n_end):
+            continue
+        # A split piece already sits at its corrected bounds; remapping by overlap
+        # would overwrite a longer sibling piece (#794).
+        satisfied = next((ad for ad in all_ads if id(ad) not in adjusted
+                          and abs((ad.get('start') or 0.0) - n_start) <= EDGE_TOLERANCE
+                          and abs((ad.get('end') or 0.0) - n_end) <= EDGE_TOLERANCE), None)
+        if satisfied is not None:
+            adjusted.add(id(satisfied))
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Recut: boundary adjustment "
+                f"{o_start:.1f}s-{o_end:.1f}s already applied at {n_start:.1f}s-{n_end:.1f}s"
+            )
             continue
         match = _best_overlap_ad(all_ads, o_start, o_end, exclude_ids=adjusted)
         if match is None:
