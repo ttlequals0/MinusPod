@@ -13,7 +13,7 @@ from config import is_pending_review
 from main_app import processing
 from tests.unit.marker_test_utils import _ad
 from tests.unit.pipeline_test_utils import _run_pipeline
-from tests.unit.recut_test_utils import ALL_REMOVE, run_action_recut
+from tests.unit.recut_test_utils import ALL_REMOVE, _recut_render_call, run_action_recut
 from tests.unit.reviewer_test_utils import InconclusiveError, _LLMResp, _reviewer
 
 # 600 s keeps the validator's end-of-episode extension away from the fixtures.
@@ -281,3 +281,22 @@ def test_helper_promote_clips_stale_dai_core_and_members():
 
 def test_helper_false_positive_majority_skips_confirm():
     assert _restore([], [], [CONFIRM], fps=[{'start': 120.0, 'end': 145.0}]) == []
+
+
+def test_full_run_and_recut_agree_on_reviewer_reject_barriers(monkeypatch, tmp_path):
+    # A user confirm covering part of a rejected fragment lifts the reject there on both paths.
+    confirmed = [{'start': 110.0, 'end': 140.0, 'correction_type': 'confirm'},
+                 {'start': 145.0, 'end': 200.0, 'correction_type': 'confirm',
+                  'confirmed_span': {'start': 175.0, 'end': 200.0}}]
+    run, cuts = _run(monkeypatch, [_candidate(100.0, 200.0)], confirmed=confirmed)
+    full = run['local_ap'].process_episode.call_args.kwargs['hard_barriers']
+
+    recut = _recut_render_call(tmp_path, _saved(run), [dict(c) for c in confirmed])
+
+    def spans(barriers):
+        return sorted((b['start'], b['end']) for b in barriers)
+    # The confirms cover over half of each rejected fragment, so only the trim remains a barrier.
+    assert spans(full) == [(145.0, 175.0)]
+    assert cuts == [(110.0, 140.0), (175.0, 200.0)]
+    assert spans(recut.kwargs['hard_barriers']) == spans(full)
+    assert sorted((s['start'], s['end']) for s in recut.args[1]) == cuts

@@ -48,7 +48,6 @@ def finite_number(value) -> float | None:
     return number if math.isfinite(number) else None
 
 
-
 def timed_span(unit: dict) -> tuple[float, float] | None:
     """(start, end) of a timed word or segment, or None unless both edges are finite and ordered."""
     lo, hi = finite_number(unit.get('start')), finite_number(unit.get('end'))
@@ -77,6 +76,7 @@ class TimedWords:
         # The first word ending past the edge straddles it if it also starts before it.
         first = bisect_right(max_ends, value + tol)
         return self.spans[first] if first < bisect_left(starts, value - tol) else None
+
 
 def quote_edge_valid(marker: dict, edge: str) -> bool:
     quote_time = finite_number(marker.get(f'quote_{edge}'))

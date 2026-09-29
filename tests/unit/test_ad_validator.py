@@ -1,4 +1,5 @@
 """Unit tests for AdValidator class."""
+import json
 import logging
 import pytest
 import sys
@@ -3013,6 +3014,38 @@ def test_silent_remainders_stay_held_when_the_cut_would_pass_the_feed_cap():
     assert cut['validation']['decision'] == Decision.ACCEPT.value
     assert not cut.get('held_for_review')
     assert lead['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
+def test_silent_absorption_stays_under_the_base_duration_limit():
+    ad = {'start': 1500.0, 'end': 1790.0, 'confidence': 0.92, 'reason': 'possible ad',
+          'detection_stage': 'claude'}
+    mark_distinct_merge(ad, {'start': 1780.0, 'end': 1805.0, 'confidence': 0.95,
+                             'detection_stage': 'text_pattern', 'span_estimated': True,
+                             'text_start': 1780.0, 'text_end': 1790.0,
+                             'has_estimated_pattern_member': True})
+    ad['end'] = 1805.0
+    validator = AdValidator(3600.0, [{'start': 1500.0, 'end': 1790.0, 'text': 'a read'}],
+                            splice_veto_enabled=False)
+
+    result = validator.validate([ad], audio_analysis=_silence((1790.0, 1805.0)))
+
+    assert _spans(result) == [(1500.0, 1790.0), (1790.0, 1805.0)]
+    cut, held = result.ads
+    assert cut['validation']['decision'] == Decision.ACCEPT.value
+    assert not cut.get('held_for_review')
+    assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
+def test_silent_remainder_flags_do_not_return_on_revalidation():
+    validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False)
+    cut = validator.validate([_outro_estimate()], audio_analysis=_BOTH_SILENT).ads[0]
+    assert cut['_learning_bounds'] == (815.6, 995.1)
+    saved = json.loads(json.dumps({k: v for k, v in cut.items() if k != 'validation'}))
+
+    again = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False).validate(
+        [saved], audio_analysis=_BOTH_SILENT).ads[0]
+
+    assert not any('Silent estimated remainder' in f for f in again['validation']['flags'])
 
 
 def test_long_silent_remainder_is_cut():

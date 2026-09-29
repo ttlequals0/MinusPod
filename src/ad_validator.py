@@ -801,7 +801,9 @@ class AdValidator:
         Returns:
             Ad marker with 'validation' field added
         """
-        measured = ad.get('_learning_bounds') or (ad['start'], ad['end'])
+        # Only the validation that absorbed the silence reports it; _learning_bounds persists.
+        measured = ((ad.get('_learning_bounds') if ad.pop('_silent_absorbed', False) else None)
+                    or (ad['start'], ad['end']))
         flags = [f"INFO: Silent estimated remainder cut with the ad ({gap:.1f}s)"
                  for gap in (measured[0] - ad['start'], ad['end'] - measured[1]) if gap > 0]
         corrections = []
@@ -1540,7 +1542,7 @@ class AdValidator:
             else:
                 remainder_spans = []
                 cut_lo, cut_hi = lo, hi
-                cap = self._silent_absorb_cap(ad)
+                cap = self._silent_absorb_cap(hi - lo)
                 # Each remainder shares an edge with the measured cut by construction.
                 for a, b in ((ad['start'], lo), (hi, ad['end'])):
                     if b - a < MIN_AD_DURATION:
@@ -1562,6 +1564,7 @@ class AdValidator:
                 if (cut_lo, cut_hi) != (lo, hi):
                     # Learning keeps the measured bounds so a pattern never grows the silence.
                     cut['_learning_bounds'] = (lo, hi)
+                    cut['_silent_absorbed'] = True
                 result.corrections.append(
                     f"Split estimated pattern span {ad['start']:.1f}s-"
                     f"{ad['end']:.1f}s at measured {lo:.1f}s-{hi:.1f}s")
@@ -1576,11 +1579,10 @@ class AdValidator:
         out.sort(key=lambda a: a['start'])
         return out
 
-    def _silent_absorb_cap(self, ad: dict) -> float:
-        """Longest cut silence may grow to without tripping a duration hold or reject."""
-        cap = (self.max_ad_duration_confirmed
-               if ad.get('confidence', 1.0) >= HIGH_CONFIDENCE_OVERRIDE
-               else self.max_ad_duration)
+    def _silent_absorb_cap(self, measured: float) -> float:
+        """Longest cut silence may grow to without adding a duration hold the measured cut avoids."""
+        # Only a measured cut already past the base limit may grow beyond it.
+        cap = math.inf if measured > self.max_ad_duration else self.max_ad_duration
         if self.max_ad_duration_override is not None:
             cap = min(cap, self.max_ad_duration_override)
         return cap
