@@ -253,9 +253,9 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
     block_len = end - start
     if block_len < MIN_REGION_S:
         return 'unknown', None
-    ref_s = min(XCORR_REF_S, block_len)
     # Lead past the half-silence at the block edge when there is room.
-    run_t = dai_probe_window(start, end)[0]
+    run_t, probe_end = dai_probe_window(start, end)
+    ref_s = round(probe_end - run_t, 6)  # float noise must not drop a template sample
     prepared = _prepare_template(run_pcm, run_t, ref_s)
     corr, best_offset = None, None
     for offset in offsets:

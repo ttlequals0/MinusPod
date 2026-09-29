@@ -20,6 +20,28 @@ release notes.
 - The local Whisper packages (faster-whisper, ctranslate2) are optional when WHISPER_BACKEND is
   openai-api. Selecting the local backend without them fails with an actionable error instead of a
   generic transcription failure, and the system status reports the missing packages (#795).
+- The pass-2 reviewer now receives the same hard protection barriers as pass 1, so an adjustment that
+  reaches into kept audio is clamped instead of held.
+- Pass-2 validation uses the once-per-run false-positive snapshot; the pass-2 failure path records an
+  outcome on held and kept markers.
+- Reviewer rejects are render barriers in the full run as well as on recut.
+- A user confirm inside a reviewer-rejected span is cut on the recut as well as the full run; the rest of
+  the rejected span stays a barrier on both.
+- Cross-fetch probe windows are clamped to the refetch file, and blocks at the file edges are probed at
+  the edge offsets, so a pre-roll or post-roll present in only one fetch is classified correctly.
+- The long-window sponsor gate requires commercial context for description sponsors, as it does for
+  registry brands. The content-extension start walk checks the segment that straddles the ad start. A
+  word-timed end edge is trimmed to the return-to-show cue, like the start edge.
+- The correction origin backfill maps the oldest hold snippet to a valid hold reason and repairs rows
+  written with the invalid value.
+
+### Changed
+- Shared helpers replace duplicated interval merging, carving, pass-2 hold handling, end-edge
+  inheritance and sponsor gate rules. Validator registry lookups, pattern outro checks, render probes and
+  the detections listing do less repeated work. Marker fields already returned by the API are now
+  documented.
+- The long-window sponsor gate and the validator share one registry rule: the best-supported brand with
+  at least two mentions and commercial context confirms the sponsor.
 
 ## [2.97.36] - 2026-09-29
 
@@ -48,9 +70,9 @@ release notes.
 
 ### Added
 
-- Every pass-2 span now ends with one logged outcome: cut, held, kept, rejected, covered or dropped, with the reason and its bounds in original time. Run stats count each outcome.
-- Confirms filed by pass-2 auto-approval now record the hold they released (`hold_id`). A hold gets its id when first held. Holds saved before this release get one derived from their bounds and reason when loaded, so repeated loads agree. The id survives a recut and other paths that start from stored markers, so releases of one hold stay grouped even if its edges move. A full re-detect creates new holds with new ids. Confirms filed before that, and older confirms without a hold id, group by exact hold bounds.
-- Markers that pass 2 ends with now carry `pass2_outcome` in the API: cut, kept, or held with its reason. Spans pass 2 discarded are still only logged and counted in run stats.
+- Every pass-2 span now ends with one logged outcome: cut, held, kept, rejected, covered or dropped, with the reason and its bounds in original time. The stored run stats count each outcome; the API does not return those counts.
+- Confirms filed by pass-2 auto-approval now record the hold they released (`hold_id`). A hold gets its id when first held. Holds saved before this release get one derived from their bounds and reason when loaded, so repeated loads agree. The id survives a recut and other paths that start from stored markers, so releases of one hold stay grouped even if its edges move. A full re-detect creates new holds with new ids. Confirms filed against an earlier hold still group by that hold's id, and older confirms without a hold id group by exact hold bounds.
+- Markers that pass 2 ends with now carry `pass2_outcome` in the API: cut, kept, or held with its reason. Spans pass 2 discarded are still only logged and counted in the stored run stats.
 
 ## [2.97.33] - 2026-09-28
 
@@ -111,7 +133,7 @@ release notes.
 - Pass 2 now treats category-kept audio as a fixed barrier instead of a pending hold, like keeps, user trims and user rejections, and carves kept audio out of its cuts.
 - Audio the user marked as not an ad is now a hard limit for every render. Pass 2 and recuts now clip a cut at it, as pass 1 already did.
 - Segment action controls stay aligned when a feed override is set.
-- A marker now shows as cut only when the rendered audio removed it. Rejected, held and kept markers, and requested cuts the render dropped, are saved as not cut. A marker the render removed only in part stays not cut and records the part that was removed. Marker state, counts, the saved cut list, the transcript and chapters come from the same rendered cuts.
+- A marker now shows as cut only when the rendered audio removed it. Rejected, held and kept markers, and requested cuts the render dropped, are saved as not cut. A marker the render removed only in part is split into cut and uncut fragments (see 2.97.32). Marker state, counts, the saved cut list, the transcript and chapters come from the same rendered cuts.
 - Markers a render only partly removed now show the removed parts in the episode view.
 - A failed or cancelled run, including a recut, no longer leaves new ad markers next to the old published audio. A failed render changes nothing, and markers saved before a later failure are restored. The recut publishes its audio and assets before it saves markers, and a full run saves its final markers after its assets.
 - A failure after an episode's new audio is published, for example while writing history, no longer puts the old ad markers back next to it.
@@ -239,7 +261,7 @@ release notes.
 ### Fixed
 
 - Split is disabled when no reliable boundary exists. Failed splits leave the original pattern active.
-- Reviewer abstentions report missing boundary coverage and retain the original marker.
+- Reviewer abstentions report missing boundary coverage. Since 2.97.22 the marker keeps its bounds only when measured evidence supports them and is otherwise held for review.
 - SQLite transaction warnings distinguish elapsed time that may include a lock wait from time spent holding a write lock.
 
 ## [2.97.17] - 2026-09-23
@@ -252,7 +274,7 @@ release notes.
 ### Fixed
 
 - Served RSS now reports the processed audio duration for completed episodes.
-- Reviewer abstentions on inconclusive HTTP 422 responses retain the original marker, show a bounded reason, and avoid retries or breaker failures.
+- Reviewer abstentions on inconclusive HTTP 422 responses show a bounded reason and avoid retries or breaker failures. Since 2.97.22 the marker keeps its bounds only when measured evidence supports them and is otherwise held for review.
 
 ## [2.97.16] - 2026-09-23
 
