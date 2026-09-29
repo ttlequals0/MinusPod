@@ -9,6 +9,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.36] - 2026-09-29
+
+### Fixed
+
+- A feed body cut inside a CDATA section or comment is now rejected as truncated instead of being accepted as a partial document. The stored episodes are kept and the refresh retries, as it already does for a body that ends mid-element.
+
+### Changed
+
+- The identity retry that follows a gzip decode failure logs the body size and whether the response declared a length, so a repeatedly short body can be traced to the transport.
+
 ## [2.97.35] - 2026-09-29
 
 ### Fixed
