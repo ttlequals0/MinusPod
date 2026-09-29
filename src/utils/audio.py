@@ -3,6 +3,7 @@
 Provides shared audio file operations used across multiple modules.
 """
 
+import json
 import logging
 import os
 import subprocess
@@ -37,6 +38,30 @@ def get_audio_codec(audio_path: str) -> str | None:
                        f"{result.stderr or 'no output'}")
     except Exception as e:
         logger.warning(f"Codec query failed for {audio_path}: {e}")
+    return None
+
+
+def probe_audio_format(audio_path: str) -> tuple[int, int, str] | None:
+    """(sample_rate, channels, channel_layout) of the first audio stream, or None."""
+    cmd = [
+        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'error',
+        '-select_streams', 'a:0',
+        '-show_entries', 'stream=sample_rate,channels,channel_layout',
+        '-of', 'json',
+        audio_path
+    ]
+    try:
+        result = tracked_run(cmd, capture_output=True, text=True,
+                             timeout=FFPROBE_TIMEOUT)
+        if result.returncode != 0:
+            logger.debug(f"ffprobe format query failed for {audio_path}: "
+                         f"{result.stderr or 'no output'}")
+            return None
+        stream = json.loads(result.stdout)['streams'][0]
+        return (int(stream['sample_rate']), int(stream['channels']),
+                stream.get('channel_layout') or '')
+    except Exception as e:
+        logger.debug(f"Format query failed for {audio_path}: {e}")
     return None
 
 

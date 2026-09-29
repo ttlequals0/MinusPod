@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.37] - 2026-09-29
+
+### Fixed
+- The replacement audio is now resampled and reformatted to the episode's sample rate and channel layout
+  before it is joined to the episode. ffmpeg no longer inserts that conversion on its own. Fixes the
+  libmp3lame "inadequate AVFrame plane padding" failure on ffmpeg 9 (#796) and applies to uploaded
+  replacement audio as well as the shipped clip.
+
 ## [2.97.36] - 2026-09-29
 
 ### Fixed

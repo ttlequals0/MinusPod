@@ -6,7 +6,7 @@ import os
 import shutil
 from pathlib import Path
 
-from utils.audio import AudioMetadata, get_audio_duration
+from utils.audio import AudioMetadata, get_audio_duration, probe_audio_format
 from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
@@ -464,6 +464,17 @@ class AudioProcessor:
             cut_total = sum(a['end'] - a['start'] for a in ads)
             expected_duration = total_duration - cut_total + sum(a['replacement_duration'] for a in ads)
 
+            # concat needs identical formats; the implicit resampler ffmpeg
+            # inserts otherwise is what ffmpeg 9 on aarch64 trips on (#796).
+            conform = ''
+            episode_format = probe_audio_format(input_path)
+            if episode_format:
+                rate, channels, layout = episode_format
+                layout = layout or {1: 'mono', 2: 'stereo'}.get(channels, '')
+                conform = f",aresample={rate},aformat=sample_fmts=fltp:sample_rates={rate}"
+                if layout:
+                    conform += f":channel_layouts={layout}"
+
             # Split beep input into N copies (one per ad) - ffmpeg streams can only be used once
             num_ads = len(ads)
             if num_ads > 1:
@@ -509,7 +520,7 @@ class AudioProcessor:
                     filler = ad['replacement_duration']
                     if filler > beep_duration:
                         beep_chain += f",apad=whole_dur={filler:.3f}"
-                filter_parts.append(f"{beep_chain}[beep{segment_idx}]")
+                filter_parts.append(f"{beep_chain}{conform}[beep{segment_idx}]")
                 concat_parts.append(f"[beep{segment_idx}]")
 
                 current_time = ad_end
