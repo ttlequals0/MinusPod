@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import shutil
 from datetime import datetime, timedelta, timezone
 
 import diagnostic_log
@@ -233,3 +234,34 @@ def test_export_skips_an_oversized_line_and_keeps_scanning(tmp_path):
 
     assert [e['ts'][11:13] for e in result['events']] == ['11', '12', '13']
     assert result['truncated'] is True
+
+
+def test_handler_checks_the_directory_once_and_survives_its_removal(tmp_path, monkeypatch):
+    handler = DiagnosticHandler(tmp_path)
+    checks = []
+    real = handler._ensure_directory
+    monkeypatch.setattr(handler, '_ensure_directory', lambda: checks.append(1) or real())
+    record = logging.LogRecord('podcast.api', logging.INFO, __file__, 12, 'ignored', (), None)
+    for _ in range(5):
+        handler.emit(record)
+    # Once on first write and once after the first prune, not once per record.
+    assert len(checks) == 2
+
+    shutil.rmtree(tmp_path / 'logs' / 'diagnostics')
+    handler.emit(record)
+    path = tmp_path / 'logs' / 'diagnostics' / f'diagnostic-{record.process}.jsonl'
+    assert len(path.read_text().splitlines()) == 1
+
+
+def test_byte_counter_rotates_at_the_same_record_as_a_stat(tmp_path, monkeypatch):
+    monkeypatch.setattr(diagnostic_log, 'MAX_FILE_BYTES', 400)
+    handler = DiagnosticHandler(tmp_path)
+    record = logging.LogRecord('podcast.api', logging.INFO, __file__, 12, 'ignored', (), None)
+    directory = tmp_path / 'logs' / 'diagnostics'
+    sizes = []
+    for _ in range(12):
+        handler.emit(record)
+        sizes.append((directory / f'diagnostic-{record.process}.jsonl').stat().st_size)
+    line = sizes[0]
+    per_file = 400 // line
+    assert sizes == [line * (i % per_file + 1) for i in range(12)]

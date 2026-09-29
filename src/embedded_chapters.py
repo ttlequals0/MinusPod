@@ -54,7 +54,11 @@ def probe_chapters(audio_path: str) -> list[dict] | None:
     except (OSError, subprocess.SubprocessError, ValueError) as e:
         logger.warning(f"ffprobe chapter read failed for {audio_path}: {e}")
         return None
+    return parse_chapters(chapters)
 
+
+def parse_chapters(chapters: list[dict]) -> list[dict]:
+    """Chapters from ffprobe's chapter entries as start/end/title dicts, skipping malformed ones."""
     out = []
     for ch in chapters:
         try:

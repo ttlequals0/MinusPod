@@ -2,7 +2,6 @@
 import json
 import logging
 import os
-import threading
 import time
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -131,7 +130,8 @@ class DiagnosticHandler(logging.Handler):
         super().__init__(level=logging.INFO)
         self.directory = _diagnostic_directory(data_dir)
         self.base_path = self.directory / f'diagnostic-{os.getpid()}'
-        self._lock = threading.Lock()
+        # Bytes in the current file; None re-checks the directory and re-reads the size.
+        self._size = None
         self._last_prune = 0.0
 
     def emit(self, record):
@@ -148,17 +148,31 @@ class DiagnosticHandler(logging.Handler):
                 'version': _SAFE_VERSION,
             }
             encoded = (json.dumps(event, separators=(',', ':')) + '\n').encode()
-            with self._lock:
+            # Handler.handle already holds self.lock around emit.
+            path = self.base_path.with_suffix('.jsonl')
+            if self._size is None:
                 self._ensure_directory()
-                path = self.base_path.with_suffix('.jsonl')
-                if path.exists() and path.stat().st_size + len(encoded) > MAX_FILE_BYTES:
-                    self._rotate()
-                self._append(self.base_path.with_suffix('.jsonl'), encoded)
-                now = time.monotonic()
-                if now - self._last_prune >= 60:
-                    self._prune()
-                    self._last_prune = now
+                self._size = path.stat().st_size if path.exists() else 0
+            if self._size and self._size + len(encoded) > MAX_FILE_BYTES:
+                self._rotate()
+                # A failed rotate leaves the file in place; its size decides the next try.
+                self._size = path.stat().st_size if path.exists() else 0
+            try:
+                self._append(path, encoded)
+            except FileNotFoundError:
+                # The directory was removed since it was last checked.
+                self._ensure_directory()
+                self._append(path, encoded)
+                self._size = 0
+            self._size += len(encoded)
+            now = time.monotonic()
+            if now - self._last_prune >= 60:
+                # Pruning can remove this file, so the size is re-read next time.
+                self._size = None
+                self._prune()
+                self._last_prune = now
         except Exception:
+            self._size = None
             return
 
     def _ensure_directory(self):

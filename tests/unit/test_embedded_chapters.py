@@ -9,6 +9,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+import embedded_chapters
+import utils.audio
+from audio_processor import AudioProcessor
 from embedded_chapters import (
     chapters_to_spans, embed_chapters, probe_chapters, remap_chapters,
     render_ffmetadata,
@@ -176,6 +179,29 @@ class TestRemoveAdsRemapsEmbeddedChapters:
         beep_len = proc.get_beep_duration()
         # Main was at 40s; 20s cut replaced by the beep.
         assert chapters[1]['start'] == pytest.approx(40.0 - 20.0 + beep_len, abs=0.5)
+
+    def test_the_input_is_probed_once(self, tmp_path, monkeypatch):
+        mp3 = self._make_chaptered_mp3(tmp_path)
+        beep = self._make_beep(tmp_path)
+        probes = []
+        for module in (utils.audio, embedded_chapters):
+            real = module.tracked_run
+            monkeypatch.setattr(module, 'tracked_run', lambda cmd, *a, _real=real, **k: (
+                probes.append(cmd) if cmd[0] == 'ffprobe' and cmd[-1] == str(mp3) else None)
+                or _real(cmd, *a, **k))
+        proc = AudioProcessor(replace_audio_path=str(beep), bitrate="64k")
+        out = tmp_path / "out.mp3"
+        assert proc.remove_ads(str(mp3), [{'start': 10.0, 'end': 30.0}], str(out))
+        assert len(probes) == 1
+        assert [c['title'] for c in probe_chapters(str(out))] == ['Intro', 'Main']
+
+    def test_render_probe_reads_duration_format_and_chapters(self, tmp_path):
+        probe = utils.audio.probe_render_input(str(self._make_chaptered_mp3(tmp_path)))
+        assert probe.duration == pytest.approx(60.0, abs=0.1)
+        assert probe.audio_format == (44100, 1, 'mono')
+        assert [c['title'] for c in embedded_chapters.parse_chapters(probe.chapters)] == [
+            'Intro', 'Main']
+        assert utils.audio.probe_render_input(str(tmp_path / 'missing.mp3')) is None
 
     def test_chapterless_input_stays_chapterless(self, tmp_path):
         from audio_processor import AudioProcessor

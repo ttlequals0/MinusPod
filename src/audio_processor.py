@@ -6,8 +6,8 @@ import os
 import shutil
 from pathlib import Path
 
-from utils.audio import AudioMetadata, get_audio_duration, probe_audio_format
-from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
+from utils.audio import AudioMetadata, get_audio_duration, probe_render_input
+from embedded_chapters import parse_chapters, remap_chapters, render_ffmetadata
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.paths import resolve_data_dir
@@ -427,8 +427,9 @@ class AudioProcessor:
 
         chapters_meta_path = None
         try:
-            # Get total duration
-            total_duration = self.get_audio_duration(input_path)
+            # One probe for the input's duration, format and chapters.
+            render_input = probe_render_input(input_path)
+            total_duration = render_input.duration if render_input else None
             if not total_duration:
                 logger.error("Could not get audio duration")
                 return None
@@ -467,7 +468,7 @@ class AudioProcessor:
             # concat needs identical formats; the implicit resampler ffmpeg
             # inserts otherwise is what ffmpeg 9 on aarch64 trips on (#796).
             conform = ''
-            episode_format = probe_audio_format(input_path)
+            episode_format = render_input.audio_format
             if episode_format:
                 rate, channels, layout = episode_format
                 layout = layout or {1: 'mono', 2: 'stereo'}.get(channels, '')
@@ -551,10 +552,8 @@ class AudioProcessor:
             # ffmpeg copies the input's chapters by default, and their
             # timestamps point at the wrong content once ads are removed
             # (issue #500). Remapped chapters are injected as an ffmetadata
-            # input; a definitively chapterless input is stripped explicitly;
-            # a failed probe (None) keeps ffmpeg's default passthrough so a
-            # transient ffprobe failure cannot silently destroy chapters.
-            embedded = probe_chapters(input_path)
+            # input; otherwise chapters are stripped. A failed probe never gets here.
+            embedded = parse_chapters(render_input.chapters)
             remapped = []
             if embedded:
                 remapped = remap_chapters(
@@ -575,7 +574,7 @@ class AudioProcessor:
             ]
             if chapters_meta_path:
                 cmd += ['-f', 'ffmetadata', '-i', chapters_meta_path, '-map_chapters', '2']
-            elif embedded is not None:
+            else:
                 cmd += ['-map_chapters', '-1']
             cmd += [
                 '-filter_complex', filter_str,

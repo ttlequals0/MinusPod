@@ -6,19 +6,17 @@ import pytest
 
 import audio_processor
 from audio_processor import AudioProcessor
+from utils.audio import RenderInput
 
 
 def _filter_graph(monkeypatch, probe, ads):
     p = AudioProcessor()
-    monkeypatch.setattr(p, 'get_audio_duration',
-                        MagicMock(side_effect=[600.0, 600.0]))
+    monkeypatch.setattr(p, 'get_audio_duration', MagicMock(return_value=600.0))
     monkeypatch.setattr(p, 'get_beep_duration', MagicMock(return_value=1.0))
     run = MagicMock(return_value=MagicMock(returncode=0))
     monkeypatch.setattr(audio_processor, 'tracked_run', run)
-    monkeypatch.setattr(audio_processor, 'probe_chapters',
-                        MagicMock(return_value=[]))
-    monkeypatch.setattr(audio_processor, 'probe_audio_format',
-                        MagicMock(return_value=probe))
+    monkeypatch.setattr(audio_processor, 'probe_render_input',
+                        MagicMock(return_value=RenderInput(600.0, probe, [])))
     assert p.remove_ads('/nonexistent-in.mp3', ads,
                         '/nonexistent-out.mp3') is not None
     cmd = run.call_args[0][0]
@@ -60,7 +58,7 @@ def test_beep_padding_precedes_conform(monkeypatch):
                      beeps[0]), beeps[0]
 
 
-def test_probe_failure_keeps_current_graph(monkeypatch):
+def test_unknown_format_keeps_current_graph(monkeypatch):
     graph = _filter_graph(monkeypatch, None, TWO_ADS)
     assert 'aformat' not in graph
     assert 'aresample' not in graph
