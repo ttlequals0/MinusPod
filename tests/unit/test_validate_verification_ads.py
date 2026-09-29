@@ -24,6 +24,7 @@ from main_app.processing import (
     _validate_verification_ads,
 )
 import main_app.processing as processing_mod
+import main_app.verification_reconciliation as vr
 
 def _user_corrections(slug, episode_id):
     """The (fp, confirmed) corrections the test's db holds."""
@@ -1154,6 +1155,23 @@ def test_drop_uncovered_handles_twinless_cut():
 
     assert v_ads_to_cut == [covered]
     assert filtered['was_cut'] is False
+
+
+def test_drop_uncovered_maps_twinless_cuts_with_one_timestamp_map(monkeypatch):
+    builds = []
+    real = vr._build_timestamp_map
+    monkeypatch.setattr(vr, '_build_timestamp_map', lambda cuts: builds.append(cuts) or real(cuts))
+    filtered = [{'start': 300.0, 'end': 305.0}, {'start': 400.0, 'end': 405.0}]
+    ledger = vr.Pass2Ledger()
+
+    _drop_uncovered_pass2_ads(
+        's', 'e', list(filtered), [], [], [], [], total_duration=600.0,
+        pass1_cuts=[{'start': 50.0, 'end': 80.0}], ledger=ledger)
+
+    assert len(builds) == 1
+    beep = processing_mod.get_replacement_duration()
+    assert [(e[1], e[2]) for e in ledger._entries.values()] == [
+        (300.0 + 30.0 - beep, 305.0 + 30.0 - beep), (400.0 + 30.0 - beep, 405.0 + 30.0 - beep)]
 
 
 def test_drop_uncovered_removes_split_cut_ui_twin():

@@ -1,7 +1,9 @@
 """Pass-2 verification reconciliation: validating, gating, and recutting
 pass-2 ad candidates against pass-1 output."""
 import logging
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
+from itertools import accumulate, pairwise
 
 from audio_processor import get_replacement_duration
 from config import (
@@ -200,20 +202,41 @@ def _corroborated_span(hold, orig_ad):
     }
 
 
-def _inside_word_edge(segments, value, edge):
-    """Move an edge inward off any timed word it splits."""
-    for seg in segments or []:
-        for word in seg.get('words') or []:
-            lo, hi = word.get('start'), word.get('end')
-            if lo is None or hi is None:
-                continue
-            if lo < value - EDGE_TOLERANCE and hi > value + EDGE_TOLERANCE:
-                return hi if edge == 'start' else lo
-    return value
+class WordEdges:
+    """A transcript's timed words, indexed on first use for inward edge moves."""
+
+    def __init__(self, segments):
+        self._segments = segments or []
+        self._words = None
+
+    def _build(self):
+        self._words = [(w['start'], w['end']) for seg in self._segments
+                       for w in seg.get('words') or []
+                       if w.get('start') is not None and w.get('end') is not None]
+        self._starts = [lo for lo, _hi in self._words]
+        self._ordered = all(a <= b for a, b in pairwise(self._starts))
+        self._max_ends = list(accumulate((hi for _lo, hi in self._words), max))
+
+    def inside(self, value, edge):
+        """Move an edge inward off the first timed word it splits."""
+        if self._words is None:
+            self._build()
+        lo_below, hi_above = value - EDGE_TOLERANCE, value + EDGE_TOLERANCE
+        if self._ordered:
+            # First word ending past the edge; it splits the edge if it also starts before it.
+            first = bisect_right(self._max_ends, hi_above)
+            word = (self._words[first]
+                    if first < bisect_left(self._starts, lo_below) else None)
+        else:
+            word = next(((lo, hi) for lo, hi in self._words
+                         if lo < lo_below and hi > hi_above), None)
+        if word is None:
+            return value
+        return word[1] if edge == 'start' else word[0]
 
 
 def _hold_release_span(hold, orig_ad, min_cut_confidence, other_holds,
-                       hard_barriers_orig, segments):
+                       hard_barriers_orig, word_edges):
     """Narrowest pass-2-supported (start, end) inside a hold, original time, or None."""
     lo = max(orig_ad['start'], hold['start'])
     hi = min(orig_ad['end'], hold['end'])
@@ -237,8 +260,8 @@ def _hold_release_span(hold, orig_ad, min_cut_confidence, other_holds,
     if not pieces:
         return None
     lo, hi = max(pieces, key=lambda piece: piece[1] - piece[0])
-    lo = _inside_word_edge(segments, lo, 'start')
-    hi = _inside_word_edge(segments, hi, 'end')
+    lo = word_edges.inside(lo, 'start')
+    hi = word_edges.inside(hi, 'end')
     if hi - lo < MIN_AD_DURATION:
         return None
     if any(overlap_seconds(lo, hi, b['start'], b['end']) > EDGE_TOLERANCE
@@ -510,14 +533,14 @@ def _gate_hold_split_fragments(slug, episode_id, parents, protection, fp, valida
 
 
 def _add_release_candidate(release_by_hold, orig_ad, hold, overlapping,
-                           min_cut_confidence, hard_barriers_orig, segments):
+                           min_cut_confidence, hard_barriers_orig, word_edges):
     """Record the finding's supported span in hold for review, longest of overlapping ones; True if recorded."""
     if (hold.get('hold_reason') not in PASS2_REVIEWED_RELEASE_HOLD_REASONS
             or hold.get('pass2_corroborated') or hold.get('pass2_reviewed_release')):
         return False
     span = _hold_release_span(
         hold, orig_ad, min_cut_confidence,
-        [h for h in overlapping if h is not hold], hard_barriers_orig, segments)
+        [h for h in overlapping if h is not hold], hard_barriers_orig, word_edges)
     if span is None:
         return False
     _hold, subs = release_by_hold.setdefault(id(hold), (hold, []))
@@ -601,6 +624,7 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     v_ads_held = []
     corroborated_count = 0
     release_by_hold = {}
+    word_edges = WordEdges(segments)
     for ad, orig_ad in zip(verification_ads_processed, verification_ads_original, strict=True):
         # Held ads divert to the held list; never cut, never enter the UI/reviewer pool.
         # Checked before the pass-1 overlap below so a held ad can never
@@ -655,7 +679,7 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                     for hold in overlapping:
                         sent |= _add_release_candidate(
                             release_by_hold, orig_ad, hold, overlapping,
-                            min_cut_confidence, hard_barriers_orig, segments)
+                            min_cut_confidence, hard_barriers_orig, word_edges)
                 if sent:
                     audio_logger.info(
                         f"Sent pass-2 span {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s "
@@ -747,6 +771,7 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
     # strict: a cut can legitimately lack a UI twin (e.g. merged spans).
     twin.update({id(p): o for p, o in zip(v_ads_to_cut, v_ads_for_ui,
                                           strict=False)})
+    ts_map = None
     for ad in [a for a in v_ads_to_cut
                if not _covered_by_cuts(a, recut_applied, total_duration)]:
         v_ads_to_cut.remove(ad)
@@ -759,7 +784,8 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                     del v_ads_for_ui[i]
                     break
         else:
-            ts_map, beep = _build_timestamp_map(pass1_cuts or []), get_replacement_duration()
+            if ts_map is None:
+                ts_map, beep = _build_timestamp_map(pass1_cuts or []), get_replacement_duration()
             ui_ad = {'start': _map_to_original(ad['start'], ts_map, beep),
                      'end': _map_to_original(ad['end'], ts_map, beep)}
         ledger.record(ui_ad, 'dropped:recut_filtered')

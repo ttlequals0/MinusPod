@@ -1258,6 +1258,8 @@ def test_recut_episode_keeps_rejects_out_of_saved_markers_and_applied_cuts(tmp_p
 
         assert processing._recut_episode(
             'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
+        # The recut reads the episode row once and builds its ad list from that read.
+        assert db.get_episode.call_count == 1
 
     for lo, hi in rejects:
         marker = _find(saved['markers'], (lo, hi))

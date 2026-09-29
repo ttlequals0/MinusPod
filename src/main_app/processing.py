@@ -5026,16 +5026,19 @@ def _split_recut_counts(total_cut, verification_count):
 
 def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
                           episode_description, min_cut_confidence,
-                          podcast_id=None, segment_actions=None, *, corrections):
+                          podcast_id=None, segment_actions=None, *, corrections,
+                          episode_row=None):
     """Build the cut list for a recut from the stored detections plus the user's
     edits, with no re-detection. Manual adds already live in ad_markers_json;
     boundary adjustments are applied here; rejects/confirms and confidence
     gating run through the same AdValidator path a full reprocess uses.
     segment_actions is loaded when not passed.
-    Returns (ads_to_remove, all_ads_with_validation, keep_ads, reviewer_rejects)."""
+    Returns (ads_to_remove, all_ads_with_validation, keep_ads, reviewer_rejects).
+    episode_row is the caller's episode read, loaded when not passed."""
     from ad_validator import Decision
 
-    episode = db.get_episode(slug, episode_id) or {}
+    episode = (episode_row if episode_row is not None
+               else db.get_episode(slug, episode_id)) or {}
     all_ads = parse_ad_markers(episode.get('ad_markers_json')) or []
     if not all_ads:
         return [], [], [], []
@@ -5355,7 +5358,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             slug, episode_id, segments, original_duration,
             episode_description, min_cut_confidence,
             podcast_id=recut_podcast_id, segment_actions=segment_actions,
-            corrections=corrections,
+            corrections=corrections, episode_row=episode_data,
         )
         # A user confirm cuts its own interval inside a reviewer reject.
         reject_spans = reject_barriers(reviewer_rejects, corrections[1])

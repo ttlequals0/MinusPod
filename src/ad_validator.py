@@ -555,13 +555,13 @@ class AdValidator:
         for protected in user_trimmed_keep_ranges(self.confirmed_corrections):
             split_ads = []
             for ad in ads:
-                matched = self._matching_confirmed(ad['start'], ad['end'])
-                if matched is not None and matched.get('confirmed_span'):
-                    split_ads.append(ad)
-                    continue
                 lo = max(ad['start'], protected['start'])
                 hi = min(ad['end'], protected['end'])
                 if hi <= lo:
+                    split_ads.append(ad)
+                    continue
+                matched = self._matching_confirmed(ad['start'], ad['end'])
+                if matched is not None and matched.get('confirmed_span'):
                     split_ads.append(ad)
                     continue
                 if ad['start'] < lo:

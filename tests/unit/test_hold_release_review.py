@@ -1,5 +1,6 @@
 """Pass-2 evidence inside a pass-1 hold is reviewed at its own span, not dropped."""
 import json
+import random
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -16,9 +17,9 @@ from ad_validator import AdValidator, Decision
 from audio_processor import get_replacement_duration
 from config import is_pending_review
 from main_app import processing
-from utils.markers import is_reviewer_rejected, reviewer_hold_stands
+from utils.markers import EDGE_TOLERANCE, is_reviewer_rejected, reviewer_hold_stands
 from main_app.verification_reconciliation import (
-    Pass2Ledger, _gate_verification_ads_by_confidence, _inside_word_edge,
+    Pass2Ledger, WordEdges, _gate_verification_ads_by_confidence,
 )
 from utils.time import adjust_timestamp
 from verification_pass import _build_timestamp_map, _map_to_original
@@ -237,10 +238,40 @@ def test_review_skips_a_hold_corroborated_after_gating(monkeypatch):
 def test_edges_move_inward_off_a_split_word():
     segments = [{'start': 1000.0, 'end': 1100.0, 'words': [
         {'start': 1039.5, 'end': 1040.5}, {'start': 1059.6, 'end': 1060.4}]}]
-    assert _inside_word_edge(segments, 1040.0, 'start') == 1040.5
-    assert _inside_word_edge(segments, 1060.0, 'end') == 1059.6
-    assert _inside_word_edge(segments, 1045.0, 'start') == 1045.0
-    assert _inside_word_edge(segments, 1040.5, 'start') == 1040.5
+    edges = WordEdges(segments)
+    assert edges.inside(1040.0, 'start') == 1040.5
+    assert edges.inside(1060.0, 'end') == 1059.6
+    assert edges.inside(1045.0, 'start') == 1045.0
+    assert edges.inside(1040.5, 'start') == 1040.5
+
+
+def _linear_word_edge(segments, value, edge):
+    for seg in segments:
+        for word in seg.get('words') or []:
+            lo, hi = word.get('start'), word.get('end')
+            if lo is None or hi is None:
+                continue
+            if lo < value - EDGE_TOLERANCE and hi > value + EDGE_TOLERANCE:
+                return hi if edge == 'start' else lo
+    return value
+
+
+@pytest.mark.parametrize('seed', range(20))
+def test_indexed_word_edges_match_a_linear_scan(seed):
+    rng = random.Random(seed)
+    words, t = [], 0.0
+    for _ in range(200):
+        t += rng.uniform(0.0, 0.6)
+        words.append({'start': t, 'end': t + rng.uniform(0.0, 1.5)})
+    if seed % 2:
+        rng.shuffle(words)
+    words.append({'start': None, 'end': 3.0})
+    segments = [{'words': words[:100]}, {'words': words[100:]}, {'text': 'untimed'}]
+    edges = WordEdges(segments)
+    for _ in range(200):
+        value = rng.uniform(-1.0, t + 2.0)
+        for edge in ('start', 'end'):
+            assert edges.inside(value, edge) == _linear_word_edge(segments, value, edge)
 
 
 def test_disjoint_findings_give_one_candidate_each():

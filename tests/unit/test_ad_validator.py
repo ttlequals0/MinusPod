@@ -97,6 +97,27 @@ def test_saved_trim_blocks_subsecond_render_merge():
     ]
 
 
+def _confirm_scans_for_far_ad(trims):
+    corrections = [{'start': lo, 'end': lo + 60.0, 'confirmed_span': {'start': lo + 10.0, 'end': lo + 60.0}}
+                   for lo in (100.0, 200.0, 400.0)[:trims]]
+    validator = AdValidator(episode_duration=1000.0, confirmed_corrections=corrections)
+    scans = []
+    real = validator._matching_confirmed
+    validator._matching_confirmed = lambda start, end, **kw: (
+        scans.append((start, end)) or real(start, end, **kw))
+    result = validator.validate([
+        {'start': 105.0, 'end': 130.0, 'confidence': 0.95, 'reason': 'Acme sponsor read'},
+        {'start': 600.0, 'end': 630.0, 'confidence': 0.95, 'reason': 'Acme sponsor read'}])
+    return scans.count((600.0, 630.0)), [(a['start'], a['end']) for a in result.ads]
+
+
+def test_trim_split_scans_confirms_only_for_ads_the_trim_overlaps():
+    one_count, one_ads = _confirm_scans_for_far_ad(1)
+    three_count, three_ads = _confirm_scans_for_far_ad(3)
+    assert one_count == three_count
+    assert one_ads == three_ads
+
+
 class TestAdValidatorDuration:
     """Tests for ad duration validation."""
 
