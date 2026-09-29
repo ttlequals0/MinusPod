@@ -1581,8 +1581,9 @@ class AdValidator:
 
     def _silent_absorb_cap(self, measured: float) -> float:
         """Longest cut silence may grow to without adding a duration hold the measured cut avoids."""
-        # Only a measured cut already past the base limit may grow beyond it.
-        cap = math.inf if measured > self.max_ad_duration else self.max_ad_duration
+        # Only a measured cut already past the base limit may grow beyond it, up to the confirmed one.
+        cap = (self.max_ad_duration_confirmed if measured > self.max_ad_duration
+               else self.max_ad_duration)
         if self.max_ad_duration_override is not None:
             cap = min(cap, self.max_ad_duration_override)
         return cap

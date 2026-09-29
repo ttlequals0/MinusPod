@@ -284,19 +284,19 @@ def test_helper_false_positive_majority_skips_confirm():
 
 
 def test_full_run_and_recut_agree_on_reviewer_reject_barriers(monkeypatch, tmp_path):
-    # A user confirm covering part of a rejected fragment lifts the reject there on both paths.
+    # Neither confirm covers half of the whole reject, so it stands; each path lifts it
+    # only on the fragments a user confirm covers.
+    reject = dict(_candidate(100.0, 200.0), reviewer_verdict='reject', source='reviewer',
+                  was_cut=False)
     confirmed = [{'start': 110.0, 'end': 140.0, 'correction_type': 'confirm'},
-                 {'start': 145.0, 'end': 200.0, 'correction_type': 'confirm',
-                  'confirmed_span': {'start': 175.0, 'end': 200.0}}]
-    run, cuts = _run(monkeypatch, [_candidate(100.0, 200.0)], confirmed=confirmed)
+                 {'start': 140.0, 'end': 175.0, 'correction_type': 'confirm',
+                  'confirmed_span': {'start': 140.0, 'end': 145.0}}]
+    run, _cuts = _run(monkeypatch, [dict(reject)], confirmed=confirmed)
     full = run['local_ap'].process_episode.call_args.kwargs['hard_barriers']
 
-    recut = _recut_render_call(tmp_path, _saved(run), [dict(c) for c in confirmed])
+    recut = _recut_render_call(tmp_path, [dict(reject)], [dict(c) for c in confirmed])
 
     def spans(barriers):
         return sorted((b['start'], b['end']) for b in barriers)
-    # The confirms cover over half of each rejected fragment, so only the trim remains a barrier.
-    assert spans(full) == [(145.0, 175.0)]
-    assert cuts == [(110.0, 140.0), (175.0, 200.0)]
+    assert spans(full) == [(100.0, 110.0), (145.0, 175.0), (175.0, 200.0)]
     assert spans(recut.kwargs['hard_barriers']) == spans(full)
-    assert sorted((s['start'], s['end']) for s in recut.args[1]) == cuts

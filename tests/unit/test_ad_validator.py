@@ -3036,6 +3036,27 @@ def test_silent_absorption_stays_under_the_base_duration_limit():
     assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
 
 
+@pytest.mark.parametrize('override', [None, 1000.0])
+def test_silent_absorption_stays_under_the_confirmed_limit(override):
+    ad = {'start': 1000.0, 'end': 1850.0, 'confidence': 0.95,
+          'reason': 'Acme sponsor read', 'sponsor': 'Acme', 'detection_stage': 'claude'}
+    mark_distinct_merge(ad, {'start': 1840.0, 'end': 1950.0, 'confidence': 0.95,
+                             'detection_stage': 'text_pattern', 'span_estimated': True,
+                             'text_start': 1840.0, 'text_end': 1850.0,
+                             'has_estimated_pattern_member': True})
+    ad['end'] = 1950.0
+    validator = AdValidator(3600.0, [{'start': 1000.0, 'end': 1850.0, 'text': 'Acme read'}],
+                            splice_veto_enabled=False, max_ad_duration_override=override)
+
+    result = validator.validate([ad], audio_analysis=_silence((1850.0, 1950.0)))
+
+    assert _spans(result) == [(1000.0, 1850.0), (1850.0, 1950.0)]
+    cut, held = result.ads
+    assert cut['validation']['decision'] == Decision.ACCEPT.value
+    assert not cut.get('held_for_review')
+    assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
 def test_silent_remainder_flags_do_not_return_on_revalidation():
     validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False)
     cut = validator.validate([_outro_estimate()], audio_analysis=_BOTH_SILENT).ads[0]
