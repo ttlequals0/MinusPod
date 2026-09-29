@@ -1,18 +1,8 @@
 """pattern_corrections.origin backfill, readers, and survival through the sponsor FK rebuild."""
-from tests.unit.test_migration_sponsor_fk import _rebuild_pre_migration_shape
+from tests.unit.db_test_utils import _rebuild_pre_migration_shape, _seed
 
 GATE = 'backfill_correction_origin_once'
 AUTO_SNIPPET = 'auto-approved: pass-2 corroborated differential_uncorroborated hold'
-
-
-def _seed(temp_db, slug='origin-test', episode_id='a1b2c3d4e5f6', transcript=None):
-    temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Origin Test')
-    temp_db.upsert_episode(slug=slug, episode_id=episode_id,
-                           original_url='https://example.com/ep.mp3',
-                           title='Test Episode', original_duration=3600.0)
-    if transcript:
-        temp_db.save_episode_details(slug, episode_id, transcript_text=transcript)
-    return temp_db.get_podcast_by_slug(slug)['id'], episode_id
 
 
 def _confirm(temp_db, podcast_id, episode_id, start, end, **kwargs):

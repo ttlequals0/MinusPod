@@ -1,5 +1,4 @@
 """A hold keeps one identity across copies, carves and reloads, and releases group by it."""
-from unittest.mock import MagicMock
 
 from tests.app_bootstrap import bootstrap
 
@@ -9,22 +8,11 @@ from ad_validator import AdValidator
 from main_app import processing
 from main_app.verification_reconciliation import _split_pass2_candidates_around_holds
 from tests.unit.marker_test_utils import applied_cut
-from tests.unit.pass2_test_utils import NO_SPLICE, _hold, _pair
-from tests.unit.test_migration_sponsor_fk import _rebuild_pre_migration_shape
+from tests.unit.db_test_utils import _rebuild_pre_migration_shape, _seed
+from tests.unit.pass2_test_utils import (
+    NO_SPLICE, _approval_db, _hold, _pair, _release_confirm, _user_corrections,
+)
 from utils.markers import carve_fragment, normalize_loaded_markers
-
-def _user_corrections(slug, episode_id):
-    """The (fp, confirmed) corrections the test's db holds."""
-    return processing._load_user_corrections(slug, episode_id, processing.db)
-
-
-
-def _release_confirm(hold_span, span, hold_id=None):
-    return {'start': hold_span[0], 'end': hold_span[1], 'correction_type': 'confirm',
-            'auto_filed': True, 'hold_reason': NO_SPLICE,
-            'confirmed_span': {'start': span[0], 'end': span[1]},
-            **({'hold_id': hold_id} if hold_id else {})}
-
 
 def _validate(marker, confirms):
     validator = AdValidator(episode_duration=3000.0, segments=[],
@@ -90,8 +78,8 @@ def test_a_fragment_outside_a_hold_does_not_inherit_its_identity():
 
 def test_releases_of_a_stored_hold_whose_edges_moved_still_group():
     # Filed before and after a recut from stored markers nudged the hold's start.
-    confirms = [_release_confirm((1002.0, 1200.0), (1100.0, 1150.0), 'a1b2c3d4e5f6'),
-                _release_confirm((1000.0, 1200.0), (1010.0, 1050.0), 'a1b2c3d4e5f6')]
+    confirms = [_release_confirm((1002.0, 1200.0), (1100.0, 1150.0), hold_id='a1b2c3d4e5f6'),
+                _release_confirm((1000.0, 1200.0), (1010.0, 1050.0), hold_id='a1b2c3d4e5f6')]
     got = _validate(_held_marker(1002.0, 1200.0, 'a1b2c3d4e5f6'), confirms)
     assert [(s, e) for s, e, d in got if d == 'ACCEPT'] == [(1010.0, 1050.0), (1100.0, 1150.0)]
 
@@ -112,12 +100,7 @@ def test_filing_records_the_hold_identity(monkeypatch):
                 pass2_released_spans=[{'start': 1010.0, 'end': 1050.0},
                                       {'start': 1100.0, 'end': 1150.0}],
                 pass2_reviewed_release={'start': 1010.0, 'end': 1050.0})
-    db = MagicMock()
-    db.get_false_positive_corrections.return_value = []
-    db.get_confirmed_corrections.return_value = []
-    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
-    monkeypatch.setattr(processing, 'db', db)
-    monkeypatch.setattr(processing, 'storage', MagicMock())
+    db = _approval_db(monkeypatch)
     assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     assert {c.kwargs['hold_id'] for c in db.create_pattern_correction.call_args_list} == {
         'a1b2c3d4e5f6'}
@@ -125,21 +108,13 @@ def test_filing_records_the_hold_identity(monkeypatch):
 
 # ---------- Persistence ----------
 
-def _seed(temp_db):
-    temp_db.create_podcast('hold-id-test', 'https://example.com/feed.xml', 'Hold Id Test')
-    temp_db.upsert_episode(slug='hold-id-test', episode_id='a1b2c3d4e5f6',
-                           original_url='https://example.com/ep.mp3',
-                           title='Test Episode', original_duration=3600.0)
-    return temp_db.get_podcast_by_slug('hold-id-test')['id'], 'a1b2c3d4e5f6'
-
-
 def _columns(conn):
     return sorted((r['name'], r['type'], r['notnull'], r['dflt_value'], r['pk'])
                   for r in conn.execute("PRAGMA table_info(pattern_corrections)"))
 
 
 def test_confirmed_corrections_carry_the_hold_identity(temp_db):
-    podcast_id, eid = _seed(temp_db)
+    podcast_id, eid = _seed(temp_db, slug='hold-id-test')
     for hold_id in ('a1b2c3d4e5f6', None):
         temp_db.create_pattern_correction(
             correction_type='confirm', episode_id=eid, podcast_id=podcast_id,

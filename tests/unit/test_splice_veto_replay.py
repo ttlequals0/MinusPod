@@ -52,14 +52,6 @@ def _validate(lines, description='', service=None, sponsor=None):
     return v.validate([ad], audio_analysis=evidence).ads[0]
 
 
-def test_host_read_is_confirmed_by_registry():
-    ad = _validate(HOST_READ, service=_service('Acme', 'Amazon'), sponsor='Acme')
-    assert ad['validation']['decision'] == Decision.ACCEPT.value
-    assert not ad.get('held_for_review')
-    assert ('INFO: Splice veto waived, sponsor confirmed by registry'
-            in ad['validation']['flags'])
-
-
 def test_host_read_is_confirmed_by_description():
     description = 'This episode is sponsored by <a href="https://acme.com/show">Acme</a>.'
     ad = _validate(HOST_READ, description=description)
@@ -71,9 +63,4 @@ def test_host_read_is_confirmed_by_description():
 def test_content_naming_a_registry_brand_is_held():
     ad = _validate(CONTENT + ['show talk'] * 8, service=_service('Amazon'))
     assert ad['validation']['decision'] == Decision.REVIEW.value
-    assert ad['hold_reason'] == 'no_splice_evidence'
-
-
-def test_conversational_registry_brand_without_a_closing_is_held():
-    ad = _validate(HOST_READ[:7], service=_service('Acme'), sponsor='Acme')
     assert ad['hold_reason'] == 'no_splice_evidence'

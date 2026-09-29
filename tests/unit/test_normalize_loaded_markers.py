@@ -14,7 +14,7 @@ from api.episodes import _markers_from_row  # noqa: E402
 from api.patterns import _insert_manual_marker, _load_episode_markers  # noqa: E402
 from main_app import processing  # noqa: E402
 from utils.markers import (DAI_PROBE_SPANS, clip_dai_core_spans,  # noqa: E402
-                           normalize_loaded_markers, parse_ad_markers)
+                           dai_probe_spans, normalize_loaded_markers, parse_ad_markers)
 
 
 def _legacy(start=0.0, end=73.2):
@@ -36,8 +36,10 @@ def test_normalize_leaves_recorded_probes_and_plain_markers_alone():
 
 
 def test_parse_ad_markers_normalizes_and_rejects_bad_input():
-    parsed = parse_ad_markers(json.dumps([_legacy()]))
+    assert dai_probe_spans(_legacy()) == []
+    parsed = parse_ad_markers(json.dumps([_legacy(), _legacy(10.0, 12.0)]))
     assert parsed[0][DAI_PROBE_SPANS] == [{'start': 0.0, 'end': 4.5}]
+    assert parsed[1][DAI_PROBE_SPANS] == [{'start': 10.0, 'end': 12.0}]
     assert parse_ad_markers(None) is None
     assert parse_ad_markers('') is None
     assert parse_ad_markers('{bad json') is None

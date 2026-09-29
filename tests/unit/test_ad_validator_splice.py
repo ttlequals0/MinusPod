@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_validator import AdValidator, Decision
 from utils.text import word_boundary_re
-from tests.unit.test_commercial_context import ACME_REGISTRY, CLOSING
+from tests.unit.marker_test_utils import ACME_REGISTRY, CLOSING
 
 
 def _event(t, end=None, etype='digital_silence'):

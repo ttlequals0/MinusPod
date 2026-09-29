@@ -1,5 +1,4 @@
 """Accepted reviewer abstentions must not reach either audio cut pass."""
-from types import SimpleNamespace
 
 import pytest
 from unittest.mock import MagicMock
@@ -9,7 +8,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('processing_boundary_safety_test_')
 
 from ad_detector import AdDetector
-from ad_reviewer import AdReviewer, split_resurrection_pool
+from ad_reviewer import split_resurrection_pool
 from ad_detector.boundaries import (_merge_ad_pair, effective_resolved_action,
                                    split_conflicting_action_span)
 from ad_validator import AdValidator, Decision, user_trimmed_keep_ranges
@@ -18,8 +17,11 @@ from config import (HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
                     PASS2_AUTOAPPROVE_HOLD_REASONS, is_pending_review)
 from main_app import processing
 from main_app.verification_reconciliation import _gate_verification_ads_by_confidence
-from tests.unit.test_ad_reviewer import _build_reviewer, _mock_episode_meta, _resp
-from tests.unit.test_keep_bypass import _run_pipeline
+from tests.unit.pass2_test_utils import _ctx
+from tests.unit.pipeline_test_utils import _run_pipeline
+from tests.unit.reviewer_test_utils import (
+    InconclusiveError, _build_reviewer, _meta, _mock_episode_meta, _resp, _reviewer,
+)
 
 
 def test_saved_trim_protects_audio_inside_longer_new_detection():
@@ -86,28 +88,6 @@ def test_verification_keeps_trim_but_checks_remaining_ad():
     assert remaining[0]['_measured_split_fragment']
 
 
-class InconclusiveError(Exception):
-    status_code = 422
-    body = {'error': {'code': 'jev_review_inconclusive',
-                      'reason': 'missing_boundary_coverage',
-                      'stage': 'boundary_coverage'}}
-
-
-def _reviewer():
-    db = MagicMock()
-    db.get_setting.side_effect = lambda key: {
-        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
-    }.get(key)
-    return AdReviewer(db=db, llm_client=MagicMock())
-
-
-def _meta():
-    return {'podcast_name': 'Example Podcast', 'episode_title': 'Episode',
-            'podcast_description': '', 'episode_description': '',
-            'slug': 'example-podcast', 'episode_id': 'episode-1',
-            'podcast_id': 1}
-
-
 def test_abstained_pass1_and_adjacent_pass2_never_reach_render_or_learning(monkeypatch):
     segments = [
         {'start': 410.0, 'end': 450.0, 'text': 'Show discussion.'},
@@ -150,14 +130,10 @@ def test_abstained_pass1_and_adjacent_pass2_never_reach_render_or_learning(monke
             [processed], [original], 0.80, pass1_held_markers=markers))
     assert len(pass2_cuts) == 1
     assert corroborated == 0
-    context = SimpleNamespace(
-        slug='example-podcast', episode_id='episode-1', podcast_id=1,
-        podcast_name='Example Podcast', episode_title='Episode',
-        podcast_description='', episode_description='')
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
                         lambda: 'test-model')
     processing._apply_pass2_reviewer(
-        context, pass2_cuts, pass2_ui, pass2_held,
+        _ctx(), pass2_cuts, pass2_ui, pass2_held,
         [processed], [original], segments, 0.80, pass1_cuts=[])
     assert pass2_cuts == []
     assert pass2_ui == []

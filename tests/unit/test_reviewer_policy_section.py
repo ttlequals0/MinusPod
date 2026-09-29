@@ -6,11 +6,12 @@ from tests.app_bootstrap import bootstrap
 bootstrap('reviewer_policy_section_test_')
 
 import ad_reviewer
-from ad_reviewer import (POLICY_LINE_CAP, AdReviewer, _capped_line, _edge_item,
+from ad_reviewer import (POLICY_LINE_CAP, _capped_line, _edge_item,
                          _format_policy_section)
 from database import DEFAULT_REVIEW_PROMPT
 from main_app import processing
 from utils.markers import hard_members, note_merged_members
+from tests.unit.reviewer_test_utils import _reviewer
 
 ACTIONS = {'sponsor': 'remove', 'cross_promo': 'remove', 'self_promo': 'keep'}
 SEGMENTS = [
@@ -51,12 +52,6 @@ def _meta(**extra):
         ],
         **extra,
     }
-
-
-def _reviewer(settings=None):
-    db = MagicMock()
-    db.get_setting.side_effect = lambda key: (settings or {}).get(key)
-    return AdReviewer(db=db, llm_client=MagicMock(), sponsor_service=None)
 
 
 def _prompt(ad=None, meta=None, settings=None):

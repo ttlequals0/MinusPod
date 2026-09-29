@@ -21,11 +21,7 @@ from config import (
     HOLD_REASON_UNCORROBORATED_TAIL, count_pending_review, is_pending_review,
 )
 from main_app import processing
-
-def _user_corrections(slug, episode_id):
-    """The (fp, confirmed) corrections the test's db holds."""
-    return processing._load_user_corrections(slug, episode_id, processing.db)
-
+from tests.unit.pass2_test_utils import _user_corrections
 
 
 @pytest.fixture(autouse=True)

@@ -22,7 +22,7 @@ from main_app import processing
 from main_app.verification_reconciliation import Pass2Ledger
 from ad_reviewer import ReviewResult, ReviewVerdict, log_contradiction_event
 from tests.unit.pass2_test_utils import drive_verification_pass
-from tests.unit.test_ad_reviewer import _build_reviewer, _resp
+from tests.unit.reviewer_test_utils import _build_reviewer, _resp
 from config import (HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
                     HOLD_REASON_REVIEWER_CONTRADICTION, is_pending_review)
 

@@ -8,14 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector.prompts import _span_names_sponsor
 from ad_validator import AdValidator
-from tests.unit.marker_test_utils import RegistryStub, registry_confirms
-
-CLOSING = ("Learn more at acme.com. That's A-C-M-E.com. "
-           "Let me thank them so much for supporting the show.")
-
-
-# Acme wherever the text names it, spelled out or not.
-ACME_REGISTRY = RegistryStub({'Acme': ('acme', 'a-c-m-e')})
+from tests.unit.marker_test_utils import ACME_REGISTRY, CLOSING, RegistryStub, registry_confirms
 
 
 def _validator(text, registry=True):

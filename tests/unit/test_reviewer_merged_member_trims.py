@@ -4,7 +4,6 @@ A merged ad's recorded members decide what a proposal may drop: coarse
 LLM/heuristic members carry padding the reviewer exists to trim, measured
 members must stay covered but for a few seconds of boundary disagreement.
 """
-from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -22,6 +21,7 @@ from config import (
 )
 from ad_detector.boundaries import deduplicate_window_ads
 from tests.unit.marker_test_utils import member_bases
+from tests.unit.reviewer_test_utils import _LLMResp
 from utils.markers import (
     edge_support, mark_distinct_merge, note_fold, recorded_member_spans,
     reviewer_independent_spans,
@@ -43,12 +43,6 @@ def _mock_episode_meta():
         'episode_description': 'desc', 'podcast_description': 'pod desc',
         'slug': 'test-pod', 'episode_id': 'ep1', 'podcast_id': 'p1',
     }
-
-
-@dataclass
-class _LLMResp:
-    content: str
-    model: str = 'test-model'
 
 
 def _build_reviewer(max_shift='60'):

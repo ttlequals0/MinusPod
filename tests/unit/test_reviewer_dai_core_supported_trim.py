@@ -1,7 +1,6 @@
 """A transcript-supported reviewer trim may cross an unmeasured DAI region edge."""
 import math
 import random
-from dataclasses import dataclass
 
 import pytest
 
@@ -18,19 +17,11 @@ from audio_analysis.base import AudioAnalysisResult
 from audio_processor import AudioProcessor
 from main_app import processing
 from utils.markers import (DAI_PROBE_SPANS, EDGE_TOLERANCE, carve_fragment,
-                           clip_dai_core_spans, dai_probe_spans,
-                           drop_stale_reviewer_locks, merge_dai_core_spans,
-                           normalize_loaded_markers,
+                           clip_dai_core_spans, drop_stale_reviewer_locks, merge_dai_core_spans,
                            reviewer_edge_locked, reviewer_independent_spans)
 from tests.unit.marker_test_utils import _ad
-from tests.unit.test_keep_bypass import _run_pipeline
-from tests.unit.test_processing_boundary_safety import _reviewer
-
-
-@dataclass
-class _LLMResp:
-    content: str
-    model: str = 'test-model'
+from tests.unit.pipeline_test_utils import _run_pipeline
+from tests.unit.reviewer_test_utils import _LLMResp, _reviewer
 
 
 def _worded(start, end, text):
@@ -203,16 +194,6 @@ def test_differential_ads_record_each_block_probe_window():
     ads = dai_differential_ads({'regions': regions}, [], [(0.0, 32.0)])
     assert ads[0][DAI_PROBE_SPANS] == [{'start': 0.5, 'end': 4.5},
                                        {'start': 30.0, 'end': 32.0}]
-
-
-def test_normalize_loaded_markers_materializes_legacy_probes():
-    marker = _marker()
-    del marker[DAI_PROBE_SPANS]
-    assert dai_probe_spans(marker) == []
-    short = {'dai_core_spans': [{'start': 10.0, 'end': 12.0}]}
-    normalized = normalize_loaded_markers([marker, short])
-    assert normalized[0][DAI_PROBE_SPANS] == [{'start': 0.0, 'end': 4.5}]
-    assert normalized[1][DAI_PROBE_SPANS] == [{'start': 10.0, 'end': 12.0}]
 
 
 def test_probe_spans_ride_merges_clips_and_fragments():

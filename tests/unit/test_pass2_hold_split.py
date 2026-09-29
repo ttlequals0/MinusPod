@@ -10,7 +10,7 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('pass2_hold_split_test_')
 
-from ad_reviewer import ReviewResult, ReviewVerdict
+from ad_reviewer import ReviewResult
 from ad_validator import AdValidator, Decision
 from audio_processor import AudioProcessor, get_replacement_duration
 from config import is_pending_review
@@ -20,16 +20,12 @@ from main_app.verification_reconciliation import (
     _split_pass2_candidates_around_holds,
 )
 from tests.unit.pass2_test_utils import (
-    NO_SPLICE, _ad, _ctx, _hold, _pair, _spans, drive_verification_pass,
+    NO_SPLICE, _ad, _approval_db, _ctx, _hold, _pair, _recut_validate, _release_confirm,
+    _spans, _user_corrections, _verdict, drive_verification_pass,
 )
 from utils.time import adjust_timestamp, overlap_seconds
 
 INCONCLUSIVE = 'reviewer_inconclusive_bounds'
-
-def _user_corrections(slug, episode_id):
-    """The (fp, confirmed) corrections the test's db holds."""
-    return processing._load_user_corrections(slug, episode_id, processing.db)
-
 
 
 def _gate(pairs, holds, **kwargs):
@@ -430,14 +426,6 @@ def test_parent_copy_is_unaffected_by_later_fragment_mutation():
 
 # ---------- Several supported subspans of one hold ----------
 
-def _verdict(kind, start, end, adjusted=None):
-    return ReviewVerdict(
-        pool='accepted', pass_num=2, verdict=kind, original_start=start,
-        original_end=end, adjusted_start=adjusted[0] if adjusted else None,
-        adjusted_end=adjusted[1] if adjusted else None,
-        reasoning='Sponsor read for Acme', confidence=0.9, model_used='test-model')
-
-
 def _release(monkeypatch, hold, subs, verdicts):
     pairs = [_pair(*sub) for sub in subs]
     *_rest, candidates = _gate(pairs, [hold])
@@ -453,16 +441,6 @@ def _release(monkeypatch, hold, subs, verdicts):
         pass1_cuts=[])
     return candidates, processing._review_hold_release_candidates(
         _ctx(), candidates, [], protection)
-
-
-def _approval_db(monkeypatch):
-    db = MagicMock()
-    db.get_false_positive_corrections.return_value = []
-    db.get_confirmed_corrections.return_value = []
-    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
-    monkeypatch.setattr(processing, 'db', db)
-    monkeypatch.setattr(processing, 'storage', MagicMock())
-    return db
 
 
 def test_every_approved_subspan_of_a_hold_is_released(monkeypatch):
@@ -528,18 +506,6 @@ def test_a_fast_path_corroboration_still_owns_the_hold(monkeypatch):
     assert 'pass2_released_spans' not in hold
 
 
-def _recut_validate(markers, confirms):
-    validator = AdValidator(episode_duration=3000.0, segments=[],
-                            confirmed_corrections=confirms, min_cut_confidence=0.8)
-    return validator.validate(markers).ads
-
-
-def _release_confirm(hold_span, span, reason=NO_SPLICE):
-    return {'start': hold_span[0], 'end': hold_span[1], 'correction_type': 'confirm',
-            'auto_filed': True, 'hold_reason': reason,
-            'confirmed_span': {'start': span[0], 'end': span[1]}}
-
-
 def test_recut_cuts_each_released_subspan_and_holds_the_rest():
     hold = _hold(1000.0, 1200.0)
     hold.update(confidence=0.95, reason='Acme sponsor read', detection_stage='claude')
@@ -588,6 +554,8 @@ def test_verification_pass_reviews_every_disjoint_subspan_of_a_hold():
     assert run.output[7] == 2
     assert _spans(hold['pass2_released_spans']) == [(1992.9, 2103.5), (2124.9, 2195.4)]
     assert run.output[1] == []
+    assert is_pending_review(hold)
+    assert run.rendered == {}
 
 
 # ---------- Confirmed-correction clamp ----------

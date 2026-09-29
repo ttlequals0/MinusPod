@@ -10,6 +10,7 @@ from main_app import processing
 from ad_detector import AdDetector, AddressingStats
 from ad_detector.boundaries import removal_coverage_regions
 from ad_validator import AdValidator, ValidationResult
+from tests.unit.pass2_test_utils import _ctx, drive_verification_pass, gate_passthrough
 
 ACTIONS = {'self_promo': 'keep', 'sponsor': 'remove'}
 
@@ -61,11 +62,6 @@ def test_barriers_include_holds_except_the_owning_hold():
 
 
 def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
-    ctx = SimpleNamespace(
-        slug='example-podcast', episode_id='a1b2c3d4e5f6', podcast_id=1,
-        podcast_name='Example Podcast', episode_title='Episode',
-        episode_description='', podcast_description='',
-    )
     sponsor = {'start': 100.0, 'end': 150.0, 'confidence': 0.98,
                'category': 'sponsor'}
     promo = {'start': 300.0, 'end': 320.0, 'confidence': 0.98,
@@ -75,9 +71,6 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
     audio = MagicMock()
     audio.get_audio_duration.return_value = 600.0
     audio.process_episode.return_value = ('/tmp/recut.mp3', [dict(sponsor)])
-    fake_db = MagicMock()
-    fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_setting.return_value = 'false'
     built = []
     real_build = processing.build_protection
 
@@ -88,30 +81,14 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
 
     reviewer = MagicMock()
     crosspass = MagicMock(return_value=None)
-    with patch.object(processing, 'db', fake_db), \
-         patch.object(processing, 'storage'), \
-         patch('verification_pass.VerificationPass') as verifier_cls, \
-         patch.object(processing, '_apply_pass2_heuristic_rolls'), \
-         patch.object(processing, '_validate_verification_ads',
-                      side_effect=lambda *args, **kwargs: (args[2], args[3])), \
-         patch.object(processing, '_gate_verification_ads_by_confidence',
-                      side_effect=lambda processed, original, *args, **kwargs:
-                      (processed, original, [], 0, [])), \
-         patch.object(processing, '_apply_pass2_reviewer', reviewer), \
-         patch.object(processing, '_crosspass_cut_plan', crosspass), \
-         patch.object(processing, 'build_protection', side_effect=spy_build):
-        verifier_cls.return_value.verify.return_value = {
-            'ads': [dict(sponsor), dict(promo)],
-            'ads_processed': [dict(sponsor), dict(promo)],
-            'segments': [{'start': 100.0, 'end': 150.0, 'text': 'Sponsor'}],
-        }
-        output = processing._run_verification_pass(
-            ctx, '/tmp/pass1-output.mp3', [], False, 0.8,
-            audio, None, original_segments=[],
-            pass1_held_markers=[pass1_hold],
-            segment_actions=ACTIONS,
-            false_positive_corrections=[{'start': 500.0, 'end': 510.0}]
-        )
+    run = drive_verification_pass(
+        pairs=[(dict(sponsor), dict(sponsor)), (dict(promo), dict(promo))],
+        holds=[pass1_hold], fp=[{'start': 500.0, 'end': 510.0}], audio=audio,
+        gate=gate_passthrough, pass2_reviewer=reviewer, segment_actions=ACTIONS,
+        segments=[{'start': 100.0, 'end': 150.0, 'text': 'Sponsor'}],
+        extra_patches=[patch.object(processing, '_crosspass_cut_plan', crosspass),
+                       patch.object(processing, 'build_protection', side_effect=spy_build)])
+    output = run.output
 
     # Hard sources are built once, after the category partition.
     [protection] = built
@@ -237,10 +214,6 @@ def test_verification_detection_uses_the_caller_action_map():
 
 
 def test_verification_pass_forwards_the_resolved_actions():
-    ctx = SimpleNamespace(
-        slug='example-podcast', episode_id='a1b2c3d4e5f6', podcast_id=1,
-        podcast_name='Example Podcast', episode_title='Episode',
-        episode_description='', podcast_description='')
     fake_db = MagicMock()
     fake_db.get_setting_float.return_value = 0.8
     with patch.object(processing, 'db', fake_db), \
@@ -250,7 +223,7 @@ def test_verification_pass_forwards_the_resolved_actions():
             'ads': [], 'ads_processed': [], 'segments': [],
             'status': 'no_segments'}
         processing._run_verification_pass(
-            ctx, '/tmp/pass1-output.mp3', [], False, 0.8, MagicMock(), None,
+            _ctx(), '/tmp/pass1-output.mp3', [], False, 0.8, MagicMock(), None,
             segment_actions=ACTIONS,
             false_positive_corrections=[])
 
@@ -260,8 +233,6 @@ def test_verification_pass_forwards_the_resolved_actions():
 
 
 def test_first_pass_detection_forwards_the_resolved_actions():
-    ctx = SimpleNamespace(slug='example-podcast', episode_id='a1b2c3d4e5f6',
-                          podcast_id=1)
     detector = MagicMock()
     detector.process_transcript.return_value = {'ads': [], 'status': 'success'}
     with patch.object(processing, 'ad_detector', detector), \
@@ -269,7 +240,7 @@ def test_first_pass_detection_forwards_the_resolved_actions():
          patch.object(processing, 'storage'), \
          patch.object(processing, '_publish_status'):
         processing._detect_ads_first_pass(
-            ctx, [], '/tmp/original.mp3', False, None, None,
+            _ctx(), [], '/tmp/original.mp3', False, None, None,
             action_map=ACTIONS)
 
     assert detector.process_transcript.call_args.kwargs['action_map'] is ACTIONS

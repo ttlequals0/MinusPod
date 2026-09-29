@@ -11,6 +11,7 @@ _test_data_dir = bootstrap('finalize_cut_state_test_')
 
 import main_app.processing as processing  # noqa: E402
 from tests.unit.marker_test_utils import applied_cut  # noqa: E402
+from tests.unit.recut_test_utils import stub_recut  # noqa: E402
 
 
 def _marker(start, end, **extra):
@@ -208,12 +209,10 @@ def _run_recut(ads_to_remove, all_ads, render, *, new_duration=600.0,
     captured = {}
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
-        db = p(processing, 'db')
-        storage = p(processing, 'storage')
-        p(processing, 'status_service')
+        _db, storage, local_ap = stub_recut(
+            stack, ads_to_remove, all_ads, duration=600.0,
+            episode_row={'podcast_id': 1, 'processed_version': 2, 'ad_markers_json': snapshot})
         p(processing, '_handle_processing_failure')
-        p(processing, '_copy_retained_original_to_temp', return_value='/tmp/fcs-work.mp3')
-        p(processing, '_build_recut_ad_list', return_value=(ads_to_remove, all_ads, [], []))
 
         def _assets(*args, **kwargs):
             captured['assets_cuts'] = args[3]
@@ -232,24 +231,9 @@ def _run_recut(ads_to_remove, all_ads, render, *, new_duration=600.0,
 
         p(processing, '_generate_assets', side_effect=_assets)
         p(processing, '_finalize_episode', side_effect=_finalize)
-        local_ap_cls = p(processing, 'AudioProcessor')
-        p(processing.os.path, 'exists', return_value=False)
         move = p(processing.shutil, 'move', side_effect=lambda *a: calls.move())
-
-        db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 2,
-                                       'ad_markers_json': snapshot}
-        db.get_original_segments.return_value = [{'start': 0.0, 'end': 600.0}]
-        db.get_all_settings.return_value = {}
-        db.resolve_segment_actions.return_value = {}
-        db.get_confirmed_corrections.return_value = []
-        db.get_false_positive_corrections.return_value = []
-        storage.get_original_path.return_value.exists.return_value = True
-        storage.get_applied_cuts.return_value = None
-        storage.get_episode_path.return_value = '/tmp/fcs-final.mp3'
         storage.save_combined_ads.side_effect = (
             lambda *a: calls.save(copy.deepcopy(a[2])))
-
-        local_ap = local_ap_cls.return_value
         durations = iter([600.0, new_duration])
         local_ap.get_audio_duration.side_effect = lambda path: next(durations)
 

@@ -17,11 +17,18 @@ from ad_chapters import AdChapterConfig
 from config import PASS2_REVIEWED_RELEASE_HOLD_REASONS
 from main_app import processing
 from utils.markers import explicit_override
+from tests.unit.pass2_test_utils import _user_corrections
+from tests.unit.recut_test_utils import _recut_render_call
 
-def _user_corrections(slug, episode_id):
-    """The (fp, confirmed) corrections the test's db holds."""
-    return processing._load_user_corrections(slug, episode_id, processing.db)
 
+@pytest.fixture(scope='module')
+def retained_mp3(tmp_path_factory):
+    """A 90 s sine mp3 the real-render recut tests share; the recut only reads it."""
+    src = tmp_path_factory.mktemp('recut_audio') / 'retained.mp3'
+    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=90',
+                    '-acodec', 'libmp3lame', '-ab', '64k', str(src)],
+                   check=True, capture_output=True)
+    return src
 
 
 @pytest.fixture(autouse=True)
@@ -1121,18 +1128,6 @@ def test_recut_preserves_reviewer_rejects_among_confirmed_adjusted_and_held(monk
         assert not any(k.startswith('_') for k in marker)
 
 
-def test_recut_repairs_reject_saved_as_cut(monkeypatch):
-    _stub_recut_db(monkeypatch, [_reject(R1, was_cut=True)])
-
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
-        'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
-        corrections=_user_corrections('slug', 'ep'))
-
-    assert ads_to_remove == []
-    assert all_ads[0]['was_cut'] is False
-    assert all_ads[0]['validation']['decision'] == 'REJECT'
-
-
 def test_recut_auto_filed_confirm_does_not_cut_reject(monkeypatch):
     _stub_recut_db(monkeypatch, [_reject(R1)], confirmed=[_auto_confirm(*R1)])
 
@@ -1208,15 +1203,13 @@ def test_recut_reject_never_merges_into_adjacent_cut(monkeypatch, neighbor, save
 
     assert _spans(ads_to_remove) == {(270.0, 295.5)}
     assert _find(all_ads, R1)['was_cut'] is False
+    assert _find(all_ads, R1)['validation']['decision'] == 'REJECT'
 
 
 @pytest.mark.skipif(shutil.which('ffmpeg') is None or shutil.which('ffprobe') is None,
                     reason='ffmpeg/ffprobe not available')
-def test_recut_episode_keeps_rejects_out_of_saved_markers_and_applied_cuts(tmp_path):
-    src = tmp_path / 'retained.mp3'
-    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=60',
-                    '-acodec', 'libmp3lame', '-ab', '64k', str(src)],
-                   check=True, capture_output=True)
+def test_recut_episode_keeps_rejects_out_of_saved_markers_and_applied_cuts(tmp_path, retained_mp3):
+    src = retained_mp3
     rejects = [(20.5, 30.0), (40.0, 45.0)]
     ads = [_cut(10.0, 20.0), _reject(rejects[0], was_cut=True), _reject(rejects[1]),
            _corroborated_hold(48.0, 56.0)]
@@ -1328,11 +1321,8 @@ def test_pass1_carve_saves_trusted_fragments_that_a_recut_keeps_cut(monkeypatch)
 
 @pytest.mark.skipif(shutil.which('ffmpeg') is None or shutil.which('ffprobe') is None,
                     reason='ffmpeg/ffprobe not available')
-def test_manual_approve_reject_and_adjust_recut_twice_is_identical(tmp_path):
-    src = tmp_path / 'retained.mp3'
-    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=120',
-                    '-acodec', 'libmp3lame', '-ab', '64k', str(src)],
-                   check=True, capture_output=True)
+def test_manual_approve_reject_and_adjust_recut_twice_is_identical(tmp_path, retained_mp3):
+    src = retained_mp3
     held = dict(_cut(30.0, 38.0), was_cut=False, held_for_review=True,
                 hold_reason='max_duration')
     ads = [_cut(10.0, 20.0), held, _cut(40.0, 46.0), _cut(48.0, 58.0)]
@@ -1357,7 +1347,7 @@ def test_manual_approve_reject_and_adjust_recut_twice_is_identical(tmp_path):
             db.get_podcast_by_slug.return_value = {'id': 1}
             db.get_original_segments.return_value = [
                 {'start': float(t), 'end': float(t + 5), 'text': 'Acme promo code'}
-                for t in range(0, 120, 5)]
+                for t in range(0, 90, 5)]
             db.get_all_settings.return_value = {}
             db.get_setting.return_value = None
             db.get_episode_corrections.return_value = corrections
@@ -1493,11 +1483,8 @@ def test_reviewer_hold_recut_is_idempotent(monkeypatch):
 
 @pytest.mark.skipif(shutil.which('ffmpeg') is None or shutil.which('ffprobe') is None,
                     reason='ffmpeg/ffprobe not available')
-def test_approval_fold_recut_keeps_reviewer_reject_conflict_hold(tmp_path):
-    src = tmp_path / 'retained.mp3'
-    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=60',
-                    '-acodec', 'libmp3lame', '-ab', '64k', str(src)],
-                   check=True, capture_output=True)
+def test_approval_fold_recut_keeps_reviewer_reject_conflict_hold(tmp_path, retained_mp3):
+    src = retained_mp3
     held = (20.0, 30.0)
     ads = [_cut(5.0, 15.0), _reviewer_hold('reviewer_reject_conflict', held),
            _corroborated_hold(30.5, 40.0)]
@@ -1568,46 +1555,6 @@ def test_recut_does_not_stamp_reviewer_rejected(monkeypatch):
     assert seen and all('_reviewer_rejected' not in a for a in seen)
     assert _spans(ads_to_remove) == {(100.0, 160.0)}
     assert _find(all_ads, R1)['validation']['decision'] == 'REJECT'
-
-
-def _recut_render_call(tmp_path, markers, confirmed):
-    """Drive a real _recut_episode with ffmpeg mocked; return the render call."""
-    with ExitStack() as stack:
-        p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
-        db = p(processing, 'db')
-        storage = p(processing, 'storage')
-        p(processing, 'status_service')
-        p(processing, '_finalize_episode')
-        p(processing, '_generate_assets')
-        p(processing, '_copy_retained_original_to_temp', return_value=str(tmp_path / 'w.mp3'))
-        p(processing, 'get_min_cut_confidence', return_value=0.80)
-        p(processing.os.path, 'exists', return_value=False)
-        p(processing.shutil, 'move')
-        local_ap = p(processing, 'AudioProcessor').return_value
-        local_ap.get_audio_duration.return_value = 600.0
-        local_ap.process_episode.side_effect = (
-            lambda path, segs, cut_barriers=None, hard_barriers=None: (
-                str(tmp_path / 'cut.mp3'), [{'start': s['start'], 'end': s['end']} for s in segs]))
-        db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
-                                       'ad_markers_json': json.dumps(markers)}
-        db.get_podcast_by_slug.return_value = {'id': 1}
-        db.get_original_segments.return_value = [
-            {'start': float(t), 'end': float(t + 5), 'text': 'Show talk'} for t in range(0, 600, 5)]
-        db.get_all_settings.return_value = {}
-        db.get_setting.return_value = None
-        db.get_episode_corrections.return_value = []
-        db.get_false_positive_corrections.return_value = []
-        db.get_confirmed_corrections.return_value = confirmed
-        db.get_podcast_cue_settings_overrides.return_value = {}
-        db.get_episode_audio_analysis.return_value = None
-        db.get_episode_dai_differential.return_value = None
-        db.resolve_segment_actions.return_value = {}
-        storage.get_applied_cuts.return_value = []
-        storage.get_episode_path.return_value = str(tmp_path / 'final.mp3')
-
-        assert processing._recut_episode(
-            'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
-    return local_ap.process_episode.call_args
 
 
 def test_recut_barriers_use_the_carved_reviewer_hold(tmp_path):

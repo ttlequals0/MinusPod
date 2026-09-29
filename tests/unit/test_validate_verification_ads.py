@@ -25,11 +25,7 @@ from main_app.processing import (
 )
 import main_app.processing as processing_mod
 import main_app.verification_reconciliation as vr
-
-def _user_corrections(slug, episode_id):
-    """The (fp, confirmed) corrections the test's db holds."""
-    return processing_mod._load_user_corrections(slug, episode_id, processing_mod.db)
-
+from tests.unit.pass2_test_utils import _approval_db, _user_corrections
 
 
 def _seg(start, end, text='spoken content here'):
@@ -886,20 +882,6 @@ def test_proposed_span_disagreement_does_not_corroborate():
     assert 'pass2_corroborated' not in hold
 
 
-def _auto_approve_env(monkeypatch):
-    """Swap the IO seams _file_corroborated_hold_approvals touches, following
-    the file's MagicMock pattern; returns the db mock for filing asserts."""
-    db = MagicMock()
-    db.get_original_segments.return_value = [{'start': 0.0}]
-    storage = MagicMock()
-    storage.get_original_path.return_value.exists.return_value = True
-    monkeypatch.setattr(processing_mod, 'db', db)
-    monkeypatch.setattr(processing_mod, 'storage', storage)
-    monkeypatch.setattr(processing_mod, '_load_user_corrections',
-                        lambda s, e, d: ([], []))
-    return db
-
-
 def test_auto_approve_files_trimmed_confirm(monkeypatch):
     """The auto-approve confirm carries corrected_bounds when the attested
     span is meaningfully narrower than the hold, mirroring a human trimmed
@@ -907,7 +889,7 @@ def test_auto_approve_files_trimmed_confirm(monkeypatch):
     hold = _diff_hold(837.4, 1077.3)
     hold['pass2_corroborated'] = True
     hold['pass2_corroborated_span'] = {'start': 837.4, 'end': 1053.0}
-    db = _auto_approve_env(monkeypatch)
+    db = _approval_db(monkeypatch)
 
     approved = processing_mod._file_corroborated_hold_approvals(
         'slug', 'ep', [hold],
@@ -925,7 +907,7 @@ def test_auto_approve_full_coverage_files_untrimmed_confirm(monkeypatch):
     hold = _diff_hold(4875.8, 5025.8)
     hold['pass2_corroborated'] = True
     hold['pass2_corroborated_span'] = {'start': 4875.9, 'end': 5025.8}
-    db = _auto_approve_env(monkeypatch)
+    db = _approval_db(monkeypatch)
 
     approved = processing_mod._file_corroborated_hold_approvals(
         'slug', 'ep', [hold],
@@ -943,7 +925,7 @@ def test_auto_approve_files_one_confirm_for_duplicate_holds(monkeypatch):
         hold['pass2_corroborated'] = True
         hold['pass2_corroborated_span'] = {'start': 120.0, 'end': 200.0}
         holds.append(hold)
-    db = _auto_approve_env(monkeypatch)
+    db = _approval_db(monkeypatch)
 
     assert processing_mod._file_corroborated_hold_approvals(
         'slug', 'ep', holds,
@@ -955,7 +937,7 @@ def test_auto_approve_files_one_confirm_for_repeated_hold_object(monkeypatch):
     """The same hold dict listed twice files once."""
     hold = _diff_hold(100.0, 200.0)
     hold['pass2_corroborated'] = True
-    db = _auto_approve_env(monkeypatch)
+    db = _approval_db(monkeypatch)
 
     processing_mod._file_corroborated_hold_approvals('slug', 'ep', [hold, hold], corrections=_user_corrections('slug', 'ep'))
     assert db.create_pattern_correction.call_count == 1
@@ -970,7 +952,7 @@ def test_auto_approve_files_reason_matched_confirm_per_hold_reason(monkeypatch, 
     pair = [diff, rev]
     for hold in pair:
         hold['pass2_corroborated'] = True
-    db = _auto_approve_env(monkeypatch)
+    db = _approval_db(monkeypatch)
 
     assert processing_mod._file_corroborated_hold_approvals(
         'slug', 'ep', [pair[i] for i in order],
@@ -985,7 +967,7 @@ def test_auto_approve_files_for_reviewer_hold_despite_other_reason_auto_confirm(
     rev = _diff_hold(100.0, 200.0)
     rev['hold_reason'] = 'reviewer_contradiction'
     rev['pass2_corroborated'] = True
-    db = _auto_approve_env(monkeypatch)
+    db = _approval_db(monkeypatch)
     on_file = [{'start': 100.0, 'end': 200.0, 'auto_filed': True,
                 'hold_reason': 'differential_uncorroborated'}]
     monkeypatch.setattr(processing_mod, '_load_user_corrections',
@@ -1007,7 +989,7 @@ def test_auto_approve_files_both_for_disjoint_holds(monkeypatch):
         hold = _diff_hold(start, end)
         hold['pass2_corroborated'] = True
         holds.append(hold)
-    db = _auto_approve_env(monkeypatch)
+    db = _approval_db(monkeypatch)
 
     assert processing_mod._file_corroborated_hold_approvals(
         'slug', 'ep', holds,
@@ -1037,7 +1019,7 @@ def test_approved_holds_are_cut_by_the_run_not_a_second_completion(monkeypatch):
     monkeypatch.setattr(processing_mod, '_recut_episode', recut)
     hold = _diff_hold(100.0, 200.0)
     hold['pass2_corroborated'] = True
-    _auto_approve_env(monkeypatch)
+    _approval_db(monkeypatch)
 
     assert processing_mod._file_corroborated_hold_approvals(
         'slug', 'ep', [hold],
@@ -1362,20 +1344,13 @@ def _reviewer_reject(start, end):
             'reviewer_verdict': 'reject'}
 
 
-def _approval_db(monkeypatch):
-    db = MagicMock()
-    db.get_false_positive_corrections.return_value = []
-    db.get_confirmed_corrections.return_value = []
-    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
-    monkeypatch.setattr(processing_mod, 'db', db)
-    monkeypatch.setattr(processing_mod, 'storage', MagicMock())
-    return db
-
-
-def test_auto_approve_skips_hold_overlapping_reviewer_reject(monkeypatch):
+@pytest.mark.parametrize('stamp', [
+    {'pass2_corroborated': True},
+    {'pass2_corroborated': True, 'pass2_reviewed_release': {'start': 4990.0, 'end': 5020.0}},
+])
+def test_auto_approve_skips_hold_overlapping_reviewer_reject(monkeypatch, stamp):
     db = _approval_db(monkeypatch)
-    hold = _diff_hold(4875.8, 5025.8)
-    hold['pass2_corroborated'] = True
+    hold = dict(_diff_hold(4875.8, 5025.8), **stamp)
 
     n = processing_mod._file_corroborated_hold_approvals(
         's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)],
@@ -1431,7 +1406,7 @@ def test_pass2_validation_uses_the_run_fp_snapshot_not_the_db():
 
 
 def test_auto_approve_failure_after_filing_reports_the_filed_count(monkeypatch):
-    db = _auto_approve_env(monkeypatch)
+    db = _approval_db(monkeypatch)
     db.create_pattern_correction.side_effect = [None, RuntimeError('db locked')]
     holds = [dict(_diff_hold(100.0, 200.0), pass2_corroborated=True),
              dict(_diff_hold(400.0, 500.0), pass2_corroborated=True)]

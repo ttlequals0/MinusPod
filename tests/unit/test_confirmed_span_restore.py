@@ -1,5 +1,4 @@
 """Saved user-confirmed intervals are cut even when no detection survives."""
-from dataclasses import dataclass
 from unittest.mock import patch
 
 import pytest
@@ -13,9 +12,9 @@ from ad_validator import (AdValidator, ValidationResult, restore_uncovered_confi
 from config import is_pending_review
 from main_app import processing
 from tests.unit.marker_test_utils import _ad
-from tests.unit.test_keep_bypass import _run_pipeline
-from tests.unit.test_processing_boundary_safety import InconclusiveError, _reviewer
-from tests.unit.test_segment_rerender import ALL_REMOVE, _run_recut
+from tests.unit.pipeline_test_utils import _run_pipeline
+from tests.unit.recut_test_utils import ALL_REMOVE, run_action_recut
+from tests.unit.reviewer_test_utils import InconclusiveError, _LLMResp, _reviewer
 
 # 600 s keeps the validator's end-of-episode extension away from the fixtures.
 DURATION = 600.0
@@ -26,12 +25,6 @@ SEGMENTS = [
     {'start': 200.0, 'end': 300.0, 'text': 'More discussion follows.'},
 ]
 CONFIRM = {'start': 120.0, 'end': 160.0, 'correction_type': 'confirm'}
-
-
-@dataclass
-class _LLMResp:
-    content: str
-    model: str = 'test-model'
 
 
 def _candidate(start, end, confidence=0.98):
@@ -177,7 +170,7 @@ def test_recut_respects_opening_exclusion(monkeypatch):
     monkeypatch.setattr(processing, 'resolve_ad_detection_exclude_start_seconds',
                         lambda db, podcast_id: 40.0)
     confirm = {'start': 30.0, 'end': 50.0, 'correction_type': 'confirm'}
-    cuts, _ = _run_recut([], [], ALL_REMOVE, confirmed_corrections=[confirm])
+    cuts, _ = run_action_recut([], [], ALL_REMOVE, confirmed_corrections=[confirm])
     assert [(c['start'], c['end']) for c in cuts] == [(40.0, 50.0)]
 
 
@@ -185,7 +178,7 @@ def test_recut_restores_confirmed_interval():
     rejected = _ad(10.0, 50.0, 'claude', was_cut=False, category='sponsor',
                    validation={'decision': 'REJECT'})
     confirm = {'start': 30.0, 'end': 50.0, 'correction_type': 'confirm'}
-    cuts, saved = _run_recut([], [rejected], ALL_REMOVE, confirmed_corrections=[confirm])
+    cuts, saved = run_action_recut([], [rejected], ALL_REMOVE, confirmed_corrections=[confirm])
     assert [(c['start'], c['end']) for c in cuts] == [(30.0, 50.0)]
     assert [(m['start'], m['end']) for m in _restored(saved)] == [(30.0, 50.0)]
 

@@ -16,8 +16,6 @@ only processed episodes with a retained original, saved segments, and ad
 detections are queued; the response reports {queued, skipped}; CSRF is
 enforced like sibling POST endpoints.
 """
-import time
-from contextlib import ExitStack
 from unittest.mock import patch
 
 import pytest
@@ -28,13 +26,9 @@ _test_data_dir = bootstrap(
     'segment_rerender_test_', passphrase='segment-rerender-test-passphrase',
     reset_storage=True)
 
-import main_app.processing as processing
 from audio_processor import AudioProcessor
-from config import SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION
 from werkzeug.security import generate_password_hash
-
-ALL_REMOVE = {cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES}
-
+from tests.unit.recut_test_utils import ALL_REMOVE, run_action_recut
 
 # ---------------------------------------------------------------------------
 # Part A: _recut_episode re-resolution
@@ -48,62 +42,6 @@ def _marker(start, end, category, action_applied, was_cut, **overrides):
     return m
 
 
-def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
-               confirmed_corrections=(), render_calls=None, fp_corrections=(),
-               podcast_row=None):
-    """Drive _recut_episode with _build_recut_ad_list mocked to return the
-    given (ads_to_remove, all_ads) after the builder's keep partition against
-    the current action map. Audio processor is mocked out (no ffmpeg). Returns
-    the audio segments actually cut and the markers persisted to storage.
-    """
-    keep_ads, _rest = processing._partition_keep_ads(all_ads, segment_actions)
-    keep_ids = {id(ad) for ad in keep_ads}
-    ads_to_remove = [ad for ad in ads_to_remove if id(ad) not in keep_ids]
-    with ExitStack() as stack:
-        p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
-        db = p(processing, 'db')
-        storage = p(processing, 'storage')
-        p(processing, 'status_service')
-        p(processing, '_copy_retained_original_to_temp',
-          return_value='/tmp/segrerender-work.mp3')
-        p(processing, '_build_recut_ad_list',
-          return_value=(ads_to_remove, all_ads, keep_ads, []))
-        p(processing, '_generate_assets')
-        p(processing, '_finalize_episode')
-        local_ap_cls = p(processing, 'AudioProcessor')
-        p(processing.os.path, 'exists', return_value=False)
-        p(processing.shutil, 'move')
-
-        db.get_episode.return_value = {'podcast_id': podcast_id, 'processed_version': 0}
-        db.get_original_segments.return_value = [{'start': 0.0, 'end': 60.0}]
-        db.get_all_settings.return_value = {}
-        db.resolve_segment_actions.return_value = segment_actions
-        db.get_confirmed_corrections.return_value = list(confirmed_corrections)
-        db.get_false_positive_corrections.return_value = list(fp_corrections)
-        storage.get_original_path.return_value.exists.return_value = True
-        storage.get_applied_cuts.return_value = None
-        storage.get_episode_path.return_value = '/tmp/segrerender-final.mp3'
-
-        local_ap = local_ap_cls.return_value
-        local_ap.get_audio_duration.return_value = 60.0
-        local_ap.process_episode.side_effect = (
-            lambda work_path, segs, cut_barriers=None, hard_barriers=None: (
-                '/tmp/segrerender-cut.mp3',
-                [{'start': s['start'], 'end': s['end']} for s in segs]))
-
-        result = processing._recut_episode(
-            'segrerender-feed', 'ep1', 'Episode', 'Podcast', 'desc',
-            time.time(), cancel_event=None, podcast_row=podcast_row)
-
-        assert result is True
-        audio_segments = local_ap.process_episode.call_args.args[1]
-        saved_markers = storage.save_combined_ads.call_args.args[2]
-        if render_calls is not None:
-            render_calls.append(local_ap.process_episode.call_args)
-
-    return audio_segments, saved_markers
-
-
 class TestRecutReResolvesAgainstCurrentMap:
     def test_recut_logs_resolved_action_map_once(self, caplog):
         marker = _marker(10.0, 20.0, 'sponsor', 'remove', True)
@@ -111,7 +49,7 @@ class TestRecutReResolvesAgainstCurrentMap:
         podcast_row = {'id': 1, 'segment_category_actions': '{"self_promo": "keep"}'}
 
         with caplog.at_level('INFO', logger='podcast.audio'):
-            _run_recut([marker], [marker], actions, podcast_row=podcast_row)
+            run_action_recut([marker], [marker], actions, podcast_row=podcast_row)
 
         lines = [r.getMessage() for r in caplog.records
                  if 'Segment action map' in r.getMessage()]
@@ -125,7 +63,7 @@ class TestRecutReResolvesAgainstCurrentMap:
         marker = _marker(30.0, 40.0, 'cross_promo', 'keep', True)
         actions = ALL_REMOVE
 
-        audio_segments, saved = _run_recut([marker], [marker], actions)
+        audio_segments, saved = run_action_recut([marker], [marker], actions)
 
         assert (30.0, 40.0) in {(s['start'], s['end']) for s in audio_segments}
         saved_marker = next(m for m in saved if m['start'] == 30.0)
@@ -137,7 +75,7 @@ class TestRecutReResolvesAgainstCurrentMap:
         marker = _marker(10.0, 20.0, 'sponsor', 'remove', True)
         actions = dict(ALL_REMOVE, sponsor='keep')
 
-        audio_segments, saved = _run_recut([marker], [marker], actions)
+        audio_segments, saved = run_action_recut([marker], [marker], actions)
 
         assert audio_segments == []
         saved_marker = next(m for m in saved if m['start'] == 10.0)
@@ -153,7 +91,7 @@ class TestRecutReResolvesAgainstCurrentMap:
                                     'flags': ['INFO: User confirmed as ad']})
         actions = dict(ALL_REMOVE, sponsor='keep')
 
-        audio_segments, saved = _run_recut([marker], [marker], actions)
+        audio_segments, saved = run_action_recut([marker], [marker], actions)
 
         assert audio_segments == []
         saved_marker = next(m for m in saved if m['start'] == 50.0)
@@ -166,7 +104,7 @@ class TestRecutReResolvesAgainstCurrentMap:
         marker = _marker(5.0, 15.0, 'interaction', 'remove', True)
         actions = dict(ALL_REMOVE, interaction='beep')
 
-        audio_segments, saved = _run_recut([marker], [marker], actions)
+        audio_segments, saved = run_action_recut([marker], [marker], actions)
 
         by_span = {(s['start'], s['end']): s for s in audio_segments}
         assert by_span[(5.0, 15.0)]['beep'] is True
@@ -179,7 +117,7 @@ class TestRecutReResolvesAgainstCurrentMap:
         actions = dict(ALL_REMOVE, cross_promo='keep')
 
         calls = []
-        audio_segments, saved = _run_recut([cut], [cut, kept], actions,
+        audio_segments, saved = run_action_recut([cut], [cut, kept], actions,
                                            render_calls=calls)
 
         assert [(s['start'], s['end']) for s in audio_segments] == [
@@ -193,7 +131,7 @@ class TestRecutReResolvesAgainstCurrentMap:
     def test_recut_clips_a_cut_at_a_user_rejection(self):
         cut = _marker(10.0, 50.0, 'sponsor', 'remove', True)
         calls = []
-        audio_segments, _saved = _run_recut(
+        audio_segments, _saved = run_action_recut(
             [cut], [cut], dict(ALL_REMOVE), render_calls=calls,
             fp_corrections=[{'start': 40.0, 'end': 55.0}])
 
@@ -207,7 +145,7 @@ class TestRecutReResolvesAgainstCurrentMap:
         sponsor = _marker(10.0, 20.0, 'sponsor', 'remove', True)
         promo = _marker(30.0, 40.0, 'cross_promo', 'remove', True)
 
-        audio_segments, saved = _run_recut(
+        audio_segments, saved = run_action_recut(
             [sponsor, promo], [sponsor, promo], dict(ALL_REMOVE))
 
         spans = {(s['start'], s['end']) for s in audio_segments}

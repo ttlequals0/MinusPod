@@ -23,6 +23,8 @@ from main_app import verification_reconciliation as vr  # noqa: E402
 from utils import markers as marker_utils  # noqa: E402
 from utils.time import adjust_timestamp, merge_cut_spans, overlap_seconds  # noqa: E402
 from verification_pass import _build_timestamp_map, _map_to_original  # noqa: E402
+from tests.unit.pass2_test_utils import _user_corrections  # noqa: E402
+
 
 EXPECT = load_json(ROOT / 'expectations.json')
 BASELINE = load_json(ROOT / 'baseline.json')
@@ -33,11 +35,6 @@ EPISODES = list(EXPECT['episodes'])
 TRANSIENT_KEYS = ('validation', 'was_cut', 'held_for_review', 'hold_reason',
                   'reviewer_locked_start', 'reviewer_locked_end', 'source',
                   'pass2_corroborated', 'pass2_corroborated_span')
-
-def _user_corrections(slug, episode_id):
-    """The (fp, confirmed) corrections the test's db holds."""
-    return processing._load_user_corrections(slug, episode_id, processing.db)
-
 
 def _findings(item, kind=None):
     params = []

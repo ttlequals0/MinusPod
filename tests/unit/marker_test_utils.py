@@ -43,6 +43,13 @@ class RegistryStub:
         return name in self.brand_mention_offsets(text)
 
 
+CLOSING = ("Learn more at acme.com. That's A-C-M-E.com. "
+           "Let me thank them so much for supporting the show.")
+
+# Acme wherever the text names it, spelled out or not.
+ACME_REGISTRY = RegistryStub({'Acme': ('acme', 'a-c-m-e')})
+
+
 def _all_offsets(text, needle):
     pos = text.find(needle)
     while pos != -1:

@@ -21,7 +21,7 @@ from ad_reviewer import AdReviewer, inconclusive_bounds_supported
 from ad_validator import AdValidator
 from main_app import processing
 from text_pattern_matcher import TextMatch
-from tests.unit.test_keep_bypass import _run_pipeline
+from tests.unit.pipeline_test_utils import _run_pipeline
 
 
 WORDS = [

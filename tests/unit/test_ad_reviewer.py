@@ -1,8 +1,7 @@
 """Tests for the ad reviewer."""
 import logging
 import re
-from dataclasses import dataclass
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from tests.app_bootstrap import bootstrap
 
@@ -16,6 +15,7 @@ from ad_reviewer import (
     _review_inconclusive_reason,
     split_resurrection_pool,
 )
+from tests.unit.reviewer_test_utils import _build_reviewer, _mock_episode_meta, _resp
 
 
 def test_first_num_prefers_start_and_rejects_non_finite():
@@ -36,38 +36,6 @@ def _mock_segments():
         {'start': 180.0, 'end': 240.0, 'text': 'after ad'},
         {'start': 240.0, 'end': 300.0, 'text': 'more show content'},
     ]
-
-
-def _mock_episode_meta():
-    return {
-        'podcast_name': 'Test Podcast',
-        'episode_title': 'Test Episode',
-        'episode_description': 'desc',
-        'podcast_description': 'pod desc',
-        'slug': 'test-pod',
-        'episode_id': 'ep1',
-        'podcast_id': 'p1',
-    }
-
-
-def _build_reviewer(db_settings=None, conn=None):
-    db_settings = db_settings or {}
-    db = MagicMock()
-    db.get_setting.side_effect = lambda key: db_settings.get(key)
-    db.get_connection.return_value = conn or MagicMock()
-    llm_client = MagicMock()
-    return AdReviewer(db=db, llm_client=llm_client, sponsor_service=None)
-
-
-@dataclass
-class _LLMResp:
-    """Matches the LLMResponse dataclass shape (content is a string)."""
-    content: str
-    model: str = "test-model"
-
-
-def _resp(body: str) -> _LLMResp:
-    return _LLMResp(content=body)
 
 
 def test_clamp_to_cap_limits_shifts():
@@ -704,26 +672,6 @@ def test_unparseable_response_holds_unsupported_ad():
     assert result.verdicts[0].verdict == 'failure'
 
 
-def test_llm_call_failure_holds_unsupported_ad():
-    """Per-ad LLM failure: an unsupported ad is held, verdict logged as failure."""
-    reviewer = _build_reviewer({
-        'review_prompt': 'review',
-        'resurrect_prompt': 'resurrect',
-    })
-    with patch('ad_reviewer.call_llm_for_window', return_value=(None, RuntimeError('boom'))):
-        ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
-        result = reviewer.review(
-            accepted_ads=[ad], resurrection_eligible=[],
-            segments=_mock_segments(), episode_meta=_mock_episode_meta(),
-            pass_num=1, pass_model='claude-test',
-        )
-
-    assert result.accepted_after_review == []
-    assert result.held_by_inconclusive[0]['start'] == 120.0
-    assert result.verdicts[0].verdict == 'failure'
-    assert result.verdicts[0].success is False
-
-
 def test_inconclusive_review_holds_unsupported_bounds_and_reason():
     class InconclusiveError(Exception):
         status_code = 422
@@ -871,22 +819,6 @@ def test_multi_element_array_takes_first():
     assert out['start'] == 120.0
     assert out['end'] == 180.0
     assert result.verdicts[0].verdict == 'confirmed'
-
-
-def test_catastrophic_failure_holds_unsupported_inputs():
-    reviewer = _build_reviewer({
-        'review_prompt': 'review',
-        'resurrect_prompt': 'resurrect',
-    })
-    ad = {'start': 100.0, 'end': 120.0, 'confidence': 0.9}
-    with patch.object(reviewer, '_review_inner', side_effect=RuntimeError('catastrophic')):
-        result = reviewer.review(
-            accepted_ads=[ad], resurrection_eligible=[],
-            segments=_mock_segments(), episode_meta=_mock_episode_meta(),
-            pass_num=1, pass_model='claude-test',
-        )
-    assert result.accepted_after_review == []
-    assert result.held_by_inconclusive[0]['hold_reason'] == 'reviewer_failed'
 
 
 # ---------- Resurrection pool selector ----------

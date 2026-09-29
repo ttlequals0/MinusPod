@@ -2,7 +2,7 @@
 import json
 import random
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -13,7 +13,7 @@ bootstrap('hold_release_review_test_')
 from ad_reviewer import (
     ReviewResult, ReviewVerdict, _review_inconclusive_reason, split_resurrection_pool,
 )
-from ad_validator import AdValidator, Decision
+from ad_validator import Decision
 from audio_processor import get_replacement_duration
 from config import is_pending_review
 from main_app import processing
@@ -23,19 +23,12 @@ from main_app.verification_reconciliation import (
 )
 from utils.time import adjust_timestamp
 from verification_pass import _build_timestamp_map, _map_to_original
+from tests.unit.pass2_test_utils import (
+    NO_SPLICE, _approval_db, _ctx, _hold, _recut_validate, _release_confirm,
+    _user_corrections, _verdict,
+)
 
-NO_SPLICE = 'no_splice_evidence'
 INCONCLUSIVE = 'reviewer_inconclusive_bounds'
-
-def _user_corrections(slug, episode_id):
-    """The (fp, confirmed) corrections the test's db holds."""
-    return processing._load_user_corrections(slug, episode_id, processing.db)
-
-
-
-def _hold(start, end, reason=NO_SPLICE):
-    return {'start': start, 'end': end, 'held_for_review': True,
-            'was_cut': False, 'hold_reason': reason, 'sponsor': 'Acme'}
 
 
 def _proc(start, end, confidence=0.95):
@@ -51,23 +44,6 @@ def _orig(start, end, confidence=0.95):
 def _gate(proc, orig, holds, **kwargs):
     return _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=holds, **kwargs)
-
-
-def _ctx():
-    return SimpleNamespace(
-        slug='example-podcast', episode_id='a1b2c3d4e5f6', podcast_id=1,
-        podcast_name='Example Podcast', episode_title='Episode',
-        podcast_description='', episode_description='')
-
-
-def _verdict(kind, start, end, adjusted=None, reasoning='Sponsor read for Acme',
-             **kwargs):
-    return ReviewVerdict(
-        pool='accepted', pass_num=2, verdict=kind,
-        original_start=start, original_end=end,
-        adjusted_start=adjusted[0] if adjusted else None,
-        adjusted_end=adjusted[1] if adjusted else None,
-        reasoning=reasoning, confidence=0.9, model_used='test-model', **kwargs)
 
 
 def _review(monkeypatch, candidates, verdicts, protection=None, enabled=True):
@@ -91,16 +67,6 @@ def _review(monkeypatch, candidates, verdicts, protection=None, enabled=True):
     released = processing._review_hold_release_candidates(
         _ctx(), candidates, [], protection)
     return released, calls
-
-
-def _approval_db(monkeypatch, confirmed=None):
-    db = MagicMock()
-    db.get_false_positive_corrections.return_value = []
-    db.get_confirmed_corrections.return_value = list(confirmed or [])
-    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
-    monkeypatch.setattr(processing, 'db', db)
-    monkeypatch.setattr(processing, 'storage', MagicMock())
-    return db
 
 
 # ---------- Gate: build the reviewable subspan ----------
@@ -433,17 +399,6 @@ def test_review_disabled_keeps_the_hold(monkeypatch):
     assert 'pass2_reviewed_release' not in candidates[0][1]
 
 
-def test_release_over_a_reviewer_reject_is_not_filed(monkeypatch):
-    candidates = _candidate()
-    hold = candidates[0][1]
-    _review(monkeypatch, candidates, [_verdict('confirmed', 1040.0, 1060.0)])
-    reject = {'start': 1050.0, 'end': 1058.0, 'was_cut': False,
-              'source': 'reviewer', 'reviewer_verdict': 'reject'}
-    db = _approval_db(monkeypatch)
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold, reject], corrections=_user_corrections('s', 'e')) == 0
-    db.create_pattern_correction.assert_not_called()
-
-
 def test_repeated_detection_files_one_confirm(monkeypatch):
     candidates = _candidate()
     hold = candidates[0][1]
@@ -459,57 +414,7 @@ def test_repeated_detection_files_one_confirm(monkeypatch):
     db.create_pattern_correction.assert_not_called()
 
 
-def test_run_verification_pass_sends_the_subspan_to_review(monkeypatch):
-    hold = _hold(1000.0, 1100.0, INCONCLUSIVE)
-    audio = MagicMock()
-    audio.get_audio_duration.return_value = 3000.0
-    fake_db = MagicMock()
-    fake_db.get_setting_float.return_value = 0.6
-    calls = []
-
-    def review(**kwargs):
-        calls.append(kwargs)
-        return ReviewResult(verdicts=[_verdict('confirmed', 1040.0, 1060.0)])
-
-    with patch.object(processing, 'db', fake_db), \
-         patch.object(processing, 'storage'), \
-         patch('verification_pass.VerificationPass') as verifier_cls, \
-         patch.object(processing, '_apply_pass2_heuristic_rolls'), \
-         patch.object(processing, '_validate_verification_ads',
-                      side_effect=lambda *args, **kwargs: (args[2], args[3])), \
-         patch.object(processing, '_apply_pass2_reviewer'), \
-         patch.object(processing, '_ad_review_enabled', lambda db: True), \
-         patch.object(processing, '_build_reviewer',
-                      lambda db, det: SimpleNamespace(review=review)):
-        verifier_cls.return_value.verify.return_value = {
-            'ads': [_orig(1040.0, 1060.0)], 'ads_processed': [_proc(1040.0, 1060.0)],
-            'segments': [{'start': 1000.0, 'end': 1100.0, 'text': 'Acme'}],
-        }
-        output = processing._run_verification_pass(
-            _ctx(), '/tmp/pass1-output.mp3', [], False, 0.8, audio, None,
-            original_segments=[], pass1_held_markers=[hold], segment_actions={},
-            false_positive_corrections=[])
-
-    [call] = calls
-    assert [(a['start'], a['end']) for a in call['accepted_ads']] == [(1040.0, 1060.0)]
-    assert hold['pass2_reviewed_release'] == {'start': 1040.0, 'end': 1060.0}
-    assert output[7] == 1
-    assert is_pending_review(hold)
-    audio.process_episode.assert_not_called()
-
-
 # ---------- Recut: auto-filed confirm keeps the remainder held ----------
-
-def _recut_validate(markers, confirm):
-    validator = AdValidator(episode_duration=3000.0, segments=[],
-                            confirmed_corrections=[confirm], min_cut_confidence=0.8)
-    return validator.validate(markers).ads
-
-
-def _auto_confirm(hold_span, span):
-    return {'start': hold_span[0], 'end': hold_span[1], 'correction_type': 'confirm',
-            'auto_filed': True, 'confirmed_span': {'start': span[0], 'end': span[1]}}
-
 
 @pytest.mark.parametrize('reason', [NO_SPLICE, 'estimated_pattern_bounds'])
 def test_auto_filed_confirm_cuts_the_subspan_and_holds_the_remainders(reason):
@@ -519,9 +424,9 @@ def test_auto_filed_confirm_cuts_the_subspan_and_holds_the_remainders(reason):
                 pass2_corroborated_span={'start': 1040.0, 'end': 1060.0},
                 pass2_hold_review={'span': [1040.0, 1060.0], 'verdict': 'inconclusive',
                                    'reason': 'timeout'})
-    confirm = _auto_confirm((1000.0, 1100.0), (1040.0, 1060.0))
+    confirm = _release_confirm((1000.0, 1100.0), (1040.0, 1060.0), reason=None)
 
-    ads = _recut_validate([hold], confirm)
+    ads = _recut_validate([hold], [confirm])
 
     spans = {(a['start'], a['end']): a for a in ads}
     assert set(spans) == {(1000.0, 1040.0), (1040.0, 1060.0), (1060.0, 1100.0)}
@@ -541,7 +446,7 @@ def test_auto_filed_confirm_cuts_the_subspan_and_holds_the_remainders(reason):
         a = {k: v for k, v in a.items() if k != 'validation'}
         a['was_cut'] = (a['start'], a['end']) == (1040.0, 1060.0)
         saved.append(a)
-    again = _recut_validate(saved, confirm)
+    again = _recut_validate(saved, [confirm])
     assert sorted((a['start'], a['end'], bool(a.get('held_for_review'))) for a in again) == [
         (1000.0, 1040.0, True), (1040.0, 1060.0, False), (1060.0, 1100.0, True)]
 
@@ -549,10 +454,10 @@ def test_auto_filed_confirm_cuts_the_subspan_and_holds_the_remainders(reason):
 def test_fresh_detection_matching_an_auto_confirm_keeps_remainders_held():
     fresh = {'start': 1000.0, 'end': 1100.0, 'confidence': 0.95,
              'reason': 'Acme sponsor read', 'detection_stage': 'claude'}
-    confirm = _auto_confirm((1000.0, 1100.0), (1040.0, 1060.0))
+    confirm = _release_confirm((1000.0, 1100.0), (1040.0, 1060.0), reason=None)
     confirm['hold_reason'] = INCONCLUSIVE
 
-    ads = _recut_validate([fresh], confirm)
+    ads = _recut_validate([fresh], [confirm])
 
     assert sorted((a['start'], a['end'], a['validation']['decision'],
                    a.get('hold_reason')) for a in ads) == [
@@ -564,10 +469,10 @@ def test_fresh_detection_matching_an_auto_confirm_keeps_remainders_held():
 def test_user_trimmed_confirm_still_keeps_the_trimmed_audio_unheld():
     hold = _hold(1000.0, 1100.0)
     hold.update(confidence=0.95, reason='Acme sponsor read', detection_stage='claude')
-    confirm = _auto_confirm((1000.0, 1100.0), (1040.0, 1060.0))
+    confirm = _release_confirm((1000.0, 1100.0), (1040.0, 1060.0), reason=None)
     confirm.pop('auto_filed')
 
-    ads = _recut_validate([hold], confirm)
+    ads = _recut_validate([hold], [confirm])
 
     assert not any(a.get('pass2_hold_remainder') for a in ads)
 

@@ -13,11 +13,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 from ad_validator import user_trimmed_keep_ranges
 from api.patterns import _handle_confirm_correction
 import main_app.processing as processing_mod
-
-def _user_corrections(slug, episode_id):
-    """The (fp, confirmed) corrections the test's db holds."""
-    return processing_mod._load_user_corrections(slug, episode_id, processing_mod.db)
-
+from tests.unit.pass2_test_utils import _user_corrections
 
 
 def _seed(temp_db, markers, slug='confirm-test', episode_id='abcdef012345'):

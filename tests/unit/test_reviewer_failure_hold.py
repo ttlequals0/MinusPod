@@ -1,6 +1,5 @@
 """A failed review holds an unsupported cut instead of cutting it unreviewed."""
 import logging
-from types import SimpleNamespace
 
 import httpx
 import openai
@@ -16,8 +15,9 @@ from main_app import processing
 from main_app.verification_reconciliation import _gate_verification_ads_by_confidence
 from utils.markers import normalize_loaded_markers
 from tests.unit.marker_test_utils import _ad
-from tests.unit.test_keep_bypass import _run_pipeline
-from tests.unit.test_processing_boundary_safety import _meta, _reviewer
+from tests.unit.pass2_test_utils import _ctx
+from tests.unit.pipeline_test_utils import _run_pipeline
+from tests.unit.reviewer_test_utils import _meta, _reviewer
 
 SUPPORTED_FLAG = 'INFO: Reviewer failed; bounds supported'
 
@@ -49,6 +49,7 @@ def test_failure_without_support_is_held(monkeypatch, caplog):
         result = _review(_reviewer(), ad)
     assert result.accepted_after_review == []
     assert result.verdicts[0].verdict == 'failure'
+    assert result.verdicts[0].success is False
     assert result.verdicts[0].inconclusive_hold is True
     held = result.held_by_inconclusive[0]
     assert held['hold_reason'] == HOLD_REASON_REVIEWER_FAILED
@@ -103,12 +104,8 @@ def test_pass2_verification_marker_with_422_is_held(monkeypatch):
     cuts, ui, held, _, _rel = _gate_verification_ads_by_confidence(
         [processed], [original], 0.80, pass1_held_markers=[])
     assert len(cuts) == 1
-    context = SimpleNamespace(
-        slug='example-podcast', episode_id='a1b2c3d4e5f6', podcast_id=1,
-        podcast_name='Example Podcast', episode_title='Episode',
-        podcast_description='', episode_description='')
     processing._apply_pass2_reviewer(
-        context, cuts, ui, held, [processed], [original], [], 0.80,
+        _ctx(), cuts, ui, held, [processed], [original], [], 0.80,
         pass1_cuts=[])
     assert cuts == []
     assert held == [original]

@@ -1,6 +1,5 @@
 """Cross-pass render consolidation regressions."""
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from tests.app_bootstrap import bootstrap
 
@@ -8,6 +7,7 @@ bootstrap('crosspass_consolidation_test_')
 
 from main_app import processing
 from audio_processor import AudioProcessor
+from tests.unit.pass2_test_utils import _spans, drive_verification_pass, gate_passthrough
 
 
 def _cut(start, end, action='remove', **extra):
@@ -130,53 +130,20 @@ def test_mapped_protection_blocks_processed_merge_and_tail_extension(monkeypatch
 
 
 def test_verification_reviewer_cannot_restore_user_trimmed_audio():
-    ctx = SimpleNamespace(
-        slug='example-podcast', episode_id='episode-1', podcast_id=1,
-        podcast_name='Example Podcast', episode_title='Episode',
-        episode_description='', podcast_description='',
-    )
     proposed = _cut(100.0, 290.0, confidence=0.98)
-    audio = MagicMock()
-    audio.get_audio_duration.return_value = 600.0
-    processor = AudioProcessor()
-    audio.process_episode.side_effect = lambda path, cuts, cut_barriers=None, hard_barriers=None: (
-        '/tmp/trim-recut.mp3',
-        processor.compute_applied_cuts(cuts, 600.0, cut_barriers))
-    fake_db = MagicMock()
-    fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_setting.return_value = 'false'
 
     def reexpand(_ctx, cuts, original, *_args, **_kwargs):
         cuts[0]['start'] = 100.0
         original[0]['start'] = 100.0
 
-    with patch.object(processing, 'db', fake_db), \
-         patch.object(processing, 'storage'), \
-         patch('verification_pass.VerificationPass') as verifier_cls, \
-         patch.object(processing, '_apply_pass2_heuristic_rolls'), \
-         patch.object(processing, '_validate_verification_ads',
-                      side_effect=lambda *args, **kwargs: (args[2], args[3])), \
-         patch.object(processing, '_gate_verification_ads_by_confidence',
-                      side_effect=lambda processed, original, *args, **kwargs:
-                      (processed, original, [], 0, [])), \
-         patch.object(processing, '_apply_pass2_reviewer', side_effect=reexpand):
-        verifier_cls.return_value.verify.return_value = {
-            'ads': [dict(proposed)], 'ads_processed': [dict(proposed)],
-            'segments': [{'start': 100.0, 'end': 290.0, 'text': 'Sponsor offer'}],
-        }
-        output = processing._run_verification_pass(
-            ctx, '/tmp/pass1-output.mp3', [], False, 0.8,
-            audio, None, original_segments=[],
-            pass1_trim_ranges=[{'start': 100.0, 'end': 101.7}],
-            segment_actions={'sponsor': 'remove'},
-            false_positive_corrections=[]
-        )
+    run = drive_verification_pass(
+        pairs=[(dict(proposed), dict(proposed))], duration=600.0, gate=gate_passthrough,
+        pass2_reviewer=reexpand, trims=[{'start': 100.0, 'end': 101.7}],
+        segments=[{'start': 100.0, 'end': 290.0, 'text': 'Sponsor offer'}],
+        segment_actions={'sponsor': 'remove'})
 
-    requested = audio.process_episode.call_args.args[1]
-    assert [(ad['start'], ad['end']) for ad in requested] == [
-        (101.7, 290.0)]
-    assert [(ad['start'], ad['end']) for ad in output[1]] == [
-        (101.7, 290.0)]
+    assert _spans(run.rendered['requested']) == [(101.7, 290.0)]
+    assert _spans(run.output[1]) == [(101.7, 290.0)]
 
 
 def test_crosspass_plan_joins_when_pass2_precedes_pass1():
@@ -204,141 +171,48 @@ def test_failed_crosspass_rerender_preserves_pass1_output(monkeypatch):
     unlink.assert_not_called()
 
 
-def test_verification_rerenders_original_and_replaces_cut_authority():
-    ctx = SimpleNamespace(
-        slug='test-feed', episode_id='test-episode', podcast_id=1,
-        podcast_name='Test Podcast', episode_title='Test Episode',
-        episode_description='', podcast_description='',
-    )
-    pass1_cuts = [_cut(100.0, 200.0, replacement_duration=1.0)]
-    pass1_markers = [_cut(100.0, 200.0)]
-    original = _cut(205.0, 250.0)
-    processed = _cut(106.0, 151.0)
-    final_cuts = [_cut(100.0, 250.0, replacement_duration=1.0)]
+def _crosspass_run(render_result):
     audio = MagicMock()
     audio.get_audio_duration.side_effect = [400.0, 500.0]
-    audio.process_episode.return_value = ('/tmp/crosspass-final.mp3', final_cuts)
-    result = {
-        'ads': [original], 'ads_processed': [processed],
-        'segments': [{'start': 0.0, 'end': 90.0, 'text': 'show content'}],
-    }
-    fake_db = MagicMock()
-    fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_setting.return_value = 'false'
+    audio.process_episode.return_value = render_result
+    segments = [{'start': 0.0, 'end': 90.0, 'text': 'show content'}]
+    return drive_verification_pass(
+        pairs=[(_cut(106.0, 151.0), _cut(205.0, 250.0))],
+        cuts=[_cut(100.0, 200.0, replacement_duration=1.0)], audio=audio,
+        gate=gate_passthrough, segments=segments, segment_actions={'sponsor': 'remove'},
+        original_segments=segments, original_audio_path='/tmp/original-working.mp3',
+        pass1_markers=[_cut(100.0, 200.0)])
 
-    with patch.object(processing, 'db', fake_db), \
-         patch.object(processing, 'storage'), \
-         patch('verification_pass.VerificationPass') as verifier_cls, \
-         patch.object(processing, '_apply_pass2_heuristic_rolls'), \
-         patch.object(processing, '_validate_verification_ads',
-                      side_effect=lambda *args, **kwargs: (args[2], args[3])), \
-         patch.object(processing, '_gate_verification_ads_by_confidence',
-                      return_value=([processed], [original], [], 0, [])):
-        verifier_cls.return_value.verify.return_value = result
-        output = processing._run_verification_pass(
-            ctx, '/tmp/pass1-output.mp3', pass1_cuts, False, 0.8,
-            audio, None, original_segments=result['segments'],
-            segment_actions={'sponsor': 'remove'},
-            original_audio_path='/tmp/original-working.mp3',
-            pass1_markers=pass1_markers,
-            false_positive_corrections=[]
-        )
 
-    assert audio.process_episode.call_args.args[0] == '/tmp/original-working.mp3'
-    assert output[4] == '/tmp/crosspass-final.mp3'
-    assert output[2] == []
-    assert output[0] == 1
-    assert pass1_cuts == final_cuts
+def test_verification_rerenders_original_and_replaces_cut_authority():
+    final_cuts = [_cut(100.0, 250.0, replacement_duration=1.0)]
+    run = _crosspass_run(('/tmp/crosspass-final.mp3', final_cuts))
+
+    assert run.audio.process_episode.call_args.args[0] == '/tmp/original-working.mp3'
+    assert run.output[4] == '/tmp/crosspass-final.mp3'
+    assert run.output[2] == []
+    assert run.output[0] == 1
+    assert run.cuts == final_cuts
 
 
 def test_verification_marks_failed_crosspass_rerender_incomplete():
-    ctx = SimpleNamespace(
-        slug='test-feed', episode_id='test-episode', podcast_id=1,
-        podcast_name='Test Podcast', episode_title='Test Episode',
-        episode_description='', podcast_description='',
-    )
-    pass1_cuts = [_cut(100.0, 200.0, replacement_duration=1.0)]
-    pass1_markers = [_cut(100.0, 200.0)]
-    original, processed = _cut(205.0, 250.0), _cut(106.0, 151.0)
-    audio = MagicMock()
-    audio.get_audio_duration.side_effect = [400.0, 500.0]
-    audio.process_episode.return_value = None
-    result = {
-        'ads': [original], 'ads_processed': [processed],
-        'segments': [{'start': 0.0, 'end': 90.0, 'text': 'show content'}],
-    }
-    fake_db = MagicMock()
-    fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_setting.return_value = 'false'
+    run = _crosspass_run(None)
 
-    with patch.object(processing, 'db', fake_db), \
-         patch.object(processing, 'storage'), \
-         patch('verification_pass.VerificationPass') as verifier_cls, \
-         patch.object(processing, '_apply_pass2_heuristic_rolls'), \
-         patch.object(processing, '_validate_verification_ads',
-                      side_effect=lambda *args, **kwargs: (args[2], args[3])), \
-         patch.object(processing, '_gate_verification_ads_by_confidence',
-                      return_value=([processed], [original], [], 0, [])):
-        verifier_cls.return_value.verify.return_value = result
-        output = processing._run_verification_pass(
-            ctx, '/tmp/pass1-output.mp3', pass1_cuts, False, 0.8,
-            audio, None, original_segments=result['segments'],
-            segment_actions={'sponsor': 'remove'},
-            original_audio_path='/tmp/original-working.mp3',
-            pass1_markers=pass1_markers,
-            false_positive_corrections=[]
-        )
-
-    assert output[4] == '/tmp/pass1-output.mp3'
-    assert output[6] is False
-    assert output[1] == []
-    assert pass1_cuts == [_cut(100.0, 200.0, replacement_duration=1.0)]
+    assert run.output[4] == '/tmp/pass1-output.mp3'
+    assert run.output[6] is False
+    assert run.output[1] == []
+    assert run.cuts == [_cut(100.0, 200.0, replacement_duration=1.0)]
 
 
-def _run_pass2_against_keep(pass1_cuts, finding_proc, finding_orig, *,
-                            kept=(), fp_corrections=(), original_audio_path=None,
-                            pass1_markers=None, segments=()):
+def _run_pass2_against_keep(pass1_cuts, finding_proc, finding_orig, *, kept=(),
+                            fp_corrections=(), segments=(), **pass_kwargs):
     """Drive _run_verification_pass with gate and reviewer passing through."""
-    ctx = SimpleNamespace(
-        slug='example-podcast', episode_id='a1b2c3d4e5f6', podcast_id=1,
-        podcast_name='Example Podcast', episode_title='Episode',
-        episode_description='', podcast_description='',
-    )
-    audio = MagicMock()
-    audio.get_audio_duration.return_value = 1000.0
-    processor = AudioProcessor()
-    audio.process_episode.side_effect = (
-        lambda path, cuts, cut_barriers=None, hard_barriers=None: (
-            '/tmp/kept-recut.mp3', processor.compute_applied_cuts(
-                cuts, 1000.0, cut_barriers, hard_barriers=hard_barriers)))
-    fake_db = MagicMock()
-    fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_setting.return_value = 'false'
-    with patch.object(processing, 'db', fake_db), \
-         patch.object(processing, 'storage'), \
-         patch('verification_pass.VerificationPass') as verifier_cls, \
-         patch.object(processing, '_apply_pass2_heuristic_rolls'), \
-         patch.object(processing, '_validate_verification_ads',
-                      side_effect=lambda *args, **kwargs: (args[2], args[3])), \
-         patch.object(processing, '_gate_verification_ads_by_confidence',
-                      side_effect=lambda processed, original, *args, **kwargs:
-                      (list(processed), list(original), [], 0, [])), \
-         patch.object(processing, '_apply_pass2_reviewer'):
-        verifier_cls.return_value.verify.return_value = {
-            'ads': [finding_orig], 'ads_processed': [finding_proc],
-            'segments': list(segments) or [
-                {'start': 0.0, 'end': 90.0, 'text': 'show content'}],
-        }
-        output = processing._run_verification_pass(
-            ctx, '/tmp/pass1-output.mp3', pass1_cuts, False, 0.8,
-            audio, None, original_segments=list(segments),
-            pass1_kept_markers=list(kept),
-            segment_actions={'sponsor': 'remove'},
-            original_audio_path=original_audio_path,
-            pass1_markers=pass1_markers,
-            false_positive_corrections=list(fp_corrections)
-        )
-    return output, audio
+    run = drive_verification_pass(
+        pairs=[(finding_proc, finding_orig)], cuts=pass1_cuts, kept=kept, fp=fp_corrections,
+        duration=1000.0, gate=gate_passthrough, segment_actions={'sponsor': 'remove'},
+        segments=list(segments) or [{'start': 0.0, 'end': 90.0, 'text': 'show content'}],
+        original_segments=list(segments), **pass_kwargs)
+    return run.output, run.audio
 
 
 def test_pass2_finding_clipping_a_keep_renders_only_its_outside_tail():

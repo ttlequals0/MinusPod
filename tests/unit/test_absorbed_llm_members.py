@@ -48,17 +48,19 @@ def _detect(claude_confidence, claude_end=2545.0):
     return result['ads'][0]
 
 
-def test_trimmed_llm_ad_records_covered_part_as_member():
-    marker = _detect(0.98, claude_end=2562.0)
+@pytest.mark.parametrize('claude_end', [2562.0, 2545.0])
+def test_llm_member_splits_estimated_marker(claude_end):
+    marker = _detect(0.98, claude_end=claude_end)
 
     claude = [m for m in marker['merged_member_spans'] if m['stage'] == 'claude']
-    assert [(m['start'], m['end']) for m in claude] == [(2485.2, 2562.0)]
+    assert [(m['start'], m['end']) for m in claude] == [(2485.2, claude_end)]
 
     result = AdValidator(3600.0, SEGMENTS, splice_veto_enabled=False).validate([marker])
 
     assert [(ad['start'], ad['end']) for ad in result.ads] == [
-        (2457.8, 2485.2), (2485.2, 2562.0)]
+        (2457.8, 2485.2), (2485.2, claude_end)]
     lead, cut = result.ads
+    assert lead['held_for_review'] is True
     assert lead['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
     assert cut['validation']['decision'] == Decision.ACCEPT.value
     assert not cut.get('held_for_review')
@@ -77,20 +79,6 @@ def test_absorbed_llm_ad_recorded_as_member():
     assert claude[0]['precise_end'] is False
     assert (2485.2, 2545.0, True) in measured_member_spans(marker, 0.8)
     assert not marker.get('merged_distinct_ads')
-
-
-def test_absorbed_llm_ad_splits_estimated_marker():
-    validator = AdValidator(3600.0, SEGMENTS, splice_veto_enabled=False)
-
-    result = validator.validate([_detect(0.98)])
-
-    spans = [(ad['start'], ad['end']) for ad in result.ads]
-    assert spans == [(2457.8, 2485.2), (2485.2, 2545.0)]
-    lead, cut = result.ads
-    assert lead['held_for_review'] is True
-    assert lead['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
-    assert cut['validation']['decision'] == Decision.ACCEPT.value
-    assert not cut.get('held_for_review')
 
 
 @pytest.mark.parametrize('segments', [SEGMENTS, []])
