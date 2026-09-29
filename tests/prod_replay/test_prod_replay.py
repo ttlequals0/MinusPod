@@ -207,7 +207,7 @@ def _replay_render_state(monkeypatch, ep):
         MIN_CONF, podcast_id=1, segment_actions=dict(ACTIONS), corrections=corrections)
     reject_spans = processing.reject_barriers(rejects, corrections[1])
     ads_to_remove, trims = processing._restore_confirmed_spans(
-        ads_to_remove, all_ads, corrections, ep['duration'], 0.0, reject_ranges=reject_spans)
+        ads_to_remove, all_ads, corrections, ep['duration'], 0.0)
     reject_ids = {id(a) for a in rejects}
     ads_to_remove = processing._stamp_and_carve_cuts(
         'replay', 'replay', [a for a in ads_to_remove if id(a) not in reject_ids],

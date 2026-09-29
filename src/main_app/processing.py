@@ -1725,14 +1725,14 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
 
 def _restore_confirmed_spans(ads_to_remove, all_ads_with_validation, corrections,
                              episode_duration, exclude_start_seconds,
-                             restore=True, reject_ranges=()):
+                             restore=True):
     """Cut uncovered confirmed spans and keep saved trims out; returns (cuts, trim ranges)."""
     fp_corrections, confirmed = corrections
     trim_ranges = user_trimmed_keep_ranges(confirmed)
     if restore:
         ads_to_remove = restore_uncovered_confirmed_spans(
             ads_to_remove, all_ads_with_validation, confirmed, fp_corrections,
-            [*trim_ranges, *reject_ranges], episode_duration, exclude_start_seconds)
+            trim_ranges, episode_duration, exclude_start_seconds)
     ads_to_remove = _carve_cuts_around(
         ads_to_remove, all_ads_with_validation, trim_ranges, user_trim=True)
     return ads_to_remove, trim_ranges
@@ -3677,6 +3677,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     episode_title = ctx.episode_title
     episode_description = ctx.episode_description
     podcast_description = ctx.podcast_description
+    pass1_path = processed_path
     verification_count = 0
     v_ads_for_ui = []
     v_cuts_for_assets = []
@@ -3957,22 +3958,22 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                                                pass1_cuts=protection.pass1_cuts),
                         )
                     if recut_ok:
+                        # Cut authority first, so a later failure still finalizes against the new audio.
                         if crosspass_plan and original_audio_path:
+                            pass1_cuts[:] = recut_applied
                             _drop_uncovered_crosspass_ads(
                                 slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                 recut_applied, original_render_duration, ledger=ledger)
-                            pass1_cuts[:] = recut_applied
-                            verification_count = len(v_ads_to_cut)
                         else:
+                            v_cuts_for_assets = _pass2_cuts_in_original(
+                                recut_applied, pass1_cuts)
                             _drop_uncovered_pass2_ads(
                                 slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                 recut_applied, verification_ads_processed,
                                 verification_ads_original, pre_recut_duration,
                                 pass1_cuts=pass1_cuts, ledger=ledger,
                             )
-                            verification_count = len(v_ads_to_cut)
-                            v_cuts_for_assets = _pass2_cuts_in_original(
-                                recut_applied, pass1_cuts)
+                        verification_count = len(v_ads_to_cut)
                     else:
                         for ad in v_ads_for_ui:
                             ledger.record(ad, 'dropped:recut_failed')
@@ -3998,10 +3999,15 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         audio_logger.error(f"[{slug}:{episode_id}] Verification pass failed: {e}")
         # The pass did not complete; callers must not report a clean scan.
         verification_ok = False
-        # Held and kept markers still persist, so they keep their outcome; uncut UI markers do not.
-        ledger.settle([], v_ads_held, category_kept)
-        ledger.fail(v_ads_for_ui, kept_conflicts, verification_ads_original)
-        v_ads_for_ui = []
+        # Held and kept markers still persist, so they keep their outcome.
+        if processed_path != pass1_path:
+            # The recut audio is already in place, so its markers are cut.
+            ledger.settle(v_ads_for_ui, v_ads_held, category_kept)
+            ledger.fail(kept_conflicts, verification_ads_original)
+        else:
+            ledger.settle([], v_ads_held, category_kept)
+            ledger.fail(v_ads_for_ui, kept_conflicts, verification_ads_original)
+            v_ads_for_ui = []
         ledger.emit(slug, episode_id, run_stats)
 
     # Category keeps persist with the pass-2 markers but were never holds.
@@ -5355,8 +5361,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         reject_spans = reject_barriers(reviewer_rejects, corrections[1])
         ads_to_remove, trim_ranges = _restore_confirmed_spans(
             ads_to_remove, all_ads_with_validation, corrections, original_duration,
-            resolve_ad_detection_exclude_start_seconds(db, recut_podcast_id),
-            reject_ranges=reject_spans)
+            resolve_ad_detection_exclude_start_seconds(db, recut_podcast_id))
         reject_ids = {id(ad) for ad in reviewer_rejects}
         ads_to_remove = _stamp_and_carve_cuts(
             slug, episode_id, [ad for ad in ads_to_remove if id(ad) not in reject_ids],
@@ -6623,7 +6628,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ads_to_remove, trim_ranges = _restore_confirmed_spans(
                 ads_to_remove, all_ads_with_validation, user_corrections,
                 episode_duration, opening_exclusion_seconds,
-                restore=not skip_detection, reject_ranges=pass1_reviewer_rejects)
+                restore=not skip_detection)
 
             # Backstop: the late keep partition above should already have
             # caught everything, so this normally finds nothing.

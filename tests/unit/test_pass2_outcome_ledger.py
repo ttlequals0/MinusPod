@@ -148,6 +148,22 @@ def test_recut_failure_after_a_protected_carve_reports_each_part_once(caplog):
         (140.0, 400.0, 'dropped:pass_failed')]
 
 
+def test_failure_after_the_recut_saves_the_pass2_markers_as_cut(monkeypatch, caplog):
+    def boom(*args, **kwargs):
+        raise RuntimeError('boom')
+
+    monkeypatch.setattr(processing, '_drop_uncovered_pass2_ads', boom)
+    run = _run([(200.0, 260.0)], caplog=caplog)
+    verification_count, ui, cuts, _held, path, *_rest = run.output
+    assert run.output[6] is False
+    assert path == '/tmp/pass2-recut.mp3'
+    assert [(m['start'], m['end'], m['pass2_outcome']) for m in ui] == [(200.0, 260.0, 'cut')]
+    assert run.lines == [(200.0, 260.0, 'cut')]
+    all_ads = list(ui)
+    processing._finalize_cut_state(all_ads, list(ui), cuts, 6000.0)
+    assert all_ads[0]['was_cut'] is True
+
+
 def test_exception_keeps_held_and_kept_markers_with_their_outcome(caplog):
     run = _run([(200.0, 260.0), (400.0, 460.0, 0.7), (600.0, 660.0, 0.95, 'self_promo')],
                recut_error=RuntimeError('boom'), caplog=caplog)

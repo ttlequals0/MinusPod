@@ -22,13 +22,14 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import main_app.processing as processing
 from api.patterns import _matches_held_marker
 from audio_processor import AudioProcessor
 from config import count_pending_review, HOLD_REASON_VERIFICATION_KEPT_CONFLICT
 from tests.unit.marker_test_utils import applied_cut
+from tests.unit.test_recut_ad_list import _recut_render_call
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
@@ -1607,32 +1608,19 @@ def _run_with_reviewer_reject(confirmed, verification_side_effect=None):
                          duration=1000.0)
 
 
-def _recut_requested_spans(confirmed):
-    """Cut list the recut requests, following _recut_episode."""
+def _recut_render(tmp_path, confirmed):
+    """The render call a real _recut_episode makes over the saved full-run state."""
     saved = [{'start': REJECTED[0], 'end': REJECTED[1], 'confidence': 0.95,
               'category': 'sponsor', 'detection_stage': 'llm', 'was_cut': False,
               'source': 'reviewer', 'reviewer_verdict': 'reject'},
              {'start': KEPT_CUT[0], 'end': KEPT_CUT[1], 'confidence': 0.95,
               'category': 'sponsor', 'detection_stage': 'llm', 'was_cut': True}]
-    db = MagicMock()
-    db.get_episode.return_value = {'ad_markers_json': json.dumps(saved)}
-    db.get_episode_corrections.return_value = []
-    db.get_podcast_cue_settings_overrides.return_value = {}
-    db.get_episode_audio_analysis.return_value = None
-    db.get_episode_dai_differential.return_value = None
-    db.get_setting.return_value = None
-    db.get_setting_bool.side_effect = lambda k, **kw: kw.get('default', False)
-    db.get_setting_float.side_effect = lambda k, default=None: default
-    corrections = ([], [dict(c) for c in confirmed])
-    with patch.object(processing, 'db', db):
-        ads_to_remove, all_ads, _keep, rejects = processing._build_recut_ad_list(
-            'keep-feed', 'ep1', SEGMENTS, 1000.0, '', 0.8, podcast_id=1,
-            segment_actions={'sponsor': 'remove'}, corrections=corrections)
-        ads_to_remove, _trims = processing._restore_confirmed_spans(
-            ads_to_remove, all_ads, corrections, 1000.0, 0.0,
-            reject_ranges=processing.reject_barriers(rejects, corrections[1]))
-    reject_ids = {id(r) for r in rejects}
-    return sorted((a['start'], a['end']) for a in ads_to_remove if id(a) not in reject_ids)
+    return _recut_render_call(tmp_path, saved, [dict(c) for c in confirmed])
+
+
+def _render_spans(call):
+    return (sorted((a['start'], a['end']) for a in call.args[1]),
+            sorted((b['start'], b['end']) for b in call.kwargs['hard_barriers']))
 
 
 @pytest.mark.parametrize('confirmed, cuts, barriers', CONFIRM_CASES)
@@ -1648,12 +1636,12 @@ def test_full_run_renders_a_reviewer_reject_only_where_no_user_confirm(confirmed
 
 @pytest.mark.parametrize('confirmed, cuts, barriers', CONFIRM_CASES)
 def test_full_run_and_recut_render_the_same_cuts_around_a_reviewer_reject(
-        confirmed, cuts, barriers):
+        tmp_path, confirmed, cuts, barriers):
     m = _run_with_reviewer_reject(confirmed)
 
-    full_run = sorted((a['start'], a['end'])
-                      for a in m['local_ap'].process_episode.call_args.args[1])
-    assert full_run == _recut_requested_spans(confirmed) == cuts
+    full_run = _render_spans(m['local_ap'].process_episode.call_args)
+    assert full_run == _render_spans(_recut_render(tmp_path, confirmed))
+    assert full_run[0] == cuts and set(barriers) <= set(full_run[1])
 
 
 def test_pass2_receives_the_reviewer_reject_minus_the_user_confirm():
