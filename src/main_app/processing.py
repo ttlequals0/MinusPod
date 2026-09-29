@@ -1723,13 +1723,10 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
     return remove
 
 
-def _restore_confirmed_spans(ads_to_remove, all_ads_with_validation, podcast_id,
-                             episode_id, episode_duration, exclude_start_seconds,
-                             restore=True, reject_ranges=(), corrections=None):
+def _restore_confirmed_spans(ads_to_remove, all_ads_with_validation, corrections,
+                             episode_duration, exclude_start_seconds,
+                             restore=True, reject_ranges=()):
     """Cut uncovered confirmed spans and keep saved trims out; returns (cuts, trim ranges)."""
-    if corrections is None:
-        corrections = (db.get_false_positive_corrections(podcast_id, episode_id),
-                       db.get_confirmed_corrections(podcast_id, episode_id))
     fp_corrections, confirmed = corrections
     trim_ranges = user_trimmed_keep_ranges(confirmed)
     if restore:
@@ -2002,8 +1999,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           max_ad_duration_override=None, cue_gate_enabled=False,
                           audio_analysis=None, podcast_id=None, keep_ads=None,
                           cue_only_safety=None, cue_unproven_template_ids=None,
-                          apply_heuristic_rolls=True, segment_actions=None,
-                          corrections=None):
+                          apply_heuristic_rolls=True, segment_actions=None, *,
+                          corrections):
     """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
 
     ``keep_ads`` are the keep-partitioned markers, passed so boundary
@@ -2019,8 +2016,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     """
     # Load corrections first: the filler-gap merge needs the FP ranges so it
     # does not collapse a span the user rejected.
-    false_positive_corrections, confirmed_corrections = (
-        corrections or _load_user_corrections(slug, episode_id, db))
+    false_positive_corrections, confirmed_corrections = corrections
 
     # Boundary refinement
     all_ads = _refine_boundaries(all_ads, segments, db=db,
@@ -2138,6 +2134,23 @@ def _log_reviewer_verdicts(slug, episode_id, pass_num, verdicts):
     )
 
 
+def _hold_pass2_verdict(v, proc_ad, held_ad, v_ads_to_cut, v_ads_for_ui, v_ads_held):
+    """Pull a pass-2 ad from the cuts and file its original-time marker as held; False when none."""
+    if proc_ad in v_ads_to_cut:
+        v_ads_to_cut.remove(proc_ad)
+    if proc_ad is not None:
+        proc_ad['was_cut'] = False
+        stamp_reviewer_fields(proc_ad, v)
+    if held_ad is None:
+        return False
+    _apply_reviewer_verdict_to_ad(held_ad, v)
+    if held_ad in v_ads_for_ui:
+        v_ads_for_ui.remove(held_ad)
+    if held_ad not in v_ads_held:
+        v_ads_held.append(held_ad)
+    return True
+
+
 def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence,
@@ -2229,65 +2242,30 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         proc_ad = original_to_processed.get(key)
         ui_ad = ui_by_key.get(key)
 
+        held_ad = ui_ad or original_by_key.get(key)
+        lists = (v_ads_to_cut, v_ads_for_ui, v_ads_held)
         if v.inconclusive_hold:
-            if proc_ad in v_ads_to_cut:
-                v_ads_to_cut.remove(proc_ad)
-            if proc_ad is not None:
-                proc_ad['was_cut'] = False
-                stamp_reviewer_fields(proc_ad, v)
-            held_ad = ui_ad or original_by_key.get(key)
-            if held_ad is not None:
-                _apply_reviewer_verdict_to_ad(held_ad, v)
-                if held_ad in v_ads_for_ui:
-                    v_ads_for_ui.remove(held_ad)
-                if held_ad not in v_ads_held:
-                    v_ads_held.append(held_ad)
+            _hold_pass2_verdict(v, proc_ad, held_ad, *lists)
             continue
 
         if v.boundary_conflict:
-            if proc_ad in v_ads_to_cut:
-                v_ads_to_cut.remove(proc_ad)
-            if proc_ad is not None:
-                proc_ad['was_cut'] = False
-                stamp_reviewer_fields(proc_ad, v)
-            held_ad = ui_ad or original_by_key.get(key)
-            if held_ad is None:
+            if not _hold_pass2_verdict(v, proc_ad, held_ad, *lists):
                 audio_logger.warning(
                     f"[{slug}:{episode_id}] Pass 2 reviewer boundary conflict @ "
                     f"{v.original_start:.1f}s has no original marker"
                 )
-                continue
-            _apply_reviewer_verdict_to_ad(held_ad, v)
-            if held_ad in v_ads_for_ui:
-                v_ads_for_ui.remove(held_ad)
-            if held_ad not in v_ads_held:
-                v_ads_held.append(held_ad)
             continue
 
-        # Contradiction hold (same criterion the reviewer used to populate
-        # result.held_by_contradiction): the ad must NOT cut. Checked before
-        # the adjust->confirmed coercion so a held adjust is not coerced into
-        # a full-span cut.
+        # Checked before the adjust->confirmed coercion so a held adjust is not
+        # coerced into a full-span cut.
         if v.pool == 'accepted' and is_contradiction_hold(
                 v.verdict, v.reasoning, v.structured_is_ad):
-            if proc_ad is not None:
-                if proc_ad in v_ads_to_cut:
-                    v_ads_to_cut.remove(proc_ad)
-                proc_ad['was_cut'] = False
-                stamp_reviewer_fields(proc_ad, v)
-            held_ad = ui_ad if ui_ad is not None else original_by_key.get(key)
-            if held_ad is None:
+            if not _hold_pass2_verdict(v, proc_ad, held_ad, *lists):
                 audio_logger.warning(
                     f"[{slug}:{episode_id}] Pass 2 contradiction hold @ "
                     f"{v.original_start:.1f}s has no original twin; "
                     f"removed from cut list without a held marker"
                 )
-                continue
-            # Same shape as a pass-1 contradiction hold, in original coords.
-            _apply_reviewer_verdict_to_ad(held_ad, v)
-            if held_ad in v_ads_for_ui:
-                v_ads_for_ui.remove(held_ad)
-            v_ads_held.append(held_ad)
             continue
 
         if v.verdict == 'adjust':
@@ -2323,7 +2301,6 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                     proc_ad['was_cut'] = False
                 if ui_ad in v_ads_for_ui:
                     v_ads_for_ui.remove(ui_ad)
-                held_ad = ui_ad or original_by_key.get(key)
                 if held_ad is not None:
                     stamp_reviewer_fields(held_ad, v)
                     held_ad['was_cut'] = False
@@ -2354,7 +2331,6 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
             # Evidence floor (ad_reviewer.reject_hold_evidence): a reject over
             # measured evidence is held for a human, not dropped.
             if v.reject_hold_reason:
-                held_ad = ui_ad if ui_ad is not None else original_by_key.get(key)
                 if held_ad is not None:
                     _apply_reviewer_verdict_to_ad(held_ad, v)
                     if held_ad not in v_ads_held:
@@ -2642,12 +2618,11 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
                      episode_title, episode_description, podcast_description,
                      min_cut_confidence, pass_num, pass_model, pass_provider=None,
                      audio_analysis=None, cue_gate_enabled=False,
-                     segment_actions=None, hard_barriers=None, user_rejects=None):
+                     segment_actions=None, keep_ads=(), user_rejects=()):
     """Run the LLM ad reviewer over the cut list and resurrection-eligible
     rejects. Returns updated ``(ads_to_remove, all_ads_with_validation)``.
 
-    ``hard_barriers`` must already hold ``user_rejects``; when those are not
-    passed they are loaded here and added to the barriers.
+    ``keep_ads`` and ``user_rejects`` are the hard barriers the reviewer may not cross.
 
     A reviewer failure holds unsupported cuts as reviewer_failed. Skips
     entirely when ``enable_ad_review`` is false.
@@ -2679,21 +2654,14 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     )
 
     reviewer = _build_reviewer(db, ad_detector)
-    if user_rejects is None:
-        user_rejects = _pass1_user_rejects(
-            db.get_false_positive_corrections(podcast_id, episode_id),
-            db.get_confirmed_corrections(podcast_id, episode_id))
-        hard_barriers = [*(hard_barriers or []), *user_rejects]
-    reject_ids = {id(r) for r in user_rejects}
     episode_meta = _build_episode_meta(
         slug, episode_id, podcast_id, podcast_name,
         episode_title, podcast_description, episode_description,
         audio_analysis=audio_analysis,
         effective_category_actions=segment_actions,
-        hard_barriers=hard_barriers,
+        hard_barriers=[*keep_ads, *user_rejects],
         min_cut_confidence=min_cut_confidence,
-        protected_spans=_labelled_protected_spans(
-            [b for b in hard_barriers if id(b) not in reject_ids], user_rejects),
+        protected_spans=_labelled_protected_spans(keep_ads, user_rejects),
     )
     result = reviewer.review(
         accepted_ads=ads_to_remove,
@@ -3279,7 +3247,7 @@ def _pass2_confirm_span(marker):
     return None
 
 
-def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=None):
+def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
     """File the confirm corrections for pass-2-corroborated holds.
 
     Returns the count filed; the caller owns the recut that applies them, so
@@ -3310,8 +3278,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections=Non
             return 0
         # A human reject always wins: never auto-approve a span the user has
         # explicitly marked as content.
-        fp_corrections, confirmed_corrections = (
-            corrections or _load_user_corrections(slug, episode_id, db))
+        fp_corrections, confirmed_corrections = corrections
         fp_corrections = fp_corrections or []
         reviewer_rejects = [
             r for r in markers if reviewer_reject_stands(r, confirmed_corrections)]
@@ -3672,7 +3639,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             skip_verification=False, segment_actions=None,
                             differential_override=None, run_stats=None,
                             original_audio_path=None, pass1_markers=None,
-                            false_positive_corrections=None, pass1_reviewer_rejects=None):
+                            pass1_reviewer_rejects=None, *, false_positive_corrections):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -3720,9 +3687,6 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     clear_fallback(episode_id, PASS_AD_DETECTION_2)
     if segment_actions is None:
         segment_actions = db.resolve_segment_actions(slug)
-    if false_positive_corrections is None:
-        false_positive_corrections = (
-            db.get_false_positive_corrections(ctx.podcast_id, episode_id) or [])
     category_kept = []
     kept_conflicts = []
     hard_protection = None
@@ -5056,12 +5020,12 @@ def _split_recut_counts(total_cut, verification_count):
 
 def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
                           episode_description, min_cut_confidence,
-                          podcast_id=None, segment_actions=None, corrections=None):
+                          podcast_id=None, segment_actions=None, *, corrections):
     """Build the cut list for a recut from the stored detections plus the user's
     edits, with no re-detection. Manual adds already live in ad_markers_json;
     boundary adjustments are applied here; rejects/confirms and confidence
     gating run through the same AdValidator path a full reprocess uses.
-    segment_actions and corrections (fp, confirmed) are loaded when not passed.
+    segment_actions is loaded when not passed.
     Returns (ads_to_remove, all_ads_with_validation, keep_ads, reviewer_rejects)."""
     from ad_validator import Decision
 
@@ -5072,8 +5036,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
 
     _apply_boundary_adjustments(slug, episode_id, all_ads)
 
-    false_positive_corrections, confirmed_corrections = (
-        corrections or _load_user_corrections(slug, episode_id, db))
+    false_positive_corrections, confirmed_corrections = corrections
 
     # Resolve per-feed hold settings. If podcast_id was not passed, look it up.
     if podcast_id is None:
@@ -5391,10 +5354,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         # A user confirm cuts its own interval inside a reviewer reject.
         reject_spans = reject_barriers(reviewer_rejects, corrections[1])
         ads_to_remove, trim_ranges = _restore_confirmed_spans(
-            ads_to_remove, all_ads_with_validation, recut_podcast_id, episode_id,
-            original_duration,
+            ads_to_remove, all_ads_with_validation, corrections, original_duration,
             resolve_ad_detection_exclude_start_seconds(db, recut_podcast_id),
-            reject_ranges=reject_spans, corrections=corrections)
+            reject_ranges=reject_spans)
         reject_ids = {id(ad) for ad in reviewer_rejects}
         ads_to_remove = _stamp_and_carve_cuts(
             slug, episode_id, [ad for ad in ads_to_remove if id(ad) not in reject_ids],
@@ -6612,7 +6574,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         audio_analysis=audio_analysis_result,
                         cue_gate_enabled=cue_gate_enabled,
                         segment_actions=segment_actions,
-                        hard_barriers=pass1_hard,
+                        keep_ads=keep_ads,
                         user_rejects=pass1_user_rejects,
                     )
             _check_cancel(cancel_event, slug, episode_id)
@@ -6659,10 +6621,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 episode_duration=episode_duration)
             ads_to_remove, trim_ranges = _restore_confirmed_spans(
-                ads_to_remove, all_ads_with_validation, podcast_id, episode_id,
+                ads_to_remove, all_ads_with_validation, user_corrections,
                 episode_duration, opening_exclusion_seconds,
-                restore=not skip_detection, reject_ranges=pass1_reviewer_rejects,
-                corrections=user_corrections)
+                restore=not skip_detection, reject_ranges=pass1_reviewer_rejects)
 
             # Backstop: the late keep partition above should already have
             # caught everything, so this normally finds nothing.

@@ -112,6 +112,15 @@ def test_pass2_contradiction_confirmed_is_held_not_cut(monkeypatch):
     assert p1['was_cut'] is False
 
 
+def test_pass2_contradiction_does_not_append_an_already_held_marker(monkeypatch):
+    o1, p1 = _pair(100.0, 160.0, 50.0, 110.0)
+    v_ads_to_cut, v_ads_for_ui, v_ads_held = [p1], [o1], [o1]
+    _run_pass2(monkeypatch, [_verdict('confirmed', 100.0, 160.0, CONTRADICTING)],
+               v_ads_to_cut, v_ads_for_ui, v_ads_held, [p1], [o1])
+    assert v_ads_held == [o1]
+    assert v_ads_to_cut == [] and v_ads_for_ui == []
+
+
 def test_pass2_contradiction_guard_logs_once_with_context(monkeypatch, caplog):
     # The pass-2 gate and _apply_reviewer_verdict_to_ad both evaluate the
     # same verdict object; neither may emit, so the guard-fired line stays at

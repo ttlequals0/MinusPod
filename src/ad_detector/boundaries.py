@@ -14,6 +14,7 @@ from utils.markers import (
     clip_merge_spans,
     estimated_text_bounds,
     EDGE_TOLERANCE,
+    inherit_edge,
     invalidate_tail_provenance,
     invalidate_quote_alignment,
     invalidate_word_timed_edges,
@@ -193,8 +194,7 @@ def align_ad_quote_bounds(ads: list[dict], segments: list[dict]) -> list[dict]:
             continue
         aligned_ad = dict(ad, start=new_start, end=new_end,
                           quote_aligned_start=True, quote_aligned_end=True,
-                          quote_start=new_start, quote_end=new_end,
-                          quote_original_start=start, quote_original_end=end)
+                          quote_start=new_start, quote_end=new_end)
         invalidate_word_timed_edges(aligned_ad)
         aligned.append(aligned_ad)
     return aligned
@@ -1290,15 +1290,7 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
     """
     mark_distinct_merge(current_ad, next_ad)
     invalidate_tail_provenance(current_ad, next_ad['end'])
-    if _quote_edge_valid(next_ad, 'end'):
-        for field in ('quote_aligned_end', 'quote_end', 'quote_original_end'):
-            if field in next_ad:
-                current_ad[field] = next_ad[field]
-            else:
-                current_ad.pop(field, None)
-    if word_timed_edge_valid(next_ad, 'end'):
-        current_ad['word_timed_end'] = next_ad['word_timed_end']
-    current_ad['end'] = next_ad['end']
+    inherit_edge(current_ad, next_ad, 'end')
     invalidate_quote_alignment(current_ad)
     invalidate_word_timed_edges(current_ad)
     # The tail-sweep marker describes how the *current end* was reached. Once
@@ -1877,15 +1869,7 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
             note_fold(last, current)
             # Merge: extend end time if current goes further
             if current['end'] > last['end']:
-                if _quote_edge_valid(current, 'end'):
-                    for field in ('quote_aligned_end', 'quote_end', 'quote_original_end'):
-                        if field in current:
-                            last[field] = current[field]
-                        else:
-                            last.pop(field, None)
-                if word_timed_edge_valid(current, 'end'):
-                    last['word_timed_end'] = current['word_timed_end']
-                last['end'] = current['end']
+                inherit_edge(last, current, 'end')
                 invalidate_quote_alignment(last)
                 invalidate_word_timed_edges(last)
                 if current.get('end_text'):

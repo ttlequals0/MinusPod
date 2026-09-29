@@ -144,7 +144,6 @@ def test_verification_reviewer_cannot_restore_user_trimmed_audio():
         processor.compute_applied_cuts(cuts, 600.0, cut_barriers))
     fake_db = MagicMock()
     fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_false_positive_corrections.return_value = []
     fake_db.get_setting.return_value = 'false'
 
     def reexpand(_ctx, cuts, original, *_args, **_kwargs):
@@ -170,6 +169,7 @@ def test_verification_reviewer_cannot_restore_user_trimmed_audio():
             audio, None, original_segments=[],
             pass1_trim_ranges=[{'start': 100.0, 'end': 101.7}],
             segment_actions={'sponsor': 'remove'},
+            false_positive_corrections=[]
         )
 
     requested = audio.process_episode.call_args.args[1]
@@ -224,7 +224,6 @@ def test_verification_rerenders_original_and_replaces_cut_authority():
     }
     fake_db = MagicMock()
     fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_false_positive_corrections.return_value = []
     fake_db.get_setting.return_value = 'false'
 
     with patch.object(processing, 'db', fake_db), \
@@ -242,6 +241,7 @@ def test_verification_rerenders_original_and_replaces_cut_authority():
             segment_actions={'sponsor': 'remove'},
             original_audio_path='/tmp/original-working.mp3',
             pass1_markers=pass1_markers,
+            false_positive_corrections=[]
         )
 
     assert audio.process_episode.call_args.args[0] == '/tmp/original-working.mp3'
@@ -269,7 +269,6 @@ def test_verification_marks_failed_crosspass_rerender_incomplete():
     }
     fake_db = MagicMock()
     fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_false_positive_corrections.return_value = []
     fake_db.get_setting.return_value = 'false'
 
     with patch.object(processing, 'db', fake_db), \
@@ -287,6 +286,7 @@ def test_verification_marks_failed_crosspass_rerender_incomplete():
             segment_actions={'sponsor': 'remove'},
             original_audio_path='/tmp/original-working.mp3',
             pass1_markers=pass1_markers,
+            false_positive_corrections=[]
         )
 
     assert output[4] == '/tmp/pass1-output.mp3'
@@ -313,7 +313,6 @@ def _run_pass2_against_keep(pass1_cuts, finding_proc, finding_orig, *,
                 cuts, 1000.0, cut_barriers, hard_barriers=hard_barriers)))
     fake_db = MagicMock()
     fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_false_positive_corrections.return_value = list(fp_corrections)
     fake_db.get_setting.return_value = 'false'
     with patch.object(processing, 'db', fake_db), \
          patch.object(processing, 'storage'), \
@@ -337,6 +336,7 @@ def _run_pass2_against_keep(pass1_cuts, finding_proc, finding_orig, *,
             segment_actions={'sponsor': 'remove'},
             original_audio_path=original_audio_path,
             pass1_markers=pass1_markers,
+            false_positive_corrections=list(fp_corrections)
         )
     return output, audio
 

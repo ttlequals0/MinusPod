@@ -41,7 +41,7 @@ KEPT_SPAN_CONTAINMENT_MIN = 0.9
 # Parent verdict state a fragment outside a hold must not inherit.
 _HOLD_SPLIT_DROPPED_KEYS = (
     'held_for_review', 'was_cut', 'hold_reason', 'validation', 'pass2_corroborated',
-    'pass2_corroborated_span', '_hold_release_of', 'detection_stage', 'user_confirmed',
+    'pass2_corroborated_span', 'detection_stage', 'user_confirmed',
     'hold_id',
 )
 
@@ -434,7 +434,6 @@ def _split_pass2_candidates_around_holds(parents, holds, pass1_cuts, ledger=None
         for key in [*_HOLD_SPLIT_DROPPED_KEYS,
                     *(k for k in fragment if k.startswith('reviewer_'))]:
             fragment.pop(key, None)
-        fragment['split_from_hold'] = True
     return processed, original
 
 
@@ -462,20 +461,13 @@ def _reaches_hold(slug, episode_id, orig, holds):
 
 
 def _run_candidate_stages(slug, episode_id, processed, original, barriers, protection,
-                          validate, gate, fp=(), holds=None, hold_overlaps=None,
-                          ledger=None):
-    """FP check, hard split, validation, gate; returns (processed, original, gate result).
+                          validate, gate, holds=None, hold_overlaps=None, ledger=None):
+    """Validation then gate; returns (processed, original, gate result).
 
     With holds=None the gate sees no holds, so a fragment validation moved into one is dropped.
     """
     ledger = ledger or Pass2Ledger()
     try:
-        processed, original = _drop_matching(
-            processed, original, lambda o: _matches_false_positive_correction(o, fp),
-            'rejected:fp_correction', ledger)
-        processed, original = _split_pass2_candidates_around_spans(
-            processed, original, protection.hard_proc, protection.pass1_cuts,
-            'protected audio', ledger=ledger, carved_labels=protection.hard_sources)
         processed, original = validate(processed, original, barriers)
         if holds is None:
             processed, original = _drop_matching(
@@ -497,10 +489,20 @@ def _gate_hold_split_fragments(slug, episode_id, parents, protection, fp, valida
         parents, protection.holds_orig, protection.pass1_cuts, ledger=ledger)
     if not processed:
         return HoldSplitFragments()
+    try:
+        processed, original = _drop_matching(
+            processed, original, lambda o: _matches_false_positive_correction(o, fp),
+            'rejected:fp_correction', ledger)
+        processed, original = _split_pass2_candidates_around_spans(
+            processed, original, protection.hard_proc, protection.pass1_cuts,
+            'protected audio', ledger=ledger, carved_labels=protection.hard_sources)
+    except Exception:
+        ledger.fail(original)
+        raise
     # Holds were decided on the full findings; the fragment gate sees none.
     processed, original, (to_cut, for_ui, held, _count, _candidates) = _run_candidate_stages(
         slug, episode_id, processed, original, protection.barriers_proc(),
-        protection, validate, gate, fp=fp, ledger=ledger)
+        protection, validate, gate, ledger=ledger)
     audio_logger.info(
         f"[{slug}:{episode_id}] {len(processed)} pass-2 fragment(s) outside held "
         f"spans: {len(to_cut)} cut, {len(held)} held")
@@ -525,7 +527,6 @@ def _add_release_candidate(release_by_hold, orig_ad, hold, overlapping,
         return False
     orig_sub = carve_fragment(orig_ad, *span)
     orig_sub['held_for_review'] = True
-    orig_sub['_hold_release_of'] = (hold['start'], hold['end'])
     subs[:] = sorted([*(sub for sub in subs if id(sub) not in overlapped), orig_sub],
                      key=lambda sub: sub['start'])
     audio_logger.info(

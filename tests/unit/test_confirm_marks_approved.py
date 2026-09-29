@@ -14,6 +14,11 @@ from ad_validator import user_trimmed_keep_ranges
 from api.patterns import _handle_confirm_correction
 import main_app.processing as processing_mod
 
+def _user_corrections(slug, episode_id):
+    """The (fp, confirmed) corrections the test's db holds."""
+    return processing_mod._load_user_corrections(slug, episode_id, processing_mod.db)
+
+
 
 def _seed(temp_db, markers, slug='confirm-test', episode_id='abcdef012345'):
     temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Confirm Test')
@@ -421,7 +426,7 @@ def test_auto_filed_confirm_remainder_is_not_a_keep_range(temp_db, monkeypatch):
     monkeypatch.setattr(temp_db, 'get_original_segments',
                         lambda *a: [{'start': 0.0, 'end': 30.0}])
 
-    assert processing_mod._file_corroborated_hold_approvals(slug, eid, [hold]) == 1
+    assert processing_mod._file_corroborated_hold_approvals(slug, eid, [hold], corrections=_user_corrections(slug, eid)) == 1
 
     podcast_id = temp_db.get_podcast_by_slug(slug)['id']
     corrections = temp_db.get_confirmed_corrections(podcast_id, eid)

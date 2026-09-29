@@ -68,7 +68,6 @@ def drive_verification_pass(findings, *, holds=(), cuts=(), kept=(), trims=(), f
     floors = {'verification_miss_hold_min_confidence': 0.6,
               'verification_miss_autocut_min_confidence': 0.0}
     fake_db.get_setting_float.side_effect = lambda key, default=None: floors.get(key, default)
-    fake_db.get_false_positive_corrections.return_value = list(fp)
     fake_db.get_setting.return_value = 'false'
     validated = []
 

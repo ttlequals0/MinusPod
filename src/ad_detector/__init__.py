@@ -39,6 +39,7 @@ from utils.markers import (
     dai_probe_window,
     estimated_text_bounds,
     finite_number,
+    inherit_edge,
     invalidate_word_timed_edges,
     note_fold,
     word_timed_edge_valid,
@@ -3107,14 +3108,7 @@ class AdDetector:
 
                 # Merge - prefer pattern-detected metadata
                 if current['end'] > last['end']:
-                    if _quote_edge_valid(current, 'end'):
-                        for key in ('quote_aligned_end', 'quote_end',
-                                    'quote_original_end'):
-                            if key in current:
-                                last[key] = current[key]
-                    if word_timed_edge_valid(current, 'end'):
-                        last['word_timed_end'] = current['word_timed_end']
-                    last['end'] = current['end']
+                    inherit_edge(last, current, 'end')
                 invalidate_quote_alignment(last)
                 invalidate_word_timed_edges(last)
 
@@ -3303,17 +3297,8 @@ class AdDetector:
                     # The flag is the reviewer's gate on member protection.
                     if b.get('merged_distinct_ads'):
                         combined['merged_distinct_ads'] = True
-                    for edge, owner in (('start', a if a['start'] <= b['start'] else b),
-                                        ('end', a if a['end'] >= b['end'] else b)):
-                        if _quote_edge_valid(owner, edge):
-                            for key in (f'quote_aligned_{edge}', f'quote_{edge}',
-                                        f'quote_original_{edge}'):
-                                if key in owner:
-                                    combined[key] = owner[key]
-                        if word_timed_edge_valid(owner, edge):
-                            combined[f'word_timed_{edge}'] = owner[f'word_timed_{edge}']
-                    combined['start'] = min(a['start'], b['start'])
-                    combined['end'] = max(a['end'], b['end'])
+                    inherit_edge(combined, a if a['start'] <= b['start'] else b, 'start')
+                    inherit_edge(combined, a if a['end'] >= b['end'] else b, 'end')
                     invalidate_quote_alignment(combined)
                     invalidate_word_timed_edges(combined)
                     combined['confidence'] = max(a_conf, b_conf)

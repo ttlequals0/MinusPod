@@ -611,12 +611,10 @@ class TestRefineAndValidateHeuristicRollGating:
 
     def _call(self, **kwargs):
         with patch.object(processing, '_apply_heuristic_rolls') as rolls, \
-             patch.object(processing, 'db') as db:
-            db.get_false_positive_corrections.return_value = []
-            db.get_confirmed_corrections.return_value = []
+             patch.object(processing, 'db'):
             result = processing._refine_and_validate(
                 'slug', 'ep1', [], SEGMENTS, '/tmp/a.mp3',
-                'desc', 100.0, 0.8, 'Pod', **kwargs)
+                'desc', 100.0, 0.8, 'Pod', corrections=([], []), **kwargs)
         return result, rolls
 
     def test_cue_only_never_calls_apply_heuristic_rolls(self):

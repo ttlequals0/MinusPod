@@ -77,8 +77,6 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
     audio.process_episode.return_value = ('/tmp/recut.mp3', [dict(sponsor)])
     fake_db = MagicMock()
     fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_false_positive_corrections.return_value = [
-        {'start': 500.0, 'end': 510.0}]
     fake_db.get_setting.return_value = 'false'
     built = []
     real_build = processing.build_protection
@@ -112,6 +110,7 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
             audio, None, original_segments=[],
             pass1_held_markers=[pass1_hold],
             segment_actions=ACTIONS,
+            false_positive_corrections=[{'start': 500.0, 'end': 510.0}]
         )
 
     # Hard sources are built once, after the category partition.
@@ -244,7 +243,6 @@ def test_verification_pass_forwards_the_resolved_actions():
         episode_description='', podcast_description='')
     fake_db = MagicMock()
     fake_db.get_setting_float.return_value = 0.8
-    fake_db.get_false_positive_corrections.return_value = []
     with patch.object(processing, 'db', fake_db), \
          patch.object(processing, 'storage'), \
          patch('verification_pass.VerificationPass') as verifier_cls:
@@ -253,7 +251,8 @@ def test_verification_pass_forwards_the_resolved_actions():
             'status': 'no_segments'}
         processing._run_verification_pass(
             ctx, '/tmp/pass1-output.mp3', [], False, 0.8, MagicMock(), None,
-            segment_actions=ACTIONS)
+            segment_actions=ACTIONS,
+            false_positive_corrections=[])
 
     assert verifier_cls.return_value.verify.call_args.kwargs[
         'action_map'] is ACTIONS

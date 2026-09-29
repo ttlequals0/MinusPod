@@ -38,6 +38,7 @@ def _run(verification_result, run_stats=None):
         result = processing._run_verification_pass(
             _ctx(), '/tmp/verify-status-cut.mp3', [], False, 0.8,
             MagicMock(), None, run_stats=run_stats,
+            false_positive_corrections=[]
         )
     return result, storage
 

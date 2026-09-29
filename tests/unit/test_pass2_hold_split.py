@@ -26,6 +26,11 @@ from utils.time import adjust_timestamp, overlap_seconds
 
 INCONCLUSIVE = 'reviewer_inconclusive_bounds'
 
+def _user_corrections(slug, episode_id):
+    """The (fp, confirmed) corrections the test's db holds."""
+    return processing._load_user_corrections(slug, episode_id, processing.db)
+
+
 
 def _gate(pairs, holds, **kwargs):
     return _gate_verification_ads_by_confidence(
@@ -188,7 +193,7 @@ def test_fragment_sheds_the_parent_verdict_state():
     proc, orig = _pair(900.0, 1110.0, detection_stage='verification',
                        pass2_corroborated=True,
                        pass2_corroborated_span={'start': 1000.0, 'end': 1100.0},
-                       _hold_release_of=(1000.0, 1100.0), reviewer_verdict='adjust',
+                       reviewer_verdict='adjust',
                        reviewer_reasoning='x', user_confirmed=True)
     proc.update(was_cut=True)
     orig.update(held_for_review=True, hold_reason=NO_SPLICE, was_cut=False)
@@ -197,11 +202,10 @@ def test_fragment_sheds_the_parent_verdict_state():
     assert len(out_proc) == 2
     for frag in (*out_proc, *out_orig):
         for key in ('held_for_review', 'was_cut', 'hold_reason', 'validation',
-                    'pass2_corroborated', 'pass2_corroborated_span', '_hold_release_of',
+                    'pass2_corroborated', 'pass2_corroborated_span',
                     'detection_stage', 'user_confirmed', 'reviewer_verdict',
                     'reviewer_reasoning'):
             assert key not in frag, key
-        assert frag['split_from_hold'] is True
 
 
 # ---------- Verification pass: fragments go through the normal pass-2 pipeline ----------
@@ -256,7 +260,7 @@ def test_corroborated_hold_confirm_is_not_extended_by_the_fragment(monkeypatch):
     db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
     monkeypatch.setattr(processing, 'db', db)
     monkeypatch.setattr(processing, 'storage', MagicMock())
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold]) == 1
+    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     kwargs = db.create_pattern_correction.call_args.kwargs
     assert kwargs['original_bounds'] == {'start': 2124.95, 'end': 2198.87}
     assert kwargs['corrected_bounds'] is None
@@ -476,7 +480,7 @@ def test_every_approved_subspan_of_a_hold_is_released(monkeypatch):
     assert is_pending_review(hold)
 
     db = _approval_db(monkeypatch)
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold]) == 1
+    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     filed = [c.kwargs for c in db.create_pattern_correction.call_args_list]
     assert [f['corrected_bounds'] for f in filed] == [
         {'start': 1992.9, 'end': 2103.5}, {'start': 2124.9, 'end': 2195.4}]

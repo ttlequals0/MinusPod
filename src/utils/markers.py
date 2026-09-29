@@ -59,13 +59,22 @@ def invalidate_quote_alignment(marker: dict) -> None:
         if marker.get(f'quote_aligned_{edge}') and not quote_edge_valid(marker, edge):
             marker.pop(f'quote_aligned_{edge}', None)
             marker.pop(f'quote_{edge}', None)
-            marker.pop(f'quote_original_{edge}', None)
 
 
 def word_timed_edge_valid(marker: dict, edge: str) -> bool:
     timed = finite_number(marker.get(f'word_timed_{edge}'))
     current = finite_number(marker.get(edge))
     return timed is not None and current is not None and abs(timed - current) <= EDGE_TOLERANCE
+
+
+def inherit_edge(target: dict, source: dict, edge: str) -> None:
+    """Move target's edge to source's, taking source's valid quote and word-timed provenance."""
+    if quote_edge_valid(source, edge):
+        target[f'quote_aligned_{edge}'] = source[f'quote_aligned_{edge}']
+        target[f'quote_{edge}'] = source[f'quote_{edge}']
+    if word_timed_edge_valid(source, edge):
+        target[f'word_timed_{edge}'] = source[f'word_timed_{edge}']
+    target[edge] = source[edge]
 
 
 def invalidate_word_timed_edges(marker: dict) -> None:

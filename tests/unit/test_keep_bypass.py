@@ -233,14 +233,14 @@ class TestKeepBypass:
         m = _run_pipeline([_sponsor_ad(), keep],
                           {'sponsor': 'remove', 'cross_promo': 'keep'})
 
-        assert keep in m['reviewer'].call_args.kwargs['hard_barriers']
+        assert keep in m['reviewer'].call_args.kwargs['keep_ads']
 
     def test_pass1_user_rejections_are_hard_for_reviewer_and_render(self):
         fp = {'start': 70.0, 'end': 80.0}
         m = _run_pipeline([_sponsor_ad()], {'sponsor': 'remove'},
                           false_positive_corrections=[fp])
 
-        assert fp in m['reviewer'].call_args.kwargs['hard_barriers']
+        assert fp in m['reviewer'].call_args.kwargs['user_rejects']
         assert fp in m['local_ap'].process_episode.call_args.kwargs['hard_barriers']
 
     def test_corrections_are_read_once_per_run(self):
@@ -1487,6 +1487,7 @@ class TestPartitionPass2CategoryActions:
             result = processing._run_verification_pass(
                 ctx, '/tmp/pass2-actions.mp3', [], False, 0.8,
                 audio_processor, None, segment_actions=self.ACTIONS,
+                false_positive_corrections=[]
             )
 
         assert result[0] == 0
@@ -1532,6 +1533,7 @@ class TestPartitionPass2CategoryActions:
                     'action_applied': 'keep',
                 }],
                 segment_actions=self.ACTIONS,
+                false_positive_corrections=[]
             )
 
         # Dropped before the pass-2 category partition can stamp it: the
@@ -1627,9 +1629,8 @@ def _recut_requested_spans(confirmed):
             'keep-feed', 'ep1', SEGMENTS, 1000.0, '', 0.8, podcast_id=1,
             segment_actions={'sponsor': 'remove'}, corrections=corrections)
         ads_to_remove, _trims = processing._restore_confirmed_spans(
-            ads_to_remove, all_ads, 1, 'ep1', 1000.0, 0.0,
-            reject_ranges=processing.reject_barriers(rejects, corrections[1]),
-            corrections=corrections)
+            ads_to_remove, all_ads, corrections, 1000.0, 0.0,
+            reject_ranges=processing.reject_barriers(rejects, corrections[1]))
     reject_ids = {id(r) for r in rejects}
     return sorted((a['start'], a['end']) for a in ads_to_remove if id(a) not in reject_ids)
 

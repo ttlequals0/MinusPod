@@ -25,6 +25,11 @@ from main_app.processing import (
 )
 import main_app.processing as processing_mod
 
+def _user_corrections(slug, episode_id):
+    """The (fp, confirmed) corrections the test's db holds."""
+    return processing_mod._load_user_corrections(slug, episode_id, processing_mod.db)
+
+
 
 def _seg(start, end, text='spoken content here'):
     return {'start': start, 'end': end, 'text': text}
@@ -680,7 +685,8 @@ def test_auto_approve_files_correction(monkeypatch):
     cut_marker = {'start': 0.0, 'end': 29.0, 'was_cut': True}
 
     n = processing_mod._file_corroborated_hold_approvals(
-        's', 'ep1', [cut_marker, other_pending, hold])
+        's', 'ep1', [cut_marker, other_pending, hold],
+        corrections=_user_corrections('s', 'ep1'))
 
     assert n == 1
     kwargs = db.create_pattern_correction.call_args.kwargs
@@ -694,7 +700,8 @@ def test_auto_approve_noop_without_stamped_holds(monkeypatch):
     monkeypatch.setattr(processing_mod, 'db', db)
 
     n = processing_mod._file_corroborated_hold_approvals(
-        's', 'ep1', [_diff_hold(1.0, 50.0), _held_marker(100.0, 160.0)])
+        's', 'ep1', [_diff_hold(1.0, 50.0), _held_marker(100.0, 160.0)],
+        corrections=_user_corrections('s', 'ep1'))
 
     assert n == 0
     db.create_pattern_correction.assert_not_called()
@@ -714,7 +721,7 @@ def test_auto_approve_swallows_filing_failure(monkeypatch):
     hold = _diff_hold(4875.8, 5025.8)
     hold['pass2_corroborated'] = True
 
-    n = processing_mod._file_corroborated_hold_approvals('s', 'ep1', [hold])
+    n = processing_mod._file_corroborated_hold_approvals('s', 'ep1', [hold], corrections=_user_corrections('s', 'ep1'))
 
     assert n == 0
     assert hold['held_for_review'] is True
@@ -736,7 +743,8 @@ def test_auto_approve_dedupes_existing_confirm(monkeypatch):
     hold['pass2_corroborated'] = True
 
     n = processing_mod._file_corroborated_hold_approvals(
-        's', 'ep1', [hold])
+        's', 'ep1', [hold],
+        corrections=_user_corrections('s', 'ep1'))
 
     assert n == 1
     db.create_pattern_correction.assert_not_called()
@@ -763,7 +771,8 @@ def test_auto_approve_files_confirm_despite_grazing_stale_confirm(monkeypatch):
     hold['pass2_corroborated'] = True
 
     n = processing_mod._file_corroborated_hold_approvals(
-        's', 'ep1', [hold])
+        's', 'ep1', [hold],
+        corrections=_user_corrections('s', 'ep1'))
 
     assert n == 1
     kwargs = db.create_pattern_correction.call_args.kwargs
@@ -787,7 +796,8 @@ def test_auto_approve_dedupes_confirm_covering_most_of_hold(monkeypatch):
     hold['pass2_corroborated'] = True
 
     n = processing_mod._file_corroborated_hold_approvals(
-        's', 'ep1', [hold])
+        's', 'ep1', [hold],
+        corrections=_user_corrections('s', 'ep1'))
 
     assert n == 1
     db.create_pattern_correction.assert_not_called()
@@ -899,7 +909,8 @@ def test_auto_approve_files_trimmed_confirm(monkeypatch):
     db = _auto_approve_env(monkeypatch)
 
     approved = processing_mod._file_corroborated_hold_approvals(
-        'slug', 'ep', [hold])
+        'slug', 'ep', [hold],
+        corrections=_user_corrections('slug', 'ep'))
 
     assert approved == 1
     kwargs = db.create_pattern_correction.call_args.kwargs
@@ -916,7 +927,8 @@ def test_auto_approve_full_coverage_files_untrimmed_confirm(monkeypatch):
     db = _auto_approve_env(monkeypatch)
 
     approved = processing_mod._file_corroborated_hold_approvals(
-        'slug', 'ep', [hold])
+        'slug', 'ep', [hold],
+        corrections=_user_corrections('slug', 'ep'))
 
     assert approved == 1
     assert db.create_pattern_correction.call_args.kwargs['corrected_bounds'] is None
@@ -933,7 +945,8 @@ def test_auto_approve_files_one_confirm_for_duplicate_holds(monkeypatch):
     db = _auto_approve_env(monkeypatch)
 
     assert processing_mod._file_corroborated_hold_approvals(
-        'slug', 'ep', holds) == 2
+        'slug', 'ep', holds,
+        corrections=_user_corrections('slug', 'ep')) == 2
     assert db.create_pattern_correction.call_count == 1
 
 
@@ -943,7 +956,7 @@ def test_auto_approve_files_one_confirm_for_repeated_hold_object(monkeypatch):
     hold['pass2_corroborated'] = True
     db = _auto_approve_env(monkeypatch)
 
-    processing_mod._file_corroborated_hold_approvals('slug', 'ep', [hold, hold])
+    processing_mod._file_corroborated_hold_approvals('slug', 'ep', [hold, hold], corrections=_user_corrections('slug', 'ep'))
     assert db.create_pattern_correction.call_count == 1
 
 
@@ -959,7 +972,8 @@ def test_auto_approve_files_reason_matched_confirm_per_hold_reason(monkeypatch, 
     db = _auto_approve_env(monkeypatch)
 
     assert processing_mod._file_corroborated_hold_approvals(
-        'slug', 'ep', [pair[i] for i in order]) == 2
+        'slug', 'ep', [pair[i] for i in order],
+        corrections=_user_corrections('slug', 'ep')) == 2
     reasons = sorted(c.kwargs['source_hold_reason']
                      for c in db.create_pattern_correction.call_args_list)
     assert reasons == ['differential_uncorroborated', 'reviewer_contradiction']
@@ -976,12 +990,12 @@ def test_auto_approve_files_for_reviewer_hold_despite_other_reason_auto_confirm(
     monkeypatch.setattr(processing_mod, '_load_user_corrections',
                         lambda s, e, d: ([], on_file))
 
-    processing_mod._file_corroborated_hold_approvals('slug', 'ep', [rev])
+    processing_mod._file_corroborated_hold_approvals('slug', 'ep', [rev], corrections=_user_corrections('slug', 'ep'))
     assert db.create_pattern_correction.call_count == 1
 
     on_file[0]['hold_reason'] = 'reviewer_contradiction'
     db.create_pattern_correction.reset_mock()
-    processing_mod._file_corroborated_hold_approvals('slug', 'ep', [rev])
+    processing_mod._file_corroborated_hold_approvals('slug', 'ep', [rev], corrections=_user_corrections('slug', 'ep'))
     db.create_pattern_correction.assert_not_called()
 
 
@@ -995,7 +1009,8 @@ def test_auto_approve_files_both_for_disjoint_holds(monkeypatch):
     db = _auto_approve_env(monkeypatch)
 
     assert processing_mod._file_corroborated_hold_approvals(
-        'slug', 'ep', holds) == 2
+        'slug', 'ep', holds,
+        corrections=_user_corrections('slug', 'ep')) == 2
     assert db.create_pattern_correction.call_count == 2
 
 
@@ -1024,7 +1039,8 @@ def test_approved_holds_are_cut_by_the_run_not_a_second_completion(monkeypatch):
     _auto_approve_env(monkeypatch)
 
     assert processing_mod._file_corroborated_hold_approvals(
-        'slug', 'ep', [hold]) == 1
+        'slug', 'ep', [hold],
+        corrections=_user_corrections('slug', 'ep')) == 1
     recut.assert_not_called()
 
 
@@ -1083,7 +1099,8 @@ def test_pass1_validator_receives_podcast_id(monkeypatch):
     with pytest.raises(_CapturedBuild):
         processing_mod._refine_and_validate(
             'show', 'ep1', ads, _segments(), None, None, 600.0, 0.8, 'Show',
-            podcast_id=7)
+            podcast_id=7,
+            corrections=([], []))
 
     assert seen.get('podcast_id') == 7
 
@@ -1114,7 +1131,8 @@ def test_recut_validator_receives_podcast_id(monkeypatch):
 
     with pytest.raises(_CapturedBuild):
         processing_mod._build_recut_ad_list(
-            'show', 'ep1', _segments(), 600.0, None, 0.8, podcast_id=7)
+            'show', 'ep1', _segments(), 600.0, None, 0.8, podcast_id=7,
+            corrections=_user_corrections('show', 'ep1'))
 
     assert seen.get('podcast_id') == 7
 
@@ -1171,7 +1189,7 @@ def test_filing_respects_human_reject(monkeypatch):
     hold = _diff_hold(4875.8, 5025.8)
     hold['pass2_corroborated'] = True
 
-    n = processing_mod._file_corroborated_hold_approvals('s', 'ep1', [hold])
+    n = processing_mod._file_corroborated_hold_approvals('s', 'ep1', [hold], corrections=_user_corrections('s', 'ep1'))
 
     assert n == 0
     db.create_pattern_correction.assert_not_called()
@@ -1189,7 +1207,7 @@ def test_filing_skips_without_retained_original(monkeypatch):
     hold = _diff_hold(4875.8, 5025.8)
     hold['pass2_corroborated'] = True
 
-    n = processing_mod._file_corroborated_hold_approvals('s', 'ep1', [hold])
+    n = processing_mod._file_corroborated_hold_approvals('s', 'ep1', [hold], corrections=_user_corrections('s', 'ep1'))
 
     assert n == 0
     db.create_pattern_correction.assert_not_called()
@@ -1342,7 +1360,8 @@ def test_auto_approve_skips_hold_overlapping_reviewer_reject(monkeypatch):
     hold['pass2_corroborated'] = True
 
     n = processing_mod._file_corroborated_hold_approvals(
-        's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)])
+        's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)],
+        corrections=_user_corrections('s', 'ep1'))
 
     assert n == 0
     db.create_pattern_correction.assert_not_called()
@@ -1355,7 +1374,8 @@ def test_auto_approve_trimmed_span_clear_of_reviewer_reject_files(monkeypatch):
     hold['pass2_corroborated_span'] = {'start': 4875.8, 'end': 4990.0}
 
     n = processing_mod._file_corroborated_hold_approvals(
-        's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)])
+        's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)],
+        corrections=_user_corrections('s', 'ep1'))
 
     assert n == 1
     assert db.create_pattern_correction.call_args.kwargs['corrected_bounds'] == {
@@ -1369,7 +1389,8 @@ def test_auto_approve_span_touching_a_reviewer_reject_files(monkeypatch):
     hold['pass2_corroborated_span'] = {'start': 4875.8, 'end': 5000.0}
 
     n = processing_mod._file_corroborated_hold_approvals(
-        's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)])
+        's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)],
+        corrections=_user_corrections('s', 'ep1'))
 
     assert n == 1
     db.create_pattern_correction.assert_called_once()
@@ -1397,5 +1418,5 @@ def test_auto_approve_failure_after_filing_reports_the_filed_count(monkeypatch):
     holds = [dict(_diff_hold(100.0, 200.0), pass2_corroborated=True),
              dict(_diff_hold(400.0, 500.0), pass2_corroborated=True)]
 
-    assert processing_mod._file_corroborated_hold_approvals('s', 'ep1', holds) == 1
+    assert processing_mod._file_corroborated_hold_approvals('s', 'ep1', holds, corrections=_user_corrections('s', 'ep1')) == 1
     assert db.create_pattern_correction.call_count == 2

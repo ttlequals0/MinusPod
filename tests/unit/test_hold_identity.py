@@ -13,6 +13,11 @@ from tests.unit.pass2_test_utils import NO_SPLICE, _hold, _pair
 from tests.unit.test_migration_sponsor_fk import _rebuild_pre_migration_shape
 from utils.markers import carve_fragment, normalize_loaded_markers
 
+def _user_corrections(slug, episode_id):
+    """The (fp, confirmed) corrections the test's db holds."""
+    return processing._load_user_corrections(slug, episode_id, processing.db)
+
+
 
 def _release_confirm(hold_span, span, hold_id=None):
     return {'start': hold_span[0], 'end': hold_span[1], 'correction_type': 'confirm',
@@ -113,7 +118,7 @@ def test_filing_records_the_hold_identity(monkeypatch):
     db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
     monkeypatch.setattr(processing, 'db', db)
     monkeypatch.setattr(processing, 'storage', MagicMock())
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold]) == 1
+    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     assert {c.kwargs['hold_id'] for c in db.create_pattern_correction.call_args_list} == {
         'a1b2c3d4e5f6'}
 

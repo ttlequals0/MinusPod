@@ -127,5 +127,6 @@ class TestSkipAdDetection:
         # callers do not record a clean scan.
         result = processing._run_verification_pass(
             None, '/tmp/skip-cut.mp3', [], False, 0.8, None, None,
-            skip_verification=True)
+            skip_verification=True,
+            false_positive_corrections=[])
         assert result == (0, [], [], [], '/tmp/skip-cut.mp3', 0, False, 0)

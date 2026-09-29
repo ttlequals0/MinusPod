@@ -26,9 +26,7 @@ def test_detector_merge_invalidates_widened_quote_edge():
         'start': 100.0, 'end': 150.0, 'confidence': 0.9,
         'detection_stage': 'claude', 'sponsor': 'Acme',
         'quote_aligned_start': True, 'quote_start': 100.0,
-        'quote_original_start': 90.0,
         'quote_aligned_end': True, 'quote_end': 150.0,
-        'quote_original_end': 170.0,
     }
     coarse = {'start': 140.0, 'end': 170.0, 'confidence': 0.9,
               'detection_stage': 'claude', 'sponsor': 'Acme'}
@@ -38,11 +36,29 @@ def test_detector_merge_invalidates_widened_quote_edge():
     assert merged['quote_aligned_start'] is True
     assert 'quote_aligned_end' not in merged
 
-    quoted_end = dict(coarse, quote_aligned_end=True, quote_end=170.0,
-                      quote_original_end=175.0)
+    quoted_end = dict(coarse, quote_aligned_end=True, quote_end=170.0)
     merged = detector._merge_detection_results([anchored, quoted_end])[0]
     assert merged['quote_aligned_end'] is True
     assert merged['quote_end'] == 170.0
+
+
+def test_detector_merge_inherits_the_later_end_provenance():
+    detector = AdDetector(api_key='test-key')
+    anchored = {'start': 100.0, 'end': 150.0, 'confidence': 0.9,
+                'detection_stage': 'claude', 'sponsor': 'Acme',
+                'quote_aligned_end': True, 'quote_end': 150.0, 'word_timed_end': 150.0}
+    later = {'start': 140.0, 'end': 170.0, 'confidence': 0.9,
+             'detection_stage': 'claude', 'sponsor': 'Acme',
+             'quote_aligned_end': True, 'quote_end': 170.0, 'word_timed_end': 170.0}
+
+    merged = detector._merge_detection_results([anchored, later])[0]
+    assert merged['end'] == 170.0
+    assert (merged['quote_end'], merged['word_timed_end']) == (170.0, 170.0)
+
+    merged = detector._merge_detection_results(
+        [anchored, {k: v for k, v in later.items() if not k.startswith(('quote', 'word'))}])[0]
+    assert merged['end'] == 170.0
+    assert not {'quote_aligned_end', 'quote_end', 'word_timed_end'} & merged.keys()
 
 
 def test_duplicate_merge_keeps_only_quote_provenance_at_union_edges():
@@ -50,9 +66,8 @@ def test_duplicate_merge_keeps_only_quote_provenance_at_union_edges():
     first = {
         'start': 100.0, 'end': 150.0, 'confidence': 0.9,
         'sponsor': 'Acme', 'quote_aligned_start': True,
-        'quote_start': 100.0, 'quote_original_start': 90.0,
+        'quote_start': 100.0,
         'quote_aligned_end': True, 'quote_end': 150.0,
-        'quote_original_end': 170.0,
     }
     second = {'start': 110.0, 'end': 160.0, 'confidence': 0.9,
               'sponsor': 'Acme'}
@@ -61,8 +76,7 @@ def test_duplicate_merge_keeps_only_quote_provenance_at_union_edges():
     assert merged['quote_aligned_start'] is True
     assert 'quote_aligned_end' not in merged
 
-    second.update(quote_aligned_end=True, quote_end=160.0,
-                  quote_original_end=170.0)
+    second.update(quote_aligned_end=True, quote_end=160.0)
     merged = detector._merge_overlapping_accepted_duplicates([first, second])[0]
     assert merged['quote_aligned_end'] is True
     assert merged['quote_end'] == 160.0

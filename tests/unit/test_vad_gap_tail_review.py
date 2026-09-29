@@ -22,6 +22,11 @@ from config import (
 )
 from main_app import processing
 
+def _user_corrections(slug, episode_id):
+    """The (fp, confirmed) corrections the test's db holds."""
+    return processing._load_user_corrections(slug, episode_id, processing.db)
+
+
 
 @pytest.fixture(autouse=True)
 def _isolate_db(monkeypatch):
@@ -57,6 +62,7 @@ def test_refine_and_validate_passes_audio_analysis_to_validator(monkeypatch):
         [{'start': 1.0, 'end': 40.0, 'confidence': 0.9, 'reason': 'sponsor read'}],
         [], 'unused.mp3', '', 3600.0, 0.80, 'Pod',
         audio_analysis=analysis,
+        corrections=([], [])
     )
     assert captured['audio_analysis'] is analysis
 
@@ -85,7 +91,8 @@ def test_build_recut_ad_list_passes_stored_audio_analysis(monkeypatch):
     monkeypatch.setattr(ad_validator.AdValidator, 'validate', fake_validate)
 
     processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80,
-                                    podcast_id=1)
+                                    podcast_id=1,
+                                    corrections=_user_corrections('slug', 'ep'))
     assert captured['audio_analysis'] == stored
 
 

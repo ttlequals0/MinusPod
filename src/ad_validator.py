@@ -41,6 +41,7 @@ from utils.markers import (
     drop_stale_reviewer_locks,
     find_marker_in_list,
     finite_number,
+    inherit_edge,
     invalidate_tail_provenance,
     invalidate_quote_alignment,
     invalidate_word_timed_edges,
@@ -49,13 +50,11 @@ from utils.markers import (
     merge_runs,
     note_fold,
     precise_edge,
-    quote_edge_valid,
     recorded_member_spans,
     reviewer_edge_locked,
     reviewer_reject_stands,
     subtract_spans,
     union_cover,
-    word_timed_edge_valid,
 )
 from differential_fetcher import differential_region_overlapping
 from community_export import brand_match_candidates
@@ -195,15 +194,7 @@ def _adopt_later_marker_end(target: dict, source: dict) -> None:
     if source['end'] <= target['end']:
         return
     invalidate_tail_provenance(target, source['end'])
-    if quote_edge_valid(source, 'end'):
-        for field in ('quote_aligned_end', 'quote_end', 'quote_original_end'):
-            if field in source:
-                target[field] = source[field]
-            else:
-                target.pop(field, None)
-    if word_timed_edge_valid(source, 'end'):
-        target['word_timed_end'] = source['word_timed_end']
-    target['end'] = source['end']
+    inherit_edge(target, source, 'end')
     invalidate_quote_alignment(target)
     invalidate_word_timed_edges(target)
     if source.get('end_extended_by_content'):

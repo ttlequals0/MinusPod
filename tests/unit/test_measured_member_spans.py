@@ -24,8 +24,7 @@ def test_tolerance_constants():
 def test_member_records_precise_end_before_invalidation():
     detector = AdDetector(api_key='test-key')
     quoted = _ad(100.0, 150.0, 'claude', confidence=0.95, sponsor='Acme',
-                 quote_aligned_end=True, quote_end=150.0,
-                 quote_original_end=160.0)
+                 quote_aligned_end=True, quote_end=150.0)
     following = _ad(151.0, 200.0, 'claude', confidence=0.9, sponsor='Acme')
 
     merged = detector._merge_detection_results([quoted, following])[0]

@@ -26,6 +26,11 @@ from verification_pass import _build_timestamp_map, _map_to_original
 NO_SPLICE = 'no_splice_evidence'
 INCONCLUSIVE = 'reviewer_inconclusive_bounds'
 
+def _user_corrections(slug, episode_id):
+    """The (fp, confirmed) corrections the test's db holds."""
+    return processing._load_user_corrections(slug, episode_id, processing.db)
+
+
 
 def _hold(start, end, reason=NO_SPLICE):
     return {'start': start, 'end': end, 'held_for_review': True,
@@ -111,7 +116,6 @@ def test_supported_subspan_inside_hold_becomes_a_release_candidate():
     assert owner is hold
     assert (orig_sub['start'], orig_sub['end']) == (1040.0, 1060.0)
     assert orig_sub['held_for_review'] is True
-    assert orig_sub['_hold_release_of'] == (1000.0, 1100.0)
     # The dropped finding itself can never be resurrected.
     assert orig[0]['held_for_review'] is True
 
@@ -312,7 +316,7 @@ def test_confirmed_subspan_is_released_and_filed_trimmed(monkeypatch):
     assert is_pending_review(hold)
 
     db = _approval_db(monkeypatch)
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold]) == 1
+    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     kwargs = db.create_pattern_correction.call_args.kwargs
     assert kwargs['original_bounds'] == {'start': 1000.0, 'end': 1100.0}
     assert kwargs['corrected_bounds'] == {'start': 1040.0, 'end': 1060.0}
@@ -325,7 +329,8 @@ def test_inconclusive_hold_reason_is_releasable(monkeypatch):
     assert released == 1
     db = _approval_db(monkeypatch)
     assert processing._file_corroborated_hold_approvals(
-        's', 'e', [candidates[0][1]]) == 1
+        's', 'e', [candidates[0][1]],
+        corrections=_user_corrections('s', 'e')) == 1
     assert db.create_pattern_correction.called
 
 
@@ -349,7 +354,7 @@ def test_unsuccessful_review_keeps_the_whole_hold(monkeypatch, verdict):
     assert record['verdict'] == verdict.verdict and record['span'] == [1040.0, 1060.0]
     assert hold == before
     db = _approval_db(monkeypatch)
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold]) == 0
+    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 0
     db.create_pattern_correction.assert_not_called()
 
 
@@ -404,7 +409,7 @@ def test_release_over_a_reviewer_reject_is_not_filed(monkeypatch):
     reject = {'start': 1050.0, 'end': 1058.0, 'was_cut': False,
               'source': 'reviewer', 'reviewer_verdict': 'reject'}
     db = _approval_db(monkeypatch)
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold, reject]) == 0
+    assert processing._file_corroborated_hold_approvals('s', 'e', [hold, reject], corrections=_user_corrections('s', 'e')) == 0
     db.create_pattern_correction.assert_not_called()
 
 
@@ -419,7 +424,7 @@ def test_repeated_detection_files_one_confirm(monkeypatch):
 
     *_rest, again = _gate([_proc(1040.0, 1060.0)], [_orig(1040.0, 1060.0)], [hold])
     assert again == []
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold]) == 1
+    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     db.create_pattern_correction.assert_not_called()
 
 
@@ -429,7 +434,6 @@ def test_run_verification_pass_sends_the_subspan_to_review(monkeypatch):
     audio.get_audio_duration.return_value = 3000.0
     fake_db = MagicMock()
     fake_db.get_setting_float.return_value = 0.6
-    fake_db.get_false_positive_corrections.return_value = []
     calls = []
 
     def review(**kwargs):
@@ -452,7 +456,8 @@ def test_run_verification_pass_sends_the_subspan_to_review(monkeypatch):
         }
         output = processing._run_verification_pass(
             _ctx(), '/tmp/pass1-output.mp3', [], False, 0.8, audio, None,
-            original_segments=[], pass1_held_markers=[hold], segment_actions={})
+            original_segments=[], pass1_held_markers=[hold], segment_actions={},
+            false_positive_corrections=[])
 
     [call] = calls
     assert [(a['start'], a['end']) for a in call['accepted_ads']] == [(1040.0, 1060.0)]
@@ -618,7 +623,7 @@ def test_recut_after_inconclusive_hold_review_keeps_the_hold_pending(monkeypatch
     monkeypatch.setattr(processing, 'db', db)
 
     ads_to_remove, all_ads, _keep, rejects = (
-        processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80))
+        processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep')))
     assert ads_to_remove == [] and rejects == []
     [after] = all_ads
     assert is_pending_review(after)
