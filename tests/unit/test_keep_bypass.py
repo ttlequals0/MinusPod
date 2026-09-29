@@ -26,9 +26,11 @@ from unittest.mock import patch
 
 import main_app.processing as processing
 from api.patterns import _matches_held_marker
+from audio_analysis.base import AudioAnalysisResult
 from audio_processor import AudioProcessor
 from config import count_pending_review, HOLD_REASON_VERIFICATION_KEPT_CONFLICT
 from tests.unit.marker_test_utils import applied_cut
+from utils.markers import mark_distinct_merge
 from tests.unit.pipeline_test_utils import SEGMENTS, _run_pipeline
 from tests.unit.recut_test_utils import _recut_render_call
 
@@ -87,6 +89,36 @@ class TestKeepBypass:
         assert sorted((a['start'], a['end'], a.get('action_applied'))
                       for a in saved) == [
             (10.0, 30.0, 'remove'), (30.0, 40.0, 'keep'), (40.0, 60.0, 'remove')]
+
+    def test_silent_estimated_remainder_cut_is_carved_around_a_keep(self):
+        # The validator never sees keeps; the render carve still protects one in cut silence.
+        sponsor = {'start': 100.0, 'end': 160.0, 'category': 'sponsor', 'confidence': 0.95,
+                   'detection_stage': 'claude', 'reason': 'Acme sponsor read'}
+        mark_distinct_merge(sponsor, {'start': 150.0, 'end': 200.0, 'confidence': 0.95,
+                                      'detection_stage': 'text_pattern', 'span_estimated': True,
+                                      'text_start': 150.0, 'text_end': 160.0,
+                                      'has_estimated_pattern_member': True})
+        sponsor['end'] = 200.0
+        keep = dict(_cross_promo_ad(), start=180.0, end=190.0)
+        segments = [{'start': 100.0, 'end': 160.0, 'text': 'brought to you by Acme'},
+                    {'start': 210.0, 'end': 240.0, 'text': 'back to the show'}]
+        analysis = AudioAnalysisResult(
+            silence_spans=[{'start': 160.0, 'end': 200.0, 'duration': 40.0}])
+
+        m = _run_pipeline([sponsor, keep], {'sponsor': 'remove', 'cross_promo': 'keep'},
+                          segments=segments, real_refine_reviewer=True, duration=300.0,
+                          audio_analysis_result=analysis,
+                          reviewer_side_effect=lambda cuts, markers: (cuts, markers))
+
+        call = m['local_ap'].process_episode.call_args
+        assert [(a['start'], a['end']) for a in call.args[1]] == [
+            (100.0, 180.0), (190.0, 200.0)]
+        assert (180.0, 190.0) in {(b['start'], b['end'])
+                                  for b in call.kwargs['hard_barriers']}
+        saved = m['storage'].save_combined_ads.call_args.args[2]
+        kept = [a for a in saved if a.get('action_applied') == 'keep']
+        assert [(a['start'], a['end'], a['was_cut']) for a in kept] == [(180.0, 190.0, False)]
+        assert not any(a.get('held_for_review') for a in saved)
 
     def test_pass1_reviewer_gets_keeps_as_hard_barriers(self):
         keep = _cross_promo_ad()

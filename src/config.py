@@ -442,6 +442,8 @@ MAX_AD_PERCENTAGE = 0.30        # 30% of episode is suspicious
 MAX_ADS_PER_5MIN = 1            # More than 1 ad per 5 min is suspicious
 MERGE_GAP_THRESHOLD = 5.0       # Merge ads within 5s
 MAX_SILENT_GAP = 30.0           # Merge ads across silent gaps up to 30s
+SILENT_REMAINDER_MIN_COVERAGE = 0.95  # Measured silence share an estimated remainder needs to be cut with its ad
+SILENT_REMAINDER_GAP_S = 0.5    # Gap between silence spans still counted as silence
 
 # ============================================================
 # Pattern Matching

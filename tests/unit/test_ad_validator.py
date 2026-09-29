@@ -2903,6 +2903,111 @@ def test_estimated_pattern_requires_contiguous_dai_coverage():
     accepted = validator.validate([ad]).ads[0]
     assert accepted['validation']['decision'] == Decision.ACCEPT.value
 
+def _outro_estimate(start=792.6, end=1002.8):
+    """An outro-only pattern match whose estimated span absorbed a measured claude read."""
+    ad = {'start': start, 'end': end, 'confidence': 0.95,
+          'reason': 'Acme (pattern #7, outro)', 'sponsor': 'Acme',
+          'detection_stage': 'text_pattern', 'span_estimated': True,
+          'text_start': 985.0, 'text_end': 995.1,
+          'has_estimated_pattern_member': True}
+    mark_distinct_merge(ad, {'start': 815.6, 'end': 995.1, 'confidence': 0.96,
+                             'detection_stage': 'claude'})
+    ad['end'] = end
+    return ad
+
+
+_GAP_SEGMENTS = [{'start': 760.0, 'end': 792.6, 'text': 'and that is it for this part'},
+                 {'start': 815.6, 'end': 995.1, 'text': 'brought to you by Acme'},
+                 {'start': 1002.8, 'end': 1030.0, 'text': 'okay welcome back to the show'}]
+
+
+def _silence(*spans, signals=()):
+    return {'silence_spans': [{'start': a, 'end': b, 'duration': b - a} for a, b in spans],
+            'signals': list(signals)}
+
+
+# Two silence runs 0.4 s apart in the lead still count as one.
+_BOTH_SILENT = _silence((792.7, 803.0), (803.4, 815.5), (995.2, 1002.7))
+
+
+def test_silent_estimated_remainders_cut_with_the_ad(caplog):
+    validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False)
+
+    with caplog.at_level(logging.INFO, logger='ad_validator'):
+        result = validator.validate([_outro_estimate()], audio_analysis=_BOTH_SILENT)
+
+    assert _spans(result) == [(792.6, 1002.8)]
+    only = result.ads[0]
+    assert only['validation']['decision'] == Decision.ACCEPT.value
+    assert not only.get('held_for_review')
+    assert only['_learning_bounds'] == (815.6, 995.1)
+    flags = only['validation']['flags']
+    assert 'INFO: Silent estimated remainder cut with the ad (23.0s)' in flags
+    assert 'INFO: Silent estimated remainder cut with the ad (7.7s)' in flags
+    messages = [r.message for r in caplog.records]
+    assert 'Cut silent estimated remainder 792.6s-815.6s with ad 815.6s-995.1s' in messages
+    assert 'Cut silent estimated remainder 995.1s-1002.8s with ad 815.6s-995.1s' in messages
+    assert not any(m.startswith('Holding ad') for m in messages)
+
+
+def test_show_intro_cue_keeps_leading_remainder_held():
+    intro = {'signal_type': 'audio_cue', 'start': 795.0, 'end': 810.0, 'confidence': 0.9,
+             'details': {'role': 'non_ad', 'cue_type': 'show_intro', 'template_id': 3}}
+    analysis = {**_BOTH_SILENT, 'signals': [intro]}
+    validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False)
+
+    result = validator.validate([_outro_estimate()], audio_analysis=analysis)
+
+    assert _spans(result) == [(792.6, 815.6), (815.6, 1002.8)]
+    lead, cut = result.ads
+    assert lead['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+    assert lead['_estimated_remainder'] is True
+    assert cut['validation']['decision'] == Decision.ACCEPT.value
+    assert not cut.get('held_for_review')
+    assert cut['_learning_bounds'] == (815.6, 995.1)
+
+
+def test_partly_silent_remainder_is_held():
+    analysis = _silence((792.7, 806.5), (995.2, 1002.7))
+    validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False)
+
+    result = validator.validate([_outro_estimate()], audio_analysis=analysis)
+
+    assert _spans(result) == [(792.6, 815.6), (815.6, 1002.8)]
+    assert result.ads[0]['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
+def test_long_silent_remainder_is_cut():
+    validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False)
+
+    result = validator.validate([_outro_estimate(start=770.6)],
+                                audio_analysis=_silence((770.6, 815.6), (995.1, 1002.8)))
+
+    assert _spans(result) == [(770.6, 1002.8)]
+    assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+    assert 'INFO: Silent estimated remainder cut with the ad (45.0s)' in (
+        result.ads[0]['validation']['flags'])
+
+
+def test_untranscribed_remainder_without_audio_analysis_is_held():
+    validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False)
+
+    result = validator.validate([_outro_estimate()])
+
+    assert _spans(result) == [(792.6, 815.6), (815.6, 995.1), (995.1, 1002.8)]
+
+
+def test_silent_remainder_over_user_rejection_is_held():
+    validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False,
+                            false_positive_corrections=[{'start': 790.0, 'end': 800.0}])
+
+    result = validator.validate([_outro_estimate()], audio_analysis=_BOTH_SILENT)
+
+    assert _spans(result)[0] == (792.6, 815.6)
+    assert result.ads[0]['_estimated_remainder'] is True
+    assert _spans(result)[-1] == (815.6, 1002.8)
+
+
 class TestAdjustmentClampWithoutBypass:
     """A boundary adjustment clamps and accepts, but keeps the reviewer in
     the loop: its stored bounds can go stale on a drifting DAI timeline."""

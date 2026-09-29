@@ -808,6 +808,17 @@ def note_fold(target: dict, other: dict) -> None:
         note_merged_members(target, other)
 
 
+def learning_bounds(ad: dict) -> tuple[float, float]:
+    """The span pattern learning reads: measured bounds when silence was cut with the ad."""
+    start, end = ad['start'], ad['end']
+    measured = ad.get('_learning_bounds')
+    if measured:
+        lo, hi = max(measured[0], start), min(measured[1], end)
+        if hi > lo:
+            return lo, hi
+    return start, end
+
+
 def carve_fragment(parent: dict, start: float, end: float) -> dict:
     """Copy of parent narrowed to [start, end], minus the merge bookkeeping that
     described the wider span."""

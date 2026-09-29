@@ -34,6 +34,8 @@ release notes.
   word-timed end edge is trimmed to the return-to-show cue, like the start edge.
 - The correction origin backfill maps the oldest hold snippet to a valid hold reason and repairs rows
   written with the invalid value.
+- An estimated pattern remainder the audio analysis measures as silence (dead air between an ad and the
+  show) is now cut with the ad instead of held for review. The pattern match is enough evidence for silence.
 
 ### Changed
 - Shared helpers replace duplicated interval merging, carving, pass-2 hold handling, end-edge

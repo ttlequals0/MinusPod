@@ -42,6 +42,7 @@ from utils.markers import (
     finite_number,
     inherit_edge,
     invalidate_word_timed_edges,
+    learning_bounds,
     note_fold,
     word_timed_edge_valid,
 )
@@ -2747,7 +2748,8 @@ class AdDetector:
 
         # For longer detections, require higher confidence to avoid learning
         # from merged multi-ad spans which contaminate patterns
-        duration = ad['end'] - ad['start']
+        start, end = learning_bounds(ad)
+        duration = end - start
         if duration > LEARNING_LONG_DURATION_THRESHOLD:
             # Read at call time (not cached) so settings changes apply on
             # the next run without a restart.
@@ -2849,11 +2851,12 @@ class AdDetector:
 
         Returns True if a pattern was successfully created.
         """
+        start, end = learning_bounds(ad)
         try:
             pattern_ids = self.text_pattern_matcher.create_patterns_from_ad(
                 segments=segments,
-                start=ad['start'],
-                end=ad['end'],
+                start=start,
+                end=end,
                 sponsor=sponsor,
                 scope='podcast',
                 podcast_id=podcast_id,
@@ -2865,7 +2868,7 @@ class AdDetector:
             if pattern_ids:
                 logger.info(
                     f"Created {len(pattern_ids)} pattern(s) from Claude detection: "
-                    f"{ad['start']:.1f}s-{ad['end']:.1f}s, sponsor={sponsor}"
+                    f"{start:.1f}s-{end:.1f}s, sponsor={sponsor}"
                 )
 
                 # Each pattern is fingerprinted against its own piece, so a

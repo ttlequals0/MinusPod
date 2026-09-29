@@ -13,6 +13,7 @@ from config import (
     REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL, MID_ROLL_1,
     POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN,
     MERGE_GAP_THRESHOLD, MAX_SILENT_GAP,
+    SILENT_REMAINDER_MIN_COVERAGE, SILENT_REMAINDER_GAP_S,
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
     HOLD_REASON_NO_SPLICE, VETO_MIN_CUT_SECONDS,
     HOLD_REASON_UNCORROBORATED_TAIL,
@@ -795,7 +796,8 @@ class AdValidator:
         Returns:
             Ad marker with 'validation' field added
         """
-        flags = []
+        flags = [f"INFO: Silent estimated remainder cut with the ad ({b - a:.1f}s)"
+                 for a, b in ad.pop('_silent_remainders', ())]
         corrections = []
         confidence = ad.get('confidence', 1.0)
 
@@ -1507,6 +1509,9 @@ class AdValidator:
                                     result: ValidationResult) -> list[dict]:
         """Cut what members measured; only the estimate's unmeasured remainder stays held."""
         out = []
+        barriers = [(c['start'], c['end']) for c in (
+            *self.false_positive_corrections,
+            *user_trimmed_keep_ranges(self.confirmed_corrections))]
         for ad in ads:
             # Without recorded members the whole span is the estimate; a pass-two
             # ad's original-coords twin cannot follow a split.
@@ -1527,10 +1532,18 @@ class AdValidator:
             if (lo, hi) == (ad['start'], ad['end']):
                 cut = ad
             else:
-                cut = self._narrowed(ad, lo, hi, keep_members=True)
                 remainder_spans = []
+                silent = []
+                cut_lo, cut_hi = lo, hi
+                # Each remainder shares an edge with the measured cut by construction.
                 for a, b in ((ad['start'], lo), (hi, ad['end'])):
                     if b - a < MIN_AD_DURATION:
+                        continue
+                    if self._silent_remainder(a, b, barriers):
+                        silent.append((a, b))
+                        cut_lo, cut_hi = min(cut_lo, a), max(cut_hi, b)
+                        logger.info(f"Cut silent estimated remainder {a:.1f}s-{b:.1f}s "
+                                    f"with ad {lo:.1f}s-{hi:.1f}s")
                         continue
                     remainder = self._narrowed(ad, a, b, keep_members=False)
                     remainder['_skip_pattern_learning'] = True
@@ -1539,12 +1552,17 @@ class AdValidator:
                         f"{ad.get('reason', 'ad')} (estimated pattern remainder)")
                     out.append(remainder)
                     remainder_spans.append(f"{a:.1f}s-{b:.1f}s")
+                cut = self._narrowed(ad, cut_lo, cut_hi, keep_members=True)
+                if silent:
+                    cut['_silent_remainders'] = silent
+                    # Learning keeps the measured bounds so a pattern never grows the silence.
+                    cut['_learning_bounds'] = (lo, hi)
                 result.corrections.append(
                     f"Split estimated pattern span {ad['start']:.1f}s-"
                     f"{ad['end']:.1f}s at measured {lo:.1f}s-{hi:.1f}s")
                 logger.info(
                     f"Split estimated pattern span {ad['start']:.1f}s-"
-                    f"{ad['end']:.1f}s: cut {lo:.1f}s-{hi:.1f}s, "
+                    f"{ad['end']:.1f}s: cut {cut_lo:.1f}s-{cut_hi:.1f}s, "
                     f"held {', '.join(remainder_spans) or 'none'}"
                 )
             cut.pop('has_estimated_pattern_member', None)
@@ -1552,6 +1570,27 @@ class AdValidator:
             out.append(cut)
         out.sort(key=lambda a: a['start'])
         return out
+
+    def _silent_remainder(self, start: float, end: float,
+                          barriers: list[tuple[float, float]]) -> bool:
+        """Whether audio analysis measured the remainder as silence, with no show cue or barrier in it."""
+        # Untranscribed audio can be music, so only measured silence counts; no analysis holds.
+        analysis = self._audio_analysis or {}
+        if any(a < end and b > start for a, b in barriers):
+            return False
+        for sig in analysis.get('signals') or []:
+            if (sig.get('signal_type') == 'audio_cue'
+                    and (sig.get('details') or {}).get('role') == AUDIO_CUE_ROLE_NON_AD
+                    and sig.get('start', end) < end and sig.get('end', start) > start):
+                return False
+        lo, hi = start + EDGE_TOLERANCE, end - EDGE_TOLERANCE
+        clipped = []
+        for span in analysis.get('silence_spans') or []:
+            a, b = finite_number(span.get('start')), finite_number(span.get('end'))
+            if a is not None and b is not None and min(b, hi) > max(a, lo):
+                clipped.append((max(a, lo), min(b, hi)))
+        covered = sum(b - a for a, b in merge_runs(clipped, gap=SILENT_REMAINDER_GAP_S))
+        return hi > lo and covered >= SILENT_REMAINDER_MIN_COVERAGE * (hi - lo)
 
     def _mark_held(self, ad: dict, flags: list[str], reason: str) -> None:
         """Set held_for_review state on the ad dict and append a flag entry."""
