@@ -95,7 +95,12 @@ function TranscriberRow({ t }: { t: NonNullable<SystemStatus['transcriber']> }) 
   const tone: Health = !t.available
     ? 'critical'
     : t.lastOutcome?.status === 'failed' ? 'warning' : 'healthy';
-  return <Row tone={tone} label="Transcriber" detail={detail} />;
+  return (
+    <>
+      <Row tone={tone} label="Transcriber" detail={detail} />
+      {!t.available && t.reason && <p className="pl-4 text-xs text-muted-foreground break-words">{t.reason}</p>}
+    </>
+  );
 }
 
 function PodpingRow({ p }: { p: NonNullable<SystemStatus['podping']> }) {

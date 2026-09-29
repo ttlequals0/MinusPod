@@ -94,7 +94,7 @@ def test_init_warns_when_local_backend_lacks_packages(missing_stack, caplog):
                return_value=_settings(WHISPER_BACKEND_LOCAL)), \
             caplog.at_level(logging.WARNING, logger='transcriber'):
         transcriber.Transcriber()
-    warnings = [r for r in caplog.records if 'Local Whisper packages are missing' in r.message]
+    warnings = [r for r in caplog.records if 'WHISPER_BACKEND=openai-api' in r.message]
     assert len(warnings) == 1
 
 
@@ -103,4 +103,4 @@ def test_init_silent_on_api_backend(missing_stack, caplog):
                return_value=_settings(WHISPER_BACKEND_API)), \
             caplog.at_level(logging.WARNING, logger='transcriber'):
         transcriber.Transcriber()
-    assert not any('Local Whisper packages are missing' in r.message for r in caplog.records)
+    assert not any('WHISPER_BACKEND=openai-api' in r.message for r in caplog.records)

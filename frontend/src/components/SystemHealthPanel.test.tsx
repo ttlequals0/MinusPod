@@ -152,6 +152,17 @@ describe('SystemHealthPanel', () => {
     expect(screen.getByText('Critical')).toBeDefined();
   });
 
+  it('shows the missing-package reason under an unavailable transcriber', () => {
+    render(<SystemHealthPanel status={status({
+      transcriber: {
+        available: false, backend: 'local', device: 'cpu', lastOutcome: null,
+        reason: 'Local Whisper backend needs faster-whisper and ctranslate2',
+      },
+    })} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    expect(screen.getByText('Local Whisper backend needs faster-whisper and ctranslate2')).toBeDefined();
+  });
+
   it('shows only endpoint, status, and last seen in Podping details', () => {
     const lastSeen = new Date().toISOString();
     render(<SystemHealthPanel status={status({

@@ -543,7 +543,7 @@ class AudioProcessor:
             if filter_str:
                 filter_str += ';'
             # lame rejects short final frames with too little plane padding (#796). 1152 is
-            # lame's largest frame (32 kHz and up; lower rates use 576), so padding is at most one frame.
+            # lame's largest frame (32 kHz and up; lower rates use 576), so padding adds at most 1151 samples.
             filter_str += (''.join(concat_parts) + f"concat=n={len(concat_parts)}:v=0:a=1,"
                            "asetnsamples=n=1152:p=1[out]")
 

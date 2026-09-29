@@ -13,9 +13,9 @@ release notes.
 
 ### Fixed
 - The replacement audio is now resampled and reformatted to the episode's sample rate and channel layout
-  before it is joined to the episode. ffmpeg no longer inserts that conversion on its own. Fixes the
-  libmp3lame "inadequate AVFrame plane padding" failure on ffmpeg 9 (#796) and applies to uploaded
-  replacement audio as well as the shipped clip. The encoder also receives full-size frames, so a short
+  before it is joined to the episode. The filler branch no longer depends on the conversion ffmpeg would
+  insert on its own. Fixes the libmp3lame "inadequate AVFrame plane padding" failure on ffmpeg 9 (#796)
+  and applies to uploaded replacement audio as well as the shipped clip. The encoder also receives full-size frames, so a short
   trailing frame cannot trip the check.
 - The local Whisper packages (faster-whisper, ctranslate2) are optional when WHISPER_BACKEND is
   openai-api. Selecting the local backend without them fails with an actionable error instead of a

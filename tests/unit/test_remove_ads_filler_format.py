@@ -52,6 +52,14 @@ def test_filler_branches_conformed_to_episode(monkeypatch, ads):
         assert 'aformat' not in c and 'aresample' not in c
 
 
+def test_beep_padding_precedes_conform(monkeypatch):
+    ads = [{'start': 100.0, 'end': 160.0, 'beep': True}]
+    graph = _filter_graph(monkeypatch, (44100, 2, 'stereo'), ads)
+    beeps, _ = _branches(graph)
+    assert re.search(r',apad=whole_dur=[\d.]+,' + re.escape(STEREO_CHAIN) + r'\[beep\d+\]$',
+                     beeps[0]), beeps[0]
+
+
 def test_probe_failure_keeps_current_graph(monkeypatch):
     graph = _filter_graph(monkeypatch, None, TWO_ADS)
     assert 'aformat' not in graph

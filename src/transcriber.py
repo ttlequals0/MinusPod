@@ -1448,10 +1448,7 @@ class Transcriber:
         self.last_transcription_stats = None
         if (_LOCAL_IMPORT_ERROR is not None
                 and _get_whisper_settings()['backend'] != WHISPER_BACKEND_API):
-            logger.warning(
-                "Local Whisper packages are missing; transcription will fail until "
-                "they are installed or WHISPER_BACKEND is set to openai-api"
-            )
+            logger.warning(_local_unavailable_message())
 
     def _transcribe_via_api(
         self,
