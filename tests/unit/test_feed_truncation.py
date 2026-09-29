@@ -83,10 +83,9 @@ _CDATA_COMPLETE = _CDATA_HEAD + """</p>]]></description>
 </channel></rss>"""
 
 
-def test_cdata_and_comment_cuts_are_truncation():
+def test_cdata_cut_is_truncation():
     assert _is_truncation_error(
         Exception('<unknown>:17685:374: unclosed CDATA section'))
-    assert _is_truncation_error(Exception('<unknown>:12:5: unclosed comment'))
     assert not _is_truncation_error(Exception('undefined entity'))
     assert not _is_truncation_error(
         Exception('document declared as us-ascii, but parsed as utf-8'))
@@ -102,3 +101,10 @@ def test_feed_with_cdata_intact_parses_all_entries():
     feed = _parser.parse_feed(_CDATA_COMPLETE, source='example-podcast')
     assert feed is not None
     assert len(feed.entries) == 3
+
+
+def test_feed_cut_inside_comment_is_rejected(caplog):
+    cut = _CDATA_HEAD.rsplit('<description>', 1)[0] + '<!-- cut here'
+    with caplog.at_level('WARNING', logger='rss_parser'):
+        assert _parser.parse_feed(cut, source='example-podcast') is None
+    assert 'feed_document_truncated' in caplog.text

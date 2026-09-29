@@ -13,11 +13,11 @@ release notes.
 
 ### Fixed
 
-- A feed body cut inside a CDATA section or comment is now rejected as truncated instead of being accepted as a partial document. The stored episodes are kept and the refresh retries, as it already does for a body that ends mid-element.
+- A feed body cut inside a CDATA section is now rejected as truncated instead of being accepted as a partial document. The stored episodes are kept and the refresh retries, as it already does for a body that ends mid-element.
 
 ### Changed
 
-- The identity retry that follows a gzip decode failure logs the body size and whether the response declared a length, so a repeatedly short body can be traced to the transport.
+- The identity retry that follows a gzip decode failure logs the body size and the length and encoding headers it received, so a repeatedly short body can be traced to the transport.
 
 ## [2.97.35] - 2026-09-29
 

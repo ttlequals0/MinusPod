@@ -89,9 +89,8 @@ _TRUNCATION_MARKERS = (
     # A body cut mid-character leaves a partial multibyte sequence, which
     # expat reports as an invalid token rather than a missing element.
     'not well-formed (invalid token)',
-    # A body cut inside a CDATA block or comment reports this instead of a missing element.
+    # A body cut inside a CDATA block reports this instead of a missing element.
     'unclosed cdata section',
-    'unclosed comment',
 )
 
 
@@ -425,9 +424,12 @@ class RSSParser:
                 finally:
                     response.close()
                 logger.info(
-                    "Identity retry after gzip failure: url=%s bytes=%d declared=%s",
+                    "Identity retry after gzip failure: url=%s bytes=%d content_length=%s "
+                    "transfer_encoding=%s content_encoding=%s",
                     safe_url_for_log(url), len(body),
-                    response.headers.get('Content-Length') or 'chunked')
+                    response.headers.get('Content-Length') or 'none',
+                    response.headers.get('Transfer-Encoding') or 'none',
+                    response.headers.get('Content-Encoding') or 'none')
                 breaker.record_success(token=probe_token)
                 return body.decode('utf-8', errors='replace')
             except (requests.RequestException, SSRFError) as retry_e:
@@ -563,9 +565,12 @@ class RSSParser:
                 finally:
                     response.close()
                 logger.info(
-                    "Identity retry after gzip failure: url=%s bytes=%d declared=%s",
+                    "Identity retry after gzip failure: url=%s bytes=%d content_length=%s "
+                    "transfer_encoding=%s content_encoding=%s",
                     safe_url_for_log(url), len(body),
-                    response.headers.get('Content-Length') or 'chunked')
+                    response.headers.get('Content-Length') or 'none',
+                    response.headers.get('Transfer-Encoding') or 'none',
+                    response.headers.get('Content-Encoding') or 'none')
                 breaker.record_success(token=probe_token)
                 return (
                     body.decode('utf-8', errors='replace'),
