@@ -27,6 +27,7 @@ from llm_client import (
 )
 from llm_route import client_for_route
 from run_context import route_for_phase, run_in_worker_thread
+from sponsor_context import description_sponsor_re
 from sponsor_normalize import extract_description_sponsors, segment_category_for
 from utils.language import get_pattern_language
 from utils.llm_call import (
@@ -653,8 +654,7 @@ def _known_sponsor_matchers(ads: list[dict],
     """Matchers for sponsors heard in ads and named in the description, or None."""
     audio_re = word_boundary_re(
         {ad['sponsor'] for ad in ads if ad.get('sponsor') and is_brand_token(ad['sponsor'])})
-    summary_re = word_boundary_re(
-        {n for n in extract_description_sponsors(episode_description) if is_brand_token(n)})
+    summary_re = description_sponsor_re(episode_description)
     if audio_re is None and summary_re is None:
         return None
     return EpisodeSponsors(audio_re, summary_re)

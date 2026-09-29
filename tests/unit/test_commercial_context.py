@@ -6,6 +6,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from ad_detector.prompts import _span_names_sponsor
 from ad_validator import AdValidator
 from tests.unit.marker_test_utils import RegistryStub, registry_confirms
 
@@ -96,3 +97,21 @@ class TestCommercialContext:
         v = _validator('Acme came up. Go to othersite.com today.', registry=False)
         assert _commercial(v) is False
 
+
+
+# Production shapes: a host read naming the brand nine times with a link, and the closing above.
+HOST_READ = ' '.join(['Acme is the easiest way to protect your home.'] * 9
+                     + ['Learn more at acme.com.'])
+
+
+@pytest.mark.parametrize(('text', 'expected'), [
+    (HOST_READ, True),
+    (CLOSING, True),
+    ('I use Acme at home, Acme is fine', False),
+])
+def test_detector_and_validator_registry_gates_agree(text, expected):
+    segments = [{'start': 0.0, 'end': 400.0, 'text': text}]
+    validator = AdValidator(3600.0, segments, episode_description='',
+                            sponsor_service=ACME_REGISTRY)
+    assert registry_confirms(validator, dict(_SPAN)) is expected
+    assert _span_names_sponsor(segments, 0.0, 400.0, None, ACME_REGISTRY) is expected

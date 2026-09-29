@@ -27,6 +27,7 @@ from utils.markers import (
 )
 from utils.text import get_transcript_text_for_range
 from utils.time import overlap_seconds, ranges_overlap
+from sponsor_context import domain_labels
 from sponsor_service import SponsorService
 from utils.constants import NON_BRAND_WORDS
 
@@ -38,7 +39,7 @@ from config import (
     BOUNDARY_EXTENSION_CONNECTOR_SKIP, BOUNDARY_EXTENSION_SKIP_MAX,
     is_edge_cue_snapped,
     AD_CONTENT_URL_PATTERNS, AD_CONTENT_PROMO_PHRASES,
-    AD_CONTENT_PHONE_PATTERNS,
+    AD_CONTENT_PHONE_PATTERNS, AD_COPY_PHRASES, AD_OFFER_PHRASES,
     MIN_KEYWORD_LENGTH, MIN_UNCOVERED_TAIL_DURATION,
     TERMINAL_SNAP_EOF_TOLERANCE_SECONDS,
     DEFAULT_SEGMENT_ACTION, normalize_segment_category,
@@ -76,6 +77,11 @@ AD_START_PHRASES = [
     "first let me tell you",
     "i want to tell you about",
     "let me tell you about",
+]
+# The explicit sponsor intros, which may pull a word-timed start inward.
+AD_SPONSOR_INTRO_PHRASES = [
+    "word from our sponsor", "brought to you by", "thanks to our sponsor",
+    "our sponsor for", "sponsored by", "support comes from",
 ]
 
 # Phrases that mark ad END (transition OUT of ad, back to content)
@@ -346,12 +352,7 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
             inward_words = list(current_seg.get('words', []))
             if start_seg_idx + 1 < len(segments):
                 inward_words.extend(segments[start_seg_idx + 1].get('words', []))
-            inward_match = find_phrase_in_words(
-                inward_words,
-                ['word from our sponsor', 'brought to you by',
-                 'thanks to our sponsor', 'our sponsor for',
-                 'sponsored by', 'support comes from'],
-            )
+            inward_match = find_phrase_in_words(inward_words, AD_SPONSOR_INTRO_PHRASES)
             intro_start = None
             if inward_match:
                 intro_start = next(
@@ -567,9 +568,7 @@ def _timed_ad_evidence_end(utterance: dict,
     for word in words:
         positions.append((offset, offset + len(word['word'].strip())))
         offset += len(word['word'].strip()) + 1
-    patterns = [*AD_CONTENT_URL_PATTERNS, *AD_CONTENT_PHONE_PATTERNS,
-                'dot com', 'slash', 'percent off', 'free trial',
-                'promo code', 'offer code', 'discount', 'coupon']
+    patterns = [*AD_CONTENT_URL_PATTERNS, *AD_CONTENT_PHONE_PATTERNS, *AD_COPY_PHRASES]
     last_index = None
     last_pattern = None
     for pattern in patterns:
@@ -627,21 +626,13 @@ def _ad_connector_utterance(utterance: dict) -> bool:
     return utterance['text'].startswith(('thank you for ', 'we thank them '))
 
 
-def _domain_labels(text: str) -> set[str]:
-    text = re.sub(r'\s+\.', '.', text.lower())
-    labels = set(re.findall(r'\b([a-z0-9-]{3,})\.[a-z]{2,6}\b', text))
-    labels.update(re.findall(r'\b([a-z0-9-]{3,})\s+dot\s+com\b', text))
-    return labels
-
-
 def _supported_ad_utterance(utterance: dict, ad_text: str,
                             sponsors: set, boundary: float) -> bool:
     text = utterance['text']
-    domains = _domain_labels(text)
-    prior_domains = _domain_labels(ad_text)
+    domains = domain_labels(text)
+    prior_domains = domain_labels(ad_text)
     has_phone = any(pattern in text for pattern in AD_CONTENT_PHONE_PATTERNS)
-    has_offer = any(phrase in text for phrase in (
-        'percent off', 'free trial', 'discount', 'coupon'))
+    has_offer = any(phrase in text for phrase in AD_OFFER_PHRASES)
     solicits = bool(re.search(
         r'\b(?:visit|go to|head to|try|call|sign up|use code|promo code|check out)\b',
         text))
@@ -752,12 +743,12 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                             and _supported_ad_utterance(
                                 utterance, ad_text, ad_sponsors, ad_end)):
                         new_end = min(evidence_end, end_cap)
-                        accepted_domains.update(_domain_labels(
+                        accepted_domains.update(domain_labels(
                             utterance['text']))
                         skipped = 0
                         skipped_time = 0.0
                     elif (skipped and accepted_domains
-                          & _domain_labels(utterance['text'])
+                          & domain_labels(utterance['text'])
                           and return_index is None
                           and utterance['text'].startswith((
                               'and we thank them', 'we thank them'))):

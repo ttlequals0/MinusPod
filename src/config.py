@@ -533,6 +533,9 @@ AD_CONTENT_PROMO_PHRASES = [
     'promo code', 'check out', 'head to', 'go to', 'click the link',
     'dot com', 'slash', 'coupon', 'discount', 'offer code',
 ]
+# Offer language, and the ad copy an extended edge may end on.
+AD_OFFER_PHRASES = ('percent off', 'free trial', 'discount', 'coupon')
+AD_COPY_PHRASES = ('dot com', 'slash', 'promo code', 'offer code', *AD_OFFER_PHRASES)
 AD_CONTENT_PHONE_PATTERNS = ['1-800', '1 800', 'one eight hundred']
 
 # ============================================================

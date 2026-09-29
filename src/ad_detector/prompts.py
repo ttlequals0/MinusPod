@@ -10,7 +10,7 @@ import re
 from collections import Counter
 from typing import NamedTuple
 
-from sponsor_context import text_has_commercial_context
+from sponsor_context import SPONSOR_MIN_MENTIONS, registry_sponsor, text_has_commercial_context
 from sponsor_service import SponsorService
 from text_pattern_matcher import bounded_segment_texts
 from utils.prompt import (
@@ -41,8 +41,6 @@ logger = logging.getLogger('podcast.claude')
 # keeping rather than discarding.
 DUPLICATE_MIN_LENGTH_RATIO = 0.8
 
-# A real read names its sponsor repeatedly; one passing mention of a common word does not count.
-SPAN_SPONSOR_MIN_MENTIONS = 2
 
 def _singular(key: str) -> str:
     """Drop one trailing plural. rstrip('s') stemmed 'names' to 'name' but also
@@ -401,7 +399,7 @@ def _span_names_sponsor(segments: list[dict], start: float, end: float,
         counts = Counter(name for name, _heard in names.values())
         heard = {name for name, is_heard in names.values() if is_heard}
         # A description-only name can be an everyday word, so it also needs commercial context.
-        if any(n >= SPAN_SPONSOR_MIN_MENTIONS and (name in heard or text_has_commercial_context(
+        if any(n >= SPONSOR_MIN_MENTIONS and (name in heard or text_has_commercial_context(
                 text, name,
                 names_sponsor=lambda t, b: any(m.group(0).lower() == b
                                                for m in summary_re.finditer(t)),
@@ -410,14 +408,11 @@ def _span_names_sponsor(segments: list[dict], start: float, end: float,
             return True
     if not sponsor_service:
         return False
-    offsets = sponsor_service.brand_mention_offsets(text)
     # Registry names can be everyday words, so a registry brand also needs commercial context.
-    return any(
-        len(found) >= SPAN_SPONSOR_MIN_MENTIONS and text_has_commercial_context(
-            text, brand,
-            names_sponsor=lambda t, b: b in sponsor_service.brand_mention_offsets(t),
-            matches_expected=lambda f, b: squash_brand(f) == squash_brand(b))
-        for brand, found in offsets.items())
+    return registry_sponsor(
+        sponsor_service, bounded_segment_texts(segments, start, end),
+        names_sponsor=lambda t, b: b in sponsor_service.brand_mention_offsets(t),
+        matches_expected=lambda f, b: squash_brand(f) == squash_brand(b))[2]
 
 
 def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,

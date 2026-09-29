@@ -59,10 +59,11 @@ from utils.markers import (
 from differential_fetcher import differential_region_overlapping
 from community_export import brand_match_candidates
 from text_pattern_matcher import bounded_segment_texts
-from sponsor_context import text_has_commercial_context
+from sponsor_context import (SPONSOR_MIN_MENTIONS, description_sponsor_re,
+                             local_commercial_context, registry_sponsor)
 from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS, extract_description_sponsors
 from utils.constants import squash_brand
-from utils.text import extract_text_from_segments, most_mentioned, word_boundary_re
+from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 from ad_detector.boundaries import effective_resolved_action
 
@@ -337,7 +338,7 @@ class AdValidator:
         self.episode_description = episode_description or ""
         self.description_sponsors = extract_description_sponsors(
             self.episode_description)
-        self._description_sponsor_re = word_boundary_re(self.description_sponsors)
+        self._description_sponsor_re = description_sponsor_re(self.episode_description)
         self.false_positive_corrections = false_positive_corrections or []
         self.confirmed_corrections = confirmed_corrections or []
         self.min_cut_confidence = min_cut_confidence
@@ -381,24 +382,20 @@ class AdValidator:
         if not ad_text:
             return False
         try:
-            offsets = self.sponsor_service.brand_mention_offsets(ad_text)
+            found, mentions, confirmed = registry_sponsor(
+                self.sponsor_service, texts, names_sponsor=self._names_sponsor,
+                matches_expected=self._matches_expected_sponsor, expected=ad.get('sponsor'))
         except Exception as e:
             logger.debug(f"Sponsor registry lookup failed: {e}")
             return False
-        expected = ad.get('sponsor')
-        if expected:
-            offsets = {name: positions for name, positions in offsets.items()
-                       if self._matches_expected_sponsor(name, expected)}
-        found, mentions = most_mentioned(offsets)
         if found is None:
             return False
-        if mentions < 2:
+        if mentions < SPONSOR_MIN_MENTIONS:
             logger.info(
                 f"No registry sponsor named twice in "
-                f"{ad['start']:.1f}s-{ad['end']:.1f}s ({len(offsets)} named once); "
-                f"not treating as confirmed")
+                f"{ad['start']:.1f}s-{ad['end']:.1f}s; not treating as confirmed")
             return False
-        if not self._has_local_commercial_context(texts, found):
+        if not confirmed:
             logger.info(
                 f"Registry sponsor '{found}' repeated without commercial "
                 f"language in {ad['start']:.1f}s-{ad['end']:.1f}s")
@@ -424,23 +421,20 @@ class AdValidator:
     def _bounded_text_segments(self, ad: dict) -> list[str]:
         return bounded_segment_texts(self.segments, ad['start'], ad['end'])
 
-    def _text_names_sponsor(self, text: str, sponsor: str, name_re) -> bool:
+    def _names_sponsor(self, text: str, sponsor: str) -> bool:
         if self.sponsor_service:
             try:
                 if sponsor in self.sponsor_service.brand_mention_offsets(text):
                     return True
             except Exception as e:
                 logger.debug(f"Sponsor registry lookup failed: {e}")
+        name_re = word_boundary_re((sponsor,))
         return bool(name_re and name_re.search(text))
 
     def _has_local_commercial_context(self, relevant: list[str], sponsor: str) -> bool:
-        name_re = word_boundary_re((sponsor,))
-        return any(text_has_commercial_context(
-            text, sponsor,
-            names_sponsor=lambda t, s: self._text_names_sponsor(t, s, name_re),
-            matches_expected=self._matches_expected_sponsor,
-            following=relevant[index + 1] if index + 1 < len(relevant) else '')
-            for index, text in enumerate(relevant))
+        return local_commercial_context(
+            relevant, sponsor, names_sponsor=self._names_sponsor,
+            matches_expected=self._matches_expected_sponsor)
 
     def _sponsor_confirmation_source(self, ad: dict) -> str | None:
         """Where the ad's sponsor was confirmed: 'transcript' (a description

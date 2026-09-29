@@ -26,6 +26,7 @@ from community_export import (
     first_brand_occurrence, get_sponsor_row_or_stub)
 from utils.text import extract_text_from_segments, timed_spans_from_segments, word_boundary_re
 from sponsor_normalize import get_or_create_known_sponsor, segment_category_for
+from sponsor_context import COMMERCIAL_CONTEXT_RE, domain_labels
 from sponsor_service import SponsorService
 from utils.constants import (
     canonical_sponsor,
@@ -197,12 +198,6 @@ FUZZY_DISCRIMINATIVE_LENGTH = 60
 # anywhere it appeared; local extraction already floors well above this.
 MIN_FUZZY_VARIANT_CHARS = 20
 
-OUTRO_AD_SIGNAL_RE = re.compile(
-    r'\b(?:use\s+(?:promo\s+)?code|promo\s+code|free\s+trial|'
-    r'(?:\d+|ten|fifteen|twenty|thirty|forty|fifty)\s*percent\s+off|'
-    r'\d+\s*%\s*off)\b', re.IGNORECASE)
-OUTRO_BRAND_LINK_RE = re.compile(
-    r'\b([a-z0-9-]+)\s*(?:dot|\.)\s*(?:com|org|net)\b', re.IGNORECASE)
 
 
 def required_fuzzy_score(phrase_len: int) -> float:
@@ -737,10 +732,9 @@ class TextPatternMatcher:
         for clause in re.split(r'(?<=[.!?])\s+(?=[A-Z])', phrase):
             if not brand.search(clause):
                 continue
-            if OUTRO_AD_SIGNAL_RE.search(clause):
+            if COMMERCIAL_CONTEXT_RE.search(clause):
                 return True
-            if any(squash_brand(link.group(1)) in domains
-                   for link in OUTRO_BRAND_LINK_RE.finditer(clause)):
+            if any(squash_brand(label) in domains for label in domain_labels(clause)):
                 return True
         return False
 

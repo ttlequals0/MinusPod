@@ -840,6 +840,10 @@ def test_auto_pattern_outro_needs_sponsor_link_or_offer(temp_db):
         'Acme shares fell. Visit example.com for the report.', 'Acme') is False
     assert matcher._outro_has_ad_evidence(
         'Visit acme.com and use code PODCAST.', 'Acme') is True
+    # The outro shares the commercial-context offers and the domain-label reader.
+    assert matcher._outro_has_ad_evidence('Acme ships free, free shipping today.', 'Acme') is True
+    assert matcher._outro_has_ad_evidence('Find Acme at acme dot com.', 'Acme') is True
+    assert matcher._outro_has_ad_evidence('Acme is on acme.io now.', 'Acme') is True
 
 
 def test_catalog_read_failure_skips_stale_patterns_then_recovers(temp_db, monkeypatch):
