@@ -40,10 +40,13 @@ from database.search import (
 )
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
 from config import (
-    CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
-    count_pending_review,
+    CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    PASS2_AUTOAPPROVE_SNIPPET_PREFIX, count_pending_review,
 )
 from utils.markers import collapse_duplicate_markers
+
+# 2.63.2-2.67.0 snippets named the differential hold by its short form.
+_LEGACY_SNIPPET_REASONS = {'differential': HOLD_REASON_DIFFERENTIAL_UNCORROBORATED}
 
 
 @contextmanager
@@ -1539,6 +1542,8 @@ class SchemaMixin:
         # 2.97.32: tag pass-2 auto-filed confirms by origin; runs after the
         # sponsor FK rebuild so the column exists in its final table.
         self._backfill_correction_origin(conn)
+        # 2.97.37: the backfill above once stored 'differential' for 2.63.2-2.67.0 snippets.
+        self._repair_differential_source_hold_reason(conn)
 
         # 2.5.7: retire kitchen-sink ad_patterns that name multiple foreign
         # sponsors in their text_template. The merge guard prevents new ones
@@ -3546,11 +3551,11 @@ class SchemaMixin:
                     continue
                 reason = _AUTO_FILED_REASON_RE.match(
                     snippet[len(PASS2_AUTOAPPROVE_SNIPPET_PREFIX):])
+                reason = reason and _LEGACY_SNIPPET_REASONS.get(reason.group(1), reason.group(1))
                 conn.execute(
                     "UPDATE pattern_corrections SET origin = ?, "
                     "source_hold_reason = COALESCE(source_hold_reason, ?) WHERE id = ?",
-                    (CORRECTION_ORIGIN_AUTO_PASS2,
-                     reason.group(1) if reason else None, row['id'])
+                    (CORRECTION_ORIGIN_AUTO_PASS2, reason, row['id'])
                 )
                 tagged += 1
             conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
@@ -3561,6 +3566,28 @@ class SchemaMixin:
             # Gate stays unset, so this retries on the next boot.
             conn.rollback()
             logger.warning(f"Migration: correction origin backfill failed: {e}")
+
+    def _repair_differential_source_hold_reason(self, conn):
+        """One-shot: fix the short 'differential' reason the first origin backfill stored."""
+        gate = 'repair_differential_source_hold_reason_once'
+        if conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)
+        ).fetchone():
+            return
+        try:
+            repaired = conn.execute(
+                "UPDATE pattern_corrections SET source_hold_reason = ? "
+                "WHERE source_hold_reason = 'differential'",
+                (HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,)
+            ).rowcount
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+            if repaired:
+                logger.info(f"Migration: repaired {repaired} correction hold reason(s)")
+        except Exception as e:
+            # Gate stays unset, so this retries on the next boot.
+            conn.rollback()
+            logger.warning(f"Migration: correction hold reason repair failed: {e}")
 
     def _migrate_fingerprint_cascade(self, conn):
         """2.88.2: give audio_fingerprints.pattern_id an FK with ON DELETE CASCADE.

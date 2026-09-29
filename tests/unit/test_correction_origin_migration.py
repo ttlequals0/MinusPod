@@ -150,3 +150,66 @@ def test_pattern_backfill_skips_auto_filed_confirms(temp_db):
         "SELECT id, pattern_id FROM pattern_corrections").fetchall()}
     assert pattern_ids[auto] is None
     assert pattern_ids[user] is not None
+
+
+LEGACY_SNIPPET = 'auto-approved: pass-2 corroborated differential hold'
+REPAIR_GATE = 'repair_differential_source_hold_reason_once'
+
+
+def _repair(temp_db):
+    conn = temp_db.get_connection()
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (REPAIR_GATE,))
+    conn.commit()
+    temp_db._repair_differential_source_hold_reason(conn)
+
+
+def test_backfill_maps_the_legacy_differential_snippet_to_its_hold_reason(temp_db):
+    podcast_id, eid = _seed(temp_db)
+    cid = _confirm(temp_db, podcast_id, eid, 100.0, 200.0, text_snippet=LEGACY_SNIPPET)
+
+    _run(temp_db)
+
+    assert _row(temp_db, cid)['source_hold_reason'] == 'differential_uncorroborated'
+
+
+def test_repair_fixes_rows_the_old_backfill_tagged_differential(temp_db):
+    podcast_id, eid = _seed(temp_db)
+    bad = _confirm(temp_db, podcast_id, eid, 100.0, 200.0, text_snippet=LEGACY_SNIPPET,
+                   origin='auto_pass2', source_hold_reason='differential')
+    other = _confirm(temp_db, podcast_id, eid, 300.0, 400.0, origin='auto_pass2',
+                     source_hold_reason='no_splice_evidence')
+
+    _repair(temp_db)
+    _repair(temp_db)
+
+    assert _row(temp_db, bad)['source_hold_reason'] == 'differential_uncorroborated'
+    assert _row(temp_db, other)['source_hold_reason'] == 'no_splice_evidence'
+    assert temp_db.get_connection().execute(
+        "SELECT 1 FROM schema_migrations WHERE name = ?", (REPAIR_GATE,)).fetchone()
+
+
+def test_repair_runs_once_behind_its_gate(temp_db):
+    podcast_id, eid = _seed(temp_db)
+    _repair(temp_db)
+    cid = _confirm(temp_db, podcast_id, eid, 100.0, 200.0, origin='auto_pass2',
+                   source_hold_reason='differential')
+
+    temp_db._repair_differential_source_hold_reason(temp_db.get_connection())
+
+    assert _row(temp_db, cid)['source_hold_reason'] == 'differential'
+
+
+def test_upgraded_db_with_legacy_rows_matches_a_fresh_schema(temp_db):
+    conn = temp_db.get_connection()
+    columns = "PRAGMA table_info(pattern_corrections)"
+    fresh = sorted(tuple(r) for r in conn.execute(columns))
+    podcast_id, eid = _seed(temp_db)
+    cid = _confirm(temp_db, podcast_id, eid, 100.0, 200.0, origin='auto_pass2',
+                   source_hold_reason='differential', text_snippet=LEGACY_SNIPPET)
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (REPAIR_GATE,))
+    conn.commit()
+
+    temp_db._run_schema_migrations()
+
+    assert sorted(tuple(r) for r in conn.execute(columns)) == fresh
+    assert _row(temp_db, cid)['source_hold_reason'] == 'differential_uncorroborated'
