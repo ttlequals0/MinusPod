@@ -33,6 +33,13 @@ class TestAStoredHostingRowStillMatches:
         svc = self._service(temp_db, 'Anchor')
 
         assert svc.brand_mention_offsets('the anchorage report') == {}
+        assert svc.mentions_brand('the anchorage report', 'Anchor') is False
+
+    def test_mentions_brand_tests_only_the_named_brand(self, temp_db):
+        svc = self._service(temp_db, 'Anchor')
+
+        assert svc.mentions_brand('this read is from Anchor', 'Anchor') is True
+        assert svc.mentions_brand('this read is from Anchor', 'Unknown') is False
 
 
 class TestANewHostingLabelIsStillRefused:

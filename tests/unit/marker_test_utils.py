@@ -39,6 +39,9 @@ class RegistryStub:
                 found[name] = offsets
         return found
 
+    def mentions_brand(self, text, name):
+        return name in self.brand_mention_offsets(text)
+
 
 def _all_offsets(text, needle):
     pos = text.find(needle)

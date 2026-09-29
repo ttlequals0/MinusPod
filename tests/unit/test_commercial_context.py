@@ -115,3 +115,47 @@ def test_detector_and_validator_registry_gates_agree(text, expected):
                             sponsor_service=ACME_REGISTRY)
     assert registry_confirms(validator, dict(_SPAN)) is expected
     assert _span_names_sponsor(segments, 0.0, 400.0, None, ACME_REGISTRY) is expected
+
+
+class CountingRegistry(RegistryStub):
+    """Acme registry stub that counts full-registry scans and row reads."""
+
+    def __init__(self):
+        super().__init__({'Acme': ('acme',)})
+        self.calls = {'get_sponsors': 0, 'brand_mention_offsets': 0}
+
+    def get_sponsors(self):
+        self.calls['get_sponsors'] += 1
+        return [{'name': 'Acme', 'aliases': '["Acme Corp"]'}, {'name': 'Other', 'aliases': '[]'}]
+
+    def brand_mention_offsets(self, text):
+        self.calls['brand_mention_offsets'] += 1
+        return super().brand_mention_offsets(text)
+
+    def mentions_brand(self, text, name):
+        return name in super().brand_mention_offsets(text)
+
+
+READ_SEGMENTS = [
+    {'start': 0.0, 'end': 150.0, 'text': 'Acme makes the tools we use every day.'},
+    {'start': 150.0, 'end': 300.0, 'text': 'Thanks to Acme Corp for sponsoring. Acme is great.'},
+    {'start': 300.0, 'end': 400.0, 'text': 'Thanks to Acme Corp for supporting the show.'},
+]
+
+
+def test_validate_reads_the_registry_rows_once_and_scans_the_span_once():
+    registry = CountingRegistry()
+    validator = AdValidator(3600.0, READ_SEGMENTS, episode_description='',
+                            min_cut_confidence=0.80, sponsor_service=registry)
+    ad = {'start': 0.0, 'end': 400.0, 'confidence': 0.9, 'sponsor': 'Acme Corp',
+          'reason': 'sponsor read', 'detection_stage': 'claude'}
+    assert validator.validate([ad]).ads[0]['validation']['decision'] == 'ACCEPT'
+    assert registry.calls == {'get_sponsors': 1, 'brand_mention_offsets': 1}
+
+
+def test_detector_span_gate_scans_the_registry_once():
+    registry = CountingRegistry()
+    segments = [{'start': 0.0, 'end': 200.0, 'text': 'Acme makes the tools we use.'},
+                {'start': 200.0, 'end': 400.0, 'text': 'This show is sponsored by Acme.'}]
+    assert _span_names_sponsor(segments, 0.0, 400.0, None, registry) is True
+    assert registry.calls['brand_mention_offsets'] == 1

@@ -203,6 +203,7 @@ def _registry(*names):
         (n for n in names if n.lower() in text.lower()), None)
     patterns = {n: word_boundary_re([n]) for n in names}
     registry.brand_mention_offsets.side_effect = lambda text: pattern_offsets(text, patterns)
+    registry.mentions_brand.side_effect = lambda text, name: name in pattern_offsets(text, patterns)
     return registry
 
 

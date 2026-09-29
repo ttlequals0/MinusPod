@@ -296,6 +296,14 @@ class SponsorService:
         self._refresh_cache_if_needed()
         return pattern_offsets(text, self._compiled_patterns)
 
+    def mentions_brand(self, text: str, name: str) -> bool:
+        """Whether text mentions the registry brand with this canonical name."""
+        if not text:
+            return False
+        self._refresh_cache_if_needed()
+        pattern = self._compiled_patterns.get(name)
+        return bool(pattern and pattern.search(text))
+
     def count_sponsor_mentions(self, text: str) -> int:
         """Total registry brand mentions in text, summed over every sponsor.
 

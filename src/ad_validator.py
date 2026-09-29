@@ -361,6 +361,7 @@ class AdValidator:
         self.max_ad_duration = min(max_ad_duration, max_ad_duration_confirmed)
         self.max_ad_duration_confirmed = max_ad_duration_confirmed
         self._audio_analysis = None
+        self._variant_index = None
 
         if self.false_positive_corrections:
             logger.info(f"Loaded {len(self.false_positive_corrections)} false positive corrections")
@@ -405,6 +406,17 @@ class AdValidator:
             f"({ad['start']:.1f}s-{ad['end']:.1f}s); treating as confirmed")
         return True
 
+    def _sponsor_variant_index(self) -> dict[str, list[set[str]]]:
+        """Squashed name or alias to the variant sets of the registry rows carrying it."""
+        if self._variant_index is None:
+            index = {}
+            for sponsor in self.sponsor_service.get_sponsors():
+                variants = {squash_brand(name) for name in brand_match_candidates(sponsor)}
+                for variant in variants:
+                    index.setdefault(variant, []).append(variants)
+            self._variant_index = index
+        return self._variant_index
+
     def _matches_expected_sponsor(self, found: str, expected: str) -> bool:
         labels = {squash_brand(part) for part in re.split(
             r'[,;/:]|\band\b', expected, flags=re.IGNORECASE)}
@@ -412,24 +424,22 @@ class AdValidator:
             return True
         if not self.sponsor_service or not hasattr(self.sponsor_service, 'get_sponsors'):
             return False
-        for sponsor in self.sponsor_service.get_sponsors():
-            variants = {squash_brand(name) for name in brand_match_candidates(sponsor)}
-            if squash_brand(found) in variants and labels & variants:
-                return True
-        return False
+        return any(labels & variants
+                   for variants in self._sponsor_variant_index().get(squash_brand(found), ()))
 
     def _bounded_text_segments(self, ad: dict) -> list[str]:
         return bounded_segment_texts(self.segments, ad['start'], ad['end'])
 
     def _names_sponsor(self, text: str, sponsor: str) -> bool:
+        name_re = word_boundary_re((sponsor,))
+        if name_re and name_re.search(text):
+            return True
         if self.sponsor_service:
             try:
-                if sponsor in self.sponsor_service.brand_mention_offsets(text):
-                    return True
+                return self.sponsor_service.mentions_brand(text, sponsor)
             except Exception as e:
                 logger.debug(f"Sponsor registry lookup failed: {e}")
-        name_re = word_boundary_re((sponsor,))
-        return bool(name_re and name_re.search(text))
+        return False
 
     def _has_local_commercial_context(self, relevant: list[str], sponsor: str) -> bool:
         return local_commercial_context(
@@ -525,6 +535,8 @@ class AdValidator:
             ValidationResult with validated ads and statistics
         """
         self._audio_analysis = audio_analysis
+        # Rebuilt per run so a registry edit between runs is seen.
+        self._variant_index = None
 
         if not ads:
             return ValidationResult(ads=[])

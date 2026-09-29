@@ -411,7 +411,7 @@ def _span_names_sponsor(segments: list[dict], start: float, end: float,
     # Registry names can be everyday words, so a registry brand also needs commercial context.
     return registry_sponsor(
         sponsor_service, bounded_segment_texts(segments, start, end),
-        names_sponsor=lambda t, b: b in sponsor_service.brand_mention_offsets(t),
+        names_sponsor=sponsor_service.mentions_brand,
         matches_expected=lambda f, b: squash_brand(f) == squash_brand(b))[2]
 
 
