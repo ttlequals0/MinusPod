@@ -1401,6 +1401,23 @@ def _assert_still_held(marker, reason):
     assert not any(k.startswith('_') for k in marker)
 
 
+def test_recut_keeps_each_hold_identity(monkeypatch):
+    reviewer = dict(_reviewer_hold('reviewer_contradiction'), hold_id='a1b2c3d4e5f6')
+    long_hold = {'start': 1000.0, 'end': 1400.0, 'confidence': 0.95, 'reason': 'Acme promo',
+                 'detection_stage': 'claude', 'was_cut': False, 'held_for_review': True,
+                 'hold_reason': 'max_duration', 'hold_id': 'b2c3d4e5f6a1'}
+    _stub_recut_db(monkeypatch, [reviewer, long_hold],
+                   overrides={'max_ad_duration_override': 240.0})
+
+    _cut, all_ads, *_ = processing._build_recut_ad_list(
+        'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
+        corrections=_user_corrections('slug', 'ep'))
+
+    assert _find(all_ads, HELD)['hold_id'] == 'a1b2c3d4e5f6'
+    kept_long = _find(all_ads, (1000.0, 1400.0))
+    assert kept_long['held_for_review'] and kept_long['hold_id'] == 'b2c3d4e5f6a1'
+
+
 @pytest.mark.parametrize('reason', REVIEWER_REASONS)
 def test_unrelated_auto_confirm_recut_leaves_reviewer_hold_held(monkeypatch, reason):
     ads = [_reviewer_hold(reason), _corroborated_hold(1000.0, 1100.0)]

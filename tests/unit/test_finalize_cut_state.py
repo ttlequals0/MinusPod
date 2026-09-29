@@ -201,7 +201,8 @@ class TestRecordCutSeconds:
 # ---------------------------------------------------------------------------
 
 def _run_recut(ads_to_remove, all_ads, render, *, new_duration=600.0,
-               assets_side_effect=None, finalize_side_effect=None, run_stats=None):
+               assets_side_effect=None, finalize_side_effect=None, run_stats=None,
+               publish_before_failure=False):
     """Drive _recut_episode with the cut list and the renderer stubbed."""
     snapshot = json.dumps([{'start': 1.0, 'end': 2.0, 'was_cut': True}])
     calls = MagicMock()
@@ -226,6 +227,8 @@ def _run_recut(ads_to_remove, all_ads, render, *, new_duration=600.0,
             captured['finalize_args'] = args
             captured['finalize_kwargs'] = kwargs
             calls.finalize()
+            if publish_before_failure:
+                kwargs['on_persisted']()
             if finalize_side_effect:
                 raise finalize_side_effect
 
@@ -287,6 +290,17 @@ class TestRecutOrderAndFailure:
         assert len(saves) == 2
         assert saves[-1] == json.loads(m['snapshot'])
         assert m['progress'] == {'mutated': True}
+
+    def test_failure_after_publish_keeps_the_new_markers(self):
+        a = _marker(10.0, 40.0)
+        m = _run_recut([a], [a], render=lambda segs: [applied_cut(10.0, 40.0)],
+                       finalize_side_effect=RuntimeError('history write failed'),
+                       publish_before_failure=True)
+        assert m['result'] is False
+        saves = _saves(m)
+        assert len(saves) == 1
+        assert saves[0] != json.loads(m['snapshot'])
+        assert m['progress'] == {'mutated': True, 'published': True}
 
     def test_order_is_render_move_assets_save_finalize(self):
         a = _marker(10.0, 40.0)

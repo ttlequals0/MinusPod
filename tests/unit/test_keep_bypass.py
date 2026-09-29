@@ -197,6 +197,25 @@ class TestKeepBypass:
         assert m['result'] is False
         assert m['storage'].save_combined_ads.call_args.args[2] != saved
 
+    def test_cancelled_run_restores_markers_saved_mid_run(self):
+        saved = [{'start': 50.0, 'end': 70.0, 'confidence': 0.9, 'was_cut': True}]
+        storages = []
+
+        def save_mid_run(cuts, markers):
+            storages.append(processing.storage)
+            processing.storage.save_combined_ads('keep-feed', 'ep1', markers)
+            return cuts, markers
+
+        with pytest.raises(processing.ProcessingCancelled):
+            _run_pipeline([dict(_sponsor_ad(), sponsor='Acme Tools')], {'sponsor': 'remove'},
+                          reviewer_side_effect=save_mid_run,
+                          verification_side_effect=processing.ProcessingCancelled,
+                          episode_row={'ad_markers_json': json.dumps(saved)})
+
+        [storage] = storages
+        assert storage.save_combined_ads.call_count == 2
+        assert storage.save_combined_ads.call_args.args[2] == saved
+
     def test_finalize_reports_persistence_before_the_summary_can_fail(self):
         persisted = []
         with patch.object(processing, '_persist_episode_state'), \

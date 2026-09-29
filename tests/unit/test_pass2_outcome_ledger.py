@@ -10,7 +10,7 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('pass2_outcome_ledger_test_')
 
-from main_app import processing
+from main_app import app, processing
 from main_app.verification_reconciliation import Pass2Ledger, _drop_uncovered_pass2_ads
 from tests.unit.pass2_test_utils import NO_SPLICE, _hold, _pair, drive_verification_pass
 from utils.markers import subtract_spans
@@ -381,3 +381,19 @@ def test_pass2_cut_over_a_pass1_reviewer_reject_is_blocked(caplog):
     run = _run([(100.0, 200.0)], pass1_reviewer_rejects=[reject], caplog=caplog)
     assert [(c['start'], c['end']) for c in run.rendered['requested']] == [(100.0, 150.0)]
     assert sorted(run.lines) == [(100.0, 150.0, 'cut'), (150.0, 200.0, 'rejected:pass1_reviewer')]
+
+
+def test_episode_api_returns_the_pass2_outcome(temp_db):
+    temp_db.create_podcast('outcome-test', 'https://example.com/feed.xml', 'Outcome Test')
+    temp_db.upsert_episode(slug='outcome-test', episode_id='a1b2c3d4e5f6',
+                           original_url='https://example.com/ep.mp3',
+                           title='Episode', original_duration=1800.0)
+    temp_db.save_episode_details('outcome-test', 'a1b2c3d4e5f6', ad_markers=[
+        {'start': 300.0, 'end': 360.0, 'confidence': 0.95, 'was_cut': True,
+         'pass2_outcome': 'cut'},
+        dict(_hold(900.0, 960.0), pass2_outcome=f'held:{NO_SPLICE}')])
+    app.config['TESTING'] = True
+    with app.test_client() as client:
+        body = client.get('/api/v1/feeds/outcome-test/episodes/a1b2c3d4e5f6').get_json()
+    assert [m.get('pass2_outcome') for m in body['adMarkers']] == ['cut']
+    assert [m.get('pass2_outcome') for m in body['pendingReviewMarkers']] == [f'held:{NO_SPLICE}']

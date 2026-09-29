@@ -95,6 +95,20 @@ def test_releases_without_an_identity_group_by_exact_bounds_only():
     assert [(s, e) for s, e, d in got if d == 'ACCEPT'] == [(1010.0, 1050.0), (1100.0, 1150.0)]
 
 
+def test_a_fresh_detection_gets_a_new_identity_and_old_releases_keep_their_group():
+    validator = AdValidator(episode_duration=3000.0, segments=[], min_cut_confidence=0.8)
+    first, again = {'start': 1000.0, 'end': 1200.0}, {'start': 1000.0, 'end': 1200.0}
+    validator._mark_held(first, [], NO_SPLICE)
+    validator._mark_held(again, [], NO_SPLICE)
+    assert first['hold_id'] != again['hold_id']
+
+    # Releases filed under the old id still group with each other on the new hold.
+    old = [_release_confirm((1002.0, 1200.0), (1100.0, 1150.0), hold_id=first['hold_id']),
+           _release_confirm((1000.0, 1200.0), (1010.0, 1050.0), hold_id=first['hold_id'])]
+    got = _validate(_held_marker(1002.0, 1200.0, again['hold_id']), old)
+    assert [(s, e) for s, e, d in got if d == 'ACCEPT'] == [(1010.0, 1050.0), (1100.0, 1150.0)]
+
+
 def test_filing_records_the_hold_identity(monkeypatch):
     hold = dict(_hold(1000.0, 1200.0), hold_id='a1b2c3d4e5f6', pass2_corroborated=True,
                 pass2_released_spans=[{'start': 1010.0, 'end': 1050.0},
