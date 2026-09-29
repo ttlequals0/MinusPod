@@ -844,6 +844,9 @@ def test_auto_pattern_outro_needs_sponsor_link_or_offer(temp_db):
     assert matcher._outro_has_ad_evidence('Acme ships free, free shipping today.', 'Acme') is True
     assert matcher._outro_has_ad_evidence('Find Acme at acme dot com.', 'Acme') is True
     assert matcher._outro_has_ad_evidence('Acme is on acme.io now.', 'Acme') is True
+    for ending in ('com', 'org', 'net', 'co'):
+        assert matcher._outro_has_ad_evidence(f'Find Acme at acme dot {ending}.', 'Acme') is True
+        assert matcher._outro_has_ad_evidence(f'Find Acme at acme.{ending}.', 'Acme') is True
 
 
 def test_catalog_read_failure_skips_stale_patterns_then_recovers(temp_db, monkeypatch):

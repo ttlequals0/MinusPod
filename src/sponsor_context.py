@@ -38,8 +38,8 @@ BARE_LINK_RE = re.compile(
 FRAMING_PATTERNS = ((SPONSOR_FRAMING_RE, False), (SPONSOR_THANKS_RE, True),
                     (SPONSOR_IS_SPONSOR_RE, True))
 LINK_PATTERNS = (BRAND_LINK_RE, BARE_LINK_RE)
-# A written domain ("acme.com", "acme .com") or a spoken "acme dot com".
-DOMAIN_LABEL_RE = re.compile(r'\b([a-z0-9-]{3,})(?:\.[a-z]{2,6}|\s+dot\s+com)\b')
+# A written domain ("acme.com", "acme .com") or a spoken "acme dot com/org/net/co".
+DOMAIN_LABEL_RE = re.compile(r'\b([a-z0-9-]{3,})(?:\.[a-z]{2,6}|\s+dot\s+(?:com|org|net|co))\b')
 
 
 def domain_labels(text: str) -> set[str]:
