@@ -4768,8 +4768,9 @@ paths:
                         type: object
                         description: >-
                           Pending-review detections per hold reason. Counts follow
-                          the feed and status filters; holds with no recorded reason
-                          are not counted.
+                          only the feed and status filters; the q, reviewer,
+                          holdReason and category filters do not narrow them. Holds
+                          with no recorded reason are not counted.
                         additionalProperties: { type: integer }
                   cutSummary:
                     type: object
@@ -12738,11 +12739,57 @@ components:
           type: string
           nullable: true
           description: Reviewer explanation when the reviewer evaluated this marker.
+        reviewer_verdict:
+          type: string
+          enum: [confirmed, adjust, reject, resurrect, inconclusive, failure]
+          description: Ad reviewer verdict on this marker; absent when the reviewer did not review it.
+        reviewer_locked_start:
+          type: number
+          description: Start the reviewer validated; later steps may move the start inward but not before it.
+        reviewer_locked_end:
+          type: number
+          description: End the reviewer validated; later steps may move the end inward but not past it.
+        hold_id:
+          type: string
+          description: >-
+            Identity a held marker gets when first held. Copies, carved fragments
+            and recuts keep it, and pass-2 auto-approval confirms record it so
+            releases of one hold stay grouped.
+        pass2_corroborated:
+          type: boolean
+          description: Set on a held marker when pass 2 independently detected an ad inside it.
+        pass2_corroborated_span:
+          type: object
+          description: Part of the hold pass 2 attested as ad; the auto-approval confirm is trimmed to it.
+          properties:
+            start:
+              type: number
+            end:
+              type: number
+        pass2_reviewed_release:
+          type: object
+          description: First pass-2 span inside the hold that review released.
+          properties:
+            start:
+              type: number
+            end:
+              type: number
+        pass2_released_spans:
+          type: array
+          description: Every pass-2 span inside the hold that review released, in start order. Each is filed as its own confirm; the hold stays pending until a recut applies them.
+          items:
+            type: object
+            properties:
+              start:
+                type: number
+              end:
+                type: number
         pass2_outcome:
           type: string
           description: >-
             Set on a marker pass 2 ended with: cut, kept, or held:<hold_reason>.
-            Spans pass 2 discarded are only logged and counted in run stats.
+            Spans pass 2 discarded are only logged and counted in the stored run
+            stats, which the API does not return.
           example: cut
         pass2_hold_review:
           type: object
@@ -12829,8 +12876,9 @@ components:
           nullable: true
           description: >-
             Ad reviewer verdict on this marker, or null when the reviewer did
-            not run. inconclusive means the reviewer abstained and the
-            original marker was retained. adjust alone does not mean the span moved: a held
+            not run. inconclusive means the reviewer abstained: the marker keeps
+            its bounds when measured evidence supports them and is otherwise held
+            as reviewer_inconclusive_bounds. adjust alone does not mean the span moved: a held
             contradiction keeps the pass-1 bounds and a split piece drops the
             originals, and neither records reviewerOriginalStart/End.
           enum: [confirmed, adjust, reject, resurrect, inconclusive, failure, null]
@@ -14829,6 +14877,12 @@ components:
             - string
             - 'null'
           description: Reason for disabling the pattern
+        disabled_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the pattern was deactivated; null while it is active.
         confirmation_count:
           type: integer
           description: Number of times pattern was confirmed correct

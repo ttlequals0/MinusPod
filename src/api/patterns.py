@@ -70,6 +70,9 @@ def list_patterns():
     )
     now = utc_now()
     for pattern in patterns:
+        # Matcher-only join columns; the list response does not carry them.
+        pattern.pop('sponsor_tags', None)
+        pattern.pop('sponsor_active', None)
         pattern['trust'] = compute_pattern_trust(pattern, now)
         pattern['can_split'] = can_split_pattern(pattern)
 

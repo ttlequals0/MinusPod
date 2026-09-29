@@ -15,6 +15,7 @@ The spec is also confirmed to be loadable and to expose the expected
 top-level shape so a future careless edit (e.g. dropping ``paths:``
 or breaking the indentation under ``components.schemas``) fails fast.
 """
+import re
 from pathlib import Path
 
 import pytest
@@ -182,13 +183,27 @@ def test_string_enums_are_quoted_in_the_spec():
             )
 
 
-def test_hold_reason_enum_matches_config_constants():
+def test_every_hold_reason_list_matches_config_constants():
     with SPEC_PATH.open() as f:
         doc = yaml.safe_load(f)
-    enum = doc['components']['schemas']['AdMarker']['properties']['hold_reason']['enum']
+    schemas = doc['components']['schemas']
+    param = next(p for p in doc['paths']['/detections']['get']['parameters']
+                 if p['name'] == 'holdReason')
     constants = {value for name, value in vars(config).items()
                  if name.startswith('HOLD_REASON_')}
-    assert set(enum) - {None} == constants
+    assert config.ALL_HOLD_REASONS == constants
+    for enum in (schemas['AdMarker']['properties']['hold_reason']['enum'],
+                 schemas['ReviewDetection']['properties']['holdReason']['enum'],
+                 param['schema']['enum']):
+        assert set(enum) - {None} == constants
+    frontend = SPEC_PATH.parent / 'frontend' / 'src'
+    labels = (frontend / 'utils' / 'holdReason.ts').read_text()
+    for name in ('HOLD_REASON_LABELS', 'HOLD_REASON_TITLES'):
+        block = labels.split(f'export const {name}')[1].split('};')[0]
+        assert set(re.findall(r"^\s+(\w+):", block, re.M)) == constants, name
+    types = (frontend / 'api' / 'types.ts').read_text()
+    union = types.split('hold_reason?:')[1].split(';')[0]
+    assert set(re.findall(r"'(\w+)'", union)) == constants
 
 
 def test_patterns_list_params_match_handler():

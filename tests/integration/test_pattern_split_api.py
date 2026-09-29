@@ -35,3 +35,4 @@ def test_pattern_list_marks_only_splittable_active_rows(app_client):
     assert rows[one_id]['can_split'] is False
     assert rows[two_id]['can_split'] is True
     assert rows[inactive_id]['can_split'] is False
+    assert not any({'sponsor_tags', 'sponsor_active'} & row.keys() for row in rows.values())

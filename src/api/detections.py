@@ -58,7 +58,7 @@ def list_detections():
     items = flatten_detections(rows, corrections)
     counts = summarize_detections(items)
     items = filter_detections(items, status=status, feed=feed)
-    # Counted before the hold-reason filter so each chip matches the rows it would show.
+    # Follows the feed and status filters only; q, reviewer, holdReason and category apply after.
     counts['pendingByHoldReason'] = dict(Counter(
         i['holdReason'] for i in items if i['holdReason']))
     items = filter_detections(items, status='all', q=q,
