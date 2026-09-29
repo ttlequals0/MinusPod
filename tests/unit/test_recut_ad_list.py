@@ -1279,7 +1279,7 @@ def test_pass1_carve_saves_trusted_fragments_that_a_recut_keeps_cut(monkeypatch)
     keep = {'start': 12.0, 'end': 40.0, 'confidence': 0.98, 'category': 'self_promo',
             'action_applied': 'keep', 'was_cut': False, 'reason': 'show promo'}
     all_ads = [cut, keep]
-    pieces = processing._carve_cuts_around_kept_audio('slug', 'ep', [cut], all_ads, [keep])
+    pieces = processing._carve_cuts_around([cut], all_ads, [keep])
     processing._finalize_cut_state(
         all_ads, pieces, [{'start': 10.0, 'end': 12.0}, {'start': 40.0, 'end': 60.0}], 600.0)
     fragments = [a for a in all_ads if a is not keep]

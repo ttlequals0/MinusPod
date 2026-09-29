@@ -325,14 +325,8 @@ def merge_dai_core_spans(target: dict, other: dict) -> None:
     if not spans:
         return
     probes = _valid_spans(target, DAI_PROBE_SPANS) + _valid_spans(other, DAI_PROBE_SPANS)
-    spans.sort(key=lambda span: span['start'])
-    merged = [spans[0]]
-    for span in spans[1:]:
-        if span['start'] <= merged[-1]['end'] + 0.05:
-            merged[-1]['end'] = max(merged[-1]['end'], span['end'])
-        else:
-            merged.append(span)
-    target[DAI_CORE_SPANS] = merged
+    target[DAI_CORE_SPANS] = [{'start': lo, 'end': hi} for lo, hi in merge_runs(
+        [(s['start'], s['end']) for s in spans], gap=EDGE_TOLERANCE)]
     target[DAI_PROBE_SPANS] = sorted(probes, key=lambda span: span['start'])
 
 
@@ -635,20 +629,8 @@ def measured_member_spans(marker: dict, min_conf: float, *,
     spans = ([(s['start'], s['end'], False) for s in _valid_dai_core_spans(marker)]
              if include_dai_core else [])
     # Same hard extents the reviewer uses: a fingerprint start is measured, its projected end soft.
-    for member in _hard_members(member_spans(marker), min_conf):
-        stage = member.get('stage')
-        lo, hi = member['start'], member['end']
-        if stage == 'fingerprint':
-            if _unmatched_fingerprint(member):
-                continue
-        elif stage in COARSE_MEMBER_STAGES and stage != 'keep_content':
-            confidence = finite_number(member.get('confidence'))
-            if confidence is None or confidence < min_conf:
-                continue
-        elif stage not in MEASURED_EVIDENCE_STAGES:
-            continue
-        if hi > lo:
-            spans.append((lo, hi, not member.get('span_estimated')))
+    spans.extend((m['start'], m['end'], not m.get('span_estimated'))
+                 for m in hard_members(marker, min_conf) if _is_evidence(m, min_conf))
     return sorted(spans)
 
 
@@ -658,6 +640,12 @@ def _transcript_member(member: dict, min_conf: float) -> bool:
     return (member.get('stage') in COARSE_MEMBER_STAGES
             and member.get('stage') != 'keep_content'
             and confidence is not None and confidence >= min_conf)
+
+
+def _is_evidence(member: dict, min_conf: float) -> bool:
+    """A confident transcript member, or a measured member that is not an unmatched fingerprint."""
+    return _transcript_member(member, min_conf) or (
+        member.get('stage') in MEASURED_EVIDENCE_STAGES and not _unmatched_fingerprint(member))
 
 
 def _match_bounds(member: dict) -> tuple[float, float] | None:
@@ -717,14 +705,10 @@ def edge_support(ad: dict, edge: str, min_conf: float, hard=None) -> dict:
     """The envelope edge and the outermost member edge that measures it."""
     candidates = []
     for member in hard_members(ad, min_conf) if hard is None else hard:
+        if not _is_evidence(member, min_conf):
+            continue
         stage = member.get('stage')
         transcript = stage in COARSE_MEMBER_STAGES
-        if transcript and not _transcript_member(member, min_conf):
-            continue
-        if not transcript and stage not in MEASURED_EVIDENCE_STAGES:
-            continue
-        if _unmatched_fingerprint(member):
-            continue
         precise = bool(transcript and member.get(f'precise_{edge}'))
         value = member[edge] if edge == 'end' else -member[edge]
         rank = (value, precise, finite_number(member.get('confidence')) or 0.0)
@@ -738,7 +722,7 @@ def edge_support(ad: dict, edge: str, min_conf: float, hard=None) -> dict:
 
 def reviewer_independent_spans(ad: dict, min_conf: float) -> list[tuple[float, float]]:
     """Measured spans a transcript-supported reviewer edge may not enter."""
-    spans = [(m['start'], m['end']) for m in _hard_members(member_spans(ad), min_conf)
+    spans = [(m['start'], m['end']) for m in hard_members(ad, min_conf)
              if m.get('stage') in MEASURED_EVIDENCE_STAGES and not _unmatched_fingerprint(m)]
     pair = ad.get('cue_pair') or {}
     cue_lo = finite_number((pair.get('start') or {}).get('cue_end'))
@@ -768,17 +752,24 @@ def union_cover(spans, start: float, end: float,
             clipped.append((lo, hi))
     if not clipped:
         return None, None
-    clipped.sort()
-    lo, cursor = clipped[0]
-    for span_lo, span_hi in clipped[1:]:
-        if span_lo > cursor + gap_tol:
-            break
-        cursor = max(cursor, span_hi)
+    lo, cursor = merge_runs(clipped, gap=gap_tol)[0]
     if lo <= start + edge_tol:
         lo = start
     if cursor >= end - edge_tol:
         cursor = end
     return lo, cursor
+
+
+def merge_runs(spans, gap: float = 0.0, joins=None) -> list[list[float]]:
+    """Sorted [lo, hi] runs of (lo, hi) spans; a span within gap of a run, or that joins accepts, extends it."""
+    runs = []
+    for lo, hi in sorted(spans):
+        if runs and (lo <= runs[-1][1] + gap
+                     or (joins is not None and joins(runs[-1][1], lo))):
+            runs[-1][1] = max(runs[-1][1], hi)
+        else:
+            runs.append([lo, hi])
+    return runs
 
 
 def subtract_spans(pieces, spans):

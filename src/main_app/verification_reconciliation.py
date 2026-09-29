@@ -22,7 +22,8 @@ from config import (
 )
 from database.settings import registry_get_default
 from utils.markers import (
-    COVERAGE_GAP_TOLERANCE, EDGE_TOLERANCE, carve_fragment, measured_member_spans, subtract_spans,
+    COVERAGE_GAP_TOLERANCE, EDGE_TOLERANCE, carve_fragment, measured_member_spans, merge_runs,
+    subtract_spans,
 )
 from utils.time import (
     adjust_timestamp, merge_cut_spans, overlap_ratio, overlap_seconds,
@@ -223,14 +224,8 @@ def _hold_release_span(hold, orig_ad, min_cut_confidence, other_holds,
         hi = hold['end']
     measured = measured_member_spans(orig_ad, min_cut_confidence)
     if measured:
-        runs = []
-        for a, b in sorted((max(a, lo), min(b, hi)) for a, b, _ in measured):
-            if b <= a:
-                continue
-            if runs and a - runs[-1][1] <= COVERAGE_GAP_TOLERANCE:
-                runs[-1][1] = max(runs[-1][1], b)
-            else:
-                runs.append([a, b])
+        runs = merge_runs([(max(a, lo), min(b, hi)) for a, b, _ in measured
+                           if min(b, hi) > max(a, lo)], gap=COVERAGE_GAP_TOLERANCE)
         if not runs:
             return None
         # Longest run of the member union, so an unmeasured gap is never included.

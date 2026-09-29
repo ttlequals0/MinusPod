@@ -46,6 +46,7 @@ from utils.markers import (
     invalidate_word_timed_edges,
     mark_distinct_merge,
     measured_member_spans,
+    merge_runs,
     note_fold,
     precise_edge,
     quote_edge_valid,
@@ -96,23 +97,12 @@ def user_trimmed_keep_ranges(corrections: list[dict]) -> list[dict]:
         if approved_start is not None and approved_end is not None and approved_end > approved_start:
             for lo, hi in ((start, min(end, approved_start)),
                            (max(start, approved_end), end)):
-                pieces = [(lo, hi)] if hi > lo else []
-                for newer_start, newer_end in newer_approvals:
-                    pieces = [part for a, b in pieces
-                              for part in ((a, min(b, newer_start)),
-                                           (max(a, newer_end), b))
-                              if part[1] > part[0]]
-                protected.extend({'start': a, 'end': b} for a, b in pieces)
+                pieces = subtract_spans([(lo, hi)] if hi > lo else [], newer_approvals)
+                protected.extend((a, b) for a, b in pieces)
             newer_approvals.append((approved_start, approved_end))
         else:
             newer_approvals.append((start, end))
-    merged = []
-    for item in sorted(protected, key=lambda item: item['start']):
-        if merged and item['start'] <= merged[-1]['end']:
-            merged[-1]['end'] = max(merged[-1]['end'], item['end'])
-        else:
-            merged.append(item)
-    return merged
+    return [{'start': lo, 'end': hi} for lo, hi in merge_runs(protected)]
 
 
 def restore_uncovered_confirmed_spans(ads_to_remove, all_ads, confirmed, false_positives,
@@ -669,12 +659,8 @@ class AdValidator:
             for confirmed, ad in sorted(candidates, key=lambda pair: pair[1]['start']):
                 plain_sources.append((confirmed, ad))
                 span = confirmed['confirmed_span']
-                available = [(span['start'], span['end'])]
-                for prior in selected:
-                    available = [piece for lo, hi in available
-                                 for piece in ((lo, min(hi, prior['start'])),
-                                               (max(lo, prior['end']), hi))
-                                 if piece[1] > piece[0]]
+                available = subtract_spans([(span['start'], span['end'])],
+                                           [(prior['start'], prior['end']) for prior in selected])
                 if available == [(span['start'], span['end'])]:
                     selected.append(span)
                     selected_candidates.append((confirmed, ad))
@@ -1426,15 +1412,9 @@ class AdValidator:
                         anchors: list[tuple[float, float]], start: float,
                         end: float) -> tuple[float | None, float | None]:
         """First anchored measured run, bridging gaps the merge step folds."""
-        clipped = sorted((max(a, start), min(b, end)) for a, b in spans
-                         if min(b, end) > max(a, start))
-        runs = []
-        for a, b in clipped:
-            if runs and (a <= runs[-1][1] + COVERAGE_GAP_TOLERANCE
-                         or self._gap_merges(runs[-1][1], a)):
-                runs[-1][1] = max(runs[-1][1], b)
-            else:
-                runs.append([a, b])
+        runs = merge_runs([(max(a, start), min(b, end)) for a, b in spans
+                           if min(b, end) > max(a, start)],
+                          gap=COVERAGE_GAP_TOLERANCE, joins=self._gap_merges)
         lo, hi = next(((lo, hi) for lo, hi in runs
                        if any(a < hi and b > lo for a, b in anchors)),
                       (None, None))

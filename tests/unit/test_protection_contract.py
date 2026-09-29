@@ -161,10 +161,6 @@ def test_pattern_defined_keep_category_resolves_to_remove_in_every_helper():
         [_promo_defined()], [_promo_defined()], ACTIONS)
     assert kept_p == [] and len(remaining_p) == 1
 
-    stamped = _promo_defined()
-    processing._stamp_pass2_cut_actions([stamped], [], ACTIONS)
-    assert stamped['action_applied'] == 'remove'
-
     region = {'start': 100.0, 'end': 130.0, 'pattern_id': 7,
               'category': 'self_promo', 'pattern_defined': True}
     assert removal_coverage_regions([region], ACTIONS) == [region]

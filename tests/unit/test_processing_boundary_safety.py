@@ -52,13 +52,22 @@ def test_saved_trim_protects_audio_inside_longer_new_detection():
 
     accepted[0]['start'] = 100.0
     ranges = user_trimmed_keep_ranges(corrections)
-    final = processing._protect_user_trimmed_cuts(accepted, result.ads, ranges)
+    final = processing._carve_cuts_around(accepted, result.ads, ranges, user_trim=True)
     applied = AudioProcessor().compute_applied_cuts(
         final, 600.0, cut_barriers=ranges)
     assert applied[0]['start'] == 101.7
     assert applied[-1]['end'] == 290.0
     assert all(not (cut['start'] < 101.7 and cut['end'] > 100.0)
                for cut in applied)
+
+
+def test_cut_wholly_inside_a_trim_keeps_its_saved_marker():
+    cut = {'start': 110.0, 'end': 150.0, 'confidence': 0.95, 'was_cut': True}
+    all_ads = [cut]
+    final = processing._carve_cuts_around(
+        [cut], all_ads, [{'start': 100.0, 'end': 200.0}], user_trim=True)
+    assert final == []
+    assert all_ads == [cut] and cut['was_cut'] is False
 
 
 def test_verification_keeps_trim_but_checks_remaining_ad():
@@ -317,8 +326,7 @@ def _spans(ads):
 def _render(merged, action_map, duration=2708.2445):
     keeps = [a for a in merged if action_map.get(a.get('category')) == 'keep']
     cuts = [dict(a) for a in merged if a not in keeps]
-    cuts = processing._carve_cuts_around_kept_audio('example-podcast', 'a1b2c3d4e5f6',
-                                                    cuts, list(merged), keeps)
+    cuts = processing._carve_cuts_around(cuts, list(merged), keeps)
     return AudioProcessor().compute_applied_cuts(cuts, duration, hard_barriers=keeps)
 
 

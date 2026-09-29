@@ -61,7 +61,7 @@ from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, carve_fragment
                            carve_partly_cut, covering_confirm, is_carved,
                            clip_merge_spans, finite_number,
                            fold_marker_pair, foldable_twin, invalidate_tail_provenance,
-                           parse_ad_markers,
+                           merge_runs, parse_ad_markers,
                            reviewer_edge_locked, reviewer_hold_stands,
                            reject_barriers, reviewer_reject_stands,
                            set_reviewer_locks, spans_match, subtract_spans)
@@ -1723,32 +1723,6 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
     return remove
 
 
-def _protect_user_trimmed_cuts(ads_to_remove, all_ads_with_validation, ranges):
-    """Keep saved trim exclusions out of final cut and marker bounds."""
-    if not ranges:
-        return ads_to_remove
-    protected_cuts = []
-    for ad in ads_to_remove:
-        pieces = subtract_spans([(ad['start'], ad['end'])],
-                                [(r['start'], r['end']) for r in ranges])
-        if pieces == [(ad['start'], ad['end'])]:
-            protected_cuts.append(ad)
-            continue
-        master = _find_master(all_ads_with_validation, ad)
-        if master is not None:
-            all_ads_with_validation.remove(master)
-        for lo, hi in pieces:
-            fragment = carve_fragment(ad, lo, hi)
-            fragment['_skip_pattern_learning'] = True
-            fragment['validation'] = dict(ad.get('validation') or {})
-            fragment['validation'].pop('confirmed_span', None)
-            fragment['validation'].pop('user_confirmed', None)
-            protected_cuts.append(fragment)
-            all_ads_with_validation.append(fragment)
-    all_ads_with_validation.sort(key=lambda ad: ad['start'])
-    return protected_cuts
-
-
 def _restore_confirmed_spans(ads_to_remove, all_ads_with_validation, podcast_id,
                              episode_id, episode_duration, exclude_start_seconds,
                              restore=True, reject_ranges=(), corrections=None):
@@ -1762,8 +1736,8 @@ def _restore_confirmed_spans(ads_to_remove, all_ads_with_validation, podcast_id,
         ads_to_remove = restore_uncovered_confirmed_spans(
             ads_to_remove, all_ads_with_validation, confirmed, fp_corrections,
             [*trim_ranges, *reject_ranges], episode_duration, exclude_start_seconds)
-    ads_to_remove = _protect_user_trimmed_cuts(
-        ads_to_remove, all_ads_with_validation, trim_ranges)
+    ads_to_remove = _carve_cuts_around(
+        ads_to_remove, all_ads_with_validation, trim_ranges, user_trim=True)
     return ads_to_remove, trim_ranges
 
 
@@ -1796,7 +1770,7 @@ def _stamp_and_carve_cuts(slug, episode_id, ads_to_remove, all_ads, segment_acti
         master = _find_master(all_ads, ad)
         if master is not None:
             master['action_applied'] = ad['action_applied']
-    return _carve_cuts_around_kept_audio(slug, episode_id, ads_to_remove, all_ads, keep_ads)
+    return _carve_cuts_around(ads_to_remove, all_ads, keep_ads, tag=f"[{slug}:{episode_id}]")
 
 
 def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
@@ -1971,20 +1945,6 @@ def _exclude_category_kept_spans(processed_ads, original_ads,
         processed_ads, original_ads, kept_processed, pass1_cuts,
         'category-kept audio', ledger=ledger,
         carved_labels=labelled_spans(kept_original, 'kept:category_keep'))
-
-
-def _stamp_pass2_cut_actions(processed_cuts, original_cuts, actions_map):
-    """Stamp remove/beep only after pass-2 candidates become actual cuts.
-
-    Validation and review may still divert a candidate into a hold or reject
-    it. Delaying the stamp keeps those uncut markers from advertising a cut
-    seam or replacement range to downstream chapter generation.
-    """
-    for marker in [*processed_cuts, *original_cuts]:
-        action = effective_resolved_action(marker, actions_map)
-        if action not in ('remove', 'beep'):
-            action = DEFAULT_SEGMENT_ACTION
-        marker['action_applied'] = action
 
 
 def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts, ledger=None):
@@ -2777,13 +2737,7 @@ def _find_master(all_ads, ad):
 
 def _cut_groups(cuts):
     """Rendered cuts merged into contiguous [start, end] runs."""
-    groups = []
-    for cut in sorted(cuts, key=lambda c: c['start']):
-        if groups and cut['start'] <= groups[-1][1] + EDGE_TOLERANCE:
-            groups[-1][1] = max(groups[-1][1], cut['end'])
-        else:
-            groups.append([cut['start'], cut['end']])
-    return groups
+    return merge_runs([(c['start'], c['end']) for c in cuts], gap=EDGE_TOLERANCE)
 
 
 def _clamped_span(marker, duration):
@@ -2866,10 +2820,11 @@ def _cut_seconds(cuts):
             round(sum(replacement for *_, replacement in groups), 2))
 
 
-def _carve_cuts_around_kept_audio(slug, episode_id, ads_to_remove, all_ads,
-                                  kept_audio):
-    """Split pass-1 cuts around kept audio in original time, replacing their masters."""
-    barriers = [(start, end) for start, end, *_ in merge_cut_spans(kept_audio)]
+def _carve_cuts_around(ads_to_remove, all_ads, ranges, *, user_trim=False, tag=''):
+    """Split cuts around ranges in original time, replacing their masters in all_ads.
+
+    user_trim fragments drop the confirm and skip learning; else short untrusted ones go."""
+    barriers = [(start, end) for start, end, *_ in merge_cut_spans(ranges)]
     if not barriers:
         return ads_to_remove
     carved = []
@@ -2879,21 +2834,33 @@ def _carve_cuts_around_kept_audio(slug, episode_id, ads_to_remove, all_ads,
         if spans == [whole]:
             carved.append(ad)
             continue
-        trusted = (ad.get('_measured_split_fragment')
-                   or ad['end'] - ad['start'] >= MIN_AD_DURATION_FOR_REMOVAL)
-        spans = [(start, end) for start, end in spans
-                 if trusted or end - start >= MIN_AD_DURATION]
-        audio_logger.info(
-            f"[{slug}:{episode_id}] Pass 1 cut {ad['start']:.1f}s-{ad['end']:.1f}s "
-            f"split around kept audio into {len(spans)} removable fragment(s)")
-        pieces = [carve_fragment(ad, start, end) for start, end in spans]
         master = _find_master(all_ads, ad)
-        master_pieces = ([carve_fragment(master, start, end) for start, end in spans]
-                         if master is not None else [])
-        # Saved fragments carry the stamp too, so a recut keeps a short trusted piece cut.
-        for piece in [*pieces, *master_pieces]:
-            if trusted:
-                piece['_measured_split_fragment'] = True
+        if user_trim:
+            pieces = [carve_fragment(ad, start, end) for start, end in spans]
+            for piece in pieces:
+                piece['_skip_pattern_learning'] = True
+                piece['validation'] = dict(ad.get('validation') or {})
+                piece['validation'].pop('confirmed_span', None)
+                piece['validation'].pop('user_confirmed', None)
+            # The saved list holds the cut fragments themselves.
+            master_pieces = pieces
+            if master is None:
+                all_ads.extend(pieces)
+        else:
+            trusted = (ad.get('_measured_split_fragment')
+                       or ad['end'] - ad['start'] >= MIN_AD_DURATION_FOR_REMOVAL)
+            spans = [(start, end) for start, end in spans
+                     if trusted or end - start >= MIN_AD_DURATION]
+            audio_logger.info(
+                f"{tag} Pass 1 cut {ad['start']:.1f}s-{ad['end']:.1f}s "
+                f"split around kept audio into {len(spans)} removable fragment(s)")
+            pieces = [carve_fragment(ad, start, end) for start, end in spans]
+            master_pieces = ([carve_fragment(master, start, end) for start, end in spans]
+                             if master is not None else [])
+            # Saved fragments carry the stamp too, so a recut keeps a short trusted piece cut.
+            for piece in [*pieces, *master_pieces]:
+                if trusted:
+                    piece['_measured_split_fragment'] = True
         carved.extend(pieces)
         if master is None:
             continue
@@ -2902,6 +2869,8 @@ def _carve_cuts_around_kept_audio(slug, episode_id, ads_to_remove, all_ads,
             all_ads[index:index + 1] = master_pieces
         else:
             master['was_cut'] = False
+    if user_trim:
+        all_ads.sort(key=lambda ad: ad['start'])
     return carved
 
 
@@ -3985,8 +3954,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     current_protection(), segment_actions=segment_actions,
                     min_cut_confidence=min_cut_confidence)
 
-                _stamp_pass2_cut_actions(
-                    v_ads_to_cut, v_ads_for_ui, segment_actions)
+                # Stamped only now: a candidate diverted to a hold or reject must not advertise a cut.
+                _partition_cut_actions([*v_ads_to_cut, *v_ads_for_ui], segment_actions)
                 v_ads_to_cut, v_ads_for_ui = _reconcile_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, pass1_cuts, ledger=ledger)
                 protection = current_protection()

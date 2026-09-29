@@ -24,6 +24,7 @@ from utils.markers import (
     hard_member_spans,
     mark_distinct_merge,
     merge_dai_core_spans,
+    merge_runs,
     note_merged_members,
     protected_member_spans,
     recorded_member_spans,
@@ -695,3 +696,22 @@ def test_coalesce_keeps_differently_labeled_windows_apart():
     assert member_bases(base['merged_member_spans']) == [
         {'start': 0.0, 'end': 60.0, 'stage': 'claude'},
         {'start': 40.0, 'end': 150.0, 'stage': 'claude'}]
+
+
+@pytest.mark.parametrize(('spans', 'gap', 'expected'), [
+    ([(0.0, 5.0), (5.0, 8.0)], 0.0, [[0.0, 8.0]]),
+    ([(0.0, 5.0), (3.0, 8.0)], 0.0, [[0.0, 8.0]]),
+    ([(0.0, 10.0), (2.0, 4.0)], 0.0, [[0.0, 10.0]]),
+    ([(20.0, 30.0), (0.0, 5.0), (4.0, 6.0)], 0.0, [[0.0, 6.0], [20.0, 30.0]]),
+    ([(0.0, 5.0), (5.04, 8.0)], 0.05, [[0.0, 8.0]]),
+    ([(0.0, 5.0), (5.1, 8.0)], 0.05, [[0.0, 5.0], [5.1, 8.0]]),
+    ([], 0.0, []),
+])
+def test_merge_runs_touching_overlapping_nested_unsorted(spans, gap, expected):
+    assert merge_runs(spans, gap=gap) == expected
+
+
+def test_merge_runs_joins_bridges_a_wider_gap():
+    joins = lambda left_end, right_start: right_start - left_end < 10.0  # noqa: E731
+    assert merge_runs([(0.0, 5.0), (12.0, 20.0)], joins=joins) == [[0.0, 20.0]]
+    assert merge_runs([(0.0, 5.0), (16.0, 20.0)], joins=joins) == [[0.0, 5.0], [16.0, 20.0]]

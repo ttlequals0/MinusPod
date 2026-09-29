@@ -1314,7 +1314,7 @@ class TestPartitionPass2CategoryActions:
         assert 'action_applied' not in processed
         assert 'action_applied' not in original
 
-        processing._stamp_pass2_cut_actions(out_p, out_o, self.ACTIONS)
+        processing._partition_cut_actions([*out_p, *out_o], self.ACTIONS)
 
         assert processed['action_applied'] == expected
         assert original['action_applied'] == expected
@@ -1333,7 +1333,7 @@ class TestPartitionPass2CategoryActions:
             assert 'action_applied' not in marker
             assert marker['keep_overridden_by_pattern'] is True
 
-        processing._stamp_pass2_cut_actions(out_p, out_o, self.ACTIONS)
+        processing._partition_cut_actions([*out_p, *out_o], self.ACTIONS)
         assert processed['action_applied'] == 'remove'
         assert original['action_applied'] == 'remove'
 
@@ -1351,7 +1351,7 @@ class TestPartitionPass2CategoryActions:
         assert 'action_applied' not in processed
         assert 'action_applied' not in original
 
-        processing._stamp_pass2_cut_actions(out_p, out_o, self.ACTIONS)
+        processing._partition_cut_actions([*out_p, *out_o], self.ACTIONS)
         assert processed['action_applied'] == 'remove'
         assert original['action_applied'] == 'remove'
 
