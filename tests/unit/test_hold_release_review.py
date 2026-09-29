@@ -617,9 +617,9 @@ def test_recut_after_inconclusive_hold_review_keeps_the_hold_pending(monkeypatch
     db.get_setting_float.side_effect = lambda k, default=None: default
     monkeypatch.setattr(processing, 'db', db)
 
-    ads_to_remove, all_ads, _keep, rejects, reviewer_holds = (
+    ads_to_remove, all_ads, _keep, rejects = (
         processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80))
-    assert ads_to_remove == [] and rejects == [] and reviewer_holds == []
+    assert ads_to_remove == [] and rejects == []
     [after] = all_ads
     assert is_pending_review(after)
     assert after['hold_reason'] == 'max_duration'

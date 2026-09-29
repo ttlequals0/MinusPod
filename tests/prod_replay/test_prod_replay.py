@@ -202,7 +202,7 @@ def _replay_render_state(monkeypatch, ep):
     _stub_db(monkeypatch, ep)
     corrections = (processing.db.get_false_positive_corrections(1, 'replay'),
                    processing.db.get_confirmed_corrections(1, 'replay'))
-    ads_to_remove, all_ads, keep_ads, rejects, holds = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, keep_ads, rejects = processing._build_recut_ad_list(
         'replay', 'replay', ep['segments'], ep['duration'], ep['description'],
         MIN_CONF, podcast_id=1, segment_actions=dict(ACTIONS), corrections=corrections)
     ads_to_remove, trims = processing._restore_confirmed_spans(
@@ -213,8 +213,8 @@ def _replay_render_state(monkeypatch, ep):
         'replay', 'replay', [a for a in ads_to_remove if id(a) not in reject_ids],
         all_ads, dict(ACTIONS), keep_ads)
     return ads_to_remove, all_ads, AudioProcessor().compute_applied_cuts(
-        ads_to_remove, ep['duration'], cut_barriers=holds,
-        hard_barriers=[*keep_ads, *trims, *corrections[0], *rejects])
+        ads_to_remove, ep['duration'], **processing._render_barriers(
+            [*keep_ads, *trims, *corrections[0], *rejects], all_ads, ads_to_remove))
 
 
 def _cut_over_keep_cases():

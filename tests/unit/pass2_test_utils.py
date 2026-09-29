@@ -44,7 +44,7 @@ def _spans(ads):
 def drive_verification_pass(findings, *, holds=(), cuts=(), kept=(), trims=(), fp=(),
                             duration=3000.0, validate=None, pass2_reviewer=None,
                             hold_verdicts=None, status=None, recut_error=None,
-                            cue_gate_enabled=False):
+                            cue_gate_enabled=False, pass1_reviewer_rejects=()):
     """Run _run_verification_pass over findings with detection, validation and reviewers stubbed.
 
     validate and pass2_reviewer stand in for the processing helpers (default: pass through);
@@ -110,6 +110,7 @@ def drive_verification_pass(findings, *, holds=(), cuts=(), kept=(), trims=(), f
             _ctx(), '/tmp/pass1-output.mp3', [dict(c) for c in cuts], False, 0.8,
             audio, None, original_segments=[], pass1_held_markers=list(holds),
             pass1_kept_markers=list(kept), pass1_trim_ranges=list(trims),
+            pass1_reviewer_rejects=list(pass1_reviewer_rejects),
             segment_actions={'sponsor': 'remove', 'self_promo': 'keep'},
             false_positive_corrections=list(fp), cue_gate_enabled=cue_gate_enabled,
             run_stats=run_stats)

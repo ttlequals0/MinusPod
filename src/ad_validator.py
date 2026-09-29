@@ -37,6 +37,7 @@ from utils.markers import (
     covering_confirm,
     EDGE_TOLERANCE,
     dai_core_bounds,
+    dai_core_spans,
     drop_stale_reviewer_locks,
     find_marker_in_list,
     finite_number,
@@ -1411,9 +1412,8 @@ class AdValidator:
         end = finite_number(ad.get('end'))
         if start is None or end is None or end <= start:
             return True
-        core = [(span.get('start'), span.get('end'))
-                for span in ad.get('dai_core_spans') or [] if isinstance(span, dict)]
-        return union_cover(core, start, end, gap_tol=EDGE_TOLERANCE) != (start, end)
+        return union_cover(dai_core_spans(ad), start, end,
+                           gap_tol=EDGE_TOLERANCE) != (start, end)
 
     def _gap_merges(self, left_end: float, right_start: float) -> bool:
         """Whether the merge step folds two ads across this gap."""

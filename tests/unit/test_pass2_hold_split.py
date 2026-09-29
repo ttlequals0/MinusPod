@@ -331,6 +331,13 @@ def test_fragment_validation_sees_the_hold_as_a_barrier():
     assert (1000.0, 1100.0) in _spans(fragment_call['kwargs']['keep_barriers_processed'])
 
 
+def test_every_pass2_validation_gets_the_run_fp_snapshot():
+    fp = [{'start': 2000.0, 'end': 2010.0}]
+    run = _run_pass2([_hold(1000.0, 1100.0)], [(900.0, 1110.0, 0.95)], fp=fp)
+    assert len(run.validated) == 2
+    assert all(call['kwargs']['false_positive_corrections'] == fp for call in run.validated)
+
+
 def _protection(*holds):
     return processing.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=list(holds),

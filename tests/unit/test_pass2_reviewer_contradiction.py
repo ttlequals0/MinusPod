@@ -21,6 +21,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from main_app import processing
 from main_app.verification_reconciliation import Pass2Ledger
 from ad_reviewer import ReviewResult, ReviewVerdict, log_contradiction_event
+from tests.unit.pass2_test_utils import drive_verification_pass
+from tests.unit.test_ad_reviewer import _build_reviewer, _resp
 from config import (HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
                     HOLD_REASON_REVIEWER_CONTRADICTION, is_pending_review)
 
@@ -357,3 +359,50 @@ def test_adjustment_hold_reconciliation_repeats_for_hold_chain():
     assert cuts == []
     assert ui == []
     assert held[-2:] == [second_original, first_original]
+
+
+def _run_real_pass2_review(monkeypatch, proposed, **kwargs):
+    reviewer = _build_reviewer({'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+                                'review_max_boundary_shift': '60'})
+    reviewer._llm_client.messages_create.return_value = _resp(
+        f'[{{"start": {proposed[0]}, "end": {proposed[1]}, "confidence": 0.96}}]')
+    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(processing, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(processing, '_publish_status', lambda *a, **k: None)
+    monkeypatch.setattr(processing, 'split_resurrection_pool', lambda *a, **k: [])
+    monkeypatch.setattr(processing, '_build_reviewer', lambda db, det: reviewer)
+    monkeypatch.setattr(processing.ad_detector, 'get_verification_model', lambda: 'test-model')
+    monkeypatch.setattr(processing.ad_detector, 'get_verification_provider', lambda: None)
+    original, processed = _pair(250.0, 310.0, 250.0, 310.0)
+    original.update(detection_stage='claude', category='sponsor', reason='Acme sponsor read')
+    cuts, ui, held = [processed], [original], []
+    segments = [{'start': 200.0, 'end': 250.0, 'text': 'Show talk.'},
+                {'start': 250.0, 'end': 310.0, 'text': 'A message from Acme.'}]
+    processing._apply_pass2_reviewer(
+        _ctx(), cuts, ui, held, [processed], [original], segments, 0.80,
+        pass1_cuts=[], **kwargs)
+    return cuts, ui, held, processed
+
+
+def test_pass2_adjust_widened_into_a_keep_is_clamped_not_held(monkeypatch):
+    keep = {'start': 235.0, 'end': 245.0}
+    cuts, ui, held, processed = _run_real_pass2_review(
+        monkeypatch, (240.0, 300.0), protected_original_ranges=[keep], hard_barriers=[keep])
+
+    assert held == []
+    assert cuts == [processed] and len(ui) == 1
+    assert (processed['start'], processed['end']) == (245.0, 300.0)
+    assert (ui[0]['start'], ui[0]['end']) == (245.0, 300.0)
+
+
+def test_pass2_run_gives_the_reviewer_the_hard_barriers():
+    seen = []
+
+    def reviewer(*args, **kwargs):
+        seen.append(kwargs.get('hard_barriers'))
+
+    drive_verification_pass([(300.0, 360.0)], kept=[{'start': 280.0, 'end': 290.0,
+                                                     'action_applied': 'keep'}],
+                            pass2_reviewer=reviewer)
+
+    assert seen == [[{'start': 280.0, 'end': 290.0}]]

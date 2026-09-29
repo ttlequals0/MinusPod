@@ -22,7 +22,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import main_app.processing as processing
 from api.patterns import _matches_held_marker
@@ -1576,3 +1576,79 @@ def test_a_finding_inside_a_kept_span_leaves_the_surviving_lists():
     assert surv_orig == [orig_clear]
     assert surv_proc == [proc_clear]
     assert conflicts == []
+
+
+REJECTED = (10.0, 60.0)
+KEPT_CUT = (70.0, 80.0)
+PARTIAL_CONFIRM = [{'start': 10.0, 'end': 20.0, 'correction_type': 'confirm'}]
+
+
+def _reject_the_first_marker(ads_to_remove, all_ads):
+    rejected = next(a for a in all_ads if (a['start'], a['end']) == REJECTED)
+    rejected.update(was_cut=False, source='reviewer', reviewer_verdict='reject')
+    return [a for a in ads_to_remove if a is not rejected], all_ads
+
+
+def _run_with_reviewer_reject(verification_side_effect=None):
+    ads = [dict(_sponsor_ad(), start=REJECTED[0], end=REJECTED[1]),
+           dict(_sponsor_ad(), start=KEPT_CUT[0], end=KEPT_CUT[1])]
+    return _run_pipeline(ads, {'sponsor': 'remove'},
+                         reviewer_side_effect=_reject_the_first_marker,
+                         confirmed_corrections=PARTIAL_CONFIRM,
+                         verification_side_effect=verification_side_effect,
+                         duration=1000.0)
+
+
+def _recut_requested_spans():
+    saved = [{'start': REJECTED[0], 'end': REJECTED[1], 'confidence': 0.95,
+              'category': 'sponsor', 'detection_stage': 'llm', 'was_cut': False,
+              'source': 'reviewer', 'reviewer_verdict': 'reject'},
+             {'start': KEPT_CUT[0], 'end': KEPT_CUT[1], 'confidence': 0.95,
+              'category': 'sponsor', 'detection_stage': 'llm', 'was_cut': True}]
+    db = MagicMock()
+    db.get_episode.return_value = {'ad_markers_json': json.dumps(saved)}
+    db.get_episode_corrections.return_value = []
+    db.get_podcast_cue_settings_overrides.return_value = {}
+    db.get_episode_audio_analysis.return_value = None
+    db.get_episode_dai_differential.return_value = None
+    db.get_setting.return_value = None
+    db.get_setting_bool.side_effect = lambda k, **kw: kw.get('default', False)
+    db.get_setting_float.side_effect = lambda k, default=None: default
+    corrections = ([], PARTIAL_CONFIRM)
+    actions = {'sponsor': 'remove'}
+    with patch.object(processing, 'db', db):
+        ads_to_remove, all_ads, keep_ads, rejects, *_ = processing._build_recut_ad_list(
+            'keep-feed', 'ep1', SEGMENTS, 1000.0, '', 0.8, podcast_id=1,
+            segment_actions=actions, corrections=corrections)
+        ads_to_remove, _trims = processing._restore_confirmed_spans(
+            ads_to_remove, all_ads, 1, 'ep1', 1000.0, 0.0, reject_ranges=rejects,
+            corrections=corrections)
+    return sorted((a['start'], a['end']) for a in ads_to_remove)
+
+
+def test_full_run_keeps_a_standing_reviewer_reject_out_of_the_render():
+    m = _run_with_reviewer_reject()
+
+    call = m['local_ap'].process_episode.call_args
+    assert [(a['start'], a['end']) for a in call.args[1]] == [KEPT_CUT]
+    assert REJECTED in {(b['start'], b['end']) for b in call.kwargs['hard_barriers']}
+
+
+def test_full_run_and_recut_render_the_same_cuts_around_a_reviewer_reject():
+    m = _run_with_reviewer_reject()
+
+    full_run = sorted((a['start'], a['end'])
+                      for a in m['local_ap'].process_episode.call_args.args[1])
+    assert full_run == _recut_requested_spans() == [KEPT_CUT]
+
+
+def test_pass2_receives_the_standing_reviewer_rejects():
+    seen = {}
+
+    def verification(*args, **kwargs):
+        seen.update(kwargs)
+        return (0, [], [], [], '/tmp/cut.mp3', 0, True, 0)
+
+    _run_with_reviewer_reject(verification_side_effect=verification)
+
+    assert [(r['start'], r['end']) for r in seen['pass1_reviewer_rejects']] == [REJECTED]

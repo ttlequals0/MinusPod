@@ -124,3 +124,13 @@ def test_ad_straddling_two_markers_clipped_to_each():
     assert (second[0]['precise_start'], second[0]['precise_end']) == (False, True)
     assert markers[0]['merged_protected_end'] == 150.0
     assert markers[1]['merged_protected_start'] == 150.0
+
+
+@pytest.mark.parametrize('core, held', [
+    (5, True),
+    ([{'start': 'x', 'end': 2545.0}], True),
+    ([{'start': 2440.0, 'end': 2545.0}], False),
+])
+def test_estimated_hold_reads_dai_core_through_the_accessor(core, held):
+    ad = {'start': 2440.0, 'end': 2545.0, 'span_estimated': True, 'dai_core_spans': core}
+    assert AdValidator._estimated_pattern_needs_hold(ad) is held

@@ -391,7 +391,7 @@ class TestRecutPreservesBeepAction:
             storage = p(processing, 'storage')
             p(processing, 'status_service')
             p(processing, '_build_recut_ad_list',
-              return_value=([marker], [marker], [], [], []))
+              return_value=([marker], [marker], [], []))
             p(processing, '_generate_assets')
             p(processing, '_finalize_episode')
 

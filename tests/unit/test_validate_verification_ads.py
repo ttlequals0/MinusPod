@@ -1360,3 +1360,27 @@ def test_auto_approve_span_touching_a_reviewer_reject_files(monkeypatch):
 
     assert n == 1
     db.create_pattern_correction.assert_called_once()
+
+
+def test_pass2_validation_uses_the_run_fp_snapshot_not_the_db():
+    db = _db()
+    db.get_false_positive_corrections.side_effect = AssertionError('read FPs from the DB')
+    processed = [{'start': 100.0, 'end': 160.0, 'confidence': 0.9}]
+    original = [{'start': 100.0, 'end': 160.0}]
+
+    kept_proc, kept_orig = _validate_verification_ads(
+        'show', 'ep1', processed, original, _segments(), ads_to_remove=[],
+        episode_description=None, min_cut_confidence=0.8, db=db, processed_duration=600.0,
+        false_positive_corrections=[{'start': 100.0, 'end': 160.0}])
+
+    assert kept_proc == [] and kept_orig == []
+
+
+def test_auto_approve_failure_after_filing_reports_the_filed_count(monkeypatch):
+    db = _auto_approve_env(monkeypatch)
+    db.create_pattern_correction.side_effect = [None, RuntimeError('db locked')]
+    holds = [dict(_diff_hold(100.0, 200.0), pass2_corroborated=True),
+             dict(_diff_hold(400.0, 500.0), pass2_corroborated=True)]
+
+    assert processing_mod._file_corroborated_hold_approvals('s', 'ep1', holds) == 1
+    assert db.create_pattern_correction.call_count == 2

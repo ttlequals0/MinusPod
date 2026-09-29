@@ -334,7 +334,7 @@ def test_recut_records_cut_and_asset_stages():
             storage = p(processing, 'storage')
             p(processing, 'status_service')
             p(processing, '_copy_retained_original_to_temp', return_value='/tmp/work.mp3')
-            p(processing, '_build_recut_ad_list', return_value=([marker], [marker], [], [], []))
+            p(processing, '_build_recut_ad_list', return_value=([marker], [marker], [], []))
             p(processing, '_partition_keep_ads', return_value=([], [marker]))
             p(processing, '_generate_assets')
             p(processing, '_finalize_episode')

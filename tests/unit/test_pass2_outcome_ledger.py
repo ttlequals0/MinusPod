@@ -148,6 +148,18 @@ def test_recut_failure_after_a_protected_carve_reports_each_part_once(caplog):
         (140.0, 400.0, 'dropped:pass_failed')]
 
 
+def test_exception_keeps_held_and_kept_markers_with_their_outcome(caplog):
+    run = _run([(200.0, 260.0), (400.0, 460.0, 0.7), (600.0, 660.0, 0.95, 'self_promo')],
+               recut_error=RuntimeError('boom'), caplog=caplog)
+    assert run.output[6] is False
+    assert sorted(run.lines) == [
+        (200.0, 260.0, 'dropped:pass_failed'), (400.0, 460.0, 'held:verification_miss'),
+        (600.0, 660.0, 'kept')]
+    assert run.output[1] == []
+    assert sorted((m['start'], m['pass2_outcome']) for m in run.output[3]) == [
+        (400.0, 'held:verification_miss'), (600.0, 'kept')]
+
+
 def test_validation_failure_after_a_protected_carve_reports_each_part(caplog):
     run = _run([(40.0, 80.0)], trims=[{'start': 50.0, 'end': 60.0}], validator_error_on=1,
                caplog=caplog)
@@ -294,7 +306,6 @@ def test_every_fragment_has_exactly_one_line(seed, validator_error_on, caplog):
 
 def _validate_with_ledger(processed, original, fp_corrections=()):
     fake_db = MagicMock()
-    fake_db.get_false_positive_corrections.return_value = list(fp_corrections)
     fake_db.get_confirmed_corrections.return_value = []
     ledger = Pass2Ledger()
     segments = [{'start': t, 'end': t + 30.0, 'text': 'spoken content here'}
@@ -302,7 +313,8 @@ def _validate_with_ledger(processed, original, fp_corrections=()):
     kept = processing._validate_verification_ads(
         'example-podcast', 'a1b2c3d4e5f6', processed, original, segments,
         ads_to_remove=[], episode_description=None, min_cut_confidence=0.8,
-        db=fake_db, processed_duration=600.0, ledger=ledger)
+        db=fake_db, processed_duration=600.0, ledger=ledger,
+        false_positive_corrections=list(fp_corrections))
     return kept, ledger
 
 
@@ -345,3 +357,10 @@ def test_surviving_markers_carry_their_outcome(caplog):
     stamped = sorted((a['start'], a['pass2_outcome']) for a in [*run.output[1], *run.output[3]])
     assert stamped == [(200.0, 'cut'), (400.0, 'held:verification_miss'), (600.0, 'kept')]
     assert run.stats['pass2_outcomes']['dropped:below_miss_floor'] == 1
+
+
+def test_pass2_cut_over_a_pass1_reviewer_reject_is_blocked(caplog):
+    reject = {'start': 150.0, 'end': 200.0, 'source': 'reviewer', 'reviewer_verdict': 'reject'}
+    run = _run([(100.0, 200.0)], pass1_reviewer_rejects=[reject], caplog=caplog)
+    assert [(c['start'], c['end']) for c in run.rendered['requested']] == [(100.0, 150.0)]
+    assert sorted(run.lines) == [(100.0, 150.0, 'cut'), (150.0, 200.0, 'rejected:pass1_reviewer')]

@@ -93,9 +93,10 @@ def test_trimmed_confirm_restores_only_approved_span(monkeypatch):
     assert cuts == [(125.0, 155.0)]
 
 
-def test_wide_candidate_rejected_by_reviewer_restores_interval(monkeypatch):
+def test_standing_reviewer_reject_blocks_a_minor_confirm_as_on_recut(monkeypatch):
+    # The confirm covers under half the rejected candidate, so the reject stands.
     run, cuts = _run(monkeypatch, [_candidate(110.0, 195.0)])
-    assert cuts == [(120.0, 160.0)]
+    assert cuts == []
     assert _learnable(run) == []
 
 

@@ -569,7 +569,7 @@ def test_build_recut_ad_list_keeps_manual_add(monkeypatch):
 
 def test_build_recut_ad_list_empty_when_no_markers(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_episode', lambda s, e: {'ad_markers_json': None})
-    assert processing._build_recut_ad_list('slug', 'ep', [], 600.0, '', 0.80) == ([], [], [], [], [])
+    assert processing._build_recut_ad_list('slug', 'ep', [], 600.0, '', 0.80) == ([], [], [], [])
 
 
 def _stub_assets_io(monkeypatch, counters):
@@ -1530,3 +1530,50 @@ def test_recut_does_not_stamp_reviewer_rejected(monkeypatch):
     assert seen and all('_reviewer_rejected' not in a for a in seen)
     assert _spans(ads_to_remove) == {(100.0, 160.0)}
     assert _find(all_ads, R1)['validation']['decision'] == 'REJECT'
+
+
+def test_recut_barriers_use_the_carved_reviewer_hold(tmp_path):
+    hold = {'start': 10.0, 'end': 40.0, 'confidence': 0.95, 'reason': 'Acme promo',
+            'detection_stage': 'claude', 'was_cut': False, 'held_for_review': True,
+            'hold_reason': 'reviewer_contradiction', 'source': 'reviewer',
+            'reviewer_verdict': 'confirmed'}
+    with ExitStack() as stack:
+        p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+        db = p(processing, 'db')
+        storage = p(processing, 'storage')
+        p(processing, 'status_service')
+        p(processing, '_finalize_episode')
+        p(processing, '_generate_assets')
+        p(processing, '_copy_retained_original_to_temp', return_value=str(tmp_path / 'w.mp3'))
+        p(processing, 'get_min_cut_confidence', return_value=0.80)
+        p(processing.os.path, 'exists', return_value=False)
+        p(processing.shutil, 'move')
+        local_ap = p(processing, 'AudioProcessor').return_value
+        local_ap.get_audio_duration.return_value = 600.0
+        local_ap.process_episode.side_effect = (
+            lambda path, segs, cut_barriers=None, hard_barriers=None: (
+                str(tmp_path / 'cut.mp3'), [{'start': s['start'], 'end': s['end']} for s in segs]))
+        db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
+                                       'ad_markers_json': json.dumps([hold])}
+        db.get_podcast_by_slug.return_value = {'id': 1}
+        db.get_original_segments.return_value = [
+            {'start': float(t), 'end': float(t + 5), 'text': 'Show talk'} for t in range(0, 600, 5)]
+        db.get_all_settings.return_value = {}
+        db.get_setting.return_value = None
+        db.get_episode_corrections.return_value = []
+        db.get_false_positive_corrections.return_value = []
+        db.get_confirmed_corrections.return_value = [
+            {'start': 10.0, 'end': 22.0, 'correction_type': 'confirm'}]
+        db.get_podcast_cue_settings_overrides.return_value = {}
+        db.get_episode_audio_analysis.return_value = None
+        db.get_episode_dai_differential.return_value = None
+        db.resolve_segment_actions.return_value = {}
+        storage.get_applied_cuts.return_value = []
+        storage.get_episode_path.return_value = str(tmp_path / 'final.mp3')
+
+        assert processing._recut_episode(
+            'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
+
+    call = local_ap.process_episode.call_args
+    assert _spans(call.args[1]) == {(10.0, 22.0)}
+    assert _spans(call.kwargs['cut_barriers']) == {(22.0, 40.0)}

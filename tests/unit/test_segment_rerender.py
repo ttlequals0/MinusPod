@@ -67,7 +67,7 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
         p(processing, '_copy_retained_original_to_temp',
           return_value='/tmp/segrerender-work.mp3')
         p(processing, '_build_recut_ad_list',
-          return_value=(ads_to_remove, all_ads, keep_ads, [], []))
+          return_value=(ads_to_remove, all_ads, keep_ads, []))
         p(processing, '_generate_assets')
         p(processing, '_finalize_episode')
         local_ap_cls = p(processing, 'AudioProcessor')

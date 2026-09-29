@@ -214,7 +214,7 @@ def _run_recut(ads_to_remove, all_ads, render, *, new_duration=600.0,
         p(processing, 'status_service')
         p(processing, '_handle_processing_failure')
         p(processing, '_copy_retained_original_to_temp', return_value='/tmp/fcs-work.mp3')
-        p(processing, '_build_recut_ad_list', return_value=(ads_to_remove, all_ads, [], [], []))
+        p(processing, '_build_recut_ad_list', return_value=(ads_to_remove, all_ads, [], []))
 
         def _assets(*args, **kwargs):
             captured['assets_cuts'] = args[3]
