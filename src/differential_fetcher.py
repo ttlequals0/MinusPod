@@ -208,6 +208,9 @@ def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
     ref_len = len(template)
     b0 = max(0, int((run_t + coarse_offset - search_s) * PCM_RATE))
     b1 = int((run_t + coarse_offset + search_s) * PCM_RATE) + ref_len
+    # A window ending before the refetch starts would wrap the slice to most of the file.
+    if b1 - b0 < ref_len:
+        return None
     haystack = ref_pcm[b0:b1].astype(np.float64)
     if len(haystack) < ref_len:
         return None
@@ -325,6 +328,9 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
             upcoming = offsets[i]
         next_offset[i] = upcoming
 
+    # Both fetches usually share their first and last sample, so edge blocks
+    # also try the file-start and file-end alignments.
+    end_offset = (len(ref_pcm) - len(run_pcm)) / PCM_RATE
     blocks = []
     last_offset = None
     for i in range(n_blocks):
@@ -334,8 +340,9 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
             candidates = [last_offset]
         else:
             anchor = _anchor_offset(anchor_pairs, start) if anchor_pairs else None
+            edge = (0.0 if i == 0 else None, end_offset if i == n_blocks - 1 else None)
             candidates = []
-            for c in (anchor, last_offset, next_offset[i]):
+            for c in (anchor, last_offset, next_offset[i], *edge):
                 if c is not None and all(abs(c - k) > XCORR_SEARCH_S
                                          for k in candidates):
                     candidates.append(c)

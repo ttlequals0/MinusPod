@@ -503,15 +503,17 @@ def test_anchor_offset_interpolates_between_anchors():
     assert df._anchor_offset([(20.0, 23.0)], 90.0) == 3.0
 
 
-def _shifted_pair():
+def _shifted_pair(run_only_tail=False):
     """Run A|sil|C; refetch inserts 2.5s unmarked pad before C (its silence
     mark went undetected on the refetch), so C is chain-unmatched and its
     inherited offset is stale by 2.5s (outside the base +-2s search window).
+    run_only_tail keeps C off the file end, where the end alignment would find it.
     """
     a = _burst(8, 11, 220.0)
     c = _burst(8, 12, 440.0)
     pad = _burst(2.5, 77, None)
-    run_pcm, run_marks = _assemble([a, ('sil', 0.4), c])
+    tail = [('sil', 0.4), _burst(8, 13, None)] if run_only_tail else []
+    run_pcm, run_marks = _assemble([a, ('sil', 0.4), c, *tail])
     ref_pcm, ref_marks = _assemble(
         [a, ('sil', 0.4), np.concatenate([pad, c])])
     return run_pcm, run_marks, ref_pcm, ref_marks
@@ -542,7 +544,7 @@ def test_anchor_pair_avoids_widened_reprobe(monkeypatch):
 def test_without_anchor_the_same_fixture_needs_the_widened_reprobe(monkeypatch):
     # Sanity for the spy above: absent anchors, the stale inherited offset
     # forces the doubled-window retry (existing 2.76.0 behavior).
-    run_pcm, run_marks, ref_pcm, ref_marks = _shifted_pair()
+    run_pcm, run_marks, ref_pcm, ref_marks = _shifted_pair(run_only_tail=True)
 
     searches = []
     real = df._block_correlation
@@ -555,7 +557,8 @@ def test_without_anchor_the_same_fixture_needs_the_widened_reprobe(monkeypatch):
     result = df._align_and_diff_pcm(run_pcm, ref_pcm, run_marks, ref_marks)
 
     assert df.XCORR_SEARCH_S * 2 in searches
-    assert result['status'] == 'no_differential'
+    c_region = next(r for r in result['regions'] if r['start_s'] <= 12.0 <= r['end_s'])
+    assert c_region['kind'] == 'identical'
 
 
 # --- 3a. Pipeline plumbing (_run_differential_fetch) --------------------------
