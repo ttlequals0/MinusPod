@@ -29,23 +29,6 @@ def _isolate_db(monkeypatch):
     yield
 
 
-def test_best_overlap_ad_picks_max_overlap():
-    ads = [{'start': 0, 'end': 10}, {'start': 50, 'end': 70}, {'start': 100, 'end': 110}]
-    assert processing._best_overlap_ad(ads, 55, 65) is ads[1]
-
-
-def test_best_overlap_ad_none_when_no_overlap():
-    ads = [{'start': 0, 'end': 10}]
-    assert processing._best_overlap_ad(ads, 50, 60) is None
-
-
-def test_best_overlap_ad_excludes_ids():
-    ads = [{'start': 0, 'end': 10}, {'start': 0, 'end': 10}]
-    first = processing._best_overlap_ad(ads, 1, 5)
-    second = processing._best_overlap_ad(ads, 1, 5, exclude_ids={id(first)})
-    assert second is not first
-
-
 def test_apply_boundary_adjustments_overrides_bounds(monkeypatch):
     ads = [{
         'start': 100.0,
@@ -130,8 +113,8 @@ def test_apply_boundary_adjustments_newest_wins(monkeypatch):
     assert ads[0]['end'] == 150.0
 
 
-def _split_adjustment(orig_start, orig_end, piece_start, piece_end):
-    """The boundary_adjustment row a split writes for piece 0."""
+def _boundary_adjustment(orig_start, orig_end, piece_start, piece_end):
+    """A boundary_adjustment correction row."""
     return {'correction_type': 'boundary_adjustment',
             'original_bounds': {'start': orig_start, 'end': orig_end},
             'corrected_bounds': {'start': piece_start, 'end': piece_end}}
@@ -147,15 +130,16 @@ def test_apply_boundary_adjustments_leaves_split_pieces_alone(monkeypatch):
     # Issue #794: the longer second piece must not be remapped onto piece 0.
     ads = [{'start': 1000.0, 'end': 1150.0, 'sponsor': 'Acme'},
            {'start': 1150.0, 'end': 1400.0, 'sponsor': 'Acme'}]
-    _pin_corrections(monkeypatch, [_split_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
-    assert [(a['start'], a['end']) for a in ads] == [(1000.0, 1150.0), (1150.0, 1400.0)]
+    _pin_corrections(monkeypatch, [_boundary_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
+    for _ in range(2):
+        processing._apply_boundary_adjustments('slug', 'ep', ads)
+        assert [(a['start'], a['end']) for a in ads] == [(1000.0, 1150.0), (1150.0, 1400.0)]
 
 
 def test_apply_boundary_adjustments_leaves_three_split_pieces_alone(monkeypatch):
     ads = [{'start': 1000.0, 'end': 1100.0}, {'start': 1100.0, 'end': 1300.0},
            {'start': 1300.0, 'end': 1400.0}]
-    _pin_corrections(monkeypatch, [_split_adjustment(1000.0, 1400.0, 1000.0, 1100.0)])
+    _pin_corrections(monkeypatch, [_boundary_adjustment(1000.0, 1400.0, 1000.0, 1100.0)])
     processing._apply_boundary_adjustments('slug', 'ep', ads)
     assert [(a['start'], a['end']) for a in ads] == [
         (1000.0, 1100.0), (1100.0, 1300.0), (1300.0, 1400.0)]
@@ -163,7 +147,7 @@ def test_apply_boundary_adjustments_leaves_three_split_pieces_alone(monkeypatch)
 
 def test_apply_boundary_adjustments_boundless_marker_not_satisfied(monkeypatch):
     ads = [{'start': None, 'end': None}]
-    _pin_corrections(monkeypatch, [_split_adjustment(0.0, 20.0, 0.0, 10.0)])
+    _pin_corrections(monkeypatch, [_boundary_adjustment(0.0, 20.0, 0.0, 10.0)])
     processing._apply_boundary_adjustments('slug', 'ep', ads)
     assert ads == [{'start': None, 'end': None}]
 
@@ -172,21 +156,47 @@ def test_apply_boundary_adjustments_already_trimmed_is_idempotent(monkeypatch):
     # The satisfied newest trim still shields the marker from an older one.
     ads = [{'start': 105.0, 'end': 150.0}]
     _pin_corrections(monkeypatch, [
-        _split_adjustment(100.0, 160.0, 105.0, 150.0),
-        _split_adjustment(100.0, 160.0, 101.0, 159.0),
+        _boundary_adjustment(100.0, 160.0, 105.0, 150.0),
+        _boundary_adjustment(100.0, 160.0, 101.0, 159.0),
     ])
     processing._apply_boundary_adjustments('slug', 'ep', ads)
     processing._apply_boundary_adjustments('slug', 'ep', ads)
     assert (ads[0]['start'], ads[0]['end']) == (105.0, 150.0)
 
 
-def test_apply_boundary_adjustments_split_recut_twice_is_stable(monkeypatch):
+def test_apply_boundary_adjustments_split_then_adjust_leaves_sibling(monkeypatch):
+    ads = [{'start': 1000.0, 'end': 1100.0}, {'start': 1150.0, 'end': 1400.0}]
+    _pin_corrections(monkeypatch, [
+        _boundary_adjustment(1000.0, 1150.0, 1000.0, 1100.0),
+        _boundary_adjustment(1000.0, 1400.0, 1000.0, 1150.0),
+    ])
+    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    assert [(a['start'], a['end']) for a in ads] == [(1000.0, 1100.0), (1150.0, 1400.0)]
+
+
+def test_apply_boundary_adjustments_coincident_marker_does_not_steal(monkeypatch):
+    target = {'start': 100.0, 'end': 160.0, 'sponsor': 'Acme'}
+    other = {'start': 100.0, 'end': 130.0, 'sponsor': 'Other'}
+    _pin_corrections(monkeypatch, [_boundary_adjustment(100.0, 160.0, 100.0, 130.0)])
+    processing._apply_boundary_adjustments('slug', 'ep', [other, target])
+    assert (target['start'], target['end']) == (100.0, 130.0)
+    assert (other['start'], other['end']) == (100.0, 130.0)
+
+
+def test_apply_boundary_adjustments_moves_single_marker_to_disjoint_span(monkeypatch):
+    ads = [{'start': 100.0, 'end': 160.0}]
+    _pin_corrections(monkeypatch, [_boundary_adjustment(100.0, 160.0, 200.0, 240.0)])
+    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    assert (ads[0]['start'], ads[0]['end']) == (200.0, 240.0)
+
+
+def test_apply_boundary_adjustments_skips_ambiguous_disjoint_move(monkeypatch, caplog):
     ads = [{'start': 1000.0, 'end': 1150.0}, {'start': 1150.0, 'end': 1400.0}]
-    _pin_corrections(monkeypatch, [_split_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
+    _pin_corrections(monkeypatch, [_boundary_adjustment(1000.0, 1400.0, 2000.0, 2100.0)])
+    caplog.set_level('INFO')
     processing._apply_boundary_adjustments('slug', 'ep', ads)
-    first = [dict(a) for a in ads]
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
-    assert ads == first
+    assert [(a['start'], a['end']) for a in ads] == [(1000.0, 1150.0), (1150.0, 1400.0)]
+    assert 'spans several markers and matches none' in caplog.text
 
 
 def test_build_recut_ad_list_cuts_both_split_pieces(monkeypatch):
@@ -199,7 +209,7 @@ def test_build_recut_ad_list_cuts_both_split_pieces(monkeypatch):
         'confirmed_span': {'start': 1000.0, 'end': 1150.0}}])
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections',
-        lambda podcast_id, eid: [_split_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
+        lambda podcast_id, eid: [_boundary_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
     ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80)
     assert sorted((a['start'], a['end']) for a in ads_to_remove) == [

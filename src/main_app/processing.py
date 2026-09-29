@@ -5009,29 +5009,9 @@ def _copy_retained_original_to_temp(original_path):
     return tmp_path
 
 
-def _best_overlap_ad(all_ads, start, end, exclude_ids=None):
-    """Return the ad in all_ads with the most time-overlap with [start, end], or
-    None when nothing overlaps. Maps a stored boundary-adjustment correction
-    back onto its ad."""
-    exclude_ids = exclude_ids or set()
-    best, best_overlap = None, 0.0
-    for ad in all_ads:
-        if id(ad) in exclude_ids:
-            continue
-        a_start, a_end = ad.get('start'), ad.get('end')
-        if a_start is None or a_end is None:
-            continue
-        overlap = min(end, a_end) - max(start, a_start)
-        if overlap > best_overlap:
-            best, best_overlap = ad, overlap
-    return best if best_overlap > 0 else None
-
-
 def _apply_boundary_adjustments(slug, episode_id, all_ads):
     """Override ad bounds with the user's boundary_adjustment corrections so a
-    recut cuts the adjusted spans. Each is matched to an ad already at its
-    corrected bounds, else by original-bounds overlap; newest wins; unmatched
-    corrections are skipped."""
+    recut cuts the adjusted spans. Newest wins; unmatched corrections are skipped."""
     podcast = db.get_podcast_by_slug(slug)
     corrections = db.get_episode_corrections(podcast['id'], episode_id) if podcast else []
     adjusted = set()
@@ -5045,24 +5025,33 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
         n_start, n_end = new.get('start'), new.get('end')
         if None in (o_start, o_end, n_start, n_end):
             continue
-        # A split piece already sits at its corrected bounds; remapping by overlap
-        # would overwrite a longer sibling piece (#794).
-        satisfied = next((ad for ad in all_ads if id(ad) not in adjusted
-                          and ad.get('start') is not None and ad.get('end') is not None
-                          and abs(ad['start'] - n_start) <= EDGE_TOLERANCE
-                          and abs(ad['end'] - n_end) <= EDGE_TOLERANCE), None)
-        if satisfied is not None:
-            adjusted.add(id(satisfied))
-            audio_logger.info(
-                f"[{slug}:{episode_id}] Recut: boundary adjustment "
-                f"{o_start:.1f}s-{o_end:.1f}s already applied at {n_start:.1f}s-{n_end:.1f}s"
-            )
-            continue
-        match = _best_overlap_ad(all_ads, o_start, o_end, exclude_ids=adjusted)
-        if match is None:
+        under_orig = [ad for ad in all_ads
+                      if ad.get('start') is not None and ad.get('end') is not None
+                      and overlap_seconds(o_start, o_end, ad['start'], ad['end']) > 0]
+        candidates = [ad for ad in under_orig if id(ad) not in adjusted]
+        if not candidates:
             audio_logger.info(
                 f"[{slug}:{episode_id}] Recut: boundary adjustment "
                 f"{o_start:.1f}s-{o_end:.1f}s has no matching ad; skipping"
+            )
+            continue
+        # The ad the user moved is the one nearest the corrected span, so a split's
+        # whole-span row cannot land on a sibling piece (#794).
+        match = max(candidates, key=lambda ad: (
+            overlap_seconds(n_start, n_end, ad['start'], ad['end']),
+            overlap_seconds(o_start, o_end, ad['start'], ad['end'])))
+        if overlap_seconds(n_start, n_end, match['start'], match['end']) <= 0 and len(under_orig) > 1:
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Recut: boundary adjustment "
+                f"{o_start:.1f}s-{o_end:.1f}s spans several markers and matches none "
+                f"at {n_start:.1f}s-{n_end:.1f}s; skipping"
+            )
+            continue
+        adjusted.add(id(match))
+        if spans_match(match['start'], match['end'], n_start, n_end, EDGE_TOLERANCE):
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Recut: boundary adjustment "
+                f"{o_start:.1f}s-{o_end:.1f}s already applied at {n_start:.1f}s-{n_end:.1f}s"
             )
             continue
         match['start'], match['end'] = n_start, n_end
@@ -5070,7 +5059,6 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
         # evidence inside the approved range so validation cannot restore a
         # stale automatic boundary over audio the user chose to preserve.
         clip_merge_spans(match, n_start, n_end)
-        adjusted.add(id(match))
         applied += 1
     if applied:
         audio_logger.info(f"[{slug}:{episode_id}] Recut: applied {applied} boundary adjustment(s)")
