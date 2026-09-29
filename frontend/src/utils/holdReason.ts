@@ -18,3 +18,23 @@ export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
   cue_template_unproven: 'Unproven cue',
   cue_low_confidence: 'Low-confidence cue',
 };
+
+// Tooltip text for each hold reason.
+export const HOLD_REASON_TITLES: Record<HoldReason, string> = {
+  max_duration: "Exceeds the feed's max ad duration",
+  no_cue_evidence: 'No audio-cue evidence',
+  no_splice_evidence: 'No splice artifact found at either edge',
+  uncorroborated_tail: 'Trailing ad with no audio evidence to back it',
+  reviewer_contradiction: 'The reviewer disagreed with the detected boundaries',
+  reviewer_boundary_conflict: 'The reviewer proposed a boundary that crosses protected ad evidence',
+  reviewer_inconclusive_bounds: 'The reviewer could not verify both cut boundaries',
+  reviewer_failed: 'The reviewer could not be reached and no independent evidence backs the bounds',
+  reviewer_reject_conflict: 'The reviewer rejected a span that carries measured ad evidence',
+  estimated_pattern_bounds: 'Estimated pattern remainder outside the verified ad bounds',
+  verification_miss: 'A standalone catch from the verification pass, held for a second opinion',
+  verification_kept_conflict: 'A verification-pass catch runs into audio the category settings keep',
+  differential_uncorroborated: 'Audio differs across fetches with no corroborating signal',
+  large_vad_gap_extension: 'Untranscribed audio exceeded the safe adjacency-only extension limit',
+  cue_template_unproven: "This cue template hasn't cut a confirmed ad yet",
+  cue_low_confidence: 'The cue match fell below the cut-confidence threshold',
+};

@@ -45,7 +45,7 @@ import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonSt
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
 import { fileInputBase, focusRing } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
-import { HOLD_REASON_LABELS } from '../utils/holdReason';
+import { HOLD_REASON_LABELS, HOLD_REASON_TITLES } from '../utils/holdReason';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -1489,37 +1489,8 @@ function EpisodeDetail() {
           <div className="space-y-3">
             {heldMarkers.map((segment, index) => {
               const correction = getAdCorrection(segment.start, segment.end);
-              const holdTitle = segment.hold_reason === 'max_duration'
-                ? "Exceeds the feed's max ad duration"
-                : segment.hold_reason === 'no_cue_evidence'
-                ? 'No audio-cue evidence'
-                : segment.hold_reason === 'uncorroborated_tail'
-                ? 'Trailing ad with no audio evidence to back it'
-                : segment.hold_reason === 'reviewer_contradiction'
-                ? 'The reviewer disagreed with the detected boundaries'
-                : segment.hold_reason === 'reviewer_boundary_conflict'
-                ? 'The reviewer proposed a boundary that crosses protected ad evidence'
-                : segment.hold_reason === 'reviewer_inconclusive_bounds'
-                ? 'The reviewer could not verify both cut boundaries'
-                : segment.hold_reason === 'reviewer_failed'
-                ? 'The reviewer could not be reached and no independent evidence backs the bounds'
-                : segment.hold_reason === 'estimated_pattern_bounds'
-                ? 'Estimated pattern remainder outside the verified ad bounds'
-                : segment.hold_reason === 'reviewer_reject_conflict'
-                ? 'The reviewer rejected a span that carries measured ad evidence'
-                : segment.hold_reason === 'no_splice_evidence'
-                ? 'No splice artifact found at either edge'
-                : segment.hold_reason === 'verification_miss'
-                ? 'A standalone catch from the verification pass, held for a second opinion'
-                : segment.hold_reason === 'differential_uncorroborated'
-                ? 'Audio differs across fetches with no corroborating signal'
-                : segment.hold_reason === 'large_vad_gap_extension'
-                ? 'Untranscribed audio exceeded the safe adjacency-only extension limit'
-                : segment.hold_reason === 'cue_template_unproven'
-                ? "This cue template hasn't cut a confirmed ad yet"
-                : segment.hold_reason === 'cue_low_confidence'
-                ? 'The cue match fell below the cut-confidence threshold'
-                : 'Held for manual review';
+              const holdTitle = (segment.hold_reason && HOLD_REASON_TITLES[segment.hold_reason])
+                || 'Held for manual review';
               const holdLabel = segment.hold_reason
                 ? HOLD_REASON_LABELS[segment.hold_reason]
                 : 'Held';
