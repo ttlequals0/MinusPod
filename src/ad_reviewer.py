@@ -4,8 +4,10 @@ import logging
 import math
 import re
 import time
+from bisect import bisect_left, bisect_right
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from itertools import accumulate
 from typing import Literal
 from collections.abc import Callable
 
@@ -576,18 +578,45 @@ def _edge_matches(value: float, new: float) -> bool:
     return abs(value - new) <= EDGE_TOLERANCE
 
 
-def _edge_transcript_supported(units, words, edge: str, new: float, old: float) -> bool:
+class _EdgeIndex:
+    """Speech units and timed words in one direction, sorted for end-edge queries."""
+
+    def __init__(self, units, words):
+        self.units = sorted(units)
+        self.los = [lo for lo, _hi in self.units]
+        self.max_his = list(accumulate((hi for _lo, hi in self.units), max))
+        self.unit_his = sorted(hi for _lo, hi in self.units)
+        self.words = set(words)
+        self.word_his = sorted(hi for _lo, hi in self.words)
+
+
+class TranscriptIndex:
+    """A transcript's speech units and timed words, indexed once per review for edge lookups."""
+
+    def __init__(self, segments):
+        units, words = _speech_units(segments), _word_units(segments)
+        self.end = _EdgeIndex(units, words)
+        # Start edges are end edges on the negated timeline.
+        self.start = _EdgeIndex(_negated(units), _negated(words))
+
+
+def _edge_transcript_supported(index: TranscriptIndex, edge: str, new: float, old: float) -> bool:
     """Whether an inward edge lands on a timed word edge with a pause past it."""
     if edge == 'start':
-        return _edge_transcript_supported(_negated(units), set(_negated(words)),
-                                          'end', -new, -old)
-    matched = [hi for _, hi in words if _edge_matches(hi, new)]
-    if new >= old - EDGE_TOLERANCE or not matched:
+        return _end_edge_supported(index.start, -new, -old)
+    return _end_edge_supported(index.end, new, old)
+
+
+def _end_edge_supported(ix: _EdgeIndex, new: float, old: float) -> bool:
+    lo_i = bisect_left(ix.word_his, new - EDGE_TOLERANCE)
+    hi_i = bisect_right(ix.word_his, new + EDGE_TOLERANCE)
+    if new >= old - EDGE_TOLERANCE or lo_i == hi_i:
         return False
-    at = max(matched)
-    gap = min((lo for lo, _ in units if lo > at - EDGE_TOLERANCE), default=math.inf) - at
-    crossed = any(lo < at - EDGE_TOLERANCE and hi > at + EDGE_TOLERANCE
-                  for lo, hi in units)
+    at = ix.word_his[hi_i - 1]
+    after = bisect_right(ix.los, at - EDGE_TOLERANCE)
+    gap = (ix.los[after] if after < len(ix.los) else math.inf) - at
+    before = bisect_left(ix.los, at - EDGE_TOLERANCE)
+    crossed = before > 0 and ix.max_his[before - 1] > at + EDGE_TOLERANCE
     return not crossed and gap >= _SUPPORTED_EDGE_GAP_S
 
 
@@ -610,21 +639,34 @@ def _negated(spans) -> list[tuple[float, float]]:
     return [(-hi, -lo) for lo, hi in spans]
 
 
-def _speech_capped_floor(units, words, independent, edge: str, proposed: float,
+def _speech_capped_floor(index: TranscriptIndex, independent, edge: str, proposed: float,
                          floor: float) -> float | None:
     """Unsupported-edge floor stopped at the word straddling it, or None to keep the floor."""
     if edge == 'start':
-        capped = _speech_capped_floor(_negated(units), set(_negated(words)),
-                                      _negated(independent), 'end', -proposed, -floor)
+        capped = _end_capped_floor(index.start, _negated(independent), -proposed, -floor)
         return None if capped is None else -capped
-    after = sorted(u for u in units if u[0] >= proposed - EDGE_TOLERANCE)
-    straddling = [u for u in after if u[0] < floor < u[1]]
-    # A segment without word timings may merge ad and show speech, so it never caps.
-    if floor <= proposed or not straddling or straddling[0] not in words:
+    return _end_capped_floor(index.end, independent, proposed, floor)
+
+
+def _end_capped_floor(ix: _EdgeIndex, independent, proposed: float, floor: float) -> float | None:
+    if floor <= proposed:
         return None
-    word_lo = straddling[0][0]
-    snap = (after[0] == straddling[0] and word_lo - proposed < _SUPPORTED_EDGE_GAP_S
-            and any(_edge_matches(hi, proposed) for _, hi in units))
+    first = bisect_left(ix.los, proposed - EDGE_TOLERANCE)
+    straddler = None
+    # Only units starting between the proposal and the floor can straddle the floor.
+    for unit in ix.units[first:]:
+        if unit[0] >= floor:
+            break
+        if unit[1] > floor:
+            straddler = unit
+            break
+    # A segment without word timings may merge ad and show speech, so it never caps.
+    if straddler is None or straddler not in ix.words:
+        return None
+    word_lo = straddler[0]
+    snap = (ix.units[first] == straddler and word_lo - proposed < _SUPPORTED_EDGE_GAP_S
+            and bisect_left(ix.unit_his, proposed - EDGE_TOLERANCE)
+            < bisect_right(ix.unit_his, proposed + EDGE_TOLERANCE))
     capped = proposed if snap else max(word_lo, proposed)
     if any(overlap_seconds(lo, hi, capped, floor) > 0 for lo, hi in independent):
         return None
@@ -1325,7 +1367,7 @@ class AdReviewer:
         # Accepted pool first. Position-indexed merge preserves input order so
         # verdicts list and downstream pattern-correction lookups match the
         # original sequential semantics.
-        transcript_units = (_speech_units(segments), _word_units(segments))
+        transcript_units = TranscriptIndex(segments)
         min_conf = _meta_min_conf(episode_meta)
         accepted_results = self._run_review_batch(
             accepted_ads,
@@ -1888,24 +1930,24 @@ class AdReviewer:
             floor_end = max(clamped_end, core_end)
             # Only the probe windows of a region are measured, so an edge on a
             # transcript pause may cross the rest, stopping at independent evidence.
-            units, words = transcript_units or (_speech_units(segments), _word_units(segments))
+            index = transcript_units or TranscriptIndex(segments)
             independent = reviewer_independent_spans(ad, min_conf)
             cap_start = cap_end = None
-            if _edge_transcript_supported(units, words, 'start', clamped_start,
+            if _edge_transcript_supported(index, 'start', clamped_start,
                                           original_start):
                 floor_start = _supported_edge_floor(
                     ad, independent, 'start', clamped_start, original_start, original_end)
             else:
                 cap_start = _speech_capped_floor(
-                    units, words, independent, 'start', clamped_start, floor_start)
+                    index, independent, 'start', clamped_start, floor_start)
                 floor_start = floor_start if cap_start is None else cap_start
-            if _edge_transcript_supported(units, words, 'end', clamped_end,
+            if _edge_transcript_supported(index, 'end', clamped_end,
                                           original_end):
                 floor_end = _supported_edge_floor(
                     ad, independent, 'end', clamped_end, original_start, original_end)
             else:
                 cap_end = _speech_capped_floor(
-                    units, words, independent, 'end', clamped_end, floor_end)
+                    index, independent, 'end', clamped_end, floor_end)
                 floor_end = floor_end if cap_end is None else cap_end
             if ((floor_start, floor_end) != (clamped_start, clamped_end)
                     or floor_start > core_start or floor_end < core_end):

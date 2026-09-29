@@ -7,6 +7,7 @@ unchanged from the pre-split module.
 import logging
 import math
 import re
+import threading
 
 from utils.markers import (
     carve_fragment,
@@ -487,7 +488,31 @@ def snap_early_ads_to_zero(ads: list[dict], threshold: float = EARLY_AD_SNAP_THR
     return snapped
 
 
+# id(segment) -> (segment, words, word count, text, start, end, utterances).
+_UTTERANCE_CACHE = {}
+_UTTERANCE_CACHE_MAX = 4096
+_UTTERANCE_CACHE_LOCK = threading.Lock()
+
+
 def _timed_utterances(segment: dict) -> list[dict] | None:
+    """Complete word-timed utterances, or None for unreliable timing; shared read-only, memoized per segment."""
+    words = segment.get('words')
+    key = (words, len(words) if isinstance(words, list) else None,
+           segment.get('text'), segment.get('start'), segment.get('end'))
+    entry = _UTTERANCE_CACHE.get(id(segment))
+    # The entry holds the segment, so its id cannot be reused while cached.
+    if (entry is not None and entry[0] is segment and entry[1] is key[0]
+            and entry[2:6] == key[1:]):
+        return entry[6]
+    utterances = _compute_timed_utterances(segment)
+    with _UTTERANCE_CACHE_LOCK:
+        if len(_UTTERANCE_CACHE) >= _UTTERANCE_CACHE_MAX:
+            _UTTERANCE_CACHE.clear()
+        _UTTERANCE_CACHE[id(segment)] = (segment, *key, utterances)
+    return utterances
+
+
+def _compute_timed_utterances(segment: dict) -> list[dict] | None:
     """Return complete word-timed utterances, or None for unreliable timing."""
     words = segment.get('words')
     if not isinstance(words, list) or not words:
@@ -629,11 +654,10 @@ def _ad_connector_utterance(utterance: dict) -> bool:
     return utterance['text'].startswith(('thank you for ', 'we thank them '))
 
 
-def _supported_ad_utterance(utterance: dict, ad_text: str,
+def _supported_ad_utterance(utterance: dict, prior_domains: set,
                             sponsors: set, boundary: float) -> bool:
     text = utterance['text']
     domains = domain_labels(text)
-    prior_domains = domain_labels(ad_text)
     has_phone = any(pattern in text for pattern in AD_CONTENT_PHONE_PATTERNS)
     has_offer = any(phrase in text for phrase in AD_OFFER_PHRASES)
     solicits = bool(re.search(
@@ -714,6 +738,7 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
         ad_text = _bounded_transcript_text(segments, ad_start, ad_end).lower()
         ad_sponsors = extract_sponsor_names(ad_text, ad.get('reason'),
                                             exclude=own_site)
+        ad_domains = domain_labels(ad_text)
 
         # Check timed words after the ad for a supported CTA continuation.
         if not _edge_locked(ad, 'end'):
@@ -743,7 +768,7 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                     evidence_end = _timed_ad_evidence_end(utterance, ad_end)
                     if (evidence_end is not None and evidence_end > ad_end
                             and _supported_ad_utterance(
-                                utterance, ad_text, ad_sponsors, ad_end)):
+                                utterance, ad_domains, ad_sponsors, ad_end)):
                         new_end = min(evidence_end, end_cap)
                         accepted_domains.update(domain_labels(
                             utterance['text']))
@@ -815,7 +840,7 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                         if (evidence_end is None
                                 or _return_word_index(utterance) is not None
                                 or not _supported_ad_utterance(
-                                    utterance, ad_text, ad_sponsors,
+                                    utterance, ad_domains, ad_sponsors,
                                     ad_start)):
                             blocked = True
                             break

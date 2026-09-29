@@ -1,4 +1,6 @@
 """A transcript-supported reviewer trim may cross an unmeasured DAI region edge."""
+import math
+import random
 from dataclasses import dataclass
 
 import pytest
@@ -8,8 +10,9 @@ from tests.app_bootstrap import bootstrap
 bootstrap('reviewer_dai_core_supported_trim_test_')
 
 from ad_detector import dai_differential_ads
-from ad_reviewer import (AdReviewer, _edge_transcript_supported, _speech_units,
-                         _word_units)
+from ad_reviewer import (AdReviewer, TranscriptIndex,
+                         _SUPPORTED_EDGE_GAP_S, _edge_transcript_supported, _negated,
+                         _speech_capped_floor, _speech_units, _word_units)
 from ad_validator import AdValidator, ValidationResult
 from audio_analysis.base import AudioAnalysisResult
 from audio_processor import AudioProcessor
@@ -124,8 +127,7 @@ def test_unsupported_end_keeps_floor_when_segment_straddles(monkeypatch):
 
 
 def _supported(segments, edge, new, old):
-    return _edge_transcript_supported(_speech_units(segments), _word_units(segments),
-                                      edge, new, old)
+    return _edge_transcript_supported(TranscriptIndex(segments), edge, new, old)
 
 
 def test_end_edge_supported_by_word_end_and_gap():
@@ -576,3 +578,64 @@ def test_human_widened_edge_is_no_longer_locked():
     assert reviewer_edge_locked({'end': 70.0, 'reviewer_locked_end': 80.0}, 'end')
     assert not reviewer_edge_locked({'end': 85.0, 'reviewer_locked_end': 80.0}, 'end')
     assert not reviewer_edge_locked({'start': 5.0, 'reviewer_locked_start': 12.0}, 'start')
+
+
+def _scan_supported(units, words, edge, new, old):
+    """The whole-transcript scan the index replaced."""
+    if edge == 'start':
+        return _scan_supported(_negated(units), set(_negated(words)), 'end', -new, -old)
+    matched = [hi for _, hi in words if abs(hi - new) <= EDGE_TOLERANCE]
+    if new >= old - EDGE_TOLERANCE or not matched:
+        return False
+    at = max(matched)
+    gap = min((lo for lo, _ in units if lo > at - EDGE_TOLERANCE), default=math.inf) - at
+    crossed = any(lo < at - EDGE_TOLERANCE and hi > at + EDGE_TOLERANCE for lo, hi in units)
+    return not crossed and gap >= _SUPPORTED_EDGE_GAP_S
+
+
+def _scan_capped(units, words, independent, edge, proposed, floor):
+    if edge == 'start':
+        capped = _scan_capped(_negated(units), set(_negated(words)), _negated(independent),
+                              'end', -proposed, -floor)
+        return None if capped is None else -capped
+    after = sorted(u for u in units if u[0] >= proposed - EDGE_TOLERANCE)
+    straddling = [u for u in after if u[0] < floor < u[1]]
+    if floor <= proposed or not straddling or straddling[0] not in words:
+        return None
+    word_lo = straddling[0][0]
+    snap = (after[0] == straddling[0] and word_lo - proposed < _SUPPORTED_EDGE_GAP_S
+            and any(abs(hi - proposed) <= EDGE_TOLERANCE for _, hi in units))
+    capped = proposed if snap else max(word_lo, proposed)
+    if any(min(hi, floor) - max(lo, capped) > 0 for lo, hi in independent):
+        return None
+    return capped
+
+
+@pytest.mark.parametrize('seed', range(20))
+def test_indexed_edge_checks_match_the_transcript_scan(seed):
+    rng = random.Random(seed)
+    segments, t = [], 0.0
+    for _ in range(40):
+        words = []
+        for _ in range(rng.randint(0, 12)):
+            t += rng.choice([0.05, 0.2, 0.4, 0.9])
+            words.append({'start': round(t, 2), 'end': round(t + rng.uniform(0.1, 0.6), 2),
+                          'word': 'w'})
+            t = words[-1]['end']
+        seg_end = round(t + rng.uniform(0.0, 2.0), 2)
+        segments.append({'start': round(t - 5, 2), 'end': seg_end, 'words': words})
+        t = seg_end
+    index = TranscriptIndex(segments)
+    units, words = _speech_units(segments), _word_units(segments)
+    edges = [hi for _lo, hi in words] + [lo for lo, _hi in words]
+    for _ in range(300):
+        new = rng.choice(edges) if rng.random() < 0.6 else rng.uniform(0, t)
+        old = new + rng.uniform(-3, 20) * rng.choice([1, -1])
+        floor = new + rng.uniform(-2, 15) * rng.choice([1, -1])
+        independent = [(x, x + rng.uniform(0.5, 5)) for x in
+                       (rng.uniform(0, t) for _ in range(rng.randint(0, 3)))]
+        for edge in ('start', 'end'):
+            assert (_edge_transcript_supported(index, edge, new, old)
+                    == _scan_supported(units, words, edge, new, old))
+            assert (_speech_capped_floor(index, independent, edge, new, floor)
+                    == _scan_capped(units, words, independent, edge, new, floor))

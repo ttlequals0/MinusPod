@@ -445,3 +445,24 @@ def test_already_timed_lines_are_not_split_again(monkeypatch):
                         lambda seg: calls.append(seg) or real(seg))
     assert AdDetector._format_transcript_lines(lines, 'timestamps') == expected
     assert calls == []
+
+
+def test_timed_utterances_are_computed_once_per_unchanged_segment(monkeypatch):
+    tokens = ['Our', 'sponsor', 'is', 'Acme.', 'Visit', 'acme.com.']
+    segment = {'start': 0.0, 'end': 6.0, 'text': ' '.join(tokens),
+               'words': [{'start': float(i), 'end': i + 0.5, 'word': t}
+                         for i, t in enumerate(tokens)]}
+    computed = []
+    real = boundaries._compute_timed_utterances
+    monkeypatch.setattr(boundaries, '_compute_timed_utterances',
+                        lambda seg: computed.append(1) or real(seg))
+    first = boundaries._timed_utterances(segment)
+    assert boundaries._timed_utterances(segment) is first
+    assert len(computed) == 1
+
+    segment['text'] = 'Our sponsor is Acme. Visit acme.org.'
+    assert boundaries._timed_utterances(segment) is None
+    segment['words'] = segment['words'][:4]
+    segment['text'] = 'Our sponsor is Acme.'
+    assert [u['text'] for u in boundaries._timed_utterances(segment)] == ['our sponsor is acme.']
+    assert len(computed) == 3
