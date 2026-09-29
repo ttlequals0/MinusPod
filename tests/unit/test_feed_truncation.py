@@ -65,3 +65,40 @@ def test_feed_with_benign_bozo_still_parses():
     feed = _parser.parse_feed(body, source='example-podcast')
     assert feed is not None
     assert len(feed.entries) == 1
+
+
+_CDATA_HEAD = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>The Daily Tech Show</title>
+<item><title>Episode 1</title><guid>a1b2c3d4e5f6</guid>
+<description><![CDATA[<p>First</p>]]></description>
+<enclosure url="https://example.com/1.mp3" type="audio/mpeg" length="1"/></item>
+<item><title>Episode 2</title><guid>b2c3d4e5f6a1</guid>
+<description><![CDATA[<p>Second</p>]]></description>
+<enclosure url="https://example.com/2.mp3" type="audio/mpeg" length="1"/></item>
+<item><title>Episode 3</title><guid>c3d4e5f6a1b2</guid>
+<description><![CDATA[<p>Third episode notes"""
+
+_CDATA_COMPLETE = _CDATA_HEAD + """</p>]]></description>
+<enclosure url="https://example.com/3.mp3" type="audio/mpeg" length="1"/></item>
+</channel></rss>"""
+
+
+def test_cdata_and_comment_cuts_are_truncation():
+    assert _is_truncation_error(
+        Exception('<unknown>:17685:374: unclosed CDATA section'))
+    assert _is_truncation_error(Exception('<unknown>:12:5: unclosed comment'))
+    assert not _is_truncation_error(Exception('undefined entity'))
+    assert not _is_truncation_error(
+        Exception('document declared as us-ascii, but parsed as utf-8'))
+
+
+def test_feed_cut_inside_cdata_is_rejected(caplog):
+    with caplog.at_level('WARNING', logger='rss_parser'):
+        assert _parser.parse_feed(_CDATA_HEAD, source='example-podcast') is None
+    assert 'feed_document_truncated' in caplog.text
+
+
+def test_feed_with_cdata_intact_parses_all_entries():
+    feed = _parser.parse_feed(_CDATA_COMPLETE, source='example-podcast')
+    assert feed is not None
+    assert len(feed.entries) == 3

@@ -89,6 +89,9 @@ _TRUNCATION_MARKERS = (
     # A body cut mid-character leaves a partial multibyte sequence, which
     # expat reports as an invalid token rather than a missing element.
     'not well-formed (invalid token)',
+    # A body cut inside a CDATA block or comment reports this instead of a missing element.
+    'unclosed cdata section',
+    'unclosed comment',
 )
 
 
@@ -421,7 +424,10 @@ class RSSParser:
                     return None
                 finally:
                     response.close()
-                logger.info(f"Successfully fetched RSS feed (uncompressed), size: {len(body)} bytes")
+                logger.info(
+                    "Identity retry after gzip failure: url=%s bytes=%d declared=%s",
+                    safe_url_for_log(url), len(body),
+                    response.headers.get('Content-Length') or 'chunked')
                 breaker.record_success(token=probe_token)
                 return body.decode('utf-8', errors='replace')
             except (requests.RequestException, SSRFError) as retry_e:
@@ -556,6 +562,10 @@ class RSSParser:
                     return None, None, None
                 finally:
                     response.close()
+                logger.info(
+                    "Identity retry after gzip failure: url=%s bytes=%d declared=%s",
+                    safe_url_for_log(url), len(body),
+                    response.headers.get('Content-Length') or 'chunked')
                 breaker.record_success(token=probe_token)
                 return (
                     body.decode('utf-8', errors='replace'),

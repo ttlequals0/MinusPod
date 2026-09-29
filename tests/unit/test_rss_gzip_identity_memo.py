@@ -64,6 +64,20 @@ class TestGzipIdentityMemo(unittest.TestCase):
         self.assertEqual(safe_get.call_count, 1)
         self.assertEqual(next_headers['Accept-Encoding'], 'identity')
 
+    def test_conditional_identity_retry_logs_size_and_length(self):
+        parser = rss_parser.RSSParser()
+        decode_error = requests.exceptions.ContentDecodingError('bad gzip')
+        with patch('rss_parser.safe_get',
+                   side_effect=[decode_error, _ok_response()]), \
+             patch('rss_parser.read_response_capped', return_value=b'<rss/>'), \
+             self.assertLogs('rss_parser', level='INFO') as logs:
+            parser.fetch_feed_conditional(URL)
+
+        self.assertTrue(any(
+            'Identity retry after gzip failure' in line
+            and 'bytes=6' in line and 'declared=chunked' in line
+            for line in logs.output), logs.output)
+
 
 if __name__ == '__main__':
     unittest.main()
