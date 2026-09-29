@@ -5048,8 +5048,9 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
         # A split piece already sits at its corrected bounds; remapping by overlap
         # would overwrite a longer sibling piece (#794).
         satisfied = next((ad for ad in all_ads if id(ad) not in adjusted
-                          and abs((ad.get('start') or 0.0) - n_start) <= EDGE_TOLERANCE
-                          and abs((ad.get('end') or 0.0) - n_end) <= EDGE_TOLERANCE), None)
+                          and ad.get('start') is not None and ad.get('end') is not None
+                          and abs(ad['start'] - n_start) <= EDGE_TOLERANCE
+                          and abs(ad['end'] - n_end) <= EDGE_TOLERANCE), None)
         if satisfied is not None:
             adjusted.add(id(satisfied))
             audio_logger.info(

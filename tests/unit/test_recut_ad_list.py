@@ -161,6 +161,13 @@ def test_apply_boundary_adjustments_leaves_three_split_pieces_alone(monkeypatch)
         (1000.0, 1100.0), (1100.0, 1300.0), (1300.0, 1400.0)]
 
 
+def test_apply_boundary_adjustments_boundless_marker_not_satisfied(monkeypatch):
+    ads = [{'start': None, 'end': None}]
+    _pin_corrections(monkeypatch, [_split_adjustment(0.0, 20.0, 0.0, 10.0)])
+    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    assert ads == [{'start': None, 'end': None}]
+
+
 def test_apply_boundary_adjustments_already_trimmed_is_idempotent(monkeypatch):
     # The satisfied newest trim still shields the marker from an older one.
     ads = [{'start': 105.0, 'end': 150.0}]
