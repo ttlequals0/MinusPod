@@ -118,6 +118,14 @@ def reviewer_reject_stands(marker: dict, confirmed: list[dict]) -> bool:
     return is_reviewer_rejected(marker) and not explicit_override(marker, confirmed)
 
 
+def reject_barriers(rejects: list[dict], confirmed: list[dict]) -> list[dict]:
+    """Reviewer-reject spans minus every user (not auto-filed) confirm or adjustment interval."""
+    user = [(c.get('confirmed_span') or c) for c in confirmed or [] if not c.get('auto_filed')]
+    return [{'start': lo, 'end': hi} for r in rejects or []
+            for lo, hi in subtract_spans([(r['start'], r['end'])],
+                                         [(s['start'], s['end']) for s in user])]
+
+
 def reviewer_hold_stands(marker: dict, confirmed: list[dict]) -> bool:
     """Whether a pending reviewer hold survives a recut: no user override, no pass-2 release."""
     reason = marker.get('hold_reason')

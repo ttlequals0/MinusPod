@@ -93,11 +93,16 @@ def test_trimmed_confirm_restores_only_approved_span(monkeypatch):
     assert cuts == [(125.0, 155.0)]
 
 
-def test_standing_reviewer_reject_blocks_a_minor_confirm_as_on_recut(monkeypatch):
-    # The confirm covers under half the rejected candidate, so the reject stands.
+def test_wide_candidate_rejected_by_reviewer_restores_interval(monkeypatch):
     run, cuts = _run(monkeypatch, [_candidate(110.0, 195.0)])
-    assert cuts == []
+    assert cuts == [(120.0, 160.0)]
     assert _learnable(run) == []
+
+
+def test_auto_filed_confirm_inside_a_reviewer_reject_is_not_cut(monkeypatch):
+    _, cuts = _run(monkeypatch, [_candidate(110.0, 195.0)],
+                   confirmed=[dict(CONFIRM, auto_filed=True)])
+    assert cuts == []
 
 
 def test_reviewer_trim_restores_uncovered_remainder(monkeypatch):

@@ -1532,11 +1532,8 @@ def test_recut_does_not_stamp_reviewer_rejected(monkeypatch):
     assert _find(all_ads, R1)['validation']['decision'] == 'REJECT'
 
 
-def test_recut_barriers_use_the_carved_reviewer_hold(tmp_path):
-    hold = {'start': 10.0, 'end': 40.0, 'confidence': 0.95, 'reason': 'Acme promo',
-            'detection_stage': 'claude', 'was_cut': False, 'held_for_review': True,
-            'hold_reason': 'reviewer_contradiction', 'source': 'reviewer',
-            'reviewer_verdict': 'confirmed'}
+def _recut_render_call(tmp_path, markers, confirmed):
+    """Drive a real _recut_episode with ffmpeg mocked; return the render call."""
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
         db = p(processing, 'db')
@@ -1554,7 +1551,7 @@ def test_recut_barriers_use_the_carved_reviewer_hold(tmp_path):
             lambda path, segs, cut_barriers=None, hard_barriers=None: (
                 str(tmp_path / 'cut.mp3'), [{'start': s['start'], 'end': s['end']} for s in segs]))
         db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
-                                       'ad_markers_json': json.dumps([hold])}
+                                       'ad_markers_json': json.dumps(markers)}
         db.get_podcast_by_slug.return_value = {'id': 1}
         db.get_original_segments.return_value = [
             {'start': float(t), 'end': float(t + 5), 'text': 'Show talk'} for t in range(0, 600, 5)]
@@ -1562,8 +1559,7 @@ def test_recut_barriers_use_the_carved_reviewer_hold(tmp_path):
         db.get_setting.return_value = None
         db.get_episode_corrections.return_value = []
         db.get_false_positive_corrections.return_value = []
-        db.get_confirmed_corrections.return_value = [
-            {'start': 10.0, 'end': 22.0, 'correction_type': 'confirm'}]
+        db.get_confirmed_corrections.return_value = confirmed
         db.get_podcast_cue_settings_overrides.return_value = {}
         db.get_episode_audio_analysis.return_value = None
         db.get_episode_dai_differential.return_value = None
@@ -1573,7 +1569,32 @@ def test_recut_barriers_use_the_carved_reviewer_hold(tmp_path):
 
         assert processing._recut_episode(
             'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
+    return local_ap.process_episode.call_args
 
-    call = local_ap.process_episode.call_args
+
+def test_recut_barriers_use_the_carved_reviewer_hold(tmp_path):
+    hold = {'start': 10.0, 'end': 40.0, 'confidence': 0.95, 'reason': 'Acme promo',
+            'detection_stage': 'claude', 'was_cut': False, 'held_for_review': True,
+            'hold_reason': 'reviewer_contradiction', 'source': 'reviewer',
+            'reviewer_verdict': 'confirmed'}
+    call = _recut_render_call(
+        tmp_path, [hold], [{'start': 10.0, 'end': 22.0, 'correction_type': 'confirm'}])
+
     assert _spans(call.args[1]) == {(10.0, 22.0)}
     assert _spans(call.kwargs['cut_barriers']) == {(22.0, 40.0)}
+
+
+def test_recut_cuts_a_user_confirm_inside_a_reviewer_reject(tmp_path):
+    call = _recut_render_call(
+        tmp_path, [_reject((5.0, 95.0))], [{'start': 20.0, 'end': 60.0, 'correction_type': 'confirm'}])
+
+    assert [(c['start'], c['end']) for c in call.args[1]] == [(20.0, 60.0)]
+    hard = _spans(call.kwargs['hard_barriers'])
+    assert {(5.0, 20.0), (60.0, 95.0)} <= hard and (5.0, 95.0) not in hard
+
+
+def test_recut_keeps_an_auto_filed_confirm_inside_a_reviewer_reject_uncut(tmp_path):
+    call = _recut_render_call(tmp_path, [_reject((5.0, 95.0))], [_auto_confirm(20.0, 60.0)])
+
+    assert call.args[1] == []
+    assert (5.0, 95.0) in _spans(call.kwargs['hard_barriers'])

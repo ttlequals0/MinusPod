@@ -63,7 +63,7 @@ from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, carve_fragment
                            fold_marker_pair, foldable_twin, invalidate_tail_provenance,
                            parse_ad_markers,
                            reviewer_edge_locked, reviewer_hold_stands,
-                           reviewer_reject_stands,
+                           reject_barriers, reviewer_reject_stands,
                            set_reviewer_locks, spans_match, subtract_spans)
 from utils.pattern_catalog import pattern_catalog_scope
 from utils.time import (
@@ -5419,11 +5419,13 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             podcast_id=recut_podcast_id, segment_actions=segment_actions,
             corrections=corrections,
         )
+        # A user confirm cuts its own interval inside a reviewer reject.
+        reject_spans = reject_barriers(reviewer_rejects, corrections[1])
         ads_to_remove, trim_ranges = _restore_confirmed_spans(
             ads_to_remove, all_ads_with_validation, recut_podcast_id, episode_id,
             original_duration,
             resolve_ad_detection_exclude_start_seconds(db, recut_podcast_id),
-            reject_ranges=reviewer_rejects, corrections=corrections)
+            reject_ranges=reject_spans, corrections=corrections)
         reject_ids = {id(ad) for ad in reviewer_rejects}
         ads_to_remove = _stamp_and_carve_cuts(
             slug, episode_id, [ad for ad in ads_to_remove if id(ad) not in reject_ids],
@@ -5447,7 +5449,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             result = local_audio_processor.process_episode(
                 work_path, audio_segments,
                 **_render_barriers(
-                    [*keep_ads, *trim_ranges, *corrections[0], *reviewer_rejects],
+                    [*keep_ads, *trim_ranges, *corrections[0], *reject_spans],
                     all_ads_with_validation, ads_to_remove))
         if not result:
             raise Exception("FFMPEG processing failed during recut")
@@ -6645,9 +6647,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         user_rejects=pass1_user_rejects,
                     )
             _check_cancel(cancel_event, slug, episode_id)
-            # Standing reviewer rejects bar the render and restore, as on recut.
-            pass1_reviewer_rejects = [m for m in all_ads_with_validation
-                                      if reviewer_reject_stands(m, user_corrections[1])]
+            # Standing reviewer rejects bar the render and restore, as on recut, except where the user confirmed.
+            pass1_reviewer_rejects = reject_barriers(
+                [m for m in all_ads_with_validation
+                 if reviewer_reject_stands(m, user_corrections[1])], user_corrections[1])
 
             # Fold keep-action markers back into the saved marker list now
             # that the validator and reviewer are done with pass 1; they were
