@@ -447,7 +447,7 @@ def test_already_timed_lines_are_not_split_again(monkeypatch):
     assert calls == []
 
 
-def test_timed_utterances_are_computed_once_per_unchanged_segment(monkeypatch):
+def test_timed_utterances_are_computed_once_per_stage(monkeypatch):
     tokens = ['Our', 'sponsor', 'is', 'Acme.', 'Visit', 'acme.com.']
     segment = {'start': 0.0, 'end': 6.0, 'text': ' '.join(tokens),
                'words': [{'start': float(i), 'end': i + 0.5, 'word': t}
@@ -456,22 +456,17 @@ def test_timed_utterances_are_computed_once_per_unchanged_segment(monkeypatch):
     real = boundaries._compute_timed_utterances
     monkeypatch.setattr(boundaries, '_compute_timed_utterances',
                         lambda seg: computed.append(1) or real(seg))
-    first = boundaries._timed_utterances(segment)
-    assert boundaries._timed_utterances(segment) is first
+    memo = {}
+    first = boundaries._timed_utterances(segment, memo)
+    assert boundaries._timed_utterances(segment, memo) is first
     assert len(computed) == 1
-
+    # A new stage starts with an empty memo and sees the segment's current text.
     segment['text'] = 'Our sponsor is Acme. Visit acme.org.'
-    assert boundaries._timed_utterances(segment) is None
-    segment['words'] = segment['words'][:4]
-    segment['text'] = 'Our sponsor is Acme.'
-    assert [u['text'] for u in boundaries._timed_utterances(segment)] == ['our sponsor is acme.']
+    assert boundaries._timed_utterances(segment, {}) is None
+    assert len(computed) == 2
+
+    quote = 'our sponsor is acme visit'
+    ads = [{'start': 0.0, 'end': 6.0, 'start_text': quote, 'end_text': quote}] * 3
+    segment['text'] = ' '.join(tokens)
+    boundaries.align_ad_quote_bounds(ads, [segment])
     assert len(computed) == 3
-
-
-def test_clearing_the_utterance_cache_releases_segments():
-    segment = {'start': 0.0, 'end': 1.0, 'text': 'Hi.',
-               'words': [{'start': 0.0, 'end': 0.5, 'word': 'Hi.'}]}
-    boundaries._timed_utterances(segment)
-    assert id(segment) in boundaries._UTTERANCE_CACHE
-    boundaries.clear_timed_utterance_cache()
-    assert boundaries._UTTERANCE_CACHE == {}

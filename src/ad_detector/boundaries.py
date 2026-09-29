@@ -7,7 +7,6 @@ unchanged from the pre-split module.
 import logging
 import math
 import re
-import threading
 
 from utils.markers import (
     carve_fragment,
@@ -142,6 +141,7 @@ def estimated_pattern_replaced_by_precise_ad(marker, claude_ads, action_map):
 
 def align_ad_quote_bounds(ads: list[dict], segments: list[dict]) -> list[dict]:
     """Align exact ad-edge quotes to word times before detections merge."""
+    memo = {}
     aligned = []
     for ad in ads:
         start = ad.get('start')
@@ -161,7 +161,7 @@ def align_ad_quote_bounds(ads: list[dict], segments: list[dict]) -> list[dict]:
         for segment in segments:
             if segment['end'] < start - 60 or segment['start'] > end + 60:
                 continue
-            utterances = _timed_utterances(segment)
+            utterances = _timed_utterances(segment, memo)
             if utterances is None:
                 words = []
                 break
@@ -231,6 +231,7 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
     """
     if not ads or not segments:
         return ads
+    memo = {}
 
     # Check if we have word timestamps
     if not segments[0].get('words'):
@@ -365,7 +366,7 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
                 intro_start = next(
                     (utterance['start']
                      for seg in segments[start_seg_idx:start_seg_idx + 2]
-                     for utterance in (_timed_utterances(seg) or [])
+                     for utterance in (_timed_utterances(seg, memo) or [])
                      if utterance['start'] <= inward_match['start']
                      < inward_match['end'] <= utterance['end']), None)
             if (intro_start is not None
@@ -410,7 +411,7 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
                 and not _quote_edge_valid(ad, 'end')):
             return_end = None
             for seg in segments[max(0, end_seg_idx - 1):end_seg_idx + 1]:
-                for utterance in _timed_utterances(seg) or []:
+                for utterance in _timed_utterances(seg, memo) or []:
                     if not utterance['start'] < original_end <= utterance['end'] + 0.05:
                         continue
                     words = [w for w in utterance['words'] if w['end'] <= original_end + 0.05]
@@ -488,34 +489,13 @@ def snap_early_ads_to_zero(ads: list[dict], threshold: float = EARLY_AD_SNAP_THR
     return snapped
 
 
-# id(segment) -> (segment, words, word count, text, start, end, utterances).
-_UTTERANCE_CACHE = {}
-_UTTERANCE_CACHE_MAX = 4096
-_UTTERANCE_CACHE_LOCK = threading.Lock()
-
-
-def _timed_utterances(segment: dict) -> list[dict] | None:
-    """Complete word-timed utterances, or None for unreliable timing; shared read-only, memoized per segment."""
-    words = segment.get('words')
-    key = (words, len(words) if isinstance(words, list) else None,
-           segment.get('text'), segment.get('start'), segment.get('end'))
-    entry = _UTTERANCE_CACHE.get(id(segment))
-    # The entry holds the segment, so its id cannot be reused while cached.
-    if (entry is not None and entry[0] is segment and entry[1] is key[0]
-            and entry[2:6] == key[1:]):
-        return entry[6]
-    utterances = _compute_timed_utterances(segment)
-    with _UTTERANCE_CACHE_LOCK:
-        if len(_UTTERANCE_CACHE) >= _UTTERANCE_CACHE_MAX:
-            _UTTERANCE_CACHE.clear()
-        _UTTERANCE_CACHE[id(segment)] = (segment, *key, utterances)
-    return utterances
-
-
-def clear_timed_utterance_cache() -> None:
-    """Drop memoized utterances so a finished episode's segments are not retained."""
-    with _UTTERANCE_CACHE_LOCK:
-        _UTTERANCE_CACHE.clear()
+def _timed_utterances(segment: dict, memo: dict | None = None) -> list[dict] | None:
+    """Complete word-timed utterances, or None for unreliable timing; memo is one stage's id(segment) cache."""
+    if memo is None:
+        return _compute_timed_utterances(segment)
+    if id(segment) not in memo:
+        memo[id(segment)] = _compute_timed_utterances(segment)
+    return memo[id(segment)]
 
 
 def _compute_timed_utterances(segment: dict) -> list[dict] | None:
@@ -676,12 +656,12 @@ def _supported_ad_utterance(utterance: dict, prior_domains: set,
 
 
 def _bounded_transcript_text(segments: list[dict], start: float,
-                             end: float) -> str:
+                             end: float, memo: dict | None = None) -> str:
     words = []
     for segment in segments:
         if segment['end'] <= start or segment['start'] >= end:
             continue
-        timed = _timed_utterances(segment)
+        timed = _timed_utterances(segment, memo)
         if timed is None:
             if start <= segment['start'] and segment['end'] <= end:
                 words.append(segment.get('text') or '')
@@ -718,6 +698,7 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
     Returns:
         List of ads with boundaries extended where ad content continues
     """
+    memo = {}
     if not ads or not segments:
         return ads
 
@@ -741,7 +722,7 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
         end_cap = min([ad_end + BOUNDARY_EXTENSION_MAX] + next_starts)
 
         # Get the ad's own text to extract sponsor names
-        ad_text = _bounded_transcript_text(segments, ad_start, ad_end).lower()
+        ad_text = _bounded_transcript_text(segments, ad_start, ad_end, memo).lower()
         ad_sponsors = extract_sponsor_names(ad_text, ad.get('reason'),
                                             exclude=own_site)
         ad_domains = domain_labels(ad_text)
@@ -758,7 +739,7 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                     continue  # fully inside the ad; a straddler still counts
                 if seg['start'] >= end_cap:
                     break  # segments are time-sorted
-                utterances = _timed_utterances(seg)
+                utterances = _timed_utterances(seg, memo)
                 if utterances is None:
                     break
                 stop = False
@@ -832,7 +813,7 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                         break  # reversed walk: everything earlier is further out
                     if seg['start'] >= ad_start:
                         continue  # fully inside the ad; a straddler still counts
-                    utterances = _timed_utterances(seg)
+                    utterances = _timed_utterances(seg, memo)
                     if utterances is None:
                         break
                     blocked = False
@@ -1941,6 +1922,7 @@ def snap_terminal_ad_to_splice(ads: list[dict], segments: list[dict],
 
     Returns a new list with snapped copies; other ads pass through.
     """
+    memo = {}
     if not ads or not splice_events or episode_duration <= 0:
         return ads
     coverage = coverage_ads if coverage_ads is not None else ads
@@ -1973,7 +1955,7 @@ def snap_terminal_ad_to_splice(ads: list[dict], segments: list[dict],
                         for blocker in (blocking_ads or [])):
                     continue
                 if _span_blocked_by_content(segments, coverage, ad_sponsors,
-                                            event['time'], ad_copy['start']):
+                                            event['time'], ad_copy['start'], memo=memo):
                     continue
                 original_start = ad_copy['start']
                 ad_copy['start'] = event['time']
@@ -2074,6 +2056,7 @@ def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
     transcribed content. This keeps the recovery narrow while preventing the
     final few seconds of a DAI spot from leaking into the processed episode.
     """
+    memo = {}
     if not ads or not splice_events or window_s <= 0:
         return ads
 
@@ -2123,7 +2106,7 @@ def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
             if _span_blocked_by_content(
                     segments, coverage, ad_sponsors,
                     original_end, event['time'],
-                    allow_ad_content=False):
+                    allow_ad_content=False, memo=memo):
                 continue
             ad_copy['end'] = event['time']
             ad_copy['tail_splice_snap'] = {
@@ -2145,7 +2128,8 @@ def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
 def _span_blocked_by_content(segments: list[dict], ads: list[dict],
                              ad_sponsors: set,
                              span_start: float, span_end: float,
-                             allow_ad_content: bool = True) -> bool:
+                             allow_ad_content: bool = True,
+                             memo: dict | None = None) -> bool:
     """Block uncovered speech in a proposed splice interval."""
     sorted_markers = sorted(
         (marker for marker in ads
@@ -2179,7 +2163,7 @@ def _span_blocked_by_content(segments: list[dict], ads: list[dict],
         covered = covered_until >= relevant_end
         if covered:
             continue
-        utterances = _timed_utterances(seg)
+        utterances = _timed_utterances(seg, memo)
         if utterances is None:
             if (allow_ad_content and relevant_start == seg_start
                     and relevant_end == seg_end

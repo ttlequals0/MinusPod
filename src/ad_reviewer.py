@@ -58,7 +58,7 @@ from utils.markers import (
     dai_core_bounds, dai_core_spans, dai_probe_spans, edge_support,
     finite_number, hard_member_spans, hard_members, invalidate_tail_provenance,
     member_spans, reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
-    union_cover,
+    TimedWords, timed_span, union_cover,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
@@ -426,14 +426,14 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
     return updated
 
 
-def stamp_reviewer_fields(ad: dict, verdict: "ReviewVerdict") -> None:
-    """Copy the reviewer verdict fields onto an ad dict, in place."""
+def stamp_reviewer_fields(ad: dict, verdict: "ReviewVerdict", replace: bool = False) -> None:
+    """Copy the verdict fields onto an ad in place; replace also writes empty values over old ones."""
     ad['reviewer_verdict'] = verdict.verdict
-    if verdict.reasoning is not None:
+    if replace or verdict.reasoning is not None:
         ad['reviewer_reasoning'] = verdict.reasoning
-    if verdict.confidence is not None:
+    if replace or verdict.confidence is not None:
         ad['reviewer_confidence'] = verdict.confidence
-    if verdict.model_used:
+    if replace or verdict.model_used:
         ad['reviewer_model'] = verdict.model_used
     if verdict.verdict == 'failure' and not verdict.inconclusive_hold:
         flags = ad.setdefault('validation', {}).setdefault('flags', [])
@@ -441,20 +441,14 @@ def stamp_reviewer_fields(ad: dict, verdict: "ReviewVerdict") -> None:
             flags.append(REVIEWER_FAILED_SUPPORTED_FLAG)
 
 
-def mark_reviewer_hold(ad: dict, verdict: "ReviewVerdict", reason: str) -> None:
+def mark_reviewer_hold(ad: dict, verdict: "ReviewVerdict", reason: str,
+                       replace: bool = False) -> None:
     """Hold an ad dict for review on a reviewer verdict, in place."""
-    stamp_reviewer_fields(ad, verdict)
+    stamp_reviewer_fields(ad, verdict, replace=replace)
     ad['was_cut'] = False
     ad['held_for_review'] = True
     ad['hold_reason'] = reason
     ad['source'] = 'reviewer'
-
-
-def _replace_reviewer_fields(ad: dict, verdict: "ReviewVerdict") -> None:
-    """Write the verdict's reasoning, confidence and model even when empty, so no earlier value survives."""
-    ad['reviewer_reasoning'] = verdict.reasoning
-    ad['reviewer_confidence'] = verdict.confidence
-    ad['reviewer_model'] = verdict.model_used
 
 
 def _boundary_conflict_hold(ad: dict, verdict: "ReviewVerdict") -> dict:
@@ -561,24 +555,8 @@ _SUPPORTED_EDGE_GAP_S = 0.3
 
 def _speech_units(segments) -> list[tuple[float, float]]:
     """(start, end) of every timed word, or of the segment when it has none."""
-    units = []
-    for seg in segments or []:
-        for unit in seg.get('words') or [seg]:
-            span = _timed_span(unit)
-            if span:
-                units.append(span)
-    return units
-
-
-def _word_units(segments) -> set[tuple[float, float]]:
-    """(start, end) of every timed word."""
-    spans = (_timed_span(w) for seg in segments or [] for w in seg.get('words') or [])
-    return {span for span in spans if span}
-
-
-def _timed_span(unit) -> tuple[float, float] | None:
-    lo, hi = finite_number(unit.get('start')), finite_number(unit.get('end'))
-    return (lo, hi) if lo is not None and hi is not None and hi >= lo else None
+    spans = (timed_span(unit) for seg in segments or [] for unit in seg.get('words') or [seg])
+    return [span for span in spans if span]
 
 
 def _edge_matches(value: float, new: float) -> bool:
@@ -601,7 +579,7 @@ class TranscriptIndex:
     """A transcript's speech units and timed words, indexed once per review for edge lookups."""
 
     def __init__(self, segments):
-        units, words = _speech_units(segments), _word_units(segments)
+        units, words = _speech_units(segments), TimedWords(segments).spans
         self.end = _EdgeIndex(units, words)
         # Start edges are end edges on the negated timeline.
         self.start = _EdgeIndex(_negated(units), _negated(words))
@@ -1114,29 +1092,42 @@ def _span_text(start, end) -> str:
     return f"{start:.1f}-{end:.1f}s"
 
 
+def _fit_with_note(items: list[str], cap: int, sep: str, note_fmt: str,
+                   base: int = 0, omitted: int = 0) -> list[str]:
+    """Leading items that fit in cap once joined by sep, plus a note_fmt count of the rest."""
+    kept, length = [], base
+    for item in items:
+        added = len(item) + (len(sep) if kept else 0)
+        if length + added > cap:
+            break
+        kept.append(item)
+        length += added
+    # Drop items until the note fits; the note alone is kept even when it does not.
+    while True:
+        more = len(items) - len(kept) + omitted
+        if not more:
+            return kept
+        note = note_fmt.format(more)
+        if length + len(note) + (len(sep) if kept else 0) <= cap or not kept:
+            return [*kept, note]
+        popped = kept.pop()
+        length -= len(popped) + (len(sep) if kept else 0)
+
+
 def _capped_line(label: str, items: list[str], sep: str = '; ', omitted: int = 0) -> str:
     """label plus as many whole items as fit in POLICY_LINE_CAP, with a (+N more) note for the rest.
 
     omitted counts items the caller already left out; an oversized first item is truncated to fit.
     """
     prefix = f"{label}: "
-    kept = []
-    for item in items:
-        if len(prefix + sep.join([*kept, item])) > POLICY_LINE_CAP:
-            break
-        kept.append(item)
-    if items and not kept:
+    if items and len(prefix) + len(items[0]) > POLICY_LINE_CAP:
         more = len(items) - 1 + omitted
         note = f"{sep}(+{more} more)" if more else ''
         budget = max(POLICY_LINE_CAP - len(prefix) - 3 - len(note), 0)
         return f"{prefix}{items[0][:budget]}...{note}"
-    while True:
-        more = len(items) - len(kept) + omitted
-        parts = [*kept, f"(+{more} more)"] if more else kept
-        line = prefix + sep.join(parts) if parts else ''
-        if len(line) <= POLICY_LINE_CAP or not kept:
-            return line
-        kept.pop()
+    parts = _fit_with_note(items, POLICY_LINE_CAP, sep, "(+{} more)",
+                           base=len(prefix), omitted=omitted)
+    return prefix + sep.join(parts) if parts else ''
 
 
 def _protected_item(span: dict) -> str:
@@ -1208,19 +1199,9 @@ def _format_policy_section(ad: dict, episode_meta: dict, max_shift: float) -> st
         lines.append(_capped_line('Measured edges', [
             _edge_item(ad, 'start', min_conf, hard),
             _edge_item(ad, 'end', min_conf, hard)], ', '))
-    lines = [line for line in lines if line]
-    kept = []
-    for line in lines:
-        if sum(len(k) + 1 for k in kept) + len(line) + 1 > POLICY_SECTION_CAP:
-            break
-        kept.append(line)
-    # Tell the model the section is partial, dropping lines until the note fits.
-    while len(kept) < len(lines):
-        note = f"(+{len(lines) - len(kept)} more lines)"
-        if sum(len(k) + 1 for k in kept) + len(note) + 1 <= POLICY_SECTION_CAP or not kept:
-            kept.append(note)
-            break
-        kept.pop()
+    # Each line costs its length plus a newline; the note tells the model the section is partial.
+    kept = _fit_with_note([line for line in lines if line], POLICY_SECTION_CAP, '\n',
+                          "(+{} more lines)", base=1)
     return ''.join(line + '\n' for line in kept) + '\n' if kept else ''
 
 
@@ -1427,13 +1408,12 @@ class AdReviewer:
                         f"span carries {evidence}"
                     )
                     held = dict(updated_ad)
-                    mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_REJECT_CONFLICT)
-                    _replace_reviewer_fields(held, verdict)
+                    mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_REJECT_CONFLICT,
+                                       replace=True)
                     result.held_by_reject_evidence.append(held)
                     continue
                 marked = dict(updated_ad)
-                stamp_reviewer_fields(marked, verdict)
-                _replace_reviewer_fields(marked, verdict)
+                stamp_reviewer_fields(marked, verdict, replace=True)
                 marked["was_cut"] = False
                 marked["source"] = "reviewer"
                 result.rejected_by_reviewer.append(marked)
@@ -1444,8 +1424,8 @@ class AdReviewer:
                     verdict.verdict, verdict.reasoning,
                     verdict.structured_is_ad):
                 held = dict(updated_ad)
-                mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_CONTRADICTION)
-                _replace_reviewer_fields(held, verdict)
+                mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_CONTRADICTION,
+                                   replace=True)
                 held["reviewer_contradiction"] = True
                 # Preserve the reviewer's proposed trim so the review UI can
                 # offer approving the trimmed span instead of all-or-nothing.

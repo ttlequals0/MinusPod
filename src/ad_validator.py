@@ -2,6 +2,7 @@
 import math
 import re
 import logging
+from functools import lru_cache
 from itertools import pairwise
 from typing import ClassVar
 from dataclasses import dataclass, field
@@ -78,6 +79,12 @@ _REMAINDER_DROPPED_KEYS = (
     'pass2_corroborated_span', 'pass2_hold_review', 'pass2_reviewed_release',
     'pass2_released_spans',
 )
+
+
+@lru_cache(maxsize=512)
+def _sponsor_name_re(sponsor: str) -> re.Pattern | None:
+    """Whole-word matcher for one sponsor name, built once per name."""
+    return word_boundary_re((sponsor,))
 
 
 def user_trimmed_keep_ranges(corrections: list[dict]) -> list[dict]:
@@ -430,7 +437,7 @@ class AdValidator:
         return bounded_segment_texts(self.segments, ad['start'], ad['end'])
 
     def _names_sponsor(self, text: str, sponsor: str) -> bool:
-        name_re = word_boundary_re((sponsor,))
+        name_re = _sponsor_name_re(sponsor)
         if name_re and name_re.search(text):
             return True
         if self.sponsor_service:
@@ -439,11 +446,6 @@ class AdValidator:
             except Exception as e:
                 logger.debug(f"Sponsor registry lookup failed: {e}")
         return False
-
-    def _has_local_commercial_context(self, relevant: list[str], sponsor: str) -> bool:
-        return local_commercial_context(
-            relevant, sponsor, names_sponsor=self._names_sponsor,
-            matches_expected=self._matches_expected_sponsor)
 
     def _sponsor_confirmation_source(self, ad: dict) -> str | None:
         """Where the ad's sponsor was confirmed: 'transcript' (a description
@@ -456,7 +458,9 @@ class AdValidator:
             named = self._description_sponsor_re.search(' '.join(texts))
             if (named and (not ad.get('sponsor') or self._matches_expected_sponsor(
                     named.group(0), ad['sponsor']))
-                    and self._has_local_commercial_context(texts, named.group(0))):
+                    and local_commercial_context(
+                        texts, named.group(0), names_sponsor=self._names_sponsor,
+                        matches_expected=self._matches_expected_sponsor)):
                 logger.info(f"Sponsor '{named.group(0)}' found in ad transcript, "
                             f"confirmed in description")
                 return 'transcript'
@@ -551,7 +555,8 @@ class AdValidator:
             # Stamped before the trim split so carved fragments inherit it.
             if reviewer_reject_stands(ad, self.confirmed_corrections):
                 ad['_reviewer_rejected'] = True
-        for protected in user_trimmed_keep_ranges(self.confirmed_corrections):
+        self._trim_ranges = user_trimmed_keep_ranges(self.confirmed_corrections)
+        for protected in self._trim_ranges:
             split_ads = []
             for ad in ads:
                 lo = max(ad['start'], protected['start'])
@@ -796,8 +801,9 @@ class AdValidator:
         Returns:
             Ad marker with 'validation' field added
         """
-        flags = [f"INFO: Silent estimated remainder cut with the ad ({b - a:.1f}s)"
-                 for a, b in ad.pop('_silent_remainders', ())]
+        measured = ad.get('_learning_bounds') or (ad['start'], ad['end'])
+        flags = [f"INFO: Silent estimated remainder cut with the ad ({gap:.1f}s)"
+                 for gap in (measured[0] - ad['start'], ad['end'] - measured[1]) if gap > 0]
         corrections = []
         confidence = ad.get('confidence', 1.0)
 
@@ -1511,7 +1517,7 @@ class AdValidator:
         out = []
         barriers = [(c['start'], c['end']) for c in (
             *self.false_positive_corrections,
-            *user_trimmed_keep_ranges(self.confirmed_corrections))]
+            *self._trim_ranges)]
         for ad in ads:
             # Without recorded members the whole span is the estimate; a pass-two
             # ad's original-coords twin cannot follow a split.
@@ -1533,7 +1539,6 @@ class AdValidator:
                 cut = ad
             else:
                 remainder_spans = []
-                silent = []
                 cut_lo, cut_hi = lo, hi
                 cap = self._silent_absorb_cap(ad)
                 # Each remainder shares an edge with the measured cut by construction.
@@ -1542,7 +1547,6 @@ class AdValidator:
                         continue
                     if (max(cut_hi, b) - min(cut_lo, a) <= cap
                             and self._silent_remainder(a, b, barriers)):
-                        silent.append((a, b))
                         cut_lo, cut_hi = min(cut_lo, a), max(cut_hi, b)
                         logger.info(f"Cut silent estimated remainder {a:.1f}s-{b:.1f}s "
                                     f"with ad {lo:.1f}s-{hi:.1f}s")
@@ -1555,8 +1559,7 @@ class AdValidator:
                     out.append(remainder)
                     remainder_spans.append(f"{a:.1f}s-{b:.1f}s")
                 cut = self._narrowed(ad, cut_lo, cut_hi, keep_members=True)
-                if silent:
-                    cut['_silent_remainders'] = silent
+                if (cut_lo, cut_hi) != (lo, hi):
                     # Learning keeps the measured bounds so a pattern never grows the silence.
                     cut['_learning_bounds'] = (lo, hi)
                 result.corrections.append(

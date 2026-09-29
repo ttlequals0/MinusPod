@@ -16,10 +16,8 @@ _test_data_dir = bootstrap(
     'segment_actions_test_', passphrase='segment-actions-test-passphrase')
 
 import database
-from config import SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION
 from main_app import app
-
-ALL_REMOVE = {cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES}
+from tests.unit.recut_test_utils import ALL_REMOVE
 
 
 @pytest.fixture

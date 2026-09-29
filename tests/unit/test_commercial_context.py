@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector.prompts import _span_names_sponsor
 from ad_validator import AdValidator
+from sponsor_context import local_commercial_context
 from tests.unit.marker_test_utils import ACME_REGISTRY, CLOSING, RegistryStub, registry_confirms
 
 
@@ -21,7 +22,9 @@ _SPAN = {'start': 0.0, 'end': 400.0}
 
 
 def _commercial(v, sponsor='Acme'):
-    return v._has_local_commercial_context(v._bounded_text_segments(_SPAN), sponsor)
+    return local_commercial_context(
+        v._bounded_text_segments(_SPAN), sponsor, names_sponsor=v._names_sponsor,
+        matches_expected=v._matches_expected_sponsor)
 
 
 class TestCommercialContext:

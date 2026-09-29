@@ -1,20 +1,13 @@
 """Evidence floor on reviewer rejects (issue #750)."""
-from dataclasses import dataclass
-from unittest.mock import MagicMock
 
 from tests.app_bootstrap import bootstrap
 
 bootstrap('reviewer_reject_floor_test_')
 
 import main_app.processing as processing
-from ad_reviewer import AdReviewer, ReviewVerdict, reject_hold_evidence
+from ad_reviewer import ReviewVerdict, reject_hold_evidence
 from config import HOLD_REASON_REVIEWER_REJECT_CONFLICT
-
-
-@dataclass
-class _LLMResp:
-    content: str
-    model: str = 'test-model'
+from tests.unit.reviewer_test_utils import _mock_episode_meta, _resp, _reviewer
 
 
 def _segments():
@@ -25,26 +18,13 @@ def _segments():
     ]
 
 
-def _episode_meta():
-    return {
-        'podcast_name': 'Test Podcast', 'episode_title': 'Test Episode',
-        'episode_description': 'desc', 'podcast_description': 'pod desc',
-        'slug': 'test-pod', 'episode_id': 'ep1', 'podcast_id': 'p1',
-    }
-
-
 def _reject(ad):
     """Run the reviewer over one ad with an empty-array (reject) response."""
-    db = MagicMock()
-    db.get_setting.side_effect = {
-        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
-    }.get
-    db.get_connection.return_value = MagicMock()
-    reviewer = AdReviewer(db=db, llm_client=MagicMock(), sponsor_service=None)
-    reviewer._llm_client.messages_create.return_value = _LLMResp('[]')
+    reviewer = _reviewer()
+    reviewer._llm_client.messages_create.return_value = _resp('[]')
     return reviewer.review(
         accepted_ads=[ad], resurrection_eligible=[],
-        segments=_segments(), episode_meta=_episode_meta(),
+        segments=_segments(), episode_meta=_mock_episode_meta(),
         pass_num=1, pass_model='claude-test',
     )
 

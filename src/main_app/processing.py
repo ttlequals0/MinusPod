@@ -29,7 +29,6 @@ from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.boundaries import (
     _content_duration_in_range,
-    clear_timed_utterance_cache,
     effective_resolved_action,
     snap_extended_ad_tails_to_splice,
     snap_terminal_ad_to_splice,
@@ -1726,10 +1725,11 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
 
 def _restore_confirmed_spans(ads_to_remove, all_ads_with_validation, corrections,
                              episode_duration, exclude_start_seconds,
-                             restore=True):
+                             restore=True, trim_ranges=None):
     """Cut uncovered confirmed spans and keep saved trims out; returns (cuts, trim ranges)."""
     fp_corrections, confirmed = corrections
-    trim_ranges = user_trimmed_keep_ranges(confirmed)
+    if trim_ranges is None:
+        trim_ranges = user_trimmed_keep_ranges(confirmed)
     if restore:
         ads_to_remove = restore_uncovered_confirmed_spans(
             ads_to_remove, all_ads_with_validation, confirmed, fp_corrections,
@@ -2135,7 +2135,8 @@ def _log_reviewer_verdicts(slug, episode_id, pass_num, verdicts):
     )
 
 
-def _hold_pass2_verdict(v, proc_ad, held_ad, v_ads_to_cut, v_ads_for_ui, v_ads_held):
+def _hold_pass2_verdict(v, proc_ad, held_ad, v_ads_to_cut, v_ads_for_ui, v_ads_held,
+                        apply=None):
     """Pull a pass-2 ad from the cuts and file its original-time marker as held; False when none."""
     if proc_ad in v_ads_to_cut:
         v_ads_to_cut.remove(proc_ad)
@@ -2144,7 +2145,7 @@ def _hold_pass2_verdict(v, proc_ad, held_ad, v_ads_to_cut, v_ads_for_ui, v_ads_h
         stamp_reviewer_fields(proc_ad, v)
     if held_ad is None:
         return False
-    _apply_reviewer_verdict_to_ad(held_ad, v)
+    (apply or _apply_reviewer_verdict_to_ad)(held_ad, v)
     if held_ad in v_ads_for_ui:
         v_ads_for_ui.remove(held_ad)
     if held_ad not in v_ads_held:
@@ -2295,22 +2296,13 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                                 protected['start'], protected['end']) > 0
                 for protected in (protected_original_ranges or [])))
             if crosses_cut or crosses_protected or proc_ad is None or ui_ad is None:
-                if proc_ad in v_ads_to_cut:
-                    v_ads_to_cut.remove(proc_ad)
-                if proc_ad is not None:
-                    proc_ad['was_cut'] = False
-                if ui_ad in v_ads_for_ui:
-                    v_ads_for_ui.remove(ui_ad)
-                if held_ad is not None:
-                    stamp_reviewer_fields(held_ad, v)
-                    held_ad['was_cut'] = False
-                    held_ad['held_for_review'] = True
-                    held_ad['hold_reason'] = HOLD_REASON_REVIEWER_CONTRADICTION
-                    if adjusted_start is not None:
-                        held_ad['reviewer_proposed_start'] = adjusted_start
-                        held_ad['reviewer_proposed_end'] = adjusted_end
-                    if held_ad not in v_ads_held:
-                        v_ads_held.append(held_ad)
+                def hold_crossing(ad, v, lo=adjusted_start, hi=adjusted_end):
+                    stamp_reviewer_fields(ad, v)
+                    ad.update(was_cut=False, held_for_review=True,
+                              hold_reason=HOLD_REASON_REVIEWER_CONTRADICTION)
+                    if lo is not None:
+                        ad.update(reviewer_proposed_start=lo, reviewer_proposed_end=hi)
+                _hold_pass2_verdict(v, proc_ad, held_ad, *lists, apply=hold_crossing)
                 continue
             beep = get_replacement_duration()
             proc_ad['start'] = adjust_timestamp(adjusted_start, cuts, beep)
@@ -2332,10 +2324,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
             # Evidence floor (ad_reviewer.reject_hold_evidence): a reject over
             # measured evidence is held for a human, not dropped.
             if v.reject_hold_reason:
-                if held_ad is not None:
-                    _apply_reviewer_verdict_to_ad(held_ad, v)
-                    if held_ad not in v_ads_held:
-                        v_ads_held.append(held_ad)
+                _hold_pass2_verdict(v, proc_ad, held_ad, *lists)
             continue
 
         if v.verdict == 'resurrect':
@@ -2608,10 +2597,9 @@ def _merge_reviewer_result(result, all_ads_with_validation):
             master_by_key[key] = ad
 
 
-def _pass1_user_rejects(fp_corrections, confirmed_corrections):
+def _pass1_user_rejects(fp_corrections, trim_ranges):
     """User FP rejections plus saved trim exclusions, original time."""
-    return [*(fp_corrections or []),
-            *user_trimmed_keep_ranges(confirmed_corrections or [])]
+    return [*(fp_corrections or []), *trim_ranges]
 
 
 def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
@@ -3498,6 +3486,14 @@ def _rerender_crosspass_from_original(slug, episode_id, original_audio_path,
     return rerendered_path, applied, True
 
 
+def _drop_uncovered_ui_ads(ui_ads, applied_cuts, total_duration, ledger):
+    """Drop original-time UI markers the rendered cuts do not cover, in place."""
+    for ad in [a for a in ui_ads if not _covered_by_cuts(a, applied_cuts, total_duration)]:
+        ui_ads.remove(ad)
+        ad['was_cut'] = False
+        ledger.record(ad, 'dropped:recut_filtered')
+
+
 def _drop_uncovered_crosspass_ads(slug, episode_id, processed_ads, original_ads,
                                   applied_cuts, total_duration, ledger=None):
     """Keep pass-2 UI markers only when the final original render covers them."""
@@ -3679,8 +3675,6 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     episode_description = ctx.episode_description
     podcast_description = ctx.podcast_description
     pass1_path = processed_path
-    # (original-time cuts, duration) the recut rendered, while its uncovered markers are unsettled.
-    recut_cover = None
     verification_count = 0
     v_ads_for_ui = []
     v_cuts_for_assets = []
@@ -3962,24 +3956,30 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                         )
                     if recut_ok:
                         # Cut authority first, so a later failure still finalizes against the new audio.
-                        if crosspass_plan and original_audio_path:
+                        crosspass = bool(crosspass_plan and original_audio_path)
+                        if crosspass:
                             pass1_cuts[:] = recut_applied
-                            recut_cover = (recut_applied, original_render_duration)
-                            _drop_uncovered_crosspass_ads(
-                                slug, episode_id, v_ads_to_cut, v_ads_for_ui,
-                                recut_applied, original_render_duration, ledger=ledger)
+                            cover = (recut_applied, original_render_duration)
                         else:
                             v_cuts_for_assets = _pass2_cuts_in_original(
                                 recut_applied, pass1_cuts)
-                            recut_cover = (v_cuts_for_assets, None)
-                            _drop_uncovered_pass2_ads(
-                                slug, episode_id, v_ads_to_cut, v_ads_for_ui,
-                                recut_applied, verification_ads_processed,
-                                verification_ads_original, pre_recut_duration,
-                                pass1_cuts=pass1_cuts, ledger=ledger,
-                            )
-                        # The drop settled coverage; a later failure keeps its result.
-                        recut_cover = None
+                            cover = (v_cuts_for_assets, None)
+                        try:
+                            if crosspass:
+                                _drop_uncovered_crosspass_ads(
+                                    slug, episode_id, v_ads_to_cut, v_ads_for_ui,
+                                    recut_applied, original_render_duration, ledger=ledger)
+                            else:
+                                _drop_uncovered_pass2_ads(
+                                    slug, episode_id, v_ads_to_cut, v_ads_for_ui,
+                                    recut_applied, verification_ads_processed,
+                                    verification_ads_original, pre_recut_duration,
+                                    pass1_cuts=pass1_cuts, ledger=ledger,
+                                )
+                        except Exception:
+                            # The recut audio is in place: markers it does not cover were filtered.
+                            _drop_uncovered_ui_ads(v_ads_for_ui, *cover, ledger=ledger)
+                            raise
                         verification_count = len(v_ads_to_cut)
                     else:
                         for ad in v_ads_for_ui:
@@ -4008,12 +4008,6 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         verification_ok = False
         # Held and kept markers still persist, so they keep their outcome.
         if processed_path != pass1_path:
-            # The recut audio is already in place: markers it covers are cut, the rest were filtered.
-            if recut_cover is not None:
-                for ad in [a for a in v_ads_for_ui if not _covered_by_cuts(a, *recut_cover)]:
-                    v_ads_for_ui.remove(ad)
-                    ad['was_cut'] = False
-                    ledger.record(ad, 'dropped:recut_filtered')
             ledger.settle(v_ads_for_ui, v_ads_held, category_kept)
             ledger.fail(kept_conflicts, verification_ads_original)
         else:
@@ -6580,7 +6574,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             all_ads_with_validation = _exclude_opening_ads(all_ads_with_validation, opening_exclusion_seconds)
 
             # Kept, user-rejected and user-trimmed audio: uncrossable for the reviewer and the render.
-            pass1_user_rejects = _pass1_user_rejects(*user_corrections)
+            user_trim_ranges = user_trimmed_keep_ranges(user_corrections[1] or [])
+            pass1_user_rejects = _pass1_user_rejects(user_corrections[0], user_trim_ranges)
             pass1_hard = [*keep_ads, *pass1_user_rejects]
             if not cue_only:
                 with _measure_run_stage('refine_validate'):
@@ -6599,9 +6594,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     )
             _check_cancel(cancel_event, slug, episode_id)
             # Standing reviewer rejects bar the render and restore, as on recut, except where the user confirmed.
-            pass1_reviewer_rejects = reject_barriers(
-                [m for m in all_ads_with_validation
-                 if reviewer_reject_stands(m, user_corrections[1])], user_corrections[1])
+            pass1_reviewer_rejects = reject_barriers(all_ads_with_validation, user_corrections[1])
 
             # Fold keep-action markers back into the saved marker list now
             # that the validator and reviewer are done with pass 1; they were
@@ -6643,7 +6636,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ads_to_remove, trim_ranges = _restore_confirmed_spans(
                 ads_to_remove, all_ads_with_validation, user_corrections,
                 episode_duration, opening_exclusion_seconds,
-                restore=not skip_detection)
+                restore=not skip_detection, trim_ranges=user_trim_ranges)
 
             # Backstop: the late keep partition above should already have
             # caught everything, so this normally finds nothing.
@@ -6915,7 +6908,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # The differential worker is a daemon thread and is deliberately
             # abandoned on failure paths (see its start site); nothing to
             # shut down here.
-            clear_timed_utterance_cache()
             if os.path.exists(audio_path):
                 os.unlink(audio_path)
             # Still present means the render was never moved to final_path.

@@ -1,10 +1,7 @@
 """Pass-2 verification reconciliation: validating, gating, and recutting
 pass-2 ad candidates against pass-1 output."""
 import logging
-import math
-from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
-from itertools import accumulate, pairwise
 
 from audio_processor import get_replacement_duration
 from config import (
@@ -26,7 +23,7 @@ from config import (
 from database.settings import registry_get_default
 from utils.markers import (
     COVERAGE_GAP_TOLERANCE, EDGE_TOLERANCE, carve_fragment, measured_member_spans, merge_runs,
-    subtract_spans,
+    TimedWords, subtract_spans,
 )
 from utils.time import (
     adjust_timestamp, merge_cut_spans, overlap_ratio, overlap_seconds,
@@ -210,30 +207,11 @@ class WordEdges:
         self._segments = segments or []
         self._words = None
 
-    def _build(self):
-        self._words = [(w['start'], w['end']) for seg in self._segments
-                       for w in seg.get('words') or []
-                       if w.get('start') is not None and w.get('end') is not None]
-        self._starts = [lo for lo, _hi in self._words]
-        self._ordered = all(a <= b for a, b in pairwise(self._starts))
-        # NaN never compares greater, so a NaN end neither raises nor poisons the running max.
-        self._max_ends = list(accumulate((hi for _lo, hi in self._words),
-                                         lambda top, hi: hi if hi > top else top,
-                                         initial=-math.inf))[1:]
-
     def inside(self, value, edge):
         """Move an edge inward off the first timed word it splits."""
         if self._words is None:
-            self._build()
-        lo_below, hi_above = value - EDGE_TOLERANCE, value + EDGE_TOLERANCE
-        if self._ordered:
-            # First word ending past the edge; it splits the edge if it also starts before it.
-            first = bisect_right(self._max_ends, hi_above)
-            word = (self._words[first]
-                    if first < bisect_left(self._starts, lo_below) else None)
-        else:
-            word = next(((lo, hi) for lo, hi in self._words
-                         if lo < lo_below and hi > hi_above), None)
+            self._words = TimedWords(self._segments)
+        word = self._words.straddling(value, EDGE_TOLERANCE)
         if word is None:
             return value
         return word[1] if edge == 'start' else word[0]

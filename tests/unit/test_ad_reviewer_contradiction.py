@@ -17,16 +17,16 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from dataclasses import dataclass
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 import main_app.processing as processing
-from ad_reviewer import AdReviewer, ReviewVerdict, reasoning_contradicts_cut, reasoning_affirms_ad
+from ad_reviewer import ReviewVerdict, reasoning_contradicts_cut, reasoning_affirms_ad
 from config import (HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
                     HOLD_REASON_REVIEWER_CONTRADICTION)
 from llm_client import ProviderRateLimitedError
+from tests.unit.reviewer_test_utils import _build_reviewer, _mock_episode_meta, _resp
 
 
 def _mock_segments():
@@ -37,33 +37,6 @@ def _mock_segments():
         {'start': 180.0, 'end': 240.0, 'text': 'after ad'},
         {'start': 240.0, 'end': 300.0, 'text': 'more show content'},
     ]
-
-
-def _mock_episode_meta():
-    return {
-        'podcast_name': 'Test Podcast', 'episode_title': 'Test Episode',
-        'episode_description': 'desc', 'podcast_description': 'pod desc',
-        'slug': 'test-pod', 'episode_id': 'ep1', 'podcast_id': 'p1',
-    }
-
-
-def _build_reviewer(db_settings=None):
-    db_settings = db_settings or {}
-    db = MagicMock()
-    db.get_setting.side_effect = lambda key: db_settings.get(key)
-    db.get_connection.return_value = MagicMock()
-    llm_client = MagicMock()
-    return AdReviewer(db=db, llm_client=llm_client, sponsor_service=None)
-
-
-@dataclass
-class _LLMResp:
-    content: str
-    model: str = "test-model"
-
-
-def _resp(body: str) -> _LLMResp:
-    return _LLMResp(content=body)
 
 
 NEGATIVE_REASONS = [

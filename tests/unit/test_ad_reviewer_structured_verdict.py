@@ -8,10 +8,9 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from dataclasses import dataclass
-from unittest.mock import MagicMock
 
-from ad_reviewer import AdReviewer, is_contradiction_hold
+from ad_reviewer import is_contradiction_hold
+from tests.unit.reviewer_test_utils import _build_reviewer, _mock_episode_meta, _resp
 
 
 CONTRA = "This segment contains no advertising content."
@@ -47,41 +46,14 @@ def _mock_segments():
     ]
 
 
-def _mock_episode_meta():
-    return {
-        'podcast_name': 'Test Podcast', 'episode_title': 'Test Episode',
-        'episode_description': 'desc', 'podcast_description': 'pod desc',
-        'slug': 'test-pod', 'episode_id': 'ep1', 'podcast_id': 'p1',
-    }
-
-
 _DB_SETTINGS = {
     'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
     'review_max_boundary_shift': '60',
 }
 
 
-def _build_reviewer(db_settings=None):
-    db_settings = db_settings or _DB_SETTINGS
-    db = MagicMock()
-    db.get_setting.side_effect = lambda key: db_settings.get(key)
-    db.get_connection.return_value = MagicMock()
-    llm_client = MagicMock()
-    return AdReviewer(db=db, llm_client=llm_client, sponsor_service=None)
-
-
-@dataclass
-class _LLMResp:
-    content: str
-    model: str = "test-model"
-
-
-def _resp(body: str) -> _LLMResp:
-    return _LLMResp(content=body)
-
-
 def test_structured_false_rejects_regardless_of_bounds():
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_DB_SETTINGS)
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"is_ad": false, "start": 120.0, "end": 180.0, '
         '"reason": "editorial mention"}]'
@@ -100,7 +72,7 @@ def test_structured_false_rejects_regardless_of_bounds():
 
 
 def test_structured_true_suppresses_pool_split_hold():
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_DB_SETTINGS)
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"is_ad": true, "start": 120.0, "end": 180.0, "confidence": 0.9, '
         f'"reason": "{CONTRA}"}}]'
@@ -119,7 +91,7 @@ def test_structured_true_suppresses_pool_split_hold():
 
 
 def test_missing_is_ad_field_is_legacy_byte_identical():
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_DB_SETTINGS)
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"start": 120.0, "end": 180.0, "confidence": 0.95, '
         '"reason": "Confirmed sponsor read"}]'
@@ -141,7 +113,7 @@ def test_missing_is_ad_field_is_legacy_byte_identical():
 def test_is_ad_as_string_is_treated_as_absent():
     # A non-bool is_ad (e.g. the model emits the string "false" instead of
     # the JSON literal) must fall through to the legacy path, not reject.
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_DB_SETTINGS)
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"is_ad": "false", "start": 120.0, "end": 180.0, "confidence": 0.95, '
         '"reason": "Confirmed sponsor read"}]'
@@ -159,7 +131,7 @@ def test_is_ad_as_string_is_treated_as_absent():
 
 
 def test_contradiction_guard_fired_logs_once_with_context(caplog):
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_DB_SETTINGS)
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"start": 120.0, "end": 180.0, "confidence": 0.9, '
         f'"reason": "{CONTRA}"}}]'
@@ -180,7 +152,7 @@ def test_contradiction_guard_fired_logs_once_with_context(caplog):
 
 
 def test_structured_true_suppression_logs_once_with_context(caplog):
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_DB_SETTINGS)
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"is_ad": true, "start": 120.0, "end": 180.0, "confidence": 0.9, '
         f'"reason": "{CONTRA}"}}]'
@@ -200,7 +172,7 @@ def test_structured_true_suppression_logs_once_with_context(caplog):
 
 
 def test_structured_false_in_resurrection_pool_rejects_not_resurrects():
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_DB_SETTINGS)
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"is_ad": false, "start": 120.0, "end": 180.0, '
         '"reason": "not a real ad"}]'

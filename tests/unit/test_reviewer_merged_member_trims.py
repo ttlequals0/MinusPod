@@ -5,7 +5,6 @@ LLM/heuristic members carry padding the reviewer exists to trim, measured
 members must stay covered but for a few seconds of boundary disagreement.
 """
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,7 +20,9 @@ from config import (
 )
 from ad_detector.boundaries import deduplicate_window_ads
 from tests.unit.marker_test_utils import member_bases
-from tests.unit.reviewer_test_utils import _LLMResp
+from tests.unit.reviewer_test_utils import (
+    REVIEW_PROMPTS, _LLMResp, _build_reviewer, _mock_episode_meta,
+)
 from utils.markers import (
     edge_support, mark_distinct_merge, note_fold, recorded_member_spans,
     reviewer_independent_spans,
@@ -37,24 +38,7 @@ def _mock_segments():
     ]
 
 
-def _mock_episode_meta():
-    return {
-        'podcast_name': 'Test Podcast', 'episode_title': 'Test Episode',
-        'episode_description': 'desc', 'podcast_description': 'pod desc',
-        'slug': 'test-pod', 'episode_id': 'ep1', 'podcast_id': 'p1',
-    }
-
-
-def _build_reviewer(max_shift='60'):
-    settings = {
-        'review_prompt': 'review',
-        'resurrect_prompt': 'resurrect',
-        'review_max_boundary_shift': max_shift,
-    }
-    db = MagicMock()
-    db.get_setting.side_effect = lambda key: settings.get(key)
-    db.get_connection.return_value = MagicMock()
-    return AdReviewer(db=db, llm_client=MagicMock(), sponsor_service=None)
+_SETTINGS = {**REVIEW_PROMPTS, 'review_max_boundary_shift': '60'}
 
 
 def _run_review(reviewer, ad):
@@ -101,7 +85,7 @@ def test_trim_of_coarse_member_padding_is_applied():
         dai_core_spans=[{'start': 1010.9, 'end': 1120.0}],
     )
     # Above the 60s production default, which would clamp the 79.1s start move.
-    reviewer = _build_reviewer(max_shift='120')
+    reviewer = _build_reviewer({**_SETTINGS, 'review_max_boundary_shift': '120'})
 
     result = _review(reviewer, ad, (899.0, 1129.6))
 
@@ -113,7 +97,7 @@ def test_trim_of_coarse_member_padding_is_applied():
 
 
 def test_clamp_floor_still_restores_a_severed_measured_member():
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
     ad = _merged(
         100.0, 200.0,
         [{'start': 100.0, 'end': 200.0, 'stage': 'claude'},
@@ -132,7 +116,7 @@ def test_proposal_dropping_a_coarse_member_is_held():
         [{'start': 100.0, 'end': 130.0, 'stage': 'claude'},
          {'start': 160.0, 'end': 200.0, 'stage': 'verification'}],
     )
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
 
     result = _review(reviewer, ad, (100.0, 135.0))
 
@@ -150,7 +134,7 @@ def test_trim_into_a_measured_member_is_held():
         [{'start': 10152.0, 'end': 10160.0, 'stage': 'fingerprint'},
          {'start': 10152.0, 'end': 10379.8, 'stage': 'first_pass'}],
     )
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
 
     result = _review(reviewer, ad, (10159.6, 10379.8))
 
@@ -166,7 +150,7 @@ def test_proposal_outside_the_original_span_is_held():
         [{'start': 7335.0, 'end': 7400.0, 'stage': 'first_pass'},
          {'start': 7380.0, 'end': 7424.0, 'stage': 'verification'}],
     )
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
 
     result = _review(reviewer, ad, (7315.0, 7335.0))
 
@@ -211,7 +195,7 @@ def test_recovered_trim_of_coarse_padding_is_applied():
         100.0, 200.0,
         [{'start': 100.0, 'end': 200.0, 'stage': 'claude'}],
     )
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
     reviewer._llm_client.messages_create.side_effect = [
         _LLMResp('[{"start": 100.0, "end": 200.0, "confidence": 0.9, '
                  f'"reason": "{TRIM_REASON}"}}]'),
@@ -232,7 +216,7 @@ def test_recovered_trim_severing_a_measured_member_is_held():
         [{'start': 100.0, 'end': 200.0, 'stage': 'claude'},
          {'start': 110.0, 'end': 150.0, 'stage': 'cue_pair'}],
     )
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
     reviewer._llm_client.messages_create.side_effect = [
         _LLMResp('[{"start": 100.0, "end": 200.0, "confidence": 0.9, '
                  f'"reason": "{TRIM_REASON}"}}]'),
@@ -255,7 +239,7 @@ def test_near_total_drop_of_a_coarse_member_is_held():
         [{'start': 100.0, 'end': 130.0, 'stage': 'claude'},
          {'start': 160.0, 'end': 200.0, 'stage': 'claude'}],
     )
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
 
     result = _review(reviewer, ad, (100.0, 160.5))
 
@@ -272,7 +256,7 @@ def test_short_coarse_member_stays_trimmable():
         [{'start': 0.0, 'end': 8.0, 'stage': 'heuristic_preroll'},
          {'start': 8.0, 'end': 60.0, 'stage': 'claude'}],
     )
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
 
     result = _review(reviewer, ad, (3.0, 60.0))
 
@@ -298,11 +282,11 @@ def test_members_recorded_by_a_real_merge_are_honored():
         {'start': 160.0, 'end': 200.0, 'stage': 'text_pattern'},
     ]
 
-    trimmed = _review(_build_reviewer(), ad, (105.0, 200.0))
+    trimmed = _review(_build_reviewer(_SETTINGS), ad, (105.0, 200.0))
     accepted = trimmed.accepted_after_review[0]
     assert (accepted['start'], accepted['end']) == (105.0, 200.0)
 
-    severed = _review(_build_reviewer(), _distinct_merged_ad(), (170.0, 200.0))
+    severed = _review(_build_reviewer(_SETTINGS), _distinct_merged_ad(), (170.0, 200.0))
     assert severed.accepted_after_review == []
     assert severed.held_by_boundary_conflict[0]['start'] == 100.0
 
@@ -325,7 +309,7 @@ def _folded_estimate_ad():
 
 def test_estimated_text_pattern_tail_is_trimmed_not_held():
     # The text_pattern end is the pattern's average duration, not evidence.
-    result = _review(_build_reviewer(), _folded_estimate_ad(), (649.4, 943.8))
+    result = _review(_build_reviewer(_SETTINGS), _folded_estimate_ad(), (649.4, 943.8))
 
     assert result.held_by_boundary_conflict == []
     accepted = result.accepted_after_review[0]
@@ -345,7 +329,7 @@ def test_reviewer_trim_applies_to_validator_cut_piece():
     assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
     assert not cut.get('has_estimated_pattern_member')
 
-    result = _review(_build_reviewer(), cut, (649.4, 915.0))
+    result = _review(_build_reviewer(_SETTINGS), cut, (649.4, 915.0))
 
     assert result.held_by_boundary_conflict == []
     accepted = result.accepted_after_review[0]
@@ -419,7 +403,7 @@ CONTRADICTION_TAIL_REASON = (
 def test_contradiction_hold_proposal_floors_to_a_measured_member():
     # A stamped proposal is one tap from a cut, so it obeys the same member
     # floor the boundary clamp applies.
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
     reviewer._llm_client.messages_create.side_effect = [
         _LLMResp('[{"start": 2211.3, "end": 2406.5, "confidence": 0.9, '
                  f'"reason": "{CONTRADICTION_TAIL_REASON}"}}]'),
@@ -444,7 +428,7 @@ def test_clamp_overrode_flags_a_moved_proposal_the_clamp_refused():
 
 
 def test_clamped_away_proposal_confirms_without_a_recovery_call():
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
 
     result = _review(reviewer, _tail_trim_ad(), (2211.3, 2404.0),
                      reason=TAIL_TRIM_REASON)
@@ -458,7 +442,7 @@ def test_clamped_away_proposal_confirms_without_a_recovery_call():
 
 
 def test_recovered_trim_clamped_away_accepts_the_ad_unchanged():
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
     reviewer._llm_client.messages_create.side_effect = [
         _LLMResp('[{"start": 2211.3, "end": 2406.5, "confidence": 0.9, '
                  f'"reason": "{TAIL_TRIM_REASON}"}}]'),
@@ -476,7 +460,7 @@ def test_recovered_trim_clamped_away_accepts_the_ad_unchanged():
 def test_inverted_proposal_still_reaches_prose_trim_recovery():
     # Garbage bounds are not a ruling on a trim: the clamp discarded them, so
     # the affirming prose still earns its recovery call.
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
     reviewer._llm_client.messages_create.side_effect = [
         _LLMResp('[{"start": 2406.5, "end": 2211.3, "confidence": 0.9, '
                  f'"reason": "{TAIL_TRIM_REASON}"}}]'),
@@ -514,7 +498,7 @@ def test_llm_members_record_their_stage_through_window_dedup():
 
 def test_ten_second_trim_of_an_llm_member_merge_is_applied():
     merged = _window_merged('claude')
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
 
     result = _review(reviewer, merged, (100.0, 250.0))
 
@@ -525,7 +509,7 @@ def test_ten_second_trim_of_an_llm_member_merge_is_applied():
 
 def test_the_same_trim_of_a_measured_member_is_held():
     merged = _window_merged('fingerprint')
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
 
     result = _review(reviewer, merged, (100.0, 250.0))
 
@@ -560,7 +544,7 @@ def _envelope_ad():
 
 
 def test_trim_to_the_precise_transcript_end_is_applied():
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
 
     result = _review(reviewer, _envelope_ad(), (1711.02, 1836.66))
 
@@ -572,7 +556,7 @@ def test_trim_to_the_precise_transcript_end_is_applied():
 
 
 def test_trim_into_the_measured_extent_is_still_held():
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
 
     result = _review(reviewer, _envelope_ad(), (1711.02, 1820.0))
 
@@ -583,12 +567,12 @@ def test_trim_into_the_measured_extent_is_still_held():
 
 
 def _clamp_path(ad, end):
-    return _build_reviewer()._clamp_proposed_bounds(
+    return _build_reviewer(_SETTINGS)._clamp_proposed_bounds(
         ad, 1711.02, end, 1711.02, 1872.74, 60, 'test-pod', 'ep1')[1]
 
 
 def _recover_path(ad, end):
-    reviewer = _build_reviewer()
+    reviewer = _build_reviewer(_SETTINGS)
     reviewer._llm_client.messages_create.return_value = _LLMResp(
         f'{{"ad_start": 1711.02, "ad_end": {end}}}')
     verdict = SimpleNamespace(original_start=1711.02, original_end=1872.74,
@@ -648,7 +632,7 @@ def test_trim_dropping_a_fingerprint_wholly_past_the_precise_end_is_held():
         {'start': 130.0, 'end': 173.6, 'stage': 'fingerprint',
          'fingerprint_match_start': 130.0, 'fingerprint_match_end': 173.6}])
 
-    result = _review(_build_reviewer(), ad, (91.6, 116.2))
+    result = _review(_build_reviewer(_SETTINGS), ad, (91.6, 116.2))
 
     assert result.accepted_after_review == []
     assert result.held_by_boundary_conflict[0]['reviewer_proposed_end'] == 116.2

@@ -3,6 +3,8 @@ import hashlib
 import json
 import math
 import uuid
+from bisect import bisect_left, bisect_right
+from itertools import accumulate, pairwise
 
 from config import (CORRECTION_MATCH_MIN_COVERAGE, FINGERPRINT_CHUNK_SIZE,
                     PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS,
@@ -45,6 +47,36 @@ def finite_number(value) -> float | None:
         return None
     return number if math.isfinite(number) else None
 
+
+
+def timed_span(unit: dict) -> tuple[float, float] | None:
+    """(start, end) of a timed word or segment, or None unless both edges are finite and ordered."""
+    lo, hi = finite_number(unit.get('start')), finite_number(unit.get('end'))
+    return (lo, hi) if lo is not None and hi is not None and hi >= lo else None
+
+
+class TimedWords:
+    """A transcript's timed word spans in input order, shared by the word-edge lookups."""
+
+    def __init__(self, segments):
+        spans = (timed_span(w) for seg in segments or [] for w in seg.get('words') or [])
+        self.spans = [span for span in spans if span]
+        self._straddle_index = None
+
+    def straddling(self, value: float, tol: float) -> tuple[float, float] | None:
+        """First word, in input order, starting before value - tol and ending after value + tol."""
+        if self._straddle_index is None:
+            starts = [lo for lo, _hi in self.spans]
+            ordered = all(a <= b for a, b in pairwise(starts))
+            max_ends = list(accumulate((hi for _lo, hi in self.spans), max)) if ordered else None
+            self._straddle_index = (starts, max_ends)
+        starts, max_ends = self._straddle_index
+        if max_ends is None:
+            return next(((lo, hi) for lo, hi in self.spans
+                         if lo < value - tol and hi > value + tol), None)
+        # The first word ending past the edge straddles it if it also starts before it.
+        first = bisect_right(max_ends, value + tol)
+        return self.spans[first] if first < bisect_left(starts, value - tol) else None
 
 def quote_edge_valid(marker: dict, edge: str) -> bool:
     quote_time = finite_number(marker.get(f'quote_{edge}'))
@@ -127,10 +159,11 @@ def reviewer_reject_stands(marker: dict, confirmed: list[dict]) -> bool:
     return is_reviewer_rejected(marker) and not explicit_override(marker, confirmed)
 
 
-def reject_barriers(rejects: list[dict], confirmed: list[dict]) -> list[dict]:
-    """Reviewer-reject spans minus every user (not auto-filed) confirm or adjustment interval."""
+def reject_barriers(markers: list[dict], confirmed: list[dict]) -> list[dict]:
+    """Standing reviewer-reject spans minus every user (not auto-filed) confirm or adjustment interval."""
     user = [(c.get('confirmed_span') or c) for c in confirmed or [] if not c.get('auto_filed')]
-    return [{'start': lo, 'end': hi} for r in rejects or []
+    rejects = [m for m in markers or [] if reviewer_reject_stands(m, confirmed)]
+    return [{'start': lo, 'end': hi} for r in rejects
             for lo, hi in subtract_spans([(r['start'], r['end'])],
                                          [(s['start'], s['end']) for s in user])]
 

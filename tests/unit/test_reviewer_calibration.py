@@ -2,7 +2,6 @@
 import json
 import threading
 import time
-from dataclasses import dataclass
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,17 +21,7 @@ from tools.reviewer_calibration import (  # noqa: E402
     run_calibration,
     trigger_reviewer_calibration,
 )
-
-
-@dataclass
-class _LLMResp:
-    """Matches the LLMResponse dataclass shape (content is a string)."""
-    content: str
-    model: str = "test-model"
-
-
-def _resp(body: str) -> _LLMResp:
-    return _LLMResp(content=body)
+from tests.unit.reviewer_test_utils import _resp  # noqa: E402
 
 
 def _build_db():

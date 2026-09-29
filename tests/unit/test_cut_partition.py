@@ -38,10 +38,8 @@ _test_data_dir = bootstrap(
 
 import main_app.processing as processing
 from audio_processor import AudioProcessor
-from config import SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION
-
-ALL_REMOVE = {cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES}
-
+from config import DEFAULT_SEGMENT_ACTION
+from tests.unit.recut_test_utils import ALL_REMOVE
 
 class TestPartitionCutActions:
     """Direct unit tests of the partition helper: no ffmpeg, no pipeline."""

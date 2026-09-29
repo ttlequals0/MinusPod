@@ -28,7 +28,7 @@ from llm_client import (
 from llm_route import client_for_route
 from run_context import route_for_phase, run_in_worker_thread
 from sponsor_context import description_sponsor_re
-from sponsor_normalize import extract_description_sponsors, segment_category_for
+from sponsor_normalize import segment_category_for
 from utils.language import get_pattern_language
 from utils.llm_call import (
     LOSS_CONNECTIVITY, LOSS_SERVER_ERROR, _wait_past_breaker_cooldown,
@@ -44,7 +44,6 @@ from utils.markers import (
     invalidate_word_timed_edges,
     learning_bounds,
     note_fold,
-    word_timed_edge_valid,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,

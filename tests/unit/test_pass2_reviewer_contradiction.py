@@ -20,33 +20,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from main_app import processing
 from main_app.verification_reconciliation import Pass2Ledger
-from ad_reviewer import ReviewResult, ReviewVerdict, log_contradiction_event
-from tests.unit.pass2_test_utils import drive_verification_pass
+from ad_reviewer import ReviewResult, log_contradiction_event
+from tests.unit.pass2_test_utils import _ctx, _verdict, drive_verification_pass
 from tests.unit.reviewer_test_utils import _build_reviewer, _resp
 from config import (HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
                     HOLD_REASON_REVIEWER_CONTRADICTION, is_pending_review)
 
 CONTRADICTING = 'This span is not an ad, it is host conversation'
 AFFIRMING = 'Confirmed sponsor read for BetterHelp'
-
-
-def _ctx():
-    return SimpleNamespace(
-        slug='s', episode_id='e', podcast_name='Pod', episode_title='Ep',
-        podcast_description='', episode_description='', podcast_id=1,
-    )
-
-
-def _verdict(verdict, start, end, reasoning, adjusted=None, pool='accepted',
-             boundary_conflict=False):
-    return ReviewVerdict(
-        pool=pool, pass_num=2, verdict=verdict,
-        original_start=start, original_end=end,
-        adjusted_start=adjusted[0] if adjusted else None,
-        adjusted_end=adjusted[1] if adjusted else None,
-        reasoning=reasoning, confidence=0.9, model_used='test-model',
-        boundary_conflict=boundary_conflict,
-    )
 
 
 def _pair(o_start, o_end, p_start, p_end):
@@ -91,8 +72,8 @@ def test_pass2_contradiction_confirmed_is_held_not_cut(monkeypatch):
     v_ads_for_ui = [o1, o2]
     v_ads_held = []
     verdicts = [
-        _verdict('confirmed', 100.0, 160.0, CONTRADICTING),
-        _verdict('confirmed', 300.0, 360.0, AFFIRMING),
+        _verdict('confirmed', 100.0, 160.0, reasoning=CONTRADICTING),
+        _verdict('confirmed', 300.0, 360.0, reasoning=AFFIRMING),
     ]
     _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                [p1, p2], [o1, o2])
@@ -115,7 +96,7 @@ def test_pass2_contradiction_confirmed_is_held_not_cut(monkeypatch):
 def test_pass2_contradiction_does_not_append_an_already_held_marker(monkeypatch):
     o1, p1 = _pair(100.0, 160.0, 50.0, 110.0)
     v_ads_to_cut, v_ads_for_ui, v_ads_held = [p1], [o1], [o1]
-    _run_pass2(monkeypatch, [_verdict('confirmed', 100.0, 160.0, CONTRADICTING)],
+    _run_pass2(monkeypatch, [_verdict('confirmed', 100.0, 160.0, reasoning=CONTRADICTING)],
                v_ads_to_cut, v_ads_for_ui, v_ads_held, [p1], [o1])
     assert v_ads_held == [o1]
     assert v_ads_to_cut == [] and v_ads_for_ui == []
@@ -129,7 +110,7 @@ def test_pass2_contradiction_guard_logs_once_with_context(monkeypatch, caplog):
     v_ads_to_cut = [p1]
     v_ads_for_ui = [o1]
     v_ads_held = []
-    verdicts = [_verdict('confirmed', 100.0, 160.0, CONTRADICTING)]
+    verdicts = [_verdict('confirmed', 100.0, 160.0, reasoning=CONTRADICTING)]
     with caplog.at_level('INFO', logger='ad_reviewer'):
         _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui,
                    v_ads_held, [p1], [o1])
@@ -137,8 +118,8 @@ def test_pass2_contradiction_guard_logs_once_with_context(monkeypatch, caplog):
              if 'reviewer_contradiction_guard_fired' in line]
     assert len(fired) == 1, f"expected exactly one guard-fired log, got {fired}"
     assert 'model=test-model' in fired[0]
-    assert 'slug=s' in fired[0]
-    assert 'episode_id=e' in fired[0]
+    assert 'slug=example-podcast' in fired[0]
+    assert 'episode_id=a1b2c3d4e5f6' in fired[0]
     assert 'start=100.0' in fired[0] and 'end=160.0' in fired[0]
 
 
@@ -151,7 +132,7 @@ def test_pass2_contradiction_adjust_is_held_not_coerced_to_cut(monkeypatch):
     v_ads_for_ui = [o1]
     v_ads_held = []
     verdicts = [
-        _verdict('adjust', 100.0, 160.0, CONTRADICTING,
+        _verdict('adjust', 100.0, 160.0, reasoning=CONTRADICTING,
                  adjusted=(110.0, 150.0)),
     ]
     _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui, v_ads_held,
@@ -175,7 +156,7 @@ def test_pass2_boundary_conflict_holds_original_and_raw_proposal(monkeypatch):
                     merged_protected_start=100.0,
                     merged_protected_end=200.0)
     cuts, ui, held = [processed], [original], []
-    verdict = _verdict('adjust', 100.0, 200.0, AFFIRMING,
+    verdict = _verdict('adjust', 100.0, 200.0, reasoning=AFFIRMING,
                        adjusted=(120.0, 180.0), boundary_conflict=True)
 
     _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original])
@@ -192,7 +173,7 @@ def test_pass2_boundary_conflict_holds_original_and_raw_proposal(monkeypatch):
 def test_pass2_resurrection_boundary_conflict_persists_without_ui_twin(monkeypatch):
     original, processed = _pair(100.0, 200.0, 50.0, 150.0)
     cuts, ui, held = [], [], []
-    verdict = _verdict('adjust', 100.0, 200.0, AFFIRMING,
+    verdict = _verdict('adjust', 100.0, 200.0, reasoning=AFFIRMING,
                        adjusted=(120.0, 180.0), pool='resurrection',
                        boundary_conflict=True)
 
@@ -212,9 +193,9 @@ def test_pass2_boundary_conflict_blocks_later_adjustment(monkeypatch):
     ui = [held_original, adjusted_original]
     held = []
     verdicts = [
-        _verdict('adjust', 100.0, 200.0, AFFIRMING,
+        _verdict('adjust', 100.0, 200.0, reasoning=AFFIRMING,
                  adjusted=(120.0, 180.0), boundary_conflict=True),
-        _verdict('adjust', 150.0, 220.0, AFFIRMING,
+        _verdict('adjust', 150.0, 220.0, reasoning=AFFIRMING,
                  adjusted=(155.0, 215.0)),
     ]
 
@@ -239,9 +220,9 @@ def test_pass2_non_held_ads_unaffected_by_sibling_hold(monkeypatch):
     v_ads_for_ui = [o1, o2, o3]
     v_ads_held = []
     verdicts = [
-        _verdict('confirmed', 100.0, 160.0, CONTRADICTING),
-        _verdict('confirmed', 300.0, 360.0, AFFIRMING),
-        _verdict('reject', 500.0, 560.0, 'not promotional'),
+        _verdict('confirmed', 100.0, 160.0, reasoning=CONTRADICTING),
+        _verdict('confirmed', 300.0, 360.0, reasoning=AFFIRMING),
+        _verdict('reject', 500.0, 560.0, reasoning='not promotional'),
     ]
     _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                [p1, p2, p3], [o1, o2, o3])
@@ -261,7 +242,7 @@ def test_pass2_no_contradiction_no_holds(monkeypatch):
     v_ads_to_cut = [p1]
     v_ads_for_ui = [o1]
     v_ads_held = []
-    verdicts = [_verdict('confirmed', 100.0, 160.0, AFFIRMING)]
+    verdicts = [_verdict('confirmed', 100.0, 160.0, reasoning=AFFIRMING)]
     _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                [p1], [o1])
 
@@ -274,7 +255,7 @@ def test_pass2_no_contradiction_no_holds(monkeypatch):
 def test_pass2_adjust_maps_only_surviving_audio(monkeypatch):
     original, processed = _pair(250.0, 310.0, 151.0, 211.0)
     cuts, ui, held = [processed], [original], []
-    verdict = _verdict('adjust', 250.0, 310.0, AFFIRMING, adjusted=(260.0, 300.0))
+    verdict = _verdict('adjust', 250.0, 310.0, reasoning=AFFIRMING, adjusted=(260.0, 300.0))
     monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 1.0)
 
     _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
@@ -289,7 +270,7 @@ def test_pass2_adjust_maps_only_surviving_audio(monkeypatch):
 def test_pass2_adjust_inside_pass1_cut_is_dropped(monkeypatch):
     original, processed = _pair(120.0, 180.0, 10.0, 70.0)
     cuts, ui, held = [processed], [original], []
-    verdict = _verdict('adjust', 120.0, 180.0, AFFIRMING, adjusted=(130.0, 170.0))
+    verdict = _verdict('adjust', 120.0, 180.0, reasoning=AFFIRMING, adjusted=(130.0, 170.0))
 
     _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
                pass1_cuts=[{'start': 100.0, 'end': 200.0}])
@@ -302,7 +283,7 @@ def test_pass2_adjust_inside_pass1_cut_is_dropped(monkeypatch):
 
 def test_pass2_adjust_inside_pass1_cut_without_a_ui_twin_is_covered(monkeypatch):
     original, processed = _pair(120.0, 180.0, 10.0, 70.0)
-    verdict = _verdict('adjust', 120.0, 180.0, AFFIRMING, adjusted=(130.0, 170.0),
+    verdict = _verdict('adjust', 120.0, 180.0, reasoning=AFFIRMING, adjusted=(130.0, 170.0),
                        pool='resurrection')
     ledger, stats = Pass2Ledger(), {}
 
@@ -317,7 +298,7 @@ def test_pass2_adjust_inside_pass1_cut_without_a_ui_twin_is_covered(monkeypatch)
 def test_pass2_adjust_crossing_protected_range_is_held(monkeypatch):
     original, processed = _pair(250.0, 310.0, 151.0, 211.0)
     cuts, ui, held = [processed], [original], []
-    verdict = _verdict('adjust', 250.0, 310.0, AFFIRMING, adjusted=(240.0, 300.0))
+    verdict = _verdict('adjust', 250.0, 310.0, reasoning=AFFIRMING, adjusted=(240.0, 300.0))
 
     _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
                pass1_cuts=[{'start': 100.0, 'end': 200.0}],
@@ -420,7 +401,7 @@ def test_pass2_run_gives_the_reviewer_the_hard_barriers():
 def test_a_repeated_unusable_adjust_holds_the_marker_once(monkeypatch):
     o1, p1 = _pair(100.0, 160.0, 50.0, 110.0)
     v_ads_held = []
-    verdicts = [_verdict('adjust', 100.0, 160.0, AFFIRMING)] * 2
+    verdicts = [_verdict('adjust', 100.0, 160.0, reasoning=AFFIRMING)] * 2
     _run_pass2(monkeypatch, verdicts, [p1], [o1], v_ads_held, [p1], [o1])
     assert v_ads_held == [o1]
     assert o1['hold_reason'] == HOLD_REASON_REVIEWER_CONTRADICTION

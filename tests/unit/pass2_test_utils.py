@@ -59,9 +59,10 @@ def _approval_db(monkeypatch, confirmed=None):
     return db
 
 
-def _verdict(kind, start, end, adjusted=None, reasoning='Sponsor read for Acme', **kwargs):
+def _verdict(kind, start, end, adjusted=None, reasoning='Sponsor read for Acme',
+             pool='accepted', **kwargs):
     return ReviewVerdict(
-        pool='accepted', pass_num=2, verdict=kind,
+        pool=pool, pass_num=2, verdict=kind,
         original_start=start, original_end=end,
         adjusted_start=adjusted[0] if adjusted else None,
         adjusted_end=adjusted[1] if adjusted else None,
