@@ -61,7 +61,7 @@ from community_export import brand_match_candidates
 from text_pattern_matcher import bounded_segment_texts
 from sponsor_context import (SPONSOR_MIN_MENTIONS, description_sponsor_re,
                              local_commercial_context, registry_sponsor)
-from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS, extract_description_sponsors
+from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS
 from utils.constants import squash_brand
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
@@ -336,8 +336,6 @@ class AdValidator:
         self.episode_duration = episode_duration
         self.segments = segments or []
         self.episode_description = episode_description or ""
-        self.description_sponsors = extract_description_sponsors(
-            self.episode_description)
         self._description_sponsor_re = description_sponsor_re(self.episode_description)
         self.false_positive_corrections = false_positive_corrections or []
         self.confirmed_corrections = confirmed_corrections or []

@@ -3135,8 +3135,7 @@ class TestSponsorConfirmedIsEvidenceNotProse:
         from utils.text import word_boundary_re
         segments = [{'start': 0.0, 'end': 60.0, 'text': transcript}]
         v = AdValidator(3600.0, segments, episode_description='')
-        v.description_sponsors = {'acme'}
-        v._description_sponsor_re = word_boundary_re(v.description_sponsors)
+        v._description_sponsor_re = word_boundary_re({'acme'})
         return v
 
     def _ad(self, reason):

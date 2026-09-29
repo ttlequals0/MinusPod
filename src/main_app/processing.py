@@ -2282,9 +2282,8 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                     proc_ad['was_cut'] = False
                 if ui_ad in v_ads_for_ui:
                     v_ads_for_ui.remove(ui_ad)
-                covered_ad = ui_ad or original_by_key.get(key)
-                if covered_ad is not None:
-                    ledger.record(covered_ad, 'covered')
+                if held_ad is not None:
+                    ledger.record(held_ad, 'covered')
                 continue
             crosses_cut = adjusted_start is None or any(
                 ranges_overlap(adjusted_start, adjusted_end, cut['start'], cut['end'])
@@ -2309,7 +2308,8 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                     if adjusted_start is not None:
                         held_ad['reviewer_proposed_start'] = adjusted_start
                         held_ad['reviewer_proposed_end'] = adjusted_end
-                    v_ads_held.append(held_ad)
+                    if held_ad not in v_ads_held:
+                        v_ads_held.append(held_ad)
                 continue
             beep = get_replacement_duration()
             proc_ad['start'] = adjust_timestamp(adjusted_start, cuts, beep)
@@ -3678,6 +3678,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     episode_description = ctx.episode_description
     podcast_description = ctx.podcast_description
     pass1_path = processed_path
+    # (original-time cuts, duration) the recut rendered; None until it is known.
+    recut_cover = None
     verification_count = 0
     v_ads_for_ui = []
     v_cuts_for_assets = []
@@ -3961,12 +3963,14 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                         # Cut authority first, so a later failure still finalizes against the new audio.
                         if crosspass_plan and original_audio_path:
                             pass1_cuts[:] = recut_applied
+                            recut_cover = (recut_applied, original_render_duration)
                             _drop_uncovered_crosspass_ads(
                                 slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                 recut_applied, original_render_duration, ledger=ledger)
                         else:
                             v_cuts_for_assets = _pass2_cuts_in_original(
                                 recut_applied, pass1_cuts)
+                            recut_cover = (v_cuts_for_assets, None)
                             _drop_uncovered_pass2_ads(
                                 slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                 recut_applied, verification_ads_processed,
@@ -4001,7 +4005,12 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         verification_ok = False
         # Held and kept markers still persist, so they keep their outcome.
         if processed_path != pass1_path:
-            # The recut audio is already in place, so its markers are cut.
+            # The recut audio is already in place: markers it covers are cut, the rest were filtered.
+            if recut_cover is not None:
+                for ad in [a for a in v_ads_for_ui if not _covered_by_cuts(a, *recut_cover)]:
+                    v_ads_for_ui.remove(ad)
+                    ad['was_cut'] = False
+                    ledger.record(ad, 'dropped:recut_filtered')
             ledger.settle(v_ads_for_ui, v_ads_held, category_kept)
             ledger.fail(kept_conflicts, verification_ads_original)
         else:

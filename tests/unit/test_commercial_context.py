@@ -159,3 +159,15 @@ def test_detector_span_gate_scans_the_registry_once():
                 {'start': 200.0, 'end': 400.0, 'text': 'This show is sponsored by Acme.'}]
     assert _span_names_sponsor(segments, 0.0, 400.0, None, registry) is True
     assert registry.calls['brand_mention_offsets'] == 1
+
+
+def test_a_conversational_brand_named_more_does_not_hide_the_advertised_one():
+    registry = RegistryStub({'Calm': ('calm',), 'Acme': ('acme',)})
+    segments = [
+        {'start': 0.0, 'end': 200.0, 'text': 'I stayed calm, you know. ' * 12},
+        {'start': 200.0, 'end': 400.0,
+         'text': 'Acme is the easiest way to protect your home. ' * 8 + 'Learn more at acme.com.'},
+    ]
+    validator = AdValidator(3600.0, segments, episode_description='', sponsor_service=registry)
+    assert registry_confirms(validator, dict(_SPAN)) is True
+    assert _span_names_sponsor(segments, 0.0, 400.0, None, registry) is True

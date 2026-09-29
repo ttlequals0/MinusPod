@@ -390,7 +390,8 @@ def _names_known_sponsor(summary: list[str], quotes: list[str],
 def _span_names_sponsor(segments: list[dict], start: float, end: float,
                         episode_sponsors: EpisodeSponsors | None, sponsor_service) -> bool:
     """Whether the span transcript names one known sponsor at least twice."""
-    text = ' '.join(bounded_segment_texts(segments, start, end))
+    texts = bounded_segment_texts(segments, start, end)
+    text = ' '.join(texts)
     if episode_sponsors is not None:
         audio_re, summary_re = episode_sponsors
         # Keyed by offset so a name both matchers carry counts once, as heard.
@@ -410,7 +411,7 @@ def _span_names_sponsor(segments: list[dict], start: float, end: float,
         return False
     # Registry names can be everyday words, so a registry brand also needs commercial context.
     return registry_sponsor(
-        sponsor_service, bounded_segment_texts(segments, start, end),
+        sponsor_service, texts,
         names_sponsor=sponsor_service.mentions_brand,
         matches_expected=lambda f, b: squash_brand(f) == squash_brand(b))[2]
 

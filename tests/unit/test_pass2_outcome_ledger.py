@@ -153,12 +153,13 @@ def test_failure_after_the_recut_saves_the_pass2_markers_as_cut(monkeypatch, cap
         raise RuntimeError('boom')
 
     monkeypatch.setattr(processing, '_drop_uncovered_pass2_ads', boom)
-    run = _run([(200.0, 260.0)], caplog=caplog)
+    # The 4 s finding is too short and too weak for the render, so the recut audio never cut it.
+    run = _run([(200.0, 260.0), (500.0, 504.0, 0.85)], caplog=caplog)
     verification_count, ui, cuts, _held, path, *_rest = run.output
     assert run.output[6] is False
     assert path == '/tmp/pass2-recut.mp3'
     assert [(m['start'], m['end'], m['pass2_outcome']) for m in ui] == [(200.0, 260.0, 'cut')]
-    assert run.lines == [(200.0, 260.0, 'cut')]
+    assert sorted(run.lines) == [(200.0, 260.0, 'cut'), (500.0, 504.0, 'dropped:recut_filtered')]
     all_ads = list(ui)
     processing._finalize_cut_state(all_ads, list(ui), cuts, 6000.0)
     assert all_ads[0]['was_cut'] is True

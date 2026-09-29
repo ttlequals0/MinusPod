@@ -415,3 +415,12 @@ def test_pass2_run_gives_the_reviewer_the_hard_barriers():
                             pass2_reviewer=reviewer)
 
     assert seen == [[{'start': 280.0, 'end': 290.0}]]
+
+
+def test_a_repeated_unusable_adjust_holds_the_marker_once(monkeypatch):
+    o1, p1 = _pair(100.0, 160.0, 50.0, 110.0)
+    v_ads_held = []
+    verdicts = [_verdict('adjust', 100.0, 160.0, AFFIRMING)] * 2
+    _run_pass2(monkeypatch, verdicts, [p1], [o1], v_ads_held, [p1], [o1])
+    assert v_ads_held == [o1]
+    assert o1['hold_reason'] == HOLD_REASON_REVIEWER_CONTRADICTION
