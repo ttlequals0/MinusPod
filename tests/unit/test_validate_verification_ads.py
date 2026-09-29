@@ -1344,16 +1344,27 @@ def _reviewer_reject(start, end):
             'reviewer_verdict': 'reject'}
 
 
-@pytest.mark.parametrize('stamp', [
-    {'pass2_corroborated': True},
-    {'pass2_corroborated': True, 'pass2_reviewed_release': {'start': 4990.0, 'end': 5020.0}},
-])
-def test_auto_approve_skips_hold_overlapping_reviewer_reject(monkeypatch, stamp):
+def test_auto_approve_skips_hold_overlapping_reviewer_reject(monkeypatch):
     db = _approval_db(monkeypatch)
-    hold = dict(_diff_hold(4875.8, 5025.8), **stamp)
+    hold = dict(_diff_hold(4875.8, 5025.8), pass2_corroborated=True)
 
     n = processing_mod._file_corroborated_hold_approvals(
         's', 'ep1', [hold, _reviewer_reject(5000.0, 5030.0)],
+        corrections=_user_corrections('s', 'ep1'))
+
+    assert n == 0
+    db.create_pattern_correction.assert_not_called()
+
+
+def test_reviewed_release_over_a_reviewer_reject_is_not_filed(monkeypatch):
+    db = _approval_db(monkeypatch)
+    release = {'start': 1040.0, 'end': 1060.0}
+    hold = {'start': 1000.0, 'end': 1100.0, 'held_for_review': True, 'was_cut': False,
+            'hold_reason': 'reviewer_inconclusive_bounds', 'pass2_corroborated': True,
+            'pass2_reviewed_release': dict(release), 'pass2_corroborated_span': dict(release)}
+
+    n = processing_mod._file_corroborated_hold_approvals(
+        's', 'ep1', [hold, _reviewer_reject(1050.0, 1058.0)],
         corrections=_user_corrections('s', 'ep1'))
 
     assert n == 0

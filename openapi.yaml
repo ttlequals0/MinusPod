@@ -12776,7 +12776,7 @@ components:
               type: number
         pass2_released_spans:
           type: array
-          description: Every pass-2 span inside the hold that review released, in start order. Each is filed as its own confirm; the hold stays pending until a recut applies them.
+          description: Every pass-2 span inside the hold that review released, in start order. Filed as separate confirms when there are several; a single release files the hold's own confirm span; spans overlapping a standing reviewer reject are skipped.
           items:
             type: object
             properties:

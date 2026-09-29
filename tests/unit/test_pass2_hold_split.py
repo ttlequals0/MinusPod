@@ -546,13 +546,14 @@ def test_newer_user_confirm_outranks_the_split():
 
 
 def test_verification_pass_reviews_every_disjoint_subspan_of_a_hold():
-    hold = _hold(1992.9, 2198.9)
+    hold = _hold(1992.9, 2198.9, INCONCLUSIVE)
     run = _run_pass2([hold], [(1992.9, 2103.5, 0.98), (2124.9, 2195.4, 0.98)],
                      reviewer_verdicts=[_verdict('confirmed', 1992.9, 2103.5),
                                         _verdict('confirmed', 2124.9, 2195.4)])
     assert run.hold_reviews == [[(1992.9, 2103.5), (2124.9, 2195.4)]]
     assert run.output[7] == 2
     assert _spans(hold['pass2_released_spans']) == [(1992.9, 2103.5), (2124.9, 2195.4)]
+    assert hold['pass2_reviewed_release'] == {'start': 1992.9, 'end': 2103.5}
     assert run.output[1] == []
     assert is_pending_review(hold)
     assert run.rendered == {}
