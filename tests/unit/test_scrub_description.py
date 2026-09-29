@@ -35,7 +35,8 @@ def test_scrub_description_truncates_unbroken_text_correctly():
 def test_scrub_description_edge_cases():
     assert scrub_description("") == ""
     assert scrub_description(None) == ""
-    assert scrub_description("foo", max_length=-1) == "foo"
+    assert scrub_description("foo", max_length=None) == "foo"
+    assert scrub_description("foo", max_length=-1) == "..."
     assert scrub_description("foo", max_length=0) == "..."
     assert scrub_description("foo", max_length=1) == "..."
     assert scrub_description("foo", max_length=2) == "..."

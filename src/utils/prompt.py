@@ -87,23 +87,22 @@ def strip_html(text: str|None) -> str:
     text = re.sub(r'[ \t]+', ' ', text)
     return text.strip()
 
-def scrub_description(description: str|None, max_length: int = -1, split_location: float = 0.67) -> str:
+def scrub_description(description: str|None, max_length: int|None = None, split_location: float = 1.0) -> str:
     """Scrub the description of HTML, timestamps, URLs, excessive whitespace,
     and then truncate to `max_length` characters by splitting on a word
     boundary at the specified location and inserting ellipsis.
 
     Args:
         description: The text to be scrubbed and truncated.
-        max_length: The maximum allowed length of the output string. Use -1 for no limit.
+        max_length: The maximum allowed length of the output string. Use None for no limit.
         split_location: When truncating, this indicates how much of `max_length`
           should be taken from the beginning, with the remainder from the end
-          and an ellipsis in between. Default is 0.67 (ellipsis inserted at 2/3
-          of `max_length`).
+          and an ellipsis in between. Default is 1.0 (100% from beginning).
     """
     if not description:
         return ""
-    if max_length < 0:
-        max_length = 100000 # effectively no limit
+    if max_length is None:
+        max_length = 1 << 30 # effectively no limit
     description = strip_html(description)
     # replace timestamps with 'XX:XX' to avoid hallucinations
     description = re.sub(r'(?:\d+:)?\d{1,2}:\d{2}', 'XX:XX', description)
