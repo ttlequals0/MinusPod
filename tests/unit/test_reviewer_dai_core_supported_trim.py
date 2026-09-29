@@ -620,3 +620,30 @@ def test_indexed_edge_checks_match_the_transcript_scan(seed):
                     == _scan_supported(units, words, edge, new, old))
             assert (_speech_capped_floor(index, independent, edge, new, floor)
                     == _scan_capped(units, words, independent, edge, new, floor))
+
+
+@pytest.mark.parametrize('seed', range(5))
+def test_indexed_edge_checks_match_the_scan_at_the_exact_tolerance(seed):
+    # Decimal timestamps put abs(edge - new) a hair over or under 0.05; the index must agree.
+    rng = random.Random(seed)
+    segments, t = [], 10.0
+    for _ in range(30):
+        words = []
+        for _ in range(rng.randint(1, 10)):
+            t = round(t + rng.choice([0.05, 0.1, 0.3, 0.6]), 2)
+            end = round(t + rng.choice([0.05, 0.2, 0.4]), 2)
+            words.append({'start': t, 'end': end, 'word': 'w'})
+            t = end
+        segments.append({'start': words[0]['start'], 'end': t, 'words': words})
+    index = TranscriptIndex(segments)
+    units, words = _speech_units(segments), _word_units(segments)
+    edges = sorted({v for span in words for v in span})
+    for _ in range(2000):
+        new = round(rng.choice(edges) + rng.choice([-0.05, 0.05, -0.04, 0.06, 0.0]), 2)
+        old = round(new + rng.choice([-1, 1]) * rng.randint(1, 1500) / 100, 2)
+        floor = round(new + rng.choice([-1, 1]) * rng.randint(1, 800) / 100, 2)
+        for edge in ('start', 'end'):
+            assert (_edge_transcript_supported(index, edge, new, old)
+                    == _scan_supported(units, words, edge, new, old))
+            assert (_speech_capped_floor(index, [], edge, new, floor)
+                    == _scan_capped(units, words, [], edge, new, floor))

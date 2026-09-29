@@ -165,6 +165,25 @@ def test_failure_after_the_recut_saves_the_pass2_markers_as_cut(monkeypatch, cap
     assert all_ads[0]['was_cut'] is True
 
 
+def test_failure_after_the_drop_keeps_the_markers_it_settled(monkeypatch, caplog):
+    # The tail finding overruns the audio; the drop clamps it to the file end and keeps it.
+    real_settle = Pass2Ledger.settle
+    calls = []
+
+    def settle_once_then_work(self, *args):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError('boom')
+        return real_settle(self, *args)
+
+    monkeypatch.setattr(Pass2Ledger, 'settle', settle_once_then_work)
+    run = _run([(200.0, 260.0), (5950.0, 6010.0)], caplog=caplog)
+    ui = run.output[1]
+    assert run.output[6] is False
+    assert [(m['start'], m['end'], m['pass2_outcome']) for m in ui] == [
+        (200.0, 260.0, 'cut'), (5950.0, 6010.0, 'cut')]
+
+
 def test_exception_keeps_held_and_kept_markers_with_their_outcome(caplog):
     run = _run([(200.0, 260.0), (400.0, 460.0, 0.7), (600.0, 660.0, 0.95, 'self_promo')],
                recut_error=RuntimeError('boom'), caplog=caplog)

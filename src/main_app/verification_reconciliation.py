@@ -1,6 +1,7 @@
 """Pass-2 verification reconciliation: validating, gating, and recutting
 pass-2 ad candidates against pass-1 output."""
 import logging
+import math
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass, field
 from itertools import accumulate, pairwise
@@ -215,7 +216,10 @@ class WordEdges:
                        if w.get('start') is not None and w.get('end') is not None]
         self._starts = [lo for lo, _hi in self._words]
         self._ordered = all(a <= b for a, b in pairwise(self._starts))
-        self._max_ends = list(accumulate((hi for _lo, hi in self._words), max))
+        # NaN never compares greater, so a NaN end neither raises nor poisons the running max.
+        self._max_ends = list(accumulate((hi for _lo, hi in self._words),
+                                         lambda top, hi: hi if hi > top else top,
+                                         initial=-math.inf))[1:]
 
     def inside(self, value, edge):
         """Move an edge inward off the first timed word it splits."""

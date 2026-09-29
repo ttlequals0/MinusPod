@@ -512,6 +512,12 @@ def _timed_utterances(segment: dict) -> list[dict] | None:
     return utterances
 
 
+def clear_timed_utterance_cache() -> None:
+    """Drop memoized utterances so a finished episode's segments are not retained."""
+    with _UTTERANCE_CACHE_LOCK:
+        _UTTERANCE_CACHE.clear()
+
+
 def _compute_timed_utterances(segment: dict) -> list[dict] | None:
     """Return complete word-timed utterances, or None for unreliable timing."""
     words = segment.get('words')

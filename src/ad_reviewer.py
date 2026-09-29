@@ -450,6 +450,13 @@ def mark_reviewer_hold(ad: dict, verdict: "ReviewVerdict", reason: str) -> None:
     ad['source'] = 'reviewer'
 
 
+def _replace_reviewer_fields(ad: dict, verdict: "ReviewVerdict") -> None:
+    """Write the verdict's reasoning, confidence and model even when empty, so no earlier value survives."""
+    ad['reviewer_reasoning'] = verdict.reasoning
+    ad['reviewer_confidence'] = verdict.confidence
+    ad['reviewer_model'] = verdict.model_used
+
+
 def _boundary_conflict_hold(ad: dict, verdict: "ReviewVerdict") -> dict:
     """Keep the original span when a proposed trim crosses protected evidence."""
     held = dict(ad)
@@ -607,12 +614,19 @@ def _edge_transcript_supported(index: TranscriptIndex, edge: str, new: float, ol
     return _end_edge_supported(index.end, new, old)
 
 
+def _matching_ends(sorted_his: list[float], new: float) -> list[float]:
+    """Sorted ends within EDGE_TOLERANCE of new, decided by _edge_matches like the old scan."""
+    # Widened bisect window, then the exact abs() test: float rounding differs at the boundary.
+    lo_i = bisect_left(sorted_his, new - 2 * EDGE_TOLERANCE)
+    hi_i = bisect_right(sorted_his, new + 2 * EDGE_TOLERANCE)
+    return [hi for hi in sorted_his[lo_i:hi_i] if _edge_matches(hi, new)]
+
+
 def _end_edge_supported(ix: _EdgeIndex, new: float, old: float) -> bool:
-    lo_i = bisect_left(ix.word_his, new - EDGE_TOLERANCE)
-    hi_i = bisect_right(ix.word_his, new + EDGE_TOLERANCE)
-    if new >= old - EDGE_TOLERANCE or lo_i == hi_i:
+    matched = _matching_ends(ix.word_his, new)
+    if new >= old - EDGE_TOLERANCE or not matched:
         return False
-    at = ix.word_his[hi_i - 1]
+    at = matched[-1]
     after = bisect_right(ix.los, at - EDGE_TOLERANCE)
     gap = (ix.los[after] if after < len(ix.los) else math.inf) - at
     before = bisect_left(ix.los, at - EDGE_TOLERANCE)
@@ -665,8 +679,7 @@ def _end_capped_floor(ix: _EdgeIndex, independent, proposed: float, floor: float
         return None
     word_lo = straddler[0]
     snap = (ix.units[first] == straddler and word_lo - proposed < _SUPPORTED_EDGE_GAP_S
-            and bisect_left(ix.unit_his, proposed - EDGE_TOLERANCE)
-            < bisect_right(ix.unit_his, proposed + EDGE_TOLERANCE))
+            and bool(_matching_ends(ix.unit_his, proposed)))
     capped = proposed if snap else max(word_lo, proposed)
     if any(overlap_seconds(lo, hi, capped, floor) > 0 for lo, hi in independent):
         return None
@@ -1113,8 +1126,10 @@ def _capped_line(label: str, items: list[str], sep: str = '; ', omitted: int = 0
             break
         kept.append(item)
     if items and not kept:
-        budget = max(POLICY_LINE_CAP - len(prefix) - 3, 0)
-        return f"{prefix}{items[0][:budget]}..."
+        more = len(items) - 1 + omitted
+        note = f"{sep}(+{more} more)" if more else ''
+        budget = max(POLICY_LINE_CAP - len(prefix) - 3 - len(note), 0)
+        return f"{prefix}{items[0][:budget]}...{note}"
     while True:
         more = len(items) - len(kept) + omitted
         parts = [*kept, f"(+{more} more)"] if more else kept
@@ -1413,10 +1428,12 @@ class AdReviewer:
                     )
                     held = dict(updated_ad)
                     mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_REJECT_CONFLICT)
+                    _replace_reviewer_fields(held, verdict)
                     result.held_by_reject_evidence.append(held)
                     continue
                 marked = dict(updated_ad)
                 stamp_reviewer_fields(marked, verdict)
+                _replace_reviewer_fields(marked, verdict)
                 marked["was_cut"] = False
                 marked["source"] = "reviewer"
                 result.rejected_by_reviewer.append(marked)
@@ -1428,6 +1445,7 @@ class AdReviewer:
                     verdict.structured_is_ad):
                 held = dict(updated_ad)
                 mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_CONTRADICTION)
+                _replace_reviewer_fields(held, verdict)
                 held["reviewer_contradiction"] = True
                 # Preserve the reviewer's proposed trim so the review UI can
                 # offer approving the trimmed span instead of all-or-nothing.

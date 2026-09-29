@@ -565,3 +565,12 @@ def test_recut_after_inconclusive_hold_review_keeps_the_hold_pending(monkeypatch
     assert is_pending_review(after)
     assert after['hold_reason'] == 'max_duration'
     assert 'reviewer_verdict' not in after and 'source' not in after
+
+
+def test_a_nan_word_end_does_not_hide_later_words():
+    segments = [{'words': [{'start': 1.0, 'end': float('nan')},
+                           {'start': 5.0, 'end': 6.0}, {'start': 9.0, 'end': 10.0}]}]
+    edges = WordEdges(segments)
+    for value, edge in ((5.5, 'start'), (9.5, 'end'), (1.5, 'start'), (7.0, 'end')):
+        assert edges.inside(value, edge) == _linear_word_edge(segments, value, edge)
+    assert edges.inside(5.5, 'start') == 6.0

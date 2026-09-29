@@ -223,6 +223,12 @@ def test_capped_line_truncates_an_oversized_first_item_instead_of_dropping_it():
     assert line.endswith('...')
 
 
+def test_a_truncated_first_item_still_counts_the_items_after_it():
+    line = _capped_line('Protected audio', ['x' * 250, 'keep 1.0-2.0s', 'keep 3.0-4.0s'], omitted=1)
+    assert len(line) <= POLICY_LINE_CAP
+    assert line.endswith('...; (+3 more)')
+
+
 def test_coarse_transcript_edges_are_labelled_unmeasured():
     ad = _ad()
     ad['merged_member_spans'][0].update(precise_start=False, precise_end=False)

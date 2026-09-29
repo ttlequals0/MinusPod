@@ -466,3 +466,12 @@ def test_timed_utterances_are_computed_once_per_unchanged_segment(monkeypatch):
     segment['text'] = 'Our sponsor is Acme.'
     assert [u['text'] for u in boundaries._timed_utterances(segment)] == ['our sponsor is acme.']
     assert len(computed) == 3
+
+
+def test_clearing_the_utterance_cache_releases_segments():
+    segment = {'start': 0.0, 'end': 1.0, 'text': 'Hi.',
+               'words': [{'start': 0.0, 'end': 0.5, 'word': 'Hi.'}]}
+    boundaries._timed_utterances(segment)
+    assert id(segment) in boundaries._UTTERANCE_CACHE
+    boundaries.clear_timed_utterance_cache()
+    assert boundaries._UTTERANCE_CACHE == {}

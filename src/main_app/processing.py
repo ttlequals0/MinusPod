@@ -29,6 +29,7 @@ from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.boundaries import (
     _content_duration_in_range,
+    clear_timed_utterance_cache,
     effective_resolved_action,
     snap_extended_ad_tails_to_splice,
     snap_terminal_ad_to_splice,
@@ -3678,7 +3679,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     episode_description = ctx.episode_description
     podcast_description = ctx.podcast_description
     pass1_path = processed_path
-    # (original-time cuts, duration) the recut rendered; None until it is known.
+    # (original-time cuts, duration) the recut rendered, while its uncovered markers are unsettled.
     recut_cover = None
     verification_count = 0
     v_ads_for_ui = []
@@ -3977,6 +3978,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                                 verification_ads_original, pre_recut_duration,
                                 pass1_cuts=pass1_cuts, ledger=ledger,
                             )
+                        # The drop settled coverage; a later failure keeps its result.
+                        recut_cover = None
                         verification_count = len(v_ads_to_cut)
                     else:
                         for ad in v_ads_for_ui:
@@ -6912,6 +6915,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # The differential worker is a daemon thread and is deliberately
             # abandoned on failure paths (see its start site); nothing to
             # shut down here.
+            clear_timed_utterance_cache()
             if os.path.exists(audio_path):
                 os.unlink(audio_path)
             # Still present means the render was never moved to final_path.

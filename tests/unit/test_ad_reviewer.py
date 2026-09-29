@@ -1044,3 +1044,25 @@ def test_reviewer_widening_away_from_barriers_is_unchanged():
 
     out = result.accepted_after_review[0]
     assert (out['start'], out['end']) == (115.0, 185.0)
+
+
+def test_a_reject_without_reasoning_clears_the_earlier_reviewer_fields():
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp('[]')
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.85,
+          'reviewer_reasoning': 'earlier pass reasoning', 'reviewer_confidence': 0.4,
+          'reviewer_model': 'earlier-model'}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    verdict = result.verdicts[0]
+    assert verdict.verdict == 'reject' and verdict.reasoning is None
+    marked = result.rejected_by_reviewer[0]
+    assert marked['reviewer_reasoning'] is None
+    assert (marked['reviewer_confidence'], marked['reviewer_model']) == (
+        verdict.confidence, verdict.model_used)
