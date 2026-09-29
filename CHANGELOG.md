@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.35] - 2026-09-29
+
+### Fixed
+
+- A recut no longer rewrites a split piece to another piece's bounds. A split records the first piece as a boundary adjustment over the original span. Recuts applied it to the longest piece instead, which then stopped being cut. That adjustment now counts as already applied. Reported in #794.
+
 ## [2.97.34] - 2026-09-28
 
 ### Fixed
