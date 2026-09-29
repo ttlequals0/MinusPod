@@ -473,7 +473,7 @@ def _span_segments(text):
     return [{'start': _SPAN_START, 'end': _SPAN_END, 'text': text}]
 
 
-_ACME_READ = ' '.join(['Acme makes it easy, try Acme today.'] * 5)
+_ACME_READ = ' '.join(['Acme makes it easy, try Acme today.'] * 5 + ['Visit acme.com.'])
 
 
 def test_long_window_with_a_cut_reason_is_kept_when_the_span_names_the_sponsor(caplog):
@@ -578,7 +578,7 @@ def test_bounded_segment_texts_clips_boundary_segments_to_the_window():
 
 def _read_segments(start, end):
     return [{'start': float(t), 'end': float(t) + 10.0,
-             'text': 'Acme makes it easy' if start <= t < end else 'show talk'}
+             'text': 'Acme makes it easy, visit acme.com' if start <= t < end else 'show talk'}
             for t in range(0, 600, 10)]
 
 
@@ -616,3 +616,25 @@ def test_verification_gate_reads_the_processed_span_transcript():
     dropped = _run_verification(response, segments=_read_segments(0, 0),
                                 episode_description=description)
     assert dropped['ads'] == []
+
+
+def test_description_word_spoken_twice_without_an_offer_does_not_admit_a_long_window():
+    ad = {'confidence': 0.95, 'reason': _CUT_REASON}
+    sponsors = EpisodeSponsors(None, word_boundary_re(['Indeed']))
+    text = 'Indeed, the hosts agree. Indeed they recap the week at length.'
+    assert _normalize_ad(ad, _SPAN_START, _SPAN_END, episode_sponsors=sponsors,
+                         segments=_span_segments(text)) is None
+
+
+def test_description_sponsor_read_with_a_link_admits_a_long_window():
+    ad = {'confidence': 0.95, 'reason': _CUT_REASON}
+    sponsors = EpisodeSponsors(None, word_boundary_re(['Acme']))
+    assert _normalize_ad(ad, _SPAN_START, _SPAN_END, episode_sponsors=sponsors,
+                         segments=_span_segments(_ACME_HOST_READ)) is not None
+
+
+def test_sponsor_heard_in_the_audio_needs_no_offer_in_the_span():
+    ad = {'confidence': 0.95, 'reason': _CUT_REASON}
+    sponsors = EpisodeSponsors(word_boundary_re(['Acme']), None)
+    assert _normalize_ad(ad, _SPAN_START, _SPAN_END, episode_sponsors=sponsors,
+                         segments=_span_segments('Acme came up, then Acme again.')) is not None

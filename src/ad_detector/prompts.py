@@ -394,10 +394,19 @@ def _span_names_sponsor(segments: list[dict], start: float, end: float,
     """Whether the span transcript names one known sponsor at least twice."""
     text = ' '.join(bounded_segment_texts(segments, start, end))
     if episode_sponsors is not None:
-        # Keyed by offset so a name both matchers carry counts once.
-        names = {m.start(): m.group(0).lower() for p in episode_sponsors if p is not None
-                 for m in p.finditer(text)}
-        if max(Counter(names.values()).values(), default=0) >= SPAN_SPONSOR_MIN_MENTIONS:
+        audio_re, summary_re = episode_sponsors
+        # Keyed by offset so a name both matchers carry counts once, as heard.
+        names = {m.start(): (m.group(0).lower(), p is audio_re)
+                 for p in (summary_re, audio_re) if p is not None for m in p.finditer(text)}
+        counts = Counter(name for name, _heard in names.values())
+        heard = {name for name, is_heard in names.values() if is_heard}
+        # A description-only name can be an everyday word, so it also needs commercial context.
+        if any(n >= SPAN_SPONSOR_MIN_MENTIONS and (name in heard or text_has_commercial_context(
+                text, name,
+                names_sponsor=lambda t, b: any(m.group(0).lower() == b
+                                               for m in summary_re.finditer(t)),
+                matches_expected=lambda f, b: squash_brand(f) == squash_brand(b)))
+               for name, n in counts.items()):
             return True
     if not sponsor_service:
         return False

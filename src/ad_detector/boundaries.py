@@ -398,6 +398,31 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
             next_seg = segments[end_seg_idx + 1]
             search_words.extend(next_seg.get('words', []))
 
+        # A word-timed line can end with the host's return to the show.
+        if (word_timed_edge_valid(ad, 'end')
+                and not is_edge_cue_snapped(ad, 'end')
+                and not _quote_edge_valid(ad, 'end')):
+            return_end = None
+            for seg in segments[max(0, end_seg_idx - 1):end_seg_idx + 1]:
+                for utterance in _timed_utterances(seg) or []:
+                    if not utterance['start'] < original_end <= utterance['end'] + 0.05:
+                        continue
+                    words = [w for w in utterance['words'] if w['end'] <= original_end + 0.05]
+                    index = _return_word_index({'words': words})
+                    if index:
+                        return_end = words[index - 1]['end']
+            if (return_end is not None
+                    and original_start < return_end < original_end
+                    and return_end >= original_end - BOUNDARY_EXTENSION_WINDOW
+                    and return_end - refined['start'] >= MIN_AD_DURATION_FOR_REMOVAL):
+                refined['end'] = return_end
+                refined['word_timed_end'] = return_end
+                refined['end_refined'] = True
+                refined['end_phrase'] = 'return to show'
+                logger.info(
+                    f"Refined ad end inward: {original_end:.1f}s -> {return_end:.1f}s "
+                    f"(return to the show)")
+
         # Search for end transition phrases (never move a cue-snapped edge)
         end_match = (None if (is_edge_cue_snapped(ad, 'end')
                               or _quote_edge_valid(ad, 'end')
@@ -783,26 +808,29 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                 for seg in reversed(segments):
                     if seg['end'] <= start_cap:
                         break  # reversed walk: everything earlier is further out
-                    if seg['end'] <= ad_start:
-                        utterances = _timed_utterances(seg)
-                        if utterances is None:
+                    if seg['start'] >= ad_start:
+                        continue  # fully inside the ad; a straddler still counts
+                    utterances = _timed_utterances(seg)
+                    if utterances is None:
+                        break
+                    blocked = False
+                    for utterance in reversed(utterances):
+                        if utterance['start'] >= ad_start:
+                            continue
+                        if utterance['end'] <= start_cap:
                             break
-                        blocked = False
-                        for utterance in reversed(utterances):
-                            if utterance['end'] <= start_cap:
-                                break
-                            evidence_end = _timed_ad_evidence_end(
-                                utterance)
-                            if (evidence_end is None
-                                    or _return_word_index(utterance) is not None
-                                    or not _supported_ad_utterance(
-                                        utterance, ad_text, ad_sponsors,
-                                        ad_start)):
-                                blocked = True
-                                break
-                            new_start = max(utterance['start'], start_cap)
-                        if blocked or new_start == ad_start:
+                        evidence_end = _timed_ad_evidence_end(
+                            utterance)
+                        if (evidence_end is None
+                                or _return_word_index(utterance) is not None
+                                or not _supported_ad_utterance(
+                                    utterance, ad_text, ad_sponsors,
+                                    ad_start)):
+                            blocked = True
                             break
+                        new_start = max(utterance['start'], start_cap)
+                    if blocked or (seg['end'] <= ad_start and new_start == ad_start):
+                        break
 
                 if new_start < ad_start:
                     logger.info(

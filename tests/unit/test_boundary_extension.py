@@ -589,3 +589,93 @@ class TestTightenPatternRegions:
         tighten_pattern_regions(claude, regions, ads,
                                 {'self_promo': 'keep'})
         assert ads[0]['end'] == 601.1
+
+
+def test_start_walk_checks_the_segment_straddling_the_ad_start():
+    segments = [
+        _seg(85.0, 90.0, 'Visit acme.com for savings.'),
+        _timed_seg([('The', 90.0, 90.5), ('weather', 90.5, 91.5), ('changed.', 91.5, 92.5),
+                    ('Acme', 93.0, 94.0), ('sponsor', 94.0, 95.0), ('read.', 95.0, 96.0)]),
+        _seg(96.0, 110.0, 'Acme sponsor read continues.'),
+    ]
+    ad = {'start': 93.0, 'end': 110.0, 'reason': 'Acme sponsor'}
+
+    result = extend_ad_boundaries_by_content([ad], segments)
+
+    assert result[0]['start'] == 93.0
+
+
+def test_start_walk_takes_a_supported_straddling_line():
+    segments = [
+        _seg(80.0, 85.0, 'The local weather changed.'),
+        _timed_seg([('Visit', 85.0, 86.0), ('acme.com', 86.0, 87.0), ('for', 87.0, 88.0),
+                    ('savings.', 88.0, 90.0), ('Acme', 90.0, 91.0), ('read.', 91.0, 92.0)]),
+        _seg(92.0, 110.0, 'Acme sponsor read continues.'),
+    ]
+    ad = {'start': 88.5, 'end': 110.0, 'reason': 'Acme sponsor'}
+
+    result = extend_ad_boundaries_by_content([ad], segments)
+
+    assert result[0]['start'] == 85.0
+
+
+def _read_line(start, text, step=0.5):
+    words = [(w, start + i * step, start + i * step + 0.4) for i, w in enumerate(text.split())]
+    return _timed_seg(words)
+
+
+_SHOW_THEN_INTRO = ('The hosts wrap the story up. This episode is brought to you by '
+                    'Acme and Acme makes widgets for every home in the country today '
+                    'so visit acme.com slash show for twenty percent off your order')
+_READ_THEN_RETURN = ('Acme makes widgets for every home in the country today so visit '
+                     'acme.com slash show for twenty percent off your order and now '
+                     'back to the show')
+
+
+def test_word_timed_start_trims_inward_to_the_sponsor_intro():
+    from ad_detector.boundaries import refine_ad_boundaries
+
+    seg = _read_line(100.0, _SHOW_THEN_INTRO)
+    ad = {'start': 100.0, 'end': seg['end'], 'word_timed_start': 100.0}
+
+    refined = refine_ad_boundaries([ad], [seg])[0]
+
+    intro = next(w['start'] for w in seg['words'] if w['word'] == 'This')
+    assert refined['start'] == intro and refined['word_timed_start'] == intro
+
+
+def test_word_timed_end_trims_inward_before_the_return_to_the_show():
+    from ad_detector.boundaries import refine_ad_boundaries
+
+    seg = _read_line(200.0, _READ_THEN_RETURN)
+    ad = {'start': 200.0, 'end': seg['end'], 'word_timed_end': seg['end']}
+
+    refined = refine_ad_boundaries([ad], [seg])[0]
+
+    before_return = next(w['end'] for w in seg['words'] if w['word'] == 'and')
+    assert refined['end'] == before_return and refined['word_timed_end'] == before_return
+    assert refined['end_refined'] is True
+
+
+@pytest.mark.parametrize('lock', [
+    {'cue_snap': {'end': {'cue_start': 300.0, 'template_id': 1}}},
+    {'quote_aligned_end': True},
+])
+def test_locked_word_timed_end_is_not_trimmed(lock):
+    from ad_detector.boundaries import refine_ad_boundaries
+
+    seg = _read_line(200.0, _READ_THEN_RETURN)
+    ad = {'start': 200.0, 'end': seg['end'], 'word_timed_end': seg['end'], **lock}
+    if 'quote_aligned_end' in lock:
+        ad['quote_end'] = seg['end']
+
+    assert refine_ad_boundaries([ad], [seg])[0]['end'] == seg['end']
+
+
+def test_word_timed_end_trim_never_leaves_a_too_short_ad():
+    from ad_detector.boundaries import refine_ad_boundaries
+
+    seg = _read_line(200.0, 'visit acme.com and now back to the show')
+    ad = {'start': 200.0, 'end': seg['end'], 'word_timed_end': seg['end']}
+
+    assert refine_ad_boundaries([ad], [seg])[0]['end'] == seg['end']
