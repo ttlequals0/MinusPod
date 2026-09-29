@@ -747,20 +747,27 @@ class AdValidator:
         # Step 3.6: Cut measured audio, hold only an estimated remainder
         ads = self._split_estimated_remainders(ads, result)
 
-        # Step 4: Validate each ad
-        for ad in ads:
-            validated = self._validate_ad(ad)
+        # Step 4: Validate each ad; silent remainders join only an accepted measured cut
+        pending = list(ads)
+        while pending:
+            validated = self._validate_ad(pending.pop(0))
             if validated.get('_reviewer_rejected'):
                 self._preserve_reviewer_reject(validated)
             result.ads.append(validated)
 
             decision = validated.get('validation', {}).get('decision', 'REVIEW')
+            silent = validated.pop('_silent_absorbed', None)
+            if silent and decision == Decision.ACCEPT.value:
+                self._absorb_silent_remainders(validated, silent)
+            elif silent:
+                pending[:0] = silent
             if decision == Decision.ACCEPT.value:
                 result.accepted += 1
             elif decision == Decision.REVIEW.value:
                 result.reviewed += 1
             else:
                 result.rejected += 1
+        result.ads.sort(key=lambda a: a['start'])
 
         # Step 5: Check overall density
         self._check_ad_density(result)
@@ -801,11 +808,7 @@ class AdValidator:
         Returns:
             Ad marker with 'validation' field added
         """
-        # Only the validation that absorbed the silence reports it; _learning_bounds persists.
-        measured = ((ad.get('_learning_bounds') if ad.pop('_silent_absorbed', False) else None)
-                    or (ad['start'], ad['end']))
-        flags = [f"INFO: Silent estimated remainder cut with the ad ({gap:.1f}s)"
-                 for gap in (measured[0] - ad['start'], ad['end'] - measured[1]) if gap > 0]
+        flags = []
         corrections = []
         confidence = ad.get('confidence', 1.0)
 
@@ -1541,37 +1544,34 @@ class AdValidator:
                 cut = ad
             else:
                 remainder_spans = []
-                cut_lo, cut_hi = lo, hi
-                cap = self._silent_absorb_cap(hi - lo)
+                silent = []
                 # Each remainder shares an edge with the measured cut by construction.
                 for a, b in ((ad['start'], lo), (hi, ad['end'])):
                     if b - a < MIN_AD_DURATION:
-                        continue
-                    if (max(cut_hi, b) - min(cut_lo, a) <= cap
-                            and self._silent_remainder(a, b, barriers)):
-                        cut_lo, cut_hi = min(cut_lo, a), max(cut_hi, b)
-                        logger.info(f"Cut silent estimated remainder {a:.1f}s-{b:.1f}s "
-                                    f"with ad {lo:.1f}s-{hi:.1f}s")
                         continue
                     remainder = self._narrowed(ad, a, b, keep_members=False)
                     remainder['_skip_pattern_learning'] = True
                     remainder['_estimated_remainder'] = True
                     remainder['reason'] = (
                         f"{ad.get('reason', 'ad')} (estimated pattern remainder)")
+                    # Silence joins the cut only after the measured cut is accepted.
+                    if self._silent_remainder(a, b, barriers):
+                        silent.append(remainder)
+                        continue
                     out.append(remainder)
                     remainder_spans.append(f"{a:.1f}s-{b:.1f}s")
-                cut = self._narrowed(ad, cut_lo, cut_hi, keep_members=True)
-                if (cut_lo, cut_hi) != (lo, hi):
-                    # Learning keeps the measured bounds so a pattern never grows the silence.
-                    cut['_learning_bounds'] = (lo, hi)
-                    cut['_silent_absorbed'] = True
+                cut = self._narrowed(ad, lo, hi, keep_members=True)
+                if silent:
+                    cut['_silent_absorbed'] = silent
+                silent_spans = ''.join(f", silent {r['start']:.1f}s-{r['end']:.1f}s"
+                                       for r in silent)
                 result.corrections.append(
                     f"Split estimated pattern span {ad['start']:.1f}s-"
                     f"{ad['end']:.1f}s at measured {lo:.1f}s-{hi:.1f}s")
                 logger.info(
                     f"Split estimated pattern span {ad['start']:.1f}s-"
-                    f"{ad['end']:.1f}s: cut {cut_lo:.1f}s-{cut_hi:.1f}s, "
-                    f"held {', '.join(remainder_spans) or 'none'}"
+                    f"{ad['end']:.1f}s: cut {lo:.1f}s-{hi:.1f}s, "
+                    f"held {', '.join(remainder_spans) or 'none'}{silent_spans}"
                 )
             cut.pop('has_estimated_pattern_member', None)
             cut.pop('span_estimated', None)
@@ -1579,14 +1579,23 @@ class AdValidator:
         out.sort(key=lambda a: a['start'])
         return out
 
-    def _silent_absorb_cap(self, measured: float) -> float:
-        """Longest cut silence may grow to without adding a duration hold the measured cut avoids."""
-        # Only a measured cut already past the base limit may grow beyond it, up to the confirmed one.
-        cap = (self.max_ad_duration_confirmed if measured > self.max_ad_duration
-               else self.max_ad_duration)
-        if self.max_ad_duration_override is not None:
-            cap = min(cap, self.max_ad_duration_override)
-        return cap
+    @staticmethod
+    def _absorb_silent_remainders(ad: dict, silent: list[dict]) -> None:
+        """Extend an accepted measured cut over its silent remainders, in place."""
+        lo, hi = ad['start'], ad['end']
+        for remainder in silent:
+            a, b = remainder['start'], remainder['end']
+            ad['validation']['flags'].append(
+                f"INFO: Silent estimated remainder cut with the ad ({b - a:.1f}s)")
+            logger.info(f"Cut silent estimated remainder {a:.1f}s-{b:.1f}s "
+                        f"with ad {lo:.1f}s-{hi:.1f}s")
+        new_end = max([hi, *(r['end'] for r in silent)])
+        invalidate_tail_provenance(ad, new_end)
+        ad['start'], ad['end'] = min([lo, *(r['start'] for r in silent)]), new_end
+        # Learning keeps the measured bounds so a pattern never grows the silence.
+        ad['_learning_bounds'] = (lo, hi)
+        invalidate_quote_alignment(ad)
+        invalidate_word_timed_edges(ad)
 
     def _silent_remainder(self, start: float, end: float,
                           barriers: list[tuple[float, float]]) -> bool:

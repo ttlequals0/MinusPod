@@ -3002,59 +3002,83 @@ def test_near_continuous_silence_is_a_silent_remainder():
         (90.0, 170.0)]
 
 
-def test_silent_remainders_stay_held_when_the_cut_would_pass_the_feed_cap():
+def _measured_with_estimate(lo, hi, confidence, reason, est_lo, est_hi, **kwargs):
+    """A measured claude read merged with an auto pattern estimate reaching est_lo-est_hi."""
+    ad = {'start': lo, 'end': hi, 'confidence': confidence, 'reason': reason,
+          'detection_stage': 'claude'}
+    text_lo = max(lo, est_lo)
+    mark_distinct_merge(ad, {'start': est_lo, 'end': est_hi, 'confidence': 0.95,
+                             'detection_stage': 'text_pattern', 'span_estimated': True,
+                             'text_start': text_lo, 'text_end': text_lo + 10.0,
+                             'has_estimated_pattern_member': True})
+    ad['start'], ad['end'] = min(lo, est_lo), max(hi, est_hi)
+    validator = AdValidator(3600.0, [{'start': lo, 'end': hi, 'text': 'a read'}],
+                            splice_veto_enabled=False, **kwargs)
+    return validator, ad
+
+
+def test_absorbing_a_leading_silence_keeps_the_measured_decision():
+    # At 545 s the position boost lifts 0.82 to 0.92, over the long-ad override; at 525 s
+    # it gives 0.87 and a 475 s span would be held for max_duration.
+    validator, ad = _measured_with_estimate(545.0, 1000.0, 0.82, 'Paid read',
+                                            525.0, 1000.0)
+    validator.segments = [{'start': 545.0, 'end': 1000.0,
+                           'text': 'this episode is brought to you by Acme use promo code SHOW'}]
+
+    result = validator.validate([ad], audio_analysis=_silence((525.0, 545.0)))
+
+    assert _spans(result) == [(525.0, 1000.0)]
+    assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+    assert result.ads[0]['_learning_bounds'] == (545.0, 1000.0)
+
+
+def test_silence_is_absorbed_past_the_confirmed_limit():
+    validator, ad = _measured_with_estimate(1000.0, 1850.0, 0.95, 'Acme sponsor read',
+                                            1840.0, 1950.0)
+
+    result = validator.validate([ad], audio_analysis=_silence((1850.0, 1950.0)))
+
+    assert _spans(result) == [(1000.0, 1950.0)]
+    assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+    assert not result.ads[0].get('held_for_review')
+
+
+def test_silence_is_absorbed_past_the_base_limit_after_a_vague_reason():
+    validator, ad = _measured_with_estimate(1500.0, 1790.0, 0.92, 'possible ad',
+                                            1780.0, 1805.0)
+
+    result = validator.validate([ad], audio_analysis=_silence((1790.0, 1805.0)))
+
+    assert _spans(result) == [(1500.0, 1805.0)]
+    assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+
+
+def test_override_does_not_block_absorption():
     validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False,
                             max_ad_duration_override=200.0)
 
     result = validator.validate([_outro_estimate()], audio_analysis=_BOTH_SILENT)
 
-    # The 7.7 s tail fits under the cap; the 23 s lead would push the cut past it.
-    assert _spans(result) == [(792.6, 815.6), (815.6, 1002.8)]
-    lead, cut = result.ads
-    assert cut['validation']['decision'] == Decision.ACCEPT.value
-    assert not cut.get('held_for_review')
-    assert lead['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+    assert _spans(result) == [(792.6, 1002.8)]
+    assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+    assert not result.ads[0].get('held_for_review')
 
 
-def test_silent_absorption_stays_under_the_base_duration_limit():
-    ad = {'start': 1500.0, 'end': 1790.0, 'confidence': 0.92, 'reason': 'possible ad',
-          'detection_stage': 'claude'}
-    mark_distinct_merge(ad, {'start': 1780.0, 'end': 1805.0, 'confidence': 0.95,
-                             'detection_stage': 'text_pattern', 'span_estimated': True,
-                             'text_start': 1780.0, 'text_end': 1790.0,
-                             'has_estimated_pattern_member': True})
-    ad['end'] = 1805.0
-    validator = AdValidator(3600.0, [{'start': 1500.0, 'end': 1790.0, 'text': 'a read'}],
-                            splice_veto_enabled=False)
+def test_silent_remainders_are_held_when_the_measured_cut_is_not_accepted(caplog):
+    # A vague reason drops 0.85 below the 0.80 cut threshold, so the measured cut is REVIEW.
+    validator, ad = _measured_with_estimate(545.0, 1000.0, 0.85, 'possible ad',
+                                            525.0, 1020.0)
 
-    result = validator.validate([ad], audio_analysis=_silence((1790.0, 1805.0)))
+    with caplog.at_level(logging.INFO, logger='ad_validator'):
+        result = validator.validate(
+            [ad], audio_analysis=_silence((525.0, 545.0), (1000.0, 1020.0)))
 
-    assert _spans(result) == [(1500.0, 1790.0), (1790.0, 1805.0)]
-    cut, held = result.ads
-    assert cut['validation']['decision'] == Decision.ACCEPT.value
-    assert not cut.get('held_for_review')
-    assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
-
-
-@pytest.mark.parametrize('override', [None, 1000.0])
-def test_silent_absorption_stays_under_the_confirmed_limit(override):
-    ad = {'start': 1000.0, 'end': 1850.0, 'confidence': 0.95,
-          'reason': 'Acme sponsor read', 'sponsor': 'Acme', 'detection_stage': 'claude'}
-    mark_distinct_merge(ad, {'start': 1840.0, 'end': 1950.0, 'confidence': 0.95,
-                             'detection_stage': 'text_pattern', 'span_estimated': True,
-                             'text_start': 1840.0, 'text_end': 1850.0,
-                             'has_estimated_pattern_member': True})
-    ad['end'] = 1950.0
-    validator = AdValidator(3600.0, [{'start': 1000.0, 'end': 1850.0, 'text': 'Acme read'}],
-                            splice_veto_enabled=False, max_ad_duration_override=override)
-
-    result = validator.validate([ad], audio_analysis=_silence((1850.0, 1950.0)))
-
-    assert _spans(result) == [(1000.0, 1850.0), (1850.0, 1950.0)]
-    cut, held = result.ads
-    assert cut['validation']['decision'] == Decision.ACCEPT.value
-    assert not cut.get('held_for_review')
-    assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+    assert _spans(result) == [(525.0, 545.0), (545.0, 1000.0), (1000.0, 1020.0)]
+    lead, cut, tail = result.ads
+    assert cut['validation']['decision'] == Decision.REVIEW.value
+    assert lead['hold_reason'] == tail['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+    assert '_learning_bounds' not in cut
+    assert not any(r.message.startswith('Cut silent') for r in caplog.records)
 
 
 def test_silent_remainder_flags_do_not_return_on_revalidation():
