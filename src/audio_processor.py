@@ -542,8 +542,8 @@ class AudioProcessor:
             filter_str = ';'.join(filter_parts)
             if filter_str:
                 filter_str += ';'
-            # lame rejects short final frames with too little plane padding (#796);
-            # 1152 is the mp3 frame size, so padding the last chunk matches what lame does anyway.
+            # lame rejects short final frames with too little plane padding (#796). 1152 is
+            # lame's largest frame (32 kHz and up; lower rates use 576), so padding is at most one frame.
             filter_str += (''.join(concat_parts) + f"concat=n={len(concat_parts)}:v=0:a=1,"
                            "asetnsamples=n=1152:p=1[out]")
 

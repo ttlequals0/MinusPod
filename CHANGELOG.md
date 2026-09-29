@@ -17,6 +17,9 @@ release notes.
   libmp3lame "inadequate AVFrame plane padding" failure on ffmpeg 9 (#796) and applies to uploaded
   replacement audio as well as the shipped clip. The encoder also receives full-size frames, so a short
   trailing frame cannot trip the check.
+- The local Whisper packages (faster-whisper, ctranslate2) are optional when WHISPER_BACKEND is
+  openai-api. Selecting the local backend without them fails with an actionable error instead of a
+  generic transcription failure, and the system status reports the missing packages (#795).
 
 ## [2.97.36] - 2026-09-29
 
