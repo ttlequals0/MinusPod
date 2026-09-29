@@ -13,7 +13,7 @@ release notes.
 
 ### Fixed
 
-- A recut no longer rewrites a split piece to another piece's bounds. A split records the first piece as a boundary adjustment over the original span. Recuts applied it to the longest piece instead, which then stopped being cut. That adjustment now counts as already applied. Reported in #794.
+- A recut no longer rewrites a split piece to another piece's bounds. A split records the first piece as a boundary adjustment over the original span. Recuts applied it to the longest piece instead, which then stopped being cut. A recut now applies an adjustment to the marker nearest its new bounds. If several markers sit under the old span and none touch the new one, it is skipped. Reported in #794.
 
 ## [2.97.34] - 2026-09-28
 
