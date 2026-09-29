@@ -5,6 +5,7 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('reviewer_policy_section_test_')
 
+import ad_reviewer
 from ad_reviewer import (POLICY_LINE_CAP, AdReviewer, _capped_line, _edge_item,
                          _format_policy_section)
 from database import DEFAULT_REVIEW_PROMPT
@@ -112,6 +113,9 @@ def test_barriers_and_members_are_capped():
     assert all('fingerprint pattern' in line for line in members)
     assert all(len(line) <= 200 for line in lines)
     assert len(section) <= 1500
+    # The model is told both lists are partial.
+    assert protected.endswith('(+6 more)')
+    assert '(+4 more members)' in lines
 
 
 def test_long_action_map_stays_within_the_line_cap():
@@ -120,6 +124,23 @@ def test_long_action_map_stays_within_the_line_cap():
         _ad(), _meta(effective_category_actions=actions), 60)
     assert all(len(line) <= 200 for line in section.splitlines())
     assert len(section) <= 1500
+    actions_line = section.splitlines()[0]
+    shown = actions_line.count('=remove')
+    assert shown < 40 and actions_line.endswith(f'(+{40 - shown} more)')
+
+
+def test_a_capped_section_says_how_many_lines_it_left_out(monkeypatch):
+    monkeypatch.setattr(ad_reviewer, 'POLICY_SECTION_CAP', 300)
+    ad = _ad()
+    ad['merged_member_spans'] = [
+        {'start': 3492.9 + 10 * i, 'end': 3500.0 + 10 * i, 'stage': 'fingerprint',
+         'fingerprint_match_start': 3492.9 + 10 * i,
+         'fingerprint_match_end': 3500.0 + 10 * i, 'pattern_id': i}
+        for i in range(6)]
+    section = _format_policy_section(ad, _meta(), 60)
+    lines = section.strip().splitlines()
+    assert len(section) <= 300
+    assert lines[-1].startswith('(+') and lines[-1].endswith('more lines)')
 
 
 def test_holds_are_not_listed_and_plain_ad_has_no_provenance():

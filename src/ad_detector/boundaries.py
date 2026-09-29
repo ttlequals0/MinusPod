@@ -55,6 +55,12 @@ logger = logging.getLogger('podcast.claude')
 # Pre-roll ads often have brief intro audio before detection kicks in
 EARLY_AD_SNAP_THRESHOLD = 30.0
 
+
+def _edge_locked(ad: dict, edge: str) -> bool:
+    """Whether an edge is pinned by a cue snap, a valid quote or valid word timing."""
+    return (is_edge_cue_snapped(ad, edge) or _quote_edge_valid(ad, edge)
+            or word_timed_edge_valid(ad, edge))
+
 # Transition phrases for intelligent ad boundary detection
 # These are used to find precise start/end times using word timestamps
 
@@ -371,9 +377,7 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
                 refined['start_phrase'] = inward_match['phrase']
 
         # Search for start transition phrases (never move a cue-snapped edge)
-        start_match = (None if (is_edge_cue_snapped(ad, 'start')
-                                or _quote_edge_valid(ad, 'start')
-                                or word_timed_edge_valid(ad, 'start')) else
+        start_match = (None if _edge_locked(ad, 'start') else
                        find_phrase_in_words(search_words, AD_START_PHRASES, search_start=True))
         if start_match:
             new_start = start_match['start']
@@ -425,9 +429,7 @@ def refine_ad_boundaries(ads: list[dict], segments: list[dict]) -> list[dict]:
                     f"(return to the show)")
 
         # Search for end transition phrases (never move a cue-snapped edge)
-        end_match = (None if (is_edge_cue_snapped(ad, 'end')
-                              or _quote_edge_valid(ad, 'end')
-                              or word_timed_edge_valid(ad, 'end')) else
+        end_match = (None if _edge_locked(ad, 'end') else
                      find_phrase_in_words(search_words, AD_END_PHRASES, search_start=False))
         if end_match:
             # For end phrases, we want the time AFTER the phrase (when content resumes)
@@ -714,8 +716,7 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                                             exclude=own_site)
 
         # Check timed words after the ad for a supported CTA continuation.
-        if not (is_edge_cue_snapped(ad, 'end') or _quote_edge_valid(ad, 'end')
-                or word_timed_edge_valid(ad, 'end')):
+        if not _edge_locked(ad, 'end'):
             # A short sponsor thank-you can connect two supported CTA lines.
             new_end = ad_end
             skipped = 0
@@ -791,9 +792,7 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                 ad_copy['end_extended_by_content'] = True
 
         # Check text BEFORE ad start for continuation
-        if (extend_start and not is_edge_cue_snapped(ad, 'start')
-                and not _quote_edge_valid(ad, 'start')
-                and not word_timed_edge_valid(ad, 'start')):
+        if extend_start and not _edge_locked(ad, 'start'):
             if ad_start > start_cap:
                 new_start = ad_start
                 # Walk backwards through segments

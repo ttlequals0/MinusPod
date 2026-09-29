@@ -1059,19 +1059,27 @@ def _span_text(start, end) -> str:
     return f"{start:.1f}-{end:.1f}s"
 
 
-def _capped_line(label: str, items: list[str], sep: str = '; ') -> str:
-    """label plus as many whole items as fit in POLICY_LINE_CAP; an oversized first item is truncated to fit."""
-    line = ''
+def _capped_line(label: str, items: list[str], sep: str = '; ', omitted: int = 0) -> str:
+    """label plus as many whole items as fit in POLICY_LINE_CAP, with a (+N more) note for the rest.
+
+    omitted counts items the caller already left out; an oversized first item is truncated to fit.
+    """
+    prefix = f"{label}: "
+    kept = []
     for item in items:
-        candidate = f"{line}{sep}{item}" if line else f"{label}: {item}"
-        if len(candidate) > POLICY_LINE_CAP:
-            if not line:
-                prefix = f"{label}: "
-                budget = max(POLICY_LINE_CAP - len(prefix) - 3, 0)
-                line = f"{prefix}{item[:budget]}..."
+        if len(prefix + sep.join([*kept, item])) > POLICY_LINE_CAP:
             break
-        line = candidate
-    return line
+        kept.append(item)
+    if items and not kept:
+        budget = max(POLICY_LINE_CAP - len(prefix) - 3, 0)
+        return f"{prefix}{items[0][:budget]}..."
+    while True:
+        more = len(items) - len(kept) + omitted
+        parts = [*kept, f"(+{more} more)"] if more else kept
+        line = prefix + sep.join(parts) if parts else ''
+        if len(line) <= POLICY_LINE_CAP or not kept:
+            return line
+        kept.pop()
 
 
 def _protected_item(span: dict) -> str:
@@ -1127,25 +1135,36 @@ def _format_policy_section(ad: dict, episode_meta: dict, max_shift: float) -> st
     nearby = [span for span in episode_meta.get('protected_spans') or []
               if span['end'] >= start - max_shift and span['start'] <= end + max_shift]
     nearby.sort(key=lambda span: max(0.0, start - span['end'], span['start'] - end))
-    nearby = sorted(nearby[:MAX_PROMPT_BARRIERS], key=lambda span: span['start'])
+    listed = sorted(nearby[:MAX_PROMPT_BARRIERS], key=lambda span: span['start'])
     lines.append(_capped_line('Protected audio (never cut, do not cross)',
-                              [_protected_item(span) for span in nearby]))
+                              [_protected_item(span) for span in listed],
+                              omitted=len(nearby) - len(listed)))
     members = [m for m in member_spans(ad) if m.get('stage')]
     if members:
         min_conf = _meta_min_conf(episode_meta)
         lines.append(f"Evidence envelope: {_span_text(start, end)}")
         lines.extend(_capped_line('Member', [_member_item(m)])
                      for m in members[:MAX_PROMPT_MEMBERS])
+        if len(members) > MAX_PROMPT_MEMBERS:
+            lines.append(f"(+{len(members) - MAX_PROMPT_MEMBERS} more members)")
         hard = hard_members(ad, min_conf)
         lines.append(_capped_line('Measured edges', [
             _edge_item(ad, 'start', min_conf, hard),
             _edge_item(ad, 'end', min_conf, hard)], ', '))
-    section = ''
-    for line in filter(None, lines):
-        if len(section) + len(line) + 1 > POLICY_SECTION_CAP:
+    lines = [line for line in lines if line]
+    kept = []
+    for line in lines:
+        if sum(len(k) + 1 for k in kept) + len(line) + 1 > POLICY_SECTION_CAP:
             break
-        section += line + '\n'
-    return section + '\n' if section else ''
+        kept.append(line)
+    # Tell the model the section is partial, dropping lines until the note fits.
+    while len(kept) < len(lines):
+        note = f"(+{len(lines) - len(kept)} more lines)"
+        if sum(len(k) + 1 for k in kept) + len(note) + 1 <= POLICY_SECTION_CAP or not kept:
+            kept.append(note)
+            break
+        kept.pop()
+    return ''.join(line + '\n' for line in kept) + '\n' if kept else ''
 
 
 class AdReviewer:
@@ -1351,22 +1370,12 @@ class AdReviewer:
                         f"span carries {evidence}"
                     )
                     held = dict(updated_ad)
-                    held["was_cut"] = False
-                    held["held_for_review"] = True
-                    held["hold_reason"] = HOLD_REASON_REVIEWER_REJECT_CONFLICT
-                    held["reviewer_verdict"] = "reject"
-                    held["reviewer_reasoning"] = verdict.reasoning
-                    held["reviewer_confidence"] = verdict.confidence
-                    held["reviewer_model"] = verdict.model_used
-                    held["source"] = "reviewer"
+                    mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_REJECT_CONFLICT)
                     result.held_by_reject_evidence.append(held)
                     continue
                 marked = dict(updated_ad)
+                stamp_reviewer_fields(marked, verdict)
                 marked["was_cut"] = False
-                marked["reviewer_verdict"] = "reject"
-                marked["reviewer_reasoning"] = verdict.reasoning
-                marked["reviewer_confidence"] = verdict.confidence
-                marked["reviewer_model"] = verdict.model_used
                 marked["source"] = "reviewer"
                 result.rejected_by_reviewer.append(marked)
             elif verdict.boundary_conflict:
@@ -1376,14 +1385,7 @@ class AdReviewer:
                     verdict.verdict, verdict.reasoning,
                     verdict.structured_is_ad):
                 held = dict(updated_ad)
-                held["was_cut"] = False
-                held["held_for_review"] = True
-                held["hold_reason"] = HOLD_REASON_REVIEWER_CONTRADICTION
-                held["reviewer_verdict"] = verdict.verdict
-                held["reviewer_reasoning"] = verdict.reasoning
-                held["reviewer_confidence"] = verdict.confidence
-                held["reviewer_model"] = verdict.model_used
-                held["source"] = "reviewer"
+                mark_reviewer_hold(held, verdict, HOLD_REASON_REVIEWER_CONTRADICTION)
                 held["reviewer_contradiction"] = True
                 # Preserve the reviewer's proposed trim so the review UI can
                 # offer approving the trimmed span instead of all-or-nothing.
