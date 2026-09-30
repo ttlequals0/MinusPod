@@ -41,6 +41,18 @@ LINK_PATTERNS = (BRAND_LINK_RE, BARE_LINK_RE)
 # A written domain ("acme.com", "acme .com") or a spoken "acme dot com/org/net/co".
 DOMAIN_LABEL_RE = re.compile(r'\b([a-z0-9-]{3,})(?:\.[a-z]{2,6}|\s+dot\s+(?:com|org|net|co))\b')
 
+# A domain with a path ("acme.com/show", "acme dot com slash show") is a tracked ad link.
+VANITY_LINK_RE = re.compile(
+    r'\b([a-z0-9-]{3,})(?:\.|\s+dot\s+)(?:com|io|org|net|co|fm|ai)'
+    r'(?:\s*/\s*|\s+slash\s+)[a-z0-9-]+', re.IGNORECASE)
+
+
+def names_vanity_link(texts: list[str], sponsor: str) -> bool:
+    """Whether texts read a path link on the sponsor's own domain."""
+    target = squash_brand(sponsor)
+    return any(squash_brand(m.group(1)) == target
+               for text in texts for m in VANITY_LINK_RE.finditer(text))
+
 
 def domain_labels(text: str) -> set[str]:
     """Lowercase domain labels a text names."""

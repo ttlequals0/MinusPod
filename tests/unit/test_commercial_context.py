@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector.prompts import _span_names_sponsor
 from ad_validator import AdValidator
-from sponsor_context import local_commercial_context
+from sponsor_context import local_commercial_context, names_vanity_link
 from tests.unit.marker_test_utils import ACME_REGISTRY, CLOSING, RegistryStub, registry_confirms
 
 
@@ -167,3 +167,22 @@ def test_a_conversational_brand_named_more_does_not_hide_the_advertised_one():
     validator = AdValidator(3600.0, segments, episode_description='', sponsor_service=registry)
     assert registry_confirms(validator, dict(_SPAN)) is True
     assert _span_names_sponsor(segments, 0.0, 400.0, None, registry) is True
+
+
+@pytest.mark.parametrize('text', [
+    'See what it looks like at acme.com slash show',
+    'Go to acme.com/show today',
+    'That is acme dot com slash show',
+    'A-C-M-E.com/show',
+])
+def test_vanity_link_on_the_sponsor_domain(text):
+    assert names_vanity_link([text], 'Acme') is True
+
+
+@pytest.mark.parametrize('text', [
+    'I tried acme.com last week',
+    'See initech.com slash show',
+    'acme and then slash show',
+])
+def test_no_vanity_link_without_a_path_on_the_sponsor_domain(text):
+    assert names_vanity_link([text], 'Acme') is False

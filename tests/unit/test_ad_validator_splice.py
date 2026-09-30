@@ -386,6 +386,66 @@ class TestSpliceVetoCrossFetchWaiver:
         assert BAKED_IN_FLAG not in ad['validation']['flags']
 
 
+class TestSpliceVetoNamedSponsor:
+    """The detector's own sponsor, unknown to registry and description, spoken in a long read."""
+
+    START, END = 609.0, 680.8
+    VANITY = 'See what a trace looks like at acme.com slash show'
+
+    def _run(self, text, sponsor=None, reason='Ad brought to you by Acme', end=None):
+        end = end or self.END
+        segments = [{'start': self.START, 'end': end, 'text': text}]
+        v = AdValidator(3600.0, segments, episode_description='', sponsor_service=None)
+        ad = {'start': self.START, 'end': end, 'confidence': 0.93, 'reason': reason,
+              'detection_stage': 'claude'}
+        if sponsor is not None:
+            ad['sponsor'] = sponsor
+        return v.validate([ad], audio_analysis=_analysis([])).ads[0]
+
+    def _assert_held(self, ad):
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['hold_reason'] == 'no_splice_evidence'
+        assert ad['validation']['sponsor_confirmed'] is False
+
+    def test_reason_brand_with_vanity_link_is_accepted(self):
+        ad = self._run(self.VANITY)
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert not ad.get('held_for_review')
+        assert ad['validation']['sponsor_confirmed'] is True
+        assert ('INFO: Splice veto waived, sponsor confirmed by transcript'
+                in ad['validation']['flags'])
+
+    def test_structured_sponsor_with_vanity_link_is_accepted(self):
+        ad = self._run(self.VANITY, sponsor='Acme', reason='Host read')
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+
+    def test_brand_only_in_reason_is_held(self):
+        self._assert_held(self._run('ordinary conversation about the week'))
+
+    def test_bare_domain_mention_is_held(self):
+        self._assert_held(self._run('I tried acme.com last week', sponsor='Acme'))
+
+    def test_generic_word_spoken_conversationally_is_held(self):
+        self._assert_held(self._run('Indeed, that was a wild week. Indeed it was.',
+                                    sponsor='Indeed', reason='Indeed sponsor read'))
+
+    @pytest.mark.parametrize('sponsor', ['Website', 'Podcast'])
+    def test_generic_label_with_path_link_is_held(self, sponsor):
+        text = f'Find the {sponsor.lower()} at {sponsor.lower()}.com slash show'
+        self._assert_held(self._run(text, sponsor=sponsor, reason='Host read'))
+
+    def test_second_listed_sponsor_with_an_offer_confirms(self):
+        text = 'Acme came up earlier. Initech: use code SHOW for 20% off at Initech.'
+        ad = self._run(text, sponsor='Acme, Initech', reason='Host read')
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert ad['validation']['sponsor_confirmed'] is True
+
+    def test_long_read_judged_against_confirmed_ceiling(self):
+        ad = self._run(self.VANITY, end=self.START + 480.0)
+        assert not any('Very long' in f for f in ad['validation']['flags'])
+        assert 'INFO: Long (480.0s) but sponsor confirmed' in ad['validation']['flags']
+
+
 class TestProtectedBoundsClamp:
     def test_merged_protected_end_clamped_to_duration(self):
         # A protected member recorded past EOF must not survive validation,

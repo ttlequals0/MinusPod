@@ -64,14 +64,17 @@ from differential_fetcher import differential_region_overlapping, identical_cove
 from community_export import brand_match_candidates
 from text_pattern_matcher import bounded_segment_texts
 from sponsor_context import (SPONSOR_MIN_MENTIONS, description_sponsor_re,
-                             local_commercial_context, registry_sponsor)
+                             local_commercial_context, names_vanity_link, registry_sponsor)
 from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS
-from utils.constants import squash_brand
+from sponsor_service import SponsorService
+from utils.constants import is_brand_token, is_non_brand_name, squash_brand
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 from ad_detector.boundaries import effective_resolved_action
 
 logger = logging.getLogger(__name__)
+
+_SPONSOR_SEPARATOR_RE = re.compile(r'[,;/:]|\band\b', re.IGNORECASE)
 
 # A held remainder is a new pending span: the hold's approval stamps and
 # correction bookkeeping describe the released part, not it.
@@ -426,14 +429,23 @@ class AdValidator:
         return self._variant_index
 
     def _matches_expected_sponsor(self, found: str, expected: str) -> bool:
-        labels = {squash_brand(part) for part in re.split(
-            r'[,;/:]|\band\b', expected, flags=re.IGNORECASE)}
+        labels = {squash_brand(part) for part in _SPONSOR_SEPARATOR_RE.split(expected)}
         if squash_brand(found) in labels:
             return True
         if not self.sponsor_service or not hasattr(self.sponsor_service, 'get_sponsors'):
             return False
         return any(labels & variants
                    for variants in self._sponsor_variant_index().get(squash_brand(found), ()))
+
+    @staticmethod
+    def _named_sponsors(ad: dict) -> list[str]:
+        """Brand-like sponsors the detection named: its sponsor field, else its reason."""
+        def usable(name):
+            return bool(name) and not is_non_brand_name(name) and is_brand_token(squash_brand(name))
+        names = [part.strip() for part in _SPONSOR_SEPARATOR_RE.split(ad.get('sponsor') or '')]
+        return ([name for name in names if usable(name)]
+                or [name for name in (SponsorService.extract_sponsor_from_reason(ad.get('reason')),)
+                    if usable(name)])
 
     def _bounded_text_segments(self, ad: dict) -> list[str]:
         return bounded_segment_texts(self.segments, ad['start'], ad['end'])
@@ -451,8 +463,9 @@ class AdValidator:
 
     def _sponsor_confirmation_source(self, ad: dict) -> str | None:
         """Where the ad's sponsor was confirmed: 'transcript' (a description
-        sponsor is spoken in the span), 'registry' (see _registry_confirms),
-        'reason' (only the detection model's own prose names it), or None.
+        sponsor or one the detection named is advertised in the span),
+        'registry' (see _registry_confirms), 'reason' (only the detection
+        model's own prose names it), or None.
         Prose is checked last: it is the one source the model wrote itself.
         """
         texts = self._bounded_text_segments(ad)
@@ -469,6 +482,15 @@ class AdValidator:
 
         if self._registry_confirms(ad, texts):
             return 'registry'
+
+        # A brand the detection named, advertised in the span, even when no registry row knows it.
+        for name in self._named_sponsors(ad):
+            if (local_commercial_context(texts, name, names_sponsor=self._names_sponsor,
+                                         matches_expected=self._matches_expected_sponsor)
+                    or (names_vanity_link(texts, name)
+                        and self._names_sponsor(' '.join(texts), name))):
+                logger.info(f"Sponsor '{name}' named by the detection is advertised in the span")
+                return 'transcript'
 
         if self._description_sponsor_re is not None:
             named = self._description_sponsor_re.search(ad.get('reason', ''))
