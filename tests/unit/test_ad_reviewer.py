@@ -1087,3 +1087,17 @@ def test_clamp_never_trims_absorbed_silence(extra, absorbed, expected):
         ad['silent_absorbed_spans'] = [dict(s) for s in absorbed]
     assert _build_reviewer()._clamp_proposed_bounds(
         ad, 815.6, 995.1, 792.6, 1002.8, 60.0, 'slug', 'ep', segments=[]) == expected
+
+
+@pytest.mark.parametrize('keep,proposal_end,expected', [
+    pytest.param({'start': 997.0, 'end': 1002.8}, 995.1, (792.6, 997.0), id='keep_inside_silence'),
+    pytest.param({'start': 1000.0, 'end': 1010.0}, 995.1, (792.6, 1000.0), id='keep_straddles_end'),
+    pytest.param({'start': 1005.0, 'end': 1020.0}, 1010.0, (792.6, 1005.0), id='keep_outside'),
+    pytest.param(None, 995.1, (792.6, 1002.8), id='no_keep'),
+])
+def test_silence_floor_stops_at_hard_barriers(keep, proposal_end, expected):
+    ad = {'start': 792.6, 'end': 1002.8, 'confidence': 0.95,
+          'silent_absorbed_spans': [dict(s) for s in _ABSORBED]}
+    assert _build_reviewer()._clamp_proposed_bounds(
+        ad, 815.6, proposal_end, 792.6, 1002.8, 60.0, 'slug', 'ep', segments=[],
+        hard_barriers=[keep] if keep else None) == expected

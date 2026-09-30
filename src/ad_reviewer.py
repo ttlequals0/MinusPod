@@ -1969,12 +1969,18 @@ class AdReviewer:
             if barrier['end'] > original_end and barrier['start'] < clamped_end:
                 clamped_end = min(clamped_end, max(barrier['start'], original_end))
 
-        # Absorbed silence stays with the cut: no edge moves inward across an edge-touching span.
+        # Absorbed silence stays with the cut: no edge moves inward across an edge-touching span,
+        # but the floor stops at a hard barrier between the proposal and the span edge.
+        barriers = hard_barriers or []
         for lo, hi in silent_absorbed_spans(ad):
             if lo <= original_start + EDGE_TOLERANCE and clamped_start > lo:
-                clamped_start = min(lo, original_start)
+                clamped_start = max([min(lo, original_start)] + [
+                    min(b['end'], clamped_start) for b in barriers
+                    if b['start'] < clamped_start and b['end'] > lo])
             if hi >= original_end - EDGE_TOLERANCE and clamped_end < hi:
-                clamped_end = max(hi, original_end)
+                clamped_end = min([max(hi, original_end)] + [
+                    max(b['start'], clamped_end) for b in barriers
+                    if b['end'] > clamped_end and b['start'] < hi])
 
         if clamped_end <= clamped_start:
             clamped_start, clamped_end = original_start, original_end
