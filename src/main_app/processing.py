@@ -2366,7 +2366,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
 
 
 def _released_span(v, sub, hold, barriers):
-    """The span a successful review of a hold subspan releases, or None."""
+    """(released span, outside pieces) for a successful review of a hold subspan, or None."""
     if (not v.success or v.inconclusive_hold or v.boundary_conflict
             or is_contradiction_hold(v.verdict, v.reasoning, v.structured_is_ad)):
         return None
@@ -2376,22 +2376,53 @@ def _released_span(v, sub, hold, barriers):
         lo, hi = v.adjusted_start, v.adjusted_end
     else:
         return None
-    outside = subtract_spans(
-        [(lo, hi)], [(hold['start'], hold['end']), (sub['start'], sub['end'])])
-    if hi - lo < MIN_AD_DURATION or any(b - a > EDGE_TOLERANCE for a, b in outside):
+    span, outside = (lo, hi), []
+    if any(b - a > EDGE_TOLERANCE for a, b in subtract_spans(
+            [(lo, hi)], [(hold['start'], hold['end']), (sub['start'], sub['end'])])):
+        # A covering adjust releases its part inside the hold; the rest is a new candidate.
+        if (lo > sub['start'] + EDGE_TOLERANCE or hi < sub['end'] - EDGE_TOLERANCE
+                or overlap_seconds(lo, hi, hold['start'], hold['end']) <= EDGE_TOLERANCE):
+            return None
+        span = (max(lo, hold['start']), min(hi, hold['end']))
+        outside = [(a, b) for a, b in subtract_spans([(lo, hi)], [(hold['start'], hold['end'])])
+                   if b - a > EDGE_TOLERANCE]
+    if span[1] - span[0] < MIN_AD_DURATION:
         return None
+    # The whole reviewed read, outside pieces included, must stay clear of barriers.
     if any(overlap_seconds(lo, hi, b['start'], b['end']) > EDGE_TOLERANCE
            for b in barriers):
         return None
-    return {'start': lo, 'end': hi}
+    return {'start': span[0], 'end': span[1]}, outside
+
+
+def _outside_candidates(v, sub, outside, pass1_cuts, covered, ledger):
+    """Pass-2 (processed, original) pairs for the parts of a covering adjust outside its hold."""
+    pieces = subtract_spans(outside, [(c['start'], c['end']) for c in [*pass1_cuts, *covered]])
+    beep = get_replacement_duration()
+    pairs = []
+    for a, b in pieces:
+        if b - a <= EDGE_TOLERANCE:
+            continue
+        orig = carve_fragment(sub, a, b)
+        orig.pop('held_for_review', None)
+        orig.update(source='reviewer', reason=v.reasoning or sub.get('reason'))
+        if b - a < MIN_AD_DURATION:
+            ledger.record(orig, 'dropped:short_fragment')
+            continue
+        pairs.append((carve_fragment(orig, adjust_timestamp(a, pass1_cuts, beep),
+                                     adjust_timestamp(b, pass1_cuts, beep)), orig))
+    return pairs
 
 
 def _review_hold_release_candidates(ctx, candidates, original_segments,
                                     protection, segment_actions=None,
-                                    min_cut_confidence=None):
-    """Review each pass-2 subspan inside a hold; stamp holds whose subspan passed."""
+                                    min_cut_confidence=None, pass1_cuts=None,
+                                    covered=(), ledger=None):
+    """Review pass-2 subspans inside holds; returns (released count, outside-hold candidate pairs)."""
     if not candidates or not _ad_review_enabled(db):
-        return 0
+        return 0, []
+    ledger = ledger or Pass2Ledger()
+    pass1_cuts = pass1_cuts or []
     reviewer = _build_reviewer(db, ad_detector)
     episode_meta = _build_episode_meta(
         ctx.slug, ctx.episode_id, ctx.podcast_id, ctx.podcast_name,
@@ -2411,6 +2442,7 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
     by_key = {(sub['start'], sub['end']): (sub, hold) for sub, hold in candidates}
     released = 0
     released_by_hold = {}
+    outside_pairs = []
     for v in result.verdicts:
         sub, hold = by_key.get((v.original_start, v.original_end), (None, None))
         if hold is None:
@@ -2420,9 +2452,9 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         # A fast-path corroboration already owns the hold's approved span.
         if first and (hold.get('pass2_reviewed_release') or hold.get('pass2_corroborated')):
             continue
-        span = _released_span(v, sub, hold, [
+        result_span = _released_span(v, sub, hold, [
             *protection.barriers_orig(exclude=[hold]), *prior])
-        if span is None:
+        if result_span is None:
             reason = v.reasoning or f"Review returned {v.verdict}"
             # Diagnostic only: no reviewer_verdict, source or reviewer_reasoning on the hold.
             if first:
@@ -2439,6 +2471,7 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
                 f"{hold['end']:.1f}s returned {v.verdict}; {outcome}. "
                 f"Reason: {reason}")
             continue
+        span, outside = result_span
         if first:
             hold['pass2_reviewed_release'] = span
             hold['pass2_corroborated'] = True
@@ -2450,10 +2483,17 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         hold['pass2_released_spans'] = sorted(
             released_by_hold[id(hold)], key=lambda s: s['start'])
         released += 1
+        pairs = _outside_candidates(v, sub, outside, pass1_cuts, covered, ledger)
+        outside_pairs.extend(pairs)
+        note = ''
+        if outside:
+            sent = ', '.join(f"{o['start']:.1f}s-{o['end']:.1f}s" for _p, o in pairs) or 'none'
+            # Parts already cut in pass 1 or found by pass 2 are not sent again.
+            note = f"; outside the hold, sent as pass-2 candidates: {sent}"
         audio_logger.info(
             f"[{ctx.slug}:{ctx.episode_id}] Review released {span['start']:.1f}s-"
-            f"{span['end']:.1f}s of hold {hold['start']:.1f}s-{hold['end']:.1f}s")
-    return released
+            f"{span['end']:.1f}s of hold {hold['start']:.1f}s-{hold['end']:.1f}s{note}")
+    return released, outside_pairs
 
 
 def _hold_adjustments_crossing_final_holds(processed_ads, original_ads, held_ads):
@@ -3885,6 +3925,15 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 (v_ads_to_cut, v_ads_for_ui, gated_held, v_corroborated_count,
                  hold_release_candidates) = gated
                 v_ads_held.extend(gated_held)
+                # Before the fragment gate so a covering adjust's outside pieces take that path.
+                released, outside_pairs = _review_hold_release_candidates(
+                    ctx, hold_release_candidates, original_segments,
+                    current_protection(), segment_actions=segment_actions,
+                    min_cut_confidence=min_cut_confidence, pass1_cuts=pass1_cuts,
+                    covered=[*v_ads_for_ui, *(orig for _proc, orig in hold_overlaps)],
+                    ledger=ledger)
+                v_corroborated_count += released
+                hold_overlaps.extend(outside_pairs)
                 fragments = _gate_hold_split_fragments(
                     slug, episode_id, hold_overlaps, current_protection(),
                     false_positive_corrections, validate, gate, ledger=ledger)
@@ -3912,10 +3961,6 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 )
                 _hold_adjustments_crossing_final_holds(
                     v_ads_to_cut, v_ads_for_ui, v_ads_held)
-                v_corroborated_count += _review_hold_release_candidates(
-                    ctx, hold_release_candidates, original_segments,
-                    current_protection(), segment_actions=segment_actions,
-                    min_cut_confidence=min_cut_confidence)
 
                 # Stamped only now: a candidate diverted to a hold or reject must not advertise a cut.
                 _partition_cut_actions([*v_ads_to_cut, *v_ads_for_ui], segment_actions)

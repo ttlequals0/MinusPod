@@ -24,8 +24,8 @@ from main_app.verification_reconciliation import (
 from utils.time import adjust_timestamp
 from verification_pass import _build_timestamp_map, _map_to_original
 from tests.unit.pass2_test_utils import (
-    NO_SPLICE, _approval_db, _ctx, _hold, _recut_validate, _release_confirm,
-    _user_corrections, _verdict,
+    NO_SPLICE, _approval_db, _ctx, _hold, _recut_validate, _release_confirm, _spans,
+    _user_corrections, _verdict, drive_verification_pass,
 )
 
 INCONCLUSIVE = 'reviewer_inconclusive_bounds'
@@ -47,6 +47,13 @@ def _gate(proc, orig, holds, **kwargs):
 
 
 def _review(monkeypatch, candidates, verdicts, protection=None, enabled=True):
+    released, _pairs, calls = _review_pairs(
+        monkeypatch, candidates, verdicts, protection=protection, enabled=enabled)
+    return released, calls
+
+
+def _review_pairs(monkeypatch, candidates, verdicts, protection=None, enabled=True,
+                  pass1_cuts=(), covered=(), ledger=None):
     calls = []
 
     def review(**kwargs):
@@ -64,9 +71,10 @@ def _review(monkeypatch, candidates, verdicts, protection=None, enabled=True):
     protection = protection or processing.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[],
         holds=holds, pass1_cuts=[])
-    released = processing._review_hold_release_candidates(
-        _ctx(), candidates, [], protection)
-    return released, calls
+    released, pairs = processing._review_hold_release_candidates(
+        _ctx(), candidates, [], protection, pass1_cuts=list(pass1_cuts),
+        covered=list(covered), ledger=ledger)
+    return released, pairs, calls
 
 
 # ---------- Gate: build the reviewable subspan ----------
@@ -337,7 +345,8 @@ def test_inconclusive_hold_reason_is_releasable(monkeypatch):
     _verdict('failure', 1040.0, 1060.0, success=False),
     _verdict('adjust', 1040.0, 1060.0, adjusted=(1035.0, 1062.0), boundary_conflict=True),
     _verdict('confirmed', 1040.0, 1060.0, reasoning='This is not an ad, it is host conversation'),
-    _verdict('adjust', 1040.0, 1060.0, adjusted=(1040.0, 1150.0)),
+    # Leaves the hold without covering the subspan's start.
+    _verdict('adjust', 1040.0, 1060.0, adjusted=(1045.0, 1150.0)),
 ])
 def test_unsuccessful_review_keeps_the_whole_hold(monkeypatch, verdict):
     candidates = _candidate()
@@ -377,7 +386,7 @@ def test_adjust_into_another_hold_keeps_the_whole_hold(monkeypatch):
     assert 'pass2_reviewed_release' not in hold
 
 
-def test_confirm_over_a_later_pass2_hold_keeps_the_whole_hold(monkeypatch):
+def test_confirm_over_a_gated_pass2_hold_keeps_the_whole_hold(monkeypatch):
     candidates = _candidate()
     hold = candidates[0][1]
     pass2_hold = _hold(1050.0, 1055.0, 'verification_miss')
@@ -389,6 +398,108 @@ def test_confirm_over_a_later_pass2_hold_keeps_the_whole_hold(monkeypatch):
                                protection=protection)
     assert released == 0
     assert 'pass2_reviewed_release' not in hold
+
+
+def test_inside_adjust_returns_no_outside_pieces(monkeypatch):
+    candidates = _candidate()
+    released, pairs, _calls = _review_pairs(monkeypatch, candidates, [
+        _verdict('adjust', 1040.0, 1060.0, adjusted=(1036.0, 1064.0))])
+    assert released == 1 and pairs == []
+
+
+def test_covering_adjust_releases_the_hold_part_and_returns_the_outside_piece(monkeypatch):
+    cuts = [{'start': 100.0, 'end': 200.0}]
+    candidates = _candidate(sub=(1060.0, 1080.0))
+    hold = candidates[0][1]
+    released, pairs, _calls = _review_pairs(monkeypatch, candidates, [
+        _verdict('adjust', 1060.0, 1080.0, adjusted=(1010.0, 1110.0),
+                 reasoning='Acme read runs past the hold')], pass1_cuts=cuts)
+
+    assert released == 1
+    assert hold['pass2_reviewed_release'] == {'start': 1010.0, 'end': 1100.0}
+    assert hold['pass2_released_spans'] == [{'start': 1010.0, 'end': 1100.0}]
+    [(proc, orig)] = pairs
+    assert (orig['start'], orig['end']) == (1100.0, 1110.0)
+    beep = get_replacement_duration()
+    assert (proc['start'], proc['end']) == (adjust_timestamp(1100.0, cuts, beep),
+                                            adjust_timestamp(1110.0, cuts, beep))
+    for piece in (proc, orig):
+        assert 'held_for_review' not in piece
+        assert piece['source'] == 'reviewer'
+        assert piece['reason'] == 'Acme read runs past the hold'
+        assert piece['confidence'] == 0.95
+
+
+@pytest.mark.parametrize('adjusted,keep', [
+    ((1065.0, 1110.0), None),
+    ((1010.0, 1110.0), (1104.0, 1108.0)),
+])
+def test_covering_adjust_that_misses_the_subspan_or_meets_a_keep_is_not_released(
+        monkeypatch, adjusted, keep):
+    candidates = _candidate(sub=(1060.0, 1080.0))
+    hold = candidates[0][1]
+    protection = processing.build_protection(
+        kept=[{'start': keep[0], 'end': keep[1]}] if keep else [], category_kept=[],
+        user_trims=[], fp_corrections=[], holds=[hold], pass1_cuts=[])
+    released, pairs, _calls = _review_pairs(monkeypatch, candidates, [
+        _verdict('adjust', 1060.0, 1080.0, adjusted=adjusted)], protection=protection)
+    assert (released, pairs) == (0, [])
+    assert 'pass2_reviewed_release' not in hold
+
+
+def test_covering_adjust_into_another_hold_is_not_released(monkeypatch):
+    candidates = _candidate(sub=(1060.0, 1080.0))
+    hold = candidates[0][1]
+    other = _hold(1105.0, 1150.0, 'max_duration')
+    protection = processing.build_protection(
+        kept=[], category_kept=[], user_trims=[], fp_corrections=[],
+        holds=[hold, other], pass1_cuts=[])
+    released, pairs, _calls = _review_pairs(monkeypatch, candidates, [
+        _verdict('adjust', 1060.0, 1080.0, adjusted=(1010.0, 1110.0))], protection=protection)
+    assert (released, pairs) == (0, [])
+
+
+def test_outside_piece_already_cut_or_found_gives_no_pair(monkeypatch):
+    candidates = _candidate(sub=(1060.0, 1080.0))
+    released, pairs, _calls = _review_pairs(monkeypatch, candidates, [
+        _verdict('adjust', 1060.0, 1080.0, adjusted=(1010.0, 1130.0))],
+        pass1_cuts=[{'start': 1100.0, 'end': 1115.0}],
+        covered=[{'start': 1112.0, 'end': 1140.0}])
+    assert released == 1 and pairs == []
+
+
+def test_short_outside_piece_is_dropped_with_a_reason(monkeypatch):
+    ledger = Pass2Ledger()
+    candidates = _candidate(sub=(1060.0, 1080.0))
+    released, pairs, _calls = _review_pairs(monkeypatch, candidates, [
+        _verdict('adjust', 1060.0, 1080.0, adjusted=(1010.0, 1104.0))], ledger=ledger)
+    assert released == 1 and pairs == []
+    stats = {}
+    ledger.emit(run_stats=stats)
+    assert stats['pass2_outcomes'] == {'dropped:short_fragment': 1}
+
+
+@pytest.mark.parametrize('verdict,expected', [
+    (_verdict('confirmed', 1060.0, 1080.0), ((1060.0, 1080.0), [])),
+    (_verdict('adjust', 1060.0, 1080.0, adjusted=(1050.0, 1090.0)), ((1050.0, 1090.0), [])),
+    (_verdict('adjust', 1060.0, 1080.0, adjusted=(990.0, 1110.0)),
+     ((1000.0, 1100.0), [(990.0, 1000.0), (1100.0, 1110.0)])),
+    (_verdict('adjust', 1060.0, 1080.0, adjusted=(1070.0, 1110.0)), None),
+    (_verdict('adjust', 1060.0, 1080.0, adjusted=(1100.0, 1110.0)), None),
+    (_verdict('reject', 1060.0, 1080.0), None),
+    (_verdict('adjust', 1060.0, 1080.0), None),
+    # A released part under MIN_AD_DURATION.
+    (_verdict('adjust', 1095.0, 1099.0, adjusted=(1094.0, 1110.0)), None),
+])
+def test_released_span_by_verdict(verdict, expected):
+    hold = _hold(1000.0, 1100.0)
+    sub = {'start': verdict.original_start, 'end': verdict.original_end}
+    got = processing._released_span(verdict, sub, hold, [])
+    if expected is None:
+        assert got is None
+    else:
+        span, outside = got
+        assert ((span['start'], span['end']), outside) == expected
 
 
 def test_review_disabled_keeps_the_hold(monkeypatch):
@@ -574,3 +685,119 @@ def test_a_nan_word_end_does_not_hide_later_words():
     for value, edge in ((5.5, 'start'), (9.5, 'end'), (1.5, 'start'), (7.0, 'end')):
         assert edges.inside(value, edge) == _linear_word_edge(segments, value, edge)
     assert edges.inside(5.5, 'start') == 6.0
+
+
+# ---------- Verification pass: a covering adjust releases the hold part ----------
+
+def _drive_covering(holds, findings, verdicts, **kwargs):
+    seen = {}
+
+    def pass2_reviewer(ctx, cut, *args, **kw):
+        seen['cut'] = _spans(cut)
+
+    run = drive_verification_pass(findings, holds=holds, pass2_reviewer=pass2_reviewer,
+                                  hold_verdicts=verdicts, **kwargs)
+    run.reviewer = seen
+    return run
+
+
+def _filed_confirms(monkeypatch, holds):
+    db = _approval_db(monkeypatch)
+    processing._file_corroborated_hold_approvals(
+        's', 'e', holds, corrections=_user_corrections('s', 'e'))
+    return [c.kwargs for c in db.create_pattern_correction.call_args_list]
+
+
+def test_covering_adjust_releases_the_hold_part_and_cuts_the_outside_piece(monkeypatch):
+    # Production shape: the review moved a held read's edges past the hold's end.
+    hold = dict(_hold(609.0, 680.8), confidence=0.95, reason='Acme sponsor read',
+                detection_stage='claude')
+    run = _drive_covering([hold], [(661.8, 679.2, 0.95)], [
+        _verdict('adjust', 661.8, 679.2, adjusted=(615.0, 692.0))])
+
+    assert run.hold_reviews == [[(661.8, 679.2)]]
+    assert hold['pass2_reviewed_release'] == {'start': 615.0, 'end': 680.8}
+    assert hold['pass2_released_spans'] == [{'start': 615.0, 'end': 680.8}]
+    assert run.output[7] == 1
+    assert is_pending_review(hold)
+    # The outside piece reached the pass-2 reviewer and the render.
+    assert run.reviewer['cut'] == [(680.8, 692.0)]
+    assert _spans(run.output[1]) == [(680.8, 692.0)]
+    assert run.output[1][0]['was_cut'] is True
+    assert (680.8, 692.0) in _spans(run.rendered['requested'])
+    assert run.stats['pass2_outcomes'] == {'covered:pass1_hold': 1, 'cut': 1}
+
+    [filed] = _filed_confirms(monkeypatch, [hold])
+    assert filed['original_bounds'] == {'start': 609.0, 'end': 680.8}
+    assert filed['corrected_bounds'] == {'start': 615.0, 'end': 680.8}
+    # 609.0-615.0 stays uncut; a remainder under MIN_AD_DURATION gets no held marker.
+    ads = _recut_validate([hold], [_release_confirm((609.0, 680.8), (615.0, 680.8))])
+    assert [(a['start'], a['end'], a['validation']['decision']) for a in ads] == [
+        (615.0, 680.8, Decision.ACCEPT.value)]
+    ads = _recut_validate([dict(hold, start=600.0)],
+                          [_release_confirm((600.0, 680.8), (615.0, 680.8))])
+    assert sorted((a['start'], a['end'], a['validation']['decision']) for a in ads) == [
+        (600.0, 615.0, Decision.REVIEW.value), (615.0, 680.8, Decision.ACCEPT.value)]
+
+
+def test_hold_review_runs_before_the_pass2_reviewer():
+    hold = _hold(609.0, 680.8)
+    order = []
+    run = drive_verification_pass(
+        [(661.8, 679.2, 0.95)], holds=[hold],
+        pass2_reviewer=lambda *a, **k: order.append(('reviewer', 'pass2_reviewed_release' in hold)),
+        hold_verdicts=[_verdict('adjust', 661.8, 679.2, adjusted=(615.0, 692.0))])
+    assert run.hold_reviews and order == [('reviewer', True)]
+
+
+def test_covering_adjust_that_misses_the_subspan_keeps_the_hold_whole():
+    hold = _hold(609.0, 680.8)
+    run = _drive_covering([hold], [(661.8, 679.2, 0.95)], [
+        _verdict('adjust', 661.8, 679.2, adjusted=(665.0, 692.0))])
+    assert 'pass2_reviewed_release' not in hold
+    assert hold['pass2_hold_review']['verdict'] == 'adjust'
+    assert run.output[1] == [] and run.rendered == {}
+
+
+@pytest.mark.parametrize('barrier', ['kept', 'fp', 'trims'])
+def test_covering_adjust_across_a_hard_barrier_is_not_released(barrier):
+    hold = _hold(609.0, 680.8)
+    run = _drive_covering([hold], [(661.8, 679.2, 0.95)], [
+        _verdict('adjust', 661.8, 679.2, adjusted=(615.0, 692.0))],
+        **{barrier: [{'start': 685.0, 'end': 690.0, 'action_applied': 'keep'}]})
+    assert 'pass2_reviewed_release' not in hold
+    assert run.output[1] == [] and run.rendered == {}
+
+
+def test_short_outside_piece_is_dropped_and_the_hold_part_released():
+    hold = _hold(609.0, 680.8)
+    run = _drive_covering([hold], [(661.8, 679.2, 0.95)], [
+        _verdict('adjust', 661.8, 679.2, adjusted=(615.0, 685.0))])
+    assert hold['pass2_reviewed_release'] == {'start': 615.0, 'end': 680.8}
+    assert run.output[1] == [] and run.rendered == {}
+    assert run.stats['pass2_outcomes'] == {
+        'covered:pass1_hold': 1, 'dropped:short_fragment': 1}
+
+
+def test_two_covering_adjusts_on_one_hold_both_release(monkeypatch):
+    hold = dict(_hold(1000.0, 1100.0), confidence=0.95, reason='Acme sponsor read',
+                detection_stage='claude')
+    run = _drive_covering([hold], [(1010.0, 1025.0, 0.95), (1070.0, 1090.0, 0.95)], [
+        _verdict('adjust', 1010.0, 1025.0, adjusted=(988.0, 1030.0)),
+        _verdict('adjust', 1070.0, 1090.0, adjusted=(1060.0, 1112.0))])
+
+    assert hold['pass2_released_spans'] == [
+        {'start': 1000.0, 'end': 1030.0}, {'start': 1060.0, 'end': 1100.0}]
+    assert _spans(run.output[1]) == [(988.0, 1000.0), (1100.0, 1112.0)]
+    requested = _spans(run.rendered['requested'])
+    assert (988.0, 1000.0) in requested and (1100.0, 1112.0) in requested
+
+    filed = _filed_confirms(monkeypatch, [hold])
+    assert [f['corrected_bounds'] for f in filed] == [
+        {'start': 1000.0, 'end': 1030.0}, {'start': 1060.0, 'end': 1100.0}]
+    confirms = [_release_confirm((1000.0, 1100.0), (1060.0, 1100.0)),
+                _release_confirm((1000.0, 1100.0), (1000.0, 1030.0))]
+    ads = _recut_validate([hold], confirms)
+    assert sorted((a['start'], a['end'], a['validation']['decision']) for a in ads) == [
+        (1000.0, 1030.0, Decision.ACCEPT.value), (1030.0, 1060.0, Decision.REVIEW.value),
+        (1060.0, 1100.0, Decision.ACCEPT.value)]

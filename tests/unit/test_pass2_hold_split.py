@@ -439,8 +439,9 @@ def _release(monkeypatch, hold, subs, verdicts):
     protection = processing.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=[hold],
         pass1_cuts=[])
-    return candidates, processing._review_hold_release_candidates(
+    released, _pairs = processing._review_hold_release_candidates(
         _ctx(), candidates, [], protection)
+    return candidates, released
 
 
 def test_every_approved_subspan_of_a_hold_is_released(monkeypatch):
