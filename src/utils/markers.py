@@ -17,6 +17,8 @@ from utils.time import overlap_ratio
 # Read both only through dai_core_spans/dai_core_bounds and dai_probe_spans.
 DAI_CORE_SPANS = 'dai_core_spans'
 DAI_PROBE_SPANS = 'dai_probe_spans'
+# Silence cut with an accepted measured ad; not part of its measured extent.
+SILENT_ABSORBED_SPANS = 'silent_absorbed_spans'
 # Probe geometry shared with differential_fetcher._probe_block.
 DAI_PROBE_LEAD_S = 0.5
 DAI_PROBE_REF_S = 4.0
@@ -372,8 +374,15 @@ def merge_dai_core_spans(target: dict, other: dict) -> None:
     target[DAI_PROBE_SPANS] = sorted(probes, key=lambda span: span['start'])
 
 
+def silent_absorbed_spans(marker: dict) -> list[tuple[float, float]]:
+    """(start, end) of the silence an accepted cut absorbed."""
+    return [(s['start'], s['end']) for s in _valid_spans(marker, SILENT_ABSORBED_SPANS)]
+
+
 def clip_dai_core_spans(marker: dict, start: float, end: float) -> None:
-    """Clip a marker's DAI evidence to a newly split/clamped range."""
+    """Clip a marker's DAI evidence and absorbed silence to a newly split/clamped range."""
+    _clip_spans(marker, SILENT_ABSORBED_SPANS, _valid_spans(marker, SILENT_ABSORBED_SPANS),
+                start, end)
     core = _valid_dai_core_spans(marker)
     _clip_spans(marker, DAI_CORE_SPANS, core, start, end)
     if DAI_CORE_SPANS in marker:
@@ -773,6 +782,7 @@ def reviewer_independent_spans(ad: dict, min_conf: float) -> list[tuple[float, f
     if cue_lo is not None and cue_hi is not None and cue_hi - cue_lo > 0.1:
         spans.append((cue_lo + 0.05, cue_hi - 0.05))
     spans.extend(dai_probe_spans(ad))
+    spans.extend(silent_absorbed_spans(ad))
     start, end = finite_number(ad.get('start')), finite_number(ad.get('end'))
     if ((ad.get('validation') or {}).get('user_confirmed')
             and start is not None and end is not None and end > start):

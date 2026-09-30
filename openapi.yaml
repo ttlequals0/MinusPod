@@ -12730,6 +12730,16 @@ components:
               type: number
             end:
               type: number
+        silent_absorbed_spans:
+          type: array
+          description: Measured silence cut with this accepted ad; excluded from its duration checks.
+          items:
+            type: object
+            properties:
+              start:
+                type: number
+              end:
+                type: number
         hold_reason:
           type: string
           nullable: true

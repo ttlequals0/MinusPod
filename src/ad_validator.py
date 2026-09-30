@@ -55,6 +55,8 @@ from utils.markers import (
     recorded_member_spans,
     reviewer_edge_locked,
     reviewer_reject_stands,
+    SILENT_ABSORBED_SPANS,
+    silent_absorbed_spans,
     subtract_spans,
     union_cover,
 )
@@ -819,8 +821,7 @@ class AdValidator:
         ad.pop('hold_reason', None)
         ad.pop('corroborated_by', None)
 
-        duration = ad['end'] - ad['start']
-        position = ad['start'] / self.episode_duration if self.episode_duration > 0 else 0
+        duration, position = self._measured_extent(ad)
 
         # Check for user-marked false positives first (highest priority).
         # The internal flag records a match before DAI-core restoration; pop
@@ -956,10 +957,7 @@ class AdValidator:
                 }
                 ad['validation'] = validation
                 return ad
-            duration = ad['end'] - ad['start']
-            position = (
-                ad['start'] / self.episode_duration
-                if self.episode_duration > 0 else 0)
+            duration, position = self._measured_extent(ad)
 
         # Duration checks
         if duration < MIN_AD_DURATION:
@@ -1579,6 +1577,14 @@ class AdValidator:
         out.sort(key=lambda a: a['start'])
         return out
 
+    def _measured_extent(self, ad: dict) -> tuple[float, float]:
+        """(duration, position) of the ad without the silence it absorbed."""
+        pieces = (subtract_spans([(ad['start'], ad['end'])], silent_absorbed_spans(ad))
+                  or [(ad['start'], ad['end'])])
+        lo, hi = pieces[0][0], pieces[-1][1]
+        position = lo / self.episode_duration if self.episode_duration > 0 else 0
+        return hi - lo, position
+
     @staticmethod
     def _absorb_silent_remainders(ad: dict, silent: list[dict]) -> None:
         """Extend an accepted measured cut over its silent remainders, in place."""
@@ -1594,6 +1600,7 @@ class AdValidator:
         ad['start'], ad['end'] = min([lo, *(r['start'] for r in silent)]), new_end
         # Learning keeps the measured bounds so a pattern never grows the silence.
         ad['_learning_bounds'] = (lo, hi)
+        ad[SILENT_ABSORBED_SPANS] = [{'start': r['start'], 'end': r['end']} for r in silent]
         invalidate_quote_alignment(ad)
         invalidate_word_timed_edges(ad)
 

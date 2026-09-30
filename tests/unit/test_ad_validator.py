@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from ad_validator import AdValidator, Decision, ValidationResult, user_trimmed_keep_ranges
 from audio_processor import AudioProcessor
 from sponsor_service import SponsorService
-from utils.markers import mark_distinct_merge
+from utils.markers import carve_fragment, mark_distinct_merge
 from utils.text import word_boundary_re
 from tests.unit.marker_test_utils import RegistryStub, registry_confirms
 from config import (
@@ -3041,6 +3041,30 @@ def test_silence_is_absorbed_past_the_confirmed_limit():
     assert _spans(result) == [(1000.0, 1950.0)]
     assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
     assert not result.ads[0].get('held_for_review')
+    assert result.ads[0]['silent_absorbed_spans'] == [{'start': 1850.0, 'end': 1950.0}]
+
+
+def test_revalidated_absorbed_silence_does_not_count_toward_duration():
+    validator, ad = _measured_with_estimate(1000.0, 1850.0, 0.95, 'Acme sponsor read',
+                                            1840.0, 1950.0)
+    cut = validator.validate([ad], audio_analysis=_silence((1850.0, 1950.0))).ads[0]
+    saved = json.loads(json.dumps({k: v for k, v in cut.items() if k != 'validation'}))
+
+    again = validator.validate([saved]).ads[0]
+
+    assert (again['start'], again['end']) == (1000.0, 1950.0)
+    assert again['validation']['decision'] == Decision.ACCEPT.value
+    # Duration checks see the 850 s measured read, not the 950 s cut.
+    assert not any('950.0s' in f for f in again['validation']['flags'])
+    assert again.get('hold_reason') is None
+
+
+def test_absorbed_silence_is_clipped_with_a_carved_fragment():
+    marker = {'start': 1000.0, 'end': 1950.0,
+              'silent_absorbed_spans': [{'start': 1850.0, 'end': 1950.0}]}
+    assert carve_fragment(marker, 1000.0, 1900.0)['silent_absorbed_spans'] == [
+        {'start': 1850.0, 'end': 1900.0}]
+    assert 'silent_absorbed_spans' not in carve_fragment(marker, 1000.0, 1800.0)
 
 
 def test_silence_is_absorbed_past_the_base_limit_after_a_vague_reason():

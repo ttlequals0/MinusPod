@@ -36,6 +36,8 @@ release notes.
   written with the invalid value.
 - An estimated pattern remainder the audio analysis measures as silence (dead air between an ad and the
   show) is now cut with the ad instead of held for review. The pattern match is enough evidence for silence.
+  Absorbed silence does not count toward the ad duration limits or the per-feed cap, and the reviewer does
+  not trim it back.
 
 ### Changed
 - Shared helpers replace duplicated interval merging, carving, pass-2 hold handling, end-edge

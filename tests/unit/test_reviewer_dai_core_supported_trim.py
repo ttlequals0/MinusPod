@@ -88,6 +88,13 @@ def test_supported_trim_crosses_unmeasured_region_end(monkeypatch):
     assert saved['end'] == 58.2
 
 
+def test_absorbed_silence_floors_supported_end(monkeypatch):
+    # Same proposal as the unmeasured-region trim above, but 58.2-73.2 is absorbed silence.
+    _, cuts = _run(monkeypatch, _marker(
+        silent_absorbed_spans=[{'start': 58.2, 'end': 73.2}]))
+    assert cuts == [(0.0, 73.2)]
+
+
 def test_fingerprint_match_over_region_floors_supported_end(monkeypatch):
     member = {'start': 0.0, 'end': 73.2, 'stage': 'fingerprint',
               'fingerprint_match_start': 0.0, 'fingerprint_match_end': 73.2}

@@ -1600,3 +1600,19 @@ def test_recut_keeps_an_auto_filed_confirm_inside_a_reviewer_reject_uncut(tmp_pa
 
     assert call.args[1] == []
     assert (5.0, 95.0) in _spans(call.kwargs['hard_barriers'])
+
+
+def test_recut_keeps_a_cut_that_is_long_only_by_absorbed_silence(monkeypatch):
+    marker = {'start': 1000.0, 'end': 1950.0, 'confidence': 0.95,
+              'reason': 'Acme sponsor read', 'sponsor': 'Acme', 'detection_stage': 'claude',
+              'was_cut': True, 'silent_absorbed_spans': [{'start': 1850.0, 'end': 1950.0}],
+              '_learning_bounds': [1000.0, 1850.0]}
+    _stub_recut_db(monkeypatch, [marker])
+
+    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+        'slug', 'ep', [{'start': 1000.0, 'end': 1850.0, 'text': 'Acme read'}], 3600.0, '',
+        0.80, corrections=_user_corrections('slug', 'ep'))
+
+    assert _spans(ads_to_remove) == {(1000.0, 1950.0)}
+    assert all_ads[0]['validation']['decision'] == 'ACCEPT'
+    assert not any('950.0s' in f for f in all_ads[0]['validation']['flags'])
