@@ -9,6 +9,8 @@ import CollapsibleSection, { useCollapsibleOpen } from '../../components/Collaps
 import CopyButton from '../../components/CopyButton';
 import SectionSearchInput from '../../components/SectionSearchInput';
 import { SettingsSearchContext } from '../../context/SettingsSearchContext';
+import { SettingsBulkCollapseProvider, useBulkCollapseSignal } from '../../context/SettingsBulkCollapseContext';
+import SectionBulkControls from '../../components/SectionBulkControls';
 import { useSectionSearch } from '../../hooks/useSectionSearch';
 import { ExperimentalBadge } from '../../components/ExperimentalBadge';
 import { FeedTagsEditor } from '../../components/FeedTagsEditor';
@@ -176,6 +178,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const searchRegionRef = useRef<HTMLDivElement>(null);
   const { query: searchQuery, matchKeys: searchMatchKeys, run: runSearch, clear: clearSearch } =
     useSectionSearch(searchRegionRef);
+  const [bulkCollapseSignal, triggerBulkCollapse] = useBulkCollapseSignal();
   const [isEditingNetwork, setIsEditingNetwork] = useState(false);
   const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
   const [customNetwork, setCustomNetwork] = useState(false);
@@ -547,6 +550,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             clearLabel="Clear feed settings search"
           />
 
+          <SectionBulkControls disabled={searchMatchKeys !== null} onToggleAll={triggerBulkCollapse} />
+
+          <SettingsBulkCollapseProvider value={bulkCollapseSignal}>
           <SettingsSearchContext.Provider value={searchMatchKeys}>
           <div ref={searchRegionRef} className="space-y-4">
           {searchMatchKeys !== null && searchMatchKeys.size === 0 && (
@@ -557,7 +563,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
           <CollapsibleSection
             title="Source and network"
-            defaultOpen={false}
+            defaultOpen
             storageKey={`feed-source-${slug}`}
           >
             <div className="space-y-4 pt-1">
@@ -754,7 +760,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
           <CollapsibleSection
             title="Processing"
-            defaultOpen={false}
+            defaultOpen
             storageKey={`feed-processing-${slug}`}
           >
             <div className="space-y-4 pt-1">
@@ -984,7 +990,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
           <CollapsibleSection
             title="Title and tag rules"
-            defaultOpen={false}
+            defaultOpen
             storageKey={`feed-title-tags-${slug}`}
           >
             <div className="space-y-4 pt-1">
@@ -1097,7 +1103,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
           <CollapsibleSection
             title="Chapters"
-            defaultOpen={false}
+            defaultOpen
             storageKey={`feed-chapters-${slug}`}
           >
             <div className="space-y-4 pt-1">
@@ -1191,7 +1197,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
           <CollapsibleSection
             title="Served feed and storage"
-            defaultOpen={false}
+            defaultOpen
             storageKey={`feed-output-${slug}`}
           >
             <div className="space-y-4 pt-1">
@@ -1777,6 +1783,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           </CollapsibleSection>
           </div>
           </SettingsSearchContext.Provider>
+          </SettingsBulkCollapseProvider>
         </div>
       </CollapsibleSection>
       {confirmRerender && (

@@ -15,7 +15,7 @@ release notes.
 - The podcast settings page has the same search as the Settings page: type to filter the setting groups, matches are highlighted, and the groups that hold them expand. Reported in #803.
 
 ### Changed
-- Feed settings are grouped into collapsible sections, so the search can filter and expand them the same way it does on the Settings page.
+- Feed settings are grouped into collapsible sections, so the search and the Expand all and Collapse all buttons work the same way as on the Settings page. The new sections start open.
 
 ## [2.97.40] - 2026-09-30
 

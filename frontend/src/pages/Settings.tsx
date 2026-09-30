@@ -60,7 +60,8 @@ import OutboundRequestsSection from './settings/OutboundRequestsSection';
 import SectionSearchInput from '../components/SectionSearchInput';
 import { useSectionSearch } from '../hooks/useSectionSearch';
 import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
-import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
+import { SettingsBulkCollapseProvider, useBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
+import SectionBulkControls from '../components/SectionBulkControls';
 import { reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils';
 import { btnPrimary } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
@@ -181,14 +182,7 @@ function Settings() {
   const searchRegionRef = useRef<HTMLDivElement>(null);
   const { query: settingsQuery, matchKeys: settingsMatchKeys, run: runSettingsSearch, clear: clearSettingsSearch } =
     useSectionSearch(searchRegionRef);
-  // Expand all / Collapse all: bumps `seq` on each click so every
-  // CollapsibleSection under the provider snaps to `open`, even on a repeated
-  // click with the same value. Disabled while a search is active since search
-  // already overrides expansion.
-  const [bulkCollapseSignal, setBulkCollapseSignal] = useState<SettingsBulkCollapseSignal | null>(null);
-  const triggerBulkCollapse = (open: boolean) => {
-    setBulkCollapseSignal((prev) => ({ seq: (prev?.seq ?? 0) + 1, open }));
-  };
+  const [bulkCollapseSignal, triggerBulkCollapse] = useBulkCollapseSignal();
   const [selectedModel, setSelectedModel] = useState('');
   const [verificationModel, setVerificationModel] = useState('');
   // Per-phase provider overrides; '' inherits (see AIModelsSection's
@@ -988,24 +982,7 @@ function Settings() {
         clearLabel="Clear settings search"
       />
 
-      <div className="flex justify-end gap-3">
-        <button
-          type="button"
-          onClick={() => triggerBulkCollapse(true)}
-          disabled={settingsMatchKeys !== null}
-          className={`text-sm text-primary hover:underline ${settingsMatchKeys !== null ? 'opacity-50 pointer-events-none' : ''} ${focusRing}`}
-        >
-          Expand all
-        </button>
-        <button
-          type="button"
-          onClick={() => triggerBulkCollapse(false)}
-          disabled={settingsMatchKeys !== null}
-          className={`text-sm text-primary hover:underline ${settingsMatchKeys !== null ? 'opacity-50 pointer-events-none' : ''} ${focusRing}`}
-        >
-          Collapse all
-        </button>
-      </div>
+      <SectionBulkControls disabled={settingsMatchKeys !== null} onToggleAll={triggerBulkCollapse} />
 
       <SettingsBulkCollapseProvider value={bulkCollapseSignal}>
       <SettingsSearchContext.Provider value={settingsMatchKeys}>
