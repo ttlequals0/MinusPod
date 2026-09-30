@@ -13,6 +13,7 @@ bootstrap('verify_status_test_')
 import ad_detector
 from llm_client import ProviderRateLimitedError
 from main_app import processing
+from utils.errors import ModelLoadError
 from verification_pass import VerificationPass
 
 
@@ -33,7 +34,10 @@ def _run(verification_result, run_stats=None):
 
         verifier_cls = stack.enter_context(
             patch('verification_pass.VerificationPass'))
-        verifier_cls.return_value.verify.return_value = verification_result
+        if isinstance(verification_result, Exception):
+            verifier_cls.return_value.verify.side_effect = verification_result
+        else:
+            verifier_cls.return_value.verify.return_value = verification_result
 
         result = processing._run_verification_pass(
             _ctx(), '/tmp/verify-status-cut.mp3', [], False, 0.8,
@@ -192,6 +196,16 @@ class TestVerificationWindowCounts:
               'status': 'transcription_failed'}, run_stats=run_stats)
 
         assert 'verification_windows' not in run_stats
+
+
+def test_model_load_failure_raises_for_the_run_level_retry():
+    with pytest.raises(ModelLoadError):
+        _run(ModelLoadError('Whisper model could not be loaded'))
+
+
+def test_other_verification_errors_still_finish_unverified():
+    result, _storage = _run(RuntimeError('boom'))
+    assert result[6] is False
 
 
 class TestRateLimitedVerification:

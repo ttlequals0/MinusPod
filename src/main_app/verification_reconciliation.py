@@ -372,10 +372,14 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
     return surviving_processed, surviving_original
 
 
+# A carved fragment shorter than this in either timeline is an edge sliver, never an ad.
+MIN_SPLIT_FRAGMENT_SECONDS = 1.0
+
+
 def _is_sliver(processed, original):
-    """Whether a carved fragment is no longer than the edge tolerance in either timeline."""
-    return (processed['end'] - processed['start'] <= EDGE_TOLERANCE
-            or original['end'] - original['start'] <= EDGE_TOLERANCE)
+    """Whether a carved fragment is under MIN_SPLIT_FRAGMENT_SECONDS in either timeline."""
+    return (processed['end'] - processed['start'] < MIN_SPLIT_FRAGMENT_SECONDS
+            or original['end'] - original['start'] < MIN_SPLIT_FRAGMENT_SECONDS)
 
 
 def _fragment_survives(processed, original, policy, pass1_cuts, ledger, conflicts):

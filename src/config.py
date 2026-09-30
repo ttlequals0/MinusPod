@@ -472,7 +472,7 @@ PODCAST_SEARCH_PROVIDERS = (SEARCH_PROVIDER_ITUNES, SEARCH_PROVIDER_PODCASTINDEX
 # ============================================================
 # Processing Limits
 # ============================================================
-MAX_EPISODE_RETRIES = 4         # Retries before permanent failure (initial + 4 retries = 5 total attempts, ladder 5m/15m/30m/60m)
+MAX_EPISODE_RETRIES = 4         # Failed attempts before permanent failure (initial + 3 retries, 5m/15m/30m apart)
 JIT_RETRY_COOLDOWN_SECONDS = 60 # Base cooldown between JIT retries (doubles per attempt)
 WINDOW_SIZE_SECONDS = 600       # Claude processing window (10 min)
 WINDOW_OVERLAP_SECONDS = 180    # Overlap between windows (3 min)

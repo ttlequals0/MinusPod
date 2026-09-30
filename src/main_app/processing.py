@@ -4112,8 +4112,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         ledger.emit(slug, episode_id, run_stats)
 
         verification_ok = not crosspass_rerender_failed
-    except ProviderRateLimitedError:
-        # The hold handler must see this: re-queue after the reset, not finalize unverified.
+    except (ProviderRateLimitedError, ModelLoadError):
+        # The run-level handler must see these: re-queue and redo the run, not finalize unverified.
         raise
     except Exception as e:
         audio_logger.error(f"[{slug}:{episode_id}] Verification pass failed: {e}")

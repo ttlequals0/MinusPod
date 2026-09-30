@@ -103,11 +103,16 @@ def test_short_fragment_beside_a_hold_is_dropped_with_its_own_line(caplog):
         (95.0, 100.0, 'dropped:short_fragment'), (100.0, 104.0, 'covered:pass1_hold')]
 
 
-def test_sub_tolerance_fragment_at_a_hold_edge_is_dropped_before_validation(caplog):
-    run = _run([(1251.68, 1400.0)], holds=[_hold(1251.7, 1400.0)],
-               validator_rejects=[(1251.68, 1251.7)], caplog=caplog)
-    assert sorted(run.lines) == [
-        (1251.7, 1251.7, 'dropped:short_fragment'), (1251.7, 1400.0, 'covered:pass1_hold')]
+@pytest.mark.parametrize(('start', 'hold_start', 'lines'), [
+    (1251.68, 1251.7, [(1251.7, 1251.7), (1251.7, 1400.0)]),
+    (1251.66, 1251.74, [(1251.7, 1251.7), (1251.7, 1400.0)]),
+    (1251.2, 1251.7, [(1251.2, 1251.7), (1251.7, 1400.0)]),
+])
+def test_sub_second_fragment_at_a_hold_edge_is_dropped_before_validation(
+        caplog, start, hold_start, lines):
+    run = _run([(start, 1400.0)], holds=[_hold(hold_start, 1400.0)], caplog=caplog)
+    assert sorted(run.lines) == [(*lines[0], 'dropped:short_fragment'),
+                                 (*lines[1], 'covered:pass1_hold')]
 
 
 def test_finding_ending_at_a_hold_start_leaves_no_fragment(caplog):
