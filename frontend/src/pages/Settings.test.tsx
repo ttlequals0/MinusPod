@@ -340,3 +340,32 @@ describe('Settings system status polling', () => {
     expect(systemStatusRefetchInterval()).toBe(30_000);
   });
 });
+
+describe('Settings search', () => {
+  function card(heading: string) {
+    return screen.getByRole('heading', { name: heading }).closest('[data-search-key]') as HTMLElement;
+  }
+
+  it('filters cards, shows the empty state, disables bulk buttons, and clear restores', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Ad Reviewer' });
+
+    const search = screen.getByRole('textbox', { name: 'Search settings' });
+    await user.type(search, 'resurrect prompt');
+    expect(card('Ad Reviewer').className).not.toContain('hidden');
+    expect(card('Seed sponsors').className).toContain('hidden');
+    expect(screen.getByRole('button', { name: 'Expand all' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Collapse all' })).toHaveProperty('disabled', true);
+
+    await user.clear(search);
+    await user.type(search, 'zzz-no-such-setting');
+    expect(screen.getByText('No settings match "zzz-no-such-setting".')).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: 'Clear settings search' }));
+    expect(screen.queryByText(/No settings match/)).toBeNull();
+    expect(card('Seed sponsors').className).not.toContain('hidden');
+    expect(screen.getByRole('button', { name: 'Expand all' })).toHaveProperty('disabled', false);
+  });
+});
