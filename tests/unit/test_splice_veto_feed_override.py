@@ -5,17 +5,14 @@ produce splice evidence, such as a host-read archive. The calibration fix
 handles that case on its own; this override is the manual escape hatch, and
 it also covers the reverse, forcing the veto on where the global is off.
 """
-import os
-import sys
-import tempfile
-
 import pytest
 
-os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='splice_override_test_'))
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+from tests.app_bootstrap import bootstrap
 
-from config import resolve_splice_veto_enabled
+_test_data_dir = bootstrap('splice_override_test_')
+
+from config import resolve_splice_veto_enabled  # noqa: E402
+from main_app import processing  # noqa: E402
 
 
 class _DB:
@@ -68,3 +65,23 @@ def test_the_api_exposes_it_as_a_nullable_bool():
     """Tri-state on the wire: null inherits, true and false are explicit."""
     from api.feeds import _NULLABLE_BOOL_FIELDS
     assert ('spliceVetoEnabled', 'splice_veto_enabled') in _NULLABLE_BOOL_FIELDS
+
+
+@pytest.mark.parametrize("stored_global, feed, expected", [
+    ('false', None, False),
+    ('false', 1, True),
+    ('true', 0, False),
+    ('true', None, True),
+])
+def test_build_validator_reads_the_stored_global(monkeypatch, stored_global, feed, expected):
+    monkeypatch.setattr(processing.db, 'get_podcast_cue_settings_overrides',
+                        lambda podcast_id: {'splice_veto_enabled': feed})
+    original = processing.db.get_setting('splice_veto_enabled')
+    processing.db.set_setting('splice_veto_enabled', stored_global, is_default=False)
+    try:
+        validator = processing._build_validator(
+            600.0, [], '', false_positive_corrections=[], min_cut_confidence=0.8,
+            max_ad_duration_override=None, cue_gate_enabled=False, podcast_id=1)
+    finally:
+        processing.db.set_setting('splice_veto_enabled', original or 'true', is_default=True)
+    assert validator.splice_veto_enabled is expected

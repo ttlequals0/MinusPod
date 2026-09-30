@@ -811,6 +811,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'dai_differential_overrides_keep': SettingSpec(
         default='true', seeded=True, in_ad_reset=True,
         payload_key='daiDifferentialOverridesKeep', payload_kind='bool'),
+    'splice_veto_enabled': SettingSpec(
+        default='true', seeded=True, in_ad_reset=True,
+        payload_key='spliceVetoEnabled', payload_kind='bool'),
     'differential_hold_min_seconds': SettingSpec(
         default='10', seeded=True, in_ad_reset=True,
         payload_key='differentialHoldMinSeconds', payload_kind='float'),

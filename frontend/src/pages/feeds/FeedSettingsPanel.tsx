@@ -1599,7 +1599,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Splice check"
                   >
-                    <option value="">Use global</option>
+                    <option value="">Use global ({settings?.spliceVetoEnabled?.value === false ? 'off' : 'on'})</option>
                     <option value="true">Hold cuts without splice evidence</option>
                     <option value="false">Cut without splice evidence</option>
                   </select>

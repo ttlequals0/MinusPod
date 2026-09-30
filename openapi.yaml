@@ -890,7 +890,7 @@ paths:
                     - 'null'
                   description: >-
                     Per-feed splice check. Tri-state: null inherits the global
-                    splice_veto_enabled setting, true forces the check on, false lets
+                    spliceVetoEnabled setting, true forces the check on, false lets
                     long cuts through without splice evidence.
                 maxAdDurationOverride:
                   type:
@@ -6160,6 +6160,12 @@ paths:
                     keep. Audio that differs between two fetches of the same
                     enclosure was inserted, whatever the category says
                     (default true).
+                spliceVetoEnabled:
+                  type: boolean
+                  description: >-
+                    Hold a long cut found only in the transcript for review
+                    unless the audio shows an edit point at its edges. A feed's
+                    own spliceVetoEnabled overrides this (default true).
                 differentialMeasuredCorrMax:
                   type: number
                   format: float
@@ -11399,8 +11405,9 @@ components:
             - boolean
             - 'null'
           description: >-
-            Per-feed splice check. null inherits the global setting, true forces the
-            check on, false lets long cuts through without splice evidence.
+            Per-feed splice check. null inherits the global spliceVetoEnabled
+            setting, true forces the check on, false lets long cuts through
+            without splice evidence.
         maxAdDurationOverride:
           type:
             - number
@@ -13560,6 +13567,16 @@ components:
               type: boolean
             isDefault:
               type: boolean
+        spliceVetoEnabled:
+          type: object
+          description: >-
+            Hold long transcript-only cuts that show no edit point in the
+            audio. A feed's own spliceVetoEnabled overrides this (default true).
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
         differentialMeasuredCorrMax:
           type: object
           description: >-
@@ -14318,6 +14335,8 @@ components:
               type: string
               enum: [auto, float16, int8_float16, int8, float32]
             positionalPriorEnabled:
+              type: boolean
+            spliceVetoEnabled:
               type: boolean
             vadGapDetectionEnabled:
               type: boolean

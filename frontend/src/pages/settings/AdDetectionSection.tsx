@@ -31,6 +31,8 @@ interface AdDetectionSectionProps {
   daiDifferentialOverridesKeep: boolean;
   onDifferentialHoldMinSecondsChange: (value: number) => void;
   onDaiDifferentialOverridesKeepChange: (value: boolean) => void;
+  spliceVetoEnabled: boolean;
+  onSpliceVetoEnabledChange: (value: boolean) => void;
 }
 
 // Same shape as AudioCueDetectionSection's numRow, adapted to this section's
@@ -89,6 +91,8 @@ function AdDetectionSection({
   daiDifferentialOverridesKeep,
   onDifferentialHoldMinSecondsChange,
   onDaiDifferentialOverridesKeepChange,
+  spliceVetoEnabled,
+  onSpliceVetoEnabledChange,
 }: AdDetectionSectionProps) {
   return (
     <CollapsibleSection title="Ad Detection">
@@ -179,6 +183,19 @@ function AdDetectionSection({
           />
           <p className="mt-2 text-sm text-muted-foreground">
             The hard ceiling. Even an ad with a confirmed sponsor is held rather than cut past this length.
+          </p>
+        </div>
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={spliceVetoEnabled}
+              onChange={onSpliceVetoEnabledChange}
+              ariaLabel="Hold long cuts without splice evidence"
+            />
+            <span className="text-sm font-medium text-foreground">Hold long cuts without splice evidence</span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground ml-14">
+            A long cut found only in the transcript is held for review unless the audio shows an edit point at its edges. Each feed can override this.
           </p>
         </div>
 

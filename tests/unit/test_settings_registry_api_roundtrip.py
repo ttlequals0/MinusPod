@@ -160,3 +160,26 @@ def test_ad_chapter_settings_reject_without_partial_write(client):
     assert enabled() is False
     assert put({'adChaptersEnabled': 'false'}).status_code == 200
     assert enabled() is False
+
+
+def test_the_splice_veto_toggle_round_trips(client):
+    assert client.get(BASE).get_json()['spliceVetoEnabled']['value'] is True
+
+    for value in (False, True):
+        r = client.put(f'{BASE}/ad-detection',
+                       data=json.dumps({'spliceVetoEnabled': value}),
+                       content_type='application/json')
+        assert r.status_code in (200, 204), r.get_data(as_text=True)
+        after = client.get(BASE).get_json()['spliceVetoEnabled']
+        assert after['value'] is value
+        assert after['isDefault'] is False
+
+
+def test_ad_detection_reset_turns_the_splice_veto_back_on(client):
+    client.put(f'{BASE}/ad-detection', data=json.dumps({'spliceVetoEnabled': False}),
+               content_type='application/json')
+    r = client.post(f'{BASE}/ad-detection/reset')
+    assert r.status_code == 200, r.get_data(as_text=True)
+    after = client.get(BASE).get_json()['spliceVetoEnabled']
+    assert after['value'] is True
+    assert after['isDefault'] is True

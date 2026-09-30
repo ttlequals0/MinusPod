@@ -25,6 +25,7 @@ interface TunablesState {
   differentialMeasuredCorrMax: number;
   differentialHoldMinSeconds: number;
   daiDifferentialOverridesKeep: boolean;
+  spliceVetoEnabled: boolean;
 }
 
 function defaultState(): TunablesState {
@@ -43,6 +44,7 @@ function defaultState(): TunablesState {
     differentialMeasuredCorrMax: 0.6,
     differentialHoldMinSeconds: 10,
     daiDifferentialOverridesKeep: true,
+    spliceVetoEnabled: true,
   };
 }
 
@@ -84,6 +86,8 @@ function Harness({ onCommit }: { onCommit: (payload: TunablesState) => void }) {
         onDifferentialHoldMinSecondsChange={patch('differentialHoldMinSeconds')}
         daiDifferentialOverridesKeep={state.daiDifferentialOverridesKeep}
         onDaiDifferentialOverridesKeepChange={patch('daiDifferentialOverridesKeep')}
+        spliceVetoEnabled={state.spliceVetoEnabled}
+        onSpliceVetoEnabledChange={patch('spliceVetoEnabled')}
       />
       <button onClick={() => onCommit(state)}>Commit</button>
     </>
@@ -144,6 +148,24 @@ describe('AdDetectionSection: kept-category override toggle', () => {
     await user.click(screen.getByRole('switch', { name: 'Cut inserted ads in kept categories' }));
     await user.click(screen.getByText('Commit'));
     expect(committed!.daiDifferentialOverridesKeep).toBe(false);
+  });
+});
+
+describe('AdDetectionSection: splice veto toggle', () => {
+  const NAME = 'Hold long cuts without splice evidence';
+
+  it('is on by default', () => {
+    render(<Harness onCommit={() => {}} />);
+    expect(screen.getByRole('switch', { name: NAME }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('switches off and reports the change to the parent', async () => {
+    let committed: TunablesState | null = null;
+    render(<Harness onCommit={(payload) => { committed = payload; }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('switch', { name: NAME }));
+    await user.click(screen.getByText('Commit'));
+    expect(committed!.spliceVetoEnabled).toBe(false);
   });
 });
 
@@ -222,6 +244,7 @@ describe('AdDetectionSection: commit fires the batched save payload with camelCa
       differentialMeasuredCorrMax: 0.4,
       differentialHoldMinSeconds: 20,
       daiDifferentialOverridesKeep: true,
+      spliceVetoEnabled: true,
     });
   });
 });

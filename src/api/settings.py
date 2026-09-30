@@ -583,6 +583,8 @@ def _build_settings_payload():
     dai_differential_overrides_keep = coerce_bool_setting(_setting_value(
         settings, 'dai_differential_overrides_keep',
         registry_default('dai_differential_overrides_keep')))
+    splice_veto_enabled = coerce_bool_setting(_setting_value(
+        settings, 'splice_veto_enabled', registry_default('splice_veto_enabled')))
 
     ad_chapters_enabled = coerce_bool_setting(_str_setting('ad_chapters_enabled'))
     ad_chapter_categories = resolve_ad_chapter_categories_map(
@@ -797,6 +799,7 @@ def _build_settings_payload():
         'differentialHoldMinSeconds': _sv('differential_hold_min_seconds', differential_hold_min_seconds),
         'daiDifferentialOverridesKeep': _sv(
             'dai_differential_overrides_keep', dai_differential_overrides_keep),
+        'spliceVetoEnabled': _sv('splice_veto_enabled', splice_veto_enabled),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
@@ -2412,6 +2415,11 @@ def _apply_positional_prior_fields(db, data):
         db.set_setting('dai_differential_overrides_keep',
                        'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated dai_differential_overrides_keep to: {enabled}")
+
+    if 'spliceVetoEnabled' in data:
+        enabled = coerce_bool_setting(data['spliceVetoEnabled'])
+        db.set_setting('splice_veto_enabled', 'true' if enabled else 'false', is_default=False)
+        logger.info(f"Updated splice_veto_enabled to: {enabled}")
     return
 
 

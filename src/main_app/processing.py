@@ -1528,7 +1528,8 @@ def _build_validator(episode_duration, segments, episode_description, *,
         splice_kwargs = {
             'splice_veto_enabled': resolve_splice_veto_enabled(
                 db, podcast_id,
-                db.get_setting_bool('splice_veto_enabled', default=True)),
+                db.get_setting_bool('splice_veto_enabled', default=coerce_bool_setting(
+                    registry_get_default('splice_veto_enabled')))),
             'veto_min_cut_seconds': db.get_setting_float('veto_min_cut_seconds',
                                                          VETO_MIN_CUT_SECONDS),
         }

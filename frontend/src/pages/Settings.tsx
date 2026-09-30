@@ -291,6 +291,7 @@ function Settings() {
   const [differentialMeasuredCorrMax, setDifferentialMeasuredCorrMax] = useState(0.6);
   const [differentialHoldMinSeconds, setDifferentialHoldMinSeconds] = useState(10);
   const [daiDifferentialOverridesKeep, setDaiDifferentialOverridesKeep] = useState(true);
+  const [spliceVetoEnabled, setSpliceVetoEnabled] = useState(true);
   // Neutral placeholder (cast); replaced by hydration before the form renders.
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('' as LlmProvider);
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
@@ -708,6 +709,7 @@ function Settings() {
     { key: 'differentialMeasuredCorrMax', kind: 'val', useDefault: true, literal: 0.6, value: differentialMeasuredCorrMax, set: setDifferentialMeasuredCorrMax },
     { key: 'differentialHoldMinSeconds', kind: 'val', useDefault: true, literal: 10, value: differentialHoldMinSeconds, set: setDifferentialHoldMinSeconds },
     { key: 'daiDifferentialOverridesKeep', kind: 'val', useDefault: true, literal: true, value: daiDifferentialOverridesKeep, set: setDaiDifferentialOverridesKeep },
+    { key: 'spliceVetoEnabled', kind: 'val', useDefault: true, literal: true, value: spliceVetoEnabled, set: setSpliceVetoEnabled },
     // Audio cue detection (nested `audioCue` state)
     { key: 'audioCueDetectionEnabled', kind: 'val', useDefault: true, value: audioCue.enabled, obj: 'audioCue', prop: 'enabled' },
     { key: 'audioCueFreqMinHz', kind: 'val', useDefault: true, value: audioCue.freqMinHz, obj: 'audioCue', prop: 'freqMinHz' },
@@ -1322,6 +1324,8 @@ function Settings() {
         differentialHoldMinSeconds={differentialHoldMinSeconds}
         daiDifferentialOverridesKeep={daiDifferentialOverridesKeep}
         onDaiDifferentialOverridesKeepChange={setDaiDifferentialOverridesKeep}
+        spliceVetoEnabled={spliceVetoEnabled}
+        onSpliceVetoEnabledChange={setSpliceVetoEnabled}
         onDifferentialHoldMinSecondsChange={setDifferentialHoldMinSeconds}
       />
 

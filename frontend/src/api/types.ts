@@ -835,6 +835,7 @@ export interface Settings {
   differentialMeasuredCorrMax: SettingValueNumber;
   differentialHoldMinSeconds: SettingValueNumber;
   daiDifferentialOverridesKeep: SettingValueBoolean;
+  spliceVetoEnabled: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
   chaptersMode: SettingValue;
@@ -998,6 +999,7 @@ export interface Settings {
     differentialMeasuredCorrMax: number;
     differentialHoldMinSeconds: number;
     daiDifferentialOverridesKeep: boolean;
+    spliceVetoEnabled: boolean;
   };
 }
 
@@ -1110,6 +1112,7 @@ export interface UpdateSettingsPayload {
   differentialMeasuredCorrMax?: number;
   differentialHoldMinSeconds?: number;
   daiDifferentialOverridesKeep?: boolean;
+  spliceVetoEnabled?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
   chaptersMode?: 'auto' | 'generate' | 'off';

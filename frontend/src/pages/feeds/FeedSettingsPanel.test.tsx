@@ -936,6 +936,20 @@ describe('FeedSettingsPanel splice check override', () => {
       screen.getByRole('combobox', { name: SELECT }), '');
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { spliceVetoEnabled: null });
   });
+
+  it('the inherit option shows the global as on by default', async () => {
+    mockGetSettings.mockResolvedValue({});
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: SELECT });
+    expect(await within(select).findByRole('option', { name: 'Use global (on)' })).toBeDefined();
+  });
+
+  it('the inherit option shows the global as off when it is off', async () => {
+    mockGetSettings.mockResolvedValue({ spliceVetoEnabled: { value: false, isDefault: false } });
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: SELECT });
+    expect(await within(select).findByRole('option', { name: 'Use global (off)' })).toBeDefined();
+  });
 });
 
 describe('FeedSettingsPanel retention overrides', () => {

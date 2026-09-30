@@ -75,6 +75,7 @@ SEED_SNAPSHOT = {
     'jit_blocked_user_agents': '[]',
     'process_new_episodes_first': '1',
     'dai_differential_overrides_keep': 'true',
+    'splice_veto_enabled': 'true',
     'differential_hold_min_seconds': '10',
     'differential_measured_corr_max': '0.60',
     'differential_fetch_mode': 'auto',
@@ -197,7 +198,7 @@ EXPECTED_AD_RESET_KEYS = {
     'learning_min_confidence', 'learning_min_confidence_long',
     'learning_min_pattern_duration', 'learning_max_pattern_duration',
     'differential_measured_corr_max', 'differential_hold_min_seconds',
-    'dai_differential_overrides_keep',
+    'dai_differential_overrides_keep', 'splice_veto_enabled',
     'ad_detection_exclude_start_seconds',
 }
 
@@ -439,6 +440,7 @@ class TestGetDefaults:
             'feedAuthEnabled': False,
             'artworkWatermarkEnabled': False,
             'positionalPriorEnabled': False,
+            'spliceVetoEnabled': True,
             'segmentCategoryActions': {cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES},
             'communitySyncCategories': list(SEGMENT_CATEGORIES),
             'notificationTimezone': 'UTC',
@@ -492,11 +494,12 @@ class TestGetDefaults:
         # request-rate limit keys (#747), primary and secondary (121 -> 125),
         # then the two tokens-per-minute keys, primary and secondary (125 -> 127).
         # adDetectionExcludeStartSeconds added after that (127 -> 128).
+        # spliceVetoEnabled added after that (131 -> 132).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 131
+        assert len(payload_keys) == 132
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 
