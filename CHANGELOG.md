@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.41] - 2026-09-30
+
+### Added
+- The podcast settings page has the same search as the Settings page: type to filter the setting groups, matches are highlighted, and the groups that hold them expand. Reported in #803.
+
+### Changed
+- Feed settings are grouped into collapsible sections, so the search can filter and expand them the same way it does on the Settings page.
+
 ## [2.97.40] - 2026-09-30
 
 ### Fixed
