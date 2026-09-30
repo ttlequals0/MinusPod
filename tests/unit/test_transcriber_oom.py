@@ -26,9 +26,11 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('transcriber_oom_test_')
 
 import database  # noqa: E402
+import main_app.processing as processing  # noqa: E402
 import transcriber as transcriber_mod  # noqa: E402
 from transcriber import Transcriber  # noqa: E402
 from main_app.processing import is_transient_error  # noqa: E402
+from utils.errors import ModelLoadError  # noqa: E402
 
 
 def _db():
@@ -176,6 +178,128 @@ def test_chunked_cuda_exhaustion_preserves_permanent_error(monkeypatch):
             t.transcribe_chunked('/tmp/input.mp3')
 
     assert is_transient_error(exc_info.value) is False
+
+
+LOAD_OOM = 'CUDA failed with error out of memory'
+
+
+def _load_model(monkeypatch, compute_type='auto', error=LOAD_OOM):
+    """Run get_instance on CUDA with every WhisperModel construction raising error."""
+    monkeypatch.setenv('WHISPER_DEVICE', 'cuda')
+    singleton = transcriber_mod.WhisperModelSingleton
+    for attr in ('_instance', '_base_model', '_current_model_name'):
+        monkeypatch.setattr(singleton, attr, None)
+    attempts = []
+
+    def fake_model(*args, **kwargs):
+        attempts.append(kwargs['compute_type'])
+        raise RuntimeError(error)
+
+    with patch('transcriber._get_whisper_settings', return_value={'backend': 'local'}), \
+            patch('transcriber._get_whisper_compute_type', return_value=compute_type), \
+            patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
+            patch('transcriber.WhisperModel', side_effect=fake_model), \
+            patch('transcriber.clear_gpu_memory'), \
+            patch.object(singleton, 'get_configured_model', return_value='small'):
+        singleton.get_instance()
+    return attempts
+
+
+@pytest.mark.parametrize('compute_type', ['auto', 'int8_float16'])
+def test_model_load_oom_raises_a_transient_load_error(monkeypatch, compute_type):
+    with pytest.raises(ModelLoadError) as exc_info:
+        _load_model(monkeypatch, compute_type)
+    message = str(exc_info.value).lower()
+    assert 'cuda' not in message and 'oom' not in message and 'memory' not in message
+    assert LOAD_OOM in str(exc_info.value.__cause__)
+    assert is_transient_error(exc_info.value) is True
+
+
+def test_model_load_failure_other_than_oom_keeps_its_error(monkeypatch):
+    with pytest.raises(RuntimeError, match='unsupported') as exc_info:
+        _load_model(monkeypatch, error='unsupported on this GPU')
+    assert not isinstance(exc_info.value, ModelLoadError)
+
+
+def test_transcribe_propagates_a_model_load_failure(monkeypatch):
+    _patch_common(monkeypatch, None)
+
+    def fail_load(cls):
+        raise ModelLoadError('Whisper model could not be loaded')
+
+    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+                        'get_batched_pipeline', classmethod(fail_load))
+    t = _fresh()
+    with pytest.raises(ModelLoadError):
+        t.transcribe('/nonexistent/audio.mp3')
+    assert t.last_transcription_stats['outcome'] == 'failed'
+
+
+def _chunked(transcribe):
+    t = Transcriber.__new__(Transcriber)
+    t.get_audio_duration = MagicMock(return_value=3600.0)
+    t.transcribe = transcribe
+    t.filter_hallucinations = lambda segments: segments
+    t.last_transcription_stats = {}
+
+    def extract(*args, **kwargs):
+        handle = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        handle.close()
+        return handle.name
+
+    with patch('transcriber.calculate_optimal_chunk_duration',
+               return_value=(1800.0, 'test')), \
+            patch('transcriber.extract_audio_chunk', side_effect=extract), \
+            patch('transcriber._get_whisper_settings',
+                  return_value={'backend': 'local'}), \
+            patch('transcriber.clear_gpu_memory'), \
+            patch.object(transcriber_mod.WhisperModelSingleton,
+                         'get_batched_pipeline', return_value=MagicMock()), \
+            patch.object(transcriber_mod.WhisperModelSingleton, 'unload_model'):
+        t.transcribe_chunked('/tmp/input.mp3')
+
+
+def test_chunked_model_load_failure_is_raised_without_shrinking_chunks():
+    transcribe = MagicMock(side_effect=ModelLoadError('Whisper model could not be loaded'))
+    with pytest.raises(ModelLoadError):
+        _chunked(transcribe)
+    assert transcribe.call_count == 1
+
+
+def _handle_failure(error, retry_count=0):
+    episode_data = {'retry_count': retry_count}
+    with patch.object(processing, 'db') as db, \
+            patch.object(processing, '_record_history_row'), \
+            patch.object(processing, '_require_publication_owner'), \
+            patch.object(processing, '_publish_status'), \
+            patch.object(processing, 'get_episode_token_totals',
+                         return_value={'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}), \
+            patch.object(processing, 'is_offline_queue_enabled', return_value=False), \
+            patch.object(processing, 'fire_event'):
+        db.get_episode.return_value = episode_data
+        processing._handle_processing_failure(
+            'example-podcast', 'a1b2c3d4e5f6', 'An Episode', 'Example Show',
+            episode_data, error, start_time=0.0)
+        return db.upsert_episode.call_args.kwargs
+
+
+def test_model_load_failure_is_retried_not_permanently_failed(caplog):
+    with caplog.at_level('INFO'):
+        status = _handle_failure(ModelLoadError('Whisper model could not be loaded'))
+    assert status['status'] == processing.EpisodeStatus.FAILED.value
+    assert status['retry_count'] == 1
+    assert 'Whisper model failed to load, will retry' in caplog.text
+
+
+def test_model_load_failure_respects_the_retry_cap():
+    status = _handle_failure(ModelLoadError('Whisper model could not be loaded'),
+                             retry_count=processing.MAX_EPISODE_RETRIES - 1)
+    assert status['status'] == processing.EpisodeStatus.PERMANENTLY_FAILED.value
+
+
+def test_chunk_oom_after_reductions_stays_permanent():
+    status = _handle_failure(RuntimeError(f'Local CUDA transcription failed: {LOAD_OOM}'))
+    assert status['status'] == processing.EpisodeStatus.PERMANENTLY_FAILED.value
 
 
 def test_admission_guard_serializes_concurrent_cuda_transcriptions(monkeypatch):

@@ -22,7 +22,7 @@ from user_agent import download_user_agent
 from utils.audio import get_audio_duration
 from utils.errors import (
     ServiceUnavailableError, AudioTooLargeError, AudioExtractionError,
-    AudioExtractionTimeout, LocalTranscriptionUnavailableError,
+    AudioExtractionTimeout, LocalTranscriptionUnavailableError, ModelLoadError,
 )
 from utils.time import format_vtt_timestamp, parse_iso_utc, utc_now, utc_now_iso
 from utils.gpu import (clear_gpu_memory, get_available_memory_gb,
@@ -1200,6 +1200,14 @@ def calculate_optimal_chunk_duration(
     return chunk_duration, reason
 
 
+def _raise_if_load_oom(err: Exception) -> None:
+    """Re-raise a GPU allocation failure at model load as ModelLoadError."""
+    if 'out of memory' in str(err).lower():
+        # Worded without the OOM terms so string classifiers do not read it as permanent.
+        raise ModelLoadError(
+            'Whisper model could not be loaded on the GPU at any precision') from err
+
+
 class WhisperModelSingleton:
     _instance = None
     _base_model = None
@@ -1327,11 +1335,14 @@ class WhisperModelSingleton:
                         except Exception as retry_err:
                             last_err = retry_err
                     else:
+                        _raise_if_load_oom(last_err)
                         # Preserve the original float16 failure as __cause__ so
                         # operators can see the root cause, not just the last
                         # fallback attempt's error.
                         raise last_err from init_err
                 else:
+                    if device == "cuda":
+                        _raise_if_load_oom(init_err)
                     raise
 
             # Initialize batched pipeline
@@ -2385,6 +2396,8 @@ class Transcriber:
                 logger.info("Cleaned up GPU memory after transcription failure")
             except Exception as cleanup_err:
                 logger.warning(f"Failed to clean up GPU memory: {cleanup_err}")
+            if isinstance(e, ModelLoadError):
+                raise
             return None
         finally:
             if gpu_admission_acquired:

@@ -173,7 +173,7 @@ from utils.constants import (
 from utils.episode_paths import episode_relative_path
 from utils.errors import (
     AudioExtractionTimeout, AudioNotReadyError, AudioTooLargeError,
-    LocalTranscriptionUnavailableError, ServiceUnavailableError,
+    LocalTranscriptionUnavailableError, ModelLoadError, ServiceUnavailableError,
 )
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.http import safe_url_for_log
@@ -308,6 +308,10 @@ def is_transient_error(error: Exception) -> bool:
     # Missing local Whisper packages need an install or a backend change (#795).
     if isinstance(error, LocalTranscriptionUnavailableError):
         return False
+
+    # A GPU too full to load the model frees up; an OOM mid-transcription stays permanent below.
+    if isinstance(error, ModelLoadError):
+        return True
 
     # Network/connection errors are transient
     if isinstance(error, (
@@ -5762,7 +5766,9 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                 audio_logger.warning(f"[{slug}:{episode_id}] Max retries reached ({MAX_EPISODE_RETRIES}), marking as permanently failed")
             else:
                 new_status = EpisodeStatus.FAILED.value
-                audio_logger.info(f"[{slug}:{episode_id}] Transient error, will retry (attempt {new_retry_count}/{MAX_EPISODE_RETRIES})")
+                cause = ('Whisper model failed to load' if isinstance(error, ModelLoadError)
+                         else 'Transient error')
+                audio_logger.info(f"[{slug}:{episode_id}] {cause}, will retry (attempt {new_retry_count}/{MAX_EPISODE_RETRIES})")
     else:
         new_status = EpisodeStatus.PERMANENTLY_FAILED.value
         new_retry_count = current_retry

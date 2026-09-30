@@ -24,6 +24,10 @@ class LocalTranscriptionUnavailableError(RuntimeError):
     """The local Whisper backend is selected but its packages are not installed."""
 
 
+class ModelLoadError(RuntimeError):
+    """The local Whisper model could not be allocated on the GPU at any precision."""
+
+
 class AudioExtractionError(Exception):
     """ffmpeg could not extract or decode audio chunks from the source file.
 
