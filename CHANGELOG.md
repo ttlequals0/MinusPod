@@ -10506,6 +10506,11 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 
 ---
 
+## [Unreleased]
+
+### Added
+- Added benchmark support for Ollama models, starting with gemma4:e4b.
+
 ## [0.1.104] - 2025-12-16
 
 ### Fixed

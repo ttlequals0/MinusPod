@@ -11,10 +11,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.103.1",
+    "@tanstack/react-query": "^5.104.0",
     "@types/pulltorefreshjs": "^0.1.7",
     "clsx": "^2.1.0",
-    "lucide-react": "^1.47.0",
+    "lucide-react": "^1.48.0",
     "pulltorefreshjs": "^0.1.22",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -33,7 +33,7 @@
     "picomatch": ">=2.3.2",
     "esbuild": ">=0.27.0",
     "@babel/core": "^7.29.6",
-    "brace-expansion": ">=5.0.9",
+    "brace-expansion": ">=5.0.12",
     "postcss": ">=8.5.23"
   },
   "devDependencies": {

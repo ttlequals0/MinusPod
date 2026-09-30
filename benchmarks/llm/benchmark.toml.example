@@ -14,10 +14,25 @@ api_key_env = "OPENROUTER_API_KEY"
 client = "anthropic"
 api_key_env = "ANTHROPIC_API_KEY"
 
+[providers.ollama]
+client = "openai_compatible"
+base_url = "http://localhost:11434/v1"
+# base_url = "http://host.docker.internal:11434/v1"
+api_key_env = "OLLAMA_API_KEY"
+
 # --- Models ---
 # Roster refreshed 2026-08-03, extended 2026-08-12. Slugs verified against
 # the live OpenRouter catalog (GET /api/v1/models) and the current Anthropic
 # model list.
+
+# Ollama
+# - https://ollama.com/download
+# - Install a model: `ollama pull <model-id>`
+# - Ollama's configured context length must be large enough for prompt and reply (~16-32K)
+[[models]]
+# https://ollama.com/library/gemma4:e4b - 8B params, ~3.5GB VRAM, free
+id = "gemma4:e4b"
+provider = "ollama"
 
 # Anthropic - direct provider
 [[models]]
