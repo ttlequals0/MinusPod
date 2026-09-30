@@ -2343,7 +2343,6 @@ class TestRegistryConfirmsLongAds:
     def test_long_break_is_held_without_the_registry(self):
         v = AdValidator(3700.0, self._segments(), episode_description='',
                         min_cut_confidence=0.80)
-        # A brand the detection named would confirm on its own; see test_the_named_sponsor_confirms_it.
         ad = v.validate([dict(self._ad(), reason='ad break')]).ads[0]
         assert ad['validation']['decision'] == 'REVIEW'
         assert ad.get('held_for_review')
@@ -2351,13 +2350,15 @@ class TestRegistryConfirmsLongAds:
     def test_the_registry_confirms_it_and_it_is_accepted(self):
         v = AdValidator(3700.0, self._segments(), episode_description='',
                         min_cut_confidence=0.80, sponsor_service=self._REGISTRY)
-        result = v.validate([self._ad()])
+        ad = dict(self._ad(), reason='ad break')
+        assert v._sponsor_confirmation_source(ad) == 'registry'
+        result = v.validate([ad])
         assert result.ads[0]['validation']['decision'] == 'ACCEPT'
 
-    def test_the_named_sponsor_confirms_it(self):
+    def test_a_reason_named_sponsor_needs_spoken_framing(self):
         v = AdValidator(3700.0, self._segments(), episode_description='',
                         min_cut_confidence=0.80)
-        assert v._sponsor_confirmation_source(self._ad()) == 'transcript'
+        assert v._sponsor_confirmation_source(self._ad()) is None
 
     def test_a_break_naming_no_known_sponsor_is_not_cut(self):
         segs = self._segments()

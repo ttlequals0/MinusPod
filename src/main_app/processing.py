@@ -1509,7 +1509,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
                      false_positive_corrections, min_cut_confidence,
                      max_ad_duration_override, cue_gate_enabled,
                      confirmed_corrections=None, positional_prior=None,
-                     splice_veto=True, podcast_id=None,
+                     splice_veto=True, podcast_id=None, slug=None, podcast_name=None,
                      cue_only_safety=None, cue_unproven_template_ids=None):
     """Single construction point for AdValidator; owns the splice-veto
     settings reads. Per-site differences are stated by the callers:
@@ -1521,6 +1521,9 @@ def _build_validator(episode_duration, segments, episode_description, *,
     - recut passes everything except positional_prior.
     """
     from ad_validator import AdValidator
+    if podcast_name is None and slug:
+        row = db.get_podcast_by_slug(slug)
+        podcast_name = row.get('title') if isinstance(row, dict) else None
     max_ad_duration = resolve_max_ad_duration(db, podcast_id)
     max_ad_duration_confirmed = resolve_max_ad_duration_confirmed(db)
     splice_kwargs = {}
@@ -1549,6 +1552,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
         max_ad_duration_confirmed=max_ad_duration_confirmed,
         cue_only_safety=cue_only_safety,
         cue_unproven_template_ids=cue_unproven_template_ids,
+        podcast_name=podcast_name if isinstance(podcast_name, str) else None,
         **splice_kwargs,
     )
 
@@ -2045,6 +2049,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
         podcast_id=podcast_id,
+        podcast_name=podcast_name,
         cue_only_safety=cue_only_safety,
         cue_unproven_template_ids=cue_unproven_template_ids,
     )
@@ -3238,6 +3243,7 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         cue_gate_enabled=cue_gate_enabled,
         splice_veto=False,
         podcast_id=podcast_id,
+        slug=slug,
     )
 
     # Pair each processed candidate with its original-coords twin before
@@ -5183,6 +5189,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
         podcast_id=podcast_id,
+        slug=slug,
     )
     validation_result = validator.validate(
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)

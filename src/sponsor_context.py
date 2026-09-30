@@ -53,6 +53,24 @@ def names_vanity_link(texts: list[str], sponsor: str) -> bool:
     return any(squash_brand(m.group(1)) == target
                for text in texts for m in VANITY_LINK_RE.finditer(text))
 
+# Framings that name the sponsor right after the phrase; (pattern, exact) as in FRAMING_PATTERNS.
+NAMING_FRAMINGS = ((SPONSOR_FRAMING_RE, False), (SPONSOR_THANKS_RE, True))
+
+
+def framed_with_link_or_offer(texts: list[str], sponsor: str, *, names_sponsor,
+                              matches_expected) -> bool:
+    """Whether the span frames sponsor as a sponsor and also reads its link or an offer."""
+    text = ' '.join(texts)
+    if not any(matches_expected(match.group(1).strip(), sponsor) if exact
+               else names_sponsor(match.group(1), sponsor)
+               for pattern, exact in NAMING_FRAMINGS for match in pattern.finditer(text)):
+        return False
+    return bool(COMMERCIAL_CONTEXT_RE.search(text)
+                or any(squash_brand(link.group(1)) == squash_brand(sponsor)
+                       for pattern in LINK_PATTERNS for link in pattern.finditer(text))
+                or names_vanity_link([text], sponsor))
+
+
 # Leading capitalized run of a framing's group 1: "Acme Home, the alarm people" -> "Acme Home".
 _CAPITALIZED_RUN_RE = re.compile(r"\s*([A-Z0-9][\w&'-]*(?:\s+[A-Z0-9][\w&'-]*){0,3})")
 
@@ -60,7 +78,7 @@ _CAPITALIZED_RUN_RE = re.compile(r"\s*([A-Z0-9][\w&'-]*(?:\s+[A-Z0-9][\w&'-]*){0
 def framed_sponsor_names(text: str | None) -> list[str]:
     """Capitalized names that follow a sponsor framing ("brought to you by Acme") in text."""
     names = []
-    for pattern in (SPONSOR_FRAMING_RE, SPONSOR_THANKS_RE):
+    for pattern, _ in NAMING_FRAMINGS:
         for match in pattern.finditer(text or ''):
             run = _CAPITALIZED_RUN_RE.match(match.group(1))
             if run and run.group(1) not in names:

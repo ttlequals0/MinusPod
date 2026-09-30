@@ -64,7 +64,8 @@ from differential_fetcher import differential_region_overlapping, identical_cove
 from community_export import brand_match_candidates
 from text_pattern_matcher import bounded_segment_texts
 from sponsor_context import (SPONSOR_MIN_MENTIONS, description_sponsor_re, framed_sponsor_names,
-                             local_commercial_context, names_vanity_link, registry_sponsor)
+                             framed_with_link_or_offer, local_commercial_context,
+                             names_vanity_link, registry_sponsor)
 from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS
 from sponsor_service import SponsorService
 from utils.constants import is_brand_token, is_non_brand_name, squash_brand
@@ -75,6 +76,10 @@ from ad_detector.boundaries import effective_resolved_action
 logger = logging.getLogger(__name__)
 
 _SPONSOR_SEPARATOR_RE = re.compile(r'[,;/:]|\band\b', re.IGNORECASE)
+# A reason-derived "sponsor" headed by one of these is the audience, not an advertiser.
+_AUDIENCE_WORDS = frozenset({'patrons', 'patron', 'listeners', 'listener', 'members',
+                             'supporters', 'viewers', 'subscribers', 'you'})
+_AUDIENCE_PHRASES = frozenset({'the show', 'our sponsors'})
 
 # A held remainder is a new pending span: the hold's approval stamps and
 # correction bookkeeping describe the released part, not it.
@@ -316,7 +321,8 @@ class AdValidator:
                  differential_corr_max: float = 0.60,
                  sponsor_service=None,
                  max_ad_duration: float = MAX_AD_DURATION,
-                 max_ad_duration_confirmed: float = MAX_AD_DURATION_CONFIRMED):
+                 max_ad_duration_confirmed: float = MAX_AD_DURATION_CONFIRMED,
+                 podcast_name: str = None):
         """Initialize validator.
 
         Args:
@@ -348,6 +354,7 @@ class AdValidator:
             max_ad_duration_confirmed: Length above which even a confirmed
                 sponsor does not help.
         """
+        self.podcast_name = podcast_name
         self.episode_duration = episode_duration
         self.segments = segments or []
         self.episode_description = episode_description or ""
@@ -439,16 +446,26 @@ class AdValidator:
         return any(labels & variants
                    for variants in self._sponsor_variant_index().get(squash_brand(found), ()))
 
-    @staticmethod
-    def _named_sponsors(ad: dict) -> list[str]:
-        """Brand-like sponsors the detection named: sponsor field, reason framing, else reason."""
+    def _named_sponsors(self, ad: dict) -> tuple[list[str], bool]:
+        """(names, from_reason): the detection's sponsor field, else names its reason frames or labels."""
         def usable(names):
             return [name for name in names if name and not is_non_brand_name(name)
                     and is_brand_token(squash_brand(name))]
+        field = usable(part.strip() for part in _SPONSOR_SEPARATOR_RE.split(ad.get('sponsor') or ''))
+        if field:
+            return field, False
         reason = ad.get('reason')
-        return (usable(part.strip() for part in _SPONSOR_SEPARATOR_RE.split(ad.get('sponsor') or ''))
-                or usable(framed_sponsor_names(reason))
-                or usable((SponsorService.extract_sponsor_from_reason(reason),)))
+        names = (usable(framed_sponsor_names(reason))
+                 or usable((SponsorService.extract_sponsor_from_reason(reason),)))
+        return [name for name in names if not self._is_audience_or_show(name)], True
+
+    def _is_audience_or_show(self, name: str) -> bool:
+        key = ' '.join(name.lower().split())
+        words = key.split()
+        if key in _AUDIENCE_PHRASES or words[0] in _AUDIENCE_WORDS or words[-1] in _AUDIENCE_WORDS:
+            return True
+        show = squash_brand(self.podcast_name or '')
+        return bool(show) and squash_brand(name) in show
 
     def _bounded_text_segments(self, ad: dict) -> list[str]:
         return bounded_segment_texts(self.segments, ad['start'], ad['end'])
@@ -487,11 +504,20 @@ class AdValidator:
             return 'registry'
 
         # A brand the detection named, advertised in the span, even when no registry row knows it.
-        for name in self._named_sponsors(ad):
-            if (local_commercial_context(texts, name, names_sponsor=self._names_sponsor,
-                                         matches_expected=self._matches_expected_sponsor)
+        names, from_reason = self._named_sponsors(ad)
+        for name in names:
+            # Model prose is weaker than its label: the span must frame the name and read a link or offer.
+            if from_reason:
+                advertised = framed_with_link_or_offer(
+                    texts, name, names_sponsor=self._names_sponsor,
+                    matches_expected=self._matches_expected_sponsor)
+            else:
+                advertised = (local_commercial_context(
+                    texts, name, names_sponsor=self._names_sponsor,
+                    matches_expected=self._matches_expected_sponsor)
                     or (names_vanity_link(texts, name)
-                        and self._names_sponsor(' '.join(texts), name))):
+                        and self._names_sponsor(' '.join(texts), name)))
+            if advertised:
                 logger.info(f"Sponsor '{name}' named by the detection is advertised in the span")
                 return 'transcript'
 

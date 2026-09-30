@@ -392,11 +392,15 @@ class TestSpliceVetoNamedSponsor:
     START, END = 609.0, 680.8
     VANITY = 'See what a trace looks like at acme.com slash show'
 
-    def _run(self, text, sponsor=None, reason='Ad brought to you by Acme', end=None):
+    FRAMED = 'This episode is brought to you by Acme. See how it works at acme.com slash show.'
+
+    def _run(self, text, sponsor=None, reason='Ad brought to you by Acme', end=None,
+             confidence=0.93, podcast_name=None):
         end = end or self.END
         segments = [{'start': self.START, 'end': end, 'text': text}]
-        v = AdValidator(3600.0, segments, episode_description='', sponsor_service=None)
-        ad = {'start': self.START, 'end': end, 'confidence': 0.93, 'reason': reason,
+        v = AdValidator(3600.0, segments, episode_description='', sponsor_service=None,
+                        podcast_name=podcast_name)
+        ad = {'start': self.START, 'end': end, 'confidence': confidence, 'reason': reason,
               'detection_stage': 'claude'}
         if sponsor is not None:
             ad['sponsor'] = sponsor
@@ -407,19 +411,24 @@ class TestSpliceVetoNamedSponsor:
         assert ad['hold_reason'] == 'no_splice_evidence'
         assert ad['validation']['sponsor_confirmed'] is False
 
-    def test_reason_brand_with_vanity_link_is_accepted(self):
-        ad = self._run(self.VANITY)
+    def test_reason_brand_with_spoken_framing_and_vanity_link_is_accepted(self):
+        ad = self._run(self.FRAMED)
         assert ad['validation']['decision'] == Decision.ACCEPT.value
         assert not ad.get('held_for_review')
         assert ad['validation']['sponsor_confirmed'] is True
         assert ('INFO: Splice veto waived, sponsor confirmed by transcript'
                 in ad['validation']['flags'])
 
+    def test_reason_brand_with_only_a_link_is_held(self):
+        self._assert_held(self._run(self.VANITY))
+
+    def test_reason_brand_with_only_spoken_framing_is_held(self):
+        self._assert_held(self._run('This episode is brought to you by Acme. More on that later.'))
+
     def test_production_reason_framing_names_the_sponsor(self):
         reason = ('Based on transcript: This episode of the show is brought to you by Acme. '
                   'A-C-M-E. This is why you need Acme.')
-        text = 'This episode is brought to you by Acme. See how it works at acme.com slash show.'
-        ad = self._run(text, reason=reason)
+        ad = self._run(self.FRAMED, reason=reason)
         assert ad['validation']['decision'] == Decision.ACCEPT.value
         assert ad['validation']['sponsor_confirmed'] is True
         assert ('INFO: Splice veto waived, sponsor confirmed by transcript'
@@ -450,8 +459,45 @@ class TestSpliceVetoNamedSponsor:
         assert ad['validation']['decision'] == Decision.ACCEPT.value
         assert ad['validation']['sponsor_confirmed'] is True
 
+    def test_listener_support_thanks_is_held(self):
+        text = 'Thanks to our patrons for supporting the show. Join at acme.com slash support.'
+        self._assert_held(self._run(text, reason='Patrons sponsor read: thanks to our patrons '
+                                                 'for supporting the show'))
+
+    def test_listener_named_framing_is_held(self):
+        text = 'This show is brought to you by Listeners Like You. Visit listenerslikeyou.com.'
+        self._assert_held(self._run(text, reason='Ad brought to you by Listeners Like You'))
+
+    def test_thanked_person_without_link_or_offer_is_held(self):
+        text = 'Thanks to Steve for supporting the show, he has been great.'
+        self._assert_held(self._run(text, reason='Sponsor thanks: thanks to Steve for supporting'))
+
+    def test_show_own_name_with_patreon_link_is_held(self):
+        text = ('This show is brought to you by Example Cast listeners. Join at '
+                'examplecast.com slash patreon and use code CAST for 10 percent off.')
+        self._assert_held(self._run(text, reason='Ad brought to you by Example Cast',
+                                    podcast_name='Example Cast'))
+
+    def test_content_link_with_framing_only_in_reason_is_held(self):
+        self._assert_held(self._run('See github.com slash owner slash repo for the code.',
+                                    reason='Sponsored by GitHub'))
+
+    def test_content_link_with_spoken_framing_confirms(self):
+        text = 'This segment is sponsored by GitHub, github.com slash owner.'
+        ad = self._run(text, reason='Sponsored by GitHub')
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert ad['validation']['sponsor_confirmed'] is True
+
+    def test_long_content_span_naming_a_site_stays_held(self):
+        text = ('We walked through the code together, it is at github.com slash owner slash '
+                'repo, and then we talked about the week.')
+        ad = self._run(text, reason='GitHub sponsor read, see github.com',
+                       end=self.START + 360.0, confidence=0.85)
+        assert ad['held_for_review'] is True
+        assert ad['validation']['sponsor_confirmed'] is False
+
     def test_long_read_judged_against_confirmed_ceiling(self):
-        ad = self._run(self.VANITY, end=self.START + 480.0)
+        ad = self._run(self.FRAMED, end=self.START + 480.0)
         assert not any('Very long' in f for f in ad['validation']['flags'])
         assert 'INFO: Long (480.0s) but sponsor confirmed' in ad['validation']['flags']
 

@@ -85,3 +85,17 @@ def test_build_validator_reads_the_stored_global(monkeypatch, stored_global, fee
     finally:
         processing.db.set_setting('splice_veto_enabled', original or 'true', is_default=True)
     assert validator.splice_veto_enabled is expected
+
+
+@pytest.mark.parametrize("row, name, expected", [
+    ({'title': 'Example Cast'}, None, 'Example Cast'),
+    ({'title': 'Example Cast'}, 'Given Name', 'Given Name'),
+    (None, None, None),
+])
+def test_build_validator_passes_the_show_name(monkeypatch, row, name, expected):
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: row)
+    validator = processing._build_validator(
+        600.0, [], '', false_positive_corrections=[], min_cut_confidence=0.8,
+        max_ad_duration_override=None, cue_gate_enabled=False, splice_veto=False,
+        slug='example-podcast', podcast_name=name)
+    assert validator.podcast_name == expected
