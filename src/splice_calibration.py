@@ -56,9 +56,23 @@ def long_cut_corroboration(rows) -> dict:
             continue
         if not isinstance(markers, list):
             continue
-        found = [m['validation']['audio_corroboration'] for m in markers
-                 if isinstance(m, dict) and isinstance(m.get('validation'), dict)
-                 and 'audio_corroboration' in m['validation']]
+        found = []
+        origins = set()
+        for m in markers:
+            if not (isinstance(m, dict) and isinstance(m.get('validation'), dict)
+                    and 'audio_corroboration' in m['validation']):
+                continue
+            # A reviewer reject is a false positive, not a standing cut.
+            if m.get('source') == 'reviewer' and m.get('was_cut') is False:
+                continue
+            # Fragments carved from one detection count as that one detection.
+            origin = m.get('carved_from')
+            if isinstance(origin, dict):
+                key = (origin.get('start'), origin.get('end'))
+                if key in origins:
+                    continue
+                origins.add(key)
+            found.append(m['validation']['audio_corroboration'])
         if not found:
             continue
         episodes += 1

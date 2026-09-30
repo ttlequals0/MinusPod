@@ -167,3 +167,36 @@ def test_compute_reads_the_last_twenty_episodes():
 def test_compute_keeps_base_status_when_ad_history_fails():
     cal = compute_splice_calibration(_FakeDB(RuntimeError('db down')), 'some-feed')
     assert cal['status'] == 'calibrated'
+
+
+def _marker(corroboration, **extra):
+    return dict({'start': 100.0, 'end': 170.0,
+                 'validation': {'audio_corroboration': corroboration}}, **extra)
+
+
+def _rows(*marker_lists):
+    return [{'episode_id': 'ep', 'original_duration': 3600.0,
+             'ad_markers_json': json.dumps(markers)} for markers in marker_lists]
+
+
+def test_reviewer_rejects_do_not_drag_a_feed_to_host_read():
+    rejected = _marker('none', source='reviewer', was_cut=False, reviewer_verdict='reject')
+    episode = ([_marker('splice_evidence')] * 3 + [_marker('none', was_cut=True)] * 2
+               + [rejected] * 4)
+    rows = _rows(*[episode] * 5)
+    assert long_cut_corroboration(rows)['fraction'] == 0.6
+    assert build_calibration(_calibrated_rows(), rows)['status'] == 'calibrated'
+
+
+def test_a_reviewer_marker_that_was_cut_still_counts():
+    kept = _marker('none', source='reviewer', was_cut=True)
+    assert long_cut_corroboration(_rows([kept]))['cuts'] == 1
+
+
+def test_fragments_of_one_detection_count_once():
+    origin = {'start': 100.0, 'end': 400.0}
+    fragments = [_marker('none', carved_from=origin, start=s, end=s + 80.0)
+                 for s in (100.0, 200.0, 300.0)]
+    other = _marker('splice_evidence', carved_from={'start': 500.0, 'end': 600.0})
+    assert long_cut_corroboration(_rows(fragments + [other, _marker('splice_evidence')])) == {
+        'episodes': 1, 'cuts': 3, 'corroborated': 2, 'fraction': 0.667}
