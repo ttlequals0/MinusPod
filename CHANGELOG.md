@@ -9,6 +9,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+- Added benchmark support for Ollama models, starting with gemma4:e4b.
+
+### Changed
+- Modifies `scrub_description` to support taking a percentage of the `max_length` from the beginning and end. Default takes 100% from beginning.
+- Updates the documentation and unit tests for the `strip_comments_from_prompt` utility to preserve literal comments (e.g., those indented by four or more spaces) while still removing other comments.
+- Utilize Docker BuildKit's cache mounts for npm and pip dependency installations in Dockerfiles. This significantly reduces local build times by persisting node modules and Python package caches across builds, particularly for large dependencies like PyTorch.
+
 ## [2.97.38] - 2026-09-30
 
 ### Security
@@ -10505,11 +10515,6 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - New API endpoints for patterns, corrections, sponsors, import/export, SSE status
 
 ---
-
-## [Unreleased]
-
-### Added
-- Added benchmark support for Ollama models, starting with gemma4:e4b.
 
 ## [0.1.104] - 2025-12-16
 
