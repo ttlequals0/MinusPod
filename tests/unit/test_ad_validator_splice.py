@@ -300,6 +300,92 @@ class TestSpliceVetoSponsorWaiver:
         assert ad['hold_reason'] == 'no_splice_evidence'
 
 
+def _region(start, end, kind='identical', corr=1.0):
+    return {'start_s': start, 'end_s': end, 'kind': kind, 'corr': corr}
+
+
+BAKED_IN_FLAG = 'INFO: Splice veto skipped, cross-fetch shows baked-in audio'
+
+
+class TestSpliceVetoCrossFetchWaiver:
+    """A 71.8 s claude cut on a calibrated feed with no splice evidence."""
+
+    START, END = 609.0, 680.8
+
+    def _run(self, dai_differential, text='See what a trace looks like at acme.com slash show',
+             registry=False):
+        segments = [{'start': self.START, 'end': self.END, 'text': text}]
+        v = AdValidator(3600.0, segments, episode_description='',
+                        sponsor_service=ACME_REGISTRY if registry else None)
+        ad = {'start': self.START, 'end': self.END, 'confidence': 0.93,
+              'reason': 'See what a trace looks like at acme.com slash show',
+              'detection_stage': 'claude'}
+        analysis = _analysis([])
+        if dai_differential is not None:
+            analysis['dai_differential'] = dai_differential
+        return v.validate([ad], audio_analysis=analysis).ads[0]
+
+    def _assert_held(self, ad):
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['hold_reason'] == 'no_splice_evidence'
+        assert BAKED_IN_FLAG not in ad['validation']['flags']
+
+    def test_whole_episode_identical_is_accepted(self, caplog):
+        payload = {'status': 'no_differential', 'regions': [_region(0.0, 3600.0)]}
+        with caplog.at_level('INFO'):
+            ad = self._run(payload)
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert not ad.get('held_for_review')
+        assert BAKED_IN_FLAG in ad['validation']['flags']
+        assert 'Splice veto skipped for 609.0s-680.8s' in caplog.text
+        assert '(100% identical)' in caplog.text
+
+    def test_unknown_seam_slivers_do_not_break_the_rule(self):
+        payload = {'status': 'no_differential', 'regions': [
+            _region(0.0, 630.0), _region(630.0, 631.5, 'unknown', None),
+            _region(631.5, 660.0), _region(660.0, 661.5, 'unknown', None),
+            _region(661.5, 3600.0)]}
+        ad = self._run(payload)
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert BAKED_IN_FLAG in ad['validation']['flags']
+
+    def test_ok_status_with_identical_span_is_held(self):
+        payload = {'status': 'ok', 'regions': [
+            _region(0.0, 1200.0), _region(1200.0, 1260.0, 'differential', 0.1),
+            _region(1260.0, 3600.0)]}
+        self._assert_held(self._run(payload))
+
+    def test_differential_region_overlapping_the_span_is_held(self):
+        # corr above the Layer 3 ceiling, so it does not corroborate the cut either.
+        payload = {'status': 'no_differential', 'regions': [
+            _region(0.0, 640.0), _region(640.0, 650.0, 'differential', 0.7),
+            _region(650.0, 3600.0)]}
+        self._assert_held(self._run(payload))
+
+    def test_ninety_percent_identical_coverage_is_held(self):
+        cut = self.START + 0.9 * (self.END - self.START)
+        payload = {'status': 'no_differential', 'regions': [
+            _region(0.0, cut), _region(cut, 3600.0, 'unknown', None)]}
+        self._assert_held(self._run(payload))
+
+    @pytest.mark.parametrize('payload', [
+        None,
+        {'status': 'unreliable_reencode', 'regions': []},
+        {'status': 'error', 'regions': [], 'error': 'boom'},
+        {'status': 'no_differential', 'regions': [_region(0.0, 3600.0, corr=0.0)]},
+    ])
+    def test_fallbacks_keep_todays_hold(self, payload):
+        self._assert_held(self._run(payload))
+
+    def test_sponsor_waiver_keeps_precedence(self):
+        payload = {'status': 'no_differential', 'regions': [_region(0.0, 3600.0)]}
+        ad = self._run(payload, text=CLOSING, registry=True)
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert ('INFO: Splice veto waived, sponsor confirmed by registry'
+                in ad['validation']['flags'])
+        assert BAKED_IN_FLAG not in ad['validation']['flags']
+
+
 class TestProtectedBoundsClamp:
     def test_merged_protected_end_clamped_to_duration(self):
         # A protected member recorded past EOF must not survive validation,

@@ -5,6 +5,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 import requests
 import requests.exceptions
 
@@ -528,3 +529,27 @@ def test_drift_retry_reprobes_the_best_candidate(monkeypatch):
 
     assert calls[-1] == (12.0, df.XCORR_SEARCH_S * 2)
     assert (kind, corr) == ('identical', 0.9)
+
+
+def _region(start, end, kind='identical', corr=1.0):
+    return {'start_s': start, 'end_s': end, 'kind': kind, 'corr': corr}
+
+
+@pytest.mark.parametrize('regions, expected', [
+    ([_region(0.0, 3600.0)], 1.0),
+    ([_region(0.0, 640.0), _region(640.0, 642.0, 'unknown', None), _region(642.0, 3600.0)],
+     70.0 / 72.0),
+    ([_region(0.0, 640.0), _region(640.0, 650.0, 'differential', 0.9), _region(650.0, 3600.0)],
+     0.0),
+    ([_region(0.0, 3600.0, corr=0.0)], 0.0),
+    ([_region(0.0, 3600.0, corr=None)], 0.0),
+    ([{'start_s': 'x', 'end_s': 3600.0, 'kind': 'identical', 'corr': 1.0},
+      _region(608.0, 644.0)], 0.5),
+])
+def test_identical_coverage(regions, expected):
+    assert df.identical_coverage({'regions': regions}, 608.0, 680.0) == pytest.approx(expected)
+
+
+def test_identical_coverage_zero_length_span_or_no_payload():
+    assert df.identical_coverage({'regions': [_region(0.0, 3600.0)]}, 100.0, 100.0) == 0.0
+    assert df.identical_coverage(None, 100.0, 200.0) == 0.0

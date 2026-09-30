@@ -650,6 +650,7 @@ SPLICE_CALIBRATION_MIN_EPISODES = 5       # Min VALID payloads for calibrated; b
 SPLICE_CALIBRATION_MAX_FP_PER_HOUR = 1.0  # Target content false-positive event rate
 SPLICE_CORROBORATION_WINDOW_SECONDS = 3.0  # Event-to-edge distance that corroborates a marker
 VETO_MIN_CUT_SECONDS = 60.0  # Cuts at/over this from claude/text_pattern need splice evidence
+SPLICE_VETO_IDENTICAL_MIN_COVERAGE = 0.95  # no_differential cut this identical skips the veto
 TERMINAL_SNAP_WINDOW_SECONDS = 30.0        # Max backward scan from a terminal marker's start
 TERMINAL_SNAP_EOF_TOLERANCE_SECONDS = 2.0  # Marker end within this of EOF counts as terminal
 # Tail no-VAD re-transcription window (spec 1.2). An untranscribed tail whose

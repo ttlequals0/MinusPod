@@ -16,7 +16,7 @@ from config import (
     MERGE_GAP_THRESHOLD, MAX_SILENT_GAP,
     SILENT_REMAINDER_MIN_COVERAGE,
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
-    HOLD_REASON_NO_SPLICE, VETO_MIN_CUT_SECONDS,
+    HOLD_REASON_NO_SPLICE, VETO_MIN_CUT_SECONDS, SPLICE_VETO_IDENTICAL_MIN_COVERAGE,
     HOLD_REASON_UNCORROBORATED_TAIL,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_ESTIMATED_PATTERN,
@@ -60,7 +60,7 @@ from utils.markers import (
     subtract_spans,
     union_cover,
 )
-from differential_fetcher import differential_region_overlapping
+from differential_fetcher import differential_region_overlapping, identical_coverage
 from community_export import brand_match_candidates
 from text_pattern_matcher import bounded_segment_texts
 from sponsor_context import (SPONSOR_MIN_MENTIONS, description_sponsor_re,
@@ -1166,6 +1166,13 @@ class AdValidator:
         payload = (self._audio_analysis or {}).get('splice_evidence') or {}
         return payload.get('calibration', {}).get('status') == 'calibrated'
 
+    def _cross_fetch_identical_coverage(self, ad: dict) -> float:
+        """Identical coverage of the ad on a no_differential cross-fetch, else 0.0."""
+        payload = (self._audio_analysis or {}).get('dai_differential')
+        if not isinstance(payload, dict) or payload.get('status') != 'no_differential':
+            return 0.0
+        return identical_coverage(payload, ad['start'], ad['end'])
+
     def _audio_corroboration_source(self, ad: dict) -> str | None:
         """Return the strongest stored-audio evidence source near the ad's
         boundaries, or None.
@@ -1367,6 +1374,12 @@ class AdValidator:
                 flags.append(f"INFO: Splice veto waived, sponsor confirmed by {confirmation_source}")
                 logger.info(f"Splice veto waived for {ad['start']:.1f}s-{ad['end']:.1f}s: "
                             f"sponsor confirmed by {confirmation_source}")
+            # Nothing was inserted in this fetch pair, so baked-in audio cannot show a splice.
+            elif ((coverage := self._cross_fetch_identical_coverage(ad))
+                  >= SPLICE_VETO_IDENTICAL_MIN_COVERAGE):
+                flags.append("INFO: Splice veto skipped, cross-fetch shows baked-in audio")
+                logger.info(f"Splice veto skipped for {ad['start']:.1f}s-{ad['end']:.1f}s: "
+                            f"cross-fetch found no inserted audio ({coverage:.0%} identical)")
             else:
                 self._mark_held(ad, flags, HOLD_REASON_NO_SPLICE)
                 return Decision.REVIEW

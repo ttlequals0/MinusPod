@@ -685,6 +685,29 @@ def test_build_recut_respects_splice_veto_disabled(monkeypatch):
     assert all_ads[0].get('hold_reason') != 'no_splice_evidence'
 
 
+def test_build_recut_waives_the_splice_veto_on_baked_in_audio(monkeypatch):
+    """The stored no_differential payload reaches the validator on recut."""
+    ads = [{'start': 1800.0, 'end': 1890.0, 'confidence': 0.92,
+            'detection_stage': 'claude', 'reason': 'host read for Acme'}]
+    analysis = {'splice_evidence': {'version': 1, 'events': [],
+                                    'calibration': {'status': 'calibrated'}}}
+    dd = {'status': 'no_differential', 'regions': [
+        {'start_s': 0.0, 'end_s': 3600.0, 'kind': 'identical', 'corr': 1.0}]}
+    _stub_recut_db(monkeypatch, ads)
+    monkeypatch.setattr(processing.db, 'get_episode_audio_analysis',
+                        lambda s, e: json.dumps(analysis))
+    monkeypatch.setattr(processing.db, 'get_episode_dai_differential',
+                        lambda s, e: json.dumps(dd))
+    segments = [{'start': 1800.0, 'end': 1890.0, 'text': 'a host read'}]
+    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+        'slug', 'ep', segments, 3600.0, '', 0.80,
+        corrections=_user_corrections('slug', 'ep'))
+    assert len(ads_to_remove) == 1
+    assert all_ads[0].get('hold_reason') != 'no_splice_evidence'
+    assert ('INFO: Splice veto skipped, cross-fetch shows baked-in audio'
+            in all_ads[0]['validation']['flags'])
+
+
 def test_build_recut_held_nothing_stays_held_uncut(monkeypatch):
     # held ad + no correction -> re-held by validator -> gate keeps it
     ads = [{'start': 100.0, 'end': 400.0, 'confidence': 0.95,

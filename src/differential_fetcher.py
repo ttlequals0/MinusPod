@@ -582,3 +582,26 @@ def differential_region_overlapping(dai_differential, start: float, end: float,
         except (KeyError, TypeError, ValueError):
             continue
     return None
+
+
+def identical_coverage(dai_differential, start: float, end: float) -> float:
+    """Fraction of [start, end) in measured identical regions; 0.0 if a differential one overlaps."""
+    regions = (dai_differential or {}).get('regions') or []
+    span = float(end) - float(start)
+    if span <= 0:
+        return 0.0
+    covered = 0.0
+    for region in regions:
+        try:
+            lo, hi = max(float(region['start_s']), start), min(float(region['end_s']), end)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if hi <= lo:
+            continue
+        if region.get('kind') == 'differential':
+            return 0.0
+        corr = region.get('corr')
+        if (region.get('kind') == 'identical' and isinstance(corr, (int, float))
+                and not isinstance(corr, bool) and corr >= XCORR_MIN_CORR):
+            covered += hi - lo
+    return covered / span
