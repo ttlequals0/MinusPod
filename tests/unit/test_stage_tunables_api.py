@@ -169,3 +169,20 @@ class TestResetClearsStageTunables:
         assert db.get_setting('reviewer_reasoning_level') == ''
         alls = db.get_all_settings()
         assert alls['reviewer_max_tokens']['is_default'] is True
+
+
+class TestGetReturnsEveryTunable:
+    """GET /settings must return every STAGE_TUNABLE_PAYLOAD_KEYS entry (#800)."""
+
+    def test_every_payload_key_present(self, client):
+        from config import STAGE_TUNABLE_PAYLOAD_KEYS
+        tunables = client.get('/api/v1/settings').get_json()['stageTunables']
+        for payload_key, _db_key, _kind in STAGE_TUNABLE_PAYLOAD_KEYS:
+            assert set(tunables[payload_key]) == {'value', 'isDefault', 'envOverride'}
+
+    def test_chapter_target_round_trips(self, client):
+        r = _put(client, {'chapterTargetSeconds': 240})
+        assert r.status_code == 200, r.data
+        entry = client.get('/api/v1/settings').get_json()['stageTunables']['chapterTargetSeconds']
+        assert entry['value'] == 240
+        assert entry['isDefault'] is False

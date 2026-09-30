@@ -519,8 +519,7 @@ def _build_settings_payload():
     )
 
     def _tu(db_key):
-        # Reuse the already-loaded settings dict so we don't trigger 21 extra
-        # DB reads from get_stage_tunable's lazy import path.
+        # Reuse the loaded settings dict to avoid a DB read per tunable.
         return {
             'value': get_stage_tunable(db_key, settings=settings),
             'isDefault': _setting_is_default(settings, db_key),
@@ -528,29 +527,7 @@ def _build_settings_payload():
         }
 
     tunables_payload = {
-        'detectionTemperature':        _tu('detection_temperature'),
-        'detectionMaxTokens':          _tu('detection_max_tokens'),
-        'detectionReasoningBudget':    _tu('detection_reasoning_budget'),
-        'detectionReasoningLevel':     _tu('detection_reasoning_level'),
-        'verificationTemperature':     _tu('verification_temperature'),
-        'verificationMaxTokens':       _tu('verification_max_tokens'),
-        'verificationReasoningBudget': _tu('verification_reasoning_budget'),
-        'verificationReasoningLevel':  _tu('verification_reasoning_level'),
-        'reviewerTemperature':         _tu('reviewer_temperature'),
-        'reviewerMaxTokens':           _tu('reviewer_max_tokens'),
-        'reviewerReasoningBudget':     _tu('reviewer_reasoning_budget'),
-        'reviewerReasoningLevel':      _tu('reviewer_reasoning_level'),
-        'chapterBoundaryTemperature':  _tu('chapter_boundary_temperature'),
-        'chapterBoundaryMaxTokens':    _tu('chapter_boundary_max_tokens'),
-        'chapterBoundaryReasoningBudget': _tu('chapter_boundary_reasoning_budget'),
-        'chapterBoundaryReasoningLevel':  _tu('chapter_boundary_reasoning_level'),
-        'chapterTitleTemperature':     _tu('chapter_title_temperature'),
-        'chapterTitleMaxTokens':       _tu('chapter_title_max_tokens'),
-        'chapterTitleReasoningBudget': _tu('chapter_title_reasoning_budget'),
-        'chapterTitleReasoningLevel':  _tu('chapter_title_reasoning_level'),
-        'ollamaNumCtx':                _tu('ollama_num_ctx'),
-        'windowSizeSeconds':           _tu('window_size_seconds'),
-        'windowOverlapSeconds':        _tu('window_overlap_seconds'),
+        payload_key: _tu(db_key) for payload_key, db_key, _kind in STAGE_TUNABLE_PAYLOAD_KEYS
     }
 
     enable_ad_review_raw = _setting_value(

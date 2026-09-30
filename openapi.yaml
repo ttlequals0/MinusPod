@@ -14302,8 +14302,10 @@ components:
         stageTunables:
           type: object
           description: |
-            Per-stage LLM tunables (temperature, max_tokens, reasoning) and
-            global Ollama context window. Each field carries the resolved
+            Per-stage LLM tunables (temperature, max_tokens, reasoning), chapter
+            density, detection window geometry and the global Ollama context
+            window, keyed by the same names as the PUT
+            /settings/ad-detection body. Each field carries the resolved
             value (env > DB > default), an isDefault flag, and the name of
             any environment variable that is overriding the stored value.
           additionalProperties:

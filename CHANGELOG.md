@@ -29,6 +29,8 @@ release notes.
   hold and sends the audio outside the hold through pass 2. Before, the whole hold stayed in place.
 - Pending holds shrink to what the rendered cuts leave, so a hold never claims audio that a reviewed or
   merged cut already removed.
+- The settings API returns the four chapter density tunables, so the Chapter density form shows the
+  stored values after a reload instead of the defaults. Reported in #800.
 
 ### Security
 - Bumped urllib3 to 2.8.0 to clear CVE-2026-97687, CVE-2026-97688 and CVE-2026-97689 reported against

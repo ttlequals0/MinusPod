@@ -233,3 +233,14 @@ def test_patterns_list_params_match_handler():
 
     active_only_schema = next(p for p in params if p['name'] == 'active_only')['schema']
     assert active_only_schema['default'] is False
+
+
+def test_every_stage_tunable_is_documented():
+    with SPEC_PATH.open() as f:
+        doc = yaml.safe_load(f)
+    put_props = (doc['paths']['/settings/ad-detection']['put']['requestBody']
+                 ['content']['application/json']['schema']['properties'])
+    for payload_key, _db_key, _kind in config.STAGE_TUNABLE_PAYLOAD_KEYS:
+        assert payload_key in put_props, payload_key
+    entry = doc['components']['schemas']['Settings']['properties']['stageTunables']['additionalProperties']
+    assert set(entry['properties']) == {'value', 'isDefault', 'envOverride'}
