@@ -206,6 +206,19 @@ def test_every_hold_reason_list_matches_config_constants():
     assert set(re.findall(r"'(\w+)'", union)) == constants
 
 
+def test_splice_calibration_fields_are_documented():
+    with SPEC_PATH.open() as f:
+        schemas = yaml.safe_load(f)['components']['schemas']
+    calibration = schemas['EpisodeDetail']['allOf'][1]['properties']['spliceCalibration']
+    assert calibration['properties']['status']['enum'] == ['cold_start', 'calibrated', 'host_read']
+    assert set(calibration['properties']['long_cut_corroboration']['properties']) == {
+        'episodes', 'cuts', 'corroborated', 'fraction'}
+    validation = schemas['AdMarker']['properties']['validation']['properties']
+    assert validation['audio_corroboration']['enum'] == [
+        'transition_pair', 'template_cue', 'volume_anomaly', 'splice_evidence',
+        'dai_differential', 'none']
+
+
 def test_patterns_list_params_match_handler():
     """GET /patterns documents exactly the query params the handler reads."""
     with SPEC_PATH.open() as f:

@@ -322,7 +322,8 @@ def test_processing_skips_destructive_tail_snap_during_cold_start(monkeypatch):
     assert result == [marker]
 
 
-def test_processing_allows_tail_snap_after_calibration(monkeypatch):
+@pytest.mark.parametrize('status', ['calibrated', 'host_read'])
+def test_processing_allows_tail_snap_after_calibration(monkeypatch, status):
     marker, segments = _fixture()
     snapped = dict(marker, end=2415.85, tail_splice_snap={
         'original_end': 2410.9,
@@ -339,7 +340,7 @@ def test_processing_allows_tail_snap_after_calibration(monkeypatch):
         lambda *args: saves.append(args))
     analysis = SimpleNamespace(splice_evidence={
         'events': [_event(2415.85)],
-        'calibration': {'status': 'calibrated'},
+        'calibration': {'status': status},
     })
 
     result = processing._snap_completed_cut_tails_to_splice(

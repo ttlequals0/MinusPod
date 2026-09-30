@@ -163,7 +163,7 @@ from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT,
     FORCE_TRANSCRIBE_MODES, clear_episode_for_mode,
 )
-from splice_calibration import compute_splice_calibration
+from splice_calibration import SPLICE_EVENTS_CALIBRATED_STATUSES, compute_splice_calibration
 from transcriber import CDN_REFUSED_PREFIX, extract_audio_chunk
 from user_agent import download_user_agent, feed_user_agent
 from utils.constants import (
@@ -2954,7 +2954,7 @@ def _snap_completed_cut_tails_to_splice(
         return ads_to_remove
     calibration = splice.get('calibration') or {}
     if (not isinstance(calibration, dict)
-            or calibration.get('status') != 'calibrated'):
+            or calibration.get('status') not in SPLICE_EVENTS_CALIBRATED_STATUSES):
         # Cold-start splice events may corroborate another detector, but they
         # are not calibrated well enough to extend a destructive cut.
         return ads_to_remove

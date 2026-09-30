@@ -11753,6 +11753,30 @@ components:
                   type:
                     - string
                     - 'null'
+            spliceCalibration:
+              type:
+                - object
+                - 'null'
+              description: The feed's splice calibration when this episode's audio was analyzed, or null when no audio analysis is stored. status host_read means most of the feed's recent long transcript-only cuts showed no edit point in the audio, so the splice check does not hold them. long_cut_corroboration counts those cuts over recent episodes.
+              properties:
+                status:
+                  type: string
+                  enum: [cold_start, calibrated, host_read]
+                episodes_considered:
+                  type: integer
+                long_cut_corroboration:
+                  type: object
+                  properties:
+                    episodes:
+                      type: integer
+                    cuts:
+                      type: integer
+                    corroborated:
+                      type: integer
+                    fraction:
+                      type:
+                        - number
+                        - 'null'
             transcriptAvailable:
               type: boolean
             chaptersRegenerating:
@@ -12858,6 +12882,10 @@ components:
               items:
                 type: string
               description: Auto-corrections applied (merged ads, clamped boundaries)
+            audio_corroboration:
+              type: string
+              enum: [transition_pair, template_cue, volume_anomaly, splice_evidence, dai_differential, none]
+              description: Audio evidence found at the edges of a long cut detected from the transcript, or none. Set only on those cuts, in the first pass.
 
     ReviewDetection:
       type: object

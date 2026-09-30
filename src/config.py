@@ -648,6 +648,9 @@ SPLICE_STEP_SIDE_WINDOW_SECONDS = 5.0     # Side window for spectral aggregation
 SPLICE_CALIBRATION_RECENT_EPISODES = 10
 SPLICE_CALIBRATION_MIN_EPISODES = 5       # Min VALID payloads for calibrated; below this: cold_start
 SPLICE_CALIBRATION_MAX_FP_PER_HOUR = 1.0  # Target content false-positive event rate
+# A feed whose long transcript-detected cuts show audio evidence less often than this is host_read.
+SPLICE_HOST_READ_MAX_CORROBORATED = 0.5
+SPLICE_HOST_READ_RECENT_EPISODES = 20  # Wider than 10: many episodes carry no long cut
 SPLICE_CORROBORATION_WINDOW_SECONDS = 3.0  # Event-to-edge distance that corroborates a marker
 VETO_MIN_CUT_SECONDS = 60.0  # Cuts at/over this from claude/text_pattern need splice evidence
 SPLICE_VETO_IDENTICAL_MIN_COVERAGE = 0.95  # no_differential cut this identical skips the veto

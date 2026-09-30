@@ -446,6 +446,46 @@ class TestSpliceVetoNamedSponsor:
         assert 'INFO: Long (480.0s) but sponsor confirmed' in ad['validation']['flags']
 
 
+class TestAudioCorroborationRecord:
+    """Every eligible long transcript-detected cut records its audio evidence, held or cut."""
+
+    _AD = TestSpliceVeto._AD
+
+    def _validate(self, analysis, ad=None, **kwargs):
+        validator = AdValidator(episode_duration=3600.0, **kwargs)
+        return validator.validate([dict(ad or self._AD)], audio_analysis=analysis).ads[0]
+
+    def test_held_marker_records_none(self):
+        ad = self._validate(_analysis([]))
+        assert ad['hold_reason'] == 'no_splice_evidence'
+        assert ad['validation']['audio_corroboration'] == 'none'
+
+    def test_cut_marker_records_its_source(self):
+        ad = self._validate(_analysis([_event(1801.0)]))
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert ad['validation']['audio_corroboration'] == 'splice_evidence'
+
+    @pytest.mark.parametrize('kwargs,status', [
+        ({'splice_veto_enabled': False}, 'calibrated'), ({}, 'cold_start'), ({}, 'host_read')])
+    def test_recorded_whether_or_not_the_veto_runs(self, kwargs, status):
+        ad = self._validate(_analysis([], status=status), **kwargs)
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert ad['validation']['audio_corroboration'] == 'none'
+
+    @pytest.mark.parametrize('ad', [
+        dict(TestSpliceVeto._AD, end=1855.0),
+        dict(TestSpliceVeto._AD, detection_stage='vad_gap'),
+        dict(TestSpliceVeto._AD, confidence=0.3),
+    ])
+    def test_absent_on_ineligible_markers(self, ad):
+        assert 'audio_corroboration' not in self._validate(_analysis([]), ad=ad)['validation']
+
+    def test_absent_without_splice_evidence(self):
+        validator = AdValidator(episode_duration=3600.0)
+        ad = validator.validate([dict(self._AD)]).ads[0]
+        assert 'audio_corroboration' not in ad['validation']
+
+
 class TestProtectedBoundsClamp:
     def test_merged_protected_end_clamped_to_duration(self):
         # A protected member recorded past EOF must not survive validation,

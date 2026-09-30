@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from splice_calibration import (
     build_calibration, cold_start_calibration, compute_splice_calibration,
+    long_cut_corroboration,
 )
 
 
@@ -20,6 +21,16 @@ def _row(events, duration=3600.0):
                'calibration': {'status': 'cold_start'}}
     return {'episode_id': 'ep', 'original_duration': duration,
             'audio_analysis_json': json.dumps({'splice_evidence': payload})}
+
+
+def _ad_row(corroborated, total=5):
+    markers = [{'start': 100.0 * i, 'end': 100.0 * i + 70.0,
+                'validation': {'audio_corroboration':
+                               'splice_evidence' if i < corroborated else 'none'}}
+               for i in range(total)]
+    markers.append({'start': 900.0, 'end': 930.0, 'validation': {'decision': 'ACCEPT'}})
+    return {'episode_id': 'ep', 'original_duration': 3600.0,
+            'ad_markers_json': json.dumps(markers)}
 
 
 def _event(t, etype='deep_silence', duration_s=1.5):
@@ -95,3 +106,64 @@ def test_compute_never_raises():
             raise RuntimeError('db down')
     cal = compute_splice_calibration(_BoomDB(), 'some-feed')
     assert cal == cold_start_calibration()
+
+
+def _calibrated_rows():
+    return [_row([_event(100.0)]) for _ in range(5)]
+
+
+def test_long_cut_corroboration_counts_only_eligible_markers():
+    rows = [_ad_row(1), _ad_row(0, total=0), {'ad_markers_json': 'not json'},
+            {'ad_markers_json': None}]
+    assert long_cut_corroboration(rows) == {
+        'episodes': 1, 'cuts': 5, 'corroborated': 1, 'fraction': 0.2}
+    assert long_cut_corroboration([])['fraction'] is None
+
+
+def test_mostly_uncorroborated_long_cuts_is_host_read():
+    cal = build_calibration(_calibrated_rows(), [_ad_row(1) for _ in range(5)])
+    assert cal['status'] == 'host_read'
+    assert cal['long_cut_corroboration']['fraction'] == 0.2
+
+
+def test_mostly_corroborated_long_cuts_stays_calibrated():
+    cal = build_calibration(_calibrated_rows(), [_ad_row(3) for _ in range(5)])
+    assert cal['status'] == 'calibrated'
+
+
+def test_too_few_episodes_with_the_field_keep_the_status():
+    cal = build_calibration(_calibrated_rows(), [_ad_row(0) for _ in range(4)])
+    assert cal['status'] == 'calibrated'
+    assert cal['long_cut_corroboration']['episodes'] == 4
+
+
+def test_cold_start_is_not_turned_into_host_read():
+    rows = [_row([_event(100.0)]) for _ in range(4)]
+    cal = build_calibration(rows, [_ad_row(0) for _ in range(5)])
+    assert cal['status'] == 'cold_start'
+
+
+class _FakeDB:
+    def __init__(self, ad_rows):
+        self.ad_rows = ad_rows
+        self.ad_limit = None
+
+    def get_recent_audio_analyses(self, *a, **k):
+        return _calibrated_rows()
+
+    def get_recent_episode_ad_history(self, slug, exclude_episode_id=None, limit=30):
+        self.ad_limit = limit
+        if isinstance(self.ad_rows, Exception):
+            raise self.ad_rows
+        return self.ad_rows
+
+
+def test_compute_reads_the_last_twenty_episodes():
+    db = _FakeDB([_ad_row(1) for _ in range(5)])
+    assert compute_splice_calibration(db, 'some-feed')['status'] == 'host_read'
+    assert db.ad_limit == 20
+
+
+def test_compute_keeps_base_status_when_ad_history_fails():
+    cal = compute_splice_calibration(_FakeDB(RuntimeError('db down')), 'some-feed')
+    assert cal['status'] == 'calibrated'

@@ -267,6 +267,8 @@ class AdValidator:
 
     # Sources that are evidence from the span itself, unlike the model's reason.
     SPAN_CONFIRMATION_SOURCES = frozenset({'transcript', 'registry'})
+    # Transcript-detected stages whose long cuts need audio evidence.
+    VETO_STAGES = ('claude', 'text_pattern')
 
     VAGUE_REASONS: ClassVar[list[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
@@ -1019,9 +1021,15 @@ class AdValidator:
         # Make decision based on adjusted confidence and flags
         decision = self._make_decision(confidence, flags, duration)
 
+        # Measured on every long transcript-detected cut, held or not, so calibration sees them all.
+        long_llm = (decision == Decision.ACCEPT and duration >= self.veto_min_cut_seconds
+                    and ad.get('detection_stage') in self.VETO_STAGES
+                    and isinstance((self._audio_analysis or {}).get('splice_evidence'), dict))
+        corroboration = self._audio_corroboration_source(ad) if long_llm else None
+
         # Apply per-feed hold rules after the base decision.
         decision = self._apply_hold_rules(ad, decision, confidence, flags, duration,
-                                          confirmation_source)
+                                          confirmation_source, corroboration)
         # Only a human decides what an auto-approval left of a hold.
         if remainder_reason and decision != Decision.REJECT:
             if not ad.get('held_for_review'):
@@ -1040,6 +1048,8 @@ class AdValidator:
             # model's own reason is not evidence against that same model.
             'sponsor_confirmed': confirmation_source in self.SPAN_CONFIRMATION_SOURCES,
         }
+        if long_llm:
+            ad['validation']['audio_corroboration'] = corroboration or 'none'
 
         return ad
 
@@ -1184,7 +1194,7 @@ class AdValidator:
 
     def _splice_calibrated(self) -> bool:
         """True when this feed's splice calibration status is 'calibrated'
-        (spec 2.3c); cold-start feeds corroborate but never veto."""
+        (spec 2.3c); cold-start and host_read feeds corroborate but never veto."""
         payload = (self._audio_analysis or {}).get('splice_evidence') or {}
         return payload.get('calibration', {}).get('status') == 'calibrated'
 
@@ -1310,7 +1320,8 @@ class AdValidator:
 
     def _apply_hold_rules(self, ad: dict, decision: Decision, confidence: float,
                           flags: list[str], duration: float,
-                          confirmation_source: str | None) -> Decision:
+                          confirmation_source: str | None,
+                          corroboration: str | None) -> Decision:
         """Apply per-feed hold rules after the base decision.
 
         A held ad gets decision=REVIEW with held_for_review=True so the gate
@@ -1388,9 +1399,9 @@ class AdValidator:
         # only: cold-start evidence corroborates but never vetoes.
         if (self.splice_veto_enabled and decision == Decision.ACCEPT
                 and duration >= self.veto_min_cut_seconds
-                and ad.get('detection_stage') in ('claude', 'text_pattern')
+                and ad.get('detection_stage') in self.VETO_STAGES
                 and self._splice_calibrated()
-                and self._audio_corroboration_source(ad) is None):
+                and corroboration is None):
             # A sponsor the span itself names stands in for audio evidence; model prose does not.
             if confirmation_source in self.SPAN_CONFIRMATION_SOURCES:
                 flags.append(f"INFO: Splice veto waived, sponsor confirmed by {confirmation_source}")
