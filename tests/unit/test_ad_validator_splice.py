@@ -285,6 +285,26 @@ class TestSpliceVetoSponsorWaiver:
         assert ('INFO: Splice veto waived, sponsor confirmed by transcript'
                 in ad['validation']['flags'])
 
+    VANITY_READ = ('Acme is one scoop that covers your daily nutrients. I take Acme every '
+                   "morning. Go to drinkacme {tld} slash show. That's drinkacme {tld} slash show.")
+
+    @pytest.mark.parametrize('tld', ['.com', ' .com', ' dot com'])
+    def test_call_to_action_link_on_another_domain_is_registry_confirmed(self, tld):
+        ad = self._run(self.VANITY_READ.format(tld=tld), registry=True)
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert ('INFO: Splice veto waived, sponsor confirmed by registry'
+                in ad['validation']['flags'])
+
+    def test_call_to_action_link_confirms_a_description_sponsor(self):
+        ad = self._run(self.VANITY_READ.format(tld=' .com'), description='Acme')
+        assert ('INFO: Splice veto waived, sponsor confirmed by transcript'
+                in ad['validation']['flags'])
+
+    def test_bare_link_on_another_domain_is_held(self):
+        text = self.VANITY_READ.format(tld=' .com').replace('Go to', 'Just')
+        ad = self._run(text, registry=True)
+        assert ad['hold_reason'] == 'no_splice_evidence'
+
     @pytest.mark.parametrize('stage', ['claude', 'text_pattern'])
     def test_reason_only_is_held(self, stage):
         ad = self._run('ordinary conversation about the week', stage=stage,
@@ -480,6 +500,14 @@ class TestSpliceVetoNamedSponsor:
                 'examplecast.com slash patreon and use code CAST for 10 percent off.')
         self._assert_held(self._run(text, reason='Ad brought to you by Example Cast',
                                     podcast_name='Example Cast'))
+
+    def test_reason_brand_with_framing_and_call_to_action_link_confirms(self):
+        text = 'This episode is brought to you by Acme. Go to drinkacme .com slash show.'
+        ad = self._run(text)
+        assert ad['validation']['sponsor_confirmed'] is True
+
+    def test_reason_brand_with_call_to_action_link_but_no_framing_is_held(self):
+        self._assert_held(self._run('I take Acme every morning. Go to drinkacme .com slash show.'))
 
     def test_content_link_with_framing_only_in_reason_is_held(self):
         self._assert_held(self._run('See github.com slash owner slash repo for the code.',

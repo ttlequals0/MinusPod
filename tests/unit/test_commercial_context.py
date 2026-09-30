@@ -93,16 +93,48 @@ class TestCommercialContext:
         v = _validator('Acme came up. Go to othersite.com today.', registry=False)
         assert _commercial(v) is False
 
+    @pytest.mark.parametrize('registry', [True, False])
+    @pytest.mark.parametrize('link', ['drinkacme .com slash show', 'drinkacme dot com slash show',
+                                      'drinkacme.com/show', 'shop.example.net slash acme'])
+    def test_call_to_action_link_beside_the_sponsor_is_commercial(self, registry, link):
+        v = _validator(f'I take Acme every morning. Go to {link}.', registry=registry)
+        assert _commercial(v) is True
+
+    @pytest.mark.parametrize('text', [
+        'I take Acme every morning. That is drinkacme .com slash show.',
+        'Go to drinkacme .com slash show.',
+    ])
+    def test_link_without_a_call_to_action_or_sponsor_is_not_commercial(self, text):
+        assert _commercial(_validator(text, registry=False)) is False
+
+    def test_call_to_action_link_two_segments_from_the_sponsor_is_not_commercial(self):
+        segments = [{'start': 0.0, 'end': 100.0, 'text': 'Acme came up, Acme again.'},
+                    {'start': 100.0, 'end': 200.0, 'text': 'We talked about the week.'},
+                    {'start': 200.0, 'end': 400.0,
+                     'text': 'Check out github.com slash owner slash repo.'}]
+        v = AdValidator(3600.0, segments, episode_description='', sponsor_service=ACME_REGISTRY)
+        assert _commercial(v) is False
+        assert registry_confirms(v, dict(_SPAN)) is False
+
+    @pytest.mark.parametrize('text', ['That is drinkacme .com slash show',
+                                      'That is drinkacme dot com slash show'])
+    def test_spaced_dot_reads_as_a_vanity_link(self, text):
+        assert names_vanity_link([text], 'drinkacme') is True
+
 
 
 # Production shapes: a host read naming the brand nine times with a link, and the closing above.
 HOST_READ = ' '.join(['Acme is the easiest way to protect your home.'] * 9
                      + ['Learn more at acme.com.'])
+# A read whose only commercial marker is a call to action on a domain other than the brand.
+VANITY_READ = ('Acme is one scoop that covers your daily nutrients. I take Acme every morning. '
+               "Go to drinkacme .com slash show. That's drinkacme .com slash show.")
 
 
 @pytest.mark.parametrize(('text', 'expected'), [
     (HOST_READ, True),
     (CLOSING, True),
+    (VANITY_READ, True),
     ('I use Acme at home, Acme is fine', False),
 ])
 def test_detector_and_validator_registry_gates_agree(text, expected):

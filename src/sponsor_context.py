@@ -28,11 +28,11 @@ SPONSOR_IS_SPONSOR_RE = re.compile(
 BRAND_LINK_RE = re.compile(
     r'\b(?:visit|go\s+to|head\s+to|shop\s+at|learn\s+more\s+at|'
     r'check\s+(?:them|it)\s+out\s+at|find\s+out\s+more\s+at)\s+'
-    r'([a-z0-9-]+)\.(?:com|io|org|net)\b', re.IGNORECASE)
+    r'([a-z0-9-]+)\s*\.(?:com|io|org|net)\b', re.IGNORECASE)
 # Read-aloud only: a spelled-out label or a spoken "dot com".
 BARE_LINK_RE = re.compile(
-    r"(?<![\w'])((?:[a-z0-9][\s-]){2,}[a-z0-9](?=\.|\s+dot\s)|"
-    r"[a-z0-9-]+(?=\s+dot\s))(?:\.|\s+dot\s+)(?:com|io|org|net)\b",
+    r"(?<![\w'])((?:[a-z0-9][\s-]){2,}[a-z0-9](?=\s*\.|\s+dot\s)|"
+    r"[a-z0-9-]+(?=\s+dot\s))(?:\s*\.|\s+dot\s+)(?:com|io|org|net)\b",
     re.IGNORECASE)
 # (pattern, exact): an exact pattern's group 1 must be the brand alone.
 FRAMING_PATTERNS = ((SPONSOR_FRAMING_RE, False), (SPONSOR_THANKS_RE, True),
@@ -43,7 +43,13 @@ DOMAIN_LABEL_RE = re.compile(r'\b([a-z0-9-]{3,})(?:\.[a-z]{2,6}|\s+dot\s+(?:com|
 
 # A domain with a path ("acme.com/show", "acme dot com slash show") is a tracked ad link.
 VANITY_LINK_RE = re.compile(
-    r'\b([a-z0-9-]{3,})(?:\.|\s+dot\s+)(?:com|io|org|net|co|fm|ai)'
+    r'\b([a-z0-9-]{3,})(?:\s*\.|\s+dot\s+)(?:com|io|org|net|co|fm|ai)'
+    r'(?:\s*/\s*|\s+slash\s+)[a-z0-9-]+', re.IGNORECASE)
+
+# A call to action on a path link of any domain ("go to drinkacme .com slash show").
+CTA_LINK_RE = re.compile(
+    r'\b(?:go\s+to|visit|head\s+to|check\s+out|sign\s+up\s+at|learn\s+more\s+at|shop\s+at)\s+'
+    r'(?:[a-z0-9-]+\.)*[a-z0-9-]+(?:\s*\.|\s+dot\s+)[a-z]{2,6}'
     r'(?:\s*/\s*|\s+slash\s+)[a-z0-9-]+', re.IGNORECASE)
 
 
@@ -85,7 +91,8 @@ def framed_with_link_or_offer(texts: list[str], sponsor: str, *, names_sponsor,
     if not framed:
         return False
     text = ' '.join(texts)
-    return offer or _reads_brand_link(text, sponsor) or names_vanity_link([text], sponsor)
+    return (offer or _reads_brand_link(text, sponsor) or names_vanity_link([text], sponsor)
+            or bool(CTA_LINK_RE.search(text)))
 
 
 # Leading capitalized run of a framing's group 1: "Acme Home, the alarm people" -> "Acme Home".
@@ -110,7 +117,7 @@ def domain_labels(text: str) -> set[str]:
 
 def text_has_commercial_context(text: str, sponsor: str, *, names_sponsor, matches_expected,
                                 following: str = '') -> bool:
-    """Whether text names sponsor with an offer, or with a framing or link in reach of following."""
+    """Whether text names sponsor with an offer, or with a framing, brand link or CTA link in reach of following."""
     if not names_sponsor(text, sponsor):
         return False
     if COMMERCIAL_CONTEXT_RE.search(text):
@@ -118,7 +125,7 @@ def text_has_commercial_context(text: str, sponsor: str, *, names_sponsor, match
     nearby = text + ' ' + following
     return (any(_frames_sponsor(match.group(1), sponsor, exact, names_sponsor, matches_expected)
                 for pattern, exact in FRAMING_PATTERNS for match in pattern.finditer(nearby))
-            or _reads_brand_link(nearby, sponsor))
+            or _reads_brand_link(nearby, sponsor) or bool(CTA_LINK_RE.search(nearby)))
 
 
 def local_commercial_context(texts: list[str], sponsor: str, *, names_sponsor,

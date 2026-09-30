@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.40] - 2026-09-30
+
+### Fixed
+- A call-to-action link ('go to brand-site dot com slash show') counts as commercial language for a sponsor named beside it, even when the domain differs from the brand name or the transcript spaces the dot, so vanity-URL reads are confirmed instead of held for missing splice evidence.
+
 ## [2.97.39] - 2026-09-30
 
 ### Added
