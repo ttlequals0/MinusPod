@@ -120,6 +120,7 @@ describe('FeedSettingsPanel search', () => {
   it('disables the bulk controls while a search is active', async () => {
     const user = userEvent.setup();
     renderPanel();
+    expect(screen.getByPlaceholderText('Search feed settings...')).toBeDefined();
     await user.type(screen.getByRole('textbox', { name: 'Search feed settings' }), 'chapters');
     expect(screen.getByRole('button', { name: 'Expand all' })).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Collapse all' })).toHaveProperty('disabled', true);

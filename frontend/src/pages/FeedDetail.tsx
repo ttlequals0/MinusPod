@@ -643,7 +643,7 @@ function FeedDetail() {
 
       {slug && isRecents && <RecentsFeedPanel feed={feed} slug={slug} />}
 
-      {slug && !isRecents && <FeedSettingsPanel feed={feed} slug={slug} />}
+      {slug && !isRecents && <FeedSettingsPanel key={slug} feed={feed} slug={slug} />}
 
       {slug && feed.feedType === 'local' && <LocalFeedPanel feed={feed} slug={slug} />}
 

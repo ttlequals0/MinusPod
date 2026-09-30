@@ -74,9 +74,8 @@ function CollapsibleSection({
   const contentRef = useRef<HTMLDivElement>(null);
   const [maxHeight, setMaxHeight] = useState<string>(openState ? 'none' : '0px');
 
-  // Settings search: the Settings page publishes the set of matching section
-  // keys via context (null = no search); data-search-key on the card lets its
-  // scan find this section. Inert outside Settings (default null).
+  // Matching section keys (data-search-key on the card), null when no search is
+  // active or outside a page that provides the context.
   const matchKeys = useSettingsSearch();
   const searching = matchKeys !== null;
   const matchesSearch = searching && matchKeys.has(resolvedKey);

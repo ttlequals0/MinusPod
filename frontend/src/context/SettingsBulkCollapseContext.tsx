@@ -3,8 +3,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 // A bump-counter signal telling every CollapsibleSection under the provider to
 // snap to `open`. `seq` increments on each Expand all / Collapse all click so a
 // repeated click with the same `open` value (e.g. Expand all twice) still
-// fires the effect. null outside the Settings page (or before any click)
-// leaves CollapsibleSection behaving normally.
+// fires the effect. null outside a page that provides the context.
 export interface SettingsBulkCollapseSignal {
   seq: number;
   open: boolean;

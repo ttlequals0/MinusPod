@@ -545,7 +545,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             value={searchQuery}
             onChange={runSearch}
             onClear={clearSearch}
-            placeholder="Search feed settings"
+            placeholder="Search feed settings..."
             ariaLabel="Search feed settings"
             clearLabel="Clear feed settings search"
           />

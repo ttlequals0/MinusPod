@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useRef } from 'react';
 import { useSectionSearch } from './useSectionSearch';
@@ -57,5 +57,36 @@ describe('useSectionSearch', () => {
     act(() => result.current.clear());
     expect(result.current.matchKeys).toBeNull();
     expect(result.current.query).toBe('');
+  });
+
+  describe('highlights', () => {
+    let highlights: { set: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      highlights = { set: vi.fn(), delete: vi.fn() };
+      vi.stubGlobal('CSS', { highlights });
+      vi.stubGlobal('Highlight', class {});
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('sets the highlight on a match and deletes it on clear', () => {
+      const { result } = setup();
+      act(() => result.current.run('queue'));
+      expect(highlights.set).toHaveBeenCalledWith('settings-search', expect.any(Object));
+      highlights.delete.mockClear();
+      act(() => result.current.clear());
+      expect(highlights.delete).toHaveBeenCalledWith('settings-search');
+    });
+
+    it('deletes the highlight when unmounted while searching', () => {
+      const { result, unmount } = setup();
+      act(() => result.current.run('queue'));
+      highlights.delete.mockClear();
+      unmount();
+      expect(highlights.delete).toHaveBeenCalledWith('settings-search');
+    });
   });
 });
