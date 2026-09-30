@@ -44,7 +44,7 @@ scikit-learn>=1.9.1
 # Security
 nh3>=0.3.7
 cryptography>=50.0.1
-pyjwt>=2.13.0
+pyjwt>=2.15.1
 defusedxml>=0.7.1
 redis>=6.4.0
 
