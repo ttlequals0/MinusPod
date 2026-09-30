@@ -31,15 +31,9 @@ REPLACE_AUDIO_FILENAME = "replace.mp3"
 def trusted_short_cut(ad: dict) -> bool:
     """Whether the render keeps a cut shorter than MIN_AD_DURATION_FOR_REMOVAL."""
     return bool(ad.get('_confirmed_cut')
-                or (ad.get('validation') or {}).get('user_confirmed')
                 or ad.get('detection_stage') == 'fingerprint'
                 or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE
                 or ad.get('_measured_split_fragment'))
-
-
-def render_keeps_cut(ad: dict) -> bool:
-    """Whether the render's short-cut filter keeps this cut on its own."""
-    return ad['end'] - ad['start'] >= MIN_AD_DURATION_FOR_REMOVAL or trusted_short_cut(ad)
 
 
 def get_data_dir() -> Path:

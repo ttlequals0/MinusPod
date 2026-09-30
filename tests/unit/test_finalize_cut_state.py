@@ -366,3 +366,14 @@ class TestRecutOrderAndFailure:
             (10.0, 40.0, True), (100.0, 130.0, True), (130.0, 160.0, False)]
         assert run_stats['markers']['cut'] == 2
         assert run_stats['markers']['not_cut'] == 1
+
+    def test_recut_carves_a_pending_hold_against_the_applied_cuts(self):
+        a = _marker(10.0, 40.0)
+        hold = _marker(30.0, 60.0, was_cut=False, held_for_review=True,
+                       hold_reason='no_splice_evidence', hold_id='a1b2c3d4e5f6')
+        m = _run_recut([a], [a, hold], render=lambda segs: [applied_cut(10.0, 40.0)])
+        assert m['result'] is True
+        [saved] = _saves(m)
+        assert [(x['start'], x['end'], bool(x.get('held_for_review'))) for x in saved] == [
+            (10.0, 40.0, False), (40.0, 60.0, True)]
+        assert saved[1]['hold_id'] == 'a1b2c3d4e5f6'
