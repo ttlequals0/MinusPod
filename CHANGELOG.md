@@ -17,6 +17,11 @@ release notes.
   corroborated them.
 - The LLM benchmark supports Ollama models, starting with gemma4:e4b (#797).
 
+### Changed
+- Modifies `scrub_description` to support taking a percentage of the `max_length` from the beginning and end. Default takes 100% from beginning.
+- Updates the documentation and unit tests for the `strip_comments_from_prompt` utility to preserve literal comments (e.g., those indented by four or more spaces) while still removing other comments.
+- Utilize Docker BuildKit's cache mounts for npm and pip dependency installations in Dockerfiles. This significantly reduces local build times by persisting node modules and Python package caches across builds, particularly for large dependencies like PyTorch.
+
 ### Fixed
 - The splice veto no longer holds a long cut when the cross-fetch proved the whole episode identical
   across downloads (baked-in audio has no splice to find).

@@ -25,8 +25,8 @@ graceful_timeout = int(os.environ.get("GUNICORN_GRACEFUL_TIMEOUT", "330"))
 keepalive = int(os.environ.get("GUNICORN_KEEPALIVE", "5"))
 
 worker_class = "gthread"
-accesslog = "-"
-errorlog = "-"
+accesslog = os.environ.get("GUNICORN_ACCESS_LOG", "-") or None
+errorlog = os.environ.get("GUNICORN_ERROR_LOG", "-") or None
 loglevel = os.environ.get("GUNICORN_LOG_LEVEL", "info")
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s "%(f)s" "%(a)s"'
 
