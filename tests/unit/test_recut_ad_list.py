@@ -1605,8 +1605,7 @@ def test_recut_keeps_an_auto_filed_confirm_inside_a_reviewer_reject_uncut(tmp_pa
 def test_recut_keeps_a_cut_that_is_long_only_by_absorbed_silence(monkeypatch):
     marker = {'start': 1000.0, 'end': 1950.0, 'confidence': 0.95,
               'reason': 'Acme sponsor read', 'sponsor': 'Acme', 'detection_stage': 'claude',
-              'was_cut': True, 'silent_absorbed_spans': [{'start': 1850.0, 'end': 1950.0}],
-              '_learning_bounds': [1000.0, 1850.0]}
+              'was_cut': True, 'silent_absorbed_spans': [{'start': 1850.0, 'end': 1950.0}]}
     _stub_recut_db(monkeypatch, [marker])
 
     ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(

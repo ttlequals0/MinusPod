@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from ad_validator import AdValidator, Decision, ValidationResult, user_trimmed_keep_ranges
 from audio_processor import AudioProcessor
 from sponsor_service import SponsorService
-from utils.markers import carve_fragment, mark_distinct_merge
+from utils.markers import carve_fragment, learning_bounds, mark_distinct_merge
 from utils.text import word_boundary_re
 from tests.unit.marker_test_utils import RegistryStub, registry_confirms
 from config import (
@@ -2941,7 +2941,8 @@ def test_silent_estimated_remainders_cut_with_the_ad(caplog):
     only = result.ads[0]
     assert only['validation']['decision'] == Decision.ACCEPT.value
     assert not only.get('held_for_review')
-    assert only['_learning_bounds'] == (815.6, 995.1)
+    assert learning_bounds(only) == (815.6, 995.1)
+    assert not [k for k in json.loads(json.dumps(only)) if k.startswith('_')]
     flags = only['validation']['flags']
     assert 'INFO: Silent estimated remainder cut with the ad (23.0s)' in flags
     assert 'INFO: Silent estimated remainder cut with the ad (7.7s)' in flags
@@ -2965,7 +2966,7 @@ def test_show_intro_cue_keeps_leading_remainder_held():
     assert lead['_estimated_remainder'] is True
     assert cut['validation']['decision'] == Decision.ACCEPT.value
     assert not cut.get('held_for_review')
-    assert cut['_learning_bounds'] == (815.6, 995.1)
+    assert learning_bounds(cut) == (815.6, 995.1)
 
 
 def test_partly_silent_remainder_is_held():
@@ -3029,7 +3030,7 @@ def test_absorbing_a_leading_silence_keeps_the_measured_decision():
 
     assert _spans(result) == [(525.0, 1000.0)]
     assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
-    assert result.ads[0]['_learning_bounds'] == (545.0, 1000.0)
+    assert learning_bounds(result.ads[0]) == (545.0, 1000.0)
 
 
 def test_silence_is_absorbed_past_the_confirmed_limit():
@@ -3101,14 +3102,14 @@ def test_silent_remainders_are_held_when_the_measured_cut_is_not_accepted(caplog
     lead, cut, tail = result.ads
     assert cut['validation']['decision'] == Decision.REVIEW.value
     assert lead['hold_reason'] == tail['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
-    assert '_learning_bounds' not in cut
+    assert 'silent_absorbed_spans' not in cut
     assert not any(r.message.startswith('Cut silent') for r in caplog.records)
 
 
 def test_silent_remainder_flags_do_not_return_on_revalidation():
     validator = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False)
     cut = validator.validate([_outro_estimate()], audio_analysis=_BOTH_SILENT).ads[0]
-    assert cut['_learning_bounds'] == (815.6, 995.1)
+    assert learning_bounds(cut) == (815.6, 995.1)
     saved = json.loads(json.dumps({k: v for k, v in cut.items() if k != 'validation'}))
 
     again = AdValidator(3600.0, _GAP_SEGMENTS, splice_veto_enabled=False).validate(

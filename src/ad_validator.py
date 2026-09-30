@@ -56,7 +56,7 @@ from utils.markers import (
     reviewer_edge_locked,
     reviewer_reject_stands,
     SILENT_ABSORBED_SPANS,
-    silent_absorbed_spans,
+    learning_bounds,
     subtract_spans,
     union_cover,
 )
@@ -1579,9 +1579,7 @@ class AdValidator:
 
     def _measured_extent(self, ad: dict) -> tuple[float, float]:
         """(duration, position) of the ad without the silence it absorbed."""
-        pieces = (subtract_spans([(ad['start'], ad['end'])], silent_absorbed_spans(ad))
-                  or [(ad['start'], ad['end'])])
-        lo, hi = pieces[0][0], pieces[-1][1]
+        lo, hi = learning_bounds(ad)
         position = lo / self.episode_duration if self.episode_duration > 0 else 0
         return hi - lo, position
 
@@ -1598,8 +1596,7 @@ class AdValidator:
         new_end = max([hi, *(r['end'] for r in silent)])
         invalidate_tail_provenance(ad, new_end)
         ad['start'], ad['end'] = min([lo, *(r['start'] for r in silent)]), new_end
-        # Learning keeps the measured bounds so a pattern never grows the silence.
-        ad['_learning_bounds'] = (lo, hi)
+        # learning_bounds derives the measured extent from these, so patterns never grow the silence.
         ad[SILENT_ABSORBED_SPANS] = [{'start': r['start'], 'end': r['end']} for r in silent]
         invalidate_quote_alignment(ad)
         invalidate_word_timed_edges(ad)

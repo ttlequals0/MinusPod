@@ -1,6 +1,8 @@
 """Tests for the ad reviewer."""
 import logging
 import re
+
+import pytest
 from unittest.mock import patch
 
 from tests.app_bootstrap import bootstrap
@@ -1066,3 +1068,22 @@ def test_a_reject_without_reasoning_clears_the_earlier_reviewer_fields():
     assert marked['reviewer_reasoning'] is None
     assert (marked['reviewer_confidence'], marked['reviewer_model']) == (
         verdict.confidence, verdict.model_used)
+
+
+_ABSORBED = [{'start': 792.6, 'end': 815.6}, {'start': 995.1, 'end': 1002.8}]
+
+
+@pytest.mark.parametrize('extra,absorbed,expected', [
+    pytest.param({}, _ABSORBED, (792.6, 1002.8), id='no_core_absorbed'),
+    pytest.param({'dai_core_spans': [{'start': 800.0, 'end': 990.0}]}, _ABSORBED,
+                 (792.6, 1002.8), id='core_absorbed'),
+    pytest.param({}, None, (815.6, 995.1), id='no_core_plain'),
+    pytest.param({'dai_core_spans': [{'start': 800.0, 'end': 990.0}]}, None,
+                 (800.0, 995.1), id='core_plain'),
+])
+def test_clamp_never_trims_absorbed_silence(extra, absorbed, expected):
+    ad = {'start': 792.6, 'end': 1002.8, 'confidence': 0.95, **extra}
+    if absorbed:
+        ad['silent_absorbed_spans'] = [dict(s) for s in absorbed]
+    assert _build_reviewer()._clamp_proposed_bounds(
+        ad, 815.6, 995.1, 792.6, 1002.8, 60.0, 'slug', 'ep', segments=[]) == expected

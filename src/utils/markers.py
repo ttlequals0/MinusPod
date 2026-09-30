@@ -852,14 +852,17 @@ def note_fold(target: dict, other: dict) -> None:
 
 
 def learning_bounds(ad: dict) -> tuple[float, float]:
-    """The span pattern learning reads: measured bounds when silence was cut with the ad."""
+    """The measured extent: the bounds minus absorbed silence at either edge."""
     start, end = ad['start'], ad['end']
-    measured = ad.get('_learning_bounds')
-    if measured:
-        lo, hi = max(measured[0], start), min(measured[1], end)
-        if hi > lo:
-            return lo, hi
-    return start, end
+    spans = silent_absorbed_spans(ad)
+    lo, hi = start, end
+    for a, b in sorted(spans):
+        if a <= lo + EDGE_TOLERANCE and b > lo:
+            lo = b
+    for a, b in sorted(spans, key=lambda span: span[1], reverse=True):
+        if b >= hi - EDGE_TOLERANCE and a < hi:
+            hi = a
+    return (lo, hi) if hi > lo else (start, end)
 
 
 def carve_fragment(parent: dict, start: float, end: float) -> dict:

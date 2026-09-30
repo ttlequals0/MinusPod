@@ -58,7 +58,7 @@ from utils.markers import (
     dai_core_bounds, dai_core_spans, dai_probe_spans, edge_support,
     finite_number, hard_member_spans, hard_members, invalidate_tail_provenance,
     member_spans, reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
-    TimedWords, timed_span, union_cover,
+    silent_absorbed_spans, TimedWords, timed_span, union_cover,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
@@ -1968,6 +1968,13 @@ class AdReviewer:
                 clamped_start = max(clamped_start, min(barrier['end'], original_start))
             if barrier['end'] > original_end and barrier['start'] < clamped_end:
                 clamped_end = min(clamped_end, max(barrier['start'], original_end))
+
+        # Absorbed silence stays with the cut: no edge moves inward across an edge-touching span.
+        for lo, hi in silent_absorbed_spans(ad):
+            if lo <= original_start + EDGE_TOLERANCE and clamped_start > lo:
+                clamped_start = min(lo, original_start)
+            if hi >= original_end - EDGE_TOLERANCE and clamped_end < hi:
+                clamped_end = max(hi, original_end)
 
         if clamped_end <= clamped_start:
             clamped_start, clamped_end = original_start, original_end
