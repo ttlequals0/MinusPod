@@ -355,6 +355,7 @@ class AdValidator:
                 sponsor does not help.
         """
         self.podcast_name = podcast_name
+        self._show_key = squash_brand(podcast_name or '')
         self.episode_duration = episode_duration
         self.segments = segments or []
         self.episode_description = episode_description or ""
@@ -464,7 +465,7 @@ class AdValidator:
         words = key.split()
         if key in _AUDIENCE_PHRASES or words[0] in _AUDIENCE_WORDS or words[-1] in _AUDIENCE_WORDS:
             return True
-        show = squash_brand(self.podcast_name or '')
+        show = self._show_key
         squashed = squash_brand(name)
         if not show or not squashed:
             return False

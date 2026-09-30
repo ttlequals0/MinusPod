@@ -28,14 +28,6 @@ ASSETS_BUILTIN_DIR = Path(__file__).parent.parent / "assets_builtin"
 REPLACE_AUDIO_FILENAME = "replace.mp3"
 
 
-def trusted_short_cut(ad: dict) -> bool:
-    """Whether the render keeps a cut shorter than MIN_AD_DURATION_FOR_REMOVAL."""
-    return bool(ad.get('_confirmed_cut')
-                or ad.get('detection_stage') == 'fingerprint'
-                or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE
-                or ad.get('_measured_split_fragment'))
-
-
 def get_data_dir() -> Path:
     """Root of the writable data volume."""
     return resolve_data_dir()
@@ -350,9 +342,13 @@ class AudioProcessor:
         for ad in merged_ads:
             duration = ad['end'] - ad['start']
             measured_split = bool(ad.get('_measured_split_fragment'))
+            keep_short = (ad.get('_confirmed_cut')
+                          or ad.get('detection_stage') == 'fingerprint'
+                          or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE
+                          or measured_split)
             if duration >= MIN_AD_DURATION_FOR_REMOVAL:
                 ads.append(ad)
-            elif trusted_short_cut(ad):
+            elif keep_short:
                 ads.append(ad)
                 logger.info(
                     f"Keeping short ad ({duration:.1f}s < {MIN_AD_DURATION_FOR_REMOVAL}s): "

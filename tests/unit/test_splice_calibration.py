@@ -29,8 +29,7 @@ def _ad_row(corroborated, total=5):
                                'splice_evidence' if i < corroborated else 'none'}}
                for i in range(total)]
     markers.append({'start': 900.0, 'end': 930.0, 'validation': {'decision': 'ACCEPT'}})
-    return {'episode_id': 'ep', 'original_duration': 3600.0,
-            'ad_markers_json': json.dumps(markers)}
+    return _rows(markers)[0]
 
 
 def _event(t, etype='deep_silence', duration_s=1.5):

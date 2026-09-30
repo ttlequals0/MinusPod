@@ -698,12 +698,7 @@ def get_episode(slug, episode_id):
         except (json.JSONDecodeError, TypeError):
             dai_differential = None
 
-    splice_calibration = None
-    try:
-        analysis = json.loads(db.get_episode_audio_analysis(slug, episode_id) or 'null')
-        splice_calibration = ((analysis or {}).get('splice_evidence') or {}).get('calibration')
-    except (json.JSONDecodeError, TypeError, AttributeError):
-        splice_calibration = None
+    splice_calibration = db.get_episode_splice_calibration(slug, episode_id)
 
     base = _episode_base_json(
         episode, slug=slug, is_local=is_local, storage=storage,

@@ -814,6 +814,23 @@ class EpisodeMixin:
         ).fetchone()
         return row['audio_analysis_json'] if row else None
 
+    def get_episode_splice_calibration(self, slug: str, episode_id: str) -> dict | None:
+        """The stored splice_evidence calibration for an episode, or None."""
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            return None
+        row = self.get_connection().execute(
+            "SELECT CASE WHEN json_valid(audio_analysis_json) THEN json_extract("
+            "audio_analysis_json, '$.splice_evidence.calibration') END AS calibration "
+            "FROM episode_details WHERE episode_id = ?",
+            (db_episode_id,),
+        ).fetchone()
+        try:
+            calibration = json.loads(row['calibration']) if row and row['calibration'] else None
+        except (TypeError, ValueError):
+            return None
+        return calibration if isinstance(calibration, dict) else None
+
     def save_episode_dai_differential(self, slug: str, episode_id: str,
                                       dai_differential_json: str):
         """Save the cross-fetch differential result for an episode."""

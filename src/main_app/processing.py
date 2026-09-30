@@ -1509,7 +1509,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
                      false_positive_corrections, min_cut_confidence,
                      max_ad_duration_override, cue_gate_enabled,
                      confirmed_corrections=None, positional_prior=None,
-                     splice_veto=True, podcast_id=None, slug=None, podcast_name=None,
+                     splice_veto=True, podcast_id=None, podcast_name=None,
                      cue_only_safety=None, cue_unproven_template_ids=None):
     """Single construction point for AdValidator; owns the splice-veto
     settings reads. Per-site differences are stated by the callers:
@@ -1521,9 +1521,6 @@ def _build_validator(episode_duration, segments, episode_description, *,
     - recut passes everything except positional_prior.
     """
     from ad_validator import AdValidator
-    if podcast_name is None and slug:
-        row = db.get_podcast_by_slug(slug)
-        podcast_name = row.get('title') if isinstance(row, dict) else None
     max_ad_duration = resolve_max_ad_duration(db, podcast_id)
     max_ad_duration_confirmed = resolve_max_ad_duration_confirmed(db)
     splice_kwargs = {}
@@ -1552,7 +1549,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
         max_ad_duration_confirmed=max_ad_duration_confirmed,
         cue_only_safety=cue_only_safety,
         cue_unproven_template_ids=cue_unproven_template_ids,
-        podcast_name=podcast_name if isinstance(podcast_name, str) else None,
+        podcast_name=podcast_name,
         **splice_kwargs,
     )
 
@@ -2406,16 +2403,11 @@ def _outside_candidates(pieces, pass1_cuts, covered, ledger):
     parts = sorted([(a, b, v, sub) for lo, hi, v, sub in pieces
                     for a, b in subtract_spans([(lo, hi)], spans) if b - a > EDGE_TOLERANCE],
                    key=lambda part: part[:2])
-    # Overlapping pieces from covering adjusts on different holds become one candidate.
-    runs = []
-    for a, b, v, sub in parts:
-        if runs and a <= runs[-1][1] + EDGE_TOLERANCE:
-            runs[-1][1] = max(runs[-1][1], b)
-        else:
-            runs.append([a, b, v, sub])
     beep = get_replacement_duration()
     pairs = []
-    for a, b, v, sub in runs:
+    # Overlapping pieces from covering adjusts on different holds become one candidate.
+    for a, b in merge_runs([part[:2] for part in parts], gap=EDGE_TOLERANCE):
+        _a, _b, v, sub = next(part for part in parts if part[0] == a)
         orig = carve_fragment(sub, a, b)
         orig.pop('held_for_review', None)
         orig.update(source='reviewer', reason=v.reasoning or sub.get('reason'))
@@ -2766,6 +2758,11 @@ def _covering_group(groups, marker, duration):
                  if g[0] - EDGE_TOLERANCE <= start and end <= g[1] + EDGE_TOLERANCE), None)
 
 
+def _unrendered_hold(marker):
+    """A hold the render must not cut into (not is_pending_review, which counts a fresh hold as cut)."""
+    return bool(marker.get('held_for_review') and not marker.get('was_cut'))
+
+
 def _keep_stamps_inside(piece):
     """Drop a hold piece's pass-2 approval stamps whose span lies outside it."""
     def inside(span):
@@ -2790,8 +2787,7 @@ def _carve_holds_against_cuts(all_ads, groups, skip_ids, tag=''):
     """Shrink pending holds to what the applied cut groups leave; the render cut the rest."""
     replaced = {}
     for m in all_ads:
-        # Same pending test as _render_barriers.
-        if (not m.get('held_for_review') or m.get('was_cut') or id(m) in skip_ids
+        if (not _unrendered_hold(m) or id(m) in skip_ids
                 or not any(overlap_seconds(m['start'], m['end'], a, b) > EDGE_TOLERANCE
                            for a, b in groups)):
             continue
@@ -3217,7 +3213,7 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 cue_gate_enabled=False, podcast_id=None,
                                 segment_actions=None,
                                 keep_barriers_processed=None, ledger=None,
-                                false_positive_corrections=()):
+                                false_positive_corrections=(), podcast_name=None):
     """Validate pass-2 ad candidates against processed-coordinate validator.
 
     Maps the run's user FP corrections from original to processed coordinates,
@@ -3276,7 +3272,7 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         cue_gate_enabled=cue_gate_enabled,
         splice_veto=False,
         podcast_id=podcast_id,
-        slug=slug,
+        podcast_name=podcast_name,
     )
 
     # Pair each processed candidate with its original-coords twin before
@@ -3694,8 +3690,7 @@ def _render_barriers(hard, markers, cuts=(), pass1_cuts=None):
     seen = {id(cut) for cut in cuts}
     holds = []
     for m in markers or []:
-        # Not is_pending_review: that counts a fresh hold with no was_cut as cut.
-        if m.get('held_for_review') and not m.get('was_cut') and id(m) not in seen:
+        if _unrendered_hold(m) and id(m) not in seen:
             seen.add(id(m))
             holds.append(m)
     if pass1_cuts is not None:
@@ -3965,6 +3960,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     keep_barriers_processed=barriers,
                     ledger=ledger,
                     false_positive_corrections=false_positive_corrections,
+                    podcast_name=ctx.podcast_name,
                 )
 
             def gate(processed, original, held_markers, hold_overlaps):
@@ -5222,7 +5218,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
         podcast_id=podcast_id,
-        slug=slug,
+        podcast_name=episode.get('podcast_title'),
     )
     validation_result = validator.validate(
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)

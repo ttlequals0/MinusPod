@@ -40,7 +40,8 @@ def test_stored_calibration_is_returned(app_client, seeded):
     assert _detail(app_client, episode_id)['spliceCalibration'] == CALIBRATION
 
 
-@pytest.mark.parametrize('stored', [None, '{"splice_evidence": null}', 'not json'])
+@pytest.mark.parametrize('stored', [None, '{"splice_evidence": null}', 'not json',
+                                    '{"splice_evidence": {"calibration": "x"}}'])
 def test_null_without_a_stored_calibration(app_client, seeded, stored):
     db, episode_id = seeded
     if stored is not None:

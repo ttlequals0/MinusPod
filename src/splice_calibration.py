@@ -18,6 +18,7 @@ from config import (
     SPLICE_CALIBRATED_MIN_CORROBORATED, SPLICE_HOST_READ_RECENT_EPISODES,
     SPLICE_DIGITAL_SILENCE_MIN_SECONDS, SPLICE_DEEP_SILENCE_MIN_SECONDS,
 )
+from utils.markers import parse_ad_markers
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +51,7 @@ def long_cut_corroboration(rows) -> dict:
     """Share of eligible long transcript-detected cuts with audio corroboration, from stored markers."""
     episodes = cuts = corroborated = 0
     for row in rows:
-        try:
-            markers = json.loads(row.get('ad_markers_json'))
-        except (json.JSONDecodeError, TypeError):
-            continue
-        if not isinstance(markers, list):
-            continue
+        markers = parse_ad_markers(row.get('ad_markers_json')) or []
         found = []
         origins = set()
         for m in markers:

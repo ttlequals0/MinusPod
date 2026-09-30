@@ -87,15 +87,46 @@ def test_build_validator_reads_the_stored_global(monkeypatch, stored_global, fee
     assert validator.splice_veto_enabled is expected
 
 
-@pytest.mark.parametrize("row, name, expected", [
-    ({'title': 'Example Cast'}, None, 'Example Cast'),
-    ({'title': 'Example Cast'}, 'Given Name', 'Given Name'),
-    (None, None, None),
-])
-def test_build_validator_passes_the_show_name(monkeypatch, row, name, expected):
-    monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: row)
+@pytest.mark.parametrize("name", ['Example Cast', None])
+def test_build_validator_passes_the_show_name(name):
     validator = processing._build_validator(
         600.0, [], '', false_positive_corrections=[], min_cut_confidence=0.8,
         max_ad_duration_override=None, cue_gate_enabled=False, splice_veto=False,
-        slug='example-podcast', podcast_name=name)
-    assert validator.podcast_name == expected
+        podcast_name=name)
+    assert validator.podcast_name == name
+
+
+class _Captured(Exception):
+    pass
+
+
+def _capture_show_name(monkeypatch):
+    seen = {}
+
+    def build(*args, **kwargs):
+        seen['podcast_name'] = kwargs.get('podcast_name')
+        raise _Captured
+
+    monkeypatch.setattr(processing, '_build_validator', build)
+    return seen
+
+
+def test_pass2_validation_gets_the_show_name(monkeypatch):
+    seen = _capture_show_name(monkeypatch)
+    ad = {'start': 10.0, 'end': 40.0}
+    with pytest.raises(_Captured):
+        processing._validate_verification_ads(
+            'example-podcast', 'a1b2c3d4e5f6', [dict(ad)], [dict(ad)],
+            [{'start': 0.0, 'end': 60.0, 'text': 'x'}], [], None, 0.8, processing.db,
+            podcast_name='Example Cast')
+    assert seen == {'podcast_name': 'Example Cast'}
+
+
+def test_recut_validation_gets_the_show_name_from_the_episode_row(monkeypatch):
+    seen = _capture_show_name(monkeypatch)
+    row = {'podcast_title': 'Example Cast', 'ad_markers_json': '[{"start": 10.0, "end": 40.0}]'}
+    with pytest.raises(_Captured):
+        processing._build_recut_ad_list(
+            'example-podcast', 'a1b2c3d4e5f6', [], 600.0, '', 0.8,
+            segment_actions={}, corrections=([], []), episode_row=row)
+    assert seen == {'podcast_name': 'Example Cast'}
