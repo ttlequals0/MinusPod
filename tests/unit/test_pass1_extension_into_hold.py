@@ -112,3 +112,23 @@ def test_carved_hold_keeps_its_identity_and_diagnostics():
     assert rest['hold_id'] == 'a1b2c3d4e5f6'
     assert rest['pass2_hold_review'] == hold['pass2_hold_review']
     assert is_pending_review(rest)
+
+
+def test_carved_pieces_keep_only_the_approval_stamps_inside_them():
+    cut = {'start': 150.0, 'end': 180.0, 'was_cut': True}
+    span = {'start': 140.0, 'end': 150.0}
+    hold = {'start': 140.0, 'end': 200.0, 'held_for_review': True, 'was_cut': False,
+            'hold_reason': 'no_splice_evidence', 'hold_id': 'a1b2c3d4e5f6',
+            'pass2_corroborated': True, 'pass2_reviewed_release': dict(span),
+            'pass2_corroborated_span': dict(span), 'pass2_released_spans': [dict(span)]}
+    all_ads = [cut, hold]
+    processing._finalize_cut_state(all_ads, [cut], [applied_cut(150.0, 180.0)], 600.0)
+    pieces = {(m['start'], m['end']): m for m in all_ads if m is not cut}
+    first, second = pieces[(140.0, 150.0)], pieces[(180.0, 200.0)]
+    assert first['pass2_corroborated'] is True
+    assert first['pass2_reviewed_release'] == span
+    assert first['pass2_corroborated_span'] == span
+    assert first['pass2_released_spans'] == [span]
+    for key in ('pass2_corroborated', 'pass2_reviewed_release', 'pass2_corroborated_span',
+                'pass2_released_spans'):
+        assert key not in second, key

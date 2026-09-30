@@ -65,13 +65,14 @@ def long_cut_corroboration(rows) -> dict:
             # A reviewer reject is a false positive, not a standing cut.
             if m.get('source') == 'reviewer' and m.get('was_cut') is False:
                 continue
-            # Fragments carved from one detection count as that one detection.
+            # Fragments carved from one detection, or pieces of one hold, count once.
             origin = m.get('carved_from')
+            keys = {('hold', m['hold_id'])} if m.get('hold_id') else set()
             if isinstance(origin, dict):
-                key = (origin.get('start'), origin.get('end'))
-                if key in origins:
-                    continue
-                origins.add(key)
+                keys.add((origin.get('start'), origin.get('end')))
+            if keys & origins:
+                continue
+            origins |= keys
             found.append(m['validation']['audio_corroboration'])
         if not found:
             continue

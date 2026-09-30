@@ -59,16 +59,24 @@ NAMING_FRAMINGS = ((SPONSOR_FRAMING_RE, False), (SPONSOR_THANKS_RE, True))
 
 def framed_with_link_or_offer(texts: list[str], sponsor: str, *, names_sponsor,
                               matches_expected) -> bool:
-    """Whether the span frames sponsor as a sponsor and also reads its link or an offer."""
-    text = ' '.join(texts)
-    if not any(matches_expected(match.group(1).strip(), sponsor) if exact
-               else names_sponsor(match.group(1), sponsor)
-               for pattern, exact in NAMING_FRAMINGS for match in pattern.finditer(text)):
+    """Whether the span frames sponsor, with an offer in reach of the framing or its link anywhere."""
+    framed = offer = False
+    for index, text in enumerate(texts):
+        nearby = text + ' ' + (texts[index + 1] if index + 1 < len(texts) else '')
+        # The framing starts in this segment; an offer counts here or in the next one.
+        if any(match.start() < len(text) and (
+                matches_expected(match.group(1).strip(), sponsor) if exact
+                else names_sponsor(match.group(1), sponsor))
+               for pattern, exact in NAMING_FRAMINGS for match in pattern.finditer(nearby)):
+            framed = True
+            offer = offer or bool(COMMERCIAL_CONTEXT_RE.search(nearby))
+    if not framed:
         return False
-    return bool(COMMERCIAL_CONTEXT_RE.search(text)
-                or any(squash_brand(link.group(1)) == squash_brand(sponsor)
-                       for pattern in LINK_PATTERNS for link in pattern.finditer(text))
-                or names_vanity_link([text], sponsor))
+    text = ' '.join(texts)
+    return (offer
+            or any(squash_brand(link.group(1)) == squash_brand(sponsor)
+                   for pattern in LINK_PATTERNS for link in pattern.finditer(text))
+            or names_vanity_link([text], sponsor))
 
 
 # Leading capitalized run of a framing's group 1: "Acme Home, the alarm people" -> "Acme Home".

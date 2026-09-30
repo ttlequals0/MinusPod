@@ -397,7 +397,10 @@ class TestSpliceVetoNamedSponsor:
     def _run(self, text, sponsor=None, reason='Ad brought to you by Acme', end=None,
              confidence=0.93, podcast_name=None):
         end = end or self.END
-        segments = [{'start': self.START, 'end': end, 'text': text}]
+        texts = [text] if isinstance(text, str) else text
+        step = (end - self.START) / len(texts)
+        segments = [{'start': self.START + i * step, 'end': self.START + (i + 1) * step,
+                     'text': t} for i, t in enumerate(texts)]
         v = AdValidator(3600.0, segments, episode_description='', sponsor_service=None,
                         podcast_name=podcast_name)
         ad = {'start': self.START, 'end': end, 'confidence': confidence, 'reason': reason,
@@ -500,6 +503,42 @@ class TestSpliceVetoNamedSponsor:
         ad = self._run(self.FRAMED, end=self.START + 480.0)
         assert not any('Very long' in f for f in ad['validation']['flags'])
         assert 'INFO: Long (480.0s) but sponsor confirmed' in ad['validation']['flags']
+
+
+    def test_offer_far_from_the_framing_is_held(self):
+        texts = ['The festival was sponsored by Acme this year.', 'We saw three bands.',
+                 'Tickets are 20% off at the door.']
+        self._assert_held(self._run(texts, reason='Sponsored by Acme'))
+
+    def test_offer_in_the_segment_after_the_framing_confirms(self):
+        texts = ['The festival was sponsored by Acme this year.',
+                 'Tickets are 20% off at the door.', 'We saw three bands.']
+        ad = self._run(texts, reason='Sponsored by Acme')
+        assert ad['validation']['sponsor_confirmed'] is True
+
+    def test_vanity_link_anywhere_in_the_span_confirms(self):
+        texts = ['This episode is brought to you by Acme.', 'We saw three bands.',
+                 'See how it works at acme.com slash show.']
+        ad = self._run(texts)
+        assert ad['validation']['sponsor_confirmed'] is True
+
+    def test_brand_word_inside_the_show_title_stays_a_candidate(self):
+        text = ('This episode is brought to you by Acme. Go to acme.com slash weekly '
+                'and use code WEEKLY for 20% off.')
+        ad = self._run(text, podcast_name='Acme Weekly')
+        assert ad['validation']['sponsor_confirmed'] is True
+
+    @pytest.mark.parametrize('name,show,excluded', [
+        ('The Daily Tech News', 'The Daily Tech News Show', True),
+        ('Example Cast', 'Example Cast', True),
+        ('Example Cast Listeners', 'Example Cast', True),
+        ('Acme', 'Acme Weekly', False),
+        ('Daily Tech', 'The Daily Tech News Show', False),
+    ])
+    def test_show_name_exclusion(self, name, show, excluded):
+        v = AdValidator(3600.0, [], episode_description='', sponsor_service=None,
+                        podcast_name=show)
+        assert v._is_audience_or_show(name) is excluded
 
 
 class TestAudioCorroborationRecord:

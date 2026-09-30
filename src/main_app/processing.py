@@ -2766,6 +2766,26 @@ def _covering_group(groups, marker, duration):
                  if g[0] - EDGE_TOLERANCE <= start and end <= g[1] + EDGE_TOLERANCE), None)
 
 
+def _keep_stamps_inside(piece):
+    """Drop a hold piece's pass-2 approval stamps whose span lies outside it."""
+    def inside(span):
+        return (span['start'] >= piece['start'] - EDGE_TOLERANCE
+                and span['end'] <= piece['end'] + EDGE_TOLERANCE)
+    released = [s for s in piece.get('pass2_released_spans') or [] if inside(s)]
+    if released:
+        piece['pass2_released_spans'] = released
+    else:
+        piece.pop('pass2_released_spans', None)
+    for key in ('pass2_reviewed_release', 'pass2_corroborated_span'):
+        if piece.get(key) and not inside(piece[key]):
+            piece.pop(key)
+            if released:
+                piece[key] = dict(released[0])
+    if not piece.get('pass2_corroborated_span'):
+        piece.pop('pass2_corroborated', None)
+    return piece
+
+
 def _carve_holds_against_cuts(all_ads, groups, skip_ids, tag=''):
     """Shrink pending holds to what the applied cut groups leave; the render cut the rest."""
     replaced = {}
@@ -2779,7 +2799,8 @@ def _carve_holds_against_cuts(all_ads, groups, skip_ids, tag=''):
         rest = [(a, b) for a, b in subtract_spans([(m['start'], m['end'])], groups)
                 if b - a > EDGE_TOLERANCE]
         # A remainder under MIN_AD_DURATION stays uncut without a marker, as validator remainders do.
-        pieces = [carve_fragment(m, a, b) for a, b in rest if b - a >= MIN_AD_DURATION]
+        pieces = [_keep_stamps_inside(carve_fragment(m, a, b))
+                  for a, b in rest if b - a >= MIN_AD_DURATION]
         dropped = [f"{a:.1f}s-{b:.1f}s" for a, b in rest if b - a < MIN_AD_DURATION]
         replaced[id(m)] = pieces
         kept = ', '.join(f"{p['start']:.1f}s-{p['end']:.1f}s" for p in pieces)

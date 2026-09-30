@@ -465,7 +465,12 @@ class AdValidator:
         if key in _AUDIENCE_PHRASES or words[0] in _AUDIENCE_WORDS or words[-1] in _AUDIENCE_WORDS:
             return True
         show = squash_brand(self.podcast_name or '')
-        return bool(show) and squash_brand(name) in show
+        squashed = squash_brand(name)
+        if not show or not squashed:
+            return False
+        # A long name the show title starts with is a truncated title; one brand word is not.
+        return (show in squashed
+                or (len(words) >= 3 and show.startswith(squashed)))
 
     def _bounded_text_segments(self, ad: dict) -> list[str]:
         return bounded_segment_texts(self.segments, ad['start'], ad['end'])

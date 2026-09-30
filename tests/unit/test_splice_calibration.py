@@ -200,3 +200,9 @@ def test_fragments_of_one_detection_count_once():
     other = _marker('splice_evidence', carved_from={'start': 500.0, 'end': 600.0})
     assert long_cut_corroboration(_rows(fragments + [other, _marker('splice_evidence')])) == {
         'episodes': 1, 'cuts': 3, 'corroborated': 2, 'fraction': 0.667}
+
+
+def test_pieces_of_one_hold_count_once():
+    pieces = [_marker('none', hold_id='a1b2c3d4e5f6', start=s, end=s + 70.0)
+              for s in (100.0, 300.0)]
+    assert long_cut_corroboration(_rows(pieces))['cuts'] == 1
