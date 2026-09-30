@@ -30,6 +30,10 @@ release notes.
 - Pending holds shrink to what the rendered cuts leave, so a hold never claims audio that a reviewed or
   merged cut already removed.
 
+### Security
+- Bumped urllib3 to 2.8.0 to clear CVE-2026-97687, CVE-2026-97688 and CVE-2026-97689 reported against
+  2.7.0.
+
 ## [2.97.38] - 2026-09-30
 
 ### Security
