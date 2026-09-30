@@ -2749,6 +2749,34 @@ def _covering_group(groups, marker, duration):
                  if g[0] - EDGE_TOLERANCE <= start and end <= g[1] + EDGE_TOLERANCE), None)
 
 
+def _shrink_holds_under_reviewed_cuts(all_ads, ads_to_remove, tag=''):
+    """Shrink pending holds to the parts no reviewer-moved cut covers; the render cuts the rest."""
+    reviewed = [(c['start'], c['end']) for c in ads_to_remove if c.get('reviewer_moved')]
+    if not reviewed:
+        return
+    cut_ids = {id(c) for c in ads_to_remove}
+    replaced = {}
+    for m in all_ads:
+        # Same pending test as _render_barriers, whose barriers these holds become.
+        if (not m.get('held_for_review') or m.get('was_cut') or id(m) in cut_ids
+                or not any(overlap_seconds(m['start'], m['end'], a, b) > EDGE_TOLERANCE
+                           for a, b in reviewed)):
+            continue
+        ensure_hold_id(m)
+        # Remainders under MIN_AD_DURATION stay uncut without a marker, as validator remainders do.
+        pieces = [carve_fragment(m, a, b)
+                  for a, b in subtract_spans([(m['start'], m['end'])], reviewed)
+                  if b - a >= MIN_AD_DURATION]
+        replaced[id(m)] = pieces
+        kept = ', '.join(f"{p['start']:.1f}s-{p['end']:.1f}s" for p in pieces)
+        audio_logger.info(
+            f"{tag} Hold {m['start']:.1f}s-{m['end']:.1f}s "
+            + (f"shrinks to {kept}" if pieces else "is removed")
+            + ": a reviewer-moved cut covers the rest and the render cuts it")
+    if replaced:
+        all_ads[:] = [p for m in all_ads for p in replaced.get(id(m), [m])]
+
+
 def _finalize_cut_state(all_ads, ads_to_remove, applied_cuts, duration, tag=''):
     """Set was_cut from the rendered cuts, carving partly cut markers; returns the cut groups."""
     groups = _cut_groups(applied_cuts)
@@ -6693,6 +6721,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ads_to_remove = _stamp_and_carve_cuts(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 segment_actions, keep_ads)
+
+            # Pending holds only bar merges in the render, so a reviewed extension over one is cut.
+            _shrink_holds_under_reviewed_cuts(
+                all_ads_with_validation, ads_to_remove, tag=f"[{slug}:{episode_id}]")
 
             # Stage 5: Process audio
             _publish_status('update_job_stage', slug, episode_id,
