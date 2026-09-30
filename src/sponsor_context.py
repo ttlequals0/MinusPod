@@ -53,6 +53,20 @@ def names_vanity_link(texts: list[str], sponsor: str) -> bool:
     return any(squash_brand(m.group(1)) == target
                for text in texts for m in VANITY_LINK_RE.finditer(text))
 
+# Leading capitalized run of a framing's group 1: "Acme Home, the alarm people" -> "Acme Home".
+_CAPITALIZED_RUN_RE = re.compile(r"\s*([A-Z0-9][\w&'-]*(?:\s+[A-Z0-9][\w&'-]*){0,3})")
+
+
+def framed_sponsor_names(text: str | None) -> list[str]:
+    """Capitalized names that follow a sponsor framing ("brought to you by Acme") in text."""
+    names = []
+    for pattern in (SPONSOR_FRAMING_RE, SPONSOR_THANKS_RE):
+        for match in pattern.finditer(text or ''):
+            run = _CAPITALIZED_RUN_RE.match(match.group(1))
+            if run and run.group(1) not in names:
+                names.append(run.group(1))
+    return names
+
 
 def domain_labels(text: str) -> set[str]:
     """Lowercase domain labels a text names."""

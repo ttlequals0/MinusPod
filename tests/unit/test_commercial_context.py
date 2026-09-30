@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector.prompts import _span_names_sponsor
 from ad_validator import AdValidator
-from sponsor_context import local_commercial_context, names_vanity_link
+from sponsor_context import framed_sponsor_names, local_commercial_context, names_vanity_link
 from tests.unit.marker_test_utils import ACME_REGISTRY, CLOSING, RegistryStub, registry_confirms
 
 
@@ -186,3 +186,15 @@ def test_vanity_link_on_the_sponsor_domain(text):
 ])
 def test_no_vanity_link_without_a_path_on_the_sponsor_domain(text):
     assert names_vanity_link([text], 'Acme') is False
+
+
+@pytest.mark.parametrize('text,names', [
+    ('Based on transcript: This episode of the show is brought to you by Acme. A-C-M-E.', ['Acme']),
+    ('Sponsored by Acme Home, the alarm people', ['Acme Home']),
+    ('Thanks to Acme for supporting the show', ['Acme']),
+    ('Brought to you by the folks at Acme', []),
+    ('No framing here, just Acme', []),
+    ('', []),
+])
+def test_framed_sponsor_names(text, names):
+    assert framed_sponsor_names(text) == names

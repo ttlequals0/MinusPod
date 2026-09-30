@@ -63,7 +63,7 @@ from utils.markers import (
 from differential_fetcher import differential_region_overlapping, identical_coverage
 from community_export import brand_match_candidates
 from text_pattern_matcher import bounded_segment_texts
-from sponsor_context import (SPONSOR_MIN_MENTIONS, description_sponsor_re,
+from sponsor_context import (SPONSOR_MIN_MENTIONS, description_sponsor_re, framed_sponsor_names,
                              local_commercial_context, names_vanity_link, registry_sponsor)
 from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS
 from sponsor_service import SponsorService
@@ -441,13 +441,14 @@ class AdValidator:
 
     @staticmethod
     def _named_sponsors(ad: dict) -> list[str]:
-        """Brand-like sponsors the detection named: its sponsor field, else its reason."""
-        def usable(name):
-            return bool(name) and not is_non_brand_name(name) and is_brand_token(squash_brand(name))
-        names = [part.strip() for part in _SPONSOR_SEPARATOR_RE.split(ad.get('sponsor') or '')]
-        return ([name for name in names if usable(name)]
-                or [name for name in (SponsorService.extract_sponsor_from_reason(ad.get('reason')),)
-                    if usable(name)])
+        """Brand-like sponsors the detection named: sponsor field, reason framing, else reason."""
+        def usable(names):
+            return [name for name in names if name and not is_non_brand_name(name)
+                    and is_brand_token(squash_brand(name))]
+        reason = ad.get('reason')
+        return (usable(part.strip() for part in _SPONSOR_SEPARATOR_RE.split(ad.get('sponsor') or ''))
+                or usable(framed_sponsor_names(reason))
+                or usable((SponsorService.extract_sponsor_from_reason(reason),)))
 
     def _bounded_text_segments(self, ad: dict) -> list[str]:
         return bounded_segment_texts(self.segments, ad['start'], ad['end'])

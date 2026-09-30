@@ -15,7 +15,7 @@ import logging
 from config import (
     SPLICE_CALIBRATION_MIN_EPISODES, SPLICE_CALIBRATION_RECENT_EPISODES,
     SPLICE_CALIBRATION_MAX_FP_PER_HOUR,
-    SPLICE_HOST_READ_MAX_CORROBORATED, SPLICE_HOST_READ_RECENT_EPISODES,
+    SPLICE_CALIBRATED_MIN_CORROBORATED, SPLICE_HOST_READ_RECENT_EPISODES,
     SPLICE_DIGITAL_SILENCE_MIN_SECONDS, SPLICE_DEEP_SILENCE_MIN_SECONDS,
 )
 
@@ -126,7 +126,7 @@ def build_calibration(rows, ad_history_rows=()) -> dict:
     corroboration = long_cut_corroboration(ad_history_rows)
     # Until enough episodes carry the measurement the feed keeps today's status.
     host_read = (corroboration['episodes'] >= SPLICE_CALIBRATION_MIN_EPISODES
-                 and corroboration['fraction'] < SPLICE_HOST_READ_MAX_CORROBORATED)
+                 and corroboration['fraction'] < SPLICE_CALIBRATED_MIN_CORROBORATED)
     return {
         'status': 'host_read' if host_read else 'calibrated',
         'episodes_considered': considered,

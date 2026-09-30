@@ -415,6 +415,16 @@ class TestSpliceVetoNamedSponsor:
         assert ('INFO: Splice veto waived, sponsor confirmed by transcript'
                 in ad['validation']['flags'])
 
+    def test_production_reason_framing_names_the_sponsor(self):
+        reason = ('Based on transcript: This episode of the show is brought to you by Acme. '
+                  'A-C-M-E. This is why you need Acme.')
+        text = 'This episode is brought to you by Acme. See how it works at acme.com slash show.'
+        ad = self._run(text, reason=reason)
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert ad['validation']['sponsor_confirmed'] is True
+        assert ('INFO: Splice veto waived, sponsor confirmed by transcript'
+                in ad['validation']['flags'])
+
     def test_structured_sponsor_with_vanity_link_is_accepted(self):
         ad = self._run(self.VANITY, sponsor='Acme', reason='Host read')
         assert ad['validation']['decision'] == Decision.ACCEPT.value
