@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MAX, rerenderSegments, RerenderSegmentsResult } from '../../api/feeds';
 import { listCueTemplates } from '../../api/cueTemplates';
@@ -7,6 +7,9 @@ import { getErrorMessage } from '../../api/client';
 import type { Feed, LowAdYieldAction, EpisodeLogsOverride } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
+import SectionSearchInput from '../../components/SectionSearchInput';
+import { SettingsSearchContext } from '../../context/SettingsSearchContext';
+import { useSectionSearch } from '../../hooks/useSectionSearch';
 import { ExperimentalBadge } from '../../components/ExperimentalBadge';
 import { FeedTagsEditor } from '../../components/FeedTagsEditor';
 import ToggleSwitch from '../../components/ToggleSwitch';
@@ -170,6 +173,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // Mirrors the CollapsibleSection's persisted open state (same storage key)
   // so the networks list is only fetched once the panel is actually visible.
   const [panelOpen, setPanelOpen] = useCollapsibleOpen(`feed-settings-${slug}`);
+  const searchRegionRef = useRef<HTMLDivElement>(null);
+  const { query: searchQuery, matchKeys: searchMatchKeys, run: runSearch, clear: clearSearch } =
+    useSectionSearch(searchRegionRef);
   const [isEditingNetwork, setIsEditingNetwork] = useState(false);
   const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
   const [customNetwork, setCustomNetwork] = useState(false);
@@ -532,776 +538,833 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         onToggle={setPanelOpen}
       >
         <div className="space-y-4">
-          {/* Network / DAI / Feed cap */}
-          {isEditingNetwork ? (
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <label className="text-muted-foreground w-16 shrink-0">Network:</label>
-                <select
-                  value={customNetwork ? '__custom__' : editNetworkOverride}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === '__custom__') {
-                      setCustomNetwork(true);
-                      setEditNetworkOverride('');
-                    } else {
-                      setCustomNetwork(false);
-                      setEditNetworkOverride(v);
-                    }
-                  }}
-                  className={`flex-1 min-w-0 ${selectBase}`}
-                >
-                  <option value="">Auto-detect</option>
-                  {networks?.map((network) => (
-                    <option key={network.id} value={network.id}>
-                      {network.name}
-                    </option>
-                  ))}
-                  {editNetworkOverride && !customNetwork &&
-                    !(networks ?? []).some((n) => n.id === editNetworkOverride) && (
-                    <option value={editNetworkOverride}>{editNetworkOverride}</option>
-                  )}
-                  <option value="__custom__">Custom network...</option>
-                </select>
-              </div>
-              {customNetwork && (
-                <>
+          <SectionSearchInput
+            value={searchQuery}
+            onChange={runSearch}
+            onClear={clearSearch}
+            placeholder="Search feed settings"
+            ariaLabel="Search feed settings"
+            clearLabel="Clear feed settings search"
+          />
+
+          <SettingsSearchContext.Provider value={searchMatchKeys}>
+          <div ref={searchRegionRef} className="space-y-4">
+          {searchMatchKeys !== null && searchMatchKeys.size === 0 && (
+            <p className="text-sm text-muted-foreground px-1">
+              No settings match "{searchQuery.trim()}".
+            </p>
+          )}
+
+          <CollapsibleSection
+            title="Source and network"
+            defaultOpen={false}
+            storageKey={`feed-source-${slug}`}
+          >
+            <div className="space-y-4 pt-1">
+              {/* Network / DAI / Feed cap */}
+              {isEditingNetwork ? (
+                <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
-                    <label className="text-muted-foreground w-16 shrink-0">Name:</label>
+                    <label className="text-muted-foreground w-16 shrink-0">Network:</label>
+                    <select
+                      value={customNetwork ? '__custom__' : editNetworkOverride}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === '__custom__') {
+                          setCustomNetwork(true);
+                          setEditNetworkOverride('');
+                        } else {
+                          setCustomNetwork(false);
+                          setEditNetworkOverride(v);
+                        }
+                      }}
+                      className={`flex-1 min-w-0 ${selectBase}`}
+                    >
+                      <option value="">Auto-detect</option>
+                      {networks?.map((network) => (
+                        <option key={network.id} value={network.id}>
+                          {network.name}
+                        </option>
+                      ))}
+                      {editNetworkOverride && !customNetwork &&
+                        !(networks ?? []).some((n) => n.id === editNetworkOverride) && (
+                        <option value={editNetworkOverride}>{editNetworkOverride}</option>
+                      )}
+                      <option value="__custom__">Custom network...</option>
+                    </select>
+                  </div>
+                  {customNetwork && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <label className="text-muted-foreground w-16 shrink-0">Name:</label>
+                        <input
+                          type="text"
+                          value={editNetworkOverride}
+                          onChange={(e) => setEditNetworkOverride(e.target.value)}
+                          placeholder="Network name"
+                          className="flex-1 min-w-0 px-2 py-1 bg-secondary border border-border rounded"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground pl-[4.5rem]">
+                        Feeds with the same name share cues.
+                      </p>
+                    </>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <label className="text-muted-foreground w-16 shrink-0">DAI:</label>
                     <input
                       type="text"
-                      value={editNetworkOverride}
-                      onChange={(e) => setEditNetworkOverride(e.target.value)}
-                      placeholder="Network name"
+                      value={editDaiPlatform}
+                      onChange={(e) => setEditDaiPlatform(e.target.value)}
+                      placeholder="e.g., megaphone, acast"
                       className="flex-1 min-w-0 px-2 py-1 bg-secondary border border-border rounded"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground pl-[4.5rem]">
-                    Feeds with the same name share cues.
-                  </p>
-                </>
-              )}
-              <div className="flex items-center gap-2">
-                <label className="text-muted-foreground w-16 shrink-0">DAI:</label>
-                <input
-                  type="text"
-                  value={editDaiPlatform}
-                  onChange={(e) => setEditDaiPlatform(e.target.value)}
-                  placeholder="e.g., megaphone, acast"
-                  className="flex-1 min-w-0 px-2 py-1 bg-secondary border border-border rounded"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-muted-foreground w-16 shrink-0">Feed cap:</label>
-                <DraftNumberInput
-                  value={parseOptionalNumber(editMaxEpisodes)}
-                  fallback={null}
-                  parse={parseOptionalNumber}
-                  onChange={(v) => setEditMaxEpisodes(v === null ? '' : String(v))}
-                  placeholder={isLocal ? 'unlimited' : '300'}
-                  min={isLocal ? 0 : 10}
-                  max={isLocal ? 10000 : 500}
-                  step={1}
-                  ariaLabel="Feed cap"
-                  className="w-20 px-2 py-1 bg-secondary border border-border rounded"
-                />
-              </div>
-              {isLocal && (
-                <p className="text-xs text-muted-foreground pl-[4.5rem]">
-                  0 or empty serves every episode.
-                </p>
-              )}
-              <div className="flex gap-2">
-                <button
-                  onClick={saveNetworkEdit}
-                  disabled={updateMutation.isPending}
-                  className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
-                >
-                  {updateMutation.isPending ? 'Saving...' : 'Save'}
-                </button>
-                <button
-                  onClick={() => setIsEditingNetwork(false)}
-                  className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 flex-wrap text-sm">
-              {(feed.networkIdOverride || feed.networkId) && (
-                <span className={`${badgeBase} font-medium ${
-                  feed.networkIdOverride
-                    ? tint.warning
-                    : tint.success
-                }`}>
-                  {feed.networkIdOverride ? 'Override' : 'Detected'}: {feed.networkIdOverride || feed.networkId}
-                </span>
-              )}
-              {feed.daiPlatform && (
-                <span className={`${badgeBase} ${tint.purple} font-medium`}>
-                  DAI: {feed.daiPlatform}
-                </span>
-              )}
-              <span className="text-muted-foreground">
-                Feed cap: <span className="text-foreground">
-                  {feed.maxEpisodes || (isLocal ? 'unlimited' : 300)}
-                </span>
-              </span>
-              <button
-                onClick={startEditingNetwork}
-                className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
-              >
-                {feed.networkIdOverride || feed.networkId || feed.daiPlatform ? 'Edit' : '+ Add network'}
-              </button>
-            </div>
-          )}
-
-          {/* Detection notes (#709): free text appended to the LLM prompt context. */}
-          <div className="flex flex-col gap-1 text-sm">
-            <label htmlFor="detection-notes" className="text-muted-foreground">Detection notes</label>
-            <textarea
-              id="detection-notes"
-              value={notesField.value}
-              maxLength={1000}
-              rows={3}
-              onChange={(e) => {
-                notesField.setValue(e.target.value);
-                setDetectionNotesError(null);
-              }}
-              placeholder="What only this show does, e.g. host-read ads start right after 'a word from our sponsors'."
-              className={`w-full px-2 py-1 bg-secondary text-foreground placeholder:text-muted-foreground border border-border rounded resize-y ${focusRing}`}
-            />
-            <p className="flex justify-between gap-2 text-xs text-muted-foreground">
-              <span>Sent to the model with every episode of this feed.</span>
-              <span className="tabular-nums shrink-0">{notesField.value.length} / 1000</span>
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={saveDetectionNotes}
-                disabled={!notesField.dirty || updateMutation.isPending}
-                aria-label="Save detection notes"
-                className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
-              >
-                {updateMutation.isPending ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                onClick={clearDetectionNotes}
-                disabled={notesField.value === ''}
-                aria-label="Clear detection notes"
-                className={`px-2 py-1 text-xs ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
-              >
-                Clear
-              </button>
-              {detectionNotesSaved && !notesField.dirty && !detectionNotesError && <SavedBadge />}
-            </div>
-            {detectionNotesError && (
-              <p className="text-xs text-destructive">{detectionNotesError}</p>
-            )}
-          </div>
-
-          {/* Source RSS URL (#484): the feed MinusPod pulls from, not the
-              URL subscribers use. Editable with validate-then-refresh.
-              Local feeds have no upstream source. */}
-          {!isLocal && (
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Source feed:</span>
-            {isEditingSourceUrl ? (
-              <div className="flex flex-col gap-1 flex-1 min-w-0">
-                <input
-                  type="url"
-                  value={editSourceUrl}
-                  onChange={(e) => setEditSourceUrl(e.target.value)}
-                  placeholder="https://example.com/feed.xml"
-                  className="w-full min-w-0 px-2 py-1 bg-secondary border border-border rounded"
-                />
-                <p className="text-xs text-warning">
-                  Points this feed at a different source URL. Existing episodes are
-                  kept and matched by GUID; the feed refreshes right after saving.
-                </p>
-                {sourceUrlError && (
-                  <p className="text-xs text-destructive">{sourceUrlError}</p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={saveSourceUrl}
-                    disabled={sourceUrlMutation.isPending}
-                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
-                  >
-                    {sourceUrlMutation.isPending ? 'Validating...' : 'Save'}
-                  </button>
-                  <button
-                    onClick={() => setIsEditingSourceUrl(false)}
-                    disabled={sourceUrlMutation.isPending}
-                    className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent disabled:opacity-50 ${focusRing}`}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1 flex-1 min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <code
-                    className="text-xs bg-secondary px-2 py-1 rounded truncate min-w-0"
-                    title={feed.sourceUrl}
-                  >
-                    {feed.sourceUrl}
-                  </code>
-                  <CopyButton text={feed.sourceUrl} label="Copy source URL" labelClassName="sr-only" />
-                  <button
-                    onClick={startEditingSourceUrl}
-                    className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
-                  >
-                    Edit
-                  </button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  The original feed MinusPod pulls episodes from. Not the URL you subscribe to.
-                </p>
-              </div>
-            )}
-          </div>
-          )}
-
-          {/* Auto-Process Control */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Auto-Process:</span>
-            <div className="flex items-center gap-2 flex-wrap">
-              <TriStateSelect
-                value={feed.autoProcessOverride}
-                onChange={(next) => updateMutation.mutate({ autoProcessOverride: next })}
-                disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
-              />
-              {feed.autoProcessOverride !== null && feed.autoProcessOverride !== undefined && (
-                <span className={`${badgeBase} font-medium ${
-                  feed.autoProcessOverride
-                    ? tint.success
-                    : tint.destructive
-                }`}>
-                  {feed.autoProcessOverride ? 'Enabled' : 'Disabled'}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Episode title blacklist: skip episodes whose title matches a glob
-              pattern. Local feeds don't get new upstream episodes to blacklist. */}
-          {!isLocal && (
-          <>
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
-              Skip episodes by title:
-            </span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              {(feed.titleSkipPatterns ?? []).length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-1">
-                  {feed.titleSkipPatterns!.map((p) => (
-                    <RemovableChip key={p} label={p} onRemove={() => removeTitleSkipPattern(p)}
-                      disabled={updateMutation.isPending} />
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                {!addingTitleSkipPattern ? (
-                  <button
-                    type="button"
-                    onClick={() => setAddingTitleSkipPattern(true)}
-                    disabled={updateMutation.isPending}
-                    className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
-                  >
-                    + Add pattern
-                  </button>
-                ) : (
-                  <>
-                    <input
-                      type="text"
-                      autoFocus
-                      value={titleSkipPatternInput}
-                      onChange={(e) => setTitleSkipPatternInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          addTitleSkipPattern();
-                        }
-                      }}
-                      placeholder="Bonus Episode *"
-                      aria-label="New title pattern"
-                      maxLength={200}
-                      className="px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0"
+                  <div className="flex items-center gap-2">
+                    <label className="text-muted-foreground w-16 shrink-0">Feed cap:</label>
+                    <DraftNumberInput
+                      value={parseOptionalNumber(editMaxEpisodes)}
+                      fallback={null}
+                      parse={parseOptionalNumber}
+                      onChange={(v) => setEditMaxEpisodes(v === null ? '' : String(v))}
+                      placeholder={isLocal ? 'unlimited' : '300'}
+                      min={isLocal ? 0 : 10}
+                      max={isLocal ? 10000 : 500}
+                      step={1}
+                      ariaLabel="Feed cap"
+                      className="w-20 px-2 py-1 bg-secondary border border-border rounded"
                     />
+                  </div>
+                  {isLocal && (
+                    <p className="text-xs text-muted-foreground pl-[4.5rem]">
+                      0 or empty serves every episode.
+                    </p>
+                  )}
+                  <div className="flex gap-2">
                     <button
-                      type="button"
-                      onClick={addTitleSkipPattern}
-                      disabled={updateMutation.isPending || !titleSkipPatternInput.trim()}
-                      className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                      onClick={saveNetworkEdit}
+                      disabled={updateMutation.isPending}
+                      className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
                     >
-                      Add
+                      {updateMutation.isPending ? 'Saving...' : 'Save'}
                     </button>
                     <button
-                      type="button"
-                      onClick={() => {
-                        setAddingTitleSkipPattern(false);
-                        setTitleSkipPatternInput('');
-                        setTitleSkipPatternError(null);
-                      }}
-                      className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
+                      onClick={() => setIsEditingNetwork(false)}
+                      className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
                     >
                       Cancel
                     </button>
-                  </>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 flex-wrap text-sm">
+                  {(feed.networkIdOverride || feed.networkId) && (
+                    <span className={`${badgeBase} font-medium ${
+                      feed.networkIdOverride
+                        ? tint.warning
+                        : tint.success
+                    }`}>
+                      {feed.networkIdOverride ? 'Override' : 'Detected'}: {feed.networkIdOverride || feed.networkId}
+                    </span>
+                  )}
+                  {feed.daiPlatform && (
+                    <span className={`${badgeBase} ${tint.purple} font-medium`}>
+                      DAI: {feed.daiPlatform}
+                    </span>
+                  )}
+                  <span className="text-muted-foreground">
+                    Feed cap: <span className="text-foreground">
+                      {feed.maxEpisodes || (isLocal ? 'unlimited' : 300)}
+                    </span>
+                  </span>
+                  <button
+                    onClick={startEditingNetwork}
+                    className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                  >
+                    {feed.networkIdOverride || feed.networkId || feed.daiPlatform ? 'Edit' : '+ Add network'}
+                  </button>
+                </div>
+              )}
+
+              {/* Source RSS URL (#484): the feed MinusPod pulls from, not the
+                  URL subscribers use. Editable with validate-then-refresh.
+                  Local feeds have no upstream source. */}
+              {!isLocal && (
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Source feed:</span>
+                {isEditingSourceUrl ? (
+                  <div className="flex flex-col gap-1 flex-1 min-w-0">
+                    <input
+                      type="url"
+                      value={editSourceUrl}
+                      onChange={(e) => setEditSourceUrl(e.target.value)}
+                      placeholder="https://example.com/feed.xml"
+                      className="w-full min-w-0 px-2 py-1 bg-secondary border border-border rounded"
+                    />
+                    <p className="text-xs text-warning">
+                      Points this feed at a different source URL. Existing episodes are
+                      kept and matched by GUID; the feed refreshes right after saving.
+                    </p>
+                    {sourceUrlError && (
+                      <p className="text-xs text-destructive">{sourceUrlError}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveSourceUrl}
+                        disabled={sourceUrlMutation.isPending}
+                        className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
+                      >
+                        {sourceUrlMutation.isPending ? 'Validating...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => setIsEditingSourceUrl(false)}
+                        disabled={sourceUrlMutation.isPending}
+                        className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent disabled:opacity-50 ${focusRing}`}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <code
+                        className="text-xs bg-secondary px-2 py-1 rounded truncate min-w-0"
+                        title={feed.sourceUrl}
+                      >
+                        {feed.sourceUrl}
+                      </code>
+                      <CopyButton text={feed.sourceUrl} label="Copy source URL" labelClassName="sr-only" />
+                      <button
+                        onClick={startEditingSourceUrl}
+                        className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      The original feed MinusPod pulls episodes from. Not the URL you subscribe to.
+                    </p>
+                  </div>
                 )}
               </div>
-              {titleSkipPatternError && (
-                <p className="text-xs text-destructive">{titleSkipPatternError}</p>
               )}
-              <p className="text-xs text-muted-foreground">
-                Patterns match the whole episode title, case-insensitively. Use * as a wildcard: Bonus Episode * skips titles starting with Bonus Episode. Without a wildcard the whole title must match.
-              </p>
             </div>
-          </div>
+          </CollapsibleSection>
 
-          {/* Served-feed visibility for a title-blacklisted episode */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">
-              Skipped episodes:
-            </span>
-            <select
-              value={feed.titleSkipAction ?? 'serve_original'}
-              onChange={(e) => updateMutation.mutate({
-                titleSkipAction: e.target.value as UpdateFeedPayload['titleSkipAction'],
-              })}
-              disabled={updateMutation.isPending}
-              className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-              aria-label="Skipped episodes"
-            >
-              <option value="serve_original">Keep in feed with original audio</option>
-              <option value="hide">Hide from feed</option>
-            </select>
-          </div>
-          </>
-          )}
-
-          {/* Single preset canonicalizing detectionMode/skipAdDetection/passthroughEnabled;
-              those legacy fields stay available for external API callers. */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <label htmlFor="processing-mode" className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">
-              Processing mode:
-            </label>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <select
-                id="processing-mode"
-                value={processingMode}
-                onChange={(e) => updateMutation.mutate({
-                  processingMode: e.target.value as UpdateFeedPayload['processingMode'],
-                })}
-                disabled={updateMutation.isPending}
-                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-              >
-                <option value="standard">Standard (detect and cut ads)</option>
-                <option value="keep_content">Keep content only (experimental)</option>
-                <option value="skip_detection">Skip ad detection (transcripts and chapters only)</option>
-                <option value="passthrough">Pass-through (serve upstream audio untouched)</option>
-                <option value="cue_only" disabled={!cueOnlyEligible}>
-                  Cue-only (cut from audio cue templates, no LLM) (experimental)
-                </option>
-              </select>
-              {!cueOnlyEligible && (
-                <p className="text-xs text-muted-foreground">
-                  Cue-only needs one enabled ad-break start template and one enabled
-                  ad-break end template. Mark one of each below to turn it on.
+          <CollapsibleSection
+            title="Processing"
+            defaultOpen={false}
+            storageKey={`feed-processing-${slug}`}
+          >
+            <div className="space-y-4 pt-1">
+              {/* Detection notes (#709): free text appended to the LLM prompt context. */}
+              <div className="flex flex-col gap-1 text-sm">
+                <label htmlFor="detection-notes" className="text-muted-foreground">Detection notes</label>
+                <textarea
+                  id="detection-notes"
+                  value={notesField.value}
+                  maxLength={1000}
+                  rows={3}
+                  onChange={(e) => {
+                    notesField.setValue(e.target.value);
+                    setDetectionNotesError(null);
+                  }}
+                  placeholder="What only this show does, e.g. host-read ads start right after 'a word from our sponsors'."
+                  className={`w-full px-2 py-1 bg-secondary text-foreground placeholder:text-muted-foreground border border-border rounded resize-y ${focusRing}`}
+                />
+                <p className="flex justify-between gap-2 text-xs text-muted-foreground">
+                  <span>Sent to the model with every episode of this feed.</span>
+                  <span className="tabular-nums shrink-0">{notesField.value.length} / 1000</span>
                 </p>
-              )}
-              <p className={PROCESSING_MODE_HINTS[processingMode].className}>
-                {PROCESSING_MODE_HINTS[processingMode].text}
-              </p>
-              {processingMode === 'cue_only' && (
-                <div className="flex flex-col gap-3 pt-1">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                    <label htmlFor="cue-only-safety" className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">
-                      Cue-only safety:
-                    </label>
-                    <select
-                      id="cue-only-safety"
-                      value={feed.cueOnlySafety ?? 'hold_new'}
-                      onChange={(e) => updateMutation.mutate({
-                        cueOnlySafety: e.target.value as NonNullable<UpdateFeedPayload['cueOnlySafety']>,
-                      })}
-                      disabled={updateMutation.isPending}
-                      className={`self-start min-w-0 disabled:opacity-50 ${selectBase}`}
-                    >
-                      <option value="hold_new">Hold new templates for review</option>
-                      <option value="auto_cut">Auto-cut at high confidence</option>
-                    </select>
-                  </div>
-                  <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
-                    <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
-                      Transcription:
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={saveDetectionNotes}
+                    disabled={!notesField.dirty || updateMutation.isPending}
+                    aria-label="Save detection notes"
+                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
+                  >
+                    {updateMutation.isPending ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    onClick={clearDetectionNotes}
+                    disabled={notesField.value === ''}
+                    aria-label="Clear detection notes"
+                    className={`px-2 py-1 text-xs ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
+                  >
+                    Clear
+                  </button>
+                  {detectionNotesSaved && !notesField.dirty && !detectionNotesError && <SavedBadge />}
+                </div>
+                {detectionNotesError && (
+                  <p className="text-xs text-destructive">{detectionNotesError}</p>
+                )}
+              </div>
+
+              {/* Auto-Process Control */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Auto-Process:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <TriStateSelect
+                    value={feed.autoProcessOverride}
+                    onChange={(next) => updateMutation.mutate({ autoProcessOverride: next })}
+                    disabled={updateMutation.isPending}
+                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
+                  />
+                  {feed.autoProcessOverride !== null && feed.autoProcessOverride !== undefined && (
+                    <span className={`${badgeBase} font-medium ${
+                      feed.autoProcessOverride
+                        ? tint.success
+                        : tint.destructive
+                    }`}>
+                      {feed.autoProcessOverride ? 'Enabled' : 'Disabled'}
                     </span>
-                    <div className="flex flex-col gap-1 flex-1 min-w-0">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <ToggleSwitch
-                          checked={feed.skipTranscription === true}
-                          onChange={(v) => updateMutation.mutate({ skipTranscription: v })}
+                  )}
+                </div>
+              </div>
+
+              {/* Single preset canonicalizing detectionMode/skipAdDetection/passthroughEnabled;
+                  those legacy fields stay available for external API callers. */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <label htmlFor="processing-mode" className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">
+                  Processing mode:
+                </label>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <select
+                    id="processing-mode"
+                    value={processingMode}
+                    onChange={(e) => updateMutation.mutate({
+                      processingMode: e.target.value as UpdateFeedPayload['processingMode'],
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                  >
+                    <option value="standard">Standard (detect and cut ads)</option>
+                    <option value="keep_content">Keep content only (experimental)</option>
+                    <option value="skip_detection">Skip ad detection (transcripts and chapters only)</option>
+                    <option value="passthrough">Pass-through (serve upstream audio untouched)</option>
+                    <option value="cue_only" disabled={!cueOnlyEligible}>
+                      Cue-only (cut from audio cue templates, no LLM) (experimental)
+                    </option>
+                  </select>
+                  {!cueOnlyEligible && (
+                    <p className="text-xs text-muted-foreground">
+                      Cue-only needs one enabled ad-break start template and one enabled
+                      ad-break end template. Mark one of each below to turn it on.
+                    </p>
+                  )}
+                  <p className={PROCESSING_MODE_HINTS[processingMode].className}>
+                    {PROCESSING_MODE_HINTS[processingMode].text}
+                  </p>
+                  {processingMode === 'cue_only' && (
+                    <div className="flex flex-col gap-3 pt-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                        <label htmlFor="cue-only-safety" className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">
+                          Cue-only safety:
+                        </label>
+                        <select
+                          id="cue-only-safety"
+                          value={feed.cueOnlySafety ?? 'hold_new'}
+                          onChange={(e) => updateMutation.mutate({
+                            cueOnlySafety: e.target.value as NonNullable<UpdateFeedPayload['cueOnlySafety']>,
+                          })}
                           disabled={updateMutation.isPending}
-                          ariaLabel="Skip transcription"
-                        />
-                        <span>Skip transcription</span>
-                      </label>
-                      <p className="text-xs text-warning">
-                        Generated chapters stop. Chapters already published by the show
-                        still shift to match the cut audio. These episodes lose
-                        transcript search and subtitles.
-                      </p>
+                          className={`self-start min-w-0 disabled:opacity-50 ${selectBase}`}
+                        >
+                          <option value="hold_new">Hold new templates for review</option>
+                          <option value="auto_cut">Auto-cut at high confidence</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+                        <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
+                          Transcription:
+                        </span>
+                        <div className="flex flex-col gap-1 flex-1 min-w-0">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <ToggleSwitch
+                              checked={feed.skipTranscription === true}
+                              onChange={(v) => updateMutation.mutate({ skipTranscription: v })}
+                              disabled={updateMutation.isPending}
+                              ariaLabel="Skip transcription"
+                            />
+                            <span>Skip transcription</span>
+                          </label>
+                          <p className="text-xs text-warning">
+                            Generated chapters stop. Chapters already published by the show
+                            still shift to match the cut audio. These episodes lose
+                            transcript search and subtitles.
+                          </p>
+                        </div>
+                      </div>
                     </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Per-feed auto-process queue priority (#625) */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Queue priority:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <select
+                    value={feed.queuePriority || 'normal'}
+                    onChange={(e) => updateMutation.mutate({
+                      queuePriority: e.target.value as 'high' | 'normal' | 'low',
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Queue priority"
+                  >
+                    <option value="high">High</option>
+                    <option value="normal">Normal</option>
+                    <option value="low">Low</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    High processes before other queued episodes. Low runs only when nothing else is waiting.
+                    New episodes and manual reprocesses get an automatic boost.
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-feed low-ad-yield action override */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Low ad yield:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <select
+                    value={feed.lowAdYieldAction ?? ''}
+                    onChange={(e) => updateMutation.mutate({
+                      lowAdYieldAction: e.target.value === ''
+                        ? null : (e.target.value as LowAdYieldAction),
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Low ad yield action"
+                  >
+                    <option value="">Use global ({globalLowAdYieldLabel})</option>
+                    {(Object.keys(LOW_AD_YIELD_ACTION_LABELS) as LowAdYieldAction[]).map((action) => (
+                      <option key={action} value={action}>{LOW_AD_YIELD_ACTION_LABELS[action]}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    When an episode finishes with far less ad time removed than this feed usually
+                    yields, run this action automatically (once per episode).
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-feed transcription language override */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Language:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={feed.languageOverride ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      updateMutation.mutate({ languageOverride: v === '' ? null : v });
+                    }}
+                    disabled={updateMutation.isPending}
+                    className={`flex-1 sm:flex-none min-w-0 disabled:opacity-50 ${selectBase}`}
+                  >
+                    <option value="">Global default</option>
+                    <option value="auto">Auto-detect (multilingual)</option>
+                    {WHISPER_LANGUAGES.map((l) => (
+                      <option key={l.code} value={l.code}>
+                        {l.name} ({l.code})
+                      </option>
+                    ))}
+                  </select>
+                  {feed.languageOverride && (
+                    <span className={`${badgeBase} font-medium ${tint.blue}`}>
+                      Override: {labelForLanguage(feed.languageOverride)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Title and tag rules"
+            defaultOpen={false}
+            storageKey={`feed-title-tags-${slug}`}
+          >
+            <div className="space-y-4 pt-1">
+              {/* Episode title blacklist: skip episodes whose title matches a glob
+                  pattern. Local feeds don't get new upstream episodes to blacklist. */}
+              {!isLocal && (
+              <>
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
+                  Skip episodes by title:
+                </span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  {(feed.titleSkipPatterns ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-1">
+                      {feed.titleSkipPatterns!.map((p) => (
+                        <RemovableChip key={p} label={p} onRemove={() => removeTitleSkipPattern(p)}
+                          disabled={updateMutation.isPending} />
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    {!addingTitleSkipPattern ? (
+                      <button
+                        type="button"
+                        onClick={() => setAddingTitleSkipPattern(true)}
+                        disabled={updateMutation.isPending}
+                        className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                      >
+                        + Add pattern
+                      </button>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={titleSkipPatternInput}
+                          onChange={(e) => setTitleSkipPatternInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              addTitleSkipPattern();
+                            }
+                          }}
+                          placeholder="Bonus Episode *"
+                          aria-label="New title pattern"
+                          maxLength={200}
+                          className="px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0"
+                        />
+                        <button
+                          type="button"
+                          onClick={addTitleSkipPattern}
+                          disabled={updateMutation.isPending || !titleSkipPatternInput.trim()}
+                          className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                        >
+                          Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAddingTitleSkipPattern(false);
+                            setTitleSkipPatternInput('');
+                            setTitleSkipPatternError(null);
+                          }}
+                          className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {titleSkipPatternError && (
+                    <p className="text-xs text-destructive">{titleSkipPatternError}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Patterns match the whole episode title, case-insensitively. Use * as a wildcard: Bonus Episode * skips titles starting with Bonus Episode. Without a wildcard the whole title must match.
+                  </p>
+                </div>
+              </div>
+
+              {/* Served-feed visibility for a title-blacklisted episode */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">
+                  Skipped episodes:
+                </span>
+                <select
+                  value={feed.titleSkipAction ?? 'serve_original'}
+                  onChange={(e) => updateMutation.mutate({
+                    titleSkipAction: e.target.value as UpdateFeedPayload['titleSkipAction'],
+                  })}
+                  disabled={updateMutation.isPending}
+                  className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                  aria-label="Skipped episodes"
+                >
+                  <option value="serve_original">Keep in feed with original audio</option>
+                  <option value="hide">Hide from feed</option>
+                </select>
+              </div>
+              </>
+              )}
+
+              {/* Feed tags */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Tags:</span>
+                <div className="flex-1 min-w-0">
+                  <FeedTagsEditor slug={slug} />
+                </div>
+              </div>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Chapters"
+            defaultOpen={false}
+            storageKey={`feed-chapters-${slug}`}
+          >
+            <div className="space-y-4 pt-1">
+              {/* Per-feed chapter mode */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chapters:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <select
+                    value={feed.chaptersMode ?? ''}
+                    onChange={(e) => updateMutation.mutate({ chaptersMode: e.target.value === '' ? null : e.target.value as 'auto' | 'generate' | 'off' })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Chapters"
+                  >
+                    <option value="">Inherit global ({settings?.chaptersMode?.value ?? 'auto'})</option>
+                    <option value="auto">Auto</option>
+                    <option value="generate">Always generate</option>
+                    <option value="off">Off</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Auto keeps the podcast&apos;s own chapters with timestamps shifted to
+                    the ad-free audio, and generates chapters when an episode has too
+                    few. Always generate replaces them; Off leaves them untouched.
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-feed chapter list in descriptions (#720) */}
+              <GlobalOverrideRow
+                label="Chapter list"
+                ariaLabel="Chapters in descriptions"
+                value={feed.chaptersInNotes}
+                globalOn={!!settings?.chaptersInNotes?.value}
+                disabled={updateMutation.isPending}
+                onChange={(chaptersInNotes) => updateMutation.mutate({ chaptersInNotes })}
+              >
+                Append the chapter list to each episode&apos;s description in this
+                feed, so apps show it without starting playback.
+              </GlobalOverrideRow>
+
+              {/* Per-feed ad chapters override */}
+              <GlobalOverrideRow
+                label="Ad chapters"
+                ariaLabel="Ad chapters"
+                value={feed.adChaptersEnabled}
+                globalOn={!!settings?.adChaptersEnabled?.value}
+                disabled={updateMutation.isPending}
+                onChange={(adChaptersEnabled) => updateMutation.mutate({ adChaptersEnabled })}
+              >
+                Publish kept segments as chapters in this feed. Needs a chapters
+                mode other than Off.
+              </GlobalOverrideRow>
+
+              {adChaptersOn && (
+                <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                  <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chaptered categories:</span>
+                  <div className="flex flex-col gap-2 flex-1 min-w-0">
+                    <Checkbox
+                      checked={feed.adChapterCategories == null}
+                      // Copying the global map needs the settings query resolved.
+                      disabled={updateMutation.isPending || !settings}
+                      onChange={(checked) => updateMutation.mutate({
+                        adChapterCategories: checked ? null : { ...globalAdChapterCategories },
+                      })}
+                      label="Use global categories"
+                    />
+                    {feed.adChapterCategories != null && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {SEGMENT_CATEGORIES.map((category) => (
+                          <Checkbox
+                            key={category}
+                            checked={feed.adChapterCategories?.[category]
+                              ?? globalAdChapterCategories[category] ?? false}
+                            disabled={updateMutation.isPending}
+                            onChange={(checked) => updateMutation.mutate({
+                              adChapterCategories: { ...feed.adChapterCategories, [category]: checked },
+                            })}
+                            label={SEGMENT_CATEGORY_LABELS[category]}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Which kept categories get a chapter in this feed.
+                    </p>
                   </div>
                 </div>
               )}
             </div>
-          </div>
+          </CollapsibleSection>
 
-          {/* Per-feed chapter mode */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chapters:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <select
-                value={feed.chaptersMode ?? ''}
-                onChange={(e) => updateMutation.mutate({ chaptersMode: e.target.value === '' ? null : e.target.value as 'auto' | 'generate' | 'off' })}
-                disabled={updateMutation.isPending}
-                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-                aria-label="Chapters"
-              >
-                <option value="">Inherit global ({settings?.chaptersMode?.value ?? 'auto'})</option>
-                <option value="auto">Auto</option>
-                <option value="generate">Always generate</option>
-                <option value="off">Off</option>
-              </select>
-              <p className="text-xs text-muted-foreground">
-                Auto keeps the podcast&apos;s own chapters with timestamps shifted to
-                the ad-free audio, and generates chapters when an episode has too
-                few. Always generate replaces them; Off leaves them untouched.
-              </p>
-            </div>
-          </div>
-
-          {/* Per-feed chapter list in descriptions (#720) */}
-          <GlobalOverrideRow
-            label="Chapter list"
-            ariaLabel="Chapters in descriptions"
-            value={feed.chaptersInNotes}
-            globalOn={!!settings?.chaptersInNotes?.value}
-            disabled={updateMutation.isPending}
-            onChange={(chaptersInNotes) => updateMutation.mutate({ chaptersInNotes })}
+          <CollapsibleSection
+            title="Served feed and storage"
+            defaultOpen={false}
+            storageKey={`feed-output-${slug}`}
           >
-            Append the chapter list to each episode&apos;s description in this
-            feed, so apps show it without starting playback.
-          </GlobalOverrideRow>
-
-          {/* Per-feed ad chapters override */}
-          <GlobalOverrideRow
-            label="Ad chapters"
-            ariaLabel="Ad chapters"
-            value={feed.adChaptersEnabled}
-            globalOn={!!settings?.adChaptersEnabled?.value}
-            disabled={updateMutation.isPending}
-            onChange={(adChaptersEnabled) => updateMutation.mutate({ adChaptersEnabled })}
-          >
-            Publish kept segments as chapters in this feed. Needs a chapters
-            mode other than Off.
-          </GlobalOverrideRow>
-
-          {adChaptersOn && (
-            <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-              <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chaptered categories:</span>
-              <div className="flex flex-col gap-2 flex-1 min-w-0">
-                <Checkbox
-                  checked={feed.adChapterCategories == null}
-                  // Copying the global map needs the settings query resolved.
-                  disabled={updateMutation.isPending || !settings}
-                  onChange={(checked) => updateMutation.mutate({
-                    adChapterCategories: checked ? null : { ...globalAdChapterCategories },
-                  })}
-                  label="Use global categories"
-                />
-                {feed.adChapterCategories != null && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {SEGMENT_CATEGORIES.map((category) => (
-                      <Checkbox
-                        key={category}
-                        checked={feed.adChapterCategories?.[category]
-                          ?? globalAdChapterCategories[category] ?? false}
-                        disabled={updateMutation.isPending}
-                        onChange={(checked) => updateMutation.mutate({
-                          adChapterCategories: { ...feed.adChapterCategories, [category]: checked },
-                        })}
-                        label={SEGMENT_CATEGORY_LABELS[category]}
-                      />
-                    ))}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Which kept categories get a chapter in this feed.
-                </p>
+            <div className="space-y-4 pt-1">
+              {/* Hide unprocessed episodes from the served feed. Meaningless for a
+                  local feed: nothing is served until it finishes processing. */}
+              {!isLocal && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Hide unprocessed:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <TriStateSelect
+                    value={feed.onlyExposeProcessedEpisodes}
+                    onChange={(next) => updateMutation.mutate({ onlyExposeProcessedEpisodes: next })}
+                    disabled={updateMutation.isPending}
+                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
+                  />
+                  {feed.onlyExposeProcessedEpisodes !== null && feed.onlyExposeProcessedEpisodes !== undefined && (
+                    <span className={`${badgeBase} font-medium ${
+                      feed.onlyExposeProcessedEpisodes
+                        ? tint.success
+                        : tint.destructive
+                    }`}>
+                      {feed.onlyExposeProcessedEpisodes ? 'Hiding' : 'Showing all'}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+              )}
 
-          {/* Per-feed auto-process queue priority (#625) */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Queue priority:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <select
-                value={feed.queuePriority || 'normal'}
-                onChange={(e) => updateMutation.mutate({
-                  queuePriority: e.target.value as 'high' | 'normal' | 'low',
-                })}
-                disabled={updateMutation.isPending}
-                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-                aria-label="Queue priority"
-              >
-                <option value="high">High</option>
-                <option value="normal">Normal</option>
-                <option value="low">Low</option>
-              </select>
-              <p className="text-xs text-muted-foreground">
-                High processes before other queued episodes. Low runs only when nothing else is waiting.
-                New episodes and manual reprocesses get an automatic boost.
-              </p>
-            </div>
-          </div>
-
-          {/* Per-feed low-ad-yield action override */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Low ad yield:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <select
-                value={feed.lowAdYieldAction ?? ''}
-                onChange={(e) => updateMutation.mutate({
-                  lowAdYieldAction: e.target.value === ''
-                    ? null : (e.target.value as LowAdYieldAction),
-                })}
-                disabled={updateMutation.isPending}
-                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-                aria-label="Low ad yield action"
-              >
-                <option value="">Use global ({globalLowAdYieldLabel})</option>
-                {(Object.keys(LOW_AD_YIELD_ACTION_LABELS) as LowAdYieldAction[]).map((action) => (
-                  <option key={action} value={action}>{LOW_AD_YIELD_ACTION_LABELS[action]}</option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground">
-                When an episode finishes with far less ad time removed than this feed usually
-                yields, run this action automatically (once per episode).
-              </p>
-            </div>
-          </div>
-
-          {/* Per-feed run log storage override */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Run logs:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <select
-                value={feed.episodeLogs ?? ''}
-                onChange={(e) => updateMutation.mutate({
-                  episodeLogs: e.target.value === ''
-                    ? null : (e.target.value as EpisodeLogsOverride),
-                })}
-                disabled={updateMutation.isPending}
-                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-                aria-label="Run log storage"
-              >
-                <option value="">Use global ({globalEpisodeLogsLabel})</option>
-                <option value="on">Keep logs</option>
-                <option value="off">Don't keep logs</option>
-              </select>
-              <p className="text-xs text-muted-foreground">
-                Keep each run's pipeline log for this feed, readable on the episode page.
-                Nothing is kept while the global retention is 0 days.
-              </p>
-            </div>
-          </div>
-
-          {/* Per-feed storage retention override. Three states share one
-              control: inherit, archive (0), and an explicit day count, so
-              the number field only appears once "Keep for" is chosen. */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Retention:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <select
-                  value={retentionMode}
-                  onChange={(e) => {
-                    const mode = e.target.value as RetentionMode;
-                    if (mode === 'global') updateMutation.mutate({ retentionDaysOverride: null });
-                    else if (mode === 'archive') updateMutation.mutate({ retentionDaysOverride: 0 });
-                    // Seeding from the global window would send 0 (= archive,
-                    // silently) whenever global retention is disabled.
-                    else updateMutation.mutate({
-                      retentionDaysOverride: globalStorageRetentionDays > 0
-                        ? globalStorageRetentionDays : 30,
-                    });
-                  }}
-                  disabled={updateMutation.isPending}
-                  className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-                  aria-label="Retention"
-                >
-                  <option value="global">Use global ({globalStorageRetentionLabel})</option>
-                  <option value="archive">Archive, never delete</option>
-                  <option value="custom">Keep for</option>
-                </select>
-                {retentionMode === 'custom' && (
-                  <>
-                    <DraftNumberInput
-                      value={feed.retentionDaysOverride != null && feed.retentionDaysOverride > 0
-                        ? feed.retentionDaysOverride : null}
-                      fallback={null}
-                      min={1}
-                      max={MAX_RETENTION_DAYS}
-                      step={1}
-                      parse={parseOptionalNumber}
-                      onChange={(v) => retentionDaysField.setValue(v != null ? String(v) : '')}
-                      onBlur={() => commitFloat(
-                        retentionDaysField, feed.retentionDaysOverride,
-                        'retentionDaysOverride', 1, MAX_RETENTION_DAYS)}
-                      className="w-24 px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-                      ariaLabel="Retention days"
+              {/* Served-feed GUID scheme (#598). Local feeds always serve their
+                  own episode IDs; there's no publisher GUID to fall back to. */}
+              {!isLocal && (
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Episode GUIDs:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <ToggleSwitch
+                      checked={feed.ownEpisodeGuids === true}
+                      onChange={(v) => updateMutation.mutate({ ownEpisodeGuids: v })}
+                      disabled={updateMutation.isPending}
+                      ariaLabel="Serve MinusPod episode IDs"
                     />
-                    <span className="text-xs text-muted-foreground">days</span>
-                  </>
-                )}
-                {feed.retentionDaysOverride === 0 && (
-                  <span className={`${badgeBase} font-medium ${tint.blue}`}>
-                    Archived
-                  </span>
-                )}
+                    <span>Serve MinusPod episode IDs</span>
+                  </label>
+                  <p className="text-xs text-warning">
+                    Uses MinusPod&apos;s own episode IDs as RSS GUIDs instead of the publisher&apos;s.
+                    Switching this on an existing feed makes subscribed apps treat every
+                    episode as new once. New feeds start with this on.
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                How long processed audio for this feed stays on disk. Archive keeps every
-                episode indefinitely, and survives the &ldquo;Clear all processed audio&rdquo;
-                action in Settings.
-              </p>
-            </div>
-          </div>
+              )}
 
-          {/* Per-feed pre-cut original audio override */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Original audio:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <select
-                  value={feed.keepOriginalAudioOverride == null
-                    ? '' : feed.keepOriginalAudioOverride ? 'on' : 'off'}
-                  onChange={(e) => updateMutation.mutate({
-                    keepOriginalAudioOverride: e.target.value === ''
-                      ? null : e.target.value === 'on',
-                  })}
-                  disabled={updateMutation.isPending}
-                  className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-                  aria-label="Keep original audio"
-                >
-                  <option value="">Use global ({globalKeepOriginalLabel})</option>
-                  <option value="on">Keep the uncut copy</option>
-                  <option value="off">Discard the uncut copy</option>
-                </select>
-                {feed.keepOriginalAudioOverride != null && (
-                  <span className={`${badgeBase} font-medium ${tint.blue}`}>
-                    Override: {feed.keepOriginalAudioOverride ? 'keeping' : 'discarding'}
-                  </span>
-                )}
+              {/* Per-feed run log storage override */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Run logs:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <select
+                    value={feed.episodeLogs ?? ''}
+                    onChange={(e) => updateMutation.mutate({
+                      episodeLogs: e.target.value === ''
+                        ? null : (e.target.value as EpisodeLogsOverride),
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Run log storage"
+                  >
+                    <option value="">Use global ({globalEpisodeLogsLabel})</option>
+                    <option value="on">Keep logs</option>
+                    <option value="off">Don't keep logs</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Keep each run's pipeline log for this feed, readable on the episode page.
+                    Nothing is kept while the global retention is 0 days.
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Review mode in the ad editor plays the pre-cut audio. Discarding it roughly
-                halves what this feed stores, starting with the next episode processed.
-              </p>
-            </div>
-          </div>
 
-          {/* Per-feed transcription language override */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Language:</span>
-            <div className="flex items-center gap-2 flex-wrap">
-              <select
-                value={feed.languageOverride ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  updateMutation.mutate({ languageOverride: v === '' ? null : v });
-                }}
-                disabled={updateMutation.isPending}
-                className={`flex-1 sm:flex-none min-w-0 disabled:opacity-50 ${selectBase}`}
-              >
-                <option value="">Global default</option>
-                <option value="auto">Auto-detect (multilingual)</option>
-                {WHISPER_LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.name} ({l.code})
-                  </option>
-                ))}
-              </select>
-              {feed.languageOverride && (
-                <span className={`${badgeBase} font-medium ${tint.blue}`}>
-                  Override: {labelForLanguage(feed.languageOverride)}
-                </span>
-              )}
-            </div>
-          </div>
+              {/* Per-feed storage retention override. Three states share one
+                  control: inherit, archive (0), and an explicit day count, so
+                  the number field only appears once "Keep for" is chosen. */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Retention:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={retentionMode}
+                      onChange={(e) => {
+                        const mode = e.target.value as RetentionMode;
+                        if (mode === 'global') updateMutation.mutate({ retentionDaysOverride: null });
+                        else if (mode === 'archive') updateMutation.mutate({ retentionDaysOverride: 0 });
+                        // Seeding from the global window would send 0 (= archive,
+                        // silently) whenever global retention is disabled.
+                        else updateMutation.mutate({
+                          retentionDaysOverride: globalStorageRetentionDays > 0
+                            ? globalStorageRetentionDays : 30,
+                        });
+                      }}
+                      disabled={updateMutation.isPending}
+                      className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                      aria-label="Retention"
+                    >
+                      <option value="global">Use global ({globalStorageRetentionLabel})</option>
+                      <option value="archive">Archive, never delete</option>
+                      <option value="custom">Keep for</option>
+                    </select>
+                    {retentionMode === 'custom' && (
+                      <>
+                        <DraftNumberInput
+                          value={feed.retentionDaysOverride != null && feed.retentionDaysOverride > 0
+                            ? feed.retentionDaysOverride : null}
+                          fallback={null}
+                          min={1}
+                          max={MAX_RETENTION_DAYS}
+                          step={1}
+                          parse={parseOptionalNumber}
+                          onChange={(v) => retentionDaysField.setValue(v != null ? String(v) : '')}
+                          onBlur={() => commitFloat(
+                            retentionDaysField, feed.retentionDaysOverride,
+                            'retentionDaysOverride', 1, MAX_RETENTION_DAYS)}
+                          className="w-24 px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                          ariaLabel="Retention days"
+                        />
+                        <span className="text-xs text-muted-foreground">days</span>
+                      </>
+                    )}
+                    {feed.retentionDaysOverride === 0 && (
+                      <span className={`${badgeBase} font-medium ${tint.blue}`}>
+                        Archived
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    How long processed audio for this feed stays on disk. Archive keeps every
+                    episode indefinitely, and survives the &ldquo;Clear all processed audio&rdquo;
+                    action in Settings.
+                  </p>
+                </div>
+              </div>
 
-          {/* Hide unprocessed episodes from the served feed. Meaningless for a
-              local feed: nothing is served until it finishes processing. */}
-          {!isLocal && (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Hide unprocessed:</span>
-            <div className="flex items-center gap-2 flex-wrap">
-              <TriStateSelect
-                value={feed.onlyExposeProcessedEpisodes}
-                onChange={(next) => updateMutation.mutate({ onlyExposeProcessedEpisodes: next })}
-                disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
-              />
-              {feed.onlyExposeProcessedEpisodes !== null && feed.onlyExposeProcessedEpisodes !== undefined && (
-                <span className={`${badgeBase} font-medium ${
-                  feed.onlyExposeProcessedEpisodes
-                    ? tint.success
-                    : tint.destructive
-                }`}>
-                  {feed.onlyExposeProcessedEpisodes ? 'Hiding' : 'Showing all'}
-                </span>
-              )}
+              {/* Per-feed pre-cut original audio override */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Original audio:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={feed.keepOriginalAudioOverride == null
+                        ? '' : feed.keepOriginalAudioOverride ? 'on' : 'off'}
+                      onChange={(e) => updateMutation.mutate({
+                        keepOriginalAudioOverride: e.target.value === ''
+                          ? null : e.target.value === 'on',
+                      })}
+                      disabled={updateMutation.isPending}
+                      className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                      aria-label="Keep original audio"
+                    >
+                      <option value="">Use global ({globalKeepOriginalLabel})</option>
+                      <option value="on">Keep the uncut copy</option>
+                      <option value="off">Discard the uncut copy</option>
+                    </select>
+                    {feed.keepOriginalAudioOverride != null && (
+                      <span className={`${badgeBase} font-medium ${tint.blue}`}>
+                        Override: {feed.keepOriginalAudioOverride ? 'keeping' : 'discarding'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Review mode in the ad editor plays the pre-cut audio. Discarding it roughly
+                    halves what this feed stores, starting with the next episode processed.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
-          )}
-
-          {/* Served-feed GUID scheme (#598). Local feeds always serve their
-              own episode IDs -- there's no publisher GUID to fall back to. */}
-          {!isLocal && (
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Episode GUIDs:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <ToggleSwitch
-                  checked={feed.ownEpisodeGuids === true}
-                  onChange={(v) => updateMutation.mutate({ ownEpisodeGuids: v })}
-                  disabled={updateMutation.isPending}
-                  ariaLabel="Serve MinusPod episode IDs"
-                />
-                <span>Serve MinusPod episode IDs</span>
-              </label>
-              <p className="text-xs text-warning">
-                Uses MinusPod&apos;s own episode IDs as RSS GUIDs instead of the publisher&apos;s.
-                Switching this on an existing feed makes subscribed apps treat every
-                episode as new once. New feeds start with this on.
-              </p>
-            </div>
-          </div>
-          )}
-
-          {/* Feed tags (inline basic row; simple enough not to collapse) */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Tags:</span>
-            <div className="flex-1 min-w-0">
-              <FeedTagsEditor slug={slug} />
-            </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Segment actions (issue #565): per-feed remove/beep/keep overrides,
               show-segment detection, and the bulk re-render trigger. */}
@@ -1712,6 +1775,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               )}
             </div>
           </CollapsibleSection>
+          </div>
+          </SettingsSearchContext.Provider>
         </div>
       </CollapsibleSection>
       {confirmRerender && (
