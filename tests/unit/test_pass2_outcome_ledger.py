@@ -103,6 +103,18 @@ def test_short_fragment_beside_a_hold_is_dropped_with_its_own_line(caplog):
         (95.0, 100.0, 'dropped:short_fragment'), (100.0, 104.0, 'covered:pass1_hold')]
 
 
+def test_sub_tolerance_fragment_at_a_hold_edge_is_dropped_before_validation(caplog):
+    run = _run([(1251.68, 1400.0)], holds=[_hold(1251.7, 1400.0)],
+               validator_rejects=[(1251.68, 1251.7)], caplog=caplog)
+    assert sorted(run.lines) == [
+        (1251.7, 1251.7, 'dropped:short_fragment'), (1251.7, 1400.0, 'covered:pass1_hold')]
+
+
+def test_finding_ending_at_a_hold_start_leaves_no_fragment(caplog):
+    run = _run([(1100.0, 1251.7)], holds=[_hold(1251.7, 1400.0)], caplog=caplog)
+    assert run.lines == [(1100.0, 1251.7, 'cut')]
+
+
 def test_bounds_are_in_original_time_across_a_pass1_cut(caplog):
     cuts = [{'start': 100.0, 'end': 200.0}]
     run = _run([(900.0, 1100.0)], holds=[_hold(1000.0, 1100.0)], cuts=cuts, caplog=caplog)

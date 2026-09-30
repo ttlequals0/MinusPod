@@ -17,7 +17,7 @@ from config import is_pending_review
 from main_app import processing
 from main_app.verification_reconciliation import (
     Pass2Ledger, _gate_hold_split_fragments, _gate_verification_ads_by_confidence,
-    _split_pass2_candidates_around_holds,
+    _split_pass2_candidates_around_holds, _split_pass2_candidates_around_spans,
 )
 from tests.unit.pass2_test_utils import (
     NO_SPLICE, _ad, _approval_db, _ctx, _hold, _pair, _recut_validate, _release_confirm,
@@ -172,6 +172,15 @@ def test_short_fragment_of_a_measured_parent_survives():
     assert _spans(orig) == [(1095.0, 1100.0)]
     assert proc[0]['_measured_split_fragment'] is True
     assert orig[0]['_measured_split_fragment'] is True
+
+
+def test_protected_split_drops_a_sliver_at_the_barrier_edge():
+    proc, orig = _pair(999.98, 1100.0)
+    ledger = Pass2Ledger()
+    out_proc, out_orig = _split_pass2_candidates_around_spans(
+        [proc], [orig], [{'start': 1000.0, 'end': 1100.0}], [], 'protected audio', ledger=ledger)
+    assert out_proc == [] and out_orig == []
+    assert [e[3] for e in ledger._entries.values() if e[3]] == ['dropped:short_fragment']
 
 
 def test_fragment_inside_a_replacement_beep_is_dropped_without_a_hold():

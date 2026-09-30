@@ -359,14 +359,23 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
             if trusted_fragment:
                 fragment_processed['_measured_split_fragment'] = True
                 fragment_original['_measured_split_fragment'] = True
-            if fragment_policy is not None and not _fragment_survives(
-                    fragment_processed, fragment_original, fragment_policy, pass1_cuts,
-                    ledger, conflicts):
+            if fragment_policy is not None:
+                if not _fragment_survives(fragment_processed, fragment_original,
+                                          fragment_policy, pass1_cuts, ledger, conflicts):
+                    continue
+            elif _is_sliver(fragment_processed, fragment_original):
+                ledger.record(fragment_original, 'dropped:short_fragment')
                 continue
             surviving_processed.append(fragment_processed)
             surviving_original.append(fragment_original)
 
     return surviving_processed, surviving_original
+
+
+def _is_sliver(processed, original):
+    """Whether a carved fragment is no longer than the edge tolerance in either timeline."""
+    return (processed['end'] - processed['start'] <= EDGE_TOLERANCE
+            or original['end'] - original['start'] <= EDGE_TOLERANCE)
 
 
 def _fragment_survives(processed, original, policy, pass1_cuts, ledger, conflicts):
@@ -383,7 +392,9 @@ def _fragment_survives(processed, original, policy, pass1_cuts, ledger, conflict
         original['hold_reason'] = HOLD_REASON_VERIFICATION_KEPT_CONFLICT
         conflicts.append(original)
         return False
-    if (processed['end'] - processed['start'] < MIN_AD_DURATION
+    # A sliver left at a barrier edge is dropped even when its parent was measured.
+    if _is_sliver(processed, original) or (
+            processed['end'] - processed['start'] < MIN_AD_DURATION
             and not processed.get('_measured_split_fragment')):
         ledger.record(original, 'dropped:short_fragment')
         return False

@@ -14,6 +14,7 @@ release notes.
 ### Fixed
 - A call-to-action link ('go to brand-site dot com slash show') counts as commercial language for a sponsor named beside it, even when the domain differs from the brand name or the transcript spaces the dot, so vanity-URL reads are confirmed instead of held for missing splice evidence.
 - A transcription whose Whisper model fails to load on the GPU is retried instead of being marked permanently failed; an out-of-memory mid-transcription still fails as before.
+- Zero-length pass-2 fragments left by a split at a hold edge are dropped before validation.
 
 ## [2.97.39] - 2026-09-30
 
