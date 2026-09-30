@@ -88,6 +88,8 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `GUNICORN_WORKERS` | `2` | Worker count. Lower means single-threaded UI blocking during RSS refresh; higher multiplies per-worker rate-limit counters (when using `memory://`). |
 | `GUNICORN_TIMEOUT` | `600` | Per-request hard timeout. |
 | `GUNICORN_GRACEFUL_TIMEOUT` | `330` | Seconds between SIGTERM and SIGKILL on shutdown. |
+| `GUNICORN_ACCESS_LOG` | `-` (stdout) | Where the access log goes. Set it empty to disable it, or to a file path to write there. |
+| `GUNICORN_ERROR_LOG` | `-` (stderr) | Where the server error log goes. Set it empty to disable it, or to a file path to write there. |
 | `MINUSPOD_STOP_GRACE_PERIOD` | `360s` | Compose container shutdown grace. Keep it longer than `GUNICORN_GRACEFUL_TIMEOUT`. |
 | `MINUSPOD_BIND_ADDRESS` | `0.0.0.0` | Host address used by the Compose port mapping. Set `127.0.0.1` when a local reverse proxy, VPN, or wrapper is the only intended entry point. |
 | `SECRET_KEY` | _(auto-generated)_ | Flask session signing key. If unset, a random value is generated and stored in the SQLite `settings` table. Set it explicitly only when required by a custom deployment. Rotating it invalidates every existing session. |

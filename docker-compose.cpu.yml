@@ -73,6 +73,9 @@ services:
       # Internal listen port. Default 8000. Useful for host networking or
       # running multiple instances. Ignored when GUNICORN_BIND is set.
       - MINUSPOD_PORT=${MINUSPOD_PORT:-8000}
+      # Server log targets: unset = console, empty = disabled, path = file.
+      # - GUNICORN_ACCESS_LOG=/app/data/access.log
+      # - GUNICORN_ERROR_LOG=/app/data/error.log
 
       # Per-episode download size cap in MB. Raise for feeds with very
       # long or high-bitrate episodes; failure messages name this var.
