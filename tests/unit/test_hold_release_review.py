@@ -801,3 +801,16 @@ def test_two_covering_adjusts_on_one_hold_both_release(monkeypatch):
     assert sorted((a['start'], a['end'], a['validation']['decision']) for a in ads) == [
         (1000.0, 1030.0, Decision.ACCEPT.value), (1030.0, 1060.0, Decision.REVIEW.value),
         (1060.0, 1100.0, Decision.ACCEPT.value)]
+
+
+def test_outside_pieces_of_two_holds_become_one_candidate():
+    holds = [_hold(1000.0, 1100.0), _hold(1120.0, 1200.0)]
+    run = _drive_covering(holds, [(1060.0, 1080.0, 0.95), (1140.0, 1160.0, 0.95)], [
+        _verdict('adjust', 1060.0, 1080.0, adjusted=(1010.0, 1115.0)),
+        _verdict('adjust', 1140.0, 1160.0, adjusted=(1105.0, 1190.0))])
+
+    assert [h['pass2_reviewed_release'] for h in holds] == [
+        {'start': 1010.0, 'end': 1100.0}, {'start': 1120.0, 'end': 1190.0}]
+    assert run.reviewer['cut'] == [(1100.0, 1120.0)]
+    assert _spans(run.output[1]) == [(1100.0, 1120.0)]
+    assert run.stats['pass2_outcomes'] == {'covered:pass1_hold': 2, 'cut': 1}

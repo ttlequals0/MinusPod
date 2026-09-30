@@ -44,7 +44,7 @@ from ad_validator import restore_uncovered_confirmed_spans, user_trimmed_keep_ra
 from audio_analysis.audio_analyzer import MIN_VOLUME_TIMEOUT
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
-from audio_processor import get_replacement_duration, AudioProcessor
+from audio_processor import get_replacement_duration, render_keeps_cut, AudioProcessor
 from cancel import (
     ProcessingCancelled, ProcessingOwnershipLost, _check_cancel,
     _cancel_events, _cancel_events_lock,
@@ -2400,14 +2400,22 @@ def _released_span(v, sub, hold, barriers):
     return {'start': span[0], 'end': span[1]}, outside
 
 
-def _outside_candidates(v, sub, outside, pass1_cuts, covered, ledger):
-    """Pass-2 (processed, original) pairs for the parts of a covering adjust outside its hold."""
-    pieces = subtract_spans(outside, [(c['start'], c['end']) for c in [*pass1_cuts, *covered]])
+def _outside_candidates(pieces, pass1_cuts, covered, ledger):
+    """Pass-2 (processed, original) pairs for (start, end, verdict, sub) pieces outside holds."""
+    spans = [(c['start'], c['end']) for c in [*pass1_cuts, *covered]]
+    parts = sorted([(a, b, v, sub) for lo, hi, v, sub in pieces
+                    for a, b in subtract_spans([(lo, hi)], spans) if b - a > EDGE_TOLERANCE],
+                   key=lambda part: part[:2])
+    # Overlapping pieces from covering adjusts on different holds become one candidate.
+    runs = []
+    for a, b, v, sub in parts:
+        if runs and a <= runs[-1][1] + EDGE_TOLERANCE:
+            runs[-1][1] = max(runs[-1][1], b)
+        else:
+            runs.append([a, b, v, sub])
     beep = get_replacement_duration()
     pairs = []
-    for a, b in pieces:
-        if b - a <= EDGE_TOLERANCE:
-            continue
+    for a, b, v, sub in runs:
         orig = carve_fragment(sub, a, b)
         orig.pop('held_for_review', None)
         orig.update(source='reviewer', reason=v.reasoning or sub.get('reason'))
@@ -2447,7 +2455,7 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
     by_key = {(sub['start'], sub['end']): (sub, hold) for sub, hold in candidates}
     released = 0
     released_by_hold = {}
-    outside_pairs = []
+    outside_pieces = []
     for v in result.verdicts:
         sub, hold = by_key.get((v.original_start, v.original_end), (None, None))
         if hold is None:
@@ -2488,16 +2496,20 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         hold['pass2_released_spans'] = sorted(
             released_by_hold[id(hold)], key=lambda s: s['start'])
         released += 1
-        pairs = _outside_candidates(v, sub, outside, pass1_cuts, covered, ledger)
-        outside_pairs.extend(pairs)
+        outside_pieces.extend((a, b, v, sub) for a, b in outside)
         note = ''
         if outside:
-            sent = ', '.join(f"{o['start']:.1f}s-{o['end']:.1f}s" for _p, o in pairs) or 'none'
-            # Parts already cut in pass 1 or found by pass 2 are not sent again.
-            note = f"; outside the hold, sent as pass-2 candidates: {sent}"
+            note = "; outside the hold: " + ', '.join(f"{a:.1f}s-{b:.1f}s" for a, b in outside)
         audio_logger.info(
             f"[{ctx.slug}:{ctx.episode_id}] Review released {span['start']:.1f}s-"
             f"{span['end']:.1f}s of hold {hold['start']:.1f}s-{hold['end']:.1f}s{note}")
+    outside_pairs = _outside_candidates(outside_pieces, pass1_cuts, covered, ledger)
+    if outside_pieces:
+        # Parts already cut in pass 1 or found by pass 2 are not sent again.
+        sent = ', '.join(f"{o['start']:.1f}s-{o['end']:.1f}s" for _p, o in outside_pairs)
+        audio_logger.info(
+            f"[{ctx.slug}:{ctx.episode_id}] Outside-hold parts sent as pass-2 "
+            f"candidates: {sent or 'none'}")
     return released, outside_pairs
 
 
@@ -2756,7 +2768,9 @@ def _covering_group(groups, marker, duration):
 
 def _shrink_holds_under_reviewed_cuts(all_ads, ads_to_remove, tag=''):
     """Shrink pending holds to the parts no reviewer-moved cut covers; the render cuts the rest."""
-    reviewed = [(c['start'], c['end']) for c in ads_to_remove if c.get('reviewer_moved')]
+    # A short cut the render drops takes no audio, so it cannot take the hold's either.
+    reviewed = [(c['start'], c['end']) for c in ads_to_remove
+                if c.get('reviewer_moved') and render_keeps_cut(c)]
     if not reviewed:
         return
     cut_ids = {id(c) for c in ads_to_remove}

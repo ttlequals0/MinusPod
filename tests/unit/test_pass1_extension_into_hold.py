@@ -19,7 +19,7 @@ def _ads():
     return cut, hold
 
 
-def _extend_to(end):
+def _extend_to(end, start=None):
     # Like the real reviewer: the cut list gets an adjusted copy, the master takes the verdict.
     def review(ads_to_remove, all_ads):
         out = []
@@ -27,7 +27,8 @@ def _extend_to(end):
             if ad['category'] == 'sponsor':
                 moved = dict(reviewer_verdict='adjust', reviewer_moved=True,
                              reviewer_original_start=ad['start'],
-                             reviewer_original_end=ad['end'], end=end)
+                             reviewer_original_end=ad['end'], end=end,
+                             start=ad['start'] if start is None else start)
                 next(m for m in all_ads if m is ad).update(moved)
                 ad = dict(ad, **moved)
             out.append(ad)
@@ -85,6 +86,16 @@ def test_short_remainder_is_left_uncut_without_a_hold():
 def test_unmoved_cut_next_to_a_hold_leaves_it_whole():
     cut, hold = _ads()
     run = _run_pipeline([cut, hold], dict(ALL_REMOVE), held_categories={HELD},
+                        duration=3000.0)
+    call = run['local_ap'].process_episode.call_args
+    assert [(b['start'], b['end']) for b in call.kwargs['cut_barriers']] == [(609.0, 680.8)]
+
+
+def test_short_moved_cut_the_render_drops_leaves_the_hold_whole():
+    cut, hold = _ads()
+    cut.update(start=590.0, end=600.0, confidence=0.85)
+    run = _run_pipeline([cut, hold], dict(ALL_REMOVE), held_categories={HELD},
+                        reviewer_side_effect=_extend_to(611.0, start=603.0),
                         duration=3000.0)
     call = run['local_ap'].process_episode.call_args
     assert [(b['start'], b['end']) for b in call.kwargs['cut_barriers']] == [(609.0, 680.8)]
