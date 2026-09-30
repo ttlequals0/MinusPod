@@ -23,7 +23,7 @@ from config import HTTP_MAX_REDIRECTS_FEED
 from utils.audio import get_audio_duration
 from user_agent import download_user_agent
 from utils.http import safe_url_for_log
-from utils.markers import DAI_PROBE_REF_S, dai_probe_window
+from utils.markers import DAI_PROBE_REF_S, dai_probe_window, merge_runs
 from utils.safe_http import URLTrust, safe_get, stream_to_file_capped
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
@@ -590,7 +590,7 @@ def identical_coverage(dai_differential, start: float, end: float) -> float:
     span = float(end) - float(start)
     if span <= 0:
         return 0.0
-    covered = 0.0
+    covered = []
     for region in regions:
         try:
             lo, hi = max(float(region['start_s']), start), min(float(region['end_s']), end)
@@ -603,5 +603,6 @@ def identical_coverage(dai_differential, start: float, end: float) -> float:
         corr = region.get('corr')
         if (region.get('kind') == 'identical' and isinstance(corr, (int, float))
                 and not isinstance(corr, bool) and corr >= XCORR_MIN_CORR):
-            covered += hi - lo
-    return covered / span
+            covered.append((lo, hi))
+    # Overlapping regions from a hand-built or legacy payload must not count twice.
+    return sum(hi - lo for lo, hi in merge_runs(covered)) / span

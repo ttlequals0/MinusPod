@@ -550,6 +550,11 @@ def test_identical_coverage(regions, expected):
     assert df.identical_coverage({'regions': regions}, 608.0, 680.0) == pytest.approx(expected)
 
 
+def test_identical_coverage_unions_overlapping_regions():
+    regions = [_region(0.0, 100.0), _region(50.0, 150.0)]
+    assert df.identical_coverage({'regions': regions}, 0.0, 100.0) == pytest.approx(1.0)
+
+
 def test_identical_coverage_zero_length_span_or_no_payload():
     assert df.identical_coverage({'regions': [_region(0.0, 3600.0)]}, 100.0, 100.0) == 0.0
     assert df.identical_coverage(None, 100.0, 200.0) == 0.0

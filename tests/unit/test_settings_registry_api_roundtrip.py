@@ -175,6 +175,15 @@ def test_the_splice_veto_toggle_round_trips(client):
         assert after['isDefault'] is False
 
 
+@pytest.mark.parametrize('value', [None, 'nope', 0])
+def test_the_splice_veto_toggle_rejects_non_booleans(client, value):
+    before = client.get(BASE).get_json()['spliceVetoEnabled']['value']
+    r = client.put(f'{BASE}/ad-detection', data=json.dumps({'spliceVetoEnabled': value}),
+                   content_type='application/json')
+    assert r.status_code == 400, r.get_data(as_text=True)
+    assert client.get(BASE).get_json()['spliceVetoEnabled']['value'] is before
+
+
 def test_ad_detection_reset_turns_the_splice_veto_back_on(client):
     client.put(f'{BASE}/ad-detection', data=json.dumps({'spliceVetoEnabled': False}),
                content_type='application/json')

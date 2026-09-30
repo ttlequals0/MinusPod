@@ -1020,6 +1020,8 @@ def _validate_processing_defaults_payload(data):
             return error_response('chaptersMode must be auto, generate, or off', 400)
     if 'skipSecondPass' in data and not isinstance(data['skipSecondPass'], bool):
         return error_response('skipSecondPass must be a boolean', 400)
+    if 'spliceVetoEnabled' in data and not isinstance(data['spliceVetoEnabled'], bool):
+        return error_response('spliceVetoEnabled must be a boolean', 400)
     if 'differentialFetchMode' in data:
         value = str(data['differentialFetchMode'] or '').strip().lower()
         if value not in ('auto', 'on', 'off'):

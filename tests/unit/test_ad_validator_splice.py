@@ -356,10 +356,10 @@ class TestSpliceVetoCrossFetchWaiver:
         self._assert_held(self._run(payload))
 
     def test_differential_region_overlapping_the_span_is_held(self):
-        # corr above the Layer 3 ceiling, so it does not corroborate the cut either.
+        # 2 s leaves the rest 97% identical, so only the overlap rule holds; corr 0.7 does not corroborate.
         payload = {'status': 'no_differential', 'regions': [
-            _region(0.0, 640.0), _region(640.0, 650.0, 'differential', 0.7),
-            _region(650.0, 3600.0)]}
+            _region(0.0, 640.0), _region(640.0, 642.0, 'differential', 0.7),
+            _region(642.0, 3600.0)]}
         self._assert_held(self._run(payload))
 
     def test_ninety_percent_identical_coverage_is_held(self):
