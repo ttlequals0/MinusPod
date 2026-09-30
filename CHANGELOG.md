@@ -14,6 +14,8 @@ release notes.
 ### Security
 - Bumped pyjwt to 2.15.1 to clear CVE-2026-101917 and CVE-2026-102265 through
   CVE-2026-102274 reported against 2.13.0. No call-site changes.
+- The CI pip-audit ignores for PYSEC-2025-183 (pyjwt) and PYSEC-2024-277 (joblib) are
+  removed. Neither advisory matches the current pins.
 
 ## [2.97.37] - 2026-09-29
 
