@@ -9,6 +9,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.38] - 2026-09-30
+
+### Security
+- Bumped pyjwt to 2.15.1 to clear CVE-2026-101917 and CVE-2026-102265 through
+  CVE-2026-102274 reported against 2.13.0. No call-site changes.
+
 ## [2.97.37] - 2026-09-29
 
 ### Fixed
