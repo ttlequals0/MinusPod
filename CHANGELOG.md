@@ -9,6 +9,27 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.39] - 2026-09-30
+
+### Added
+- Global splice veto toggle in Settings; the per-feed setting now shows which global value it inherits.
+- Episode detail reports the feed's splice calibration; long LLM cuts record whether audio evidence
+  corroborated them.
+- The LLM benchmark supports Ollama models, starting with gemma4:e4b (#797).
+
+### Fixed
+- The splice veto no longer holds a long cut when the cross-fetch proved the whole episode identical
+  across downloads (baked-in audio has no splice to find).
+- A sponsor the detection names is confirmed from the span transcript when the span speaks a framing
+  phrase for it and carries a link or offer. First-time sponsors no longer fail the veto. Patrons,
+  listeners and the show's own name never count.
+- A feed whose long cuts rarely show splice evidence is classified host_read and the veto does not apply
+  to it; the status is measured from the last 20 episodes once five carry the new field.
+- A hold review that returns an adjust covering the reviewed span now releases the covered part of the
+  hold and sends the audio outside the hold through pass 2. Before, the whole hold stayed in place.
+- Pending holds shrink to what the rendered cuts leave, so a hold never claims audio that a reviewed or
+  merged cut already removed.
+
 ## [2.97.38] - 2026-09-30
 
 ### Security
@@ -10505,11 +10526,6 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - New API endpoints for patterns, corrections, sponsors, import/export, SSE status
 
 ---
-
-## [Unreleased]
-
-### Added
-- Added benchmark support for Ollama models, starting with gemma4:e4b.
 
 ## [0.1.104] - 2025-12-16
 
