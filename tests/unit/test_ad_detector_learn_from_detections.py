@@ -195,12 +195,14 @@ def test_member_candidate_carries_the_parent_dai_cores_clipped(detector):
     marker = _dai_marker([_claude_member()])
     marker["dai_core_spans"] = [{"start": 731.1, "end": 833.0}, {"start": 833.3, "end": 939.9}]
     marker["dai_probe_spans"] = [{"start": 731.6, "end": 735.6}]
+    marker["pattern_id"] = 12
+    marker["cue_snap"] = {"end": {"source": "template", "cue_start": 940.0, "cue_end": 941.0}}
     detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
     candidate = detector.text_pattern_matcher.create_patterns_from_ad.call_args.kwargs["ad"]
     assert candidate["dai_core_spans"] == [{"start": 731.1, "end": 833.0},
                                            {"start": 833.3, "end": 937.8}]
-    assert "merged_member_spans" not in candidate
-    assert "reason" not in candidate
+    for key in ("merged_member_spans", "reason", "pattern_id", "cue_snap"):
+        assert key not in candidate
 
 
 def test_member_candidates_still_pass_the_sponsor_gates(detector):
@@ -216,3 +218,18 @@ def test_only_pattern_matches_explain_a_claude_member(detector, stage, learned):
     marker = _dai_marker([_claude_member(), {"start": 731.1, "end": 939.9, "stage": stage}])
     detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
     assert detector.text_pattern_matcher.create_patterns_from_ad.called is learned
+
+
+def test_a_member_abutting_a_pattern_match_is_learned(detector):
+    marker = _dai_marker([_claude_member(end=800.0),
+                          {"start": 800.0, "end": 860.0, "stage": "fingerprint", "pattern_id": 3}])
+    detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
+    call = detector.text_pattern_matcher.create_patterns_from_ad.call_args
+    assert (call.kwargs["start"], call.kwargs["end"]) == (731.1, 800.0)
+
+
+def test_a_claude_marker_with_claude_members_learns_once(detector):
+    marker = dict(_dai_marker([_claude_member(), _claude_member(start=800.0, end=900.0)]),
+                  detection_stage="claude", sponsor="LongerName", confidence=0.99)
+    detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
+    assert detector.text_pattern_matcher.create_patterns_from_ad.call_count == 1

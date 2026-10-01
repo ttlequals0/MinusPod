@@ -308,8 +308,11 @@ def test_a_claude_member_over_two_dai_cores_splits_at_the_inner_core(db):
              'sponsor': 'Zorbly Goods'},
         ],
     }
+    real_create = detector.text_pattern_matcher.create_patterns_from_ad
+    created = []
+    detector.text_pattern_matcher.create_patterns_from_ad = (
+        lambda **kwargs: created.extend(real_create(**kwargs)) or created)
     detector.learn_from_detections(
         [marker], _segments(first, 0.0, 95.0) + _segments(second, 95.0, 191.0),
         podcast_id='example-podcast', episode_id='a1b2c3d4e5f6')
-    rows = db.get_ad_patterns(podcast_id='example-podcast')
-    assert len(rows) == 2
+    assert [(c['start'], c['end']) for c in created] == [(0.0, 95.0), (95.0, 191.0)]

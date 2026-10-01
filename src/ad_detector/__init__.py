@@ -37,12 +37,12 @@ from utils.llm_call import (
 from utils.markers import (
     DAI_CORE_SPANS,
     DAI_PROBE_SPANS,
+    carve_fragment,
     dai_probe_window,
     estimated_text_bounds,
     finite_number,
     inherit_edge,
     invalidate_word_timed_edges,
-    carve_fragment,
     learning_bounds,
     note_fold,
     recorded_member_spans,
@@ -2776,7 +2776,7 @@ class AdDetector:
 
     @staticmethod
     def _learning_candidates(ad: dict) -> list[dict]:
-        """The marker itself when claude found it, else its claude members no measured member explains."""
+        """The marker itself when claude found it, else its claude members no pattern-matched member explains."""
         stage = ad.get('detection_stage')
         if stage == 'claude':
             return [ad]
@@ -2788,9 +2788,9 @@ class AdDetector:
                     if m.get('pattern_id') is not None or m.get('stage') in PATTERN_MATCH_STAGES]
         candidates = []
         for member in members:
+            # Strict: a member that only touches a pattern match is new audio.
             if member.get('stage') != 'claude' or any(
-                    ranges_overlap(member['start'], member['end'], m['start'], m['end'])
-                    for m in measured):
+                    member['start'] < m['end'] and member['end'] > m['start'] for m in measured):
                 continue
             lo, hi = max(member['start'], ad['start']), min(member['end'], ad['end'])
             if hi <= lo:

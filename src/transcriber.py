@@ -12,6 +12,7 @@ import subprocess
 import threading
 import time
 import wave
+from contextlib import contextmanager
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -151,21 +152,28 @@ def _gpu_admission_release() -> None:
     _GPU_ADMISSION_SEMAPHORE.release()
 
 
-def unload_whisper_if_idle() -> bool:
-    """Unload the local model when no transcription holds an admission permit; True if one was unloaded."""
+@contextmanager
+def _all_admission_permits():
+    """Yield whether every admission permit was taken without blocking; they are released on exit."""
     taken = 0
     try:
         # Holding every permit means no local transcription is running or can start meanwhile.
         while (taken < GPU_TRANSCRIBE_MAX_CONCURRENT
                and _GPU_ADMISSION_SEMAPHORE.acquire(blocking=False)):
             taken += 1
-        if taken < GPU_TRANSCRIBE_MAX_CONCURRENT or not WhisperModelSingleton.is_loaded():
-            return False
-        WhisperModelSingleton.unload_model()
-        return True
+        yield taken == GPU_TRANSCRIBE_MAX_CONCURRENT
     finally:
         for _ in range(taken):
             _GPU_ADMISSION_SEMAPHORE.release()
+
+
+def unload_whisper_if_idle() -> bool:
+    """Unload the local model when no transcription holds an admission permit; True if one was unloaded."""
+    with _all_admission_permits() as free:
+        if not free or not WhisperModelSingleton.is_loaded():
+            return False
+        WhisperModelSingleton.unload_model()
+        return True
 
 
 # Last local transcription outcome, mirrored at module scope so
@@ -1896,9 +1904,13 @@ class Transcriber:
     @staticmethod
     def unload_after_repair() -> None:
         """Free the model the repair decodes reloaded after transcribe_chunked unloaded it."""
-        if WhisperModelSingleton.is_loaded():
-            WhisperModelSingleton.unload_model()
-            logger.info("Whisper model unloaded after transcript repair")
+        with _all_admission_permits() as free:
+            if not free:
+                logger.debug("Skipping the post-repair Whisper unload: a local transcription holds the GPU")
+                return
+            if WhisperModelSingleton.is_loaded():
+                WhisperModelSingleton.unload_model()
+                logger.info("Whisper model unloaded after transcript repair")
 
     def repair_gaps(self, audio_path: str, segments: list[dict], min_s: float,
                     language_override: str | None = None,

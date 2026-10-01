@@ -731,7 +731,7 @@ def _silence_limits(ad: dict, original_start: float,
 def _cue_snap_limits(ad: dict, original_start: float,
                      original_end: float) -> tuple[list, list]:
     """Edge limits at the labelled template cues the ad's edges were snapped to."""
-    snap = ad.get('cue_snap') or {}
+    snap = ad.get('cue_snap') if isinstance(ad.get('cue_snap'), dict) else {}
 
     def cue_edge(edge: str, key: str) -> float | None:
         record = snap.get(edge)

@@ -38,6 +38,19 @@ def test_unload_after_repair_frees_a_reloaded_model(loaded, caplog):
     unload.assert_called_once()
 
 
+def test_unload_after_repair_skips_while_a_transcription_holds_the_gpu(loaded, caplog):
+    _state, unload = loaded
+    with patch.object(transcriber_mod, 'GPU_TRANSCRIBE_MAX_CONCURRENT', 1):
+        transcriber_mod._GPU_ADMISSION_SEMAPHORE.acquire()
+        try:
+            with caplog.at_level('DEBUG', logger='transcriber'):
+                Transcriber.unload_after_repair()
+        finally:
+            transcriber_mod._GPU_ADMISSION_SEMAPHORE.release()
+    unload.assert_not_called()
+    assert 'Skipping the post-repair Whisper unload' in caplog.text
+
+
 def _seg(start, end):
     return {'start': start, 'end': end, 'text': 'x', 'words': []}
 
