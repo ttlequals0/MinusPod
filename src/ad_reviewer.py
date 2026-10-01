@@ -37,6 +37,7 @@ from config import (
 )
 from audio_enforcer import content_anchors
 from ad_detector.boundaries import timed_line_segments
+from ad_detector.cue_boundary_snap import SNAP_GAP_SECONDS
 from text_pattern_matcher import is_defined_pattern
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
@@ -727,14 +728,35 @@ def _silence_limits(ad: dict, original_start: float,
              if hi >= original_end - EDGE_TOLERANCE])
 
 
+def _cue_snap_limits(ad: dict, original_start: float,
+                     original_end: float) -> tuple[list, list]:
+    """Edge limits at the labelled template cues the ad's edges were snapped to."""
+    snap = ad.get('cue_snap') if isinstance(ad.get('cue_snap'), dict) else {}
+    starts, ends = [], []
+    record = snap.get('start')
+    if isinstance(record, dict) and is_template_cue(record):
+        cue_end = finite_number(record.get('cue_end'))
+        lim = None if cue_end is None else cue_end + SNAP_GAP_SECONDS
+        if lim is not None and original_start - EDGE_TOLERANCE <= lim < original_end:
+            starts.append((lim, max(lim, original_start)))
+    record = snap.get('end')
+    if isinstance(record, dict) and is_template_cue(record):
+        cue_start = finite_number(record.get('cue_start'))
+        lim = None if cue_start is None else cue_start - SNAP_GAP_SECONDS
+        if lim is not None and original_start < lim <= original_end + EDGE_TOLERANCE:
+            ends.append((lim, min(lim, original_end)))
+    return starts, ends
+
+
 def _hold_untranscribed_and_silence(ad: dict, start: float, end: float, original_start: float,
                                    original_end: float, index: TranscriptIndex,
                                    barriers) -> tuple[float, float]:
-    """Apply the transcript-gap and absorbed-silence no-cross rules in one call."""
-    gap_starts, gap_ends = _untranscribed_limits(index, original_start, original_end)
-    quiet_starts, quiet_ends = _silence_limits(ad, original_start, original_end)
-    return _hold_inward_edges(start, end, gap_starts + quiet_starts, gap_ends + quiet_ends,
-                              barriers)
+    """Apply the transcript-gap, boundary-cue and absorbed-silence no-cross rules in one call."""
+    limits = (_untranscribed_limits(index, original_start, original_end),
+              _cue_snap_limits(ad, original_start, original_end),
+              _silence_limits(ad, original_start, original_end))
+    return _hold_inward_edges(start, end, [lim for st, _ in limits for lim in st],
+                              [lim for _, en in limits for lim in en], barriers)
 
 
 def _floor_source(floor: float, proposed: float, core_edge: float) -> str:
@@ -2000,15 +2022,22 @@ class AdReviewer:
                 )
             clamped_start, clamped_end = floor_start, floor_end
 
-        # No edge moves inward across untranscribed audio; it stops at a hard barrier before it.
+        # No edge moves inward across untranscribed audio or past a labelled boundary cue it
+        # was snapped to; it stops at a hard barrier before either.
         barriers = hard_barriers or []
         index = transcript_units or TranscriptIndex(segments)
         proposed = (clamped_start, clamped_end)
         clamped_start, clamped_end = _hold_inward_edges(
             clamped_start, clamped_end,
             *_untranscribed_limits(index, original_start, original_end), barriers)
-        gap_start_moved = clamped_start != proposed[0]
-        gap_end_moved = clamped_end != proposed[1]
+        after_gaps = (clamped_start, clamped_end)
+        clamped_start, clamped_end = _hold_inward_edges(
+            clamped_start, clamped_end,
+            *_cue_snap_limits(ad, original_start, original_end), barriers)
+        held_by = [
+            'boundary cue' if new != gap else 'untranscribed audio' if gap != old else None
+            for old, gap, new in zip(proposed, after_gaps, (clamped_start, clamped_end), strict=True)]
+        gap_start_moved, gap_end_moved = (reason is not None for reason in held_by)
         gap_logged = not (gap_start_moved or gap_end_moved)
 
         # Probes and independent spans hold the floor; unsupported edges stop at the straddling word.
@@ -2039,11 +2068,11 @@ class AdReviewer:
             if ((floor_start, floor_end) != (clamped_start, clamped_end)
                     or floor_start > core_start or floor_end < core_end):
                 start_source = ('spoken word cap' if cap_start is not None
-                                else 'untranscribed audio'
+                                else held_by[0]
                                 if gap_start_moved and floor_start == clamped_start
                                 else _floor_source(floor_start, clamped_start, core_start))
                 end_source = ('spoken word cap' if cap_end is not None
-                              else 'untranscribed audio'
+                              else held_by[1]
                               if gap_end_moved and floor_end == clamped_end
                               else _floor_source(floor_end, clamped_end, core_end))
                 logger.info(
@@ -2056,8 +2085,9 @@ class AdReviewer:
                 gap_logged = True
             clamped_start, clamped_end = floor_start, floor_end
         if not gap_logged:
+            reasons = ' and '.join(dict.fromkeys(r for r in held_by if r))
             logger.info(
-                f"[{slug}:{episode_id}] Reviewer trim stopped at untranscribed audio: "
+                f"[{slug}:{episode_id}] Reviewer trim stopped at {reasons}: "
                 f"{proposed[0]:.1f}-{proposed[1]:.1f} -> {clamped_start:.1f}-{clamped_end:.1f}")
 
         # A widened edge never enters kept audio beyond the original span.
