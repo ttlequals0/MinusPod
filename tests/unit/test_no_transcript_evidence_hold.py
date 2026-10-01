@@ -66,14 +66,25 @@ def test_ad_language_in_the_transcript_keeps_the_cut(text):
     assert _cut(_validate(text=text))
 
 
-def test_a_registry_brand_in_the_transcript_keeps_the_cut():
+def _registry(*names):
     registry = MagicMock()
-    registry.brand_mention_offsets.side_effect = (
-        lambda text: pattern_offsets(text, {'Acme Tools': word_boundary_re(['Acme Tools'])}))
+    patterns = {name: word_boundary_re([name]) for name in names}
+    registry.brand_mention_offsets.side_effect = lambda text: pattern_offsets(text, patterns)
+    registry.count_sponsor_mentions.side_effect = lambda text: sum(
+        len(p.findall(text)) for p in patterns.values())
     registry.mentions_brand.return_value = False
     registry.get_sponsors.return_value = []
-    assert _cut(_validate(text='we spent the week with Acme Tools in the garage',
-                          sponsor_service=registry))
+    return registry
+
+
+def test_a_registry_brand_named_twice_keeps_the_cut():
+    assert _cut(_validate(text='Acme Tools fixed the garage door and Acme Tools did it fast',
+                          sponsor_service=_registry('Acme Tools')))
+
+
+def test_a_common_word_brand_named_once_does_not_exempt():
+    assert _held(_validate(text='we stayed calm through the whole move last spring',
+                           sponsor_service=_registry('Calm')))
 
 
 def test_a_span_mostly_inside_a_dai_core_is_cut():
@@ -145,3 +156,18 @@ def test_pass2_never_auto_releases_the_hold():
                         PASS2_REVIEWED_RELEASE_HOLD_REASONS)
     assert HOLD_REASON_NO_TRANSCRIPT_EVIDENCE not in PASS2_AUTOAPPROVE_HOLD_REASONS
     assert HOLD_REASON_NO_TRANSCRIPT_EVIDENCE not in PASS2_REVIEWED_RELEASE_HOLD_REASONS
+
+
+@pytest.mark.parametrize('reason', [
+    'DAI transition pair and volume anomaly indicate ad boundary',
+    'Volume anomaly at 1300.0s (volume_decrease, 12.0 dB)',
+    'Splice evidence: digital silence and loudness step at both edges',
+    'splice_1261.3',
+    '12.0 dB',
+])
+def test_every_audio_only_reason_triggers_with_a_category(reason):
+    assert _held(_validate(category='sponsor', reason=reason))
+
+
+def test_a_sponsor_reason_beside_an_echo_is_not_audio_only():
+    assert _cut(_validate(category='sponsor', reason='Acme sponsor read; volume anomaly at start'))

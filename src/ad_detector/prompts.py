@@ -23,6 +23,7 @@ from utils.constants import (
     AUDIO_ECHO_RE, INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
     SPONSOR_MAX_NAME_CHARS, REASON_DESCRIPTION_MAX,
+    is_non_brand_name,
     is_sponsor_reasoning_rationale,
     mentions_advertising,
     NOT_AD_CLASSIFICATIONS,
@@ -348,7 +349,9 @@ def _extract_sponsor_name(ad: dict) -> str:
     priority_lower = {f.lower() for f in SPONSOR_PRIORITY_FIELDS}
     for key, val in ad.items():
         key_lower = key.lower()
-        if key_lower in STRUCTURAL_FIELDS or key_lower in priority_lower:
+        # A short reason or description is prose about the span, never a sponsor name.
+        if (key_lower in STRUCTURAL_FIELDS or key_lower in priority_lower
+                or key_lower in ('reason', 'description')):
             continue
         if isinstance(val, str) and len(val) < 80:
             value = _get_valid_sponsor_value(val)
@@ -360,7 +363,7 @@ def _extract_sponsor_name(ad: dict) -> str:
             continue
         if isinstance(val, str) and len(val) > 10:
             sponsor = extract_sponsor_from_text(AUDIO_ECHO_RE.sub(' ', val))
-            if sponsor:
+            if sponsor and not is_non_brand_name(sponsor):
                 return sponsor
 
     return 'Advertisement detected'

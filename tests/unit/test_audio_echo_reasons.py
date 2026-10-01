@@ -29,9 +29,22 @@ def test_an_audio_echo_is_never_a_sponsor(reason):
     assert _extract_sponsor_name({'reason': reason}) == 'Advertisement detected'
 
 
-def test_real_ad_words_still_count_beside_an_echo():
-    assert mentions_advertising('Acme sponsor read; DAI transition pair at both edges') is True
-    assert mentions_advertising('Non-English language segment (likely DAI ad)') is True
+@pytest.mark.parametrize('reason', [
+    'Acme sponsor read; DAI transition pair at both edges',
+    'Non-English language segment (likely DAI ad)',
+    'Ad break with three ads, loudness step at both edges',
+    'Mid-roll ad break; DAI transition pair at both edges',
+])
+def test_real_ad_words_still_count_beside_an_echo(reason):
+    assert mentions_advertising(reason) is True
+
+
+@pytest.mark.parametrize('reason', [
+    'A summary of the discussion so far',
+    'Non-English language segment (likely DAI ad)',
+])
+def test_a_short_prose_reason_is_not_a_sponsor(reason):
+    assert _extract_sponsor_name({'reason': reason}) == 'Advertisement detected'
 
 
 def test_a_long_span_with_only_an_echoed_reason_is_rejected():

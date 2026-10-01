@@ -12,7 +12,7 @@ release notes.
 ## [2.97.45] - 2026-10-01
 
 ### Fixed
-- Model-detected spans with no category, or with a reason that only cites audio signals (splice, DAI transition, volume step), are now held for review. They are cut only when the span's transcript names a sponsor or carries a link, promo code or sponsor phrase. (#807)
+- Model-detected spans with no category, or with a reason that only cites audio signals (splice, DAI transition, volume step), are now held for review. They are cut only when the span's transcript names a sponsor or carries a link, promo code or sponsor phrase. Measured audio also allows the cut: a cross-fetch core, fingerprint, cue or cross-fetch difference. (#807)
 - A model reason that only echoes audio signals no longer counts as ad language, and a splice id or dB reading is never taken as a sponsor name.
 
 ## [2.97.44] - 2026-10-01

@@ -770,8 +770,11 @@ AUDIO_ECHO_RE = re.compile(
     r'|\b\d+(?:\.\d+)?\s*db\b|\bsplice evidence\b|\bloudness step\b|\bspectral step\b'
     r'|\bdigital silence\b',
     re.IGNORECASE)
-# Words an audio echo uses for a splice ("ad boundary", "DAI"), not for the content of the span.
-_ECHO_AD_WORDS = frozenset({'ad', 'ads', 'dai'})
+# Words an echo couples to the audio: "ad boundary", "ad transition", and "DAI" beside an echo token.
+_ECHO_MARK = '\x00'
+_ECHO_COUPLED_RE = re.compile(
+    r'\bad\s+(?:break\s+)?(?:boundar(?:y|ies)|transitions?)\b'
+    rf'|\bdai\W*(?={_ECHO_MARK})|(?<={_ECHO_MARK})\W*dai\b', re.IGNORECASE)
 
 
 def mentions_advertising(text) -> bool:
@@ -782,13 +785,13 @@ def mentions_advertising(text) -> bool:
     if not text:
         return False
     text = str(text)
-    ignored = frozenset()
     if AUDIO_ECHO_RE.search(text):
-        text, ignored = AUDIO_ECHO_RE.sub(' ', text), _ECHO_AD_WORDS
+        # The echo describes the splice; a standalone "ad" or "ads" beside it still counts.
+        text = _ECHO_COUPLED_RE.sub(' ', AUDIO_ECHO_RE.sub(_ECHO_MARK, text))
     words = re.findall(r'[a-z]+', text.lower())
     # A negated mention is the model saying the span is not an ad, so it is not
     # evidence that it is. Two tokens back covers "not a sponsor read".
-    return any(w in AD_LANGUAGE_WORDS and w not in ignored
+    return any(w in AD_LANGUAGE_WORDS
                and NEGATION_WORDS.isdisjoint(words[max(0, i - 2):i])
                for i, w in enumerate(words))
 

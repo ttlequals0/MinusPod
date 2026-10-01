@@ -71,7 +71,8 @@ from sponsor_context import (BARE_LINK_RE, BRAND_LINK_RE, COMMERCIAL_CONTEXT_RE,
                              local_commercial_context, names_vanity_link, registry_sponsor)
 from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS
 from sponsor_service import SponsorService
-from utils.constants import AUDIO_ECHO_RE, is_brand_token, is_non_brand_name, squash_brand
+from utils.constants import (AUDIO_ECHO_RE, is_brand_token, is_non_brand_name,
+                             mentions_advertising, squash_brand)
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 from ad_detector.boundaries import effective_resolved_action
@@ -244,6 +245,12 @@ class ValidationResult:
     corrections: list[str] = field(default_factory=list)
 
 
+def _covered_seconds(spans, lo: float, hi: float) -> float:
+    """Seconds of [lo, hi] the union of (start, end) spans covers."""
+    return sum(b - a for a, b in merge_runs(
+        (max(a, lo), min(b, hi)) for a, b in spans if min(b, hi) > max(a, lo)))
+
+
 class AdValidator:
     """Validates and corrects ad detection results.
 
@@ -281,8 +288,10 @@ class AdValidator:
     TRANSCRIPT_EVIDENCE_RES = (COMMERCIAL_CONTEXT_RE, SPONSOR_FRAMING_RE, SPONSOR_THANKS_RE,
                                SPONSOR_IS_SPONSOR_RE, BRAND_LINK_RE, BARE_LINK_RE, CTA_LINK_RE,
                                VANITY_LINK_RE)
-    # "thanks to" is chat as often as a credit; the framing pattern above covers the credit form.
-    EVIDENCE_TRANSITION_PHRASES = tuple(p for p in AD_TRANSITION_PHRASES if p != 'thanks to')
+    # "thanks to" is chat as often as a credit; the framing patterns above already cover the others.
+    EVIDENCE_TRANSITION_PHRASES = tuple(
+        p for p in AD_TRANSITION_PHRASES
+        if p != 'thanks to' and 'brought to you by' not in p and 'sponsored by' not in p)
     # Transcript-detected stages whose long cuts need audio evidence.
     VETO_STAGES = ('claude', 'text_pattern')
 
@@ -1411,8 +1420,8 @@ class AdValidator:
             self._mark_held(ad, flags, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED)
             return Decision.REVIEW
 
-        # Rule 7: an uncategorised or audio-only LLM span needs ad language in its transcript (none to
-        # read, no gate). Ordered before the cue gate and splice veto so the hold names the real fault.
+        # Rule 7: an uncategorised or audio-only LLM span needs ad language in its transcript; skipped
+        # without a transcript. Ordered before the cue gate and splice veto so the hold names the real fault.
         if (decision == Decision.ACCEPT and self.segments
                 and ad.get('detection_stage') in self.EVIDENCE_GATE_STAGES
                 and confirmation_source not in self.SPAN_CONFIRMATION_SOURCES
@@ -1502,7 +1511,8 @@ class AdValidator:
     def _evidence_gate_triggered(cls, ad: dict) -> bool:
         """A missing or unknown category, or a reason that only echoes audio signals."""
         reason = ad.get('reason') or ''
-        audio_only = bool(AUDIO_ECHO_RE.search(reason)) and 'based on transcript' not in reason.lower()
+        audio_only = (bool(AUDIO_ECHO_RE.search(reason)) and not mentions_advertising(reason)
+                      and 'based on transcript' not in reason.lower())
         return repair_segment_category(ad.get('category')) is None or audio_only
 
     def _has_transcript_ad_evidence(self, ad: dict) -> bool:
@@ -1517,7 +1527,8 @@ class AdValidator:
             return True
         if self.sponsor_service:
             try:
-                return bool(self.sponsor_service.brand_mention_offsets(text))
+                # One passing mention of a common-word brand is conversation, not a read.
+                return self.sponsor_service.count_sponsor_mentions(text) >= SPONSOR_MIN_MENTIONS
             except Exception as e:
                 logger.debug(f"Sponsor registry lookup failed: {e}")
         return False
@@ -1525,8 +1536,7 @@ class AdValidator:
     def _evidence_gate_exempt(self, ad: dict) -> bool:
         """Measured audio that stands in for transcript evidence: DAI core, a measured member, a differential."""
         start, end = ad['start'], ad['end']
-        covered = sum(hi - lo for lo, hi in merge_runs(
-            (max(lo, start), min(hi, end)) for lo, hi in dai_core_spans(ad) if hi > start and lo < end))
+        covered = _covered_seconds(dai_core_spans(ad), start, end)
         if end > start and covered / (end - start) >= EVIDENCE_GATE_DAI_CORE_MIN_COVERAGE:
             return True
         if measured_evidence(ad):
@@ -1754,13 +1764,10 @@ class AdValidator:
                     and sig.get('start', end) < end and sig.get('end', start) > start):
                 return False
         lo, hi = start + EDGE_TOLERANCE, end - EDGE_TOLERANCE
-        clipped = []
-        for span in analysis.get('silence_spans') or []:
-            a, b = finite_number(span.get('start')), finite_number(span.get('end'))
-            if a is not None and b is not None and min(b, hi) > max(a, lo):
-                clipped.append((max(a, lo), min(b, hi)))
-        covered = sum(b - a for a, b in merge_runs(clipped))
-        return hi > lo and covered >= SILENT_REMAINDER_MIN_COVERAGE * (hi - lo)
+        spans = [(a, b) for a, b in ((finite_number(span.get('start')), finite_number(span.get('end')))
+                                     for span in analysis.get('silence_spans') or [])
+                 if a is not None and b is not None]
+        return hi > lo and _covered_seconds(spans, lo, hi) >= SILENT_REMAINDER_MIN_COVERAGE * (hi - lo)
 
     def _mark_held(self, ad: dict, flags: list[str], reason: str) -> None:
         """Set held_for_review state on the ad dict and append a flag entry."""

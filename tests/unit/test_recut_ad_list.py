@@ -1638,3 +1638,17 @@ def test_recut_keeps_a_cut_that_is_long_only_by_absorbed_silence(monkeypatch):
     assert _spans(ads_to_remove) == {(1000.0, 1950.0)}
     assert all_ads[0]['validation']['decision'] == 'ACCEPT'
     assert not any('950.0s' in f for f in all_ads[0]['validation']['flags'])
+
+
+def test_build_recut_keeps_an_uncategorised_echo_marker_held(monkeypatch):
+    """#807: a stored LLM marker with no category and an audio-echo reason is re-held on recut."""
+    ads = [{'start': 1250.0, 'end': 1300.0, 'confidence': 0.95, 'detection_stage': 'claude',
+            'reason': 'DAI transition pair and volume anomaly indicate ad boundary'}]
+    _stub_recut_db(monkeypatch, ads)
+    segments = [{'start': 1250.0, 'end': 1300.0,
+                 'text': "and that's how we ended up moving the studio across town last spring"}]
+    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+        'slug', 'ep', segments, 3600.0, '', 0.80,
+        corrections=_user_corrections('slug', 'ep'))
+    assert ads_to_remove == []
+    assert all_ads[0]['hold_reason'] == 'no_transcript_evidence'
