@@ -1135,3 +1135,25 @@ def test_user_prompt_has_no_gap_line_for_a_short_pause():
 def test_default_review_prompt_explains_untranscribed_audio():
     from database import DEFAULT_REVIEW_PROMPT
     assert 'may be speech the transcript missed; do not move an edge across it' in DEFAULT_REVIEW_PROMPT
+
+
+def test_user_prompt_places_each_gap_line_between_its_neighbours():
+    reviewer = _build_reviewer({'review_prompt': 'review'})
+    segments = [
+        {'start': 100.0, 'end': 110.0, 'text': 'one'},
+        {'start': 120.0, 'end': 130.0, 'text': 'two'},
+        {'start': 130.5, 'end': 140.0, 'text': 'three'},
+        {'start': 150.0, 'end': 160.0, 'text': 'four'},
+    ]
+    prompt = reviewer._build_user_prompt(
+        ad={'start': 100.0, 'end': 160.0}, segments=segments,
+        episode_meta=_mock_episode_meta(), pool='accepted')
+    candidate = prompt.split('>>> CANDIDATE AD START [100.0s] >>>\n', 1)[1].split('\n<<<', 1)[0]
+    assert candidate.split('\n') == [
+        '[100.0s-110.0s] one',
+        '[110.00s-120.00s] (10.0 s of audio with no transcript)',
+        '[120.0s-130.0s] two',
+        '[130.5s-140.0s] three',
+        '[140.00s-150.00s] (10.0 s of audio with no transcript)',
+        '[150.0s-160.0s] four',
+    ]

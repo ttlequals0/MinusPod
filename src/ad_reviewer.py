@@ -671,15 +671,20 @@ def _end_capped_floor(ix: _EdgeIndex, independent, proposed: float, floor: float
 def _timestamped_with_gaps(lines: list[dict], gaps, lo: float, hi: float,
                            closed: bool = False) -> str:
     """Timestamped transcript for [lo, hi] plus a note for each gap centred in it."""
+    in_range = [ln for ln in lines if ln['end'] >= lo and ln['start'] <= hi]
     mine = [(g_lo, g_hi) for g_lo, g_hi in gaps
             if lo <= (g_lo + g_hi) / 2 < hi or (closed and (g_lo + g_hi) / 2 == hi)]
     if not mine:
-        return get_timestamped_transcript_for_range(lines, lo, hi)
-    rendered = [(ln['start'], get_timestamped_transcript_for_range([ln], lo, hi))
-                for ln in lines]
-    rendered += [(g_lo, f"[{g_lo:.2f}s-{g_hi:.2f}s] ({g_hi - g_lo:.1f} s of audio "
-                        f"with no transcript)") for g_lo, g_hi in mine]
-    return '\n'.join(text for _, text in sorted(rendered, key=lambda item: item[0]) if text)
+        return get_timestamped_transcript_for_range(in_range, lo, hi)
+    starts = [ln['start'] for ln in in_range]
+    parts, cut = [], 0
+    for g_lo, g_hi in mine:
+        at = bisect_right(starts, g_lo)
+        parts.append(get_timestamped_transcript_for_range(in_range[cut:at], lo, hi))
+        parts.append(f"[{g_lo:.2f}s-{g_hi:.2f}s] ({g_hi - g_lo:.1f} s of audio with no transcript)")
+        cut = at
+    parts.append(get_timestamped_transcript_for_range(in_range[cut:], lo, hi))
+    return '\n'.join(part for part in parts if part)
 
 
 def _hold_inward_edges(start: float, end: float, start_limits, end_limits,
