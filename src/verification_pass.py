@@ -279,8 +279,7 @@ _AD_TIMESTAMP_FIELDS = (
     'merged_protected_start', 'merged_protected_end',
     'fingerprint_match_start', 'fingerprint_match_end',
 )
-_AD_SPAN_FIELDS = ('merged_member_spans', 'dai_core_spans', 'dai_probe_spans',
-                   'vad_gap_spans')
+_AD_SPAN_FIELDS = ('merged_member_spans', 'dai_core_spans', 'dai_probe_spans')
 
 
 def _map_ad_to_original(ad: dict, timestamp_map: list[tuple],

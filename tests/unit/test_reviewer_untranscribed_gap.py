@@ -1,6 +1,6 @@
 """Reviewer trims stay out of untranscribed audio.
 
-Production shape: a merged 728.77s-752.55s hole let the reviewer move the start to 752.55s.
+Production shape: a 728.77s-752.55s transcript hole let the reviewer move the start to 752.55s.
 """
 from tests.app_bootstrap import bootstrap
 
@@ -9,10 +9,9 @@ bootstrap('reviewer_untranscribed_gap_test_')
 import pytest
 
 import ad_reviewer
-from ad_reviewer import TranscriptIndex, _edge_transcript_supported
+from ad_reviewer import TranscriptIndex
 from main_app import processing
-from utils.markers import (DAI_PROBE_SPANS, VAD_GAP_SPANS, carve_fragment, clip_dai_core_spans,
-                           note_merged_members, reviewer_independent_spans)
+from utils.markers import DAI_PROBE_SPANS
 from tests.unit.pipeline_test_utils import _run_pipeline
 from tests.unit.reviewer_test_utils import _LLMResp, _mock_episode_meta, _resp, _reviewer
 
@@ -34,46 +33,14 @@ HOLE_SEGMENTS = [
 ]
 
 
-def _filled(pause):
-    """The hole filled with speech ending `pause` seconds before 752.55."""
-    return [HOLE_SEGMENTS[0],
-            _worded(729.0, 752.55 - pause, 'I kept losing my notes between meetings.'),
-            *HOLE_SEGMENTS[1:]]
-
-
-def test_start_edge_across_untranscribed_hole_is_unsupported():
-    index = TranscriptIndex(HOLE_SEGMENTS)
-    assert not _edge_transcript_supported(index, 'start', 752.55, 728.8)
-
-
-def test_start_edge_after_a_short_pause_stays_supported():
-    for pause in (0.5, 2.0):
-        index = TranscriptIndex(_filled(pause))
-        assert _edge_transcript_supported(index, 'start', 752.55, 728.8)
-
-
-def _end_mirror(pause=None):
-    head = _worded(0.0, 100.0, 'Try Acme free at acme.example today.')
-    if pause is None:
-        return [head, _worded(123.8, 150.0, 'Okay so back to the show.')]
-    return [head, _worded(100.0 + pause, 123.0, 'more of the read here'),
-            _worded(123.8, 150.0, 'Okay so back to the show.')]
-
-
-def test_end_edge_mirror():
-    assert not _edge_transcript_supported(
-        TranscriptIndex(_end_mirror()), 'end', 100.0, 123.7)
-    assert _edge_transcript_supported(
-        TranscriptIndex(_end_mirror(pause=0.5)), 'end', 100.0, 123.7)
-    assert _edge_transcript_supported(
-        TranscriptIndex(_end_mirror(pause=2.0)), 'end', 100.0, 123.7)
+def test_index_records_the_hole_and_not_short_pauses():
+    assert TranscriptIndex(HOLE_SEGMENTS).gaps == [(728.77, 752.55)]
 
 
 def _marker():
     return {'start': 728.8, 'end': 939.9, 'confidence': 0.95,
             'detection_stage': 'claude', 'category': 'sponsor', 'sponsor': 'Acme',
-            'reason': 'Acme sponsor read', 'vad_gap_extended': True,
-            VAD_GAP_SPANS: [{'start': 728.77, 'end': 752.55}]}
+            'reason': 'Acme sponsor read'}
 
 
 def test_reviewer_trim_across_the_hole_is_floored(monkeypatch):
@@ -91,16 +58,18 @@ def test_reviewer_trim_across_the_hole_is_floored(monkeypatch):
     assert cuts[0]['end'] <= 939.9
 
 
-def test_vad_gap_spans_survive_carve_clip_and_merge():
-    marker = _marker()
-    fragment = carve_fragment(marker, 740.0, 900.0)
-    assert fragment[VAD_GAP_SPANS] == [{'start': 740.0, 'end': 752.55}]
-    clip_dai_core_spans(fragment, 760.0, 900.0)
-    assert VAD_GAP_SPANS not in fragment
-    target = {'start': 600.0, 'end': 700.0, 'detection_stage': 'claude'}
-    note_merged_members(target, _marker())
-    assert target[VAD_GAP_SPANS] == [{'start': 728.77, 'end': 752.55}]
-    assert (728.77, 752.55) in reviewer_independent_spans(_marker(), 0.8)
+def test_non_dai_marker_edge_stops_at_the_hole():
+    got = _reviewer()._clamp_proposed_bounds(
+        _marker(), 752.55, 937.8, 728.8, 939.9, 60, 'show', 'ep1', segments=HOLE_SEGMENTS)
+    assert got == (728.8, 937.8)
+
+
+def test_short_pause_does_not_stop_a_trim():
+    segments = [HOLE_SEGMENTS[0], _worded(729.0, 752.0, 'more show talk here today'),
+                *HOLE_SEGMENTS[1:]]
+    got = _reviewer()._clamp_proposed_bounds(
+        _marker(), 752.55, 937.8, 728.8, 939.9, 60, 'show', 'ep1', segments=segments)
+    assert got == (752.55, 937.8)
 
 
 def _dai_marker(**extra):
@@ -126,7 +95,7 @@ def test_eight_second_rule_floors_a_trim_past_the_dai_core_start(monkeypatch):
 
 
 def test_gap_and_dai_clamp_log_one_consistent_line(caplog):
-    marker = _dai_marker(**{VAD_GAP_SPANS: [{'start': 728.77, 'end': 752.55}]})
+    marker = _dai_marker()
     with caplog.at_level('INFO', logger='ad_reviewer'):
         assert _clamp(marker, 752.55, 937.8) == (728.8, 937.8)
     lines = [r.getMessage() for r in caplog.records if 'Reviewer trim' in r.getMessage()]
@@ -135,27 +104,28 @@ def test_gap_and_dai_clamp_log_one_consistent_line(caplog):
     assert 'start floored by untranscribed audio' in lines[0]
 
 
+BARRIER_SEGMENTS = [
+    _worded(650.0, 700.0, 'show talk before the break'),
+    _worded(720.0, 900.0, 'Try Acme free at acme.example today.'),
+    _worded(900.2, 937.8, 'Acme makes great things for you.'),
+    _worded(980.0, 1100.0, 'Okay so back to the show.'),
+]
+
+
 @pytest.mark.parametrize('edge', ['start', 'end'])
 def test_gap_rule_stops_at_a_keep_between_proposal_and_gap(edge):
+    marker = dict(_marker(), start=700.0, end=1000.0)
     if edge == 'start':
-        marker = dict(_marker(), start=700.0, end=939.9,
-                      **{VAD_GAP_SPANS: [{'start': 700.0, 'end': 720.0}]})
-        keep = {'start': 725.0, 'end': 730.0}
-        got = _reviewer()._clamp_proposed_bounds(
-            marker, 752.55, 939.9, 700.0, 939.9, 60, 'show', 'ep1',
-            segments=HOLE_SEGMENTS, hard_barriers=[keep])
-        assert got == (730.0, 939.9)
+        proposal, keep, expected = (752.0, 1000.0), {'start': 725.0, 'end': 730.0}, (730.0, 1000.0)
     else:
-        marker = dict(_marker(), start=728.8, end=1000.0,
-                      **{VAD_GAP_SPANS: [{'start': 980.0, 'end': 1000.0}]})
-        keep = {'start': 950.0, 'end': 955.0}
-        got = _reviewer()._clamp_proposed_bounds(
-            marker, 728.8, 937.8, 728.8, 1000.0, 60, 'show', 'ep1',
-            segments=HOLE_SEGMENTS, hard_barriers=[keep])
-        assert got == (728.8, 950.0)
+        proposal, keep, expected = (700.0, 937.8), {'start': 950.0, 'end': 955.0}, (700.0, 950.0)
+    got = _reviewer()._clamp_proposed_bounds(
+        marker, *proposal, 700.0, 1000.0, 60, 'show', 'ep1',
+        segments=BARRIER_SEGMENTS, hard_barriers=[keep])
+    assert got == expected
 
 
-def test_contradiction_hold_recovered_trim_cannot_enter_a_merged_gap():
+def test_contradiction_hold_recovered_trim_cannot_cross_the_hole():
     reviewer = _reviewer({'review_max_boundary_shift': '60'})
     reason = ('The ad content ends at 800.0s; the rest is show content, '
               'is not an ad, and must be trimmed off the end')

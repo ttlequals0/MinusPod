@@ -19,8 +19,6 @@ DAI_CORE_SPANS = 'dai_core_spans'
 DAI_PROBE_SPANS = 'dai_probe_spans'
 # Silence cut with an accepted measured ad; not part of its measured extent.
 SILENT_ABSORBED_SPANS = 'silent_absorbed_spans'
-# Untranscribed gaps the VAD gap detector merged into the marker.
-VAD_GAP_SPANS = 'vad_gap_spans'
 # Probe geometry shared with differential_fetcher._probe_block.
 DAI_PROBE_LEAD_S = 0.5
 DAI_PROBE_REF_S = 4.0
@@ -381,23 +379,10 @@ def silent_absorbed_spans(marker: dict) -> list[tuple[float, float]]:
     return [(s['start'], s['end']) for s in _valid_spans(marker, SILENT_ABSORBED_SPANS)]
 
 
-def vad_gap_spans(marker: dict) -> list[tuple[float, float]]:
-    """(start, end) of the untranscribed gaps merged into a marker."""
-    return [(s['start'], s['end']) for s in _valid_spans(marker, VAD_GAP_SPANS)]
-
-
-def merge_vad_gap_spans(target: dict, other: dict) -> None:
-    """Carry merged VAD gaps through a marker merge."""
-    spans = _valid_spans(target, VAD_GAP_SPANS) + _valid_spans(other, VAD_GAP_SPANS)
-    if spans:
-        target[VAD_GAP_SPANS] = sorted(spans, key=lambda span: span['start'])
-
-
 def clip_dai_core_spans(marker: dict, start: float, end: float) -> None:
-    """Clip a marker's DAI evidence, absorbed silence and VAD gaps to a newly split/clamped range."""
+    """Clip a marker's DAI evidence and absorbed silence to a newly split/clamped range."""
     _clip_spans(marker, SILENT_ABSORBED_SPANS, _valid_spans(marker, SILENT_ABSORBED_SPANS),
                 start, end)
-    _clip_spans(marker, VAD_GAP_SPANS, _valid_spans(marker, VAD_GAP_SPANS), start, end)
     core = _valid_dai_core_spans(marker)
     _clip_spans(marker, DAI_CORE_SPANS, core, start, end)
     if DAI_CORE_SPANS in marker:
@@ -677,7 +662,6 @@ def note_merged_members(target: dict, other: dict) -> None:
     if other.get('has_estimated_pattern_member'):
         target['has_estimated_pattern_member'] = True
     merge_dai_core_spans(target, other)
-    merge_vad_gap_spans(target, other)
     spans = _coalesce_coarse_members(member_spans(target) + member_spans(other))
     target[MERGED_MEMBER_SPANS] = spans
     # A union already on the target only widens: a legacy bound has no member
@@ -799,7 +783,6 @@ def reviewer_independent_spans(ad: dict, min_conf: float) -> list[tuple[float, f
         spans.append((cue_lo + 0.05, cue_hi - 0.05))
     spans.extend(dai_probe_spans(ad))
     spans.extend(silent_absorbed_spans(ad))
-    spans.extend(vad_gap_spans(ad))
     start, end = finite_number(ad.get('start')), finite_number(ad.get('end'))
     if ((ad.get('validation') or {}).get('user_confirmed')
             and start is not None and end is not None and end > start):

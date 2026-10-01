@@ -51,7 +51,6 @@ class TestMidGap:
         assert mid_markers == []
         assert existing[0]['end'] == pytest.approx(70.0)
         assert existing[0].get('vad_gap_extended') is True
-        assert existing[0]['vad_gap_spans'] == [{'start': 50.0, 'end': 70.0}]
 
     def test_mid_gap_with_signoff_and_resume_emits(self):
         segments = [

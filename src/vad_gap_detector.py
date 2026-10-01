@@ -22,7 +22,6 @@ from roll_detector import (
     AD_INDICATOR_PATTERNS,
     _region_covered,
 )
-from utils.markers import VAD_GAP_SPANS
 from utils.text import get_transcript_text_for_range, transcript_gaps
 from config import (
     HOLD_REASON_LARGE_VAD_GAP, MAX_ADJACENT_AUTO_EXTENSION_SECONDS,
@@ -248,8 +247,6 @@ def detect_vad_gaps(
             adjacent['start'] = proposed_start
             adjacent['end'] = proposed_end
             adjacent['vad_gap_extended'] = True
-            adjacent.setdefault(VAD_GAP_SPANS, []).append(
-                {'start': gap_start, 'end': gap_end})
             if not has_break_context:
                 adjacent['vad_gap_adjacency_extension_seconds'] = (
                     cumulative_auto_extension)

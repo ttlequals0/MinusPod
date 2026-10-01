@@ -12771,16 +12771,6 @@ components:
                 type: number
               end:
                 type: number
-        vad_gap_spans:
-          type: array
-          description: Untranscribed gaps the VAD gap detector merged into this ad; a reviewer edge does not move inward across one.
-          items:
-            type: object
-            properties:
-              start:
-                type: number
-              end:
-                type: number
         hold_reason:
           type: string
           nullable: true

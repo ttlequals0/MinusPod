@@ -59,7 +59,7 @@ from utils.markers import (
     dai_core_bounds, dai_core_spans, dai_probe_spans, edge_support,
     finite_number, hard_member_spans, hard_members, invalidate_tail_provenance,
     member_spans, reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
-    silent_absorbed_spans, TimedWords, timed_span, union_cover, vad_gap_spans,
+    silent_absorbed_spans, TimedWords, timed_span, union_cover,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
@@ -585,6 +585,8 @@ class TranscriptIndex:
         self.end = _EdgeIndex(units, words)
         # Start edges are end edges on the negated timeline.
         self.start = _EdgeIndex(_negated(units), _negated(words))
+        self.gaps = transcript_gaps([{'start': lo, 'end': hi} for lo, hi in self.end.units],
+                                    UNREVIEWABLE_GAP_SECONDS)
 
 
 def _edge_transcript_supported(index: TranscriptIndex, edge: str, new: float, old: float) -> bool:
@@ -611,20 +613,7 @@ def _end_edge_supported(ix: _EdgeIndex, new: float, old: float) -> bool:
     gap = (ix.los[after] if after < len(ix.los) else math.inf) - at
     before = bisect_left(ix.los, at - EDGE_TOLERANCE)
     crossed = before > 0 and ix.max_his[before - 1] > at + EDGE_TOLERANCE
-    return (not crossed and gap >= _SUPPORTED_EDGE_GAP_S
-            and not _releases_untranscribed(ix, after, at, old))
-
-
-def _releases_untranscribed(ix: _EdgeIndex, first: int, at: float, old: float) -> bool:
-    """Whether [at, old] holds a stretch of UNREVIEWABLE_GAP_SECONDS with no speech unit."""
-    cursor = at
-    for lo, hi in ix.units[first:]:
-        if lo >= old:
-            break
-        if lo - cursor >= UNREVIEWABLE_GAP_SECONDS:
-            return True
-        cursor = max(cursor, hi)
-    return old - cursor >= UNREVIEWABLE_GAP_SECONDS
+    return not crossed and gap >= _SUPPORTED_EDGE_GAP_S
 
 
 def _supported_edge_floor(ad: dict, independent, edge: str, value: float,
@@ -693,20 +682,46 @@ def _timestamped_with_gaps(lines: list[dict], gaps, lo: float, hi: float,
     return '\n'.join(text for _, text in sorted(rendered, key=lambda item: item[0]) if text)
 
 
-def _stop_at_vad_gaps(ad: dict, start: float, end: float, original_start: float,
-                      original_end: float, barriers) -> tuple[float, float]:
-    """No edge moves inward across a merged VAD gap, but it stops at a hard barrier before one."""
-    for lo, hi in vad_gap_spans(ad):
-        gap_lo, gap_hi = max(lo, original_start), min(hi, original_end)
-        if gap_hi <= gap_lo:
-            continue
-        if start > gap_lo:
-            start = max([gap_lo] + [min(b['end'], start) for b in barriers
-                                    if b['start'] < start and b['end'] > gap_lo])
-        if end < gap_hi:
-            end = min([gap_hi] + [max(b['start'], end) for b in barriers
-                                  if b['end'] > end and b['start'] < gap_hi])
+def _hold_inward_edges(start: float, end: float, start_limits, end_limits,
+                       barriers) -> tuple[float, float]:
+    """Keep each edge from moving inward past its limits, stopping at a hard barrier before one."""
+    for lim in start_limits:
+        if start > lim:
+            start = max([lim] + [min(b['end'], start) for b in barriers
+                                 if b['start'] < start and b['end'] > lim])
+    for lim in end_limits:
+        if end < lim:
+            end = min([lim] + [max(b['start'], end) for b in barriers
+                               if b['end'] > end and b['start'] < lim])
     return start, end
+
+
+def _untranscribed_limits(index: TranscriptIndex, original_start: float,
+                          original_end: float) -> tuple[list[float], list[float]]:
+    """Edge limits from transcript gaps of UNREVIEWABLE_GAP_SECONDS or more inside the span."""
+    inside = [(max(lo, original_start), min(hi, original_end)) for lo, hi in index.gaps]
+    inside = [(lo, hi) for lo, hi in inside if hi - lo >= UNREVIEWABLE_GAP_SECONDS]
+    return [lo for lo, _hi in inside], [hi for _lo, hi in inside]
+
+
+def _silence_limits(ad: dict, original_start: float,
+                    original_end: float) -> tuple[list[float], list[float]]:
+    """Edge limits from absorbed silence touching either edge."""
+    spans = silent_absorbed_spans(ad)
+    return ([min(lo, original_start) for lo, _hi in spans
+             if lo <= original_start + EDGE_TOLERANCE],
+            [max(hi, original_end) for _lo, hi in spans
+             if hi >= original_end - EDGE_TOLERANCE])
+
+
+def _hold_untranscribed_and_silence(ad: dict, start: float, end: float, original_start: float,
+                                   original_end: float, index: TranscriptIndex,
+                                   barriers) -> tuple[float, float]:
+    """Apply the transcript-gap and absorbed-silence no-cross rules in one call."""
+    gap_starts, gap_ends = _untranscribed_limits(index, original_start, original_end)
+    quiet_starts, quiet_ends = _silence_limits(ad, original_start, original_end)
+    return _hold_inward_edges(start, end, gap_starts + quiet_starts, gap_ends + quiet_ends,
+                              barriers)
 
 
 def _floor_source(floor: float, proposed: float, core_edge: float) -> str:
@@ -1495,10 +1510,11 @@ class AdReviewer:
                         min_conf=min_conf,
                     )
                     if recovered is not None:
-                        # Recovery applies the member floor; a one-tap approve must not cut into a merged gap.
-                        verdict.adjusted_start, verdict.adjusted_end = _stop_at_vad_gaps(
+                        # Recovery applies the member floor; a one-tap approve must not cross untranscribed audio.
+                        verdict.adjusted_start, verdict.adjusted_end = _hold_untranscribed_and_silence(
                             updated_ad, *recovered, verdict.original_start,
-                            verdict.original_end, episode_meta.get('hard_barriers') or [])
+                            verdict.original_end, transcript_units,
+                            episode_meta.get('hard_barriers') or [])
                 if (verdict.adjusted_start is not None
                         and verdict.adjusted_end is not None):
                     held["reviewer_proposed_start"] = verdict.adjusted_start
@@ -1969,10 +1985,13 @@ class AdReviewer:
                 )
             clamped_start, clamped_end = floor_start, floor_end
 
+        # No edge moves inward across untranscribed audio; it stops at a hard barrier before it.
         barriers = hard_barriers or []
+        index = transcript_units or TranscriptIndex(segments)
         proposed = (clamped_start, clamped_end)
-        clamped_start, clamped_end = _stop_at_vad_gaps(
-            ad, clamped_start, clamped_end, original_start, original_end, barriers)
+        clamped_start, clamped_end = _hold_inward_edges(
+            clamped_start, clamped_end,
+            *_untranscribed_limits(index, original_start, original_end), barriers)
         gap_start_moved = clamped_start != proposed[0]
         gap_end_moved = clamped_end != proposed[1]
         gap_logged = not (gap_start_moved or gap_end_moved)
@@ -1984,7 +2003,6 @@ class AdReviewer:
             floor_end = max(clamped_end, core_end)
             # Only the probe windows of a region are measured, so an edge on a
             # transcript pause may cross the rest, stopping at independent evidence.
-            index = transcript_units or TranscriptIndex(segments)
             independent = reviewer_independent_spans(ad, min_conf)
             cap_start = cap_end = None
             if _edge_transcript_supported(index, 'start', clamped_start,
@@ -2036,15 +2054,9 @@ class AdReviewer:
 
         # Absorbed silence stays with the cut: no edge moves inward across an edge-touching span,
         # but the floor stops at a hard barrier between the proposal and the span edge.
-        for lo, hi in silent_absorbed_spans(ad):
-            if lo <= original_start + EDGE_TOLERANCE and clamped_start > lo:
-                clamped_start = max([min(lo, original_start)] + [
-                    min(b['end'], clamped_start) for b in barriers
-                    if b['start'] < clamped_start and b['end'] > lo])
-            if hi >= original_end - EDGE_TOLERANCE and clamped_end < hi:
-                clamped_end = min([max(hi, original_end)] + [
-                    max(b['start'], clamped_end) for b in barriers
-                    if b['end'] > clamped_end and b['start'] < hi])
+        clamped_start, clamped_end = _hold_inward_edges(
+            clamped_start, clamped_end,
+            *_silence_limits(ad, original_start, original_end), barriers)
 
         if clamped_end <= clamped_start:
             clamped_start, clamped_end = original_start, original_end
