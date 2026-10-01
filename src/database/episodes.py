@@ -579,6 +579,59 @@ class EpisodeMixin:
         conn.commit()
         logger.debug(f"[{slug}:{episode_id}] Saved original transcript to database")
 
+    def save_repaired_original_transcript(self, slug: str, episode_id: str,
+                                          transcript_text: str, segments: list[dict]):
+        """Overwrite the original transcript and segments with a hole/tail repair of the same transcription."""
+        conn = self.get_connection()
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            return
+        conn.execute(
+            """INSERT INTO episode_details (episode_id, original_transcript_text, original_segments_json)
+               VALUES (?, ?, ?)
+               ON CONFLICT(episode_id) DO UPDATE
+               SET original_transcript_text = excluded.original_transcript_text,
+                   original_segments_json = excluded.original_segments_json""",
+            (db_episode_id, transcript_text, json.dumps(segments))
+        )
+        conn.commit()
+
+    def get_repair_holes(self, slug: str, episode_id: str) -> list[dict]:
+        """Holes already re-transcribed without finding speech: [{start, end, reason}]."""
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT ed.repair_holes_json FROM episode_details ed
+               JOIN episodes e ON ed.episode_id = e.id
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)
+        ).fetchone()
+        if not row or not row['repair_holes_json']:
+            return []
+        try:
+            holes = json.loads(row['repair_holes_json'])
+        except (TypeError, ValueError):
+            return []
+        return holes if isinstance(holes, list) else []
+
+    def add_repair_holes(self, slug: str, episode_id: str, holes: list[dict],
+                         replace: bool = False):
+        """Append (or with replace, set) the holes that yielded no speech."""
+        if not holes and not replace:
+            return
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            return
+        prior = [] if replace else self.get_repair_holes(slug, episode_id)
+        merged = prior + list(holes)
+        conn = self.get_connection()
+        conn.execute(
+            """INSERT INTO episode_details (episode_id, repair_holes_json) VALUES (?, ?)
+               ON CONFLICT(episode_id) DO UPDATE SET repair_holes_json = excluded.repair_holes_json""",
+            (db_episode_id, json.dumps(merged))
+        )
+        conn.commit()
+
     def get_original_transcript(self, slug: str, episode_id: str) -> str:
         """Get original (pre-cut) transcript text, or None."""
         conn = self.get_connection()

@@ -539,8 +539,9 @@ _NOVAD_LABELS = {'novad_tail': 'Tail', 'novad_hole': 'Hole'}
 
 def _retranscribe_span_no_vad(slug, episode_id, audio_path, start, end,
                               language_override, flag, quiet_db=None):
-    """Best-effort no-VAD sequential re-transcription of start-end; offset segments flagged `flag`, or None.
+    """Best-effort no-VAD sequential re-transcription of start-end. Returns (segments or None, empty_reason).
 
+    empty_reason is 'quiet' or 'no_speech' when the span reliably holds nothing, else None.
     With quiet_db set, a chunk whose mean volume is below it (or unreadable) is skipped.
     """
     label = _NOVAD_LABELS[flag]
@@ -549,11 +550,11 @@ def _retranscribe_span_no_vad(slug, episode_id, audio_path, start, end,
     except AudioExtractionTimeout as e:
         audio_logger.warning(
             f"[{slug}:{episode_id}] {label} chunk extraction timed out; skipping: {e}")
-        return None
+        return None, None
     if not chunk_path:
         audio_logger.warning(
             f"[{slug}:{episode_id}] {label} chunk extraction failed; skipping")
-        return None
+        return None, None
     try:
         if quiet_db is not None:
             volume = mean_volume_db(chunk_path)
@@ -562,7 +563,7 @@ def _retranscribe_span_no_vad(slug, episode_id, audio_path, start, end,
                 audio_logger.info(
                     f"[{slug}:{episode_id}] {label} {start:.1f}s-{end:.1f}s "
                     f"mean volume {reading}; skipping")
-                return None
+                return None, None if volume is None else 'quiet'
         new_segments = transcriber.transcribe(
             chunk_path, language_override=language_override, vad_filter=False,
             sequential=True)
@@ -570,7 +571,7 @@ def _retranscribe_span_no_vad(slug, episode_id, audio_path, start, end,
         audio_logger.warning(
             f"[{slug}:{episode_id}] {label} re-transcription failed; "
             f"proceeding without {label.lower()}: {e}")
-        return None
+        return None, None
     finally:
         if os.path.exists(chunk_path):
             try:
@@ -582,11 +583,11 @@ def _retranscribe_span_no_vad(slug, episode_id, audio_path, start, end,
         audio_logger.warning(
             f"[{slug}:{episode_id}] {label} re-transcription failed; "
             f"proceeding without {label.lower()}")
-        return None
+        return None, None
     if not new_segments:
         audio_logger.info(
             f"[{slug}:{episode_id}] {label} re-transcription produced no segments")
-        return None
+        return None, 'no_speech'
 
     for seg in new_segments:
         seg['start'] += start
@@ -597,12 +598,12 @@ def _retranscribe_span_no_vad(slug, episode_id, audio_path, start, end,
         seg[flag] = True
     new_segments = transcriber.filter_hallucinations(new_segments)
     if not new_segments:
-        return None
+        return None, 'no_speech'
     audio_logger.info(
         f"[{slug}:{episode_id}] {label} re-transcription added "
         f"{len(new_segments)} segment(s) ({new_segments[0]['start']:.1f}s-"
         f"{new_segments[-1]['end']:.1f}s)")
-    return new_segments
+    return new_segments, None
 
 
 def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
@@ -631,7 +632,7 @@ def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
     audio_logger.info(
         f"[{slug}:{episode_id}] Untranscribed tail {gap:.1f}s "
         f"({last_end:.1f}s-{duration:.1f}s); re-transcribing without VAD")
-    tail_segments = _retranscribe_span_no_vad(
+    tail_segments, _reason = _retranscribe_span_no_vad(
         slug, episode_id, audio_path, last_end, duration, language_override,
         'novad_tail')
     if not tail_segments:
@@ -640,13 +641,13 @@ def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
 
 
 def _retranscribe_holes_no_vad(slug, episode_id, audio_path, segments,
-                               language_override):
-    """Re-transcribe segment gaps the batched decoder skipped, without VAD. Returns (segments, holes_added).
+                               language_override, tried=()):
+    """Re-transcribe segment gaps the batched decoder skipped, without VAD.
 
-    Holes use the VAD gap detector's mid-episode threshold; recovered segments get novad_hole=True.
+    Holes matching a `tried` record are skipped. Returns (segments, holes_added, empty_holes).
     """
     if len(segments) < 2:
-        return segments, False
+        return segments, False, []
     hole_min = _setting_float(db, 'vad_gap_mid_min_seconds', 8.0)
     holes = []
     prev_end = segments[0]['end']
@@ -654,8 +655,14 @@ def _retranscribe_holes_no_vad(slug, episode_id, audio_path, segments,
         if seg['start'] - prev_end >= hole_min:
             holes.append((prev_end, seg['start']))
         prev_end = max(prev_end, seg['end'])
+    known = [hole for hole in holes if _hole_tried(hole, tried)]
+    if known:
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Skipping {len(known)} untranscribed hole(s) "
+            f"already re-transcribed without speech")
+        holes = [hole for hole in holes if hole not in known]
     if not holes:
-        return segments, False
+        return segments, False, []
 
     picked, skipped = [], []
     budget = HOLE_RETRANSCRIBE_MAX_SECONDS
@@ -673,21 +680,42 @@ def _retranscribe_holes_no_vad(slug, episode_id, audio_path, segments,
             f"per-episode cap of {HOLE_RETRANSCRIBE_MAX_HOLES} holes / "
             f"{HOLE_RETRANSCRIBE_MAX_SECONDS:.0f} s")
 
-    added = []
+    added, empty = [], []
     for hole_start, hole_end in sorted(picked):
         audio_logger.info(
             f"[{slug}:{episode_id}] Untranscribed hole {hole_start:.1f}s-"
             f"{hole_end:.1f}s ({hole_end - hole_start:.1f} s); "
             f"re-transcribing without VAD")
-        recovered = _retranscribe_span_no_vad(
+        recovered, reason = _retranscribe_span_no_vad(
             slug, episode_id, audio_path, hole_start, hole_end,
             language_override, 'novad_hole',
             quiet_db=HOLE_RETRANSCRIBE_QUIET_DB)
         if recovered:
             added.extend(recovered)
+        elif reason:
+            empty.append({'start': hole_start, 'end': hole_end, 'reason': reason})
     if not added:
-        return segments, False
-    return sorted(segments + added, key=lambda s: s['start']), True
+        return segments, False, empty
+    return sorted(segments + added, key=lambda s: s['start']), True, empty
+
+
+def _hole_tried(hole, tried) -> bool:
+    """Whether a hole matches a recorded empty hole within EDGE_TOLERANCE."""
+    return any(abs(hole[0] - (rec.get('start') or 0.0)) <= EDGE_TOLERANCE
+               and abs(hole[1] - (rec.get('end') or 0.0)) <= EDGE_TOLERANCE
+               for rec in tried if isinstance(rec, dict))
+
+
+def _repair_transcript(slug, episode_id, audio_path, segments, language_override,
+                       tried=()):
+    """Hole then tail no-VAD repair. Returns (segments, segments_added, empty_holes)."""
+    before = len(segments)
+    with _measure_run_stage('transcription'):
+        segments, _holes_added, empty = _retranscribe_holes_no_vad(
+            slug, episode_id, audio_path, segments, language_override, tried)
+        segments, _tail_added = _retranscribe_tail_no_vad(
+            slug, episode_id, audio_path, segments, language_override)
+    return segments, len(segments) - before, empty
 
 
 CDN_BLOCKED_MESSAGE = 'CDN blocked the request (403) with both User-Agents'
@@ -835,18 +863,20 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         else:
             audio_path = _download_episode_audio(episode_url)
         language_override = get_feed_language_override(db, slug)
-        with _measure_run_stage('transcription'):
-            segments, holes_added = _retranscribe_holes_no_vad(
-                slug, episode_id, audio_path, segments, language_override)
-            segments, tail_added = _retranscribe_tail_no_vad(
-                slug, episode_id, audio_path, segments, language_override)
-        if tail_added or holes_added:
-            # save_original_* stores are write-once records of the first
-            # pre-cut transcription (database/episodes.py:410-431 COALESCE);
-            # only the live transcript is refreshed here. Holes and tail are
-            # re-derived on each reprocess, which is idempotent.
-            storage.save_transcript(
-                slug, episode_id, transcriber.segments_to_text(segments))
+        segments, added, empty_holes = _repair_transcript(
+            slug, episode_id, audio_path, segments, language_override,
+            tried=db.get_repair_holes(slug, episode_id))
+        db.add_repair_holes(slug, episode_id, empty_holes)
+        if added:
+            # A repair only adds segments to the same transcription, so it
+            # replaces the write-once originals and is not redone next time.
+            repaired_text = transcriber.segments_to_text(segments)
+            storage.save_transcript(slug, episode_id, repaired_text)
+            db.save_repaired_original_transcript(
+                slug, episode_id, repaired_text, segments)
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Stored repaired original transcript "
+                f"(+{added} segments)")
     else:
         # Reuse the retained original when one exists (fresh episode, no
         # transcript yet -- e.g. a first JIT play of a local episode).
@@ -889,11 +919,8 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         duration_min = segments[-1]['end'] / 60
         audio_logger.info(f"[{slug}:{episode_id}] Transcription complete: {len(segments)} segments, {duration_min:.1f} min")
 
-        with _measure_run_stage('transcription'):
-            segments, _holes_added = _retranscribe_holes_no_vad(
-                slug, episode_id, audio_path, segments, language_override)
-            segments, _tail_added = _retranscribe_tail_no_vad(
-                slug, episode_id, audio_path, segments, language_override)
+        segments, _added, empty_holes = _repair_transcript(
+            slug, episode_id, audio_path, segments, language_override)
 
         transcript_text = transcriber.segments_to_text(segments)
         if force_transcription:
@@ -904,6 +931,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         storage.save_transcript(slug, episode_id, transcript_text)
         storage.save_original_transcript(slug, episode_id, transcript_text)
         storage.save_original_segments(slug, episode_id, segments)
+        db.add_repair_holes(slug, episode_id, empty_holes, replace=True)
 
     return audio_path, segments
 

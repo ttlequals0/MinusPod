@@ -385,6 +385,8 @@ class SchemaMixin:
             # served chapters JSON was generated against; the recut chapter
             # remap loads it instead of reconstructing from was_cut markers.
             ('applied_cuts_json', 'TEXT'),
+            # Transcript holes re-transcribed without speech, skipped on reprocess.
+            ('repair_holes_json', 'TEXT'),
         ]
         for col, definition in details_migrations:
             self._add_column_if_missing(conn, 'episode_details', col, definition, det_cols)

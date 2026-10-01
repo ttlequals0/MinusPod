@@ -74,3 +74,35 @@ class TestFinalSegments:
 
         assert temp_db.get_original_segments(slug, ep_id) == SEGMENTS_A
         assert temp_db.get_final_segments(slug, ep_id) == SEGMENTS_B
+
+
+class TestTranscriptRepair:
+    def test_repair_overwrites_the_write_once_originals(self, temp_db, mock_episode):
+        slug, ep_id = mock_episode['slug'], mock_episode['episode_id']
+        temp_db.save_original_segments(slug, ep_id, SEGMENTS_B)
+        temp_db.save_original_transcript(slug, ep_id, 'old')
+        temp_db.save_repaired_original_transcript(slug, ep_id, 'repaired', SEGMENTS_A)
+        assert temp_db.get_original_segments(slug, ep_id) == SEGMENTS_A
+        assert temp_db.get_original_transcript(slug, ep_id) == 'repaired'
+
+    def test_repair_holes_append_and_replace(self, temp_db, mock_episode):
+        slug, ep_id = mock_episode['slug'], mock_episode['episode_id']
+        first = {'start': 10.0, 'end': 20.0, 'reason': 'quiet'}
+        second = {'start': 30.0, 'end': 45.0, 'reason': 'no_speech'}
+        assert temp_db.get_repair_holes(slug, ep_id) == []
+        temp_db.add_repair_holes(slug, ep_id, [first])
+        temp_db.add_repair_holes(slug, ep_id, [second])
+        assert temp_db.get_repair_holes(slug, ep_id) == [first, second]
+        temp_db.add_repair_holes(slug, ep_id, [], replace=True)
+        assert temp_db.get_repair_holes(slug, ep_id) == []
+
+    def test_repair_holes_column_added_to_an_existing_db(self, temp_db, mock_episode):
+        slug, ep_id = mock_episode['slug'], mock_episode['episode_id']
+        temp_db.save_original_transcript(slug, ep_id, 'kept')
+        conn = temp_db.get_connection()
+        conn.execute("ALTER TABLE episode_details DROP COLUMN repair_holes_json")
+        conn.commit()
+        temp_db._run_schema_migrations()
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(episode_details)")}
+        assert 'repair_holes_json' in cols
+        assert temp_db.get_original_transcript(slug, ep_id) == 'kept'
