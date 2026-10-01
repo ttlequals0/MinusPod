@@ -996,6 +996,16 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
     })
 
 
+def _modal_sponsor(data):
+    """(sponsor or None, error response or None) for the review modal's optional sponsor."""
+    sponsor = data.get('sponsor')
+    if sponsor is None:
+        return None, None
+    if not isinstance(sponsor, str):
+        return None, error_response('sponsor must be a string', 400)
+    return sponsor.strip() or None, None
+
+
 def _resolve_or_create_pattern_from_text(
     db, pattern_service, slug, episode_id, ad_text, original_ad, *, label,
     sponsor_override=None,
@@ -1108,6 +1118,9 @@ def _handle_confirm_correction(
     original_start = original_ad.get('start')
     original_end = original_ad.get('end')
     pattern_id = original_ad.get('pattern_id')
+    sponsor_override, sponsor_error = _modal_sponsor(data)
+    if sponsor_error:
+        return sponsor_error
     adjusted_start = data.get('adjusted_start')
     adjusted_end = data.get('adjusted_end')
     if (adjusted_start is None) != (adjusted_end is None):
@@ -1172,7 +1185,7 @@ def _handle_confirm_correction(
                 pattern_id, _ = _resolve_or_create_pattern_from_text(
                     db, pattern_service, slug, episode_id, ad_text,
                     original_ad, label='confirmed',
-                    sponsor_override=(data.get('sponsor') or '').strip() or None,
+                    sponsor_override=sponsor_override,
                 )
 
     deleted = db.delete_conflicting_corrections(db.get_podcast_by_slug(slug)['id'], episode_id, 'confirm', original_start, original_end)
@@ -1481,6 +1494,9 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     adjusted_end = data.get('adjusted_end')
     if adjusted_start is None or adjusted_end is None:
         return error_response('Missing adjusted boundaries', 400)
+    sponsor_override, sponsor_error = _modal_sponsor(data)
+    if sponsor_error:
+        return sponsor_error
 
     logger.info(f"CORRECTION: type=adjust, episode={slug}/{episode_id}, pattern_id={pattern_id}, "
                 f"original={original_start:.1f}-{original_end:.1f}, adjusted={adjusted_start:.1f}-{adjusted_end:.1f}")
@@ -1502,7 +1518,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         pattern_id, _ = _resolve_or_create_pattern_from_text(
             db, pattern_service, slug, episode_id, adjusted_text,
             original_ad, label='adjusted',
-            sponsor_override=(data.get('sponsor') or '').strip() or None,
+            sponsor_override=sponsor_override,
         )
 
     # Judge conflicts against the adjusted bounds: they are the span the

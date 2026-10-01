@@ -1,16 +1,4 @@
-"""Reviewer-supplied sponsor in the ad review modal must reach pattern creation.
-
-Issue #804: when an ad is detected with no sponsor (pattern_id=None,
-sponsor=None), the reviewer types a sponsor in the modal and saves. The
-sponsor was silently dropped: approve() did not forward it, and
-_resolve_or_create_pattern_from_text fell back to text extraction, which
-failed the brand-placement gate for domains like dsw.com.
-
-The fix passes the modal sponsor through the confirm/adjust correction payload
-as a top-level 'sponsor' field and uses it as sponsor_override in
-_resolve_or_create_pattern_from_text before falling back to original_ad and
-text extraction.
-"""
+"""The review modal's sponsor reaches pattern creation on confirm and adjust (#804)."""
 import json
 from unittest.mock import MagicMock, patch
 
@@ -29,13 +17,6 @@ CLEAN_AD_MODAL_SPONSOR = (
     "[00:00:00.000 --> 00:00:30.000] Designer Shoe Warehouse has the best "
     "selection of shoes available online. Head to dsw dot com slash podcast "
     "for twenty percent off your first order from Designer Shoe Warehouse today."
-)
-
-# Ad text that contains only a domain -- text extraction resolves the wrong
-# casing ('Dsw') and fails the brand-placement gate without a modal sponsor.
-AD_TEXT_DOMAIN_ONLY = (
-    "[00:00:00.000 --> 00:00:30.000] Head to dsw dot com slash podcast for "
-    "twenty percent off your first order of shoes and accessories at dsw today."
 )
 
 # Ad text with no recognisable sponsor and no actionable domain.
@@ -179,9 +160,10 @@ def test_confirm_modal_sponsor_used_as_override_in_resolve(temp_db):
         "first order from Designer Shoe Warehouse today and every day this week."
     )
 
-    primary_id, all_ids = _resolve_or_create_pattern_from_text(
+    # Extraction from the reason alone would name a different sponsor.
+    primary_id, _ = _resolve_or_create_pattern_from_text(
         temp_db, svc, slug, episode_id, ad_text,
-        {'start': 0.0, 'end': 30.0},
+        {'start': 0.0, 'end': 30.0, 'reason': 'Sponsored by Globex.'},
         label='confirmed',
         sponsor_override='Designer Shoe Warehouse',
     )
@@ -212,7 +194,7 @@ def test_sponsor_override_beats_original_ad_sponsor(temp_db):
         "first order from Designer Shoe Warehouse today and every single day."
     )
 
-    primary_id, all_ids = _resolve_or_create_pattern_from_text(
+    primary_id, _ = _resolve_or_create_pattern_from_text(
         temp_db, svc, slug, episode_id, ad_text,
         # original_ad has a wrong/stale sponsor: the override must win.
         {'start': 0.0, 'end': 30.0, 'sponsor': 'OldSponsorName'},
@@ -223,3 +205,47 @@ def test_sponsor_override_beats_original_ad_sponsor(temp_db):
     assert primary_id is not None
     pattern = temp_db.get_ad_pattern_by_id(primary_id)
     assert pattern['sponsor'] == 'Designer Shoe Warehouse'
+
+
+def test_without_the_override_no_pattern_is_created(temp_db):
+    """Text extraction finds no sponsor here, so only the modal sponsor creates a pattern."""
+    from api.patterns import _resolve_or_create_pattern_from_text
+    from pattern_service import PatternService
+
+    slug = 'modal-regression-test'
+    temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Modal Regression Test')
+    ad_text = (
+        "Designer Shoe Warehouse has the best selection of shoes available online. "
+        "Stop by any store for twenty percent off your first order from Designer "
+        "Shoe Warehouse today and every day this week."
+    )
+    for i, (override, created) in enumerate([(None, False), ('Designer Shoe Warehouse', True)]):
+        episode_id = f'deadbeef00{i + 3}'
+        temp_db.upsert_episode(
+            slug=slug, episode_id=episode_id, original_url='https://example.com/ep.mp3',
+            title='Test Episode', original_duration=3600.0)
+        primary_id, _ = _resolve_or_create_pattern_from_text(
+            temp_db, PatternService(temp_db), slug, episode_id, ad_text,
+            {'start': 0.0, 'end': 30.0}, label='confirmed', sponsor_override=override)
+        assert (primary_id is not None) is created
+
+
+@pytest.mark.parametrize('kind', ['confirm', 'adjust'])
+@pytest.mark.parametrize('sponsor', [42, ['Acme'], {'name': 'Acme'}])
+def test_non_string_modal_sponsor_is_rejected(client, kind, sponsor):
+    db = _mock_db(CLEAN_AD_MODAL_SPONSOR)
+    send = _confirm_with_modal_sponsor if kind == 'confirm' else (
+        lambda c, d, s, e, sp: _adjust_with_modal_sponsor(c, d, s, e + 5.0, s, e, sp))
+    with patch('api.patterns._resolve_or_create_pattern_from_text') as mock_resolve:
+        resp = send(client, db, 0.0, 30.0, sponsor)
+    assert resp.status_code == 400
+    mock_resolve.assert_not_called()
+
+
+def test_whitespace_only_modal_sponsor_is_none(client):
+    db = _mock_db(CLEAN_AD_MODAL_SPONSOR)
+    with patch('api.patterns._resolve_or_create_pattern_from_text') as mock_resolve:
+        mock_resolve.return_value = (None, [])
+        resp = _confirm_with_modal_sponsor(client, db, 0.0, 30.0, '   ')
+    assert resp.status_code == 200
+    assert mock_resolve.call_args.kwargs['sponsor_override'] is None

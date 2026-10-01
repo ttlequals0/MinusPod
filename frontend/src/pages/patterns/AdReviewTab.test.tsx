@@ -42,7 +42,13 @@ vi.mock('../../api/patterns', async (importOriginal) => ({
 }));
 // AdReviewModal renders WaveSurfer; its own behavior is covered by its use on
 // the episode page. Here only AdReviewTab's submit mapping matters.
-vi.mock('../../components/AdReviewModal', () => ({ default: () => null }));
+const modalProps: { onSubmit?: (s: { kind: string; sponsor?: string }) => void } = {};
+vi.mock('../../components/AdReviewModal', () => ({
+  default: (props: typeof modalProps) => {
+    modalProps.onSubmit = props.onSubmit;
+    return null;
+  },
+}));
 
 function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
   return {
@@ -219,6 +225,20 @@ describe('AdReviewTab row actions', () => {
     // Review is bulk work: the server stamps the episode and the Apply bar
     // cuts it once, so a decision must not start its own recut.
     expect(mockReprocess).not.toHaveBeenCalled();
+  });
+
+  it('a confirm from the review modal forwards the typed sponsor', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole('button', { name: 'Edit' }))[0]);
+    await waitFor(() => expect(modalProps.onSubmit).toBeDefined());
+    modalProps.onSubmit!({ kind: 'confirm', sponsor: 'Globex' });
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
+    expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({
+      type: 'confirm',
+      original_ad: { start: 100, end: 130, sponsor: 'Acme' },
+      sponsor: 'Globex',
+    });
   });
 
   it('dismiss submits a reject correction with no recut', async () => {

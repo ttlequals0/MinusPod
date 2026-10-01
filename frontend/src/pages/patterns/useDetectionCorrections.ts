@@ -83,9 +83,7 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
   });
 
   // Confirming a detection that was left in the audio has to cut it, so the
-  // recut needs the retained original. sponsor, when supplied by the reviewer,
-  // is forwarded so the backend can use it for pattern creation even when the
-  // original ad row has no sponsor (issue #804).
+  // recut needs the retained original. The modal's sponsor names the learned pattern (#804).
   const approve = (d: ReviewDetection, sponsor?: string) => mutation.mutate({
     d,
     correction: { type: 'confirm', original_ad: originalAdOf(d), sponsor },
