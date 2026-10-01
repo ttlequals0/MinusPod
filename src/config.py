@@ -67,6 +67,10 @@ HOLD_REASON_VERIFICATION_KEPT_CONFLICT = 'verification_kept_conflict'
 HOLD_REASON_CUE_TEMPLATE_UNPROVEN = 'cue_template_unproven'
 HOLD_REASON_CUE_LOW_CONFIDENCE = 'cue_low_confidence'
 HOLD_REASON_LARGE_VAD_GAP = 'large_vad_gap_extension'
+# An LLM span with no category or an audio-only reason whose transcript holds no ad language (#807).
+HOLD_REASON_NO_TRANSCRIPT_EVIDENCE = 'no_transcript_evidence'
+# Share of an evidence-gated span a measured DAI core must cover to stand in for transcript evidence.
+EVIDENCE_GATE_DAI_CORE_MIN_COVERAGE = 0.5
 # Holds only the reviewer stamps; recut validation cannot re-derive them.
 REVIEWER_HOLD_REASONS = frozenset({
     HOLD_REASON_REVIEWER_CONTRADICTION,

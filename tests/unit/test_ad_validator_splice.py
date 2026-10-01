@@ -262,7 +262,8 @@ class TestSpliceVetoSponsorWaiver:
                         sponsor_service=ACME_REGISTRY if registry else None)
         if description:
             v._description_sponsor_re = word_boundary_re((description,))
-        ad = {'start': 1000.0, 'end': 1187.0, 'confidence': 0.95,
+        # A category keeps these on the splice veto, not the transcript-evidence hold (#807).
+        ad = {'start': 1000.0, 'end': 1187.0, 'confidence': 0.95, 'category': 'sponsor',
               'reason': reason, 'detection_stage': stage}
         return v.validate([ad], audio_analysis=_analysis([])).ads[0]
 
@@ -424,7 +425,7 @@ class TestSpliceVetoNamedSponsor:
         v = AdValidator(3600.0, segments, episode_description='', sponsor_service=None,
                         podcast_name=podcast_name)
         ad = {'start': self.START, 'end': end, 'confidence': confidence, 'reason': reason,
-              'detection_stage': 'claude'}
+              'detection_stage': 'claude', 'category': 'sponsor'}
         if sponsor is not None:
             ad['sponsor'] = sponsor
         return v.validate([ad], audio_analysis=_analysis([])).ads[0]

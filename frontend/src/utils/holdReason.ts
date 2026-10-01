@@ -17,6 +17,7 @@ export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
   large_vad_gap_extension: 'VAD extension limit',
   cue_template_unproven: 'Unproven cue',
   cue_low_confidence: 'Low-confidence cue',
+  no_transcript_evidence: 'No ad language in transcript',
 };
 
 // Tooltip text for each hold reason.
@@ -37,4 +38,5 @@ export const HOLD_REASON_TITLES: Record<HoldReason, string> = {
   large_vad_gap_extension: 'Untranscribed audio exceeded the safe adjacency-only extension limit',
   cue_template_unproven: "This cue template hasn't cut a confirmed ad yet",
   cue_low_confidence: 'The cue match fell below the cut-confidence threshold',
+  no_transcript_evidence: "No sponsor, link, promo code or ad phrase in this span's transcript",
 };

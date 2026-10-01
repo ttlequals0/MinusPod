@@ -657,7 +657,7 @@ def test_build_recut_respects_splice_veto_disabled(monkeypatch):
     # splice_veto_enabled defaults to True (the bug). With the setting read as
     # False it must not be held.
     ads = [{'start': 1800.0, 'end': 1890.0, 'confidence': 0.92,
-            'detection_stage': 'claude',
+            'detection_stage': 'claude', 'category': 'sponsor',
             'reason': 'Vrbo vacation rental read with booking details'}]
     analysis = {'splice_evidence': {'version': 1, 'events': [],
                                     'calibration': {'status': 'calibrated'}}}
@@ -688,7 +688,7 @@ def test_build_recut_respects_splice_veto_disabled(monkeypatch):
 def test_build_recut_waives_the_splice_veto_on_baked_in_audio(monkeypatch):
     """The stored no_differential payload reaches the validator on recut."""
     ads = [{'start': 1800.0, 'end': 1890.0, 'confidence': 0.92,
-            'detection_stage': 'claude', 'reason': 'host read for Acme'}]
+            'detection_stage': 'claude', 'category': 'sponsor', 'reason': 'host read for Acme'}]
     analysis = {'splice_evidence': {'version': 1, 'events': [],
                                     'calibration': {'status': 'calibrated'}}}
     dd = {'status': 'no_differential', 'regions': [

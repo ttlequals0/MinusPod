@@ -26,7 +26,8 @@ from config import (
     CUE_ONLY_SAFETY_HOLD_NEW, CUE_ONLY_SAFETY_AUTO_CUT,
     CUE_ONLY_AUTOCUT_CONFIDENCE,
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
-    HOLD_REASON_LARGE_VAD_GAP,
+    HOLD_REASON_LARGE_VAD_GAP, HOLD_REASON_NO_TRANSCRIPT_EVIDENCE,
+    EVIDENCE_GATE_DAI_CORE_MIN_COVERAGE, measured_evidence, repair_segment_category,
     MAX_ADJACENT_AUTO_EXTENSION_SECONDS, MERGE_GAP_SECONDS, is_pending_review,
     REVIEWER_REJECT_PRESERVED_FLAG,
 )
@@ -62,13 +63,15 @@ from utils.markers import (
 )
 from differential_fetcher import differential_region_overlapping, identical_coverage
 from community_export import brand_match_candidates
-from text_pattern_matcher import bounded_segment_texts
-from sponsor_context import (SPONSOR_MIN_MENTIONS, description_sponsor_re, framed_sponsor_names,
-                             framed_with_link_or_offer, local_commercial_context,
-                             names_vanity_link, registry_sponsor)
+from text_pattern_matcher import AD_TRANSITION_PHRASES, bounded_segment_texts
+from sponsor_context import (BARE_LINK_RE, BRAND_LINK_RE, COMMERCIAL_CONTEXT_RE, CTA_LINK_RE,
+                             SPONSOR_FRAMING_RE, SPONSOR_IS_SPONSOR_RE, SPONSOR_MIN_MENTIONS,
+                             SPONSOR_THANKS_RE, VANITY_LINK_RE, description_sponsor_re,
+                             framed_sponsor_names, framed_with_link_or_offer,
+                             local_commercial_context, names_vanity_link, registry_sponsor)
 from sponsor_normalize import SPONSOR_SUBSTRING_PATTERNS
 from sponsor_service import SponsorService
-from utils.constants import is_brand_token, is_non_brand_name, squash_brand
+from utils.constants import AUDIO_ECHO_RE, is_brand_token, is_non_brand_name, squash_brand
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 from ad_detector.boundaries import effective_resolved_action
@@ -272,6 +275,14 @@ class AdValidator:
 
     # Sources that are evidence from the span itself, unlike the model's reason.
     SPAN_CONFIRMATION_SOURCES = frozenset({'transcript', 'registry'})
+    # LLM-detected stages whose cut needs ad language in its own transcript (#807).
+    EVIDENCE_GATE_STAGES = frozenset({'claude', 'verification'})
+    # Patterns any one of which in the span transcript is ad language.
+    TRANSCRIPT_EVIDENCE_RES = (COMMERCIAL_CONTEXT_RE, SPONSOR_FRAMING_RE, SPONSOR_THANKS_RE,
+                               SPONSOR_IS_SPONSOR_RE, BRAND_LINK_RE, BARE_LINK_RE, CTA_LINK_RE,
+                               VANITY_LINK_RE)
+    # "thanks to" is chat as often as a credit; the framing pattern above covers the credit form.
+    EVIDENCE_TRANSITION_PHRASES = tuple(p for p in AD_TRANSITION_PHRASES if p != 'thanks to')
     # Transcript-detected stages whose long cuts need audio evidence.
     VETO_STAGES = ('claude', 'text_pattern')
 
@@ -1400,6 +1411,20 @@ class AdValidator:
             self._mark_held(ad, flags, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED)
             return Decision.REVIEW
 
+        # Rule 7: an LLM span with no category or an audio-only reason needs ad language in its
+        # transcript. Ordered before the cue gate and splice veto so the hold names the real fault.
+        # Without a transcript the gate has nothing to read, so it stays out of the way.
+        if (decision == Decision.ACCEPT and self.segments
+                and ad.get('detection_stage') in self.EVIDENCE_GATE_STAGES
+                and confirmation_source not in self.SPAN_CONFIRMATION_SOURCES
+                and self._evidence_gate_triggered(ad)
+                and not self._has_transcript_ad_evidence(ad)
+                and not self._evidence_gate_exempt(ad)):
+            logger.info(f"Holding {ad['start']:.1f}-{ad['end']:.1f}s: no ad language in the span "
+                        f"transcript (category={ad.get('category')}, reason={(ad.get('reason') or '')[:80]!r})")
+            self._mark_held(ad, flags, HOLD_REASON_NO_TRANSCRIPT_EVIDENCE)
+            return Decision.REVIEW
+
         # Rule 2: cue-gated approval. Only applies to ACCEPT after rule 1.
         # is_cue_backed treats manual markers as exempt (human decision).
         if self.cue_gate_enabled and decision == Decision.ACCEPT:
@@ -1473,6 +1498,43 @@ class AdValidator:
         """Whether an auto pattern guessed part of this ad's span."""
         return bool(ad.get('has_estimated_pattern_member')
                     or (ad.get('span_estimated') and not ad.get('pattern_defined')))
+
+    @classmethod
+    def _evidence_gate_triggered(cls, ad: dict) -> bool:
+        """A missing or unknown category, or a reason that only echoes audio signals."""
+        reason = ad.get('reason') or ''
+        audio_only = bool(AUDIO_ECHO_RE.search(reason)) and 'based on transcript' not in reason.lower()
+        return repair_segment_category(ad.get('category')) is None or audio_only
+
+    def _has_transcript_ad_evidence(self, ad: dict) -> bool:
+        """A registry brand, link, promo code, or sponsor or transition phrase in the span transcript."""
+        text = ' '.join(self._bounded_text_segments(ad))
+        if not text.strip():
+            return False
+        lowered = text.lower()
+        if (any(pattern.search(text) for pattern in self.TRANSCRIPT_EVIDENCE_RES)
+                or self.AD_SIGNAL_PATTERNS.search(text)
+                or any(phrase in lowered for phrase in self.EVIDENCE_TRANSITION_PHRASES)):
+            return True
+        if self.sponsor_service:
+            try:
+                return bool(self.sponsor_service.brand_mention_offsets(text))
+            except Exception as e:
+                logger.debug(f"Sponsor registry lookup failed: {e}")
+        return False
+
+    def _evidence_gate_exempt(self, ad: dict) -> bool:
+        """Measured audio that stands in for transcript evidence: DAI core, a measured member, a differential."""
+        start, end = ad['start'], ad['end']
+        covered = sum(hi - lo for lo, hi in merge_runs(
+            (max(lo, start), min(hi, end)) for lo, hi in dai_core_spans(ad) if hi > start and lo < end))
+        if end > start and covered / (end - start) >= EVIDENCE_GATE_DAI_CORE_MIN_COVERAGE:
+            return True
+        if measured_evidence(ad):
+            return True
+        return bool(differential_region_overlapping(
+            (self._audio_analysis or {}).get('dai_differential'), start, end,
+            self.differential_corr_max))
 
     @classmethod
     def _estimated_pattern_needs_hold(cls, ad: dict) -> bool:

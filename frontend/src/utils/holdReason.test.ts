@@ -8,6 +8,7 @@ const ALL_HOLD_REASONS = [
   'reviewer_failed', 'reviewer_reject_conflict', 'estimated_pattern_bounds',
   'verification_miss', 'verification_kept_conflict', 'differential_uncorroborated',
   'large_vad_gap_extension', 'cue_template_unproven', 'cue_low_confidence',
+  'no_transcript_evidence',
 ];
 
 describe('hold reason maps', () => {
@@ -18,4 +19,8 @@ describe('hold reason maps', () => {
         expect((map as Record<string, string>)[reason]).toBeTruthy();
       }
     });
+});
+
+it('labels the transcript-evidence hold', () => {
+  expect(HOLD_REASON_LABELS.no_transcript_evidence).toBe('No ad language in transcript');
 });
