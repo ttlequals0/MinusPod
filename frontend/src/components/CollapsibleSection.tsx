@@ -183,11 +183,12 @@ function CollapsibleSection({
         </div>
       </div>
 
+      {/* Clip only while collapsed or animating, so an open body does not cut off a focus ring. */}
       <div
         ref={contentRef}
         inert={!expanded}
         style={{ maxHeight: contentMaxHeight }}
-        className={`overflow-hidden ${!searching && maxHeight !== 'none' && maxHeight !== '0px' ? 'transition-[max-height] duration-300 ease-in-out' : ''}`}
+        className={`${contentMaxHeight !== 'none' ? 'overflow-hidden' : ''} ${!searching && maxHeight !== 'none' && maxHeight !== '0px' ? 'transition-[max-height] duration-300 ease-in-out' : ''}`}
       >
         <div className="px-4 pb-4 sm:px-6 sm:pb-6">
           {(!unmountWhenClosed || keepMounted || openState || matchesSearch) && children}

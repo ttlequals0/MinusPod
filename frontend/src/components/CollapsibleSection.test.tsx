@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CollapsibleSection from './CollapsibleSection';
 import { SettingsBulkCollapseProvider } from '../context/SettingsBulkCollapseContext';
@@ -177,5 +177,34 @@ describe('CollapsibleSection forceOpen', () => {
       </CollapsibleSection>,
     );
     expect(screen.queryByText('forced content')).toBeNull();
+  });
+});
+
+describe('CollapsibleSection body clipping', () => {
+  const body = () => screen.getByText('body content').parentElement!.parentElement!;
+
+  it('clips a collapsed body and one mid-transition, but not a fully open one', async () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <CollapsibleSection title="Clip Section" storageKey="clip-section" defaultOpen={false}>
+          <input aria-label="first control" />
+          <div>body content</div>
+        </CollapsibleSection>,
+      );
+      expect(body().className).toContain('overflow-hidden');
+
+      act(() => {
+        screen.getByRole('button', { name: /clip section/i }).click();
+      });
+      expect(body().className).toContain('overflow-hidden');
+
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(body().className).not.toContain('overflow-hidden');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.42] - 2026-10-01
+
+### Fixed
+- A focused control at the top of a settings section no longer has its focus ring clipped; the section body only clips while it is collapsing or expanding.
+
 ## [2.97.41] - 2026-09-30
 
 ### Added
