@@ -668,7 +668,7 @@ HOLE_RETRANSCRIBE_MAX_HOLES = 20
 HOLE_RETRANSCRIBE_MAX_SECONDS = 600.0
 HOLE_RETRANSCRIBE_QUIET_DB = -45.0
 # A stretch this long with no transcribed speech is audio the reviewer cannot
-# see; no reviewer edge moves across it. Matches vad_gap_mid_min_seconds.
+# see; no reviewer edge moves across it. The hole pass never uses a smaller gap.
 UNREVIEWABLE_GAP_SECONDS = 8.0
 # A podping host counts as active only if seen within this window, so a host
 # that drops podping support decays back to uncovered (#579).

@@ -156,9 +156,15 @@ def test_recorded_empty_hole_is_not_retried(tmp_path):
 
 
 def test_hole_threshold_follows_the_vad_gap_setting(tmp_path):
-    segments = [_seg(0.0, 10.0, 'a'), _seg(15.0, 20.0, 'b')]
-    _, _, _, chunks = _run(tmp_path, segments, [], hole_min='4.0')
-    assert [c[:2] for c in chunks] == [(10.0, 15.0)]
+    segments = [_seg(0.0, 10.0, 'a'), _seg(20.0, 30.0, 'b')]
+    _, _, _, chunks = _run(tmp_path, segments, [], hole_min='12.0')
+    assert chunks == []
+
+
+def test_hole_threshold_never_drops_below_the_reviewer_gap(tmp_path):
+    segments = [_seg(0.0, 10.0, 'a'), _seg(15.0, 20.0, 'b'), _seg(29.0, 30.0, 'c')]
+    _, _, _, chunks = _run(tmp_path, segments, [], hole_min='1.0')
+    assert [c[:2] for c in chunks] == [(20.0, 29.0)]
 
 
 def test_tail_pass_uses_the_shared_helper(tmp_path):
@@ -188,9 +194,12 @@ def _reuse(tmp_path, repair):
         {'start': 728.77, 'end': 752.55, 'reason': 'no_speech'}]
     mock_t = MagicMock()
     mock_t.segments_to_text.return_value = 'joined'
+    mock_sponsor = MagicMock()
+    mock_sponsor.apply_transcript_corrections.side_effect = lambda t: t.replace('Akme', 'Acme')
     with patch.object(processing, 'storage', mock_storage), \
          patch.object(processing, 'db', mock_db), \
          patch.object(processing, 'transcriber', mock_t), \
+         patch.object(processing, 'sponsor_service', mock_sponsor), \
          patch.object(processing, '_copy_retained_original_to_temp',
                       return_value='/tmp/work.mp3'), \
          patch.object(processing, 'get_feed_language_override',
@@ -214,13 +223,15 @@ def test_reuse_with_a_recorded_empty_hole_loads_no_whisper(tmp_path):
 
 
 def test_reuse_repair_stores_the_repaired_originals(tmp_path, caplog):
-    base = _production_shape()
-    repaired = base[:1] + [dict(_seg(729.0, 750.0, 'Acme'), novad_hole=True)] + base[1:]
+    recovered = dict(_seg(729.0, 750.0, 'brought to you by Akme'), novad_hole=True)
     empty = [{'start': 900.0, 'end': 910.0, 'reason': 'quiet'}]
     with caplog.at_level('INFO'):
         segments, mock_storage, mock_db, _ = _reuse(
-            tmp_path, lambda *a: (repaired, True, empty))
-    assert segments == repaired
+            tmp_path, lambda *a: (a[3][:1] + [recovered] + a[3][1:], True, empty))
+    repaired = segments
+    assert recovered in segments
+    # Sponsor-name corrections reach the recovered opening.
+    assert recovered['text'] == 'brought to you by Acme'
     mock_storage.save_transcript.assert_called_once_with('show', 'ep1', 'joined')
     mock_db.save_repaired_original_transcript.assert_called_once_with(
         'show', 'ep1', 'joined', repaired)

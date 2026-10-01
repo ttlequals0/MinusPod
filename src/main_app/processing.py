@@ -98,7 +98,7 @@ from config import (
     CHAPTERS_MODE_OFF,
     MIN_PRESERVED_CHAPTERS,
     HOLE_RETRANSCRIBE_MAX_HOLES, HOLE_RETRANSCRIBE_MAX_SECONDS,
-    HOLE_RETRANSCRIBE_QUIET_DB,
+    HOLE_RETRANSCRIBE_QUIET_DB, UNREVIEWABLE_GAP_SECONDS,
     count_not_cut, is_cue_backed, is_pending_review, is_template_cue,
     normalize_segment_category,
     SEGMENT_CATEGORIES,
@@ -648,7 +648,8 @@ def _retranscribe_holes_no_vad(slug, episode_id, audio_path, segments,
     """
     if len(segments) < 2:
         return segments, False, []
-    hole_min = _setting_float(db, 'vad_gap_mid_min_seconds', 8.0)
+    hole_min = max(_setting_float(db, 'vad_gap_mid_min_seconds', 8.0),
+                   UNREVIEWABLE_GAP_SECONDS)
     holes = []
     prev_end = segments[0]['end']
     for seg in segments[1:]:
@@ -709,13 +710,30 @@ def _hole_tried(hole, tried) -> bool:
 def _repair_transcript(slug, episode_id, audio_path, segments, language_override,
                        tried=()):
     """Hole then tail no-VAD repair. Returns (segments, segments_added, empty_holes)."""
-    before = len(segments)
+    before = {id(seg) for seg in segments}
     with _measure_run_stage('transcription'):
         segments, _holes_added, empty = _retranscribe_holes_no_vad(
             slug, episode_id, audio_path, segments, language_override, tried)
         segments, _tail_added = _retranscribe_tail_no_vad(
             slug, episode_id, audio_path, segments, language_override)
-    return segments, len(segments) - before, empty
+    added = [seg for seg in segments if id(seg) not in before]
+    _apply_transcript_corrections(slug, episode_id, added)
+    return segments, len(added), empty
+
+
+def _apply_transcript_corrections(slug, episode_id, segments):
+    """Apply learned sponsor-name transcript corrections to segment text in place."""
+    corrected = 0
+    for seg in segments:
+        original = seg.get('text', '')
+        fixed = sponsor_service.apply_transcript_corrections(original)
+        if fixed != original:
+            seg['text'] = fixed
+            corrected += 1
+    if corrected:
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Applied transcript corrections to "
+            f"{corrected} segment(s)")
 
 
 CDN_BLOCKED_MESSAGE = 'CDN blocked the request (403) with both User-Agents'
@@ -903,18 +921,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         if not segments:
             raise Exception("Failed to transcribe audio")
 
-        corrected_segments = 0
-        for seg in segments:
-            original = seg.get('text', '')
-            fixed = sponsor_service.apply_transcript_corrections(original)
-            if fixed != original:
-                seg['text'] = fixed
-                corrected_segments += 1
-        if corrected_segments:
-            audio_logger.info(
-                f"[{slug}:{episode_id}] Applied transcript corrections to "
-                f"{corrected_segments} segment(s)"
-            )
+        _apply_transcript_corrections(slug, episode_id, segments)
 
         duration_min = segments[-1]['end'] / 60
         audio_logger.info(f"[{slug}:{episode_id}] Transcription complete: {len(segments)} segments, {duration_min:.1f} min")

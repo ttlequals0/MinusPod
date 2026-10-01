@@ -139,3 +139,55 @@ def test_sequential_decodes_on_the_base_model():
     assert 'batch_size' not in kwargs
     assert 'clip_timestamps' not in kwargs
     assert 'temperature' not in kwargs
+
+
+def _run_sequential(base, device='cpu'):
+    with patch.object(transcriber_mod, '_get_whisper_settings',
+                      return_value={'backend': 'local', 'language': 'en'}), \
+         patch.object(transcriber_mod.WhisperModelSingleton, 'get_instance',
+                      return_value=(base, MagicMock())), \
+         patch.object(transcriber_mod.WhisperModelSingleton,
+                      'get_current_model_name', return_value='small'), \
+         patch.object(transcriber_mod.WhisperModelSingleton, 'unload_model'), \
+         patch.object(transcriber_mod, 'clear_gpu_memory'), \
+         patch.object(transcriber_mod, 'resolve_whisper_device', return_value=device), \
+         patch.object(transcriber_mod, '_record_local_transcription_outcome') as record, \
+         patch.object(Transcriber, 'get_audio_duration', return_value=72.5), \
+         patch.object(Transcriber, 'clear_cuda_cache'):
+        t = Transcriber()
+        t.last_transcription_stats = {'outcome': 'success', 'batch_size': 16}
+        result = t.transcribe('/hole.wav', preprocessed=True, vad_filter=False,
+                              sequential=True)
+    return t, result, record
+
+
+def test_sequential_failure_keeps_the_main_run_stats():
+    base = MagicMock()
+    base.transcribe.side_effect = RuntimeError('decoder broke')
+    t, result, record = _run_sequential(base)
+    assert result is None
+    record.assert_not_called()
+    assert t.last_transcription_stats == {'outcome': 'success', 'batch_size': 16}
+
+
+def test_sequential_success_records_no_outcome():
+    base = MagicMock()
+    base.transcribe.return_value = (iter([]), MagicMock(language='en', language_probability=0.99))
+    t, result, record = _run_sequential(base)
+    assert result == []
+    record.assert_not_called()
+    assert t.last_transcription_stats['batch_size'] == 16
+
+
+def test_sequential_cuda_logs_no_batch_size(caplog):
+    base = MagicMock()
+    base.transcribe.side_effect = [
+        RuntimeError('CUDA out of memory'),
+        (iter([]), MagicMock(language='en', language_probability=0.99)),
+    ]
+    with caplog.at_level('INFO'):
+        _, result, _ = _run_sequential(base, device='cuda')
+    assert result == []
+    assert 'adaptive batch size' not in caplog.text
+    assert 'Reducing batch size' not in caplog.text
+    assert 'CUDA error on sequential decode' in caplog.text

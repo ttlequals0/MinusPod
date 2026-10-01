@@ -2208,7 +2208,8 @@ class Transcriber:
                 # Use adaptive batch size based on duration to prevent OOM
                 batch_size = self.get_batch_size_for_duration(audio_duration)
                 duration_str = f"{audio_duration/60:.1f} min" if audio_duration else "unknown"
-                logger.info(f"Using adaptive batch size: {batch_size} (duration: {duration_str})")
+                if not sequential:
+                    logger.info(f"Using adaptive batch size: {batch_size} (duration: {duration_str})")
             else:
                 batch_size = 8  # Smaller batch for CPU
 
@@ -2351,16 +2352,18 @@ class Transcriber:
                         # proves the size fits; failures never persist anything.
                         self.record_batch_size_ceiling(batch_size)
 
-                    self.last_transcription_stats = {
-                        'outcome': 'success',
-                        'batch_size': batch_size,
-                        'retry_count': retry_count,
-                        'retry_succeeded': retry_count > 0,
-                        'device': device,
-                        'gpu_device_name': get_gpu_device_name() if device == 'cuda' else None,
-                        'model': current_model,
-                    }
-                    _record_local_transcription_outcome(self.last_transcription_stats)
+                    if not sequential:
+                        # Repair passes must not overwrite the main run's stats or health.
+                        self.last_transcription_stats = {
+                            'outcome': 'success',
+                            'batch_size': batch_size,
+                            'retry_count': retry_count,
+                            'retry_succeeded': retry_count > 0,
+                            'device': device,
+                            'gpu_device_name': get_gpu_device_name() if device == 'cuda' else None,
+                            'model': current_model,
+                        }
+                        _record_local_transcription_outcome(self.last_transcription_stats)
 
                     return result
 
@@ -2370,7 +2373,11 @@ class Transcriber:
 
                     if ('cuda' in error_str or is_oom) and retry_count < max_retries - 1:
                         retry_count += 1
-                        if is_oom:
+                        if sequential:
+                            logger.warning(
+                                f"CUDA error on sequential decode (attempt "
+                                f"{retry_count}/{max_retries}), retrying: {inner_e}")
+                        elif is_oom:
                             old_batch_size = batch_size
                             batch_size = max(1, batch_size // 2)
                             logger.warning(
@@ -2391,17 +2398,18 @@ class Transcriber:
 
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
-            self.last_transcription_stats = {
-                'outcome': 'failed',
-                'batch_size': batch_size,
-                'retry_count': retry_count,
-                'retry_succeeded': False,
-                'device': device,
-                'gpu_device_name': get_gpu_device_name() if device == 'cuda' else None,
-                'model': current_model,
-                'error': str(e)[:500],
-            }
-            _record_local_transcription_outcome(self.last_transcription_stats)
+            if not sequential:
+                self.last_transcription_stats = {
+                    'outcome': 'failed',
+                    'batch_size': batch_size,
+                    'retry_count': retry_count,
+                    'retry_succeeded': False,
+                    'device': device,
+                    'gpu_device_name': get_gpu_device_name() if device == 'cuda' else None,
+                    'model': current_model,
+                    'error': str(e)[:500],
+                }
+                _record_local_transcription_outcome(self.last_transcription_stats)
             # Clean up GPU memory on ANY failure to prevent memory leaks
             # This is critical for OOM recovery - free memory before retry
             try:
