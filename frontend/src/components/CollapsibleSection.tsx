@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocalStorageState, readStoredValue } from '../hooks/useLocalStorageState';
-import { useSettingsSearch } from '../context/SettingsSearchContext';
+import { useInSettingsSearchRegion, useSettingsSearch } from '../context/SettingsSearchContext';
 import { useSettingsBulkCollapse } from '../context/SettingsBulkCollapseContext';
 import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
@@ -78,6 +78,8 @@ function CollapsibleSection({
   // active or outside a page that provides the context.
   const matchKeys = useSettingsSearch();
   const searching = matchKeys !== null;
+  // A searchable region keeps collapsed children mounted (hidden) so the search can read their text.
+  const keepMounted = useInSettingsSearchRegion();
   const matchesSearch = searching && matchKeys.has(resolvedKey);
   const hiddenBySearch = searching && !matchesSearch;
   const expanded = searching ? matchesSearch : openState;
@@ -188,7 +190,7 @@ function CollapsibleSection({
         className={`overflow-hidden ${!searching && maxHeight !== 'none' && maxHeight !== '0px' ? 'transition-[max-height] duration-300 ease-in-out' : ''}`}
       >
         <div className="px-4 pb-4 sm:px-6 sm:pb-6">
-          {(!unmountWhenClosed || openState || matchesSearch) && children}
+          {(!unmountWhenClosed || keepMounted || openState || matchesSearch) && children}
         </div>
       </div>
     </div>

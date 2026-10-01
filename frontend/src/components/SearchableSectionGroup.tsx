@@ -1,7 +1,7 @@
 import { useRef, type ReactNode } from 'react';
 import SectionSearchInput from './SectionSearchInput';
 import SectionBulkControls from './SectionBulkControls';
-import { SettingsSearchContext } from '../context/SettingsSearchContext';
+import { SettingsSearchContext, SettingsSearchRegionContext } from '../context/SettingsSearchContext';
 import { SettingsBulkCollapseProvider, useBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
 import { useSectionSearch } from '../hooks/useSectionSearch';
 
@@ -38,14 +38,16 @@ export default function SearchableSectionGroup({
 
       <SettingsBulkCollapseProvider value={bulkCollapseSignal}>
         <SettingsSearchContext.Provider value={matchKeys}>
-          <div ref={regionRef} className="space-y-4">
-            {matchKeys !== null && matchKeys.size === 0 && (
-              <p className="text-sm text-muted-foreground px-1">
-                No settings match "{query.trim()}".
-              </p>
-            )}
-            {children}
-          </div>
+          <SettingsSearchRegionContext.Provider value={true}>
+            <div ref={regionRef} className="space-y-4">
+              {matchKeys !== null && matchKeys.size === 0 && (
+                <p className="text-sm text-muted-foreground px-1">
+                  No settings match "{query.trim()}".
+                </p>
+              )}
+              {children}
+            </div>
+          </SettingsSearchRegionContext.Provider>
         </SettingsSearchContext.Provider>
       </SettingsBulkCollapseProvider>
     </>
