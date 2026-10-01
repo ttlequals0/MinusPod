@@ -13,6 +13,7 @@ from collections.abc import Callable
 
 from config import (
     resolve_stage_tunables,
+    UNREVIEWABLE_GAP_SECONDS,
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
     AD_REVIEWER_PARALLEL_ADS_MIN,
     AD_REVIEWER_PARALLEL_ADS_MAX,
@@ -58,7 +59,7 @@ from utils.markers import (
     dai_core_bounds, dai_core_spans, dai_probe_spans, edge_support,
     finite_number, hard_member_spans, hard_members, invalidate_tail_provenance,
     member_spans, reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
-    silent_absorbed_spans, TimedWords, timed_span, union_cover,
+    silent_absorbed_spans, TimedWords, timed_span, union_cover, vad_gap_spans,
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
@@ -609,7 +610,20 @@ def _end_edge_supported(ix: _EdgeIndex, new: float, old: float) -> bool:
     gap = (ix.los[after] if after < len(ix.los) else math.inf) - at
     before = bisect_left(ix.los, at - EDGE_TOLERANCE)
     crossed = before > 0 and ix.max_his[before - 1] > at + EDGE_TOLERANCE
-    return not crossed and gap >= _SUPPORTED_EDGE_GAP_S
+    return (not crossed and gap >= _SUPPORTED_EDGE_GAP_S
+            and not _releases_untranscribed(ix, after, at, old))
+
+
+def _releases_untranscribed(ix: _EdgeIndex, first: int, at: float, old: float) -> bool:
+    """Whether [at, old] holds a stretch of UNREVIEWABLE_GAP_SECONDS with no speech unit."""
+    cursor = at
+    for lo, hi in ix.units[first:]:
+        if lo >= old:
+            break
+        if lo - cursor >= UNREVIEWABLE_GAP_SECONDS:
+            return True
+        cursor = max(cursor, hi)
+    return old - cursor >= UNREVIEWABLE_GAP_SECONDS
 
 
 def _supported_edge_floor(ad: dict, independent, edge: str, value: float,
@@ -1981,6 +1995,18 @@ class AdReviewer:
                 clamped_end = min([max(hi, original_end)] + [
                     max(b['start'], clamped_end) for b in barriers
                     if b['end'] > clamped_end and b['start'] < hi])
+
+        # No edge moves inward across untranscribed audio the VAD gap detector merged in.
+        proposed = (clamped_start, clamped_end)
+        for lo, hi in vad_gap_spans(ad):
+            if clamped_start > max(lo, original_start) and hi > original_start:
+                clamped_start = max(lo, original_start)
+            if clamped_end < min(hi, original_end) and lo < original_end:
+                clamped_end = min(hi, original_end)
+        if (clamped_start, clamped_end) != proposed:
+            logger.info(
+                f"[{slug}:{episode_id}] Reviewer trim stopped at untranscribed audio: "
+                f"{proposed[0]:.1f}-{proposed[1]:.1f} -> {clamped_start:.1f}-{clamped_end:.1f}")
 
         if clamped_end <= clamped_start:
             clamped_start, clamped_end = original_start, original_end

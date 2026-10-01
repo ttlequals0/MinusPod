@@ -13,6 +13,7 @@ from ad_reviewer import (AdReviewer, TranscriptIndex,
                          _SUPPORTED_EDGE_GAP_S, _edge_transcript_supported, _negated,
                          _speech_capped_floor, _speech_units)
 from ad_validator import AdValidator, ValidationResult
+from config import UNREVIEWABLE_GAP_SECONDS
 from audio_analysis.base import AudioAnalysisResult
 from audio_processor import AudioProcessor
 from main_app import processing
@@ -578,7 +579,11 @@ def _scan_supported(units, words, edge, new, old):
     at = max(matched)
     gap = min((lo for lo, _ in units if lo > at - EDGE_TOLERANCE), default=math.inf) - at
     crossed = any(lo < at - EDGE_TOLERANCE and hi > at + EDGE_TOLERANCE for lo, hi in units)
-    return not crossed and gap >= _SUPPORTED_EDGE_GAP_S
+    cursor, widest = at, 0.0
+    for lo, hi in sorted(u for u in units if at - EDGE_TOLERANCE < u[0] < old):
+        widest, cursor = max(widest, lo - cursor), max(cursor, hi)
+    widest = max(widest, old - cursor)
+    return not crossed and gap >= _SUPPORTED_EDGE_GAP_S and widest < UNREVIEWABLE_GAP_SECONDS
 
 
 def _scan_capped(units, words, independent, edge, proposed, floor):
