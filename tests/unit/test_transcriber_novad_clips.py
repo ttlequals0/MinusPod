@@ -114,3 +114,28 @@ def test_clips_cover_the_preprocessed_file_not_the_raw_chunk():
 
     clips = model.transcribe.call_args.kwargs['clip_timestamps']
     assert clips[-1]['end'] == 60.4
+
+
+def test_sequential_decodes_on_the_base_model():
+    base, batched = MagicMock(), MagicMock()
+    info = MagicMock(language='en', language_probability=0.99)
+    base.transcribe.return_value = (iter([]), info)
+    with patch.object(transcriber_mod, '_get_whisper_settings',
+                      return_value={'backend': 'local', 'language': 'en'}), \
+         patch.object(transcriber_mod.WhisperModelSingleton, 'get_instance',
+                      return_value=(base, batched)), \
+         patch.object(transcriber_mod.WhisperModelSingleton,
+                      'get_current_model_name', return_value='small'), \
+         patch.object(Transcriber, 'get_audio_duration', return_value=72.5):
+        Transcriber().transcribe('/hole.wav', preprocessed=True,
+                                 vad_filter=False, sequential=True)
+    batched.transcribe.assert_not_called()
+    kwargs = base.transcribe.call_args.kwargs
+    assert kwargs['vad_filter'] is False
+    assert kwargs['word_timestamps'] is True
+    assert kwargs['beam_size'] == 5
+    assert kwargs['language'] == 'en'
+    # The base model takes neither; omitting temperature keeps its fallback.
+    assert 'batch_size' not in kwargs
+    assert 'clip_timestamps' not in kwargs
+    assert 'temperature' not in kwargs

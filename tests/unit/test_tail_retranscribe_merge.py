@@ -61,7 +61,7 @@ def test_tail_gap_appends_offset_flagged_segments(tmp_path):
     args, kwargs = mock_t.transcribe.call_args
     assert args == (str(chunk),)
     assert kwargs == {'language_override': None,
-                      'vad_filter': False}
+                      'vad_filter': False, 'sequential': True}
     assert not chunk.exists()  # temp chunk cleaned up
 
 

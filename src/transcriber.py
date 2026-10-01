@@ -1747,6 +1747,13 @@ class Transcriber:
             _unlink_quiet(preprocessed_path)
             _unlink_quiet(flac_path)
 
+    @staticmethod
+    def _local_decoder(sequential: bool):
+        """Base WhisperModel for a sequential decode, else the batched pipeline."""
+        if sequential:
+            return WhisperModelSingleton.get_instance()[0]
+        return WhisperModelSingleton.get_batched_pipeline()
+
     def filter_hallucinations(self, segments: list[dict]) -> list[dict]:
         """Filter out common Whisper hallucinations and artifacts."""
         filtered = []
@@ -2125,6 +2132,7 @@ class Transcriber:
         language_override: str | None = None,
         vad_filter: bool = True,
         preprocessed: bool = False,
+        sequential: bool = False,
     ) -> list[dict]:
         """Transcribe audio file using Faster Whisper with batched pipeline.
 
@@ -2142,6 +2150,10 @@ class Transcriber:
         ``preprocessed=True`` means the caller already applied the preprocess
         filter chain (chunks from extract_audio_chunk(preprocess=True)), so
         the redundant preprocess pass is skipped.
+
+        ``sequential=True`` decodes with the base WhisperModel and its
+        temperature fallback instead of the batched pipeline, which can skip
+        the start of a clip. Ignored on the API backend.
         """
         # Check whisper backend setting
         whisper_settings = _get_whisper_settings()
@@ -2174,8 +2186,7 @@ class Transcriber:
             # Get audio duration for adaptive batch sizing
             audio_duration = self.get_audio_duration(audio_path)
 
-            # Get the batched pipeline for efficient transcription
-            model = WhisperModelSingleton.get_batched_pipeline()
+            model = self._local_decoder(sequential)
             current_model = WhisperModelSingleton.get_current_model_name()
 
             logger.info(f"Starting transcription of: {audio_path} (model: {current_model})")
@@ -2215,7 +2226,7 @@ class Transcriber:
                     model = None
                     WhisperModelSingleton.unload_model()
                     clear_gpu_memory()
-                    model = WhisperModelSingleton.get_batched_pipeline()
+                    model = self._local_decoder(sequential)
                     reload_model = False
                 try:
                     # Clear CUDA cache before each attempt
@@ -2232,11 +2243,9 @@ class Transcriber:
                     # _should_detect_foreign_language so it only runs when the audio
                     # is English; on non-English podcasts it would false-positive
                     # every segment.
-                    segments_generator, info = model.transcribe(
-                        transcribe_path,
+                    decode_kwargs = dict(
                         language=transcribe_language,
                         beam_size=5,
-                        batch_size=batch_size,
                         word_timestamps=True,  # Enable word-level timestamps for boundary refinement
                         vad_filter=vad_filter,
                         vad_parameters=dict(
@@ -2244,13 +2253,17 @@ class Transcriber:
                             speech_pad_ms=600,  # Increased from 400 - more padding for ad segments
                             threshold=0.3  # Lower threshold = more sensitive to speech in ads
                         ) if vad_filter else None,
+                    )
+                    if not sequential:
+                        decode_kwargs['batch_size'] = batch_size
                         # None here when duration probing failed: a no-VAD
                         # span of 30s or more then still fails, and the caller
                         # logs that as a failure rather than silence.
-                        clip_timestamps=(
+                        decode_kwargs['clip_timestamps'] = (
                             None if vad_filter
-                            else _full_span_clips(audio_duration)),
-                    )
+                            else _full_span_clips(audio_duration))
+                    segments_generator, info = model.transcribe(
+                        transcribe_path, **decode_kwargs)
 
                     # Log detected language
                     detected_lang = info.language if hasattr(info, 'language') else 'unknown'
@@ -2332,7 +2345,8 @@ class Transcriber:
                     duration_min = result[-1]['end'] / 60 if result else 0
                     logger.info(f"Transcription completed: {len(result)} segments, {duration_min:.1f} minutes")
 
-                    if device == "cuda" and batch_size < tier_batch_size:
+                    if (device == "cuda" and not sequential
+                            and batch_size < tier_batch_size):
                         # Completing below the tier (downshift, clamp, or probe)
                         # proves the size fits; failures never persist anything.
                         self.record_batch_size_ceiling(batch_size)

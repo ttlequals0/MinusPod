@@ -662,6 +662,11 @@ TERMINAL_SNAP_EOF_TOLERANCE_SECONDS = 2.0  # Marker end within this of EOF count
 # tail_retranscribe_min_seconds / tail_retranscribe_max_seconds settings.
 TAIL_RETRANSCRIBE_MIN_SECONDS = 10.0
 TAIL_RETRANSCRIBE_MAX_SECONDS = 600.0
+# Mid-episode holes re-transcribed without VAD: per-episode caps and the
+# mean volume below which a hole is treated as silence.
+HOLE_RETRANSCRIBE_MAX_HOLES = 20
+HOLE_RETRANSCRIBE_MAX_SECONDS = 600.0
+HOLE_RETRANSCRIBE_QUIET_DB = -45.0
 # A podping host counts as active only if seen within this window, so a host
 # that drops podping support decays back to uncovered (#579).
 PODPING_HOST_ACTIVE_DAYS = 30

@@ -6,13 +6,14 @@ Provides shared audio file operations used across multiple modules.
 import json
 import logging
 import os
+import re
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
-from config import FFPROBE_TIMEOUT
+from config import FFMPEG_SHORT_TIMEOUT, FFPROBE_TIMEOUT
 from storage import _detect_image_mime
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, SAFE_MEDIA_PROBE_ARGS
@@ -114,6 +115,27 @@ def get_audio_duration(audio_path: str) -> float | None:
     except Exception as e:
         logger.warning(f"Duration query failed for {audio_path}: {e}")
     return None
+
+
+_MEAN_VOLUME_RE = re.compile(r'mean_volume:\s*(-?[\d.]+|-inf) dB')
+
+
+def mean_volume_db(audio_path: str) -> float | None:
+    """Mean volume in dB from ffmpeg volumedetect, or None when it cannot be read."""
+    cmd = [
+        'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-nostats',
+        '-i', audio_path, '-vn', '-af', 'volumedetect', '-f', 'null', '-',
+    ]
+    try:
+        result = tracked_run(cmd, capture_output=True, text=True,
+                             timeout=FFMPEG_SHORT_TIMEOUT)
+    except Exception as e:
+        logger.warning(f"Volume probe failed for {audio_path}: {e}")
+        return None
+    match = _MEAN_VOLUME_RE.search(result.stderr or '')
+    if not match:
+        return None
+    return float(match.group(1))
 
 
 def extract_embedded_artwork(audio_path: str) -> tuple[bytes, str] | None:
