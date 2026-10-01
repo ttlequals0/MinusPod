@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MAX, rerenderSegments, RerenderSegmentsResult } from '../../api/feeds';
 import { listCueTemplates } from '../../api/cueTemplates';
@@ -7,11 +7,7 @@ import { getErrorMessage } from '../../api/client';
 import type { Feed, LowAdYieldAction, EpisodeLogsOverride } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
-import SectionSearchInput from '../../components/SectionSearchInput';
-import { SettingsSearchContext } from '../../context/SettingsSearchContext';
-import { SettingsBulkCollapseProvider, useBulkCollapseSignal } from '../../context/SettingsBulkCollapseContext';
-import SectionBulkControls from '../../components/SectionBulkControls';
-import { useSectionSearch } from '../../hooks/useSectionSearch';
+import SearchableSectionGroup from '../../components/SearchableSectionGroup';
 import { ExperimentalBadge } from '../../components/ExperimentalBadge';
 import { FeedTagsEditor } from '../../components/FeedTagsEditor';
 import ToggleSwitch from '../../components/ToggleSwitch';
@@ -175,10 +171,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // Mirrors the CollapsibleSection's persisted open state (same storage key)
   // so the networks list is only fetched once the panel is actually visible.
   const [panelOpen, setPanelOpen] = useCollapsibleOpen(`feed-settings-${slug}`);
-  const searchRegionRef = useRef<HTMLDivElement>(null);
-  const { query: searchQuery, matchKeys: searchMatchKeys, run: runSearch, clear: clearSearch } =
-    useSectionSearch(searchRegionRef);
-  const [bulkCollapseSignal, triggerBulkCollapse] = useBulkCollapseSignal();
   const [isEditingNetwork, setIsEditingNetwork] = useState(false);
   const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
   const [customNetwork, setCustomNetwork] = useState(false);
@@ -541,25 +533,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         onToggle={setPanelOpen}
       >
         <div className="space-y-4">
-          <SectionSearchInput
-            value={searchQuery}
-            onChange={runSearch}
-            onClear={clearSearch}
+          <SearchableSectionGroup
             placeholder="Search feed settings..."
             ariaLabel="Search feed settings"
             clearLabel="Clear feed settings search"
-          />
-
-          <SectionBulkControls disabled={searchMatchKeys !== null} onToggleAll={triggerBulkCollapse} />
-
-          <SettingsBulkCollapseProvider value={bulkCollapseSignal}>
-          <SettingsSearchContext.Provider value={searchMatchKeys}>
-          <div ref={searchRegionRef} className="space-y-4">
-          {searchMatchKeys !== null && searchMatchKeys.size === 0 && (
-            <p className="text-sm text-muted-foreground px-1">
-              No settings match "{searchQuery.trim()}".
-            </p>
-          )}
+          >
 
           <CollapsibleSection
             title="Source and network"
@@ -1781,9 +1759,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               )}
             </div>
           </CollapsibleSection>
-          </div>
-          </SettingsSearchContext.Provider>
-          </SettingsBulkCollapseProvider>
+          </SearchableSectionGroup>
         </div>
       </CollapsibleSection>
       {confirmRerender && (

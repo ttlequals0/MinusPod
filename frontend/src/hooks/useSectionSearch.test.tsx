@@ -50,6 +50,17 @@ describe('useSectionSearch', () => {
     expect(result.current.matchKeys).toBeNull();
   });
 
+  it('keeps the same match set when a longer query matches the same cards', () => {
+    const { result } = setup();
+    act(() => result.current.run('ret'));
+    const first = result.current.matchKeys;
+    act(() => result.current.run('reten'));
+    expect(result.current.query).toBe('reten');
+    expect(result.current.matchKeys).toBe(first);
+    act(() => result.current.run('queue'));
+    expect(result.current.matchKeys).not.toBe(first);
+  });
+
   it('clear resets the query and matches', () => {
     const { result } = setup();
     act(() => result.current.run('queue'));

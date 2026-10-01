@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -57,11 +57,8 @@ import PositionalPriorSection from './settings/PositionalPriorSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
 import DatabaseBackupSection from './settings/DatabaseBackupSection';
 import OutboundRequestsSection from './settings/OutboundRequestsSection';
-import SectionSearchInput from '../components/SectionSearchInput';
-import { useSectionSearch } from '../hooks/useSectionSearch';
-import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
-import { SettingsBulkCollapseProvider, useBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
-import SectionBulkControls from '../components/SectionBulkControls';
+import SearchableSectionGroup from '../components/SearchableSectionGroup';
+import { useSettingsSearch } from '../context/SettingsSearchContext';
 import { reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils';
 import { btnPrimary } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
@@ -179,10 +176,6 @@ function Settings() {
     silenceSnapMaxDistanceSeconds: 2,
   });
   const [positionalPriorEnabled, setPositionalPriorEnabled] = useState(false);
-  const searchRegionRef = useRef<HTMLDivElement>(null);
-  const { query: settingsQuery, matchKeys: settingsMatchKeys, run: runSettingsSearch, clear: clearSettingsSearch } =
-    useSectionSearch(searchRegionRef);
-  const [bulkCollapseSignal, triggerBulkCollapse] = useBulkCollapseSignal();
   const [selectedModel, setSelectedModel] = useState('');
   const [verificationModel, setVerificationModel] = useState('');
   // Per-phase provider overrides; '' inherits (see AIModelsSection's
@@ -973,26 +966,11 @@ function Settings() {
 
       {/* Settings search: filters the configurable sections below by matching a
           section's title or any of its setting labels (client-side, no backend). */}
-      <SectionSearchInput
-        value={settingsQuery}
-        onChange={runSettingsSearch}
-        onClear={clearSettingsSearch}
+      <SearchableSectionGroup
         placeholder="Search settings..."
         ariaLabel="Search settings"
         clearLabel="Clear settings search"
-      />
-
-      <SectionBulkControls disabled={settingsMatchKeys !== null} onToggleAll={triggerBulkCollapse} />
-
-      <SettingsBulkCollapseProvider value={bulkCollapseSignal}>
-      <SettingsSearchContext.Provider value={settingsMatchKeys}>
-      <div ref={searchRegionRef} className="space-y-4">
-
-      {settingsMatchKeys !== null && settingsMatchKeys.size === 0 && (
-        <p className="text-sm text-muted-foreground px-1">
-          No settings match "{settingsQuery.trim()}".
-        </p>
-      )}
+      >
 
       <SettingsGroupHeader title="Appearance" />
 
@@ -1420,9 +1398,7 @@ function Settings() {
         plaintextSecretsCount={status?.security?.plaintextSecretsCount ?? 0}
       />
 
-      </div>
-      </SettingsSearchContext.Provider>
-      </SettingsBulkCollapseProvider>
+      </SearchableSectionGroup>
 
       {/* Error display */}
       {(updateMutation.error || resetMutation.error || resetPromptsMutation.error || resetPromptMutation.error) && (

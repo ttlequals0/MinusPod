@@ -22,7 +22,10 @@ export function useSectionSearch(regionRef: RefObject<HTMLElement | null>) {
         if (key) matches.add(key);
       }
     });
-    setMatchKeys(matches);
+    // Keep the previous Set when the matches are unchanged, so consumers of the context skip a re-render.
+    setMatchKeys((prev) =>
+      prev && prev.size === matches.size && [...matches].every((k) => prev.has(k)) ? prev : matches,
+    );
   };
 
   const clear = () => run('');
@@ -55,7 +58,7 @@ export function useSectionSearch(regionRef: RefObject<HTMLElement | null>) {
     }
     CSS.highlights.set('settings-search', new Highlight(...ranges));
     return () => { CSS.highlights.delete('settings-search'); };
-  }, [query, matchKeys, regionRef]);
+  }, [query, regionRef]);
 
   return { query, matchKeys, run, clear };
 }
