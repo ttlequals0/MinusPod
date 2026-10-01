@@ -10,7 +10,8 @@ import re
 from collections import Counter
 from typing import NamedTuple
 
-from sponsor_context import SPONSOR_MIN_MENTIONS, registry_sponsor, text_has_commercial_context
+from sponsor_context import (SPONSOR_MIN_MENTIONS, framed_sponsor_names, registry_sponsor,
+                             text_has_commercial_context)
 from sponsor_service import SponsorService
 from text_pattern_matcher import bounded_segment_texts
 from utils.prompt import (
@@ -349,9 +350,14 @@ def _extract_sponsor_name(ad: dict) -> str:
     priority_lower = {f.lower() for f in SPONSOR_PRIORITY_FIELDS}
     for key, val in ad.items():
         key_lower = key.lower()
-        # A short reason or description is prose about the span, never a sponsor name.
-        if (key_lower in STRUCTURAL_FIELDS or key_lower in priority_lower
-                or key_lower in ('reason', 'description')):
+        if key_lower in STRUCTURAL_FIELDS or key_lower in priority_lower:
+            continue
+        if key_lower in ('reason', 'description'):
+            # Prose about the span names a sponsor only through a credit ("brought to you by Acme").
+            framed = framed_sponsor_names(val) if isinstance(val, str) else []
+            value = _get_valid_sponsor_value(framed[0]) if framed else None
+            if value:
+                return value
             continue
         if isinstance(val, str) and len(val) < 80:
             value = _get_valid_sponsor_value(val)
