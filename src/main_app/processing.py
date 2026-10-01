@@ -181,7 +181,7 @@ from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.http import safe_url_for_log
 from utils.language import get_feed_language_override
 from utils.text import (
-    parse_transcript_segments,
+    parse_transcript_segments, transcript_gaps,
 )
 from webhook_service import (
     fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED,
@@ -650,12 +650,7 @@ def _retranscribe_holes_no_vad(slug, episode_id, audio_path, segments,
         return segments, False, []
     hole_min = max(_setting_float(db, 'vad_gap_mid_min_seconds', 8.0),
                    UNREVIEWABLE_GAP_SECONDS)
-    holes = []
-    prev_end = segments[0]['end']
-    for seg in segments[1:]:
-        if seg['start'] - prev_end >= hole_min:
-            holes.append((prev_end, seg['start']))
-        prev_end = max(prev_end, seg['end'])
+    holes = transcript_gaps(segments, hole_min)
     known = [hole for hole in holes if _hole_tried(hole, tried)]
     if known:
         audio_logger.info(

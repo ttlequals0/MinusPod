@@ -11,6 +11,7 @@ covers them). Emits ad markers for gaps that look like ad residue:
 Runs after Claude + text-pattern detection, before validation. See the
 2.0.7 plan for the full rationale.
 """
+from bisect import bisect_left
 from difflib import SequenceMatcher
 import logging
 import re
@@ -22,7 +23,7 @@ from roll_detector import (
     _region_covered,
 )
 from utils.markers import VAD_GAP_SPANS
-from utils.text import get_transcript_text_for_range
+from utils.text import get_transcript_text_for_range, transcript_gaps
 from config import (
     HOLD_REASON_LARGE_VAD_GAP, MAX_ADJACENT_AUTO_EXTENSION_SECONDS,
     VAD_GAP_CONFIDENCE,
@@ -187,12 +188,12 @@ def detect_vad_gaps(
         logger.info(f"VAD head gap: 0.0s-{head_end:.1f}s")
 
     # Mid gaps
-    for i in range(len(segments) - 1):
-        gap_start = segments[i].get('end', 0.0)
-        gap_end = segments[i + 1].get('start', 0.0)
+    starts = [seg.get('start', 0.0) for seg in segments]
+    for gap_start, gap_end in transcript_gaps(segments, mid_min_seconds):
         gap_duration = gap_end - gap_start
-        if gap_duration < mid_min_seconds:
-            continue
+        i_after = bisect_left(starts, gap_end)
+        before_seg = max(segments[:i_after], key=lambda seg: seg.get('end', 0.0))
+        after_seg = segments[i_after]
         if _region_covered(gap_start, gap_end, existing_ads):
             continue
 
@@ -205,8 +206,8 @@ def detect_vad_gaps(
                     f"{adjacent.get('start', 0.0):.1f}-{adjacent.get('end', 0.0):.1f}s"
                 )
                 continue
-            before_text = segments[i].get('text', '')
-            after_text = segments[i + 1].get('text', '')
+            before_text = before_seg.get('text', '')
+            after_text = after_seg.get('text', '')
             has_break_context = (
                 _ends_with_signoff(before_text)
                 and _starts_with_resume(after_text)
@@ -259,8 +260,8 @@ def detect_vad_gaps(
             )
             continue
 
-        before_text = segments[i].get('text', '')
-        after_text = segments[i + 1].get('text', '')
+        before_text = before_seg.get('text', '')
+        after_text = after_seg.get('text', '')
         # Require BOTH signoff before the gap AND resume after it. Either alone
         # produces false positives on conversational shows where filler phrases
         # like "thanks for tuning in" or "welcome back" appear in normal speech.

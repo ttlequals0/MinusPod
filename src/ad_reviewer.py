@@ -69,6 +69,7 @@ from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S,
     get_timestamped_transcript_for_range,
     get_timestamped_words_for_range,
+    transcript_gaps,
 )
 from utils.time import overlap_seconds
 
@@ -676,16 +677,6 @@ def _end_capped_floor(ix: _EdgeIndex, independent, proposed: float, floor: float
     if any(overlap_seconds(lo, hi, capped, floor) > 0 for lo, hi in independent):
         return None
     return capped
-
-
-def _untranscribed_gaps(lines: list[dict]) -> list[tuple[float, float]]:
-    """Stretches of UNREVIEWABLE_GAP_SECONDS or more between consecutive transcript lines."""
-    gaps, covered = [], None
-    for line in lines:
-        if covered is not None and line['start'] - covered >= UNREVIEWABLE_GAP_SECONDS:
-            gaps.append((covered, line['start']))
-        covered = line['end'] if covered is None else max(covered, line['end'])
-    return gaps
 
 
 def _timestamped_with_gaps(lines: list[dict], gaps, lo: float, hi: float,
@@ -2244,7 +2235,7 @@ class AdReviewer:
         ])
         # Per-segment timestamps everywhere, context included (#695): the
         # system prompt's examples read trim boundaries out of context lines.
-        gaps = _untranscribed_gaps(context_segments)
+        gaps = transcript_gaps(context_segments, UNREVIEWABLE_GAP_SECONDS)
         before_text = _timestamped_with_gaps(context_segments, gaps, context_start, start)
         ad_text = _timestamped_with_gaps(context_segments, gaps, start, end, closed=True)
         if not ad_text:

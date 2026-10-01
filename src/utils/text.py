@@ -114,6 +114,17 @@ def get_transcript_text_for_range(
     return ' '.join(texts)
 
 
+def transcript_gaps(segments: list[dict], min_s: float) -> list[tuple[float, float]]:
+    """(start, end) of every stretch of min_s or more that no segment covers, between the first and last segment."""
+    gaps, covered = [], None
+    for seg in segments:
+        start, end = seg.get('start', 0.0), seg.get('end', 0.0)
+        if covered is not None and start - covered >= min_s:
+            gaps.append((covered, start))
+        covered = end if covered is None else max(covered, end)
+    return gaps
+
+
 def get_timestamped_transcript_for_range(
     segments: list[dict],
     start_time: float,
