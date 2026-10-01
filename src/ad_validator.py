@@ -1411,9 +1411,8 @@ class AdValidator:
             self._mark_held(ad, flags, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED)
             return Decision.REVIEW
 
-        # Rule 7: an LLM span with no category or an audio-only reason needs ad language in its
-        # transcript. Ordered before the cue gate and splice veto so the hold names the real fault.
-        # Without a transcript the gate has nothing to read, so it stays out of the way.
+        # Rule 7: an uncategorised or audio-only LLM span needs ad language in its transcript (none to
+        # read, no gate). Ordered before the cue gate and splice veto so the hold names the real fault.
         if (decision == Decision.ACCEPT and self.segments
                 and ad.get('detection_stage') in self.EVIDENCE_GATE_STAGES
                 and confirmation_source not in self.SPAN_CONFIRMATION_SOURCES
