@@ -138,8 +138,7 @@ def test_adjust_empty_modal_sponsor_passes_none_override(client):
 
 
 def test_confirm_modal_sponsor_used_as_override_in_resolve(temp_db):
-    """Unit: sponsor_override in _resolve_or_create_pattern_from_text
-    takes precedence over original_ad.sponsor and text extraction."""
+    """sponsor_override wins over the reason and text extraction."""
     from api.patterns import _resolve_or_create_pattern_from_text
     from pattern_service import PatternService
 

@@ -12,6 +12,9 @@ release notes.
 ## [2.97.42] - 2026-10-01
 
 ### Fixed
+- Patterns are now learned from the LLM detections inside a merged marker, so feeds whose ad breaks end up as cross-fetch regions learn patterns too.
+- A reviewer trim can no longer pull an ad edge away from a labelled boundary cue the edge was snapped to.
+- The review modal's sponsor is validated as a string, and frontend and backend regression tests cover it (follow-up to #805, reported in #804).
 - A focused control at the top of a settings section no longer has its focus ring clipped; the section body only clips while it is collapsing or expanding.
 
 ## [2.97.41] - 2026-09-30
