@@ -140,3 +140,46 @@ def test_contradiction_hold_recovered_trim_cannot_cross_the_hole():
     held = result.held_by_contradiction[0]
     assert held['reviewer_proposed_start'] == 728.8
     assert held['reviewer_proposed_end'] == 800.0
+
+
+AFFIRMED_TRIM_REASON = (
+    'The candidate is a genuine ad break containing one sponsor read for Acme. '
+    'The original start of 728.8s '
+    'is early: the read begins at 752.55s, so the start is trimmed forward to 752.55s '
+    'where the sponsor read starts.'
+)
+
+
+def test_affirmed_trim_recovery_cannot_cross_the_hole():
+    reviewer = _reviewer({'review_max_boundary_shift': '60'})
+    ad = dict(_marker(), confidence=0.95, vad_gap_extended=True)
+    reviewer._llm_client.messages_create.side_effect = [
+        _resp(f'[{{"start": 728.8, "end": 939.9, "confidence": 0.95, '
+              f'"reason": "{AFFIRMED_TRIM_REASON}"}}]'),
+        _resp('{"ad_start": 752.55, "ad_end": 939.9}'),
+    ]
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[], segments=HOLE_SEGMENTS,
+        episode_meta=_mock_episode_meta(), pass_num=1, pass_model='claude-test')
+    assert reviewer._llm_client.messages_create.call_count == 2
+    accepted = result.accepted_after_review[0]
+    assert accepted['start'] == 728.8
+    assert result.verdicts[0].verdict != 'adjust'
+
+
+def test_end_cannot_be_trimmed_into_an_untranscribed_tail():
+    segments = [_worded(900.0, 990.0, 'Try Acme free at acme.example today.')]
+    got = _reviewer()._clamp_proposed_bounds(
+        dict(_marker(), start=900.0, end=1000.0), 900.0, 990.0, 900.0, 1000.0, 60,
+        'show', 'ep1', segments=segments)
+    assert got == (900.0, 1000.0)
+
+
+def test_word_gap_inside_one_segment_is_shown_in_the_prompt():
+    words = [{'word': 'Acme', 'start': 100.0, 'end': 100.5},
+             {'word': 'deal', 'start': 110.5, 'end': 111.0}]
+    segments = [{'start': 100.0, 'end': 111.0, 'text': 'Acme deal', 'words': words}]
+    prompt = _reviewer()._build_user_prompt(
+        ad={'start': 100.0, 'end': 111.0}, segments=segments,
+        episode_meta=_mock_episode_meta(), pool='accepted')
+    assert '[100.50s-110.50s] (10.0 s of audio with no transcript)' in prompt

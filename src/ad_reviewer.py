@@ -703,8 +703,13 @@ def _hold_inward_edges(start: float, end: float, start_limits, end_limits,
 
 def _untranscribed_limits(index: TranscriptIndex, original_start: float,
                           original_end: float) -> tuple[list[float], list[float]]:
-    """Edge limits from transcript gaps of UNREVIEWABLE_GAP_SECONDS or more inside the span."""
-    inside = [(max(lo, original_start), min(hi, original_end)) for lo, hi in index.gaps]
+    """Edge limits from untranscribed stretches of UNREVIEWABLE_GAP_SECONDS or more inside the span."""
+    gaps = list(index.gaps)
+    units = index.end.units
+    if any(lo < original_end and hi > original_start for lo, hi in units):
+        # Audio before the first and after the last speech unit is untranscribed too.
+        gaps += [(original_start, units[0][0]), (index.end.max_his[-1], original_end)]
+    inside = [(max(lo, original_start), min(hi, original_end)) for lo, hi in gaps]
     inside = [(lo, hi) for lo, hi in inside if hi - lo >= UNREVIEWABLE_GAP_SECONDS]
     return [lo for lo, _hi in inside], [hi for _lo, hi in inside]
 
@@ -1578,6 +1583,7 @@ class AdReviewer:
                         max_shift,
                         episode_meta.get('slug'),
                         episode_meta.get('episode_id'),
+                        segments=segments, transcript_units=transcript_units,
                         hard_barriers=episode_meta.get('hard_barriers'),
                         min_conf=min_conf)
                     if _bounds_unchanged(new_start, new_end,
@@ -1702,6 +1708,7 @@ class AdReviewer:
             episode_meta=episode_meta,
             pool=pool,
             max_shift=max_shift,
+            transcript_units=transcript_units,
         )
         slug = episode_meta.get("slug")
         episode_id = episode_meta.get("episode_id")
@@ -2232,6 +2239,7 @@ class AdReviewer:
         episode_meta: dict,
         pool: str,
         max_shift: int = 60,
+        transcript_units=None,
     ) -> str:
         """Build the per-ad user prompt.
 
@@ -2252,7 +2260,8 @@ class AdReviewer:
         ])
         # Per-segment timestamps everywhere, context included (#695): the
         # system prompt's examples read trim boundaries out of context lines.
-        gaps = transcript_gaps(context_segments, UNREVIEWABLE_GAP_SECONDS)
+        # Same word-level gaps the clamp enforces.
+        gaps = (transcript_units or TranscriptIndex(segments)).gaps
         before_text = _timestamped_with_gaps(context_segments, gaps, context_start, start)
         ad_text = _timestamped_with_gaps(context_segments, gaps, start, end, closed=True)
         if not ad_text:

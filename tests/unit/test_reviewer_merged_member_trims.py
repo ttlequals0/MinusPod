@@ -35,6 +35,7 @@ def _mock_segments():
         {'start': 60.0, 'end': 120.0, 'text': 'before ad'},
         {'start': 120.0, 'end': 180.0, 'text': 'ad sponsor pitch'},
         {'start': 180.0, 'end': 240.0, 'text': 'after ad'},
+        {'start': 240.0, 'end': 300.0, 'text': 'more show content'},
     ]
 
 
