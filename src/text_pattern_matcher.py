@@ -110,6 +110,8 @@ def _segments_for_pattern_learning(segments, start, end):
 LEAD_TRIM_MAX_S = 10.0
 # Silence after a leading segment that marks it as a separate read's tail, not this read's opening.
 LEAD_TAIL_GAP_S = 1.0
+# Longest such tail segment: a closing line, not an unbranded opening of the read itself.
+LEAD_TAIL_MAX_S = 3.0
 _SENTENCE_END_RE = re.compile(r'[.!?]["\')\]]*$')
 
 
@@ -128,28 +130,27 @@ def _sentences(units: list[dict]) -> list[dict]:
 
 
 def _drop_paused_tail(sentences, segment_bounds, lo, sponsor_re):
-    """Drop leading whole segments before the first sponsor sentence when a pause follows them."""
+    """Drop one short leading segment before the first sponsor sentence when a pause follows it."""
     first_named = next((x['start'] for x in sentences if sponsor_re.search(x['text'])), None)
-    if first_named is None:
+    lead = min(((a, b) for a, b in segment_bounds if a >= lo - 0.01), default=None)
+    if first_named is None or lead is None or lead[1] > first_named + 0.01:
         return sentences
-    lead = sorted((a, b) for a, b in segment_bounds if a >= lo - 0.01 and b <= first_named + 0.01)
-    for _, last_end in reversed(lead):
-        following = min((a for a, _ in segment_bounds if a >= last_end - 0.01), default=None)
-        if (following is not None and following - last_end >= LEAD_TAIL_GAP_S
-                and last_end - lead[0][0] < LEAD_TRIM_MAX_S):
-            return [x for x in sentences if x['end'] > last_end + 0.01]
+    following = min((a for a, _ in segment_bounds if a >= lead[1] - 0.01), default=None)
+    if (following is not None and following - lead[1] >= LEAD_TAIL_GAP_S
+            and lead[1] - lead[0] <= LEAD_TAIL_MAX_S):
+        return [x for x in sentences if x['end'] > lead[1] + 0.01]
     return sentences
 
 
 def trim_piece_to_read(units, segment_bounds, lo, hi, sponsor_re, other_brand_res, handoff_re,
-                       trim_lead: bool) -> tuple[float, float, str] | None:
+                       trim_lead: bool, min_s: float = 0.0) -> tuple[float, float, str] | None:
     """A learned piece narrowed to its sponsor's own copy, or None when it never names the sponsor.
 
     trim_lead drops the previous read's short tail: the fragment of a segment the piece starts inside,
     or leading segments set off by a pause; after the last sponsor sentence, a handoff or another
-    read's brand ends the piece.
+    read's brand ends the piece. A trim that would leave the read under min_s is not applied.
     """
-    sentences = _sentences([u for u in units if u['end'] > lo and u['start'] < hi])
+    sentences = untrimmed = _sentences([u for u in units if u['end'] > lo and u['start'] < hi])
     # Only a piece starting inside a segment carries the previous read's tail.
     straddled = next((seg_end for seg_start, seg_end in segment_bounds
                       if seg_start < lo - 0.01 < seg_end), None)
@@ -168,6 +169,10 @@ def trim_piece_to_read(units, segment_bounds, lo, hi, sponsor_re, other_brand_re
         if handoff_re.match(text) or any(other.search(text) for other in other_brand_res):
             sentences = sentences[:i]
             break
+    if sentences[-1]['end'] - sentences[0]['start'] < min_s <= untrimmed[-1]['end'] - untrimmed[0]['start']:
+        logger.info(f"Keeping learned piece {lo:.1f}-{hi:.1f}s untrimmed: the trim would leave "
+                    f"{sentences[-1]['end'] - sentences[0]['start']:.1f}s, under the {min_s:.0f}s minimum")
+        sentences = untrimmed
     return (sentences[0]['start'], sentences[-1]['end'],
             ' '.join(x['text'] for x in sentences))
 
@@ -1625,7 +1630,8 @@ class TextPatternMatcher:
             other_res = [patterns[name] for name in others
                          if name != canonical_sponsor(piece_sponsor) and name in patterns]
             result = trim_piece_to_read(learning_segments, segment_bounds, piece_start, piece_end,
-                                        sponsor_re, other_res, HANDOFF_RE, trim_lead)
+                                        sponsor_re, other_res, HANDOFF_RE, trim_lead,
+                                        min_s=self._pattern_duration_bounds()[0])
             if result is None:
                 logger.info(f"Learned piece {piece_start:.1f}-{piece_end:.1f}s never names "
                             f"{piece_sponsor}; not learned")

@@ -80,3 +80,43 @@ def test_a_paused_tail_segment_before_a_single_read_is_trimmed(matcher):
           '_member_of': (731.1, 939.9, 'dai_differential')}
     created = _learn(matcher, segments, 829.4, 856.0, 'Ledgerly', ad)
     assert [(c['start'], c['end']) for c in created] == [(835.1, 856.0)]
+
+
+def _ledgerly_read(opener):
+    return [opener,
+            _segment((841.5, 848.0, 'Ledgerly keeps every invoice and receipt in one tidy place.')),
+            _segment((848.0, 856.0, 'Ledgerly sends the reminders so you never chase a payment.'))]
+
+
+AD_835 = {'start': 835.1, 'end': 856.0, '_cut_down': True,
+          '_member_of': (731.1, 939.9, 'dai_differential')}
+
+
+def test_an_unbranded_opener_followed_by_a_pause_is_kept(matcher):
+    """The read's own 4.9 s opener, then a 1.5 s pause, is not a previous read's tail."""
+    segments = _ledgerly_read(
+        _segment((835.1, 840.0, 'Running a small team means juggling a lot of paperwork.')))
+    created = _learn(matcher, segments, 835.1, 856.0, 'Ledgerly', AD_835)
+    assert [(c['start'], c['end']) for c in created] == [(835.1, 856.0)]
+
+
+def test_a_two_segment_lead_is_not_trimmed(matcher):
+    segments = [_segment((829.4, 832.4, 'Plans start small and grow.')),
+                _segment((832.4, 835.4, 'Cancel any time you like.')),
+                _segment((836.5, 848.0, 'Ledgerly keeps every invoice and receipt in one tidy place.')),
+                _segment((848.0, 856.0, 'Ledgerly sends the reminders so you never chase a payment.'))]
+    ad = dict(AD_835, start=829.4)
+    created = _learn(matcher, segments, 829.4, 856.0, 'Ledgerly', ad)
+    assert [(c['start'], c['end']) for c in created] == [(829.4, 856.0)]
+
+
+def test_a_trim_that_would_leave_the_read_too_short_is_not_applied(matcher, caplog):
+    # Without the floor, dropping the 1.9 s tail would leave a 14.9 s read under the 15 s minimum.
+    segments = [_segment((828.0, 829.9, 'Available on Plus and Pro plans.')),
+                _segment((831.1, 838.0, 'Ledgerly keeps every invoice in one place.')),
+                _segment((838.0, 846.0, 'Ledgerly sends the reminders so you never chase a payment.'))]
+    ad = dict(AD_835, start=828.0, end=846.0)
+    with caplog.at_level('INFO'):
+        created = _learn(matcher, segments, 828.0, 846.0, 'Ledgerly', ad)
+    assert [(c['start'], c['end']) for c in created] == [(828.0, 846.0)]
+    assert 'Keeping learned piece 828.0-846.0s untrimmed' in caplog.text
