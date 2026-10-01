@@ -1105,9 +1105,9 @@ def test_silence_floor_stops_at_hard_barriers(keep, proposal_end, expected):
 
 def _hole_segments(pause):
     return [
-        {'start': 700.0, 'end': 728.77, 'text': 'thank you to our patrons. Yay!'},
+        {'start': 700.0, 'end': 728.77, 'text': 'and that wraps up the listener mail. Great!'},
         {'start': 728.77 + pause, 'end': 800.0,
-         'text': 'And the best part? It integrates seamlessly with Acme.'},
+         'text': 'And the nicest thing? It works with Acme.'},
         {'start': 800.2, 'end': 939.9, 'text': 'Try Acme free at acme.example today.'},
         {'start': 941.0, 'end': 990.0, 'text': 'Okay so back to the show.'},
     ]
@@ -1121,7 +1121,7 @@ def test_user_prompt_names_untranscribed_audio_inside_the_candidate():
     gap_line = '[728.77s-752.55s] (23.8 s of audio with no transcript)'
     assert prompt.count(gap_line) == 1
     candidate = prompt.split('>>> CANDIDATE AD START [728.8s] >>>\n', 1)[1]
-    assert candidate.startswith(gap_line + '\n[752.5s-800.0s] And the best part?')
+    assert candidate.startswith(gap_line + '\n[752.5s-800.0s] And the nicest thing?')
 
 
 def test_user_prompt_has_no_gap_line_for_a_short_pause():
@@ -1134,4 +1134,4 @@ def test_user_prompt_has_no_gap_line_for_a_short_pause():
 
 def test_default_review_prompt_explains_untranscribed_audio():
     from database import DEFAULT_REVIEW_PROMPT
-    assert 'audio the transcript missed, not silence' in DEFAULT_REVIEW_PROMPT
+    assert 'may be speech the transcript missed; do not move an edge across it' in DEFAULT_REVIEW_PROMPT

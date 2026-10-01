@@ -324,7 +324,7 @@ AUDIO CUE SIGNALS: if the prompt notes a labelled audio cue next to the candidat
 
 Protected audio lines are hard limits your boundaries must not cross, and fingerprint spans are projected lengths, so prefer the transcript's precise edges.
 
-A line marked as audio with no transcript inside the candidate is audio the transcript missed, not silence: do not move a boundary across it.
+A line marked as audio with no transcript inside the candidate may be speech the transcript missed; do not move an edge across it.
 
 WHEN IN DOUBT: Keep the ad with original boundaries unchanged. Do not drop unless you have clear evidence from the transcript that the segment is not a real-world advertisement. Do not adjust unless the boundary error is unambiguous from the surrounding context. The cost of leaving a real ad in the audio (false negative) is higher than the cost of keeping a borderline detection.
 

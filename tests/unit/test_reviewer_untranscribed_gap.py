@@ -27,8 +27,8 @@ def _worded(start, end, text):
 
 
 HOLE_SEGMENTS = [
-    _worded(700.0, 728.77, 'and thank you to our patrons. Yay!'),
-    _worded(752.55, 800.0, 'And the best part? It integrates seamlessly with Acme.'),
+    _worded(700.0, 728.77, 'and that wraps up the listener mail. Great!'),
+    _worded(752.55, 800.0, 'And the nicest thing? It works with Acme.'),
     _worded(800.2, 937.8, 'Try Acme free at acme.example today.'),
     _worded(940.5, 1000.0, 'Okay so back to the show.'),
 ]
@@ -37,7 +37,7 @@ HOLE_SEGMENTS = [
 def _filled(pause):
     """The hole filled with speech ending `pause` seconds before 752.55."""
     return [HOLE_SEGMENTS[0],
-            _worded(729.0, 752.55 - pause, 'I used to be the person who hunched over my laptop.'),
+            _worded(729.0, 752.55 - pause, 'I kept losing my notes between meetings.'),
             *HOLE_SEGMENTS[1:]]
 
 
