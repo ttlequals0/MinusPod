@@ -16,6 +16,7 @@ from config import (
 from database.queue import PENDING_QUEUE_LIMIT
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 from utils.time import parse_iso_utc
+from transcriber import unload_whisper_if_idle
 from whisper_pool import get_pool
 # Singletons are bound in main_app/__init__.py before this submodule
 # is loaded by the explicit `from main_app.background import ...` at
@@ -613,6 +614,10 @@ def background_queue_processor():
                 shutdown_event.wait(timeout=backoff)
                 backoff = min(backoff * 2, 300)  # Max 5 minutes
             elif not claimed_any:
+                # An empty queue with no active run must not keep Whisper on the GPU.
+                if (nothing_to_claim and registry.slot_count() == 0
+                        and unload_whisper_if_idle()):
+                    refresh_logger.info("Processing queue idle; unloaded the Whisper model")
                 # No queued episodes, wait before checking again. Under a hold
                 # an empty claim means the scan just scored every pending row,
                 # so wait longer than the idle tick before repeating it.

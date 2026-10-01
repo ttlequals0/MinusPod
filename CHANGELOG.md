@@ -16,6 +16,7 @@ release notes.
 - A reviewer trim can no longer pull an ad edge away from a labelled boundary cue the edge was snapped to.
 - The review modal's sponsor is validated as a string, and frontend and backend regression tests cover it (follow-up to #805, reported in #804).
 - A focused control at the top of a settings section no longer has its focus ring clipped; the section body only clips while it is collapsing or expanding.
+- The Whisper model is unloaded from the GPU after the transcript repair passes and whenever the processing queue is empty, instead of staying resident until the next episode.
 
 ## [2.97.41] - 2026-09-30
 

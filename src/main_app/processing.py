@@ -577,12 +577,15 @@ def _repair_transcript(slug, episode_id, audio_path, segments, language_override
                        tried=()):
     """Hole then tail no-VAD repair. Returns (segments, added segments, empty holes)."""
     with _measure_run_stage('transcription'):
-        holes, empty = _retranscribe_holes_no_vad(
-            audio_path, segments, language_override, tried)
-        if holes:
-            segments = sorted(segments + holes, key=lambda seg: seg['start'])
-        tail = _retranscribe_tail_no_vad(
-            slug, episode_id, audio_path, segments, language_override)
+        try:
+            holes, empty = _retranscribe_holes_no_vad(
+                audio_path, segments, language_override, tried)
+            if holes:
+                segments = sorted(segments + holes, key=lambda seg: seg['start'])
+            tail = _retranscribe_tail_no_vad(
+                slug, episode_id, audio_path, segments, language_override)
+        finally:
+            transcriber.unload_after_repair()
     added = holes + tail
     _apply_transcript_corrections(slug, episode_id, added)
     return segments + tail, added, empty
