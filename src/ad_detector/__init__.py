@@ -42,7 +42,6 @@ from utils.markers import (
     finite_number,
     inherit_edge,
     invalidate_word_timed_edges,
-    MEASURED_EVIDENCE_STAGES,
     carve_fragment,
     learning_bounds,
     note_fold,
@@ -205,6 +204,9 @@ __all__ = [
 ]
 
 logger = logging.getLogger('podcast.claude')
+
+# Member stages whose span a learned pattern already covers.
+PATTERN_MATCH_STAGES = frozenset({'fingerprint', 'text_pattern'})
 
 
 class WindowResult(NamedTuple):
@@ -2781,9 +2783,9 @@ class AdDetector:
         members = recorded_member_spans(ad)
         if not members:
             return []
-        # Audio a pattern or a measured stage already explains is learned (and fingerprinted) there.
+        # Audio a pattern already explains is learned (and fingerprinted) there; cue pairs only bracket a break.
         measured = [m for m in members
-                    if m.get('pattern_id') is not None or m.get('stage') in MEASURED_EVIDENCE_STAGES]
+                    if m.get('pattern_id') is not None or m.get('stage') in PATTERN_MATCH_STAGES]
         candidates = []
         for member in members:
             if member.get('stage') != 'claude' or any(

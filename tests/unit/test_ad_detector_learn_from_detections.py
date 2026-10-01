@@ -208,3 +208,11 @@ def test_member_candidates_still_pass_the_sponsor_gates(detector):
         [_dai_marker([_claude_member(sponsor="Foobr")])], _segments(),
         podcast_id="podA", episode_id="ep1")
     detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
+
+
+@pytest.mark.parametrize("stage, learned", [("cue_pair", True), ("manual", True),
+                                           ("fingerprint", False)])
+def test_only_pattern_matches_explain_a_claude_member(detector, stage, learned):
+    marker = _dai_marker([_claude_member(), {"start": 731.1, "end": 939.9, "stage": stage}])
+    detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
+    assert detector.text_pattern_matcher.create_patterns_from_ad.called is learned
