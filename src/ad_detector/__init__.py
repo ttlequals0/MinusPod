@@ -53,7 +53,7 @@ from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
     scrub_description, strip_comments_from_prompt
 )
-from utils.text import truncate, word_boundary_re
+from utils.text import most_mentioned, truncate, word_boundary_re
 from utils.time import overlap_ratio, ranges_overlap
 
 from config import (
@@ -2840,16 +2840,17 @@ class AdDetector:
         return candidates
 
     def _cut_down_piece_sponsor(self, piece: dict, segments: list[dict]) -> str | None:
-        """A registry brand read inside the piece, else the member's sponsor when the piece names it."""
+        """The registry brand named most inside the piece, else the member's sponsor when the piece names it."""
         text = _interior_text(segments, piece['start'], piece['end'])
         if not text:
             return None
-        if self.sponsor_service:
-            found = self.sponsor_service.find_sponsor_in_text(text)
-            if found:
-                return canonical_sponsor(found)
         # Members are recorded before the marker's label is sanitized, so "Multiple" can reach here.
         named = sanitize_sponsor_label(piece.get('_member_sponsor'))
+        if self.sponsor_service:
+            brand, count = most_mentioned(self.sponsor_service.brand_mention_offsets(text))
+            # One passing mention (a common noun that is also a brand) is not the read's sponsor.
+            if brand and (count >= 2 or (named and brand.lower() == named.lower())):
+                return canonical_sponsor(brand)
         pattern = word_boundary_re([named]) if named else None
         if pattern is not None and pattern.search(text):
             return canonical_sponsor(named)

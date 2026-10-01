@@ -173,15 +173,18 @@ def build_split_pieces(spans: list[dict], start: float, end: float,
         text = ' '.join(span['text'] for span in in_piece)
         lo = in_piece[0]['offset'] if in_piece else 0
         hi = (in_piece[-1]['offset'] + len(in_piece[-1]['text'])) if in_piece else 0
-        # A piece naming exactly one known brand is that brand's read; two
-        # names leave it ambiguous, so the generic extractor answers instead.
-        named = [name for name, offsets in mentions.items()
-                 if any(lo <= offset < hi for offset in offsets)]
+        # A piece naming one brand, or repeating only one, is that brand's read: a
+        # passing mention of a second registry brand cannot outrank it. Two
+        # repeated brands are two reads, so the generic extractor answers.
+        named = {name: hits for name, offsets in mentions.items()
+                 if (hits := [o for o in offsets if lo <= o < hi])}
+        repeated = {name: hits for name, hits in named.items() if len(hits) >= 2}
+        brand = (next(iter(named)) if len(named) == 1
+                 else next(iter(repeated)) if len(repeated) == 1 else None)
         pieces.append({
             'start': piece_start,
             'end': piece_end,
             'text': text,
-            'sponsor': (named[0] if len(named) == 1
-                        else SponsorService.extract_sponsor_from_text(text) or None),
+            'sponsor': brand or SponsorService.extract_sponsor_from_text(text) or None,
         })
     return pieces

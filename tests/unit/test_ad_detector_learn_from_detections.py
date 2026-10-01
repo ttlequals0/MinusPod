@@ -6,6 +6,7 @@ import pytest
 from ad_detector import AdDetector
 from ad_validator import AdValidator
 from utils.markers import mark_distinct_merge
+from utils.text import pattern_offsets, word_boundary_re
 
 
 @pytest.fixture
@@ -20,8 +21,16 @@ def detector():
     det.sponsor_service = MagicMock()
     det.sponsor_service.get_sponsors = MagicMock(return_value=[])
     det.sponsor_service.find_sponsor_in_text = MagicMock(return_value=False)
+    det.sponsor_service.brand_mention_offsets = MagicMock(return_value={})
     det.audio_fingerprinter = None
     return det
+
+
+def _registry(detector, *names):
+    """Make the mocked sponsor registry know `names` and count their mentions like the real one."""
+    patterns = {name: word_boundary_re([name]) for name in names}
+    detector.sponsor_service.brand_mention_offsets.side_effect = (
+        lambda text: pattern_offsets(text, patterns))
 
 
 def _segments():
@@ -194,17 +203,17 @@ def test_a_piece_shorter_than_the_minimum_is_dropped():
 
 
 def test_a_cut_down_piece_takes_its_sponsor_from_its_own_text(detector):
-    detector.sponsor_service.find_sponsor_in_text.side_effect = (
-        lambda text: "NewBrand" if "Xero" in text else None)
+    _registry(detector, "Xero", "KnownBrand")
     marker = _dai_marker([
         _claude_member(sponsor="KnownBrand"),
         {"start": 800.0, "end": 937.8, "stage": "fingerprint", "pattern_id": 2},
     ])
-    segments = [{"start": 731.1, "end": 800.0, "text": "Xero is the accounting platform."}]
+    segments = [{"start": 731.1, "end": 800.0,
+                 "text": "Xero is the accounting platform. Try Xero today."}]
     detector.learn_from_detections([marker], segments, podcast_id="podA", episode_id="ep1")
     call = detector.text_pattern_matcher.create_patterns_from_ad.call_args
     assert (call.kwargs["start"], call.kwargs["end"]) == (731.1, 800.0)
-    assert call.kwargs["sponsor"] == "NewBrand"
+    assert call.kwargs["sponsor"] == "Xero"
 
 
 def test_a_claude_member_below_the_floor_is_not_learned(detector):
@@ -285,8 +294,7 @@ def _cut_down_marker(sponsor):
 
 def test_the_removed_read_does_not_name_the_new_piece(detector):
     """The known read's last segment ends exactly at the piece start and names the known brand."""
-    detector.sponsor_service.find_sponsor_in_text.side_effect = (
-        lambda text: "KnownBrand" if "KnownBrand" in text else None)
+    _registry(detector, "KnownBrand")
     segments = [{"start": 790.0, "end": 800.0, "text": "KnownBrand sale ends soon."},
                 {"start": 800.5, "end": 930.0, "text": "A new read about something else entirely."}]
     detector.learn_from_detections([_cut_down_marker("KnownBrand")], segments,
@@ -295,7 +303,6 @@ def test_the_removed_read_does_not_name_the_new_piece(detector):
 
 
 def test_a_cut_down_piece_keeps_the_member_sponsor_it_names(detector):
-    detector.sponsor_service.find_sponsor_in_text.return_value = None
     segments = [{"start": 801.0, "end": 930.0, "text": "This part is brought to you by NewBrand Labs."}]
     detector.learn_from_detections([_cut_down_marker("NewBrand Labs")], segments,
                                    podcast_id="podA", episode_id="ep1")
@@ -314,8 +321,7 @@ def test_a_whole_member_does_not_use_the_transcript_fallback(detector):
 
 
 def test_an_untimed_segment_straddling_the_piece_start_adds_nothing(detector):
-    detector.sponsor_service.find_sponsor_in_text.side_effect = (
-        lambda text: "KnownBrand" if "KnownBrand" in text else None)
+    _registry(detector, "KnownBrand")
     segments = [{"start": 780.0, "end": 830.0, "text": "KnownBrand ends. New read here."}]
     detector.learn_from_detections([_cut_down_marker("KnownBrand")], segments,
                                    podcast_id="podA", episode_id="ep1")
@@ -323,8 +329,35 @@ def test_an_untimed_segment_straddling_the_piece_start_adds_nothing(detector):
 
 
 def test_a_placeholder_member_label_is_not_a_sponsor(detector):
-    detector.sponsor_service.find_sponsor_in_text.return_value = None
     segments = [{"start": 801.0, "end": 930.0, "text": "Try multiple flavors this week."}]
     detector.learn_from_detections([_cut_down_marker("Multiple")], segments,
                                    podcast_id="podA", episode_id="ep1")
     detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
+
+
+def _piece_sponsor(detector, text, member_sponsor=None):
+    piece = {"start": 800.0, "end": 937.8, "_cut_down": True, "_member_sponsor": member_sponsor}
+    return detector._cut_down_piece_sponsor(piece, [{"start": 801.0, "end": 930.0, "text": text}])
+
+
+def test_the_most_named_brand_beats_a_passing_registry_noun(detector):
+    _registry(detector, "Headspace", "Acme Wash")
+    text = ("They take up our headspace. Acme Wash is a premium laundry service. "
+            "Acme Wash picks up and delivers. Try Acme Wash today.")
+    assert _piece_sponsor(detector, text) == "Acme Wash"
+
+
+def test_a_single_passing_brand_mention_is_not_a_sponsor(detector):
+    _registry(detector, "Headspace")
+    assert _piece_sponsor(detector, "Free up some headspace this week.") is None
+
+
+def test_a_single_mention_counts_when_it_is_the_member_sponsor(detector):
+    _registry(detector, "Acme Wash")
+    assert _piece_sponsor(detector, "Acme Wash picks up laundry.", "Acme Wash") == "Acme Wash"
+
+
+def test_a_mention_tie_goes_to_the_earliest_brand(detector):
+    _registry(detector, "Globex Foods", "Acme Wash")
+    text = "Acme Wash is great. Globex Foods too. Acme Wash again. Globex Foods again."
+    assert _piece_sponsor(detector, text) == "Acme Wash"

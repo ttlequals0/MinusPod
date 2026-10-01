@@ -307,3 +307,12 @@ class TestPiecesNamedByBrand:
         assert [p['sponsor'] for p in split] == ['Acme', 'Beta Corp']
         # Two brands in one piece is ambiguous: the generic extractor answers.
         assert whole[0]['sponsor'] is None
+
+
+def test_a_piece_takes_the_brand_it_names_most():
+    """A passing registry noun ("headspace") must not outrank the read's own brand."""
+    vtt = _vtt((100.0, 160.0, 'They take up our headspace. Acme Wash is a premium laundry. '
+                              'Acme Wash picks up and delivers. Try Acme Wash today.'))
+    spans = _spans(vtt, 100.0, 160.0)
+    pieces = build_split_pieces(spans, 100.0, 160.0, [], brands=['Headspace', 'Acme Wash'])
+    assert pieces[0]['sponsor'] == 'Acme Wash'
