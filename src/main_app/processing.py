@@ -539,11 +539,9 @@ _NOVAD_LABELS = {'novad_tail': 'Tail', 'novad_hole': 'Hole'}
 
 def _retranscribe_span_no_vad(slug, episode_id, audio_path, start, end,
                               language_override, flag, quiet_db=None):
-    """Re-transcribe start-end of the episode without VAD on the sequential decoder.
+    """Best-effort no-VAD sequential re-transcription of start-end; offset segments flagged `flag`, or None.
 
-    Returns the offset segments flagged `flag`, or None when nothing usable
-    came back. With quiet_db set, a chunk whose mean volume is below it (or
-    unreadable) is skipped. Best-effort: failures are logged, never raised.
+    With quiet_db set, a chunk whose mean volume is below it (or unreadable) is skipped.
     """
     label = _NOVAD_LABELS[flag]
     try:
@@ -643,12 +641,9 @@ def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
 
 def _retranscribe_holes_no_vad(slug, episode_id, audio_path, segments,
                                language_override):
-    """Re-transcribe mid-episode stretches with no segment, without VAD.
+    """Re-transcribe segment gaps the batched decoder skipped, without VAD. Returns (segments, holes_added).
 
-    The batched decoder can skip speech inside a VAD region, leaving a hole
-    the detector and reviewer never see. Holes use the VAD gap detector's
-    mid-episode threshold; recovered segments are flagged novad_hole=True.
-    Returns (segments, holes_added).
+    Holes use the VAD gap detector's mid-episode threshold; recovered segments get novad_hole=True.
     """
     if len(segments) < 2:
         return segments, False

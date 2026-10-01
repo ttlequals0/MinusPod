@@ -1,9 +1,6 @@
 """Reviewer trims stay out of untranscribed audio.
 
-One episode: the batched decoder skipped 728.77s-752.55s, the opening of a
-sponsor read. The VAD gap detector merged the hole into the LLM ad, and the
-reviewer moved the start back to the first transcribed word at 752.55s,
-shipping 23.8 s of the ad.
+Production shape: a merged 728.77s-752.55s hole let the reviewer move the start to 752.55s.
 """
 from tests.app_bootstrap import bootstrap
 

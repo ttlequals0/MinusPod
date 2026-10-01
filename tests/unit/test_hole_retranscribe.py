@@ -1,8 +1,6 @@
-"""Mid-episode untranscribed holes are re-transcribed without VAD.
+"""Mid-episode holes the batched decoder skipped are re-transcribed without VAD.
 
-The batched decoder can skip the start of a clip inside a VAD region, so a
-sponsor read opening (728.77s-752.55s in one episode) never reached the
-transcript. The hole pass re-runs such stretches on the sequential decoder.
+Production shape: a sponsor read opening at 728.77s-752.55s never reached the transcript.
 """
 import os
 import sys
