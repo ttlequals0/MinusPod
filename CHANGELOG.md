@@ -19,8 +19,8 @@ release notes.
 
 ### Fixed
 - Speech that Whisper's batched decoder skipped inside an episode is re-transcribed without voice detection before detection runs, in both passes. A sponsor read whose opening never reached the transcript is now seen by the detector, the text patterns and the reviewer. The repaired pass-1 transcript is saved, and a hole that held no speech is not tried again on reprocess.
-- The reviewer can no longer move an ad edge across 8 s or more of untranscribed audio inside the ad. This applies to every ad and to the trim offered on a held ad.
-- The reviewer prompt names every untranscribed stretch inside a candidate instead of showing nothing there.
+- The reviewer can no longer move an ad edge across 8 s or more of untranscribed audio inside the ad. This also covers the trim offered on a held ad. Untranscribed audio at the start or end of an ad counts for every ad that contains transcribed speech; gaps between transcribed words count for every ad.
+- The reviewer prompt names every untranscribed stretch between transcribed words inside a candidate instead of showing nothing there. Stretches at the start or end of a candidate are not listed, though the edge rule still applies to them.
 
 ## [2.97.40] - 2026-09-30
 
