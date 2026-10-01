@@ -1822,8 +1822,9 @@ class Transcriber:
                                quiet_db: float | None = None) -> tuple[list[dict] | None, str | None]:
         """Sequential no-VAD decode of start-end. Returns (offset segments flagged `flag` or None, empty_reason).
 
-        empty_reason is 'quiet' or 'no_speech' when the span reliably holds nothing. With
-        quiet_db set, a span whose mean volume is below it (or unreadable) is skipped before extraction.
+        empty_reason is 'quiet', 'unreadable' or 'no_speech' when the span should not be retried.
+        With quiet_db set, a span below it (or with an unreadable volume) is skipped before extraction.
+        ModelLoadError propagates; other failures return (None, None).
         """
         label = _NOVAD_LABELS[flag]
         prefix = _log_prefix()
@@ -1832,7 +1833,7 @@ class Transcriber:
             if volume is None or volume < quiet_db:
                 reading = 'unreadable' if volume is None else f'{volume:.1f} dB'
                 logger.info(f"{prefix}{label} {start:.1f}s-{end:.1f}s mean volume {reading}; skipping")
-                return None, None if volume is None else 'quiet'
+                return None, 'unreadable' if volume is None else 'quiet'
         try:
             chunk_path = extract_audio_chunk(audio_path, start, end)
         except AudioExtractionTimeout as e:
@@ -1843,6 +1844,8 @@ class Transcriber:
             return None, None
         try:
             new_segments = self._transcribe_sequential(chunk_path, language_override)
+        except ModelLoadError:
+            raise
         except Exception as e:
             logger.warning(f"{prefix}{label} re-transcription failed; "
                            f"proceeding without {label.lower()}: {e}")

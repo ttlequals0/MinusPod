@@ -13,9 +13,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 import main_app.processing as processing
 import transcriber as transcriber_mod
 from transcriber import Transcriber
+from utils.errors import ModelLoadError
 
 
 def _seg(start, end, text):
@@ -87,11 +90,19 @@ def test_quiet_hole_is_recorded_without_extraction(tmp_path):
     assert empty == [{'start': 728.77, 'end': 752.55, 'reason': 'quiet'}]
 
 
-def test_unreadable_volume_is_skipped_unrecorded(tmp_path):
+def test_unreadable_volume_is_recorded_so_it_is_not_reprobed(tmp_path):
     added, empty, decode, chunks, _ = _repair(
         tmp_path, _production_shape(), [_seg(0.0, 5.0, 'x')], volume=None)
-    assert (added, empty, chunks) == ([], [], [])
+    assert (added, chunks) == ([], [])
     decode.assert_not_called()
+    assert empty == [{'start': 728.77, 'end': 752.55, 'reason': 'unreadable'}]
+
+
+def test_model_load_failure_propagates_but_other_errors_do_not(tmp_path):
+    with pytest.raises(ModelLoadError):
+        _repair(tmp_path, _production_shape(), ModelLoadError('no model'))
+    added, empty, _, _, _ = _repair(tmp_path, _production_shape(), RuntimeError('boom'))
+    assert (added, empty) == ([], [])
 
 
 def test_hole_count_cap_keeps_the_largest(tmp_path):
