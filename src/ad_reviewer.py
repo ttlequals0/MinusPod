@@ -678,6 +678,30 @@ def _end_capped_floor(ix: _EdgeIndex, independent, proposed: float, floor: float
     return capped
 
 
+def _untranscribed_gaps(lines: list[dict]) -> list[tuple[float, float]]:
+    """Stretches of UNREVIEWABLE_GAP_SECONDS or more between consecutive transcript lines."""
+    gaps, covered = [], None
+    for line in lines:
+        if covered is not None and line['start'] - covered >= UNREVIEWABLE_GAP_SECONDS:
+            gaps.append((covered, line['start']))
+        covered = line['end'] if covered is None else max(covered, line['end'])
+    return gaps
+
+
+def _timestamped_with_gaps(lines: list[dict], gaps, lo: float, hi: float,
+                           closed: bool = False) -> str:
+    """Timestamped transcript for [lo, hi] plus a note for each gap centred in it."""
+    mine = [(g_lo, g_hi) for g_lo, g_hi in gaps
+            if lo <= (g_lo + g_hi) / 2 < hi or (closed and (g_lo + g_hi) / 2 == hi)]
+    if not mine:
+        return get_timestamped_transcript_for_range(lines, lo, hi)
+    rendered = [(ln['start'], get_timestamped_transcript_for_range([ln], lo, hi))
+                for ln in lines]
+    rendered += [(g_lo, f"[{g_lo:.2f}s-{g_hi:.2f}s] ({g_hi - g_lo:.1f} s of audio "
+                        f"with no transcript)") for g_lo, g_hi in mine]
+    return '\n'.join(text for _, text in sorted(rendered, key=lambda item: item[0]) if text)
+
+
 def _floor_source(floor: float, proposed: float, core_edge: float) -> str:
     """Name what stopped a reviewer edge, for the DAI core clamp log."""
     if floor == proposed:
@@ -2197,15 +2221,13 @@ class AdReviewer:
         ])
         # Per-segment timestamps everywhere, context included (#695): the
         # system prompt's examples read trim boundaries out of context lines.
-        before_text = get_timestamped_transcript_for_range(
-            context_segments, context_start, start
-        )
-        ad_text = get_timestamped_transcript_for_range(context_segments, start, end)
+        gaps = _untranscribed_gaps(context_segments)
+        before_text = _timestamped_with_gaps(context_segments, gaps, context_start, start)
+        ad_text = _timestamped_with_gaps(context_segments, gaps, start, end, closed=True)
         if not ad_text:
             fallback = ad.get("end_text", "") or ""
             ad_text = f"[{start:.1f}s-{end:.1f}s] {fallback}" if fallback else ""
-        after_text = get_timestamped_transcript_for_range(
-            context_segments, end, context_end)
+        after_text = _timestamped_with_gaps(context_segments, gaps, end, context_end)
         start_words = get_timestamped_words_for_range(
             segments, max(0.0, start - max_shift), start + max_shift)
         end_words = get_timestamped_words_for_range(

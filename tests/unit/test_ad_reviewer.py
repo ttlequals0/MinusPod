@@ -1101,3 +1101,37 @@ def test_silence_floor_stops_at_hard_barriers(keep, proposal_end, expected):
     assert _build_reviewer()._clamp_proposed_bounds(
         ad, 815.6, proposal_end, 792.6, 1002.8, 60.0, 'slug', 'ep', segments=[],
         hard_barriers=[keep] if keep else None) == expected
+
+
+def _hole_segments(pause):
+    return [
+        {'start': 700.0, 'end': 728.77, 'text': 'thank you to our patrons. Yay!'},
+        {'start': 728.77 + pause, 'end': 800.0,
+         'text': 'And the best part? It integrates seamlessly with Acme.'},
+        {'start': 800.2, 'end': 939.9, 'text': 'Try Acme free at acme.example today.'},
+        {'start': 941.0, 'end': 990.0, 'text': 'Okay so back to the show.'},
+    ]
+
+
+def test_user_prompt_names_untranscribed_audio_inside_the_candidate():
+    reviewer = _build_reviewer({'review_prompt': 'review'})
+    prompt = reviewer._build_user_prompt(
+        ad={'start': 728.8, 'end': 939.9}, segments=_hole_segments(752.55 - 728.77),
+        episode_meta=_mock_episode_meta(), pool='accepted')
+    gap_line = '[728.77s-752.55s] (23.8 s of audio with no transcript)'
+    assert prompt.count(gap_line) == 1
+    candidate = prompt.split('>>> CANDIDATE AD START [728.8s] >>>\n', 1)[1]
+    assert candidate.startswith(gap_line + '\n[752.5s-800.0s] And the best part?')
+
+
+def test_user_prompt_has_no_gap_line_for_a_short_pause():
+    reviewer = _build_reviewer({'review_prompt': 'review'})
+    prompt = reviewer._build_user_prompt(
+        ad={'start': 728.8, 'end': 939.9}, segments=_hole_segments(2.0),
+        episode_meta=_mock_episode_meta(), pool='accepted')
+    assert 'with no transcript' not in prompt
+
+
+def test_default_review_prompt_explains_untranscribed_audio():
+    from database import DEFAULT_REVIEW_PROMPT
+    assert 'audio the transcript missed, not silence' in DEFAULT_REVIEW_PROMPT
