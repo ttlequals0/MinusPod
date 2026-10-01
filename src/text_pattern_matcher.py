@@ -108,6 +108,8 @@ def _segments_for_pattern_learning(segments, start, end):
 
 # Leading sentences of the previous read shorter than this are dropped from a learned piece.
 LEAD_TRIM_MAX_S = 10.0
+# Silence after a leading segment that marks it as a separate read's tail, not this read's opening.
+LEAD_TAIL_GAP_S = 1.0
 _SENTENCE_END_RE = re.compile(r'[.!?]["\')\]]*$')
 
 
@@ -125,12 +127,27 @@ def _sentences(units: list[dict]) -> list[dict]:
              'text': ' '.join(u['text'] for u in group)} for group in sentences]
 
 
+def _drop_paused_tail(sentences, segment_bounds, lo, sponsor_re):
+    """Drop leading whole segments before the first sponsor sentence when a pause follows them."""
+    first_named = next((x['start'] for x in sentences if sponsor_re.search(x['text'])), None)
+    if first_named is None:
+        return sentences
+    lead = sorted((a, b) for a, b in segment_bounds if a >= lo - 0.01 and b <= first_named + 0.01)
+    for _, last_end in reversed(lead):
+        following = min((a for a, _ in segment_bounds if a >= last_end - 0.01), default=None)
+        if (following is not None and following - last_end >= LEAD_TAIL_GAP_S
+                and last_end - lead[0][0] < LEAD_TRIM_MAX_S):
+            return [x for x in sentences if x['end'] > last_end + 0.01]
+    return sentences
+
+
 def trim_piece_to_read(units, segment_bounds, lo, hi, sponsor_re, other_brand_res, handoff_re,
                        trim_lead: bool) -> tuple[float, float, str] | None:
     """A learned piece narrowed to its sponsor's own copy, or None when it never names the sponsor.
 
-    trim_lead drops a short opening fragment of the segment the piece starts inside (the previous
-    read's tail); after the last sponsor sentence, a handoff or another read's brand ends the piece.
+    trim_lead drops the previous read's short tail: the fragment of a segment the piece starts inside,
+    or leading segments set off by a pause; after the last sponsor sentence, a handoff or another
+    read's brand ends the piece.
     """
     sentences = _sentences([u for u in units if u['end'] > lo and u['start'] < hi])
     # Only a piece starting inside a segment carries the previous read's tail.
@@ -141,6 +158,8 @@ def trim_piece_to_read(units, segment_bounds, lo, hi, sponsor_re, other_brand_re
         if (lead and lead[-1]['end'] - lead[0]['start'] < LEAD_TRIM_MAX_S
                 and not any(sponsor_re.search(x['text']) for x in lead)):
             sentences = sentences[len(lead):]
+    elif trim_lead:
+        sentences = _drop_paused_tail(sentences, segment_bounds, lo, sponsor_re)
     naming = [i for i, x in enumerate(sentences) if sponsor_re.search(x['text'])]
     if not naming:
         return None

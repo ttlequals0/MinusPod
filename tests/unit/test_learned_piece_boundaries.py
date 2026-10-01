@@ -7,7 +7,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from text_pattern_matcher import TextPatternMatcher
-from tests.unit.bundled_read_fixture import BRANDS, SEGMENTS, _segment
+from tests.unit.bundled_read_fixture import BRANDS, SEGMENTS, SEGMENTS_OWN_TAIL, _segment
 
 PIECE = {'start': 829.4, 'end': 937.8, '_cut_down': True, '_member_of': (731.1, 939.9, 'dai_differential'),
          'dai_core_spans': [{'start': 855.88, 'end': 874.03}, {'start': 874.77, 'end': 937.8}]}
@@ -62,4 +62,21 @@ def test_a_piece_starting_on_a_segment_boundary_keeps_its_opening_sentence(match
     ad = {'start': 835.1, 'end': 856.0, '_cut_down': True,
           '_member_of': (731.1, 939.9, 'dai_differential')}
     created = _learn(matcher, segments, 835.1, 856.0, 'Ledgerly', ad)
+    assert [(c['start'], c['end']) for c in created] == [(835.1, 856.0)]
+
+
+def test_a_bundled_block_with_the_tail_as_its_own_segment_still_learns_each_read(matcher):
+    created = _learn(matcher, SEGMENTS_OWN_TAIL, 829.4, 937.8, 'Ledgerly', PIECE)
+    assert [(c['start'], c['end']) for c in created] == [
+        (835.1, 860.0), (860.8, 908.4), (909.5, 937.8)]
+
+
+def test_a_paused_tail_segment_before_a_single_read_is_trimmed(matcher):
+    segments = [_segment((830.4, 832.3, 'Available on Plus and Pro plans.')),
+                _segment((835.1, 840.0, 'Running a small team means juggling a lot of paperwork.'),
+                         (840.0, 848.0, 'Ledgerly keeps every invoice and receipt in one tidy place.')),
+                _segment((848.0, 856.0, 'Ledgerly sends the reminders so you never chase a payment.'))]
+    ad = {'start': 829.4, 'end': 856.0, '_cut_down': True,
+          '_member_of': (731.1, 939.9, 'dai_differential')}
+    created = _learn(matcher, segments, 829.4, 856.0, 'Ledgerly', ad)
     assert [(c['start'], c['end']) for c in created] == [(835.1, 856.0)]

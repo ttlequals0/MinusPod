@@ -35,3 +35,10 @@ SEGMENTS = [
     _segment((928.0, 937.8, 'Order Globex Foods tonight and skip the grocery run.')),
     _segment((941.0, 960.0, 'Okay we are back with the rest of the show today.')),
 ]
+
+# The known read's last sentence as its own segment, then a pause before read A.
+SEGMENTS_OWN_TAIL = [
+    _segment((815.0, 829.4, 'Known Tool keeps your notes in sync across every device you own.')),
+    _segment((830.4, 832.3, 'Available on Plus and Pro plans.')),
+    *SEGMENTS[1:],
+]

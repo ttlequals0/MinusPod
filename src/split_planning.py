@@ -18,8 +18,8 @@ from utils.constants import MIN_BRAND_MATCH_CHARS
 from utils.markers import DAI_CORE_SPANS, MERGED_MEMBER_SPANS, finite_number
 from utils.text import pattern_offsets, word_boundary_re
 
-# A host opening a new read: "Hey, this is Sam from ...", "I'm Sam and ...", or a sponsor credit.
-# "thanks to" also closes a read ("thanks to Acme for supporting the show"), so it opens none here.
+# A host opening a new read: "(Hey,) this is <Name> from ..." or a sponsor credit phrase other than
+# "thanks to", which also closes reads ("thanks to Acme for supporting the show").
 HANDOFF_RE = re.compile(
     r"^\W*(?:(?:hey|hi|hello)\W+)?this is\s+(?-i:[A-Z][\w.'-]*)(?:\s+(?-i:[A-Z][\w.'-]*)){0,2}"
     r"\s+from\b|^\W*(?:" + '|'.join(
