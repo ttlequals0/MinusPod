@@ -113,3 +113,59 @@ def test_learning_skips_silent_remainder_cut_with_the_ad(detector):
 
     call = detector.text_pattern_matcher.create_patterns_from_ad.call_args
     assert (call.kwargs["start"], call.kwargs["end"]) == (100.0, 160.0)
+
+
+def _dai_marker(members):
+    return {"start": 731.1, "end": 939.9, "was_cut": True, "confidence": 0.9,
+            "detection_stage": "dai_differential", "category": "sponsor",
+            "reason": "Dynamically inserted: audio differs across fetches",
+            "merged_distinct_ads": True, "merged_member_spans": members}
+
+
+def _claude_member(confidence=0.97, sponsor="LongerName", start=731.1, end=937.8):
+    return {"start": start, "end": end, "stage": "claude", "confidence": confidence,
+            "sponsor": sponsor}
+
+
+def test_claude_member_of_a_dai_marker_is_learned_on_its_own_span(detector, caplog):
+    member = _claude_member()
+    with caplog.at_level("INFO", logger="podcast.claude"):
+        detector.learn_from_detections(
+            [_dai_marker([member, {"start": 731.1, "end": 939.9, "stage": "dai_differential"}])],
+            _segments(), podcast_id="podA", episode_id="ep1")
+    call = detector.text_pattern_matcher.create_patterns_from_ad.call_args
+    assert call is not None
+    assert (call.kwargs["start"], call.kwargs["end"]) == (731.1, 937.8)
+    assert call.kwargs["sponsor"] == "LongerName"
+    # The splitter sees the member candidate, not the merged marker.
+    assert call.kwargs["ad"]["detection_stage"] == "claude"
+    assert "Learning from claude member 731.1s-937.8s" in caplog.text
+
+
+def test_member_span_is_clipped_to_the_marker_bounds(detector):
+    marker = _dai_marker([_claude_member(start=700.0, end=950.0)])
+    marker["end"] = 930.0  # a reviewer trim
+    detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
+    call = detector.text_pattern_matcher.create_patterns_from_ad.call_args
+    assert (call.kwargs["start"], call.kwargs["end"]) == (731.1, 930.0)
+
+
+@pytest.mark.parametrize("members", [
+    [{"start": 731.1, "end": 939.9, "stage": "dai_differential"},
+     {"start": 800.0, "end": 860.0, "stage": "fingerprint", "pattern_id": 3},
+     {"start": 870.0, "end": 900.0, "stage": "text_pattern", "pattern_id": 4}],
+    [_claude_member(confidence=0.5)],
+])
+def test_no_learning_without_a_qualifying_claude_member(detector, caplog, members):
+    with caplog.at_level("DEBUG", logger="podcast.claude"):
+        detector.learn_from_detections(
+            [_dai_marker(members)], _segments(), podcast_id="podA", episode_id="ep1")
+    detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
+    assert "Skipping pattern learning for dai_differential marker" in caplog.text
+
+
+def test_member_candidates_still_pass_the_sponsor_gates(detector):
+    detector.learn_from_detections(
+        [_dai_marker([_claude_member(sponsor="Foobr")])], _segments(),
+        podcast_id="podA", episode_id="ep1")
+    detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()

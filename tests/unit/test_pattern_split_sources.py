@@ -251,3 +251,28 @@ def test_same_label_members_still_learn_one_pattern(db):
              'sponsor': 'acme tools', 'category': 'sponsor'},
         ]})
     assert [(round(c['start']), round(c['end'])) for c in created] == [(0, 90)]
+
+
+def test_a_claude_member_of_a_dai_marker_is_split_and_learned(db):
+    from ad_detector import AdDetector
+    detector = AdDetector(api_key='test-key')
+    detector.db = db
+    detector.text_pattern_matcher = TextPatternMatcher(db=db)
+    detector.sponsor_service = None
+    detector.audio_fingerprinter = None
+    marker = {
+        'start': 0.0, 'end': 191.0, 'was_cut': True, 'confidence': 0.9,
+        'detection_stage': 'dai_differential', 'category': 'sponsor',
+        'merged_distinct_ads': True,
+        'merged_member_spans': [
+            {'start': 0.0, 'end': 191.0, 'stage': 'claude', 'confidence': 0.97,
+             'sponsor': 'Acme Tools'},
+            {'start': 0.0, 'end': 191.0, 'stage': 'dai_differential'},
+        ],
+    }
+    learned = detector.learn_from_detections(
+        [marker], _two_brand_segments(), podcast_id='example-podcast',
+        episode_id='a1b2c3d4e5f6')
+    assert learned == 1
+    sponsors = {p['sponsor'] for p in db.get_ad_patterns(podcast_id='example-podcast')}
+    assert sponsors == {'Acme Tools', 'Beta Corp'}
