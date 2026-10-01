@@ -21,17 +21,8 @@ from utils.markers import (DAI_PROBE_SPANS, EDGE_TOLERANCE, carve_fragment,
                            reviewer_edge_locked, reviewer_independent_spans, TimedWords)
 from tests.unit.marker_test_utils import _ad
 from tests.unit.pipeline_test_utils import _run_pipeline
-from tests.unit.reviewer_test_utils import _LLMResp, _reviewer
+from tests.unit.reviewer_test_utils import _LLMResp, _reviewer, _worded
 
-
-def _worded(start, end, text):
-    """Segment with its tokens spread evenly over [start, end] as timed words."""
-    tokens = text.split()
-    step = (end - start) / len(tokens)
-    words = [{'word': w, 'start': round(start + i * step, 2),
-              'end': round(start + (i + 1) * step, 2)} for i, w in enumerate(tokens)]
-    words[-1]['end'] = end
-    return {'start': start, 'end': end, 'text': text, 'words': words}
 
 
 SEGMENTS = [

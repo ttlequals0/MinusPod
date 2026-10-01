@@ -1,8 +1,4 @@
-"""A reviewer trim may not pull an edge away from the labelled boundary cue it was snapped to.
-
-Production shape: end snapped to a template ad-break cue at 1897.65 s; the reviewer proposed
-1895.0, the last host word, and released a sponsor tagline the transcript never caught.
-"""
+"""A reviewer trim may not pull an edge away from the labelled boundary cue it was snapped to."""
 from tests.app_bootstrap import bootstrap
 
 bootstrap('reviewer_boundary_cue_floor_test_')
@@ -10,16 +6,8 @@ bootstrap('reviewer_boundary_cue_floor_test_')
 from main_app import processing
 from utils.markers import DAI_PROBE_SPANS
 from tests.unit.pipeline_test_utils import _run_pipeline
-from tests.unit.reviewer_test_utils import _LLMResp, _reviewer
+from tests.unit.reviewer_test_utils import _LLMResp, _reviewer, _worded
 
-
-def _worded(start, end, text):
-    tokens = text.split()
-    step = (end - start) / len(tokens)
-    words = [{'word': w, 'start': round(start + i * step, 2),
-              'end': round(start + (i + 1) * step, 2)} for i, w in enumerate(tokens)]
-    words[-1]['end'] = end
-    return {'start': start, 'end': end, 'text': text, 'words': words}
 
 
 SEGMENTS = [
@@ -85,5 +73,5 @@ def test_pipeline_renders_the_cut_to_the_cue(monkeypatch):
 def test_recovered_hold_bounds_respect_the_cue():
     import ad_reviewer
     index = ad_reviewer.TranscriptIndex(SEGMENTS)
-    assert ad_reviewer._hold_untranscribed_and_silence(
+    assert ad_reviewer._hold_inward_limits(
         _marker(), 1816.0, 1895.0, 1816.0, 1897.6, index, []) == (1816.0, 1897.6)

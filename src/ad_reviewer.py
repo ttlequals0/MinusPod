@@ -731,26 +731,32 @@ def _silence_limits(ad: dict, original_start: float,
 def _cue_snap_limits(ad: dict, original_start: float,
                      original_end: float) -> tuple[list, list]:
     """Edge limits at the labelled template cues the ad's edges were snapped to."""
-    snap = ad.get('cue_snap') if isinstance(ad.get('cue_snap'), dict) else {}
+    snap = ad.get('cue_snap') or {}
+
+    def cue_edge(edge: str, key: str) -> float | None:
+        record = snap.get(edge)
+        if not isinstance(record, dict) or not is_template_cue(record):
+            return None
+        return finite_number(record.get(key))
+
     starts, ends = [], []
-    record = snap.get('start')
-    if isinstance(record, dict) and is_template_cue(record):
-        cue_end = finite_number(record.get('cue_end'))
-        lim = None if cue_end is None else cue_end + SNAP_GAP_SECONDS
-        if lim is not None and original_start - EDGE_TOLERANCE <= lim < original_end:
+    # A start edge sits just after the cue ends; an end edge just before the cue starts.
+    cue_end = cue_edge('start', 'cue_end')
+    if cue_end is not None:
+        lim = cue_end + SNAP_GAP_SECONDS
+        if original_start - EDGE_TOLERANCE <= lim < original_end:
             starts.append((lim, max(lim, original_start)))
-    record = snap.get('end')
-    if isinstance(record, dict) and is_template_cue(record):
-        cue_start = finite_number(record.get('cue_start'))
-        lim = None if cue_start is None else cue_start - SNAP_GAP_SECONDS
-        if lim is not None and original_start < lim <= original_end + EDGE_TOLERANCE:
+    cue_start = cue_edge('end', 'cue_start')
+    if cue_start is not None:
+        lim = cue_start - SNAP_GAP_SECONDS
+        if original_start < lim <= original_end + EDGE_TOLERANCE:
             ends.append((lim, min(lim, original_end)))
     return starts, ends
 
 
-def _hold_untranscribed_and_silence(ad: dict, start: float, end: float, original_start: float,
-                                   original_end: float, index: TranscriptIndex,
-                                   barriers) -> tuple[float, float]:
+def _hold_inward_limits(ad: dict, start: float, end: float, original_start: float,
+                        original_end: float, index: TranscriptIndex,
+                        barriers) -> tuple[float, float]:
     """Apply the transcript-gap, boundary-cue and absorbed-silence no-cross rules in one call."""
     limits = (_untranscribed_limits(index, original_start, original_end),
               _cue_snap_limits(ad, original_start, original_end),
@@ -1546,7 +1552,7 @@ class AdReviewer:
                     )
                     if recovered is not None:
                         # Recovery applies the member floor; a one-tap approve must not cross untranscribed audio.
-                        verdict.adjusted_start, verdict.adjusted_end = _hold_untranscribed_and_silence(
+                        verdict.adjusted_start, verdict.adjusted_end = _hold_inward_limits(
                             updated_ad, *recovered, verdict.original_start,
                             verdict.original_end, transcript_units,
                             episode_meta.get('hard_barriers') or [])
@@ -2030,15 +2036,15 @@ class AdReviewer:
         clamped_start, clamped_end = _hold_inward_edges(
             clamped_start, clamped_end,
             *_untranscribed_limits(index, original_start, original_end), barriers)
-        after_gaps = (clamped_start, clamped_end)
+        gap_start, gap_end = clamped_start, clamped_end
         clamped_start, clamped_end = _hold_inward_edges(
             clamped_start, clamped_end,
             *_cue_snap_limits(ad, original_start, original_end), barriers)
-        held_by = [
-            'boundary cue' if new != gap else 'untranscribed audio' if gap != old else None
-            for old, gap, new in zip(proposed, after_gaps, (clamped_start, clamped_end), strict=True)]
-        gap_start_moved, gap_end_moved = (reason is not None for reason in held_by)
-        gap_logged = not (gap_start_moved or gap_end_moved)
+        start_held_by = ('boundary cue' if clamped_start != gap_start
+                         else 'untranscribed audio' if gap_start != proposed[0] else None)
+        end_held_by = ('boundary cue' if clamped_end != gap_end
+                       else 'untranscribed audio' if gap_end != proposed[1] else None)
+        held_logged = not (start_held_by or end_held_by)
 
         # Probes and independent spans hold the floor; unsupported edges stop at the straddling word.
         core_start, core_end = dai_core_bounds(ad)
@@ -2068,12 +2074,12 @@ class AdReviewer:
             if ((floor_start, floor_end) != (clamped_start, clamped_end)
                     or floor_start > core_start or floor_end < core_end):
                 start_source = ('spoken word cap' if cap_start is not None
-                                else held_by[0]
-                                if gap_start_moved and floor_start == clamped_start
+                                else start_held_by
+                                if start_held_by and floor_start == clamped_start
                                 else _floor_source(floor_start, clamped_start, core_start))
                 end_source = ('spoken word cap' if cap_end is not None
-                              else held_by[1]
-                              if gap_end_moved and floor_end == clamped_end
+                              else end_held_by
+                              if end_held_by and floor_end == clamped_end
                               else _floor_source(floor_end, clamped_end, core_end))
                 logger.info(
                     f"[{slug}:{episode_id}] Reviewer trim vs DAI core "
@@ -2082,10 +2088,10 @@ class AdReviewer:
                     f"{floor_start:.1f}-{floor_end:.1f} "
                     f"(start floored by {start_source}, end floored by {end_source})"
                 )
-                gap_logged = True
+                held_logged = True
             clamped_start, clamped_end = floor_start, floor_end
-        if not gap_logged:
-            reasons = ' and '.join(dict.fromkeys(r for r in held_by if r))
+        if not held_logged:
+            reasons = ' and '.join(dict.fromkeys(r for r in (start_held_by, end_held_by) if r))
             logger.info(
                 f"[{slug}:{episode_id}] Reviewer trim stopped at {reasons}: "
                 f"{proposed[0]:.1f}-{proposed[1]:.1f} -> {clamped_start:.1f}-{clamped_end:.1f}")

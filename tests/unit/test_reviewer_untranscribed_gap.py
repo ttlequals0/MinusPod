@@ -13,16 +13,8 @@ from ad_reviewer import TranscriptIndex
 from main_app import processing
 from utils.markers import DAI_PROBE_SPANS
 from tests.unit.pipeline_test_utils import _run_pipeline
-from tests.unit.reviewer_test_utils import _LLMResp, _mock_episode_meta, _resp, _reviewer
+from tests.unit.reviewer_test_utils import _LLMResp, _mock_episode_meta, _resp, _reviewer, _worded
 
-
-def _worded(start, end, text):
-    tokens = text.split()
-    step = (end - start) / len(tokens)
-    words = [{'word': w, 'start': round(start + i * step, 2),
-              'end': round(start + (i + 1) * step, 2)} for i, w in enumerate(tokens)]
-    words[-1]['end'] = end
-    return {'start': start, 'end': end, 'text': text, 'words': words}
 
 
 HOLE_SEGMENTS = [

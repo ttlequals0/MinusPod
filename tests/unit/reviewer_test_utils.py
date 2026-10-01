@@ -18,6 +18,16 @@ def _resp(body: str) -> _LLMResp:
     return _LLMResp(content=body)
 
 
+def _worded(start, end, text):
+    """Segment with its tokens spread evenly over [start, end] as timed words."""
+    tokens = text.split()
+    step = (end - start) / len(tokens)
+    words = [{'word': w, 'start': round(start + i * step, 2),
+              'end': round(start + (i + 1) * step, 2)} for i, w in enumerate(tokens)]
+    words[-1]['end'] = end
+    return {'start': start, 'end': end, 'text': text, 'words': words}
+
+
 class InconclusiveError(Exception):
     status_code = 422
     body = {'error': {'code': 'jev_review_inconclusive',
