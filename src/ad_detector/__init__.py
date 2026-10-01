@@ -208,7 +208,7 @@ __all__ = [
 logger = logging.getLogger('podcast.claude')
 
 def _interior_text(segments: list[dict], lo: float, hi: float) -> str:
-    """Words (or untimed segments) centred strictly inside (lo, hi); a segment touching an edge adds nothing."""
+    """Words centred strictly inside (lo, hi), plus untimed segments lying wholly inside it."""
     parts = []
     for seg in segments or []:
         if not (seg.get('start', 0.0) < hi and seg.get('end', 0.0) > lo):
@@ -217,7 +217,7 @@ def _interior_text(segments: list[dict], lo: float, hi: float) -> str:
         if words:
             parts.extend(str(w.get('word', '')).strip() for w in words
                          if lo < (w.get('start', 0.0) + w.get('end', 0.0)) / 2 < hi)
-        elif lo < (seg.get('start', 0.0) + seg.get('end', 0.0)) / 2 < hi:
+        elif lo <= seg.get('start', 0.0) and seg.get('end', 0.0) <= hi:
             parts.append((seg.get('text') or '').strip())
     return ' '.join(p for p in parts if p)
 
@@ -2848,7 +2848,8 @@ class AdDetector:
             found = self.sponsor_service.find_sponsor_in_text(text)
             if found:
                 return canonical_sponsor(found)
-        named = piece.get('_member_sponsor')
+        # Members are recorded before the marker's label is sanitized, so "Multiple" can reach here.
+        named = sanitize_sponsor_label(piece.get('_member_sponsor'))
         pattern = word_boundary_re([named]) if named else None
         if pattern is not None and pattern.search(text):
             return canonical_sponsor(named)

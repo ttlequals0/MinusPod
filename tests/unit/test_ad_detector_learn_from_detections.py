@@ -311,3 +311,20 @@ def test_a_whole_member_does_not_use_the_transcript_fallback(detector):
     segments = [{"start": 731.1, "end": 937.8, "text": "Globex Foods makes dinner easy."}]
     detector.learn_from_detections([marker], segments, podcast_id="podA", episode_id="ep1")
     detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
+
+
+def test_an_untimed_segment_straddling_the_piece_start_adds_nothing(detector):
+    detector.sponsor_service.find_sponsor_in_text.side_effect = (
+        lambda text: "KnownBrand" if "KnownBrand" in text else None)
+    segments = [{"start": 780.0, "end": 830.0, "text": "KnownBrand ends. New read here."}]
+    detector.learn_from_detections([_cut_down_marker("KnownBrand")], segments,
+                                   podcast_id="podA", episode_id="ep1")
+    detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
+
+
+def test_a_placeholder_member_label_is_not_a_sponsor(detector):
+    detector.sponsor_service.find_sponsor_in_text.return_value = None
+    segments = [{"start": 801.0, "end": 930.0, "text": "Try multiple flavors this week."}]
+    detector.learn_from_detections([_cut_down_marker("Multiple")], segments,
+                                   podcast_id="podA", episode_id="ep1")
+    detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
