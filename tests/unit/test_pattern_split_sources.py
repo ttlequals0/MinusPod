@@ -316,3 +316,39 @@ def test_a_claude_member_over_two_dai_cores_splits_at_the_inner_core(db):
         [marker], _segments(first, 0.0, 95.0) + _segments(second, 95.0, 191.0),
         podcast_id='example-podcast', episode_id='a1b2c3d4e5f6')
     assert [(c['start'], c['end']) for c in created] == [(0.0, 95.0), (95.0, 191.0)]
+
+
+def test_the_unknown_stretch_of_a_bundled_member_splits_into_its_reads(db):
+    """A known read inside the member is removed; the rest learns as one pattern per brand."""
+    from ad_detector import AdDetector
+    from sponsor_service import SponsorService
+    known = (
+        "Gamma Shoes fits every foot in the family with one easy order. "
+        "Gamma Shoes ships free both ways so returns cost you nothing at all. "
+        "Gamma Shoes has a sale this week on every running shoe they sell."
+    )
+    detector = AdDetector(api_key='test-key')
+    detector.db = db
+    detector.text_pattern_matcher = TextPatternMatcher(db=db)
+    detector.sponsor_service = SponsorService(db)
+    detector.audio_fingerprinter = None
+    marker = {
+        'start': 0.0, 'end': 290.0, 'was_cut': True, 'confidence': 0.9,
+        'detection_stage': 'dai_differential', 'category': 'sponsor',
+        'merged_distinct_ads': True,
+        'merged_member_spans': [
+            {'start': 0.0, 'end': 290.0, 'stage': 'claude', 'confidence': 0.97,
+             'sponsor': 'Gamma Shoes'},
+            {'start': 0.0, 'end': 100.0, 'stage': 'text_pattern', 'pattern_id': 99},
+        ],
+    }
+    real_create = detector.text_pattern_matcher.create_patterns_from_ad
+    created = []
+    detector.text_pattern_matcher.create_patterns_from_ad = (
+        lambda **kwargs: created.extend(real_create(**kwargs)) or created)
+    detector.learn_from_detections(
+        [marker], _segments(known, 0.0, 100.0) + _two_brand_segments(100.0, 195.0, 290.0),
+        podcast_id='example-podcast', episode_id='a1b2c3d4e5f6')
+    assert [(round(c['start']), round(c['end'])) for c in created] == [(100, 195), (195, 290)]
+    sponsors = {p['sponsor'] for p in db.get_ad_patterns(podcast_id='example-podcast')}
+    assert sponsors == {'Acme Tools', 'Beta Corp'}

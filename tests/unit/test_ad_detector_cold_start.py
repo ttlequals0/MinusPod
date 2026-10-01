@@ -30,6 +30,9 @@ class _RecordingMatcher:
         self.calls += 1
         return []
 
+    def _pattern_duration_bounds(self):
+        return 15, 180
+
 
 class _FakeDb:
     def get_false_positive_corrections(self, podcast_id, episode_id):

@@ -17,6 +17,7 @@ def detector():
     det.db.get_setting_float = MagicMock(side_effect=lambda key, default: default)
     det.text_pattern_matcher = MagicMock()
     det.text_pattern_matcher.create_patterns_from_ad = MagicMock(return_value=[])
+    det.text_pattern_matcher._pattern_duration_bounds = MagicMock(return_value=(15, 180))
     det.sponsor_service = MagicMock()
     det.sponsor_service.get_sponsors = MagicMock(return_value=[])
     det.sponsor_service.find_sponsor_in_text = MagicMock(return_value=False)
@@ -150,20 +151,61 @@ def test_member_span_is_clipped_to_the_marker_bounds(detector):
     assert (call.kwargs["start"], call.kwargs["end"]) == (731.1, 930.0)
 
 
-@pytest.mark.parametrize("members", [
-    [{"start": 731.1, "end": 939.9, "stage": "dai_differential"},
-     {"start": 800.0, "end": 860.0, "stage": "fingerprint", "pattern_id": 3},
-     {"start": 870.0, "end": 900.0, "stage": "text_pattern", "pattern_id": 4}],
-    # A pattern already explains this audio: relearning would overwrite its fingerprint.
-    [_claude_member(), {"start": 800.0, "end": 860.0, "stage": "fingerprint", "pattern_id": 3}],
-    [_claude_member(), {"start": 900.0, "end": 930.0, "stage": "text_pattern"}],
-])
-def test_no_learning_without_an_unexplained_claude_member(detector, caplog, members):
+def test_no_learning_when_a_pattern_explains_the_whole_member(detector, caplog):
+    marker = _dai_marker([_claude_member(start=760.0, end=800.0),
+                          {"start": 750.0, "end": 810.0, "stage": "text_pattern", "pattern_id": 4},
+                          {"start": 731.1, "end": 939.9, "stage": "dai_differential"}])
     with caplog.at_level("DEBUG", logger="podcast.claude"):
-        detector.learn_from_detections(
-            [_dai_marker(members)], _segments(), podcast_id="podA", episode_id="ep1")
+        detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
     detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
     assert "Skipping pattern learning for dai_differential marker" in caplog.text
+
+
+def _pieces(marker, min_piece_s=15.0):
+    return [(c["start"], c["end"]) for c in AdDetector._learning_candidates(marker, min_piece_s)]
+
+
+def test_mid_roll_member_learns_around_the_known_reads(caplog):
+    marker = _dai_marker([
+        _claude_member(),
+        {"start": 760.0, "end": 799.9, "stage": "text_pattern", "pattern_id": 4},
+        {"start": 783.8, "end": 829.4, "stage": "text_pattern", "pattern_id": 5},
+    ])
+    with caplog.at_level("INFO", logger="podcast.claude"):
+        assert _pieces(marker) == [(731.1, 760.0), (829.4, 937.8)]
+    assert "Learning 2 piece(s) of claude member 731.1s-937.8s" in caplog.text
+
+
+def test_pre_roll_member_learns_only_the_unknown_stretch():
+    marker = dict(_dai_marker([
+        _claude_member(start=0.0, end=26.7), _claude_member(start=28.0, end=146.7),
+        {"start": 0.0, "end": 26.7, "stage": "text_pattern", "pattern_id": 1},
+        {"start": 28.0, "end": 64.8, "stage": "fingerprint", "pattern_id": 2},
+        {"start": 87.0, "end": 146.7, "stage": "text_pattern", "pattern_id": 3},
+    ]), start=0.0, end=150.5)
+    assert _pieces(marker) == [(64.8, 87.0)]
+
+
+def test_a_piece_shorter_than_the_minimum_is_dropped():
+    marker = _dai_marker([
+        _claude_member(),
+        {"start": 741.1, "end": 937.8, "stage": "fingerprint", "pattern_id": 2},
+    ])
+    assert _pieces(marker) == []
+
+
+def test_a_cut_down_piece_takes_its_sponsor_from_its_own_text(detector):
+    detector.sponsor_service.find_sponsor_in_text.side_effect = (
+        lambda text: "NewBrand" if "Xero" in text else None)
+    marker = _dai_marker([
+        _claude_member(sponsor="KnownBrand"),
+        {"start": 800.0, "end": 937.8, "stage": "fingerprint", "pattern_id": 2},
+    ])
+    segments = [{"start": 731.1, "end": 800.0, "text": "Xero is the accounting platform."}]
+    detector.learn_from_detections([marker], segments, podcast_id="podA", episode_id="ep1")
+    call = detector.text_pattern_matcher.create_patterns_from_ad.call_args
+    assert (call.kwargs["start"], call.kwargs["end"]) == (731.1, 800.0)
+    assert call.kwargs["sponsor"] == "NewBrand"
 
 
 def test_a_claude_member_below_the_floor_is_not_learned(detector):
