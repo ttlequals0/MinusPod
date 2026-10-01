@@ -6,12 +6,15 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('reviewer_untranscribed_gap_test_')
 
+import pytest
+
+import ad_reviewer
 from ad_reviewer import TranscriptIndex, _edge_transcript_supported
 from main_app import processing
-from utils.markers import (VAD_GAP_SPANS, carve_fragment, clip_dai_core_spans,
+from utils.markers import (DAI_PROBE_SPANS, VAD_GAP_SPANS, carve_fragment, clip_dai_core_spans,
                            note_merged_members, reviewer_independent_spans)
 from tests.unit.pipeline_test_utils import _run_pipeline
-from tests.unit.reviewer_test_utils import _LLMResp, _reviewer
+from tests.unit.reviewer_test_utils import _LLMResp, _mock_episode_meta, _resp, _reviewer
 
 
 def _worded(start, end, text):
@@ -98,3 +101,72 @@ def test_vad_gap_spans_survive_carve_clip_and_merge():
     note_merged_members(target, _marker())
     assert target[VAD_GAP_SPANS] == [{'start': 728.77, 'end': 752.55}]
     assert (728.77, 752.55) in reviewer_independent_spans(_marker(), 0.8)
+
+
+def _dai_marker(**extra):
+    marker = {'start': 728.8, 'end': 939.9, 'confidence': 0.95,
+              'detection_stage': 'dai_differential', 'category': 'sponsor',
+              'dai_core_spans': [{'start': 728.8, 'end': 939.9}],
+              DAI_PROBE_SPANS: [{'start': 900.0, 'end': 904.0}]}
+    marker.update(extra)
+    return marker
+
+
+def _clamp(marker, start, end, barriers=None):
+    return _reviewer()._clamp_proposed_bounds(
+        marker, start, end, 728.8, 939.9, 60, 'show', 'ep1',
+        segments=HOLE_SEGMENTS, hard_barriers=barriers)
+
+
+def test_eight_second_rule_floors_a_trim_past_the_dai_core_start(monkeypatch):
+    assert _clamp(_dai_marker(), 752.55, 939.9) == (728.8, 939.9)
+    # Without the rule the edge is transcript-supported and crosses the unmeasured region.
+    monkeypatch.setattr(ad_reviewer, 'UNREVIEWABLE_GAP_SECONDS', 1000.0)
+    assert _clamp(_dai_marker(), 752.55, 939.9) == (752.55, 939.9)
+
+
+def test_gap_and_dai_clamp_log_one_consistent_line(caplog):
+    marker = _dai_marker(**{VAD_GAP_SPANS: [{'start': 728.77, 'end': 752.55}]})
+    with caplog.at_level('INFO', logger='ad_reviewer'):
+        assert _clamp(marker, 752.55, 937.8) == (728.8, 937.8)
+    lines = [r.getMessage() for r in caplog.records if 'Reviewer trim' in r.getMessage()]
+    assert len(lines) == 1
+    assert '752.5-937.8 -> 728.8-937.8' in lines[0]
+    assert 'start floored by untranscribed audio' in lines[0]
+
+
+@pytest.mark.parametrize('edge', ['start', 'end'])
+def test_gap_rule_stops_at_a_keep_between_proposal_and_gap(edge):
+    if edge == 'start':
+        marker = dict(_marker(), start=700.0, end=939.9,
+                      **{VAD_GAP_SPANS: [{'start': 700.0, 'end': 720.0}]})
+        keep = {'start': 725.0, 'end': 730.0}
+        got = _reviewer()._clamp_proposed_bounds(
+            marker, 752.55, 939.9, 700.0, 939.9, 60, 'show', 'ep1',
+            segments=HOLE_SEGMENTS, hard_barriers=[keep])
+        assert got == (730.0, 939.9)
+    else:
+        marker = dict(_marker(), start=728.8, end=1000.0,
+                      **{VAD_GAP_SPANS: [{'start': 980.0, 'end': 1000.0}]})
+        keep = {'start': 950.0, 'end': 955.0}
+        got = _reviewer()._clamp_proposed_bounds(
+            marker, 728.8, 937.8, 728.8, 1000.0, 60, 'show', 'ep1',
+            segments=HOLE_SEGMENTS, hard_barriers=[keep])
+        assert got == (728.8, 950.0)
+
+
+def test_contradiction_hold_recovered_trim_cannot_enter_a_merged_gap():
+    reviewer = _reviewer({'review_max_boundary_shift': '60'})
+    reason = ('The ad content ends at 800.0s; the rest is show content, '
+              'is not an ad, and must be trimmed off the end')
+    reviewer._llm_client.messages_create.side_effect = [
+        _resp(f'[{{"start": 728.8, "end": 939.9, "confidence": 0.9, "reason": "{reason}"}}]'),
+        _resp('{"ad_start": 752.55, "ad_end": 800.0}'),
+    ]
+    ad = dict(_marker(), confidence=0.9)
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[], segments=HOLE_SEGMENTS,
+        episode_meta=_mock_episode_meta(), pass_num=1, pass_model='claude-test')
+    held = result.held_by_contradiction[0]
+    assert held['reviewer_proposed_start'] == 728.8
+    assert held['reviewer_proposed_end'] == 800.0

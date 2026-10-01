@@ -702,6 +702,22 @@ def _timestamped_with_gaps(lines: list[dict], gaps, lo: float, hi: float,
     return '\n'.join(text for _, text in sorted(rendered, key=lambda item: item[0]) if text)
 
 
+def _stop_at_vad_gaps(ad: dict, start: float, end: float, original_start: float,
+                      original_end: float, barriers) -> tuple[float, float]:
+    """No edge moves inward across a merged VAD gap, but it stops at a hard barrier before one."""
+    for lo, hi in vad_gap_spans(ad):
+        gap_lo, gap_hi = max(lo, original_start), min(hi, original_end)
+        if gap_hi <= gap_lo:
+            continue
+        if start > gap_lo:
+            start = max([gap_lo] + [min(b['end'], start) for b in barriers
+                                    if b['start'] < start and b['end'] > gap_lo])
+        if end < gap_hi:
+            end = min([gap_hi] + [max(b['start'], end) for b in barriers
+                                  if b['end'] > end and b['start'] < gap_hi])
+    return start, end
+
+
 def _floor_source(floor: float, proposed: float, core_edge: float) -> str:
     """Name what stopped a reviewer edge, for the DAI core clamp log."""
     if floor == proposed:
@@ -1488,7 +1504,10 @@ class AdReviewer:
                         min_conf=min_conf,
                     )
                     if recovered is not None:
-                        verdict.adjusted_start, verdict.adjusted_end = recovered
+                        # Recovery applies the member floor; a one-tap approve must not cut into a merged gap.
+                        verdict.adjusted_start, verdict.adjusted_end = _stop_at_vad_gaps(
+                            updated_ad, *recovered, verdict.original_start,
+                            verdict.original_end, episode_meta.get('hard_barriers') or [])
                 if (verdict.adjusted_start is not None
                         and verdict.adjusted_end is not None):
                     held["reviewer_proposed_start"] = verdict.adjusted_start
@@ -1959,6 +1978,14 @@ class AdReviewer:
                 )
             clamped_start, clamped_end = floor_start, floor_end
 
+        barriers = hard_barriers or []
+        proposed = (clamped_start, clamped_end)
+        clamped_start, clamped_end = _stop_at_vad_gaps(
+            ad, clamped_start, clamped_end, original_start, original_end, barriers)
+        gap_start_moved = clamped_start != proposed[0]
+        gap_end_moved = clamped_end != proposed[1]
+        gap_logged = not (gap_start_moved or gap_end_moved)
+
         # Probes and independent spans hold the floor; unsupported edges stop at the straddling word.
         core_start, core_end = dai_core_bounds(ad)
         if core_start is not None:
@@ -1988,17 +2015,26 @@ class AdReviewer:
             if ((floor_start, floor_end) != (clamped_start, clamped_end)
                     or floor_start > core_start or floor_end < core_end):
                 start_source = ('spoken word cap' if cap_start is not None
+                                else 'untranscribed audio'
+                                if gap_start_moved and floor_start == clamped_start
                                 else _floor_source(floor_start, clamped_start, core_start))
                 end_source = ('spoken word cap' if cap_end is not None
+                              else 'untranscribed audio'
+                              if gap_end_moved and floor_end == clamped_end
                               else _floor_source(floor_end, clamped_end, core_end))
                 logger.info(
                     f"[{slug}:{episode_id}] Reviewer trim vs DAI core "
                     f"{core_start:.1f}-{core_end:.1f}s: "
-                    f"{clamped_start:.1f}-{clamped_end:.1f} -> "
+                    f"{proposed[0]:.1f}-{proposed[1]:.1f} -> "
                     f"{floor_start:.1f}-{floor_end:.1f} "
                     f"(start floored by {start_source}, end floored by {end_source})"
                 )
+                gap_logged = True
             clamped_start, clamped_end = floor_start, floor_end
+        if not gap_logged:
+            logger.info(
+                f"[{slug}:{episode_id}] Reviewer trim stopped at untranscribed audio: "
+                f"{proposed[0]:.1f}-{proposed[1]:.1f} -> {clamped_start:.1f}-{clamped_end:.1f}")
 
         # A widened edge never enters kept audio beyond the original span.
         for barrier in hard_barriers or []:
@@ -2009,7 +2045,6 @@ class AdReviewer:
 
         # Absorbed silence stays with the cut: no edge moves inward across an edge-touching span,
         # but the floor stops at a hard barrier between the proposal and the span edge.
-        barriers = hard_barriers or []
         for lo, hi in silent_absorbed_spans(ad):
             if lo <= original_start + EDGE_TOLERANCE and clamped_start > lo:
                 clamped_start = max([min(lo, original_start)] + [
@@ -2019,18 +2054,6 @@ class AdReviewer:
                 clamped_end = min([max(hi, original_end)] + [
                     max(b['start'], clamped_end) for b in barriers
                     if b['end'] > clamped_end and b['start'] < hi])
-
-        # No edge moves inward across untranscribed audio the VAD gap detector merged in.
-        proposed = (clamped_start, clamped_end)
-        for lo, hi in vad_gap_spans(ad):
-            if clamped_start > max(lo, original_start) and hi > original_start:
-                clamped_start = max(lo, original_start)
-            if clamped_end < min(hi, original_end) and lo < original_end:
-                clamped_end = min(hi, original_end)
-        if (clamped_start, clamped_end) != proposed:
-            logger.info(
-                f"[{slug}:{episode_id}] Reviewer trim stopped at untranscribed audio: "
-                f"{proposed[0]:.1f}-{proposed[1]:.1f} -> {clamped_start:.1f}-{clamped_end:.1f}")
 
         if clamped_end <= clamped_start:
             clamped_start, clamped_end = original_start, original_end
