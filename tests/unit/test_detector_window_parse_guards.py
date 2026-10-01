@@ -440,7 +440,9 @@ def test_verification_pass_forwards_pass1_cuts():
     analyzer.analyze.return_value.get_signals_by_type.return_value = []
     cuts = [{'start': 30.0, 'end': 60.0, 'detection_stage': 'text_pattern',
              'sponsor': 'Acme Pet Food'}]
-    VerificationPass(ad_detector=detector, transcriber=MagicMock(),
+    transcriber = MagicMock()
+    transcriber.repair_gaps.return_value = ([], [])
+    VerificationPass(ad_detector=detector, transcriber=transcriber,
                      audio_analyzer=analyzer).verify(
         processed_audio_path='/nonexistent.mp3', podcast_name='Example Podcast',
         episode_title='Episode One', slug='example-podcast',

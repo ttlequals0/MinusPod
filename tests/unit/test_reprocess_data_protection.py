@@ -101,8 +101,8 @@ class TestTranscribeStageClear:
     def _run_forced(self, episode_id, new_segments):
         with patch('main_app.processing.transcriber.transcribe_chunked',
                    return_value=new_segments), \
-             patch('main_app.processing._retranscribe_tail_no_vad',
-                   side_effect=lambda slug, ep, audio, segs, lang: (segs, 0)), \
+             patch('main_app.processing._retranscribe_tail_no_vad', return_value=[]), \
+             patch('main_app.processing._retranscribe_holes_no_vad', return_value=([], [])), \
              patch('main_app.processing._download_episode_audio',
                    return_value='/tmp/fake-audio.mp3'), \
              patch('main_app.processing.status_service'):

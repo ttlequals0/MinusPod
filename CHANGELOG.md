@@ -18,8 +18,8 @@ release notes.
 - Feed settings are grouped into collapsible sections, so the search and the Expand all and Collapse all buttons work the same way as on the Settings page. The new sections start open.
 
 ### Fixed
-- Speech that Whisper's batched decoder skipped inside an episode is re-transcribed without voice detection before detection runs. A sponsor read whose opening never reached the transcript is now seen by the detector, the text patterns and the reviewer. The repaired transcript is saved, and a hole that held no speech is not tried again on reprocess.
-- The reviewer can no longer trim an ad edge across untranscribed audio. A VAD gap merged into an ad is recorded on the marker and protects the edge on recut and in the trim offered on a held ad.
+- Speech that Whisper's batched decoder skipped inside an episode is re-transcribed without voice detection before detection runs, in both passes. A sponsor read whose opening never reached the transcript is now seen by the detector, the text patterns and the reviewer. The repaired pass-1 transcript is saved, and a hole that held no speech is not tried again on reprocess.
+- The reviewer can no longer move an ad edge across 8 s or more of untranscribed audio inside the ad. This applies to every ad and to the trim offered on a held ad.
 - The reviewer prompt names every untranscribed stretch inside a candidate instead of showing nothing there.
 
 ## [2.97.40] - 2026-09-30

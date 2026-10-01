@@ -77,6 +77,7 @@ def test_fresh_episode_reuses_retained_original_no_download(tmp_path):
     mock_storage.get_original_path.return_value = str(original)
     mock_t = MagicMock()
     mock_t.transcribe_chunked.return_value = list(segments)
+    mock_t.repair_gaps.return_value = ([], [])
     mock_t.segments_to_text.return_value = 'joined'
     mock_sponsor = MagicMock()
     mock_sponsor.apply_transcript_corrections.side_effect = lambda t: t
@@ -88,7 +89,7 @@ def test_fresh_episode_reuses_retained_original_no_download(tmp_path):
          patch.object(processing, 'get_feed_language_override',
                       return_value=None), \
          patch.object(processing, '_retranscribe_tail_no_vad',
-                      return_value=(segments, False)), \
+                      return_value=[]), \
          patch.object(processing, '_copy_retained_original_to_temp',
                       return_value='/tmp/reused.mp3') as copy_fn, \
          patch.object(processing, '_download_episode_audio') as download_fn:
@@ -124,6 +125,7 @@ def test_non_local_missing_original_still_downloads():
     mock_storage.get_original_path.return_value = None
     mock_t = MagicMock()
     mock_t.transcribe_chunked.return_value = [_seg(0.0, 5.0, 'hi')]
+    mock_t.repair_gaps.return_value = ([], [])
     mock_t.segments_to_text.return_value = 'joined'
     mock_sponsor = MagicMock()
     mock_sponsor.apply_transcript_corrections.side_effect = lambda t: t
@@ -135,7 +137,7 @@ def test_non_local_missing_original_still_downloads():
          patch.object(processing, 'get_feed_language_override',
                       return_value=None), \
          patch.object(processing, '_retranscribe_tail_no_vad',
-                      return_value=([_seg(0.0, 5.0, 'hi')], False)), \
+                      return_value=[]), \
          patch.object(processing, '_download_episode_audio',
                       return_value='/tmp/dl.mp3') as download_fn:
         audio_path, _ = processing._download_and_transcribe(

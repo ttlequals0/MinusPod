@@ -120,11 +120,14 @@ def get_audio_duration(audio_path: str) -> float | None:
 _MEAN_VOLUME_RE = re.compile(r'mean_volume:\s*(-?[\d.]+|-inf) dB')
 
 
-def mean_volume_db(audio_path: str) -> float | None:
-    """Mean volume in dB from ffmpeg volumedetect, or None when it cannot be read."""
+def mean_volume_db(audio_path: str, start: float | None = None,
+                   duration: float | None = None) -> float | None:
+    """Mean volume in dB from ffmpeg volumedetect over an optional range, or None when unreadable."""
+    seek = ['-ss', str(start)] if start is not None else []
+    span = ['-t', str(duration)] if duration is not None else []
     cmd = [
         'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-nostats',
-        '-i', audio_path, '-vn', '-af', 'volumedetect', '-f', 'null', '-',
+        *seek, '-i', audio_path, *span, '-vn', '-af', 'volumedetect', '-f', 'null', '-',
     ]
     try:
         result = tracked_run(cmd, capture_output=True, text=True,

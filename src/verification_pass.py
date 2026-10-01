@@ -14,6 +14,7 @@ import logging
 from copy import deepcopy
 
 from audio_processor import get_replacement_duration
+from config import UNREVIEWABLE_GAP_SECONDS
 from transcript_generator import TranscriptGenerator
 from utils.errors import ServiceUnavailableError, AudioExtractionError
 from utils.language import get_feed_language_override
@@ -248,9 +249,15 @@ class VerificationPass:
         'transcription_failed' vs 'no_segments'.
         """
         language_override = get_feed_language_override(self.db, slug)
-        return self.transcriber.transcribe_chunked(
+        segments = self.transcriber.transcribe_chunked(
             audio_path, language_override=language_override,
         )
+        if not segments:
+            return segments
+        # Same hole repair as pass 1, without the per-episode memo.
+        added, _empty = self.transcriber.repair_gaps(
+            audio_path, segments, UNREVIEWABLE_GAP_SECONDS, language_override)
+        return sorted(segments + added, key=lambda seg: seg['start']) if added else segments
 
 
 def _build_timestamp_map(pass1_cuts: list[dict]) -> list[tuple[float, float, float | None]]:

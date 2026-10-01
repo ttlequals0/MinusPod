@@ -18,6 +18,7 @@ def _verifier():
     ad_detector = MagicMock()
     ad_detector.run_verification_detection.return_value = {'ads': []}
     transcriber = MagicMock()
+    transcriber.repair_gaps.return_value = ([], [])
     analyzer = MagicMock()
     analysis = MagicMock()
     analysis.signals = []
@@ -172,3 +173,16 @@ def test_no_cuts_deep_copies_nested_timestamp_metadata():
     assert mapped['merged_member_spans'] is not processed_copy['merged_member_spans']
     mapped['merged_member_spans'][0]['start'] = 1.0
     assert processed_copy['merged_member_spans'][0]['start'] == 6.0
+
+
+def test_pass2_transcription_repairs_skipped_holes(monkeypatch):
+    import verification_pass
+    monkeypatch.setattr(verification_pass, 'get_feed_language_override', lambda db, slug: None)
+    v = _verifier()
+    v.transcriber.transcribe_chunked.return_value = [_seg(0.0, 10.0, 'a'), _seg(40.0, 50.0, 'b')]
+    hole = dict(_seg(12.0, 30.0, 'recovered'), novad_hole=True)
+    v.transcriber.repair_gaps.return_value = ([hole], [])
+    segments = v._transcribe_verification('/processed.mp3', slug='show')
+    assert [s['text'] for s in segments] == ['a', 'recovered', 'b']
+    args = v.transcriber.repair_gaps.call_args.args
+    assert args[0] == '/processed.mp3' and args[2] == 8.0
