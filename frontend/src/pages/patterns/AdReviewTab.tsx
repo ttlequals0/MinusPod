@@ -223,7 +223,7 @@ export default function AdReviewTab() {
             if (s.kind === 'adjust') {
               adjust(d, s.adjustedStart, s.adjustedEnd, s.sponsor);
             } else if (s.kind === 'confirm') {
-              approve(d);
+              approve(d, s.sponsor);
             } else if (s.kind === 'recategorize') {
               recategorize(d, s.category ?? null);
             } else {

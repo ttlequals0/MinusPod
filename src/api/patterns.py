@@ -997,7 +997,8 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
 
 
 def _resolve_or_create_pattern_from_text(
-    db, pattern_service, slug, episode_id, ad_text, original_ad, *, label
+    db, pattern_service, slug, episode_id, ad_text, original_ad, *, label,
+    sponsor_override=None,
 ):
     """Shared dedup + create-or-link path used by confirm and adjust when
     no pattern_id is provided. Returns (primary_id, all_ids): primary_id is
@@ -1028,7 +1029,7 @@ def _resolve_or_create_pattern_from_text(
             logger.info(f"Linked adjustment to existing pattern {pid}")
         return pid, [pid]
 
-    sponsor = original_ad.get('sponsor')
+    sponsor = sponsor_override or original_ad.get('sponsor')
     if not sponsor and label == 'confirmed':
         reason = original_ad.get('reason', '')
         sponsor = extract_sponsor_from_text(reason)
@@ -1171,6 +1172,7 @@ def _handle_confirm_correction(
                 pattern_id, _ = _resolve_or_create_pattern_from_text(
                     db, pattern_service, slug, episode_id, ad_text,
                     original_ad, label='confirmed',
+                    sponsor_override=(data.get('sponsor') or '').strip() or None,
                 )
 
     deleted = db.delete_conflicting_corrections(db.get_podcast_by_slug(slug)['id'], episode_id, 'confirm', original_start, original_end)
@@ -1500,6 +1502,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         pattern_id, _ = _resolve_or_create_pattern_from_text(
             db, pattern_service, slug, episode_id, adjusted_text,
             original_ad, label='adjusted',
+            sponsor_override=(data.get('sponsor') or '').strip() or None,
         )
 
     # Judge conflicts against the adjusted bounds: they are the span the
