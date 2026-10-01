@@ -20,7 +20,7 @@ from utils.text import truncate
 from utils.time import parse_timestamp
 from utils.llm_response import extract_json_ads_array
 from utils.constants import (
-    INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
+    AUDIO_ECHO_RE, INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
     SPONSOR_MAX_NAME_CHARS, REASON_DESCRIPTION_MAX,
     is_sponsor_reasoning_rationale,
@@ -298,7 +298,7 @@ def _get_valid_sponsor_value(value):
         return None
     if len(str_value) > SPONSOR_MAX_NAME_CHARS:
         return None
-    if is_sponsor_reasoning_rationale(str_value):
+    if is_sponsor_reasoning_rationale(str_value) or AUDIO_ECHO_RE.search(str_value):
         return None
     return str_value
 
@@ -359,7 +359,7 @@ def _extract_sponsor_name(ad: dict) -> str:
         if key.lower() in STRUCTURAL_FIELDS:
             continue
         if isinstance(val, str) and len(val) > 10:
-            sponsor = extract_sponsor_from_text(val)
+            sponsor = extract_sponsor_from_text(AUDIO_ECHO_RE.sub(' ', val))
             if sponsor:
                 return sponsor
 

@@ -159,7 +159,7 @@ def sanitize_sponsor_label(text, show_name: str | None = None) -> str | None:
     if not text:
         return None
     label = str(text).strip()
-    if is_sponsor_reasoning_rationale(label):
+    if is_sponsor_reasoning_rationale(label) or AUDIO_ECHO_RE.search(label):
         return None
     credit = _CREDIT_LEAD_IN_RE.match(label)
     if credit:
@@ -764,6 +764,16 @@ AD_LANGUAGE_WORDS = frozenset({
 })
 
 
+# Audio telemetry the detection prompt shows the model; a reason quoting it describes the audio, not an ad.
+AUDIO_ECHO_RE = re.compile(
+    r'\bsplice_\d+(?:\.\d+)?\b|\bdai transition pair\b|\bvolume (?:anomaly|increase|decrease)\b'
+    r'|\b\d+(?:\.\d+)?\s*db\b|\bsplice evidence\b|\bloudness step\b|\bspectral step\b'
+    r'|\bdigital silence\b',
+    re.IGNORECASE)
+# Words an audio echo uses for a splice ("ad boundary", "DAI"), not for the content of the span.
+_ECHO_AD_WORDS = frozenset({'ad', 'ads', 'dai'})
+
+
 def mentions_advertising(text) -> bool:
     """True if `text` calls the span an ad, the positive evidence the detection
     gate needs. Separate from the sponsor labeler, which answers what the
@@ -771,10 +781,14 @@ def mentions_advertising(text) -> bool:
     """
     if not text:
         return False
-    words = re.findall(r'[a-z]+', str(text).lower())
+    text = str(text)
+    ignored = frozenset()
+    if AUDIO_ECHO_RE.search(text):
+        text, ignored = AUDIO_ECHO_RE.sub(' ', text), _ECHO_AD_WORDS
+    words = re.findall(r'[a-z]+', text.lower())
     # A negated mention is the model saying the span is not an ad, so it is not
     # evidence that it is. Two tokens back covers "not a sponsor read".
-    return any(w in AD_LANGUAGE_WORDS
+    return any(w in AD_LANGUAGE_WORDS and w not in ignored
                and NEGATION_WORDS.isdisjoint(words[max(0, i - 2):i])
                for i, w in enumerate(words))
 
