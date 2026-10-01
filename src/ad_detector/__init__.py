@@ -42,6 +42,8 @@ from utils.markers import (
     finite_number,
     inherit_edge,
     invalidate_word_timed_edges,
+    MEASURED_EVIDENCE_STAGES,
+    carve_fragment,
     learning_bounds,
     note_fold,
     recorded_member_spans,
@@ -2771,24 +2773,32 @@ class AdDetector:
         return True
 
     @staticmethod
-    def _learning_candidates(ad: dict, min_confidence: float) -> list[dict]:
-        """The marker itself when claude found it, else its claude members clipped to its bounds."""
+    def _learning_candidates(ad: dict) -> list[dict]:
+        """The marker itself when claude found it, else its claude members no measured member explains."""
         stage = ad.get('detection_stage')
         if stage == 'claude':
             return [ad]
+        members = recorded_member_spans(ad)
+        if not members:
+            return []
+        # Audio a pattern or a measured stage already explains is learned (and fingerprinted) there.
+        measured = [m for m in members
+                    if m.get('pattern_id') is not None or m.get('stage') in MEASURED_EVIDENCE_STAGES]
         candidates = []
-        for member in recorded_member_spans(ad):
-            confidence = finite_number(member.get('confidence')) or 0.0
-            if member.get('stage') != 'claude' or confidence < min_confidence:
+        for member in members:
+            if member.get('stage') != 'claude' or any(
+                    ranges_overlap(member['start'], member['end'], m['start'], m['end'])
+                    for m in measured):
                 continue
             lo, hi = max(member['start'], ad['start']), min(member['end'], ad['end'])
             if hi <= lo:
                 continue
-            candidate = {key: ad[key] for key in (
-                'was_cut', 'action_applied', '_skip_pattern_learning', 'reason',
-                'silent_absorbed_spans') if key in ad}
+            # The fragment keeps the parent's cut state and clipped DAI cores; reason names other members.
+            candidate = carve_fragment(ad, lo, hi)
+            for key in ('pattern_id', 'reason', 'cue_snap'):
+                candidate.pop(key, None)
             candidate.update(
-                start=lo, end=hi, detection_stage='claude', confidence=confidence,
+                detection_stage='claude', confidence=finite_number(member.get('confidence')) or 0.0,
                 sponsor=member.get('sponsor'),
                 category=member.get('category') or ad.get('category'),
                 _member_of=(ad['start'], ad['end'], stage))
@@ -2796,7 +2806,7 @@ class AdDetector:
         if not candidates:
             logger.debug(
                 f"Skipping pattern learning for {stage} marker "
-                f"{ad.get('start', 0.0):.1f}s-{ad.get('end', 0.0):.1f}s: no claude member to learn from")
+                f"{ad.get('start', 0.0):.1f}s-{ad.get('end', 0.0):.1f}s: no unexplained claude member")
         return candidates
 
     def _resolve_sponsor_for_learning(self, ad: dict) -> str | None:
@@ -2959,7 +2969,7 @@ class AdDetector:
         except Exception:
             active_pattern_sponsors = set()
 
-        for candidate in (c for ad in ads for c in self._learning_candidates(ad, min_confidence)):
+        for candidate in (c for ad in ads for c in self._learning_candidates(ad)):
             if not self._ad_passes_learning_filters(candidate, min_confidence):
                 continue
 

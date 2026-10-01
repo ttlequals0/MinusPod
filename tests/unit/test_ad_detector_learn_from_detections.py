@@ -154,14 +154,53 @@ def test_member_span_is_clipped_to_the_marker_bounds(detector):
     [{"start": 731.1, "end": 939.9, "stage": "dai_differential"},
      {"start": 800.0, "end": 860.0, "stage": "fingerprint", "pattern_id": 3},
      {"start": 870.0, "end": 900.0, "stage": "text_pattern", "pattern_id": 4}],
-    [_claude_member(confidence=0.5)],
+    # A pattern already explains this audio: relearning would overwrite its fingerprint.
+    [_claude_member(), {"start": 800.0, "end": 860.0, "stage": "fingerprint", "pattern_id": 3}],
+    [_claude_member(), {"start": 900.0, "end": 930.0, "stage": "text_pattern"}],
 ])
-def test_no_learning_without_a_qualifying_claude_member(detector, caplog, members):
+def test_no_learning_without_an_unexplained_claude_member(detector, caplog, members):
     with caplog.at_level("DEBUG", logger="podcast.claude"):
         detector.learn_from_detections(
             [_dai_marker(members)], _segments(), podcast_id="podA", episode_id="ep1")
     detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
     assert "Skipping pattern learning for dai_differential marker" in caplog.text
+
+
+def test_a_claude_member_below_the_floor_is_not_learned(detector):
+    detector.learn_from_detections(
+        [_dai_marker([_claude_member(confidence=0.5)])], _segments(),
+        podcast_id="podA", episode_id="ep1")
+    detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
+
+
+def test_a_marker_without_members_logs_nothing(detector, caplog):
+    marker = _dai_marker([])
+    del marker["merged_member_spans"]
+    with caplog.at_level("DEBUG", logger="podcast.claude"):
+        detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
+    assert "Skipping pattern learning" not in caplog.text
+
+
+def test_member_sponsor_is_not_taken_from_the_parent_reason(detector):
+    detector.sponsor_service.find_sponsor_in_text.side_effect = (
+        lambda text: "Acme Tools" if "Acme" in text else None)
+    marker = _dai_marker([_claude_member(sponsor="NewBrand")])
+    marker["reason"] = "Acme Tools sponsor read followed by another read"
+    detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
+    call = detector.text_pattern_matcher.create_patterns_from_ad.call_args
+    assert call.kwargs["sponsor"] == "NewBrand"
+
+
+def test_member_candidate_carries_the_parent_dai_cores_clipped(detector):
+    marker = _dai_marker([_claude_member()])
+    marker["dai_core_spans"] = [{"start": 731.1, "end": 833.0}, {"start": 833.3, "end": 939.9}]
+    marker["dai_probe_spans"] = [{"start": 731.6, "end": 735.6}]
+    detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
+    candidate = detector.text_pattern_matcher.create_patterns_from_ad.call_args.kwargs["ad"]
+    assert candidate["dai_core_spans"] == [{"start": 731.1, "end": 833.0},
+                                           {"start": 833.3, "end": 937.8}]
+    assert "merged_member_spans" not in candidate
+    assert "reason" not in candidate
 
 
 def test_member_candidates_still_pass_the_sponsor_gates(detector):

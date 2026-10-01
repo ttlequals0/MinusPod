@@ -276,3 +276,40 @@ def test_a_claude_member_of_a_dai_marker_is_split_and_learned(db):
     assert learned == 1
     sponsors = {p['sponsor'] for p in db.get_ad_patterns(podcast_id='example-podcast')}
     assert sponsors == {'Acme Tools', 'Beta Corp'}
+
+
+def test_a_claude_member_over_two_dai_cores_splits_at_the_inner_core(db):
+    """No registered brand or handoff phrase separates the reads; only the measured cores do."""
+    from ad_detector import AdDetector
+    first = (
+        "Zorbly Goods keeps a workshop running without the usual hassle. "
+        "Every Zorbly Goods order ships free and arrives inside two days. "
+        "Listeners get a month of Zorbly Goods on the house right now. "
+        "Zorbly Goods stands behind every single thing it sells to you."
+    )
+    second = (
+        "Zorbly Goods also files small business taxes in a single afternoon. "
+        "Zorbly Goods reads the forms so you never have to open one. "
+        "Try Zorbly Goods free for a month and see the difference today. "
+        "Zorbly Goods has helped thousands of owners already this year."
+    )
+    detector = AdDetector(api_key='test-key')
+    detector.db = db
+    detector.text_pattern_matcher = TextPatternMatcher(db=db)
+    detector.sponsor_service = None
+    detector.audio_fingerprinter = None
+    marker = {
+        'start': 0.0, 'end': 191.0, 'was_cut': True, 'confidence': 0.9,
+        'detection_stage': 'dai_differential', 'category': 'sponsor',
+        'dai_core_spans': [{'start': 0.0, 'end': 94.0}, {'start': 95.0, 'end': 191.0}],
+        'merged_distinct_ads': True,
+        'merged_member_spans': [
+            {'start': 0.0, 'end': 191.0, 'stage': 'claude', 'confidence': 0.97,
+             'sponsor': 'Zorbly Goods'},
+        ],
+    }
+    detector.learn_from_detections(
+        [marker], _segments(first, 0.0, 95.0) + _segments(second, 95.0, 191.0),
+        podcast_id='example-podcast', episode_id='a1b2c3d4e5f6')
+    rows = db.get_ad_patterns(podcast_id='example-podcast')
+    assert len(rows) == 2
