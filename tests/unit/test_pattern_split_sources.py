@@ -343,12 +343,18 @@ def test_the_unknown_stretch_of_a_bundled_member_splits_into_its_reads(db):
         ],
     }
     real_create = detector.text_pattern_matcher.create_patterns_from_ad
-    created = []
-    detector.text_pattern_matcher.create_patterns_from_ad = (
-        lambda **kwargs: created.extend(real_create(**kwargs)) or created)
+    created, sponsors_passed = [], []
+
+    def create(**kwargs):
+        sponsors_passed.append(kwargs['sponsor'])
+        created.extend(real_create(**kwargs))
+        return created
+
+    detector.text_pattern_matcher.create_patterns_from_ad = create
     detector.learn_from_detections(
         [marker], _segments(known, 0.0, 100.0) + _two_brand_segments(100.0, 195.0, 290.0),
         podcast_id='example-podcast', episode_id='a1b2c3d4e5f6')
     assert [(round(c['start']), round(c['end'])) for c in created] == [(100, 195), (195, 290)]
+    assert 'Gamma Shoes' not in sponsors_passed
     sponsors = {p['sponsor'] for p in db.get_ad_patterns(podcast_id='example-podcast')}
     assert sponsors == {'Acme Tools', 'Beta Corp'}

@@ -17,7 +17,6 @@ def detector():
     det.db.get_setting_float = MagicMock(side_effect=lambda key, default: default)
     det.text_pattern_matcher = MagicMock()
     det.text_pattern_matcher.create_patterns_from_ad = MagicMock(return_value=[])
-    det.text_pattern_matcher._pattern_duration_bounds = MagicMock(return_value=(15, 180))
     det.sponsor_service = MagicMock()
     det.sponsor_service.get_sponsors = MagicMock(return_value=[])
     det.sponsor_service.find_sponsor_in_text = MagicMock(return_value=False)
@@ -275,3 +274,40 @@ def test_a_claude_marker_with_claude_members_learns_once(detector):
                   detection_stage="claude", sponsor="LongerName", confidence=0.99)
     detector.learn_from_detections([marker], _segments(), podcast_id="podA", episode_id="ep1")
     assert detector.text_pattern_matcher.create_patterns_from_ad.call_count == 1
+
+
+def _cut_down_marker(sponsor):
+    return _dai_marker([
+        _claude_member(sponsor=sponsor),
+        {"start": 731.1, "end": 800.0, "stage": "fingerprint", "pattern_id": 2},
+    ])
+
+
+def test_the_removed_read_does_not_name_the_new_piece(detector):
+    """The known read's last segment ends exactly at the piece start and names the known brand."""
+    detector.sponsor_service.find_sponsor_in_text.side_effect = (
+        lambda text: "KnownBrand" if "KnownBrand" in text else None)
+    segments = [{"start": 790.0, "end": 800.0, "text": "KnownBrand sale ends soon."},
+                {"start": 800.5, "end": 930.0, "text": "A new read about something else entirely."}]
+    detector.learn_from_detections([_cut_down_marker("KnownBrand")], segments,
+                                   podcast_id="podA", episode_id="ep1")
+    detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
+
+
+def test_a_cut_down_piece_keeps_the_member_sponsor_it_names(detector):
+    detector.sponsor_service.find_sponsor_in_text.return_value = None
+    segments = [{"start": 801.0, "end": 930.0, "text": "This part is brought to you by NewBrand Labs."}]
+    detector.learn_from_detections([_cut_down_marker("NewBrand Labs")], segments,
+                                   podcast_id="podA", episode_id="ep1")
+    call = detector.text_pattern_matcher.create_patterns_from_ad.call_args
+    assert (call.kwargs["start"], call.kwargs["end"]) == (800.0, 937.8)
+    assert call.kwargs["sponsor"] == "NewBrand Labs"
+
+
+def test_a_whole_member_does_not_use_the_transcript_fallback(detector):
+    detector.sponsor_service.find_sponsor_in_text.side_effect = (
+        lambda text: "Globex Foods" if "Globex" in text else None)
+    marker = _dai_marker([_claude_member(sponsor=None)])
+    segments = [{"start": 731.1, "end": 937.8, "text": "Globex Foods makes dinner easy."}]
+    detector.learn_from_detections([marker], segments, podcast_id="podA", episode_id="ep1")
+    detector.text_pattern_matcher.create_patterns_from_ad.assert_not_called()

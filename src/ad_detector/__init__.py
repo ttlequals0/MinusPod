@@ -53,7 +53,7 @@ from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
     scrub_description, strip_comments_from_prompt
 )
-from utils.text import get_transcript_text_for_range, truncate, word_boundary_re
+from utils.text import truncate, word_boundary_re
 from utils.time import overlap_ratio, ranges_overlap
 
 from config import (
@@ -101,7 +101,7 @@ from utils.constants import (
     INVALID_SPONSOR_VALUES,
     KNOWN_SHORT_BRANDS, canonical_sponsor, is_brand_token,
     LEARNING_MIN_CONFIDENCE, LEARNING_MIN_CONFIDENCE_LONG,
-    LEARNING_LONG_DURATION_THRESHOLD,
+    LEARNING_LONG_DURATION_THRESHOLD, LEARNING_MIN_PATTERN_DURATION,
     mentions_advertising,
     PATTERN_EVIDENCE_MAX_CHARS,
     sanitize_sponsor_label,
@@ -206,6 +206,21 @@ __all__ = [
 ]
 
 logger = logging.getLogger('podcast.claude')
+
+def _interior_text(segments: list[dict], lo: float, hi: float) -> str:
+    """Words (or untimed segments) centred strictly inside (lo, hi); a segment touching an edge adds nothing."""
+    parts = []
+    for seg in segments or []:
+        if not (seg.get('start', 0.0) < hi and seg.get('end', 0.0) > lo):
+            continue
+        words = seg.get('words') or []
+        if words:
+            parts.extend(str(w.get('word', '')).strip() for w in words
+                         if lo < (w.get('start', 0.0) + w.get('end', 0.0)) / 2 < hi)
+        elif lo < (seg.get('start', 0.0) + seg.get('end', 0.0)) / 2 < hi:
+            parts.append((seg.get('text') or '').strip())
+    return ' '.join(p for p in parts if p)
+
 
 # Member stages whose span a learned pattern already covers.
 PATTERN_MATCH_STAGES = frozenset({'fingerprint', 'text_pattern'})
@@ -2777,7 +2792,7 @@ class AdDetector:
         return True
 
     @staticmethod
-    def _learning_candidates(ad: dict, min_piece_s: float = 0.0) -> list[dict]:
+    def _learning_candidates(ad: dict, min_piece_s: float) -> list[dict]:
         """The marker itself when claude found it, else the stretches of its claude members no pattern explains."""
         stage = ad.get('detection_stage')
         if stage == 'claude':
@@ -2801,9 +2816,10 @@ class AdDetector:
             whole = pieces == [(lo, hi)]
             pieces = [(p_lo, p_hi) for p_lo, p_hi in pieces if whole or p_hi - p_lo >= min_piece_s]
             if pieces and not whole:
+                removed = [(round(a, 1), round(b, 1)) for a, b in explained if a < hi and b > lo]
                 logger.info(
                     f"Learning {len(pieces)} piece(s) of claude member {lo:.1f}s-{hi:.1f}s after "
-                    f"removing pattern-explained spans {[(round(a, 1), round(b, 1)) for a, b in explained]}")
+                    f"removing pattern-explained spans {removed}")
             for p_lo, p_hi in pieces:
                 # The fragment keeps the parent's cut state and clipped DAI cores; reason names other members.
                 candidate = carve_fragment(ad, p_lo, p_hi)
@@ -2814,13 +2830,29 @@ class AdDetector:
                     # A cut-down member's sponsor may name a read that was removed.
                     sponsor=member.get('sponsor') if whole else None,
                     category=member.get('category') or ad.get('category'),
-                    _member_of=(ad['start'], ad['end'], stage))
+                    _member_of=(ad['start'], ad['end'], stage),
+                    _cut_down=not whole, _member_sponsor=member.get('sponsor'))
                 candidates.append(candidate)
         if not candidates:
             logger.debug(
                 f"Skipping pattern learning for {stage} marker "
                 f"{ad.get('start', 0.0):.1f}s-{ad.get('end', 0.0):.1f}s: no unexplained claude member")
         return candidates
+
+    def _cut_down_piece_sponsor(self, piece: dict, segments: list[dict]) -> str | None:
+        """A registry brand read inside the piece, else the member's sponsor when the piece names it."""
+        text = _interior_text(segments, piece['start'], piece['end'])
+        if not text:
+            return None
+        if self.sponsor_service:
+            found = self.sponsor_service.find_sponsor_in_text(text)
+            if found:
+                return canonical_sponsor(found)
+        named = piece.get('_member_sponsor')
+        pattern = word_boundary_re([named]) if named else None
+        if pattern is not None and pattern.search(text):
+            return canonical_sponsor(named)
+        return None
 
     def _resolve_sponsor_for_learning(self, ad: dict) -> str | None:
         """Resolve a usable sponsor name from an ad via 4-tier lookup.
@@ -2982,16 +3014,18 @@ class AdDetector:
         except Exception:
             active_pattern_sponsors = set()
 
-        min_piece_s = self.text_pattern_matcher._pattern_duration_bounds()[0]
+        min_piece_s = (
+            self.db.get_setting_float('learning_min_pattern_duration', LEARNING_MIN_PATTERN_DURATION)
+            if self.db else LEARNING_MIN_PATTERN_DURATION
+        )
         for candidate in (c for ad in ads for c in self._learning_candidates(ad, min_piece_s)):
             if not self._ad_passes_learning_filters(candidate, min_confidence):
                 continue
 
-            sponsor = self._resolve_sponsor_for_learning(candidate)
-            if not sponsor and candidate.get('_member_of') and self.sponsor_service:
-                # A cut-down member names its sponsor through its own transcript.
-                sponsor = self.sponsor_service.find_sponsor_in_text(get_transcript_text_for_range(
-                    segments, candidate['start'], candidate['end'])) or None
+            if candidate.get('_cut_down'):
+                sponsor = self._cut_down_piece_sponsor(candidate, segments)
+            else:
+                sponsor = self._resolve_sponsor_for_learning(candidate)
             if not sponsor:
                 continue
 
