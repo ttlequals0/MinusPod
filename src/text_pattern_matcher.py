@@ -129,9 +129,8 @@ def trim_piece_to_read(units, segment_starts, lo, hi, sponsor_re, other_brand_re
                        trim_lead: bool) -> tuple[float, float, str] | None:
     """A learned piece narrowed to its sponsor's own copy, or None when it never names the sponsor.
 
-    With trim_lead, a short opening fragment of the segment the piece starts inside is dropped
-    when it does not name the sponsor (the previous read's tail). Sentences after the last one
-    naming the sponsor go once one opens a host handoff or names another read's brand.
+    trim_lead drops a short opening fragment of the segment the piece starts inside (the previous
+    read's tail); after the last sponsor sentence, a handoff or another read's brand ends the piece.
     """
     sentences = _sentences([u for u in units if u['end'] > lo and u['start'] < hi])
     first_segment = min((b for b in segment_starts if lo < b < hi), default=None)

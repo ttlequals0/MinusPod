@@ -9,10 +9,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.97.44] - 2026-10-01
+
+### Fixed
+- A learned pattern piece takes the sponsor that is named most inside it, so a passing mention of another registered brand can no longer relabel or block the read.
+- Learned pieces are split at the transcript boundary where the next read starts and trimmed to the sponsor's own copy, instead of inheriting a neighbouring read's opening or closing sentences.
+
 ## [2.97.43] - 2026-10-01
 
 ### Fixed
-- Pattern learning on a merged ad block now learns the stretches of the LLM detection that no existing pattern covers, instead of skipping the whole detection when one known read sits inside it.
+- Pattern learning on a merged ad block now learns the stretches of the LLM detection that no existing pattern covers, instead of skipping the whole detection when one known read sits inside it. Each piece names its sponsor only from the words spoken inside it.
 
 ## [2.97.42] - 2026-10-01
 

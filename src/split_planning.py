@@ -84,10 +84,8 @@ def brand_mention_offsets(text: str, brands, compiled=None) -> dict[str, list[in
 
 
 def _brand_handoffs(text: str, brands, compiled=None) -> list[tuple[int, str, int]]:
-    """(offset, name, previous brand's last offset) where one brand's mentions stop and another's begin.
-    Only a clean handoff counts: every earlier brand must be finished before the
-    new one opens, or an interleaved pair would cut mid-read. A brand named once
-    is a passing mention, not a read, so it neither opens nor closes one."""
+    """(offset, name, previous brand's last offset) where every earlier brand has finished and another
+    begins, so an interleaved pair never cuts mid-read; a brand named once is a passing mention."""
     mentions = {name: offsets for name, offsets in
                 brand_mention_offsets(text, brands, compiled).items() if len(offsets) >= 2}
     if len(mentions) < 2:
@@ -231,8 +229,7 @@ def build_split_pieces(spans: list[dict], start: float, end: float,
         text = ' '.join(span['text'] for span in in_piece)
         lo = in_piece[0]['offset'] if in_piece else 0
         hi = (in_piece[-1]['offset'] + len(in_piece[-1]['text'])) if in_piece else 0
-        # A piece naming one brand, or repeating only one, is that brand's read: a
-        # passing mention of a second registry brand cannot outrank it. Two
+        # A piece naming one brand, or repeating only one, is that brand's read; two
         # repeated brands are two reads, so the generic extractor answers.
         named = {name: hits for name, offsets in mentions.items()
                  if (hits := [o for o in offsets if lo <= o < hi])}
