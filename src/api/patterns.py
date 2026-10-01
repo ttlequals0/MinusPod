@@ -606,7 +606,9 @@ def _validate_create_correction_input(data):
     """
     start = data.get('start')
     end = data.get('end')
-    sponsor_text = (data.get('sponsor') or '').strip()
+    sponsor_text, sponsor_error = _modal_sponsor(data)
+    if sponsor_error:
+        return None, sponsor_error
     text_template = (data.get('text_template') or '').strip()
     reason = data.get('reason') or ''
     scope = data.get('scope') or 'podcast'

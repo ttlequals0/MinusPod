@@ -229,16 +229,27 @@ def test_without_the_override_no_pattern_is_created(temp_db):
         assert (primary_id is not None) is created
 
 
-@pytest.mark.parametrize('kind', ['confirm', 'adjust'])
+_NON_STRING_PAYLOADS = {
+    'confirm': {'type': 'confirm', 'original_ad': {'start': 0.0, 'end': 30.0}},
+    'adjust': {'type': 'adjust', 'original_ad': {'start': 0.0, 'end': 35.0},
+               'adjusted_start': 0.0, 'adjusted_end': 30.0},
+    'create': {'type': 'create', 'start': 0.0, 'end': 30.0, 'text_template': 'x' * 60},
+}
+
+
+@pytest.mark.parametrize('kind', sorted(_NON_STRING_PAYLOADS))
 @pytest.mark.parametrize('sponsor', [42, ['Acme'], {'name': 'Acme'}])
-def test_non_string_modal_sponsor_is_rejected(client, kind, sponsor):
+def test_non_string_sponsor_is_rejected_on_every_path(client, kind, sponsor):
     db = _mock_db(CLEAN_AD_MODAL_SPONSOR)
-    send = _confirm_with_modal_sponsor if kind == 'confirm' else (
-        lambda c, d, s, e, sp: _adjust_with_modal_sponsor(c, d, s, e + 5.0, s, e, sp))
-    with patch('api.patterns._resolve_or_create_pattern_from_text') as mock_resolve:
-        resp = send(client, db, 0.0, 30.0, sponsor)
+    payload = dict(_NON_STRING_PAYLOADS[kind], sponsor=sponsor)
+    with patch('api.patterns.get_database', return_value=db), \
+         patch('api.patterns._resolve_or_create_pattern_from_text') as mock_resolve:
+        resp = client.post(
+            f'/api/v1/episodes/{SLUG}/{EPISODE_ID}/corrections',
+            data=json.dumps(payload), content_type='application/json')
     assert resp.status_code == 400
     mock_resolve.assert_not_called()
+    db.create_ad_pattern.assert_not_called()
 
 
 def test_whitespace_only_modal_sponsor_is_none(client):
