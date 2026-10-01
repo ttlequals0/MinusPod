@@ -207,9 +207,10 @@ class TestCompiledMatchersAreReused:
     split planning rebuilt them for every span it planned."""
 
     def test_a_supplied_matcher_is_used_instead_of_a_fresh_one(self):
+        # Each brand is named twice: a single mention is a passing one, not a read to hand off from.
         vtt = _vtt(
-            (0.0, 40.0, 'Acme is the one we use every single day here.'),
-            (40.0, 90.0, 'Their rival ships it faster for half the price.'),
+            (0.0, 40.0, 'Acme is the one we use every single day here. Acme again.'),
+            (40.0, 90.0, 'Their rival ships it faster. The rival charges half the price.'),
         )
         spans = _spans(vtt, 0.0, 90.0)
         # Deliberately matches a word the brand name does not: the candidate
@@ -316,3 +317,47 @@ def test_a_piece_takes_the_brand_it_names_most():
     spans = _spans(vtt, 100.0, 160.0)
     pieces = build_split_pieces(spans, 100.0, 160.0, [], brands=['Headspace', 'Acme Wash'])
     assert pieces[0]['sponsor'] == 'Acme Wash'
+
+
+class TestSegmentBoundaryDividers:
+    """Word-level spans with the Whisper segments behind them."""
+
+    @staticmethod
+    def _words(segments):
+        units = []
+        for seg in segments:
+            tokens = seg['text'].split()
+            step = (seg['end'] - seg['start']) / len(tokens)
+            units += [{'start': seg['start'] + i * step, 'end': seg['start'] + (i + 1) * step,
+                       'text': token} for i, token in enumerate(tokens)]
+        offset = 0
+        for unit in units:
+            unit['offset'] = offset
+            offset += len(unit['text']) + 1
+        return units
+
+    SEGMENTS = [
+        {'start': 100.0, 'end': 130.0, 'text': 'Acme makes the thing. Acme is worth a look.'},
+        {'start': 131.0, 'end': 170.0,
+         'text': 'Hey, this is Sam from Other Show. Think about it. Beta Corp files taxes. Beta Corp is easy.'},
+    ]
+
+    def test_a_brand_handoff_moves_to_the_segment_where_the_read_opens(self):
+        spans = self._words(self.SEGMENTS)
+        times = [c['time'] for c in build_split_candidates(
+            spans, 100.0, 170.0, brands=['Acme', 'Beta Corp'], segments=self.SEGMENTS)]
+        assert times == [131.0]
+
+    def test_a_measured_cut_inside_a_segment_with_no_boundary_near_is_dropped(self):
+        spans = self._words(self.SEGMENTS)
+        assert build_split_candidates(spans, 100.0, 170.0, cuts=[150.0],
+                                      segments=self.SEGMENTS) == [
+            {'time': 131.0, 'phrase': 'handoff'}]
+
+    def test_a_measured_cut_near_a_boundary_snaps_to_it(self):
+        spans = self._words(self.SEGMENTS[:1])
+        segments = [{'start': 100.0, 'end': 128.0, 'text': 'Acme one.'},
+                    {'start': 128.0, 'end': 160.0, 'text': 'Two.'}]
+        times = [c['time'] for c in build_split_candidates(
+            spans, 100.0, 160.0, cuts=[132.0], segments=segments)]
+        assert times == [128.0]

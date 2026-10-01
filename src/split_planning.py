@@ -8,6 +8,8 @@ merge recorded, a clean handoff from one brand to another in the text, and
 measured cut times the analyzer left on the marker. Free of Flask and DB
 imports so it unit tests directly.
 """
+import re
+
 from community_export import brand_match_candidates, get_sponsor_row_or_stub
 from config import MIN_AD_DURATION
 from sponsor_service import SponsorService
@@ -15,6 +17,15 @@ from text_pattern_matcher import AD_TRANSITION_PHRASES, find_transition_offsets
 from utils.constants import MIN_BRAND_MATCH_CHARS
 from utils.markers import DAI_CORE_SPANS, MERGED_MEMBER_SPANS, finite_number
 from utils.text import pattern_offsets, word_boundary_re
+
+# A host opening a new read: "Hey, this is Sam from ...", "I'm Sam and ...", or a sponsor credit.
+HANDOFF_RE = re.compile(
+    r"^\W*(?:(?:hey|hi|hello)\W+)?(?:this is|it's|i'm|i am)\s+(?-i:[A-Z][\w.'-]*)"
+    r"(?:\s+(?-i:[A-Z][\w.'-]*)){0,2}\s+(?:from|and|with)\b|^\W*(?:" + '|'.join(map(re.escape, AD_TRANSITION_PHRASES)) + ")",
+    re.IGNORECASE)
+# How far a measured cut or a transcript divider may move to reach a Whisper segment boundary.
+DAI_SNAP_S = 5.0
+SEGMENT_SNAP_S = 3.0
 
 
 def _join(spans: list[dict]) -> str:
@@ -72,15 +83,17 @@ def brand_mention_offsets(text: str, brands, compiled=None) -> dict[str, list[in
     return pattern_offsets(text, patterns)
 
 
-def _brand_handoffs(text: str, brands, compiled=None) -> list[tuple[int, str]]:
-    """Offsets where one brand's mentions stop and another's begin.
+def _brand_handoffs(text: str, brands, compiled=None) -> list[tuple[int, str, int]]:
+    """(offset, name, previous brand's last offset) where one brand's mentions stop and another's begin.
     Only a clean handoff counts: every earlier brand must be finished before the
-    new one opens, or an interleaved pair would cut mid-read."""
-    mentions = brand_mention_offsets(text, brands, compiled)
+    new one opens, or an interleaved pair would cut mid-read. A brand named once
+    is a passing mention, not a read, so it neither opens nor closes one."""
+    mentions = {name: offsets for name, offsets in
+                brand_mention_offsets(text, brands, compiled).items() if len(offsets) >= 2}
     if len(mentions) < 2:
         return []
     ordered = sorted(mentions.items(), key=lambda item: item[1][0])
-    return [(offsets[0], name)
+    return [(offsets[0], name, max(prior[-1] for _, prior in ordered[:index]))
             for index, (name, offsets) in enumerate(ordered)
             if index and all(prior[-1] < offsets[0]
                              for _, prior in ordered[:index])]
@@ -111,23 +124,61 @@ def marker_split_sources(marker: dict) -> tuple[list[dict], list[float]]:
     return members, sorted(cores)[1:]
 
 
+def _segment_snapper(segments, start: float, end: float):
+    """Helpers mapping a time onto the Whisper segment boundaries inside (start, end)."""
+    inside = sorted((seg for seg in segments or []
+                     if seg.get('end', 0.0) > start and seg.get('start', 0.0) < end),
+                    key=lambda seg: seg.get('start', 0.0))
+    bounds = sorted({seg.get('start', 0.0) for seg in inside if start < seg.get('start', 0.0) < end})
+
+    def near(time, tol):
+        best = min(bounds, key=lambda b: abs(b - time), default=None)
+        return best if best is not None and abs(best - time) <= tol else None
+
+    def holder(time):
+        return next((seg for seg in inside
+                     if seg.get('start', 0.0) < time < seg.get('end', 0.0)), None)
+
+    return inside, near, holder
+
+
 def build_split_candidates(spans: list[dict], start: float, end: float,
                            members: list[dict] = None, brands=None,
-                           cuts: list[float] = None, compiled=None) -> list[dict]:
+                           cuts: list[float] = None, compiled=None,
+                           segments: list[dict] = None) -> list[dict]:
     """Proposed divider times inside (start, end), earliest first.
 
     A candidate is dropped when it would leave a piece shorter than
     MIN_AD_DURATION on either side, so the editor never opens already invalid.
-    Returns [] when no source proposes a divider.
+    Returns [] when no source proposes a divider. `segments` are the Whisper
+    segments behind word-level `spans`: dividers move onto their boundaries.
     """
     text = _join(spans) if spans else ''
+    inside, near, holder = _segment_snapper(segments, start, end)
+
+    def on_boundary(time, tol=SEGMENT_SNAP_S):
+        # A divider never splits a Whisper segment when a boundary lies close by.
+        snapped = near(time, tol) if time is not None and segments else None
+        return snapped if snapped is not None else time
+
     proposals: list[tuple[float | None, str]] = []
     if text:
-        proposals += [(_time_at_offset(spans, offset),
+        proposals += [(on_boundary(_time_at_offset(spans, offset)),
                        _phrase_at_offset(text, offset))
                       for offset in find_transition_offsets(text)]
-        proposals += [(_time_at_offset(spans, offset), name)
-                      for offset, name in _brand_handoffs(text, brands, compiled)]
+        for offset, name, previous in _brand_handoffs(text, brands, compiled):
+            time = _time_at_offset(spans, offset)
+            seg = holder(time) if time is not None else None
+            prior = _time_at_offset(spans, previous)
+            # The new brand's read opens where its segment opens, if the old brand ended before it.
+            seg_start = seg.get('start', 0.0) if seg is not None else None
+            if seg_start is not None and prior is not None and start < seg_start and prior < seg_start:
+                time = seg_start
+            proposals.append((on_boundary(time), name))
+    # A segment opening with a host handoff starts a new read.
+    proposals += [(seg.get('start', 0.0), 'handoff') for seg in inside
+                  if start < seg.get('start', 0.0) < end
+                  and HANDOFF_RE.match(seg.get('text') or '')]
     # A member's start is where the ad before it ended, so only the members
     # after the first name an interior boundary; one nested in an earlier member names none.
     reach = None
@@ -135,7 +186,14 @@ def build_split_candidates(spans: list[dict], start: float, end: float,
         if reach is not None and member['end'] > reach:
             proposals.append((member['start'], member.get('sponsor') or 'merged ad'))
         reach = member['end'] if reach is None else max(reach, member['end'])
-    proposals += [(cut, 'measured cut') for cut in cuts or []]
+    for cut in cuts or []:
+        if segments:
+            # A measured cut gives way to a nearby transcript boundary, and never cuts through speech.
+            snapped = near(cut, DAI_SNAP_S)
+            if snapped is None and holder(cut) is not None:
+                continue
+            cut = snapped if snapped is not None else cut
+        proposals.append((cut, 'measured cut'))
 
     out: list[dict] = []
     for time, phrase in sorted((p for p in proposals if p[0] is not None),
