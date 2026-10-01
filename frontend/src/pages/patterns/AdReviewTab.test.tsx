@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -80,6 +80,7 @@ function renderTab() {
 }
 
 beforeEach(() => {
+  modalProps.onSubmit = undefined;
   mockGetDetections.mockResolvedValue({
     detections: [detection()], total: 1, page: 1, totalPages: 1, limit: 20,
     counts: COUNTS,
@@ -232,7 +233,7 @@ describe('AdReviewTab row actions', () => {
     const user = userEvent.setup();
     await user.click((await screen.findAllByRole('button', { name: 'Edit' }))[0]);
     await waitFor(() => expect(modalProps.onSubmit).toBeDefined());
-    modalProps.onSubmit!({ kind: 'confirm', sponsor: 'Globex' });
+    act(() => modalProps.onSubmit!({ kind: 'confirm', sponsor: 'Globex' }));
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
     expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({
       type: 'confirm',

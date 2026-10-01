@@ -85,6 +85,8 @@ function CollapsibleSection({
   const expanded = searching ? matchesSearch : openState;
   let contentMaxHeight = maxHeight;
   if (searching) contentMaxHeight = matchesSearch ? 'none' : '0px';
+  // 'none' is fully open, '0px' collapsed, a pixel height mid-animation.
+  const animating = contentMaxHeight !== 'none' && contentMaxHeight !== '0px';
 
   // Settings bulk expand/collapse: Expand all / Collapse all bump `seq` on
   // each click, telling every section to snap to `open`. Goes through the
@@ -188,7 +190,7 @@ function CollapsibleSection({
         ref={contentRef}
         inert={!expanded}
         style={{ maxHeight: contentMaxHeight }}
-        className={`${contentMaxHeight !== 'none' ? 'overflow-hidden' : ''} ${!searching && maxHeight !== 'none' && maxHeight !== '0px' ? 'transition-[max-height] duration-300 ease-in-out' : ''}`}
+        className={`${contentMaxHeight !== 'none' ? 'overflow-hidden' : ''} ${animating ? 'transition-[max-height] duration-300 ease-in-out' : ''}`}
       >
         <div className="px-4 pb-4 sm:px-6 sm:pb-6">
           {(!unmountWhenClosed || keepMounted || openState || matchesSearch) && children}
