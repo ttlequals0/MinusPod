@@ -671,12 +671,12 @@ def _end_capped_floor(ix: _EdgeIndex, independent, proposed: float, floor: float
 def _timestamped_with_gaps(lines: list[dict], gaps, lo: float, hi: float,
                            closed: bool = False) -> str:
     """Timestamped transcript for [lo, hi] plus a note for each gap centred in it."""
-    in_range = [ln for ln in lines if ln['end'] >= lo and ln['start'] <= hi]
+    in_range = [ln for ln in lines if ln.get('end', 0.0) >= lo and ln.get('start', 0.0) <= hi]
     mine = [(g_lo, g_hi) for g_lo, g_hi in gaps
             if lo <= (g_lo + g_hi) / 2 < hi or (closed and (g_lo + g_hi) / 2 == hi)]
     if not mine:
         return get_timestamped_transcript_for_range(in_range, lo, hi)
-    starts = [ln['start'] for ln in in_range]
+    starts = [ln.get('start', 0.0) for ln in in_range]
     parts, cut = [], 0
     for g_lo, g_hi in mine:
         at = bisect_right(starts, g_lo)
@@ -689,20 +689,23 @@ def _timestamped_with_gaps(lines: list[dict], gaps, lo: float, hi: float,
 
 def _hold_inward_edges(start: float, end: float, start_limits, end_limits,
                        barriers) -> tuple[float, float]:
-    """Keep each edge from moving inward past its limits, stopping at a hard barrier before one."""
-    for lim in start_limits:
-        if start > lim:
-            start = max([lim] + [min(b['end'], start) for b in barriers
-                                 if b['start'] < start and b['end'] > lim])
-    for lim in end_limits:
-        if end < lim:
-            end = min([lim] + [max(b['start'], end) for b in barriers
-                               if b['end'] > end and b['start'] < lim])
+    """Keep each edge from moving inward past its limits, stopping at a hard barrier before one.
+
+    Limits are (span edge, floor) pairs: the span edge triggers and filters barriers, the edge lands on floor.
+    """
+    for edge, floor in start_limits:
+        if start > edge:
+            start = max([floor] + [min(b['end'], start) for b in barriers
+                                   if b['start'] < start and b['end'] > edge])
+    for edge, floor in end_limits:
+        if end < edge:
+            end = min([floor] + [max(b['start'], end) for b in barriers
+                                 if b['end'] > end and b['start'] < edge])
     return start, end
 
 
 def _untranscribed_limits(index: TranscriptIndex, original_start: float,
-                          original_end: float) -> tuple[list[float], list[float]]:
+                          original_end: float) -> tuple[list, list]:
     """Edge limits from untranscribed stretches of UNREVIEWABLE_GAP_SECONDS or more inside the span."""
     gaps = list(index.gaps)
     units = index.end.units
@@ -711,16 +714,16 @@ def _untranscribed_limits(index: TranscriptIndex, original_start: float,
         gaps += [(original_start, units[0][0]), (index.end.max_his[-1], original_end)]
     inside = [(max(lo, original_start), min(hi, original_end)) for lo, hi in gaps]
     inside = [(lo, hi) for lo, hi in inside if hi - lo >= UNREVIEWABLE_GAP_SECONDS]
-    return [lo for lo, _hi in inside], [hi for _lo, hi in inside]
+    return [(lo, lo) for lo, _hi in inside], [(hi, hi) for _lo, hi in inside]
 
 
 def _silence_limits(ad: dict, original_start: float,
-                    original_end: float) -> tuple[list[float], list[float]]:
+                    original_end: float) -> tuple[list, list]:
     """Edge limits from absorbed silence touching either edge."""
     spans = silent_absorbed_spans(ad)
-    return ([min(lo, original_start) for lo, _hi in spans
+    return ([(lo, min(lo, original_start)) for lo, _hi in spans
              if lo <= original_start + EDGE_TOLERANCE],
-            [max(hi, original_end) for _lo, hi in spans
+            [(hi, max(hi, original_end)) for _lo, hi in spans
              if hi >= original_end - EDGE_TOLERANCE])
 
 

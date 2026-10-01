@@ -183,3 +183,30 @@ def test_word_gap_inside_one_segment_is_shown_in_the_prompt():
         ad={'start': 100.0, 'end': 111.0}, segments=segments,
         episode_meta=_mock_episode_meta(), pool='accepted')
     assert '[100.50s-110.50s] (10.0 s of audio with no transcript)' in prompt
+
+
+@pytest.mark.parametrize('proposal, barriers, expected', [
+    # Barrier ends at 100.02, before the span's own start: it does not stop the floor.
+    (105.0, [{'start': 90.0, 'end': 100.02}], 100.0),
+    # A proposal inside (original start, span start] never triggers the silence floor.
+    (100.02, [], 100.02),
+])
+def test_silence_floor_triggers_on_the_span_edge(proposal, barriers, expected):
+    marker = {'start': 100.0, 'end': 200.0, 'confidence': 0.95, 'detection_stage': 'claude',
+              'silent_absorbed_spans': [{'start': 100.03, 'end': 110.0}]}
+    got = _reviewer()._clamp_proposed_bounds(
+        marker, proposal, 200.0, 100.0, 200.0, 60, 'show', 'ep1', segments=[],
+        hard_barriers=barriers)
+    assert got == (expected, 200.0)
+
+
+def test_gap_notes_tolerate_a_line_without_an_end():
+    lines = [{'start': 50.0, 'text': 'no end'},
+             {'start': 100.0, 'end': 105.0, 'text': 'one'},
+             {'start': 120.0, 'end': 125.0, 'text': 'two'}]
+    text = ad_reviewer._timestamped_with_gaps(lines, [(105.0, 120.0)], 100.0, 130.0)
+    assert text.split('\n') == [
+        '[100.0s-105.0s] one',
+        '[105.00s-120.00s] (15.0 s of audio with no transcript)',
+        '[120.0s-125.0s] two',
+    ]
