@@ -53,3 +53,13 @@ def test_a_piece_that_never_names_its_sponsor_learns_nothing(matcher, caplog):
     with caplog.at_level('INFO'):
         assert _learn(matcher, segments, 909.5, 937.8, 'Globex Foods', ad) == []
     assert 'never names Globex Foods' in caplog.text
+
+
+def test_a_piece_starting_on_a_segment_boundary_keeps_its_opening_sentence(matcher):
+    segments = [_segment((835.1, 840.0, 'Running a small team means juggling a lot of paperwork.')),
+                _segment((840.0, 848.0, 'Ledgerly keeps every invoice and receipt in one tidy place.')),
+                _segment((848.0, 856.0, 'Ledgerly sends the reminders so you never chase a payment.'))]
+    ad = {'start': 835.1, 'end': 856.0, '_cut_down': True,
+          '_member_of': (731.1, 939.9, 'dai_differential')}
+    created = _learn(matcher, segments, 835.1, 856.0, 'Ledgerly', ad)
+    assert [(c['start'], c['end']) for c in created] == [(835.1, 856.0)]

@@ -7,13 +7,15 @@ and measured cut times, each mapped back to a transcript segment start.
 
 import re
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('split_planning_test_')
 
 from config import MIN_AD_DURATION  # noqa: E402
 from split_planning import (  # noqa: E402
-    build_split_candidates, build_split_pieces, marker_split_sources)
+    HANDOFF_RE, build_split_candidates, build_split_pieces, marker_split_sources)
 from utils.text import extract_timed_spans_in_range  # noqa: E402
 
 
@@ -361,3 +363,47 @@ class TestSegmentBoundaryDividers:
         times = [c['time'] for c in build_split_candidates(
             spans, 100.0, 160.0, cuts=[132.0], segments=segments)]
         assert times == [128.0]
+
+
+class TestHandoffAndCutRules:
+    _words = staticmethod(TestSegmentBoundaryDividers._words)
+    ACME = {'start': 100.0, 'end': 130.0, 'text': 'Acme makes the thing. Acme is worth a look.'}
+    BETA = {'start': 140.0, 'end': 170.0, 'text': 'Beta Corp files taxes. Beta Corp is easy.'}
+
+    def _times(self, segments, **kwargs):
+        spans = self._words(segments)
+        return [c['time'] for c in build_split_candidates(
+            spans, 100.0, 170.0, brands=['Acme', 'Beta Corp'], segments=segments, **kwargs)]
+
+    def test_a_read_opening_with_a_host_handoff_gets_one_divider(self):
+        opener = {'start': 131.0, 'end': 140.0, 'text': 'Hey, this is Sam from Other Show. Think about it.'}
+        assert self._times([self.ACME, opener, self.BETA]) == [131.0]
+
+    def test_a_brand_handoff_opens_at_the_first_segment_after_the_old_brand(self):
+        lead_in = {'start': 131.0, 'end': 140.0, 'text': 'Think about it for a moment.'}
+        assert self._times([self.ACME, lead_in, self.BETA]) == [131.0]
+
+    def test_a_measured_cut_between_two_mentions_of_one_brand_is_dropped(self):
+        beta_a = {'start': 131.0, 'end': 150.0, 'text': 'Beta Corp files taxes.'}
+        beta_b = {'start': 150.0, 'end': 170.0, 'text': 'Beta Corp is easy.'}
+        # 148 would snap onto the 150 s boundary, but Beta Corp is named on both sides of it.
+        assert self._times([self.ACME, beta_a, beta_b], cuts=[148.0]) == [131.0]
+
+
+@pytest.mark.parametrize('text, opens', [
+    ("Hey, this is Sam from The Other Show.", True),
+    ("This episode is brought to you by Acme.", True),
+    ("I'm Sam and I use Acme every day.", False),
+    ("It's Monday and you need coffee.", False),
+    ("Thanks to Acme for supporting the show.", False),
+])
+def test_host_handoff_phrases(text, opens):
+    assert bool(HANDOFF_RE.match(text)) is opens
+
+
+def test_a_single_brand_hit_does_not_label_a_piece_unless_it_is_the_sponsor():
+    vtt = _vtt((100.0, 160.0, 'Free up some headspace this week with a new routine.'))
+    spans = _spans(vtt, 100.0, 160.0)
+    assert build_split_pieces(spans, 100.0, 160.0, [], brands=['Headspace'])[0]['sponsor'] != 'Headspace'
+    assert build_split_pieces(spans, 100.0, 160.0, [], brands=['Headspace'],
+                              sponsor='Headspace')[0]['sponsor'] == 'Headspace'

@@ -19,13 +19,17 @@ from utils.markers import DAI_CORE_SPANS, MERGED_MEMBER_SPANS, finite_number
 from utils.text import pattern_offsets, word_boundary_re
 
 # A host opening a new read: "Hey, this is Sam from ...", "I'm Sam and ...", or a sponsor credit.
+# "thanks to" also closes a read ("thanks to Acme for supporting the show"), so it opens none here.
 HANDOFF_RE = re.compile(
-    r"^\W*(?:(?:hey|hi|hello)\W+)?(?:this is|it's|i'm|i am)\s+(?-i:[A-Z][\w.'-]*)"
-    r"(?:\s+(?-i:[A-Z][\w.'-]*)){0,2}\s+(?:from|and|with)\b|^\W*(?:" + '|'.join(map(re.escape, AD_TRANSITION_PHRASES)) + ")",
+    r"^\W*(?:(?:hey|hi|hello)\W+)?this is\s+(?-i:[A-Z][\w.'-]*)(?:\s+(?-i:[A-Z][\w.'-]*)){0,2}"
+    r"\s+from\b|^\W*(?:" + '|'.join(
+        re.escape(p) for p in AD_TRANSITION_PHRASES if p != 'thanks to') + ")",
     re.IGNORECASE)
 # How far a measured cut or a transcript divider may move to reach a Whisper segment boundary.
 DAI_SNAP_S = 5.0
 SEGMENT_SNAP_S = 3.0
+# A measured cut this close to a segment boundary is one the transcript confirms.
+CUT_AGREES_S = 0.5
 
 
 def _join(spans: list[dict]) -> str:
@@ -164,19 +168,23 @@ def build_split_candidates(spans: list[dict], start: float, end: float,
         proposals += [(on_boundary(_time_at_offset(spans, offset)),
                        _phrase_at_offset(text, offset))
                       for offset in find_transition_offsets(text)]
+    # A segment opening with a host handoff starts a new read.
+    handoffs = [seg.get('start', 0.0) for seg in inside
+                if start < seg.get('start', 0.0) < end and HANDOFF_RE.match(seg.get('text') or '')]
+    proposals += [(time, 'handoff') for time in handoffs]
+    if text:
         for offset, name, previous in _brand_handoffs(text, brands, compiled):
             time = _time_at_offset(spans, offset)
-            seg = holder(time) if time is not None else None
             prior = _time_at_offset(spans, previous)
-            # The new brand's read opens where its segment opens, if the old brand ended before it.
-            seg_start = seg.get('start', 0.0) if seg is not None else None
-            if seg_start is not None and prior is not None and start < seg_start and prior < seg_start:
-                time = seg_start
+            if segments and time is not None and prior is not None:
+                if any(prior < h <= time for h in handoffs):
+                    continue  # The host handoff already divides the two reads.
+                # The new read opens with the first segment after the old brand's last mention.
+                after = next((seg.get('end', 0.0) for seg in inside
+                              if seg.get('start', 0.0) <= prior < seg.get('end', 0.0)), prior)
+                time = next((seg.get('start', 0.0) for seg in inside
+                             if after - 0.01 <= seg.get('start', 0.0) <= time), time)
             proposals.append((on_boundary(time), name))
-    # A segment opening with a host handoff starts a new read.
-    proposals += [(seg.get('start', 0.0), 'handoff') for seg in inside
-                  if start < seg.get('start', 0.0) < end
-                  and HANDOFF_RE.match(seg.get('text') or '')]
     # A member's start is where the ad before it ended, so only the members
     # after the first name an interior boundary; one nested in an earlier member names none.
     reach = None
@@ -184,7 +192,14 @@ def build_split_candidates(spans: list[dict], start: float, end: float,
         if reach is not None and member['end'] > reach:
             proposals.append((member['start'], member.get('sponsor') or 'merged ad'))
         reach = member['end'] if reach is None else max(reach, member['end'])
+    mention_times = [sorted(t for t in (_time_at_offset(spans, o) for o in offsets) if t is not None)
+                     for offsets in brand_mention_offsets(text, brands, compiled).values()
+                     ] if text and cuts else []
     for cut in cuts or []:
+        # A cut the transcript agrees with stands; one between two mentions of a brand is inside its read.
+        agreed = bool(segments) and near(cut, CUT_AGREES_S) is not None
+        if not agreed and any(times and times[0] < cut < times[-1] for times in mention_times):
+            continue
         if segments:
             # A measured cut gives way to a nearby transcript boundary, and never cuts through speech.
             snapped = near(cut, DAI_SNAP_S)
@@ -207,7 +222,8 @@ def build_split_candidates(spans: list[dict], start: float, end: float,
 
 
 def build_split_pieces(spans: list[dict], start: float, end: float,
-                       times: list[float], brands=None, compiled=None) -> list[dict]:
+                       times: list[float], brands=None, compiled=None,
+                       sponsor: str = None) -> list[dict]:
     """The pieces `times` would produce, each with its text and sponsor guess.
 
     Boundary times outside (start, end) are ignored rather than rejected: this
@@ -234,7 +250,9 @@ def build_split_pieces(spans: list[dict], start: float, end: float,
         named = {name: hits for name, offsets in mentions.items()
                  if (hits := [o for o in offsets if lo <= o < hi])}
         repeated = {name: hits for name, hits in named.items() if len(hits) >= 2}
-        brand = (next(iter(named)) if len(named) == 1
+        # A single hit is a passing mention unless it is the caller's own sponsor.
+        lone = next(iter(named)) if len(named) == 1 else None
+        brand = (lone if lone and (len(named[lone]) >= 2 or (sponsor and lone.lower() == sponsor.lower()))
                  else next(iter(repeated)) if len(repeated) == 1 else None)
         pieces.append({
             'start': piece_start,
