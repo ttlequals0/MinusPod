@@ -355,6 +355,11 @@ def register_routes(app):
 
     # ========== Web UI Static File Serving ==========
 
+    @app.route('/')
+    def root_redirect():
+        """Send a bare host:port visit to the UI instead of a 404."""
+        return redirect('/ui/', code=302)
+
     @app.route('/ui/')
     @app.route('/ui/<path:path>')
     def serve_ui(path=''):
