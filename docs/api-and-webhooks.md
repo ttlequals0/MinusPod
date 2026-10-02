@@ -24,7 +24,7 @@ Key endpoints:
 - `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap, `onlyExposeProcessedEpisodes` to hide unprocessed episodes from the served feed, `retentionDaysOverride` for a per-feed retention window or archive, `keepOriginalAudioOverride` for the pre-cut original audio)
 - `PATCH /api/v1/feeds/{slug}` - Update a feed's settings: `queuePriority` (`high`/`normal`/`low`, restamps the feed's already-queued pending episodes immediately), `retentionDaysOverride`, `keepOriginalAudioOverride`, `maxEpisodes`, `onlyExposeProcessedEpisodes`, `processingMode`, `chaptersMode`, title blacklist, and the other per-feed overrides listed in the OpenAPI spec
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
-- `GET /api/v1/feeds/export-opml?mode=original|modified` - Export feeds as OPML (original or ad-free URLs)
+- `GET /api/v1/feeds/export-opml?mode=original|modified` - Export feeds as OPML (original or ad-free URLs). Optional `slugs=a,b` limits it to those feeds
 - `POST /api/v1/feeds/refresh-artwork` - Re-render every feed's cover art (used after toggling the cover-art badge or swapping the badge asset)
 - `POST /api/v1/feeds/{slug}/refresh` - Refresh one subscribed feed. Success includes a structured `outcome` with status, new and queued episode counts, plus refresh timestamps; source fetch or parse failures return 502.
 - `POST /api/v1/feeds/refresh` - Refresh every subscribed feed. Returns per-feed outcomes and totals; HTTP 207 means the pass completed with at least one feed failure.

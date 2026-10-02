@@ -132,6 +132,41 @@ class TestOpmlExportModifiedMode:
         assert root.find('.//outline').get('xmlUrl') == 'http://localhost:8000/pod'
 
 
+class TestOpmlExportSlugFilter:
+    """Tests for the optional slugs filter (Feeds page picker)."""
+
+    @patch('api.feeds.get_database')
+    def test_slugs_limits_export_to_selected_feeds(self, mock_db, client):
+        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        response = client.get('/api/v1/feeds/export-opml?mode=original&slugs=another-show')
+        assert response.status_code == 200
+        outlines = _parse_opml(response.data).findall('.//outline')
+        assert [o.get('title') for o in outlines] == ['Another Show']
+
+    @patch('api.feeds.get_database')
+    def test_slugs_keeps_feed_order_and_skips_unknown(self, mock_db, client):
+        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        response = client.get(
+            '/api/v1/feeds/export-opml?slugs=another-show,%20gone-feed,my-podcast')
+        assert response.status_code == 200
+        outlines = _parse_opml(response.data).findall('.//outline')
+        assert [o.get('title') for o in outlines] == ['My Podcast', 'Another Show']
+
+    @patch('api.feeds.get_database')
+    def test_slugs_matching_nothing_returns_400(self, mock_db, client):
+        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        for qs in ('slugs=gone-feed', 'slugs=', 'slugs=,,'):
+            response = client.get(f'/api/v1/feeds/export-opml?{qs}')
+            assert response.status_code == 400, qs
+            assert 'slugs' in json.loads(response.data)['error']
+
+    @patch('api.feeds.get_database')
+    def test_no_slugs_param_still_exports_everything(self, mock_db, client):
+        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        response = client.get('/api/v1/feeds/export-opml')
+        assert len(_parse_opml(response.data).findall('.//outline')) == 2
+
+
 class TestOpmlExportStructure:
     """Tests for OPML XML structure."""
 

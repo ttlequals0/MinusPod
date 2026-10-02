@@ -1,7 +1,7 @@
 // The Dashboard field is the mobile fix (#717): a real input the tap lands on
 // directly, since iOS only raises the keyboard for focus inside the gesture.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, renderHook, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, renderHook, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -87,6 +87,11 @@ vi.mock('../api/feeds', () => ({
   refreshAllFeeds: vi.fn(),
   deleteFeed: vi.fn(),
   reprocessEpisode: () => mockReprocessEpisode(),
+}));
+
+const mockExportOpml = vi.fn<(mode?: string) => Promise<void>>(async () => {});
+vi.mock('../api/settings', () => ({
+  exportOpml: (mode?: string) => mockExportOpml(mode),
 }));
 
 const mockSearch = vi.fn();
@@ -235,6 +240,24 @@ describe('Dashboard delete confirmation', () => {
 
     expect(screen.getByText('Click delete again to confirm')).toBeDefined();
     expect(screen.queryByText(/Deleting this podcast will stop/)).toBeNull();
+  });
+});
+
+describe('Dashboard OPML export', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // Both render in jsdom: the phone icon (title row) and the desktop button
+  // (toolbar) are only switched by Tailwind breakpoints.
+  it.each([0, 1])('either Export OPML button opens the feed picker (%i)', async (which) => {
+    renderDashboard();
+    await screen.findByText('Existing Feed');
+    const buttons = screen.getAllByRole('button', { name: 'Export OPML' });
+    expect(buttons).toHaveLength(2);
+
+    await userEvent.click(buttons[which]);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Export OPML' })).toBeDefined();
   });
 });
 
