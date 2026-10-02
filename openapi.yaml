@@ -551,6 +551,12 @@ paths:
             type: string
             enum: [original, modified]
             default: original
+        - name: slugs
+          in: query
+          description: 'Optional comma-separated feed slugs to include (in the usual feed order). Unknown slugs are skipped. Omit to export every feed.'
+          schema:
+            type: string
+          example: my-podcast,another-show
       responses:
         '200':
           description: OPML file download
@@ -567,7 +573,7 @@ paths:
                 type: string
                 format: binary
         '400':
-          description: Invalid mode parameter
+          description: Invalid mode parameter, or slugs matched no feeds
           content:
             application/json:
               schema:

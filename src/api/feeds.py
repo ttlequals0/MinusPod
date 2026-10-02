@@ -1590,13 +1590,24 @@ def import_opml():
 @api.route('/feeds/export-opml', methods=['GET'])
 @log_request
 def export_opml():
-    """Export all podcast feeds as an OPML 2.0 download (admin UI)."""
+    """Export podcast feeds as an OPML 2.0 download (admin UI).
+
+    Optional ``slugs`` (comma-separated) limits the export to those feeds, in
+    the usual feed order. Slugs that no longer exist are skipped, since a feed
+    can be deleted while the picker is open; 400 if none match.
+    """
     mode = request.args.get('mode', 'original')
     if mode not in ('original', 'modified'):
         return error_response('mode must be "original" or "modified"', 400)
 
     db = get_database()
     podcasts = db.get_all_podcasts()
+    slugs_param = request.args.get('slugs')
+    if slugs_param is not None:
+        wanted = {s.strip() for s in slugs_param.split(',') if s.strip()}
+        podcasts = [p for p in podcasts if p['slug'] in wanted]
+        if not podcasts:
+            return error_response('slugs matched no feeds', 400)
     # Keyed while feed auth is enabled, so a re-import after enable or
     # rotation subscribes apps with working URLs.
     base_url = os.environ.get('BASE_URL', 'http://localhost:8000')

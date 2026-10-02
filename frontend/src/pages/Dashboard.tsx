@@ -3,7 +3,9 @@ import DashboardControlsMenu from '../components/DashboardControlsMenu';
 import SegmentedToggle from '../components/SegmentedToggle';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
+import { Download } from 'lucide-react';
 import { feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
+import { FeedOpmlExportDialog } from '../components/FeedOpmlExportDialog';
 import DropdownMenu from '../components/DropdownMenu';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
@@ -56,6 +58,9 @@ function Dashboard() {
   // outside the 1-10 range the select and the backend projection expect.
   const episodesPerPodcast = clampEpisodesPerPodcast(episodesPerPodcastRaw);
   const [actionError, setActionError] = useState<string | null>(null);
+  // The modified OPML is what a podcast app imports, so it's offered here and
+  // not only under Settings > Data Management.
+  const [opmlExportOpen, setOpmlExportOpen] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [feedsPage, setFeedsPage] = useState(1);
@@ -254,6 +259,15 @@ function Dashboard() {
               Updated {formatDateTime(lastRefreshCompletedAt)}
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => setOpmlExportOpen(true)}
+            className={`sm:hidden ml-auto self-center h-11 min-w-11 px-2.5 rounded shrink-0 ${btnSecondary} transition-colors inline-flex items-center justify-center ${focusRing}`}
+            title="Export feeds as OPML for a podcast app"
+            aria-label="Export OPML"
+          >
+            <Download className="w-5 h-5" />
+          </button>
         </div>
         <div className="w-full sm:w-auto flex gap-2 items-center justify-between sm:justify-start overflow-x-auto no-scrollbar sm:overflow-visible">
           <SegmentedToggle
@@ -302,6 +316,16 @@ function Dashboard() {
               },
             ]}
           />
+          {/* Phones get this button in the title row instead: one more icon here
+              pushes Add Feed off a 390px-wide screen. */}
+          <button
+            type="button"
+            onClick={() => setOpmlExportOpen(true)}
+            className={`hidden sm:inline-flex h-11 px-4 text-sm rounded shrink-0 ${btnSecondary} transition-colors items-center justify-center whitespace-nowrap ${focusRing}`}
+            title="Export feeds as OPML for a podcast app"
+          >
+            Export OPML
+          </button>
           <Link
             to="/add"
             className={`h-11 min-w-11 sm:px-4 inline-flex items-center justify-center rounded shrink-0 ${btnPrimary} transition-colors ${focusRing}`}
@@ -414,6 +438,7 @@ function Dashboard() {
         </div>
       )}
 
+      <FeedOpmlExportDialog open={opmlExportOpen} onClose={() => setOpmlExportOpen(false)} />
     </div>
   );
 }
