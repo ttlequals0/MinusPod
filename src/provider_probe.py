@@ -48,13 +48,7 @@ def models_request(base_url: str, api_key: str):
 
 
 def probe_models_endpoint(base_url: str, api_key: str) -> dict:
-    """Staged connection probe for an OpenAI-compatible LLM endpoint.
-
-    GET {base}/models -- the same discovery route the real client uses on
-    startup -- with the same optional bearer auth. Unlike /test it needs no
-    stored key (local Ollama has none) and reports which failure class the
-    caller is in rather than a bare pass/fail.
-    """
+    """Probe the same authenticated /models route used for startup discovery."""
     url, headers = models_request(base_url, api_key)
     error, status, body_bytes = run_probe(
         lambda: safe_get(
@@ -105,13 +99,7 @@ def probe_models_endpoint(base_url: str, api_key: str) -> dict:
 
 
 def probe_fixed_endpoint(provider: str, api_key: str) -> dict:
-    """Staged connection probe for a provider with a fixed public endpoint.
-
-    Answers two questions the bare /test cannot: can this container reach
-    the provider at all (egress/DNS), and if not ok, is the problem the
-    key or the network. No baseUrl is accepted, so the saved key only ever
-    travels to the canonical host.
-    """
+    """Probe a provider's canonical endpoint without sending its key elsewhere."""
     url, header_fn = FIXED_PROVIDER_PROBES[provider]
     error, status, body_bytes = run_probe(
         lambda: safe_get(

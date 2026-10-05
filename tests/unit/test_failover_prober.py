@@ -304,7 +304,7 @@ def test_probe_uses_the_captured_config_when_stale_cache_is_repopulated():
 
     def record_request(endpoint, api_key):
         requests.append((endpoint, api_key))
-        return {'reachable': True, 'status': 200, 'detail': ''}
+        return {'ok': True, 'reachable': True, 'status': 200, 'detail': ''}
 
     with patch.object(failover, '_capture_probe_context', side_effect=capture_then_repopulate), \
             patch.object(failover.provider_probe, 'probe_models_endpoint', side_effect=record_request):
@@ -352,6 +352,40 @@ def test_llm_probe_404_stays_unreachable():
     failover.invalidate_cache()
     with _Http({'reachable': True, 'status': 404, 'detail': ''}):
         assert failover.probe_target('llm:failover')['reachable'] is False
+
+
+@pytest.mark.parametrize('result', [
+    {'ok': False, 'reachable': True, 'status': 200, 'detail': 'malformed model list'},
+    {'ok': False, 'reachable': True, 'status': 429, 'detail': 'rate limited'},
+])
+def test_invalid_llm_probe_response_is_not_healthy(result):
+    db = Database(); _reset(db)
+    db.set_setting('failover_llm_base_url', 'http://example.com/v1', is_default=False)
+    failover.invalidate_cache()
+    with _Http(result):
+        assert failover.probe_target('llm:failover')['reachable'] is False
+
+
+@pytest.mark.parametrize('invalid_result', [
+    {'ok': False, 'reachable': True, 'status': 200, 'detail': 'malformed model list'},
+    {'ok': False, 'reachable': True, 'status': 429, 'detail': 'rate limited'},
+])
+def test_only_valid_llm_probe_response_counts_toward_recovery(invalid_result):
+    db = Database(); _reset(db)
+    db.set_setting('llm_provider', 'openai-compatible', is_default=False)
+    db.set_setting('openai_base_url', 'http://example.com/v1', is_default=False)
+    db.set_setting('failover_recovery_probes', '1', is_default=False)
+    failover.invalidate_cache()
+    with patch.object(failover, 'fire_failover_event'):
+        failover.trigger('llm:primary', 'provider outage', source='auto')
+        with _Http(invalid_result):
+            failover.probe_tick(db, ['llm:primary'])
+        assert failover.is_active('llm:primary') is True
+        assert failover.probe_state('llm:primary')['healthy_streak'] == 0
+        with _Http({'ok': True, 'reachable': True, 'status': 200,
+                    'detail': 'valid model list'}):
+            failover.probe_tick(db, ['llm:primary'])
+    assert failover.is_active('llm:primary') is False
 
 
 def test_llm_probe_read_timeout_is_unreachable():

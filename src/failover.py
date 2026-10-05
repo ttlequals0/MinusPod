@@ -489,7 +489,6 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
             else:
                 norm = llm_client._normalize_base_url_for_provider(provider, base_url or DEFAULT_OPENAI_BASE_URL)
                 result = provider_probe.probe_models_endpoint(norm, key)
-            rejected = (401, 402, 403, 404)
         else:
             settings = request_config
             if settings['backend'] == WHISPER_BACKEND_LOCAL:
@@ -504,7 +503,10 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         # No HTTP status at all means run_probe never got a real response
         # (connect/DNS failure or a read timeout, which reports reachable
         # True with no status); never classify that as reachable.
-        reachable = status is not None and status not in rejected and status < 500
+        if kind == 'llm':
+            reachable = result.get('ok') is True and status is not None and 200 <= status < 300
+        else:
+            reachable = status is not None and status not in rejected and status < 500
         return {'reachable': reachable, 'status': status, 'detail': result.get('detail', '')}
     except Exception as exc:
         logger.debug(f"probe {target} failed: {exc}")
