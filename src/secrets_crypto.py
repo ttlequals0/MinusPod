@@ -47,6 +47,8 @@ SECRET_SETTING_KEYS = frozenset(
         "ollama_api_key",
         "secondary_provider_api_key",
         "whisper_api_key",
+        "failover_llm_api_key",
+        "failover_whisper_api_key",
         "podcast_index_api_key",
         "podcast_index_api_secret",
         "email_smtp_password",

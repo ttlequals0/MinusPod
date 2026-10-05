@@ -119,6 +119,19 @@ VALID_LLM_PROVIDERS = (
 )
 PRICING_SOURCE_MODES = ('auto', 'litellm', 'free')
 
+# Provider B payload keys accepted as aliases of the stored secondary_* keys
+# (#806 rename: Primary/Secondary becomes Provider A/Provider B).
+PROVIDER_B_ALIASES = {
+    'providerBEnabled': 'secondaryProviderEnabled',
+    'providerB': 'secondaryProvider',
+    'providerBBaseUrl': 'secondaryProviderBaseUrl',
+    'providerBApiKey': 'secondaryProviderApiKey',
+    'providerBRequestsPerMin': 'secondaryProviderRequestsPerMin',
+    'providerBRequestsPerDay': 'secondaryProviderRequestsPerDay',
+    'providerBTokensPerMin': 'secondaryProviderTokensPerMin',
+}
+SLOT_ALIASES = {'a': 'primary', 'b': 'secondary'}
+
 logger = logging.getLogger('podcast.api')
 
 
@@ -383,6 +396,54 @@ def _build_settings_payload():
         registry_default('secondary_provider_base_url'))
     secondary_provider_api_key_configured = bool(db.get_secret('secondary_provider_api_key'))
 
+    # Provider failover (#806): LLM and transcriber failover, policy knobs,
+    # and per-slot timeout/retry overrides. All DB-only; see failover.py.
+    def _int_or_blank(db_key):
+        raw = _setting_value(settings, db_key)
+        return int(raw) if raw else None
+
+    failover_llm_enabled = coerce_bool_setting(_setting_value(
+        settings, 'failover_llm_enabled', registry_default('failover_llm_enabled')))
+    failover_llm_provider = _setting_value(settings, 'failover_llm_provider')
+    failover_llm_base_url = _setting_value(
+        settings, 'failover_llm_base_url', registry_default('failover_llm_base_url'))
+    failover_llm_timeout_seconds = _int_or_blank('failover_llm_timeout_seconds')
+    failover_llm_max_retries = _int_or_blank('failover_llm_max_retries')
+    failover_llm_detection_model = _setting_value(
+        settings, 'failover_llm_detection_model', registry_default('failover_llm_detection_model'))
+    failover_llm_review_model = _setting_value(
+        settings, 'failover_llm_review_model', registry_default('failover_llm_review_model'))
+    failover_llm_verification_model = _setting_value(
+        settings, 'failover_llm_verification_model',
+        registry_default('failover_llm_verification_model'))
+    failover_llm_chapters_model = _setting_value(
+        settings, 'failover_llm_chapters_model', registry_default('failover_llm_chapters_model'))
+    failover_llm_api_key_configured = bool(db.get_secret('failover_llm_api_key'))
+
+    failover_whisper_enabled = coerce_bool_setting(_setting_value(
+        settings, 'failover_whisper_enabled', registry_default('failover_whisper_enabled')))
+    failover_whisper_backend = _setting_value(
+        settings, 'failover_whisper_backend', registry_default('failover_whisper_backend'))
+    failover_whisper_model = _setting_value(
+        settings, 'failover_whisper_model', registry_default('failover_whisper_model'))
+    failover_whisper_api_base_url = _setting_value(
+        settings, 'failover_whisper_api_base_url', registry_default('failover_whisper_api_base_url'))
+    failover_whisper_api_model = _setting_value(
+        settings, 'failover_whisper_api_model', registry_default('failover_whisper_api_model'))
+    failover_whisper_api_timeout_seconds = _int_setting('failover_whisper_api_timeout_seconds')
+    failover_whisper_language = _setting_value(
+        settings, 'failover_whisper_language', registry_default('failover_whisper_language'))
+    failover_whisper_api_key_configured = bool(db.get_secret('failover_whisper_api_key'))
+
+    failover_probe_interval_minutes = _int_setting('failover_probe_interval_minutes')
+    failover_recovery_probes = _int_setting('failover_recovery_probes')
+
+    provider_a_timeout_seconds = _int_or_blank('llm_timeout_seconds')
+    provider_a_max_retries = _int_or_blank('llm_max_retries')
+    provider_b_timeout_seconds = _int_or_blank('secondary_llm_timeout_seconds')
+    provider_b_max_retries = _int_or_blank('secondary_llm_max_retries')
+    whisper_max_attempts = _int_setting('whisper_max_attempts')
+
     podcast_index_api_key = _setting_value(settings, 'podcast_index_api_key', '') or os.environ.get('PODCAST_INDEX_API_KEY', '')
 
     # Whisper backend settings (env var defaults, resolved via the registry)
@@ -610,7 +671,7 @@ def _build_settings_payload():
     silence_snap_min_duration = _cue_num('silence_snap_min_duration_seconds', SILENCE_SNAP_MIN_DURATION_SECONDS)
     silence_snap_max_distance = _cue_num('silence_snap_max_distance_seconds', SILENCE_SNAP_MAX_DISTANCE_SECONDS)
 
-    return {
+    payload = {
         'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT) or DEFAULT_SYSTEM_PROMPT),
         'verificationPrompt': _sv('verification_prompt', _setting_value(settings, 'verification_prompt', DEFAULT_VERIFICATION_PROMPT) or DEFAULT_VERIFICATION_PROMPT),
         'enableAdReview': _sv('enable_ad_review', enable_ad_review),
@@ -715,6 +776,36 @@ def _build_settings_payload():
         'providerTokensPerMin': _sv('provider_tokens_per_min', provider_tokens_per_min),
         'secondaryProviderTokensPerMin': _sv(
             'secondary_provider_tokens_per_min', secondary_provider_tokens_per_min),
+        # Provider failover (#806).
+        'failoverLlmEnabled': _sv('failover_llm_enabled', failover_llm_enabled),
+        'failoverLlmProvider': _sv('failover_llm_provider', failover_llm_provider),
+        'failoverLlmBaseUrl': _sv('failover_llm_base_url', failover_llm_base_url),
+        'failoverLlmTimeoutSeconds': _sv('failover_llm_timeout_seconds', failover_llm_timeout_seconds),
+        'failoverLlmMaxRetries': _sv('failover_llm_max_retries', failover_llm_max_retries),
+        'failoverLlmDetectionModel': _sv('failover_llm_detection_model', failover_llm_detection_model),
+        'failoverLlmReviewModel': _sv('failover_llm_review_model', failover_llm_review_model),
+        'failoverLlmVerificationModel': _sv(
+            'failover_llm_verification_model', failover_llm_verification_model),
+        'failoverLlmChaptersModel': _sv('failover_llm_chapters_model', failover_llm_chapters_model),
+        'failoverLlmApiKeyConfigured': failover_llm_api_key_configured,
+        'failoverWhisperEnabled': _sv('failover_whisper_enabled', failover_whisper_enabled),
+        'failoverWhisperBackend': _sv('failover_whisper_backend', failover_whisper_backend),
+        'failoverWhisperModel': _sv('failover_whisper_model', failover_whisper_model),
+        'failoverWhisperApiBaseUrl': _sv(
+            'failover_whisper_api_base_url', failover_whisper_api_base_url),
+        'failoverWhisperApiModel': _sv('failover_whisper_api_model', failover_whisper_api_model),
+        'failoverWhisperApiTimeoutSeconds': _sv(
+            'failover_whisper_api_timeout_seconds', failover_whisper_api_timeout_seconds),
+        'failoverWhisperLanguage': _sv('failover_whisper_language', failover_whisper_language),
+        'failoverWhisperApiKeyConfigured': failover_whisper_api_key_configured,
+        'failoverProbeIntervalMinutes': _sv(
+            'failover_probe_interval_minutes', failover_probe_interval_minutes),
+        'failoverRecoveryProbes': _sv('failover_recovery_probes', failover_recovery_probes),
+        'providerATimeoutSeconds': _sv('llm_timeout_seconds', provider_a_timeout_seconds),
+        'providerAMaxRetries': _sv('llm_max_retries', provider_a_max_retries),
+        'providerBTimeoutSeconds': _sv('secondary_llm_timeout_seconds', provider_b_timeout_seconds),
+        'providerBMaxRetries': _sv('secondary_llm_max_retries', provider_b_max_retries),
+        'whisperMaxAttempts': _sv('whisper_max_attempts', whisper_max_attempts),
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         # value is resolved, not raw: unset falls back to PodcastIndex when
         # its credentials exist (pre-option installs keep their behavior),
@@ -801,14 +892,23 @@ def _build_settings_payload():
             payload_key: STAGE_TUNABLE_DEFAULTS[db_key]
             for payload_key, db_key, _ in STAGE_TUNABLE_PAYLOAD_KEYS
         },
-        # Every per-setting default derives from SETTINGS_REGISTRY;
-        # openrouterBaseUrl is a fixed constant, not a setting.
-        'defaults': {
-            **{spec.payload_key: registry_get_default(key)
-               for key, spec in SETTINGS_REGISTRY.items() if spec.payload_key},
-            'openrouterBaseUrl': OPENROUTER_BASE_URL,
-        }
     }
+
+    # Provider A/B rename (#806): emit the Provider B alias spellings as
+    # copies of the secondary_* values for one release.
+    for alias, canonical in PROVIDER_B_ALIASES.items():
+        if canonical in payload and not alias.endswith('ApiKey'):
+            payload[alias] = payload[canonical]
+    payload['providerBApiKeyConfigured'] = payload['secondaryProviderApiKeyConfigured']
+
+    # Every per-setting default derives from SETTINGS_REGISTRY;
+    # openrouterBaseUrl is a fixed constant, not a setting.
+    payload['defaults'] = {
+        **{spec.payload_key: registry_get_default(key)
+           for key, spec in SETTINGS_REGISTRY.items() if spec.payload_key},
+        'openrouterBaseUrl': OPENROUTER_BASE_URL,
+    }
+    return payload
 
 
 @api.route('/settings', methods=['GET'])
@@ -895,6 +995,15 @@ def update_ad_detection_settings():
 
     db = get_database()
 
+    # Provider A/B rename aliases (#806): normalise before any validation
+    # or applier phase sees the payload.
+    for alias, canonical in PROVIDER_B_ALIASES.items():
+        if alias in data and canonical not in data:
+            data[canonical] = data.pop(alias)
+    for key in ('detectionProvider', 'verificationProvider', 'chaptersProvider', 'reviewProvider'):
+        if data.get(key) in SLOT_ALIASES:
+            data[key] = SLOT_ALIASES[data[key]]
+
     if 'adAddressingMode' in data:
         value = str(data['adAddressingMode'] or '').strip().lower()
         if value not in ('timestamps', 'segment_ids', 'random'):
@@ -924,6 +1033,10 @@ def update_ad_detection_settings():
         # Secondary first: the primary phase's model-prune guard resolves
         # stage slots against secondary state this same PUT may be setting.
         _apply_secondary_provider_fields,
+        _apply_failover_llm_fields,
+        _apply_failover_whisper_fields,
+        _apply_failover_policy_fields,
+        _apply_provider_timeout_fields,
         _apply_provider_fields,
         _apply_whisper_fields,
         _apply_vad_gap_fields,
@@ -1877,6 +1990,21 @@ def _validate_provider_payload(data):
         error = _base_url_error(data['whisperApiBaseUrl'], 'whisper API base URL')
         if error is not None:
             return error
+    if data.get('failoverLlmProvider') and data['failoverLlmProvider'] not in VALID_LLM_PROVIDERS:
+        return error_response(
+            f'failoverLlmProvider must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400)
+    if 'failoverLlmBaseUrl' in data:
+        value = data['failoverLlmBaseUrl']
+        if not isinstance(value, str):
+            return error_response('failoverLlmBaseUrl must be a string', 400)
+        if value.strip():
+            error = _base_url_error(value, 'failover LLM base URL')
+            if error is not None:
+                return error
+    if data.get('failoverWhisperApiBaseUrl'):
+        error = _base_url_error(data['failoverWhisperApiBaseUrl'], 'failover whisper API base URL')
+        if error is not None:
+            return error
     return None
 
 
@@ -2077,6 +2205,182 @@ def _apply_secondary_provider_fields(db, data):
     return None
 
 
+# Per-slot timeout/retry fields, shared by the failover LLM card and the
+# Provider A / Provider B cards (#806). Blank clears the row back to the
+# provider-type default (see llm_client.get_llm_timeout / get_llm_max_retries).
+_INT_OR_BLANK_FIELDS = {
+    'failoverLlmTimeoutSeconds': ('failover_llm_timeout_seconds', 10, 3600),
+    'failoverLlmMaxRetries': ('failover_llm_max_retries', 0, 10),
+    'providerATimeoutSeconds': ('llm_timeout_seconds', 10, 3600),
+    'providerAMaxRetries': ('llm_max_retries', 0, 10),
+    'providerBTimeoutSeconds': ('secondary_llm_timeout_seconds', 10, 3600),
+    'providerBMaxRetries': ('secondary_llm_max_retries', 0, 10),
+}
+
+
+def _apply_int_or_blank(db, data, payload_key):
+    """Write an optional int; None or '' clears the row. Returns an error response or None."""
+    db_key, lo, hi = _INT_OR_BLANK_FIELDS[payload_key]
+    value = data[payload_key]
+    if value is None or value == '':
+        db.clear_setting(db_key)
+        return None
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return error_response(f'{payload_key} must be an integer or blank', 400)
+    if not lo <= n <= hi:
+        return error_response(f'{payload_key} must be between {lo} and {hi}', 400)
+    db.set_setting(db_key, str(n), is_default=False)
+    return None
+
+
+def _apply_provider_timeout_fields(db, data):
+    """Persist the per-slot Provider A / Provider B timeout and retry overrides (#806)."""
+    for payload_key in ('providerATimeoutSeconds', 'providerAMaxRetries',
+                        'providerBTimeoutSeconds', 'providerBMaxRetries'):
+        if payload_key in data:
+            err = _apply_int_or_blank(db, data, payload_key)
+            if err is not None:
+                return err
+    return None
+
+
+def _apply_failover_llm_fields(db, data):
+    """Persist LLM failover (#806): enable, provider, base URL, per-phase
+    models, timeout/retries, and key. Disabling clears the active failover
+    state for both LLM slots."""
+    changed = False
+    if 'failoverLlmEnabled' in data:
+        enabled = bool(data['failoverLlmEnabled'])
+        db.set_setting('failover_llm_enabled', 'true' if enabled else 'false', is_default=False)
+        if not enabled:
+            for slot in ('primary', 'secondary'):
+                db.clear_setting(f'failover_state:llm:{slot}')
+        changed = True
+    if 'failoverLlmProvider' in data:
+        value = data['failoverLlmProvider']
+        if value:
+            db.set_setting('failover_llm_provider', value, is_default=False)
+        else:
+            db.clear_setting('failover_llm_provider')
+        changed = True
+    if 'failoverLlmBaseUrl' in data:
+        value = (data['failoverLlmBaseUrl'] or '').strip()
+        if value:
+            db.set_setting('failover_llm_base_url', value, is_default=False)
+        else:
+            db.clear_setting('failover_llm_base_url')
+        changed = True
+    for payload_key, db_key in (
+            ('failoverLlmDetectionModel', 'failover_llm_detection_model'),
+            ('failoverLlmReviewModel', 'failover_llm_review_model'),
+            ('failoverLlmVerificationModel', 'failover_llm_verification_model'),
+            ('failoverLlmChaptersModel', 'failover_llm_chapters_model')):
+        if payload_key in data:
+            value = data[payload_key]
+            if not isinstance(value, str) or len(value) > 200:
+                return error_response(f'{payload_key} must be a string of at most 200 characters', 400)
+            db.set_setting(db_key, value.strip(), is_default=False)
+            changed = True
+    for payload_key in ('failoverLlmTimeoutSeconds', 'failoverLlmMaxRetries'):
+        if payload_key in data:
+            err = _apply_int_or_blank(db, data, payload_key)
+            if err is not None:
+                return err
+            changed = True
+    if 'failoverLlmApiKey' in data:
+        try:
+            set_or_clear_secret(db, 'failover_llm_api_key', data['failoverLlmApiKey'])
+        except SecretWriteRejected:
+            return error_response('provider_crypto_unavailable', 409)
+        changed = True
+    if changed:
+        _after_commit(invalidate_provider_cache)
+    return None
+
+
+def _apply_failover_whisper_fields(db, data):
+    """Persist transcriber failover (#806): enable, backend, model, API
+    endpoint/key/model, timeout, language. Disabling clears the active
+    whisper failover state."""
+    changed = False
+    if 'failoverWhisperEnabled' in data:
+        enabled = bool(data['failoverWhisperEnabled'])
+        db.set_setting('failover_whisper_enabled', 'true' if enabled else 'false', is_default=False)
+        if not enabled:
+            db.clear_setting('failover_state:whisper')
+        changed = True
+    if 'failoverWhisperBackend' in data:
+        valid_backends = (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API)
+        if data['failoverWhisperBackend'] not in valid_backends:
+            return error_response(
+                f'failoverWhisperBackend must be one of: {", ".join(valid_backends)}', 400)
+        db.set_setting('failover_whisper_backend', data['failoverWhisperBackend'], is_default=False)
+        changed = True
+    if 'failoverWhisperModel' in data:
+        value = str(data['failoverWhisperModel'])
+        if len(value) > 200:
+            return error_response('failoverWhisperModel must be at most 200 characters', 400)
+        db.set_setting('failover_whisper_model', value.strip(), is_default=False)
+        changed = True
+    if 'failoverWhisperApiBaseUrl' in data:
+        # Checked by _validate_provider_payload before the transaction opens.
+        value = (data['failoverWhisperApiBaseUrl'] or '').strip()
+        db.set_setting('failover_whisper_api_base_url', value, is_default=False)
+        changed = True
+    if 'failoverWhisperApiModel' in data:
+        model_val = str(data['failoverWhisperApiModel']).strip()
+        if not model_val or len(model_val) > 200:
+            return error_response(
+                'failoverWhisperApiModel must be a non-empty string (max 200 chars)', 400)
+        db.set_setting('failover_whisper_api_model', model_val, is_default=False)
+        changed = True
+    if 'failoverWhisperApiTimeoutSeconds' in data:
+        try:
+            value = int(data['failoverWhisperApiTimeoutSeconds'])
+        except (TypeError, ValueError):
+            return error_response('failoverWhisperApiTimeoutSeconds must be an integer', 400)
+        if not 30 <= value <= 3600:
+            return error_response(
+                'failoverWhisperApiTimeoutSeconds must be between 30 and 3600', 400)
+        db.set_setting('failover_whisper_api_timeout_seconds', str(value), is_default=False)
+        changed = True
+    if 'failoverWhisperLanguage' in data:
+        lang_val = str(data['failoverWhisperLanguage']).strip().lower()
+        if lang_val and lang_val != 'auto' and not LANGUAGE_CODE_RE.match(lang_val):
+            return error_response(
+                "failoverWhisperLanguage must be '', 'auto', or a 2-3 letter language code", 400)
+        db.set_setting('failover_whisper_language', lang_val, is_default=False)
+        changed = True
+    if 'failoverWhisperApiKey' in data:
+        try:
+            set_or_clear_secret(db, 'failover_whisper_api_key', data['failoverWhisperApiKey'])
+        except SecretWriteRejected:
+            return error_response('provider_crypto_unavailable', 409)
+        changed = True
+    if changed:
+        _after_commit(_refresh_whisper_pool)
+    return None
+
+
+def _apply_failover_policy_fields(db, data):
+    """Persist the failover probe interval and recovery-probe policy (#806)."""
+    for payload_key, db_key, lo, hi in (
+            ('failoverProbeIntervalMinutes', 'failover_probe_interval_minutes', 1, 60),
+            ('failoverRecoveryProbes', 'failover_recovery_probes', 1, 10)):
+        if payload_key not in data:
+            continue
+        try:
+            n = int(data[payload_key])
+        except (TypeError, ValueError):
+            return error_response(f'{payload_key} must be an integer', 400)
+        if not lo <= n <= hi:
+            return error_response(f'{payload_key} must be between {lo} and {hi}', 400)
+        db.set_setting(db_key, str(n), is_default=False)
+    return None
+
+
 def _apply_whisper_fields(db, data):
     """Persist whisper backend selection, API endpoint, key, model, language, compute type."""
     if 'whisperBackend' in data:
@@ -2131,6 +2435,16 @@ def _apply_whisper_fields(db, data):
         enabled = coerce_bool_setting(data['skipFlacCompression'])
         db.set_setting('skip_flac_compression', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated skip_flac_compression to: {enabled}")
+
+    if 'whisperMaxAttempts' in data:
+        try:
+            n = int(data['whisperMaxAttempts'])
+        except (TypeError, ValueError):
+            return error_response('whisperMaxAttempts must be an integer', 400)
+        if not 1 <= n <= 10:
+            return error_response('whisperMaxAttempts must be between 1 and 10', 400)
+        db.set_setting('whisper_max_attempts', str(n), is_default=False)
+        logger.info(f"Updated whisper_max_attempts to: {n}")
 
     return None
 

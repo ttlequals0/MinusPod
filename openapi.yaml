@@ -6032,6 +6032,139 @@ paths:
                     estimate is reserved at dispatch and reconciled to actual usage on
                     completion.
                   example: 250000
+                providerBEnabled:
+                  type: boolean
+                  description: Alias of secondaryProviderEnabled (Provider A/B rename, #806).
+                providerB:
+                  type: string
+                  nullable: true
+                  description: Alias of secondaryProvider.
+                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                providerBBaseUrl:
+                  type: string
+                  description: Alias of secondaryProviderBaseUrl.
+                providerBApiKey:
+                  type: string
+                  nullable: true
+                  description: Alias of secondaryProviderApiKey.
+                providerBRequestsPerMin:
+                  type: integer
+                  minimum: 0
+                  description: Alias of secondaryProviderRequestsPerMin.
+                providerBRequestsPerDay:
+                  type: integer
+                  minimum: 0
+                  description: Alias of secondaryProviderRequestsPerDay.
+                providerBTokensPerMin:
+                  type: integer
+                  minimum: 0
+                  description: Alias of secondaryProviderTokensPerMin.
+                providerATimeoutSeconds:
+                  type: integer
+                  nullable: true
+                  minimum: 10
+                  maximum: 3600
+                  description: Request timeout for Provider A. Null or omitted clears it back to the provider-type default.
+                providerAMaxRetries:
+                  type: integer
+                  nullable: true
+                  minimum: 0
+                  maximum: 10
+                  description: Max retries for Provider A. Null or omitted clears it back to the provider-type default.
+                providerBTimeoutSeconds:
+                  type: integer
+                  nullable: true
+                  minimum: 10
+                  maximum: 3600
+                  description: Request timeout for Provider B. Null or omitted clears it back to the provider-type default.
+                providerBMaxRetries:
+                  type: integer
+                  nullable: true
+                  minimum: 0
+                  maximum: 10
+                  description: Max retries for Provider B. Null or omitted clears it back to the provider-type default.
+                failoverLlmEnabled:
+                  type: boolean
+                  description: Turn the shared LLM failover provider on or off (#806). Off by default.
+                failoverLlmProvider:
+                  type: string
+                  nullable: true
+                  enum: [anthropic, openai-compatible, ollama, openrouter]
+                  description: LLM failover provider type.
+                failoverLlmBaseUrl:
+                  type: string
+                  description: Base URL for the LLM failover provider, SSRF-validated like every other operator-configured URL.
+                failoverLlmApiKey:
+                  type: string
+                  nullable: true
+                  description: API key for the LLM failover provider. Omit to leave unchanged; null or empty to clear.
+                failoverLlmTimeoutSeconds:
+                  type: integer
+                  nullable: true
+                  minimum: 10
+                  maximum: 3600
+                  description: Request timeout for the LLM failover provider. Null or omitted clears it to the provider-type default.
+                failoverLlmMaxRetries:
+                  type: integer
+                  nullable: true
+                  minimum: 0
+                  maximum: 10
+                  description: Max retries for the LLM failover provider. Null or omitted clears it to the provider-type default.
+                failoverLlmDetectionModel:
+                  type: string
+                  description: Model the LLM failover provider uses for ad detection.
+                failoverLlmReviewModel:
+                  type: string
+                  description: Model the LLM failover provider uses for review. Blank inherits the detection model.
+                failoverLlmVerificationModel:
+                  type: string
+                  description: Model the LLM failover provider uses for verification. Blank inherits the detection model.
+                failoverLlmChaptersModel:
+                  type: string
+                  description: Model the LLM failover provider uses for chapters. Blank inherits the detection model.
+                failoverWhisperEnabled:
+                  type: boolean
+                  description: Turn the transcriber failover provider on or off (#806). Off by default.
+                failoverWhisperBackend:
+                  type: string
+                  enum: [local, openai-api]
+                  description: Transcriber failover backend.
+                failoverWhisperModel:
+                  type: string
+                  description: Local model name for the transcriber failover, when its backend is local.
+                failoverWhisperApiBaseUrl:
+                  type: string
+                  description: Base URL for the transcriber failover API backend, SSRF-validated.
+                failoverWhisperApiKey:
+                  type: string
+                  nullable: true
+                  description: API key for the transcriber failover API backend. Omit to leave unchanged; null or empty to clear.
+                failoverWhisperApiModel:
+                  type: string
+                  description: Model name for the transcriber failover API backend.
+                failoverWhisperApiTimeoutSeconds:
+                  type: integer
+                  minimum: 30
+                  maximum: 3600
+                  description: Request timeout for the transcriber failover API backend.
+                failoverWhisperLanguage:
+                  type: string
+                  description: Language for the transcriber failover. Empty means same as the active transcriber; otherwise 'auto' or a 2-3 letter code.
+                failoverProbeIntervalMinutes:
+                  type: integer
+                  minimum: 1
+                  maximum: 60
+                  description: Minutes between health probes of a failover target.
+                failoverRecoveryProbes:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  description: Consecutive healthy probes needed before an auto failover recovers.
+                whisperMaxAttempts:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  description: Max attempts for a single whisper API transcription request before giving up.
                 detectionTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for the first-pass ad detection LLM call.
@@ -14338,6 +14471,259 @@ components:
               minimum: 0
             isDefault:
               type: boolean
+        providerBEnabled:
+          type: object
+          description: Alias of secondaryProviderEnabled (Provider A/B rename, #806), one release.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        providerB:
+          type: object
+          description: Alias of secondaryProvider.
+          properties:
+            value:
+              type: string
+              nullable: true
+            isDefault:
+              type: boolean
+        providerBBaseUrl:
+          type: object
+          description: Alias of secondaryProviderBaseUrl.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        providerBApiKeyConfigured:
+          type: boolean
+          description: Alias of secondaryProviderApiKeyConfigured (read-only).
+        providerBRequestsPerMin:
+          type: object
+          description: Alias of secondaryProviderRequestsPerMin.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        providerBRequestsPerDay:
+          type: object
+          description: Alias of secondaryProviderRequestsPerDay.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        providerBTokensPerMin:
+          type: object
+          description: Alias of secondaryProviderTokensPerMin.
+          properties:
+            value:
+              type: integer
+              minimum: 0
+            isDefault:
+              type: boolean
+        providerATimeoutSeconds:
+          type: object
+          description: Request timeout for Provider A. Null value means the provider-type default.
+          properties:
+            value:
+              type: integer
+              nullable: true
+            isDefault:
+              type: boolean
+        providerAMaxRetries:
+          type: object
+          description: Max retries for Provider A. Null value means the provider-type default.
+          properties:
+            value:
+              type: integer
+              nullable: true
+            isDefault:
+              type: boolean
+        providerBTimeoutSeconds:
+          type: object
+          description: Request timeout for Provider B. Null value means the provider-type default.
+          properties:
+            value:
+              type: integer
+              nullable: true
+            isDefault:
+              type: boolean
+        providerBMaxRetries:
+          type: object
+          description: Max retries for Provider B. Null value means the provider-type default.
+          properties:
+            value:
+              type: integer
+              nullable: true
+            isDefault:
+              type: boolean
+        failoverLlmEnabled:
+          type: object
+          description: Whether the shared LLM failover provider (#806) is on.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        failoverLlmProvider:
+          type: object
+          description: LLM failover provider type, or null when unset.
+          properties:
+            value:
+              type: string
+              nullable: true
+            isDefault:
+              type: boolean
+        failoverLlmBaseUrl:
+          type: object
+          description: Base URL for the LLM failover provider.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        failoverLlmApiKeyConfigured:
+          type: boolean
+          description: Whether an LLM failover API key is configured (read-only; the key itself is never returned)
+        failoverLlmTimeoutSeconds:
+          type: object
+          description: Request timeout for the LLM failover provider. Null value means the provider-type default.
+          properties:
+            value:
+              type: integer
+              nullable: true
+            isDefault:
+              type: boolean
+        failoverLlmMaxRetries:
+          type: object
+          description: Max retries for the LLM failover provider. Null value means the provider-type default.
+          properties:
+            value:
+              type: integer
+              nullable: true
+            isDefault:
+              type: boolean
+        failoverLlmDetectionModel:
+          type: object
+          description: Model the LLM failover provider uses for ad detection.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        failoverLlmReviewModel:
+          type: object
+          description: Model the LLM failover provider uses for review. Blank inherits the detection model.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        failoverLlmVerificationModel:
+          type: object
+          description: Model the LLM failover provider uses for verification. Blank inherits the detection model.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        failoverLlmChaptersModel:
+          type: object
+          description: Model the LLM failover provider uses for chapters. Blank inherits the detection model.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        failoverWhisperEnabled:
+          type: object
+          description: Whether the transcriber failover provider (#806) is on.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        failoverWhisperBackend:
+          type: object
+          description: Transcriber failover backend.
+          properties:
+            value:
+              type: string
+              enum: [local, openai-api]
+            isDefault:
+              type: boolean
+        failoverWhisperModel:
+          type: object
+          description: Local model name for the transcriber failover, when its backend is local.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        failoverWhisperApiBaseUrl:
+          type: object
+          description: Base URL for the transcriber failover API backend.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        failoverWhisperApiKeyConfigured:
+          type: boolean
+          description: Whether a transcriber failover API key is configured (read-only; the key itself is never returned)
+        failoverWhisperApiModel:
+          type: object
+          description: Model name for the transcriber failover API backend.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        failoverWhisperApiTimeoutSeconds:
+          type: object
+          description: Request timeout for the transcriber failover API backend.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        failoverWhisperLanguage:
+          type: object
+          description: Language for the transcriber failover. Empty means same as the active transcriber.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        failoverProbeIntervalMinutes:
+          type: object
+          description: Minutes between health probes of a failover target.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        failoverRecoveryProbes:
+          type: object
+          description: Consecutive healthy probes needed before an auto failover recovers.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        whisperMaxAttempts:
+          type: object
+          description: Max attempts for a single whisper API transcription request before giving up.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
         podcastSearchReady:
           type: boolean
           description: >-
@@ -14461,6 +14847,63 @@ components:
               type: integer
             secondaryProviderTokensPerMin:
               type: integer
+            providerATimeoutSeconds:
+              type: integer
+              nullable: true
+            providerAMaxRetries:
+              type: integer
+              nullable: true
+            providerBTimeoutSeconds:
+              type: integer
+              nullable: true
+            providerBMaxRetries:
+              type: integer
+              nullable: true
+            failoverLlmEnabled:
+              type: boolean
+            failoverLlmProvider:
+              type: string
+              nullable: true
+            failoverLlmBaseUrl:
+              type: string
+            failoverLlmTimeoutSeconds:
+              type: integer
+              nullable: true
+            failoverLlmMaxRetries:
+              type: integer
+              nullable: true
+            failoverLlmDetectionModel:
+              type: string
+            failoverLlmReviewModel:
+              type: string
+            failoverLlmVerificationModel:
+              type: string
+            failoverLlmChaptersModel:
+              type: string
+            failoverWhisperEnabled:
+              type: boolean
+            failoverWhisperBackend:
+              type: string
+              enum: [local, openai-api]
+            failoverWhisperModel:
+              type: string
+            failoverWhisperApiBaseUrl:
+              type: string
+            failoverWhisperApiModel:
+              type: string
+            failoverWhisperApiTimeoutSeconds:
+              type: integer
+            failoverWhisperLanguage:
+              type: string
+            failoverProbeIntervalMinutes:
+              type: integer
+              example: 5
+            failoverRecoveryProbes:
+              type: integer
+              example: 3
+            whisperMaxAttempts:
+              type: integer
+              example: 2
             autoProcessEnabled:
               type: boolean
             maxFeedEpisodes:

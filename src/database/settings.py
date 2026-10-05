@@ -16,6 +16,7 @@ from config import (
     DEFAULT_OPENAI_BASE_URL,
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OLLAMA,
+    WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
     WHISPER_COMPUTE_TYPE_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
@@ -308,6 +309,74 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'secondary_provider_base_url': SettingSpec(
         default=DEFAULT_OPENAI_BASE_URL, seeded=True, in_ad_reset=True,
         payload_key='secondaryProviderBaseUrl'),
+
+    # Provider failover (#806). All DB-only; see failover.py.
+    'failover_llm_enabled': SettingSpec(
+        default='false', seeded=True, resettable=False,
+        payload_key='failoverLlmEnabled', payload_kind='bool'),
+    'failover_llm_provider': SettingSpec(
+        default=None, seeded=True,
+        payload_key='failoverLlmProvider',
+        validator=_one_of(PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
+                           PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA)),
+    'failover_llm_base_url': SettingSpec(
+        default=DEFAULT_OPENAI_BASE_URL, seeded=True,
+        payload_key='failoverLlmBaseUrl'),
+    'failover_llm_timeout_seconds': SettingSpec(
+        default=None, seeded=True, payload_key='failoverLlmTimeoutSeconds',
+        payload_kind='int'),
+    'failover_llm_max_retries': SettingSpec(
+        default=None, seeded=True, payload_key='failoverLlmMaxRetries',
+        payload_kind='int'),
+    'failover_llm_detection_model': SettingSpec(
+        default='', seeded=True, payload_key='failoverLlmDetectionModel'),
+    'failover_llm_review_model': SettingSpec(
+        default='', seeded=True, payload_key='failoverLlmReviewModel'),
+    'failover_llm_verification_model': SettingSpec(
+        default='', seeded=True, payload_key='failoverLlmVerificationModel'),
+    'failover_llm_chapters_model': SettingSpec(
+        default='', seeded=True, payload_key='failoverLlmChaptersModel'),
+    'failover_whisper_enabled': SettingSpec(
+        default='false', seeded=True, resettable=False,
+        payload_key='failoverWhisperEnabled', payload_kind='bool'),
+    'failover_whisper_backend': SettingSpec(
+        default='openai-api', seeded=True, payload_key='failoverWhisperBackend',
+        validator=_one_of(WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API)),
+    'failover_whisper_model': SettingSpec(
+        default='', seeded=True, payload_key='failoverWhisperModel'),
+    'failover_whisper_api_base_url': SettingSpec(
+        default='', seeded=True, payload_key='failoverWhisperApiBaseUrl'),
+    'failover_whisper_api_model': SettingSpec(
+        default='whisper-1', seeded=True, payload_key='failoverWhisperApiModel'),
+    'failover_whisper_api_timeout_seconds': SettingSpec(
+        default='600', seeded=True, payload_key='failoverWhisperApiTimeoutSeconds',
+        payload_kind='int'),
+    'failover_whisper_language': SettingSpec(
+        default='', seeded=True, payload_key='failoverWhisperLanguage'),
+    'failover_probe_interval_minutes': SettingSpec(
+        default='5', seeded=True, validator=_int_in_range((1, 60)),
+        payload_key='failoverProbeIntervalMinutes', payload_kind='int'),
+    'failover_recovery_probes': SettingSpec(
+        default='3', seeded=True, validator=_int_in_range((1, 10)),
+        payload_key='failoverRecoveryProbes', payload_kind='int'),
+    # Per-slot LLM request timeout and retries; blank means the provider
+    # type default in llm_client.get_llm_timeout / get_llm_max_retries.
+    'llm_timeout_seconds': SettingSpec(
+        default=None, seeded=True, payload_key='providerATimeoutSeconds',
+        payload_kind='int'),
+    'llm_max_retries': SettingSpec(
+        default=None, seeded=True, payload_key='providerAMaxRetries',
+        payload_kind='int'),
+    'secondary_llm_timeout_seconds': SettingSpec(
+        default=None, seeded=True, payload_key='providerBTimeoutSeconds',
+        payload_kind='int'),
+    'secondary_llm_max_retries': SettingSpec(
+        default=None, seeded=True, payload_key='providerBMaxRetries',
+        payload_kind='int'),
+    'whisper_max_attempts': SettingSpec(
+        default='2', seeded=True, in_ad_reset=True,
+        validator=_int_in_range((1, 10)),
+        payload_key='whisperMaxAttempts', payload_kind='int'),
 
     # -- Ad reviewer (seeded; only the prompts are resettable) --
     'enable_ad_review': SettingSpec(
@@ -847,6 +916,18 @@ del _key
 AD_RESET_SETTING_KEYS = tuple(
     key for key, spec in SETTINGS_REGISTRY.items() if spec.in_ad_reset)
 
+# Per-phase failover DB keys, for the failover state service and route
+# override (see failover.py, task 2+).
+FAILOVER_LLM_KEYS = (
+    'failover_llm_enabled', 'failover_llm_provider', 'failover_llm_base_url',
+    'failover_llm_timeout_seconds', 'failover_llm_max_retries',
+    'failover_llm_detection_model', 'failover_llm_review_model',
+    'failover_llm_verification_model', 'failover_llm_chapters_model')
+FAILOVER_WHISPER_KEYS = (
+    'failover_whisper_enabled', 'failover_whisper_backend', 'failover_whisper_model',
+    'failover_whisper_api_base_url', 'failover_whisper_api_model',
+    'failover_whisper_api_timeout_seconds', 'failover_whisper_language')
+
 
 def _validate_registry():
     """Fail fast if the registry drifts from the mechanism catalogs."""
@@ -920,6 +1001,8 @@ def registry_get_default(key: str) -> Any:
     if spec.payload_factory is not None:
         return spec.payload_factory()
     raw = registry_default(key)
+    if raw is None:
+        return None
     if spec.payload_kind == 'bool':
         return coerce_bool_setting(raw)
     if spec.payload_kind == 'int':

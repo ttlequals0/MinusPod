@@ -139,6 +139,23 @@ SEED_SNAPSHOT = {
     'vtt_transcripts_enabled': 'true',
     'whisper_language': 'en',
     'whisper_model': 'small',
+    # Provider failover (#806).
+    'failover_llm_enabled': 'false',
+    'failover_llm_base_url': 'http://localhost:8000/v1',
+    'failover_llm_detection_model': '',
+    'failover_llm_review_model': '',
+    'failover_llm_verification_model': '',
+    'failover_llm_chapters_model': '',
+    'failover_whisper_enabled': 'false',
+    'failover_whisper_backend': 'openai-api',
+    'failover_whisper_model': '',
+    'failover_whisper_api_base_url': '',
+    'failover_whisper_api_model': 'whisper-1',
+    'failover_whisper_api_timeout_seconds': '600',
+    'failover_whisper_language': '',
+    'failover_probe_interval_minutes': '5',
+    'failover_recovery_probes': '3',
+    'whisper_max_attempts': '2',
 }
 
 # The pre-registry bulk reset endpoint reset exactly these keys
@@ -200,6 +217,8 @@ EXPECTED_AD_RESET_KEYS = {
     'differential_measured_corr_max', 'differential_hold_min_seconds',
     'dai_differential_overrides_keep', 'splice_veto_enabled',
     'ad_detection_exclude_start_seconds',
+    # Provider failover (#806).
+    'whisper_max_attempts',
 }
 
 # Keys reset_setting() must refuse (return False). Membership captured from
@@ -494,12 +513,16 @@ class TestGetDefaults:
         # request-rate limit keys (#747), primary and secondary (121 -> 125),
         # then the two tokens-per-minute keys, primary and secondary (125 -> 127).
         # adDetectionExcludeStartSeconds added after that (127 -> 128).
-        # spliceVetoEnabled added after that (131 -> 132).
+        # spliceVetoEnabled added after that (131 -> 132). Provider failover
+        # (#806) added 23 keys after that: failoverLlm* (9), failoverWhisper*
+        # (7), failoverProbeIntervalMinutes + failoverRecoveryProbes (2),
+        # providerA/BTimeoutSeconds + providerA/BMaxRetries (4), and
+        # whisperMaxAttempts (1) (132 -> 155).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 132
+        assert len(payload_keys) == 155
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 
