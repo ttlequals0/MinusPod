@@ -25,8 +25,8 @@ def _db(settings):
 
 def test_detection_route_uses_settings_and_global_provider_default():
     settings = {'claude_model': 'claude-sonnet-5'}
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('detection')
     assert route == Route(phase='detection', provider_key='anthropic',
                            model_id='claude-sonnet-5', base_url=None,
@@ -35,8 +35,8 @@ def test_detection_route_uses_settings_and_global_provider_default():
 
 
 def test_detection_route_raises_when_model_unconfigured():
-    with patch.object(llm_route, 'Database', return_value=_db({})), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db({})), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         with pytest.raises(ModelNotConfiguredError, match='claude_model'):
             resolve_route('detection')
 
@@ -48,8 +48,8 @@ def test_detection_route_uses_secondary_slot_when_configured():
         'secondary_provider_enabled': 'true',
         'secondary_provider': 'openrouter',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('detection')
     assert route.provider_key == 'openrouter'
     assert route.slot == 'secondary'
@@ -63,8 +63,8 @@ def test_detection_secondary_slot_falls_back_to_primary_when_disabled():
         'secondary_provider_enabled': 'false',
         'secondary_provider': 'openrouter',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('detection')
     assert route.provider_key == 'anthropic'
     assert route.slot == 'primary'
@@ -77,8 +77,8 @@ def test_detection_secondary_slot_falls_back_to_primary_when_type_unset():
         'detection_provider': 'secondary',
         'secondary_provider_enabled': 'true',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('detection')
     assert route.provider_key == 'anthropic'
     assert route.slot == 'primary'
@@ -90,8 +90,8 @@ def test_detection_invalid_slot_value_falls_back_to_primary():
         'claude_model': 'claude-sonnet-5',
         'detection_provider': 'anthropic',  # a raw type, not a slot
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('detection')
     assert route.slot == 'primary'
     assert route.provider_key == 'anthropic'
@@ -105,8 +105,8 @@ def test_verification_inherits_detection_slot_by_default():
         'secondary_provider': 'openrouter',
         'verification_model': 'claude-opus-4-8',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('verification')
     assert route.provider_key == 'openrouter'
     assert route.slot == 'secondary'
@@ -122,8 +122,8 @@ def test_verification_same_as_detection_explicit_value_inherits():
         'secondary_provider': 'openrouter',
         'verification_provider': 'same_as_detection',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('verification')
     assert route.provider_key == 'openrouter'
     assert route.slot == 'secondary'
@@ -138,8 +138,8 @@ def test_verification_uses_explicit_slot_when_set():
         'verification_provider': 'primary',
         'verification_model': 'claude-opus-4-8',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('verification')
     assert route.provider_key == 'anthropic'
     assert route.slot == 'primary'
@@ -147,8 +147,8 @@ def test_verification_uses_explicit_slot_when_set():
 
 def test_verification_model_falls_back_to_detection_model():
     settings = {'claude_model': 'claude-sonnet-5'}
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('verification')
     assert route.model_id == 'claude-sonnet-5'
 
@@ -160,16 +160,16 @@ def test_chapters_inherits_detection_slot_by_default():
         'secondary_provider_enabled': 'true',
         'secondary_provider': 'openrouter',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('chapters')
     assert route.provider_key == 'openrouter'
     assert route.model_id == 'claude-sonnet-5'  # falls back to claude_model
 
 
 def test_review_same_as_pass_inherits_pass_provider_and_model():
-    with patch.object(llm_route, 'Database', return_value=_db({})), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db({})), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('review', pass_provider='openrouter',
                                pass_model='claude-sonnet-5')
     assert route.provider_key == 'openrouter'
@@ -177,8 +177,8 @@ def test_review_same_as_pass_inherits_pass_provider_and_model():
 
 
 def test_review_same_as_pass_inherits_pass_base_url_and_credential_slot():
-    with patch.object(llm_route, 'Database', return_value=_db({})), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db({})), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route(
             'review', pass_provider='openrouter', pass_model='claude-sonnet-5',
             pass_base_url='https://openrouter.ai/api/v1', pass_credential_slot='secondary')
@@ -191,16 +191,16 @@ def test_review_same_as_pass_ignores_review_model_setting():
     # review_provider defaults to same_as_pass, which pins the model to the
     # pass model too: a leftover review_model override is not consulted.
     settings = {'review_model': 'claude-opus-4-8'}
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('review', pass_provider='anthropic',
                                pass_model='claude-sonnet-5')
     assert route.model_id == 'claude-sonnet-5'
 
 
 def test_review_same_as_pass_requires_pass_provider_and_model():
-    with patch.object(llm_route, 'Database', return_value=_db({})), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db({})), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         with pytest.raises(ValueError, match='pass_provider'):
             resolve_route('review')
 
@@ -212,8 +212,8 @@ def test_review_explicit_secondary_slot_uses_its_own_provider_and_model():
         'secondary_provider_enabled': 'true',
         'secondary_provider': 'openrouter',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('review', pass_provider='anthropic',
                                pass_model='claude-sonnet-5')
     assert route.provider_key == 'openrouter'
@@ -228,8 +228,8 @@ def test_review_explicit_secondary_disabled_falls_back_to_primary(caplog):
         'secondary_provider_enabled': 'false',
         'secondary_provider': 'openrouter',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('review', pass_provider='anthropic',
                                pass_model='claude-sonnet-5')
     assert route.provider_key == 'anthropic'
@@ -242,8 +242,8 @@ def test_review_explicit_slot_with_same_as_pass_model_uses_pass_model():
         'secondary_provider_enabled': 'true',
         'secondary_provider': 'openrouter',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         route = resolve_route('review', pass_provider='anthropic',
                                pass_model='claude-sonnet-5')
     assert route.provider_key == 'openrouter'
@@ -262,9 +262,9 @@ def test_two_slots_same_type_different_base_yield_distinct_credential_slots():
         'secondary_provider': 'openai-compatible',
         'secondary_provider_base_url': 'http://secondary-host:9000/v1',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='openai-compatible'), \
-            patch.object(llm_route, 'get_effective_base_url',
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='openai-compatible'), \
+            patch.object(llm_route.llm_client, 'get_effective_base_url',
                           return_value='http://primary-host:8000/v1'):
         detection = resolve_route('detection')
         chapters = resolve_route('chapters')
@@ -285,8 +285,8 @@ def test_identical_model_id_under_two_slots_yields_distinct_routes():
         'secondary_provider': 'openrouter',
         'verification_model': 'shared-model-id',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
         detection = resolve_route('detection')
         verification = resolve_route('verification')
     assert detection.model_id == verification.model_id == 'shared-model-id'
@@ -304,9 +304,9 @@ def test_base_url_for_openai_compatible_provider_uses_effective_base_url():
         'claude_model': 'local-model',
         'detection_provider': 'primary',
     }
-    with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-            patch.object(llm_route, 'get_effective_provider', return_value='openai-compatible'), \
-            patch.object(llm_route, 'get_effective_base_url',
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='openai-compatible'), \
+            patch.object(llm_route.llm_client, 'get_effective_base_url',
                           return_value='http://localhost:8000/v1'):
         route = resolve_route('detection')
     assert route.base_url == 'http://localhost:8000/v1'
@@ -347,8 +347,8 @@ class TestMigrationDefaults:
 
     def test_no_settings_reproduces_single_provider_routes(self):
         settings = {'claude_model': 'claude-sonnet-5'}
-        with patch.object(llm_route, 'Database', return_value=_db(settings)), \
-                patch.object(llm_route, 'get_effective_provider', return_value='anthropic'):
+        with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+                patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
             detection = resolve_route('detection')
             verification = resolve_route('verification')
             chapters = resolve_route('chapters')
@@ -417,10 +417,10 @@ class TestPopulatedDatabaseUpgrade:
             for stage in ('detection', 'verification', 'chapters', 'review'):
                 assert llm_route.resolved_stage_slot(db2, stage) == 'primary'
 
-            with patch.object(llm_route, 'Database', return_value=db2), \
-                    patch.object(llm_route, 'get_effective_provider',
+            with patch.object(llm_route.database, 'Database', return_value=db2), \
+                    patch.object(llm_route.llm_client, 'get_effective_provider',
                                  return_value='openai-compatible'), \
-                    patch.object(llm_route, 'get_effective_base_url',
+                    patch.object(llm_route.llm_client, 'get_effective_base_url',
                                  return_value='https://llm.example.internal/v1'):
                 detection = resolve_route('detection')
                 verification = resolve_route('verification')
@@ -445,9 +445,9 @@ class TestClientForRoutePrecedence:
 
     def test_override_wins_over_route_and_fallback(self):
         override = object()
-        with patch.object(llm_route, 'route_for_phase',
+        with patch.object(llm_route.run_context, 'route_for_phase',
                           return_value={'provider_key': 'openrouter'}), \
-                patch.object(llm_route, 'get_client_for_provider') as get_client:
+                patch.object(llm_route.llm_client, 'get_client_for_provider') as get_client:
             result = llm_route.client_for_route(
                 'detection', override=override,
                 fallback=lambda: pytest.fail('fallback must not run'))
@@ -458,8 +458,8 @@ class TestClientForRoutePrecedence:
         client = object()
         route = {'provider_key': 'openrouter', 'base_url': 'https://or/api/v1',
                  'credential_slot': 'secondary'}
-        with patch.object(llm_route, 'route_for_phase', return_value=route) as lookup, \
-                patch.object(llm_route, 'get_client_for_provider',
+        with patch.object(llm_route.run_context, 'route_for_phase', return_value=route) as lookup, \
+                patch.object(llm_route.llm_client, 'get_client_for_provider',
                              return_value=client) as get_client:
             result = llm_route.client_for_route(
                 'chapters', fallback=lambda: pytest.fail('fallback must not run'))
@@ -469,7 +469,7 @@ class TestClientForRoutePrecedence:
             'openrouter', base_url='https://or/api/v1', credential_slot='secondary')
 
     def test_dict_route_defaults_credential_slot_to_primary(self):
-        with patch.object(llm_route, 'get_client_for_provider') as get_client:
+        with patch.object(llm_route.llm_client, 'get_client_for_provider') as get_client:
             llm_route.client_for_route({'provider_key': 'anthropic'})
         get_client.assert_called_once_with(
             'anthropic', base_url=None, credential_slot='primary')
@@ -478,22 +478,22 @@ class TestClientForRoutePrecedence:
         route = Route(phase='review', provider_key='ollama', model_id='m',
                       base_url='http://localhost:11434/v1', slot='primary',
                       credential_slot='primary')
-        with patch.object(llm_route, 'get_client_for_provider') as get_client:
+        with patch.object(llm_route.llm_client, 'get_client_for_provider') as get_client:
             llm_route.client_for_route(route)
         get_client.assert_called_once_with(
             'ollama', base_url='http://localhost:11434/v1', credential_slot='primary')
 
     def test_fallback_runs_only_when_no_route(self):
         fallback_client = object()
-        with patch.object(llm_route, 'route_for_phase', return_value=None), \
-                patch.object(llm_route, 'get_client_for_provider') as get_client:
+        with patch.object(llm_route.run_context, 'route_for_phase', return_value=None), \
+                patch.object(llm_route.llm_client, 'get_client_for_provider') as get_client:
             result = llm_route.client_for_route(
                 'detection', fallback=lambda: fallback_client)
         assert result is fallback_client
         get_client.assert_not_called()
 
     def test_no_route_and_no_fallback_returns_none(self):
-        with patch.object(llm_route, 'route_for_phase', return_value=None), \
-                patch.object(llm_route, 'get_client_for_provider') as get_client:
+        with patch.object(llm_route.run_context, 'route_for_phase', return_value=None), \
+                patch.object(llm_route.llm_client, 'get_client_for_provider') as get_client:
             assert llm_route.client_for_route('detection') is None
         get_client.assert_not_called()

@@ -163,7 +163,7 @@ class TestBuildContext:
         mock_db = MagicMock()
         mock_db.get_setting.return_value = 'America/New_York'
         payload = _make_payload()
-        with patch('webhook_service.Database', return_value=mock_db):
+        with patch('webhook_service.database.Database', return_value=mock_db):
             ctx = _build_context(payload)
         assert ctx['timestamp'].endswith('Z')
         assert ctx['timestamp_local'].endswith(('-04:00', '-05:00'))

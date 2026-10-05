@@ -27,8 +27,7 @@ def provider_settings():
     def read(key):
         return settings.get(key)
 
-    with patch.object(llm_client, '_get_cached_setting', side_effect=read), \
-            patch.object(llm_route, '_get_cached_setting', side_effect=read):
+    with patch.object(llm_client, '_get_cached_setting', side_effect=read):
         yield settings
 
 
@@ -69,7 +68,7 @@ class TestClientForRouteRefusesAChangedAccount:
     def test_new_key_is_not_sent_to_the_frozen_endpoint(self, provider_settings):
         route = _openai_route('https://old.example/v1')
         provider_settings['openai_base_url'] = 'https://new.example/v1'
-        with patch.object(llm_route, 'get_client_for_provider') as get_client:
+        with patch.object(llm_route.llm_client, 'get_client_for_provider') as get_client:
             with pytest.raises(ProviderAccountChangedError) as excinfo:
                 client_for_route(route)
         get_client.assert_not_called()
@@ -79,7 +78,7 @@ class TestClientForRouteRefusesAChangedAccount:
     def test_same_account_still_builds_a_client(self, provider_settings):
         route = _openai_route('https://old.example/v1')
         client = object()
-        with patch.object(llm_route, 'get_client_for_provider',
+        with patch.object(llm_route.llm_client, 'get_client_for_provider',
                           return_value=client) as get_client:
             assert client_for_route(route) is client
         get_client.assert_called_once_with(
@@ -90,13 +89,13 @@ class TestClientForRouteRefusesAChangedAccount:
         route = _openai_route('https://old.example/v1')
         # Clearing a key leaves the endpoint (and so the account) in place;
         # the auth failure belongs at call time, not here.
-        with patch.object(llm_route, 'get_client_for_provider') as get_client:
+        with patch.object(llm_route.llm_client, 'get_client_for_provider') as get_client:
             client_for_route(route)
         get_client.assert_called_once()
 
     def test_route_without_an_account_id_is_not_checked(self, provider_settings):
         provider_settings['openai_base_url'] = 'https://new.example/v1'
-        with patch.object(llm_route, 'get_client_for_provider') as get_client:
+        with patch.object(llm_route.llm_client, 'get_client_for_provider') as get_client:
             client_for_route({'provider_key': 'openai-compatible',
                               'base_url': 'https://old.example/v1'})
         get_client.assert_called_once()
@@ -118,7 +117,7 @@ class TestClientForRouteRefusesAChangedAccount:
                  'credential_slot': 'secondary',
                  'account_id': account_identity_for_slot('secondary')}
         provider_settings['secondary_provider'] = 'anthropic'
-        with patch.object(llm_route, 'get_client_for_provider') as get_client:
+        with patch.object(llm_route.llm_client, 'get_client_for_provider') as get_client:
             with pytest.raises(ProviderAccountChangedError):
                 client_for_route(route)
         get_client.assert_not_called()

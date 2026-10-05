@@ -222,7 +222,7 @@ def test_disabling_failover_clears_active_state(app_client, hdr):
     db.set_setting('failover_state:llm:primary',
                    '{"active": true, "source": "manual", "since": "x", "reason": "r"}',
                    is_default=False)
-    with patch('failover.fire_failover_event') as fire:
+    with patch('failover.webhook_service.fire_failover_event') as fire:
         r = app_client.put('/api/v1/settings/ad-detection',
                            json={'failoverLlmEnabled': False}, headers=hdr)
     assert r.status_code == 200

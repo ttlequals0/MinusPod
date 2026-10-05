@@ -10,6 +10,7 @@ import time
 from collections import defaultdict
 from contextlib import contextmanager
 
+import llm_route
 from utils.url import url_has_userinfo
 
 _lock = threading.Lock()
@@ -241,8 +242,7 @@ def route_for_phase(phase: str, *, apply_live_failover: bool = True) -> dict | N
     route = ctx.route_snapshot.get(phase)
     if route is None or not apply_live_failover or route.get('credential_slot') == 'failover':
         return route
-    from llm_route import apply_failover_dict  # cycle: llm_route imports run_context
-    overridden = apply_failover_dict({**route, 'phase': phase})
+    overridden = llm_route.apply_failover_dict({**route, 'phase': phase})
     if overridden.get('credential_slot') != 'failover':
         return route  # not overridden: return the stored entry unchanged
     overridden.pop('phase', None)

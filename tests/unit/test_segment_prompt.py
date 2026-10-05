@@ -271,8 +271,8 @@ def _run_detect_ads(*, detect_show_segments, segment_actions, ads,
          patch.object(detector, '_run_windows', run_windows), \
          patch.object(detector, '_repair_window_categories', repair_mock), \
          patch('ad_detector._resolve_parallel_windows', return_value=1), \
-         patch('llm_route.get_llm_timeout', return_value=60), \
-         patch('llm_route.get_llm_max_retries', return_value=1):
+         patch('llm_route.llm_client.get_llm_timeout', return_value=60), \
+         patch('llm_route.llm_client.get_llm_max_retries', return_value=1):
         result = detector.detect_ads(
             _WARNING_SEGMENTS, podcast_name='Test', episode_title='Ep',
             slug='example-podcast', episode_id='ep1')
@@ -455,8 +455,8 @@ def _detect_ads_with_fake_client(*, detect_show_segments, segment_actions,
          patch.object(detector, '_build_known_pattern_hint', return_value=''), \
          patch.object(detector, '_run_windows', run_windows), \
          patch('ad_detector._resolve_parallel_windows', return_value=1), \
-         patch('llm_route.get_llm_timeout', return_value=60), \
-         patch('llm_route.get_llm_max_retries', return_value=1):
+         patch('llm_route.llm_client.get_llm_timeout', return_value=60), \
+         patch('llm_route.llm_client.get_llm_max_retries', return_value=1):
         result = detector.detect_ads(
             _WARNING_SEGMENTS, podcast_name='Test', episode_title='Ep',
             slug='example-podcast', episode_id='ep1')

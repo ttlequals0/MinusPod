@@ -215,7 +215,7 @@ class TestPhasesUseTheirRoutedClientAndModel:
             calls.append(provider_key)
             return MagicMock()
 
-        monkeypatch.setattr('llm_route.get_client_for_provider',
+        monkeypatch.setattr('llm_route.llm_client.get_client_for_provider',
                             fake_get_client_for_provider)
 
         ctx = run_context.begin('mixed-provider-feed', 'ep-detect', run_id='r-detect')
@@ -251,7 +251,7 @@ class TestPhasesUseTheirRoutedClientAndModel:
             calls.append(provider_key)
             return fake_client
 
-        monkeypatch.setattr('llm_route.get_client_for_provider',
+        monkeypatch.setattr('llm_route.llm_client.get_client_for_provider',
                             fake_get_client_for_provider)
 
         reviewer = AdReviewer(db=db, sponsor_service=None)
@@ -281,7 +281,7 @@ class TestPhasesUseTheirRoutedClientAndModel:
             calls.append(provider_key)
             return MagicMock()
 
-        monkeypatch.setattr('llm_route.get_client_for_provider',
+        monkeypatch.setattr('llm_route.llm_client.get_client_for_provider',
                             fake_get_client_for_provider)
 
         ctx = run_context.begin('mixed-provider-feed', 'ep-chapters', run_id='r-chapters')
@@ -325,7 +325,7 @@ def _patch_reviewer_client(monkeypatch, calls):
         calls.append(provider_key)
         return fake_client
 
-    monkeypatch.setattr('llm_route.get_client_for_provider',
+    monkeypatch.setattr('llm_route.llm_client.get_client_for_provider',
                         fake_get_client_for_provider)
 
 
@@ -376,6 +376,8 @@ class TestReviewerGateFrozenAtRunStart:
         run_id = run_row['run_id']
         db.clear_setting('review_provider')
         db.clear_setting('review_model')
+        db.set_setting('verification_provider', 'secondary', is_default=False)
+        db.set_setting('verification_model', 'or-verify-model', is_default=False)
 
         snapshot = processing._resolve_or_load_route_snapshot(run_id)
         assert snapshot['review']['gate'] == {

@@ -21,6 +21,7 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- Failover modules load consistently across import orders, including installations without the local transcription stack.
 - Exhausted transcription timeouts and provider throttling can switch to the standby transcriber.
 - Processing tests preserve dependency filesystem checks, preventing a partial native-library import and shutdown crash.
 - Provider throttling and exhausted daily quotas can use independent standby capacity; manual caps and oversized requests remain enforced.

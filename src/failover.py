@@ -11,14 +11,13 @@ from concurrent.futures import ThreadPoolExecutor
 import llm_client
 import provider_probe
 import secrets_crypto
+import database
+import webhook_service
 from config import (
     FAILOVER_API_TARGET_NAMES, WHISPER_BACKEND_API, WHISPER_BACKEND_LOCAL,
     DEFAULT_OPENAI_BASE_URL, coerce_bool_setting,
 )
-from database import Database
-from llm_client import invalidate_provider_cache
 from utils.time import parse_iso_utc, utc_now_iso
-from webhook_service import fire_failover_event
 
 logger = logging.getLogger('podcast.failover')
 
@@ -44,7 +43,7 @@ def llm_target_for_slot(credential_slot: str) -> str | None:
 
 
 def state(target: str) -> dict:
-    raw = Database().get_setting(f'failover_state:{target}')
+    raw = database.Database().get_setting(f'failover_state:{target}')
     if not raw:
         return dict(_INACTIVE)
     try:
@@ -151,7 +150,7 @@ def _reset_healthy_streak_in_transaction(conn, target: str) -> None:
     except (TypeError, ValueError):
         data = {}
     if isinstance(data, dict) and data.get('healthy_streak'):
-        Database._upsert_setting(
+        database.Database._upsert_setting(
             conn, key, json.dumps({**data, 'healthy_streak': 0}), is_default=False)
 
 
@@ -168,14 +167,14 @@ def _apply_transition_in_transaction(conn, target: str, action: str,
             'active': True, 'source': source, 'since': utc_now_iso(),
             'reason': (reason or '')[:500],
         })
-        Database._upsert_setting(conn, setting_key, value, is_default=False)
+        database.Database._upsert_setting(conn, setting_key, value, is_default=False)
         _reset_healthy_streak_in_transaction(conn, target)
     else:
         if not current['active'] or (current['source'] == 'manual' and source != 'manual'):
             return False
         conn.execute("DELETE FROM settings WHERE key = ?", (setting_key,))
     generation_key = f'failover_generation:{target}'
-    Database._upsert_setting(
+    database.Database._upsert_setting(
         conn, generation_key, str(_generation_in_transaction(conn, target) + 1),
         is_default=False,
     )
@@ -188,7 +187,7 @@ def _apply_transition_in_transaction(conn, target: str, action: str,
 
 def _apply_transition(target: str, action: str, source: str,
                       reason: str | None) -> bool:
-    db = Database()
+    db = database.Database()
     with db.transaction(immediate=True) as conn:
         return _apply_transition_in_transaction(conn, target, action, source, reason)
 
@@ -212,7 +211,7 @@ def _transition(target: str, action: str, source: str, reason: str | None,
             logger.info(f"Failover for {target} not changed ({reason})")
         return False
     try:
-        invalidate_provider_cache()
+        llm_client.invalidate_provider_cache()
     except Exception as exc:
         logger.warning(f"Failover {action} for {target} applied, but cache invalidation failed: {exc}")
     if action == 'trigger':
@@ -238,13 +237,13 @@ def cancel(target: str, source: str = 'manual', *,
 def _after_change(target: str, action: str, source: str, reason: str | None) -> None:
     """Send the webhook after the state and event commit."""
     try:
-        fire_failover_event(action, target, source, reason)
+        webhook_service.fire_failover_event(action, target, source, reason)
     except Exception as exc:
         logger.warning(f"Failover {action} for {target} applied, but its webhook failed: {exc}")
 
 
 def recent_events(limit: int = 50) -> list[dict]:
-    return Database().get_failover_events(limit)
+    return database.Database().get_failover_events(limit)
 
 
 # --- Health probing (#806) ------------------------------------------------
@@ -476,7 +475,7 @@ def _probe_local_whisper() -> dict:
 def probe_target(target: str, request_config: dict | None = None) -> dict:
     try:
         if request_config is None:
-            request_config = _capture_probe_context(Database(), target)['request_config']
+            request_config = _capture_probe_context(database.Database(), target)['request_config']
         kind, which = target.split(':', 1)
         if kind == 'llm':
             provider = request_config['provider']
@@ -549,7 +548,7 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
             '_generation': context['generation'],
             '_config_identity': context['config_identity'],
         }
-        Database._upsert_setting(conn, key, json.dumps(data), is_default=False)
+        database.Database._upsert_setting(conn, key, json.dumps(data), is_default=False)
         if origin and result['reachable'] is not None:
             current = _state_in_transaction(conn, origin)
             if data['failed_streak'] >= AUTO_TRIGGER_FAILURES and not current['active']:
@@ -568,7 +567,7 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
     invalidate_cache()
     if action:
         try:
-            invalidate_provider_cache()
+            llm_client.invalidate_provider_cache()
         except Exception as exc:
             logger.warning(f"Failover {action} for {origin} applied, but cache invalidation failed: {exc}")
         if action == 'trigger':
@@ -621,4 +620,4 @@ def ensure_fresh_probes(targets: list[str]) -> None:
             if not checked or _parse_iso(checked) < cutoff:
                 stale.append(target)
         if stale:
-            probe_tick(Database(), stale)
+            probe_tick(database.Database(), stale)

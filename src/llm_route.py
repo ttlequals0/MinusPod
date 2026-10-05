@@ -10,6 +10,7 @@ provider type: 'primary' resolves through the global llm_provider config,
 referencing 'secondary' while secondary_provider_enabled is false falls back
 to primary (fail-safe) and logs once per stage.
 """
+from __future__ import annotations
 import hashlib
 import logging
 from collections.abc import Callable
@@ -21,13 +22,9 @@ from config import (
     PROVIDERS_NON_ANTHROPIC, OPENROUTER_BASE_URL, DEFAULT_OPENAI_BASE_URL,
     coerce_bool_setting,
 )
-from database import Database
-from llm_client import (
-    get_client_for_provider, get_effective_provider, get_effective_base_url,
-    get_llm_max_retries, get_llm_timeout, LLMClient, ProviderAccountChangedError,
-    _get_cached_setting, _normalize_base_url_for_provider,
-)
-from run_context import route_for_phase
+import database
+import llm_client
+import run_context
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +67,7 @@ class _CachedProviderSettings:
 
     @staticmethod
     def get_setting(key: str) -> str | None:
-        return _get_cached_setting(key)
+        return llm_client._get_cached_setting(key)
 
 
 _CACHED_SETTINGS = _CachedProviderSettings()
@@ -123,7 +120,7 @@ def account_identity_for_slot(credential_slot: str, db=None) -> str | None:
         if not cfg['provider']:
             return None
         return account_identity(cfg['provider'], _failover_base_url(cfg['provider'], cfg['base_url']))
-    return account_identity_for_primary_provider(get_effective_provider())
+    return account_identity_for_primary_provider(llm_client.get_effective_provider())
 
 
 def current_account_identity(provider_key: str | None,
@@ -158,9 +155,9 @@ def route_account_mismatch(route: 'Route | dict') -> tuple[str, str | None] | No
 
 
 def client_for_route(route: str | Route | dict | None, *,
-                      override: LLMClient | None = None,
-                      fallback: Callable[[], LLMClient | None] | None = None
-                      ) -> LLMClient | None:
+                      override: llm_client.LLMClient | None = None,
+                      fallback: Callable[[], llm_client.LLMClient | None] | None = None
+                      ) -> llm_client.LLMClient | None:
     """Override wins, then the route's provider client, then fallback().
     `route` is a phase name, snapshot dict, Route, or None; fallback stays lazy.
 
@@ -171,7 +168,7 @@ def client_for_route(route: str | Route | dict | None, *,
     if override is not None:
         return override
     if isinstance(route, str):
-        route = route_for_phase(route)
+        route = run_context.route_for_phase(route)
     if not route:
         return fallback() if fallback is not None else None
     if isinstance(route, Route):
@@ -187,13 +184,13 @@ def client_for_route(route: str | Route | dict | None, *,
     mismatch = route_account_mismatch(route)
     if mismatch is not None:
         frozen, current = mismatch
-        raise ProviderAccountChangedError(
+        raise llm_client.ProviderAccountChangedError(
             f"{credential_slot} provider account changed since this run "
             f"resolved its routes; not sending the current key to the "
             f"route's frozen endpoint",
             credential_slot=credential_slot, phase=phase,
             expected_account_id=frozen, current_account_id=current)
-    return get_client_for_provider(provider_key, base_url=base_url,
+    return llm_client.get_client_for_provider(provider_key, base_url=base_url,
                                    credential_slot=credential_slot)
 
 
@@ -217,7 +214,7 @@ def _base_url_for_primary(provider: str) -> str | None:
     if provider == PROVIDER_OPENROUTER:
         return OPENROUTER_BASE_URL
     if provider in PROVIDERS_NON_ANTHROPIC:
-        return _normalize_base_url_for_provider(provider, get_effective_base_url())
+        return llm_client._normalize_base_url_for_provider(provider, llm_client.get_effective_base_url())
     return None
 
 
@@ -229,7 +226,7 @@ def _base_url_for_secondary(db, provider: str) -> str | None:
         return OPENROUTER_BASE_URL
     if provider in PROVIDERS_NON_ANTHROPIC:
         raw = db.get_setting('secondary_provider_base_url') or DEFAULT_OPENAI_BASE_URL
-        return _normalize_base_url_for_provider(provider, raw)
+        return llm_client._normalize_base_url_for_provider(provider, raw)
     return None
 
 
@@ -239,7 +236,7 @@ def _failover_base_url(provider: str, raw: str | None) -> str | None:
         return None
     if provider == PROVIDER_OPENROUTER:
         return OPENROUTER_BASE_URL
-    return _normalize_base_url_for_provider(provider, raw or DEFAULT_OPENAI_BASE_URL)
+    return llm_client._normalize_base_url_for_provider(provider, raw or DEFAULT_OPENAI_BASE_URL)
 
 
 def _failover_route(phase: str | None, credential_slot: str) -> Route | None:
@@ -288,8 +285,8 @@ def live_route_from(route: Route | dict | None, model=None, llm_timeout=None,
     """Request fields derived from an already-live route; the arguments are the no-route fallback."""
     if not route:
         return LiveRoute(None, None, SLOT_PRIMARY, model,
-                         get_llm_timeout() if llm_timeout is None else llm_timeout,
-                         get_llm_max_retries() if max_retries is None else max_retries)
+                         llm_client.get_llm_timeout() if llm_timeout is None else llm_timeout,
+                         llm_client.get_llm_max_retries() if max_retries is None else max_retries)
     if isinstance(route, Route):
         provider, slot, route_model = route.provider_key, route.credential_slot, route.model_id
     else:
@@ -297,12 +294,12 @@ def live_route_from(route: Route | dict | None, model=None, llm_timeout=None,
         slot = route.get('credential_slot', SLOT_PRIMARY)
         route_model = route.get('configured_model')
     return LiveRoute(route, provider, slot, route_model or model,
-                     get_llm_timeout(provider, slot), get_llm_max_retries(provider, slot))
+                     llm_client.get_llm_timeout(provider, slot), llm_client.get_llm_max_retries(provider, slot))
 
 
 def live_route_params(phase: str, model=None, llm_timeout=None, max_retries=None) -> LiveRoute:
     """Read the live route and request settings together; arguments supply the outside-run fallback."""
-    return live_route_from(route_for_phase(phase), model, llm_timeout, max_retries)
+    return live_route_from(run_context.route_for_phase(phase), model, llm_timeout, max_retries)
 
 
 def _resolve_slot_config(db, slot: str) -> tuple[str, str | None, str]:
@@ -315,7 +312,7 @@ def _resolve_slot_config(db, slot: str) -> tuple[str, str | None, str]:
         if provider:
             return provider, _base_url_for_secondary(db, provider), SLOT_SECONDARY
         _warn_secondary_fallback_once('secondary_provider')
-    provider = get_effective_provider()
+    provider = llm_client.get_effective_provider()
     return provider, _base_url_for_primary(provider), SLOT_PRIMARY
 
 
@@ -445,7 +442,7 @@ def resolve_review_route(*, review_provider_setting: str | None,
     """
     configured_slot = review_provider_setting or SAME_AS_PASS
     if configured_slot != SAME_AS_PASS:
-        db = db or Database()
+        db = db or database.Database()
     provider, model, base_url, credential_slot = _resolve_review_route_parts(
         review_provider_setting, review_model_setting, pass_provider,
         pass_model, pass_base_url, pass_credential_slot, db)
@@ -468,7 +465,7 @@ def resolve_route(phase: str, *, pass_model: str | None = None,
     if phase not in PHASES:
         raise ValueError(f"Unknown LLM phase: {phase}")
 
-    db = Database()
+    db = database.Database()
 
     if phase == 'detection':
         configured_slot = _detection_slot(db)

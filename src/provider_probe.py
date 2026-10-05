@@ -4,8 +4,8 @@ use it directly.
 """
 from urllib.parse import urlparse
 
+import llm_client
 from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
-from llm_client import _opencode_headers
 from utils.connection_probe import parse_probe_json, rejected_detail, run_probe
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_get
@@ -65,7 +65,7 @@ def models_request(base_url: str, api_key: str):
     by /test and /test-connection so the discovery contract lives once."""
     url = base_url.rstrip('/') + '/models'
     headers = {'Authorization': f'Bearer {api_key}'} if api_key else {}
-    headers.update(_opencode_headers(base_url))
+    headers.update(llm_client._opencode_headers(base_url))
     return url, headers
 
 

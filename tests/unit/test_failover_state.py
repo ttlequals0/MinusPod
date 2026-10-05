@@ -40,7 +40,7 @@ def test_trigger_requires_configuration():
 
 def test_trigger_cancel_round_trip_and_events():
     db = Database(); _reset(db); _configure_llm(db)
-    with patch.object(failover, 'fire_failover_event') as fire:
+    with patch.object(failover.webhook_service, 'fire_failover_event') as fire:
         assert failover.trigger('llm:primary', 'HTTP 503') is True
         assert failover.trigger('llm:primary', 'again') is False  # idempotent
         st = failover.state('llm:primary')
@@ -205,7 +205,7 @@ def test_auto_trigger_rereads_state_another_worker_wrote():
     db.set_setting('failover_state:llm:primary', json.dumps(
         {'active': True, 'source': 'manual', 'since': '2026-01-01T00:00:00Z', 'reason': 'drill'}),
         is_default=False)
-    with patch.object(failover, 'fire_failover_event'):
+    with patch.object(failover.webhook_service, 'fire_failover_event'):
         assert failover.trigger('llm:primary', 'window outage') is False
     assert failover.state('llm:primary')['source'] == 'manual'
     _reset(db)
@@ -232,7 +232,7 @@ def test_trigger_and_cancel_swallow_write_failures():
     with patch.object(failover, '_apply_transition', side_effect=RuntimeError('db locked')):
         assert failover.trigger('llm:primary', 'HTTP 503') is False
     assert failover.is_active('llm:primary') is False
-    with patch.object(failover, 'fire_failover_event'):
+    with patch.object(failover.webhook_service, 'fire_failover_event'):
         failover.trigger('llm:primary', 'HTTP 503')
     with patch.object(failover, '_apply_transition', side_effect=RuntimeError('db locked')):
         assert failover.cancel('llm:primary') is False
@@ -277,7 +277,7 @@ def test_trigger_resets_healthy_streak_atomically():
 
 def test_webhook_failure_keeps_the_state_change():
     db = Database(); _reset(db); _configure_llm(db)
-    with patch.object(failover, 'fire_failover_event', side_effect=RuntimeError('smtp down')):
+    with patch.object(failover.webhook_service, 'fire_failover_event', side_effect=RuntimeError('smtp down')):
         assert failover.trigger('llm:primary', 'HTTP 503') is True
         assert failover.is_active('llm:primary') is True
         assert failover.cancel('llm:primary') is True

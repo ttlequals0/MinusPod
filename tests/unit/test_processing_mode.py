@@ -411,9 +411,9 @@ def _run_transcript(d, keep_content, kc_return):
         blk = stack.enter_context(patch.object(
             d, 'detect_ads', return_value={'ads': [], 'status': 'success'}))
         stack.enter_context(
-            patch('llm_route.get_llm_timeout', return_value=30))
+            patch('llm_route.llm_client.get_llm_timeout', return_value=30))
         stack.enter_context(
-            patch('llm_route.get_llm_max_retries', return_value=1))
+            patch('llm_route.llm_client.get_llm_max_retries', return_value=1))
         result = d.process_transcript(
             SEGMENTS, 'Pod', 'Ep', 'slug', 'ep1', keep_content=keep_content)
     return result, kc, blk

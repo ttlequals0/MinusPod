@@ -106,7 +106,7 @@ def test_client_for_failover_dict_does_not_raise_account_changed():
             'base_url': None, 'credential_slot': 'primary', 'account_id': PRIMARY.account_id}
     with _active({'llm:primary'}), _configured(), \
             patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG), \
-            patch.object(llm_route, 'get_client_for_provider', return_value='client') as build:
+            patch.object(llm_route.llm_client, 'get_client_for_provider', return_value='client') as build:
         assert llm_route.client_for_route(apply_failover_dict(snap)) == 'client'
     assert build.call_args.kwargs['credential_slot'] == 'failover'
 

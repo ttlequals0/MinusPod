@@ -48,7 +48,7 @@ def test_overview_shape(app_client, hdr, configured):
 
 
 def test_trigger_and_cancel(app_client, hdr, configured):
-    with patch('failover.fire_failover_event'):
+    with patch('failover.webhook_service.fire_failover_event'):
         r = app_client.post('/api/v1/failover/llm-a/trigger', json={'reason': 'drill'}, headers=hdr)
         assert r.status_code == 200, r.get_json()
         assert r.get_json()['state']['active'] is True
@@ -98,7 +98,7 @@ def test_trigger_rejects_malformed_json(app_client, hdr, configured, body):
 
 @pytest.mark.parametrize('body', ['', 'null', '{}'])
 def test_trigger_accepts_default_reason(app_client, hdr, configured, body):
-    with patch('failover.fire_failover_event'):
+    with patch('failover.webhook_service.fire_failover_event'):
         r = app_client.post('/api/v1/failover/llm-a/trigger', data=body,
                             content_type='application/json', headers=hdr)
     assert r.status_code == 200
@@ -108,10 +108,10 @@ def test_trigger_accepts_default_reason(app_client, hdr, configured, body):
 @pytest.mark.parametrize('action', ['trigger', 'cancel'])
 def test_manual_transition_reports_persistence_failure(app_client, hdr, configured, action):
     if action == 'cancel':
-        with patch('failover.fire_failover_event'):
+        with patch('failover.webhook_service.fire_failover_event'):
             assert failover.trigger(failover.TARGET_LLM_PRIMARY, 'drill', source='manual')
     before = failover.state(failover.TARGET_LLM_PRIMARY)
-    with patch('failover.Database.transaction', side_effect=RuntimeError('transaction failed')):
+    with patch('failover.database.Database.transaction', side_effect=RuntimeError('transaction failed')):
         r = app_client.post(f'/api/v1/failover/llm-a/{action}', json={}, headers=hdr)
     assert r.status_code == 503
     assert r.get_json()['error'] == 'failover_transition_failed'
@@ -119,7 +119,7 @@ def test_manual_transition_reports_persistence_failure(app_client, hdr, configur
 
 
 def test_repeated_manual_actions_stay_successful_without_duplicate_events(app_client, hdr, configured):
-    with patch('failover.fire_failover_event') as fire:
+    with patch('failover.webhook_service.fire_failover_event') as fire:
         for action in ('trigger', 'trigger', 'cancel', 'cancel'):
             r = app_client.post(f'/api/v1/failover/llm-a/{action}', json={}, headers=hdr)
             assert r.status_code == 200

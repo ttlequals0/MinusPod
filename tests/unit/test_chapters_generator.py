@@ -483,7 +483,7 @@ class TestSharedLLMCallPath:
         gen, client = self._failing_generator()
         with patch('utils.llm_call.is_retryable_error', return_value=True), \
              patch('utils.llm_call.calculate_backoff', return_value=0.0), \
-             patch('llm_route.get_llm_max_retries', return_value=2):
+             patch('llm_route.llm_client.get_llm_max_retries', return_value=2):
             chapters = gen._detect_topic_boundaries(
                 transcript='[00:00] x',
                 start_time=0.0,
@@ -504,7 +504,7 @@ class TestSharedLLMCallPath:
         segments = [{'start': 0, 'end': 600, 'text': 'hello world'}]
         with patch('utils.llm_call.is_retryable_error', return_value=True), \
              patch('utils.llm_call.calculate_backoff', return_value=0.0), \
-             patch('llm_route.get_llm_max_retries', return_value=2):
+             patch('llm_route.llm_client.get_llm_max_retries', return_value=2):
             out = gen.generate_chapter_titles(chapters, segments, 'Show', 'Ep')
         assert client.calls == 5
         assert out[0]['title'] == 'Introduction'
@@ -515,7 +515,7 @@ class TestSharedLLMCallPath:
     def test_non_retryable_failure_fails_once(self):
         gen, client = self._failing_generator()
         with patch('utils.llm_call.is_retryable_error', return_value=False), \
-             patch('llm_route.get_llm_max_retries', return_value=2):
+             patch('llm_route.llm_client.get_llm_max_retries', return_value=2):
             chapters = gen._detect_topic_boundaries(
                 transcript='[00:00] x',
                 start_time=0.0,

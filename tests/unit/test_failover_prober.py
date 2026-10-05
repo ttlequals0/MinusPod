@@ -70,7 +70,7 @@ def test_two_failures_trigger_and_recovery_cancels():
     db = Database(); _reset(db)
     down = {'llm:primary': False, 'llm:failover': True}
     up = {'llm:primary': True, 'llm:failover': True}
-    with _probe(down), patch.object(failover, 'fire_failover_event'):
+    with _probe(down), patch.object(failover.webhook_service, 'fire_failover_event'):
         failover.probe_tick(db)
         assert failover.is_active('llm:primary') is False
         assert failover.probe_state('llm:primary')['failed_streak'] == 1
@@ -82,7 +82,7 @@ def test_two_failures_trigger_and_recovery_cancels():
         # webhook/events/card must show why, not just a bare streak count.
         trigger_event = next(e for e in failover.recent_events() if e['action'] == 'trigger')
         assert 'HTTP 503' in trigger_event['reason']
-    with _probe(up), patch.object(failover, 'fire_failover_event'):
+    with _probe(up), patch.object(failover.webhook_service, 'fire_failover_event'):
         failover.probe_tick(db)
         assert failover.is_active('llm:primary') is True   # streak 1 of 2
         failover.probe_tick(db)
@@ -93,7 +93,7 @@ def test_two_failures_trigger_and_recovery_cancels():
 def test_manual_failover_not_cancelled_by_probes():
     db = Database(); _reset(db)
     failover.trigger('llm:primary', 'operator', source='manual')
-    with _probe({'llm:primary': True, 'llm:failover': True}), patch.object(failover, 'fire_failover_event'):
+    with _probe({'llm:primary': True, 'llm:failover': True}), patch.object(failover.webhook_service, 'fire_failover_event'):
         for _ in range(3):
             failover.probe_tick(db)
     assert failover.is_active('llm:primary') is True
@@ -169,7 +169,7 @@ def test_runtime_trigger_resets_recovery_streak():
     db.set_setting('failover_recovery_probes', '3', is_default=False)
     failover.invalidate_cache()
     up = {'llm:primary': True, 'llm:failover': True}
-    with _probe(up), patch.object(failover, 'fire_failover_event'):
+    with _probe(up), patch.object(failover.webhook_service, 'fire_failover_event'):
         for _ in range(3):
             failover.probe_tick(db)
         assert failover.probe_state('llm:primary')['healthy_streak'] == 3
@@ -183,7 +183,7 @@ def test_runtime_trigger_resets_recovery_streak():
 
 def test_recovery_ignores_probe_older_than_trigger():
     db = Database(); _reset(db)
-    with patch.object(failover, 'fire_failover_event'):
+    with patch.object(failover.webhook_service, 'fire_failover_event'):
         failover.trigger('llm:primary', 'window outage')
         since = failover.state('llm:primary')['since']
         db.set_setting('failover_probe:llm:primary', json.dumps({
@@ -215,7 +215,7 @@ def test_delayed_healthy_result_is_discarded_after_trigger():
 
     with patch.object(failover, 'probe_target', side_effect=fake_probe), \
             patch.object(failover.ThreadPoolExecutor, 'map', controlled_map), \
-            patch.object(failover, 'fire_failover_event'):
+            patch.object(failover.webhook_service, 'fire_failover_event'):
         worker = threading.Thread(
             target=failover.probe_tick, args=(db, ['llm:primary', 'llm:failover']))
         worker.start()
@@ -240,7 +240,7 @@ def test_probe_from_previous_generation_is_discarded_after_same_second_retrigger
         return {'reachable': True, 'status': 200, 'detail': ''}
 
     with patch.object(failover, 'probe_target', side_effect=slow_probe), \
-            patch.object(failover, 'fire_failover_event'), \
+            patch.object(failover.webhook_service, 'fire_failover_event'), \
             patch.object(failover, 'utc_now_iso', return_value='2026-10-05T12:00:00Z'):
         failover.trigger('llm:primary', 'first outage')
         first_since = failover.state('llm:primary')['since']
@@ -385,7 +385,7 @@ def test_only_valid_llm_probe_response_counts_toward_recovery(invalid_result):
     db.set_setting('openai_base_url', 'http://example.com/v1', is_default=False)
     db.set_setting('failover_recovery_probes', '1', is_default=False)
     failover.invalidate_cache()
-    with patch.object(failover, 'fire_failover_event'):
+    with patch.object(failover.webhook_service, 'fire_failover_event'):
         failover.trigger('llm:primary', 'provider outage', source='auto')
         with _Http(invalid_result):
             failover.probe_tick(db, ['llm:primary'])
@@ -410,7 +410,7 @@ def test_malformed_fixed_provider_response_does_not_recover(provider):
                  'detail': 'malformed provider response'}
     healthy = {'ok': True, 'reachable': True, 'status': 200,
                'detail': 'valid provider response'}
-    with patch.object(failover, 'fire_failover_event'), \
+    with patch.object(failover.webhook_service, 'fire_failover_event'), \
             patch.object(failover.provider_probe, 'probe_fixed_endpoint',
                          side_effect=[malformed, healthy]) as probe:
         failover.trigger('llm:primary', 'provider outage', source='auto')
@@ -453,7 +453,7 @@ def test_unconfigured_target_never_counts_or_triggers():
     db.set_setting('secondary_provider_enabled', 'true', is_default=False)
     db.clear_setting('secondary_provider')
     failover.invalidate_cache()
-    with patch.object(failover, 'fire_failover_event'):
+    with patch.object(failover.webhook_service, 'fire_failover_event'):
         failover.probe_tick(db, ['llm:secondary'])
         failover.probe_tick(db, ['llm:secondary'])
     data = failover.probe_state('llm:secondary')

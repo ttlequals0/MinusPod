@@ -13,8 +13,8 @@ from jinja2 import TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
 from config import FAILOVER_API_TARGET_NAMES, HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
-from database import Database
-from database.settings import registry_current_value, registry_default
+import database
+import database.settings as db_settings
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_post
 from utils.time import format_duration, utc_now_iso, local_now_iso, local_iso
@@ -65,11 +65,11 @@ def get_notification_timezone(db=None) -> str:
     or UTC. Never raises: a DB/settings failure must not cost a notification."""
     try:
         if db is None:
-            db = Database()
-        return registry_current_value(db, 'notification_timezone')
+            db = database.Database()
+        return db_settings.registry_current_value(db, 'notification_timezone')
     except Exception:
         logger.debug("Could not read notification_timezone setting", exc_info=True)
-        return registry_default('notification_timezone')
+        return db_settings.registry_default('notification_timezone')
 
 
 def _timestamp_fields() -> dict:
@@ -353,8 +353,7 @@ def _prepare_and_dispatch(webhook_config, context, add_test_flag=False,
 def load_webhooks(db=None):
     """Load webhooks list from DB settings."""
     if db is None:
-        from database import Database  # deferred to avoid circular imports
-        db = Database()
+        db = database.Database()
     raw = db.get_setting('webhooks')
     if not raw:
         return []
@@ -642,8 +641,7 @@ def _episode_test_context(event):
     """
     if event == EVENT_EPISODE_PROCESSED:
         try:
-            from database import Database  # deferred to avoid circular imports
-            db = Database()
+            db = database.Database()
             row = db.get_latest_completed_processing()
             if row:
                 payload = WebhookPayload(

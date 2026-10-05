@@ -19,8 +19,9 @@ from dataclasses import dataclass
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import database
+import failover
 import run_context
-from run_context import run_in_worker_thread
 from user_agent import download_user_agent
 from utils.audio import get_audio_duration, mean_volume_db
 from utils.errors import (
@@ -206,19 +207,16 @@ def _record_local_transcription_outcome(outcome: dict) -> None:
     record['observed_at'] = utc_now_iso()
     with _local_transcription_state_lock:
         _last_local_transcription_outcome = record
-    # Inline import: database imports modules that import transcriber.
-    from database import Database
     try:
-        Database().set_setting(LOCAL_OUTCOME_SETTING, json.dumps(record))
+        database.Database().set_setting(LOCAL_OUTCOME_SETTING, json.dumps(record))
     except Exception as e:
         logger.debug(f"Could not persist local transcription outcome: {e}")
 
 
 def _read_persisted_local_outcome() -> dict | None:
     """Last local outcome any worker persisted, or None if unreadable."""
-    from database import Database
     try:
-        raw = Database().get_setting(LOCAL_OUTCOME_SETTING)
+        raw = database.Database().get_setting(LOCAL_OUTCOME_SETTING)
     except Exception as e:
         logger.debug(f"Could not read local transcription outcome: {e}")
         return None
@@ -540,7 +538,7 @@ class _ChunkPrefetcher:
             # run_in_worker_thread keeps the pool thread's ffmpeg log lines
             # inside the episode's run log.
             self._pending[bounds] = self._executor.submit(
-                run_in_worker_thread(extract_audio_chunk),
+                run_context.run_in_worker_thread(extract_audio_chunk),
                 self._audio_path, start, end, preprocess=True,
             )
 
@@ -640,10 +638,7 @@ def _get_whisper_settings() -> dict[str, str]:
         'is_failover': False,
     }
     try:
-        # Inline import: Database depends on modules that import transcriber,
-        # causing a circular import if placed at module level.
-        from database import Database
-        db = Database()
+        db = database.Database()
         for setting_key, default_key in [
             ('whisper_backend', 'backend'),
             ('whisper_api_base_url', 'api_base_url'),
@@ -688,10 +683,7 @@ def _get_failover_whisper_settings() -> dict[str, str]:
         'is_failover': True,
     }
     try:
-        # Inline import: see _get_whisper_settings above, Database would be a
-        # circular import at module level.
-        from database import Database
-        db = Database()
+        db = database.Database()
         backend = db.get_setting('failover_whisper_backend')
         if backend:
             defaults['backend'] = backend
@@ -723,10 +715,6 @@ def active_whisper_settings() -> dict[str, str]:
     """Whisper settings to use right now (#806): the failover config while
     whisper failover is active, otherwise the primary config."""
     try:
-        # Inline import: failover imports database at module top, which would
-        # cycle back to transcriber at module load time (same reason Database
-        # is imported inline throughout this file).
-        import failover
         if failover.is_active(failover.TARGET_WHISPER):
             return _get_failover_whisper_settings()
     except Exception as e:
@@ -794,7 +782,6 @@ def check_whisper_connectivity(timeout: float = 5.0) -> bool:
 
 def _trigger_whisper_failover(original: Exception) -> None:
     """Trigger whisper failover; re-raise `original` when no failover ends up active, so the episode defers."""
-    import failover  # inline: see active_whisper_settings for the cycle reason
     target = failover.TARGET_WHISPER
     if not failover.trigger(target, str(original)) and not failover.is_active(target):
         raise original
@@ -1209,8 +1196,7 @@ def _get_chunk_settings() -> dict[str, int]:
         'chunk_overlap_seconds': CHUNK_OVERLAP_SECONDS,
     }
     try:
-        from database import Database
-        db = Database()
+        db = database.Database()
         for setting_key, default_key in [
             ('transcribe_max_chunk_seconds', 'max_chunk_seconds'),
             ('transcribe_concurrent_chunks', 'concurrent_chunks'),
@@ -1257,8 +1243,7 @@ def _get_whisper_compute_type() -> str:
     """Read WHISPER_COMPUTE_TYPE (DB preferred, env fallback), validated."""
     raw = os.environ.get('WHISPER_COMPUTE_TYPE', WHISPER_COMPUTE_TYPE_DEFAULT)
     try:
-        from database import Database
-        db_value = Database().get_setting('whisper_compute_type')
+        db_value = database.Database().get_setting('whisper_compute_type')
         if db_value:
             raw = db_value
     except Exception as e:
@@ -1365,8 +1350,7 @@ class WhisperModelSingleton:
         if override:
             return override
         try:
-            from database import Database
-            db = Database()
+            db = database.Database()
             model = db.get_setting('whisper_model')
             if model:
                 return model
@@ -2188,11 +2172,8 @@ class Transcriber:
         """Stored ceiling for this device as {'size', 'recorded_at'}, or None
         when unset, malformed, or recorded for a different device. recorded_at
         is None for pre-2.96.0 payloads, which read as expired."""
-        # Inline import: see _get_whisper_settings above, Database would be a
-        # circular import at module level.
-        from database import Database
         try:
-            raw = Database().get_setting(self.BATCH_CEILING_SETTING)
+            raw = database.Database().get_setting(self.BATCH_CEILING_SETTING)
         except Exception as e:
             logger.debug(f"Could not read batch size ceiling: {e}")
             return None
@@ -2227,7 +2208,6 @@ class Transcriber:
         completed run, since only completion proves a size fits; ratchets down
         against an unexpired ceiling and keeps its timestamp so it still ages out.
         """
-        from database import Database
         candidate = max(1, int(batch_size))
         entry = self._read_ceiling()
         live = entry if entry and not self._ceiling_expired(entry) else None
@@ -2237,7 +2217,7 @@ class Transcriber:
             'device': self._batch_ceiling_device(), 'size': value, 'recorded_at': recorded_at,
         })
         try:
-            Database().set_setting(self.BATCH_CEILING_SETTING, payload)
+            database.Database().set_setting(self.BATCH_CEILING_SETTING, payload)
         except Exception as e:
             logger.debug(f"Could not persist batch size ceiling: {e}")
 
@@ -2828,7 +2808,7 @@ class Transcriber:
         seen_connectivity = 0
         try:
             futures = [
-                exe.submit(run_in_worker_thread(_process_chunk), i, s, e)
+                exe.submit(run_context.run_in_worker_thread(_process_chunk), i, s, e)
                 for i, s, e in plan_subset
             ]
             for completed, fut in enumerate(as_completed(futures), 1):
@@ -2918,8 +2898,6 @@ class Transcriber:
         can_switch_on_outage = False
         if allow_failover and not whisper_settings.get('is_failover'):
             try:
-                # Inline import: see active_whisper_settings for the cycle reason.
-                import failover
                 can_switch_on_outage = failover.is_configured(failover.TARGET_WHISPER)
             except Exception as e:
                 logger.warning(f"Could not check whisper failover configuration: {e}")
@@ -3094,8 +3072,6 @@ class Transcriber:
                 audio_path, duration, whisper_settings, language_override)
         except Exception as e:
             if not whisper_settings.get('is_failover') and is_whisper_failover_trigger(e):
-                # Inline import: see active_whisper_settings for the cycle reason.
-                import failover
                 if failover.is_configured(failover.TARGET_WHISPER):
                     _trigger_whisper_failover(e)
                     return self.transcribe_chunked(
