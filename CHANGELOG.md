@@ -52,6 +52,7 @@ release notes.
 - Updated fast-uri to 3.1.8 to fix a moderate vulnerability in frontend build tooling.
 
 ### Changed
+- Shortened provider and artwork documentation while preserving their behavior contracts.
 - The two LLM provider slots are now labelled Provider A and Provider B. The API accepts `providerB*` payload keys and `a`/`b` slot values; the `secondary*` keys and `primary`/`secondary` values keep working, and `GET` responses still emit both spellings.
 - Updated Python dependencies and frontend test tools from dependency PRs #811 through #820. The TypeScript ESLint packages now share one version.
 

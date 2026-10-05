@@ -1132,16 +1132,10 @@ class Storage:
 
     def _download_artwork_uncached(self, slug: str, artwork_url: str,
                                    force: bool) -> tuple[bool, str | None]:
-        """Fetch, validate, and save one artwork URL. See download_artwork.
+        """Fetch and validate artwork against the size limit and raster file signatures.
 
-        Content-Type header is advisory only; the saved bytes are validated
-        against a fixed file-magic allowlist (JPEG/PNG/GIF/WebP). SVG is
-        excluded because it admits script execution. Oversize responses are
-        rejected outright with a structured log rather than saved partially.
-        Returns (success, failure_status): failure_status is 'not_found' for
-        a definitive 4xx (404, 403, etc; 408 and 429 are excluded as transient,
-        not rejection), else 'error', and is None on success.
-        """
+        Return (success, status): status is 'not_found' for definitive 4xx
+        responses, 'error' for other failures, and None on success."""
         try:
             # Check if we already have this artwork on disk. Callers that
             # already wrote the new URL to the row pass force, since the

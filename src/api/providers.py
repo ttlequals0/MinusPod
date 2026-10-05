@@ -512,11 +512,7 @@ def test_failover_provider_connection():
 
 def _llm_slot_connection_test(saved_type, gate_base: str, saved_key_fn, body: dict,
                               missing_type_detail: str):
-    """Connection test for a slot that stores its own type, base URL and key.
-
-    `gate_base` is the explicitly saved base URL; `saved_key_fn` is called only
-    when the tested type is the saved one.
-    """
+    """Test a provider slot, reusing its saved key only for the saved provider type."""
     provider = body['provider'] if 'provider' in body else saved_type
     if provider is not None and not isinstance(provider, str):
         return error_response('provider must be a string', 400)

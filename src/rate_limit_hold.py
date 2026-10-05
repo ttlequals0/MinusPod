@@ -589,14 +589,7 @@ def _rate_limit_setting_keys(credential_slot: str) -> tuple[str, str, str] | Non
 
 
 def manual_rate_limit_caps(credential_slot: str = 'primary') -> dict:
-    """{rpm, rpd, tpm, minute_since, day_since} for one account slot.
-
-    The single definition of the manual caps and their windows, shared by the
-    pre-start evaluation and the atomic per-request reservation, so the two
-    can never disagree on what counts as "inside the window". All-zero caps
-    mean no manual limit is configured. A slot with no cap settings (e.g.
-    failover) always reads as all-zero/unlimited.
-    """
+    """Return account caps and window timestamps; zero caps mean unlimited."""
     keys = _rate_limit_setting_keys(credential_slot)
     now = utc_now()
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
