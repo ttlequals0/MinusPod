@@ -1,5 +1,10 @@
 """Failover state service (#806)."""
+import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
+
+import pytest
 
 from tests.app_bootstrap import bootstrap
 bootstrap('failover_state_test_')
@@ -69,6 +74,92 @@ def test_auto_trigger_blocked_by_existing_manual():
     assert failover.state('llm:primary')['source'] == 'manual'
 
 
+def test_auto_cancel_racing_manual_trigger_keeps_manual_state_and_event():
+    db = Database(); _reset(db); _configure_llm(db)
+    assert failover.trigger('llm:primary', 'automatic') is True
+    db.get_connection().execute('DELETE FROM failover_events')
+    db.get_connection().commit()
+    first_state_read = threading.Event()
+    release_auto_cancel = threading.Event()
+    manual_begin_attempted = threading.Event()
+    manual_begin_acquired = threading.Event()
+    manual_state_read = threading.Event()
+    original_state_read = failover._state_in_transaction
+    original_begin = Database._TransactionContext.__enter__
+
+    def pause_auto_cancel(conn, target):
+        state = original_state_read(conn, target)
+        if threading.current_thread().name.startswith('auto-cancel'):
+            assert conn.in_transaction
+            first_state_read.set()
+            if not release_auto_cancel.wait(timeout=5):
+                raise TimeoutError('manual trigger did not start')
+        elif threading.current_thread().name.startswith('manual-trigger'):
+            manual_state_read.set()
+        return state
+
+    def observe_manual_transaction(context):
+        is_manual = threading.current_thread().name.startswith('manual-trigger')
+        if is_manual:
+            manual_begin_attempted.set()
+        conn = original_begin(context)
+        if is_manual:
+            manual_begin_acquired.set()
+        return conn
+
+    def cancel_auto():
+        return failover.cancel('llm:primary', source='auto')
+
+    def trigger_manual():
+        return failover.trigger('llm:primary', 'operator', source='manual')
+
+    with patch.object(failover, '_state_in_transaction', side_effect=pause_auto_cancel), \
+            patch.object(Database._TransactionContext, '__enter__', observe_manual_transaction), \
+            ThreadPoolExecutor(max_workers=1, thread_name_prefix='auto-cancel') as auto_executor, \
+            ThreadPoolExecutor(max_workers=1, thread_name_prefix='manual-trigger') as manual_executor:
+        cancel_future = auto_executor.submit(cancel_auto)
+        assert first_state_read.wait(timeout=5)
+        trigger_future = manual_executor.submit(trigger_manual)
+        assert manual_begin_attempted.wait(timeout=5)
+        assert manual_begin_acquired.wait(timeout=0.05) is False
+        assert manual_state_read.is_set() is False
+        release_auto_cancel.set()
+        cancel_result = cancel_future.result(timeout=10)
+        trigger_result = trigger_future.result(timeout=10)
+
+    assert failover.state('llm:primary')['source'] == 'manual'
+    assert trigger_result is True
+    events = list(reversed(failover.recent_events()))
+    assert cancel_result is True
+    assert [(event['action'], event['source']) for event in events] == [
+        ('cancel', 'auto'), ('trigger', 'manual'),
+    ]
+
+
+def test_auto_trigger_racing_manual_trigger_keeps_manual_state_and_event():
+    db = Database(); _reset(db); _configure_llm(db)
+    barrier = threading.Barrier(2)
+
+    def trigger(source, reason):
+        barrier.wait(timeout=5)
+        return failover.trigger('llm:primary', reason, source=source)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        auto_future = executor.submit(trigger, 'auto', 'outage')
+        manual_future = executor.submit(trigger, 'manual', 'operator')
+        auto_result = auto_future.result(timeout=10)
+        manual_result = manual_future.result(timeout=10)
+
+    assert auto_result in (False, True)
+    assert manual_result is True
+    assert failover.state('llm:primary')['source'] == 'manual'
+    events = list(reversed(failover.recent_events()))
+    assert [(event['action'], event['source']) for event in events] in (
+        [('trigger', 'manual')],
+        [('trigger', 'auto'), ('trigger', 'manual')],
+    )
+
+
 def test_whisper_configured_rules():
     db = Database(); _reset(db)
     db.set_setting('failover_whisper_enabled', 'true', is_default=False)
@@ -122,14 +213,49 @@ def test_auto_trigger_rereads_state_another_worker_wrote():
 
 def test_trigger_and_cancel_swallow_write_failures():
     db = Database(); _reset(db); _configure_llm(db)
-    with patch.object(failover, '_write_state', side_effect=RuntimeError('db locked')):
+    with patch.object(failover, '_apply_transition', side_effect=RuntimeError('db locked')):
         assert failover.trigger('llm:primary', 'HTTP 503') is False
     assert failover.is_active('llm:primary') is False
     with patch.object(failover, 'fire_failover_event'):
         failover.trigger('llm:primary', 'HTTP 503')
-    with patch.object(failover, '_write_state', side_effect=RuntimeError('db locked')):
+    with patch.object(failover, '_apply_transition', side_effect=RuntimeError('db locked')):
         assert failover.cancel('llm:primary') is False
     assert failover.is_active('llm:primary') is True
+    _reset(db)
+
+
+def test_transition_error_can_be_requested_for_api_callers():
+    db = Database(); _reset(db); _configure_llm(db)
+    with patch.object(failover, '_apply_transition', side_effect=RuntimeError('db locked')):
+        with pytest.raises(failover.FailoverTransitionError):
+            failover.trigger('llm:primary', 'HTTP 503', raise_on_error=True)
+    assert failover.is_active('llm:primary') is False
+    _reset(db)
+
+
+def test_trigger_rolls_back_state_after_post_write_failure():
+    db = Database(); _reset(db); _configure_llm(db)
+    original = Database._upsert_setting
+
+    def fail_after_state_write(conn, key, value, is_default):
+        original(conn, key, value, is_default)
+        if key == 'failover_state:llm:primary':
+            raise RuntimeError('event transaction failed')
+
+    with patch.object(Database, '_upsert_setting', side_effect=fail_after_state_write):
+        assert failover.trigger('llm:primary', 'HTTP 503') is False
+    assert failover.is_active('llm:primary') is False
+    assert failover.recent_events() == []
+    _reset(db)
+
+
+def test_trigger_resets_healthy_streak_atomically():
+    db = Database(); _reset(db); _configure_llm(db)
+    db.set_setting('failover_probe:llm:primary', json.dumps({
+        'reachable': True, 'healthy_streak': 3, 'failed_streak': 0,
+    }), is_default=False)
+    assert failover.trigger('llm:primary', 'HTTP 503') is True
+    assert failover.probe_state('llm:primary')['healthy_streak'] == 0
     _reset(db)
 
 

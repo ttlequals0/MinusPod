@@ -20,6 +20,7 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- Failover state changes and events are saved atomically, preserving manual overrides during concurrent recovery and outage actions.
 - Failover actions and model-entry toggles have 44 px mobile tap targets.
 - The OPML picker shows feed-loading errors with retry and keeps selected feeds in sync after a refresh.
 - OPML exports and the feed picker use custom feed names.

@@ -92,78 +92,133 @@ def is_configured(target: str, cfg: dict | None = None) -> bool:
     return False
 
 
-def _write_state(target: str, data: dict | None) -> None:
+class FailoverTransitionError(RuntimeError):
+    """A failover state change could not be persisted."""
+
+
+def _setting_in_transaction(conn, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row['value'] if row else None
+
+
+def _configured_in_transaction(conn, target: str) -> bool:
+    if target in (TARGET_LLM_PRIMARY, TARGET_LLM_SECONDARY):
+        return (
+            coerce_bool_setting(_setting_in_transaction(conn, 'failover_llm_enabled'))
+            and bool(_setting_in_transaction(conn, 'failover_llm_provider'))
+            and bool(_setting_in_transaction(conn, 'failover_llm_detection_model'))
+        )
+    if not coerce_bool_setting(_setting_in_transaction(conn, 'failover_whisper_enabled')):
+        return False
+    backend = _setting_in_transaction(conn, 'failover_whisper_backend') or WHISPER_BACKEND_API
+    if backend == WHISPER_BACKEND_LOCAL:
+        import transcriber
+        return transcriber.local_transcription_available()
+    return bool(_setting_in_transaction(conn, 'failover_whisper_api_base_url'))
+
+
+def _state_in_transaction(conn, target: str) -> dict:
+    raw = _setting_in_transaction(conn, f'failover_state:{target}')
+    try:
+        data = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        data = {}
+    if not isinstance(data, dict) or not data.get('active'):
+        return dict(_INACTIVE)
+    return {key: data.get(key) for key in _INACTIVE}
+
+
+def _reset_healthy_streak_in_transaction(conn, target: str) -> None:
+    probe = _PROBE_OF.get(target)
+    if probe is None:
+        return
+    key = f'failover_probe:{probe}'
+    raw = _setting_in_transaction(conn, key)
+    try:
+        data = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        data = {}
+    if isinstance(data, dict) and data.get('healthy_streak'):
+        Database._upsert_setting(
+            conn, key, json.dumps({**data, 'healthy_streak': 0}), is_default=False)
+
+
+def _apply_transition(target: str, action: str, source: str,
+                      reason: str | None) -> bool:
     db = Database()
-    key = f'failover_state:{target}'
-    if data is None:
-        db.clear_setting(key)
+    setting_key = f'failover_state:{target}'
+    with db.transaction(immediate=True) as conn:
+        if action == 'trigger' and not _configured_in_transaction(conn, target):
+            return False
+        current = _state_in_transaction(conn, target)
+        if action == 'trigger':
+            if current['active'] and (current['source'] == 'manual' or source != 'manual'):
+                return False
+            value = json.dumps({
+                'active': True, 'source': source, 'since': utc_now_iso(),
+                'reason': (reason or '')[:500],
+            })
+            Database._upsert_setting(conn, setting_key, value, is_default=False)
+            _reset_healthy_streak_in_transaction(conn, target)
+        else:
+            if not current['active'] or (current['source'] == 'manual' and source != 'manual'):
+                return False
+            conn.execute("DELETE FROM settings WHERE key = ?", (setting_key,))
+        conn.execute(
+            "INSERT INTO failover_events (target, action, source, reason) VALUES (?, ?, ?, ?)",
+            (target, action, source, (reason or '')[:500]),
+        )
+    return True
+
+
+def _transition(target: str, action: str, source: str, reason: str | None,
+                *, raise_on_error: bool) -> bool:
+    if target not in TARGETS:
+        raise ValueError(f'unknown failover target: {target}')
+    try:
+        changed = _apply_transition(target, action, source, reason)
+    except Exception as exc:
+        invalidate_cache()
+        logger.warning(f"Failover {action} for {target} failed: {exc}")
+        if raise_on_error:
+            raise FailoverTransitionError(
+                f"Failover {action} for {target} could not be persisted") from exc
+        return False
+    invalidate_cache()
+    if not changed:
+        if action == 'trigger':
+            logger.info(f"Failover for {target} not changed ({reason})")
+        return False
+    try:
+        invalidate_provider_cache()
+    except Exception as exc:
+        logger.warning(f"Failover {action} for {target} applied, but cache invalidation failed: {exc}")
+    if action == 'trigger':
+        logger.warning(f"Failover triggered for {target} ({source}): {reason}")
     else:
-        db.set_setting(key, json.dumps(data), is_default=False)
-    invalidate_provider_cache()
-
-
-def trigger(target: str, reason: str, source: str = 'auto') -> bool:
-    """Switch `target` to its failover config; never raises past an unknown target."""
-    if target not in TARGETS:
-        raise ValueError(f'unknown failover target: {target}')
-    try:
-        # Another worker may have just written this state; never act on a stale read.
-        invalidate_cache()
-        if not is_configured(target):
-            logger.info(f"Failover for {target} not configured; not triggering ({reason})")
-            return False
-        current = state(target)
-        if current['active'] and (current['source'] == 'manual' or source != 'manual'):
-            return False
-        _write_state(target, {
-            'active': True, 'source': source, 'since': utc_now_iso(), 'reason': (reason or '')[:500]})
-    except Exception as exc:
-        logger.warning(f"Failover trigger for {target} failed: {exc}")
-        return False
-    logger.warning(f"Failover triggered for {target} ({source}): {reason}")
-    _after_change(target, 'trigger', source, reason)
+        logger.info(f"Failover cancelled for {target} ({source})")
+    _after_change(target, action, source, reason)
     return True
 
 
-def cancel(target: str, source: str = 'manual') -> bool:
-    """End `target`'s failover; never raises past an unknown target."""
-    if target not in TARGETS:
-        raise ValueError(f'unknown failover target: {target}')
-    try:
-        invalidate_cache()
-        current = state(target)
-        if not current['active']:
-            return False
-        if current['source'] == 'manual' and source != 'manual':
-            return False
-        _write_state(target, None)
-    except Exception as exc:
-        logger.warning(f"Failover cancel for {target} failed: {exc}")
-        return False
-    logger.info(f"Failover cancelled for {target} ({source})")
-    _after_change(target, 'cancel', source, None)
-    return True
+def trigger(target: str, reason: str, source: str = 'auto', *,
+            raise_on_error: bool = False) -> bool:
+    """Switch `target` to its failover config; optionally raise on write failure."""
+    return _transition(target, 'trigger', source, reason, raise_on_error=raise_on_error)
+
+
+def cancel(target: str, source: str = 'manual', *,
+           raise_on_error: bool = False) -> bool:
+    """End `target`'s failover; optionally raise on write failure."""
+    return _transition(target, 'cancel', source, None, raise_on_error=raise_on_error)
 
 
 def _after_change(target: str, action: str, source: str, reason: str | None) -> None:
-    """Streak reset, events row and webhook; a failure here leaves the state change in place."""
+    """Send the webhook after the state and event commit."""
     try:
-        if action == 'trigger':
-            _reset_healthy_streak(target)
-        Database().record_failover_event(target, action, source, reason)
         fire_failover_event(action, target, source, reason)
     except Exception as exc:
-        logger.warning(f"Failover {action} for {target} applied, but recording it failed: {exc}")
-
-
-def _reset_healthy_streak(target: str) -> None:
-    """Recovery must count only probes taken after this trigger."""
-    probe = _PROBE_OF[target]
-    data = probe_state(probe)
-    if data['healthy_streak']:
-        Database().set_setting(f'failover_probe:{probe}',
-                               json.dumps({**data, 'healthy_streak': 0}), is_default=False)
-        invalidate_cache()
+        logger.warning(f"Failover {action} for {target} applied, but its webhook failed: {exc}")
 
 
 def recent_events(limit: int = 50) -> list[dict]:
