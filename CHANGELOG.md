@@ -9,6 +9,24 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.98.0] - Unreleased
+
+### Added
+- Visiting the server root redirects to the web UI. (#808)
+- Export selected feeds as OPML from the Feeds page. (#810)
+
+### Fixed
+- The OPML picker shows feed-loading errors with retry and keeps selected feeds in sync after a refresh.
+- OPML exports and the feed picker use custom feed names.
+- Large feed selections use a POST request so exports do not exceed the server URL limit.
+- The OPML export dialog now has an accessible name for screen readers.
+
+### Security
+- Updated fast-uri to 3.1.8 to fix a moderate vulnerability in frontend build tooling.
+
+### Changed
+- Updated Python dependencies and frontend test tools from dependency PRs #811 through #820. The TypeScript ESLint packages now share one version.
+
 ## [2.97.45] - 2026-10-01
 
 ### Fixed

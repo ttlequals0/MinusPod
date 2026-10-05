@@ -32,7 +32,9 @@ def build_opml_xml(podcasts: list[dict], mode: str, base_url: str,
     body = ET.SubElement(opml, 'body')
 
     for podcast in podcasts:
-        title = podcast.get('title') or podcast.get('slug', '')
+        title_override = podcast.get('title_override')
+        title = (title_override if (title_override or '').strip()
+                 else podcast.get('title') or podcast.get('slug', ''))
         if mode == 'modified':
             feed_url = modified_feed_url(base_url, podcast['slug'], feed_auth_key)
         else:

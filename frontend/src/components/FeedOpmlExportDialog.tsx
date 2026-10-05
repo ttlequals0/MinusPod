@@ -7,26 +7,28 @@ import { Modal } from './Modal';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
 import { btnOutline, btnPrimary } from './buttonStyles';
+import { feedDisplayTitle } from '../utils/feedTitle';
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
-// Picks which feeds go into a modified-feed OPML, the file a podcast app
-// imports. Every feed starts selected; exporting all of them sends no slugs
-// so the request matches the Settings > Data Management export.
 function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
-  const { data, isLoading } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
+  const { data, error: feedsError, isError: feedsFailed, isFetching, isLoading, refetch } = useQuery({
+    ...feedsQueryOptions,
+    select: (r) => r.feeds,
+  });
   const feeds = useMemo(() => data ?? [], [data]);
-  // null = untouched, which means every feed (including ones still loading).
+  // null means every feed, including feeds returned by a later refresh.
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const feedSlugs = useMemo(() => new Set(feeds.map((f) => f.slug)), [feeds]);
   const effective = useMemo(
-    () => selected ?? new Set(feeds.map((f) => f.slug)),
-    [selected, feeds],
+    () => selected ? new Set([...selected].filter((slug) => feedSlugs.has(slug))) : feedSlugs,
+    [selected, feedSlugs],
   );
   const allSelected = feeds.length > 0 && feeds.every((f) => effective.has(f.slug));
 
@@ -59,10 +61,11 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
     <Modal
       onClose={onClose}
       closeOnBackdrop
+      ariaLabelledBy="feed-opml-export-title"
       panelClassName="w-full max-w-lg max-h-[80vh] flex flex-col text-card-foreground"
     >
       <div className="p-6 pb-3 border-b border-border">
-        <h2 className="text-lg font-semibold mb-1">Export OPML</h2>
+        <h2 id="feed-opml-export-title" className="text-lg font-semibold mb-1">Export OPML</h2>
         <p className="text-sm text-muted-foreground">
           Pick the feeds to include. The file uses MinusPod&apos;s ad-free feed URLs, ready to import into a podcast app.
         </p>
@@ -85,26 +88,55 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
         {isLoading && (
           <p className="text-sm text-muted-foreground text-center py-8">Loading feeds...</p>
         )}
-        {!isLoading && feeds.length === 0 && (
+        {feedsFailed && feeds.length === 0 && (
+          <div className="text-center py-8 space-y-3">
+            <p className="text-sm text-destructive">{getErrorMessage(feedsError, 'Failed to load feeds')}</p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              disabled={isFetching}
+              className={`px-3 py-1.5 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+            >
+              {isFetching ? 'Loading...' : 'Retry'}
+            </button>
+          </div>
+        )}
+        {feedsFailed && feeds.length > 0 && (
+          <div className="mb-3 rounded border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
+            <p>{getErrorMessage(feedsError, 'Could not refresh feeds')}. Showing the last loaded list.</p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              disabled={isFetching}
+              className={`mt-2 text-primary underline disabled:opacity-50 ${focusRing}`}
+            >
+              {isFetching ? 'Refreshing...' : 'Retry'}
+            </button>
+          </div>
+        )}
+        {!isLoading && !feedsFailed && feeds.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">No feeds to export.</p>
         )}
         <ul className="space-y-1">
-          {feeds.map((f) => (
-            <li key={f.slug}>
-              <label
-                htmlFor={`opml-export-${f.slug}`}
-                className="flex items-center gap-2 px-2 py-2 rounded hover:bg-accent/50 cursor-pointer"
-              >
-                <Checkbox
-                  id={`opml-export-${f.slug}`}
-                  checked={effective.has(f.slug)}
-                  onChange={() => toggleOne(f.slug)}
-                  ariaLabel={`Include ${f.title || f.slug}`}
-                />
-                <span className="text-sm truncate">{f.title || f.slug}</span>
-              </label>
-            </li>
-          ))}
+          {feeds.map((f) => {
+            const title = feedDisplayTitle(f) || f.slug;
+            return (
+              <li key={f.slug}>
+                <label
+                  htmlFor={`opml-export-${f.slug}`}
+                  className="flex items-center gap-2 px-2 py-2 rounded hover:bg-accent/50 cursor-pointer"
+                >
+                  <Checkbox
+                    id={`opml-export-${f.slug}`}
+                    checked={effective.has(f.slug)}
+                    onChange={() => toggleOne(f.slug)}
+                    ariaLabel={`Include ${title}`}
+                  />
+                  <span className="text-sm truncate">{title}</span>
+                </label>
+              </li>
+            );
+          })}
         </ul>
       </div>
 

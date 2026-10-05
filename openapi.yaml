@@ -578,6 +578,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - Feeds
+      summary: Export selected feeds as an OPML file
+      description: Export selected feeds in the usual feed order. Unknown slugs are skipped; the request fails if none match.
+      operationId: exportSelectedOpml
+      parameters:
+        - name: mode
+          in: query
+          description: 'URL mode: "original" for upstream source URLs, "modified" for MinusPod ad-free feed URLs'
+          schema:
+            type: string
+            enum: [original, modified]
+            default: original
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slugs]
+              properties:
+                slugs:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: OPML file download
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: 'Attachment filename, e.g. attachment; filename="minuspod-feeds.opml"'
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid mode or slug list, or slugs matched no feeds
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /opml/{mode}.opml:
     servers:

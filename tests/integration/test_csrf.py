@@ -58,6 +58,18 @@ def test_post_without_csrf_token_rejected_after_auth(csrf_client):
     assert 'CSRF' in (response.get_data(as_text=True) or '')
 
 
+def test_opml_post_without_csrf_token_rejected_after_auth(csrf_client):
+    token = _get_csrf_token(csrf_client)
+    _set_password(csrf_client, token)
+
+    response = csrf_client.post(
+        '/api/v1/feeds/export-opml',
+        json={'slugs': ['example-feed']},
+    )
+    assert response.status_code == 403
+    assert 'CSRF' in (response.get_data(as_text=True) or '')
+
+
 def test_post_with_mismatched_csrf_rejected(csrf_client):
     token = _get_csrf_token(csrf_client)
     _set_password(csrf_client, token)

@@ -69,6 +69,7 @@ interface ModalProps {
   // Escape closes by default; pass false for a dialog that must not.
   closeOnEscape?: boolean;
   closeOnBackdrop?: boolean;
+  ariaLabelledBy?: string;
   // Sizing/layout plus any text-color override. The panel deliberately sets
   // no text color of its own: dialogs historically inherit the body
   // foreground, and card-foreground differs from foreground in dark mode,
@@ -78,7 +79,8 @@ interface ModalProps {
 }
 
 export function Modal({
-  onClose, closeOnEscape = true, closeOnBackdrop = false, panelClassName = '', children,
+  onClose, closeOnEscape = true, closeOnBackdrop = false, ariaLabelledBy,
+  panelClassName = '', children,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   useEscape(onClose, closeOnEscape);
@@ -90,6 +92,7 @@ export function Modal({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={ariaLabelledBy}
         tabIndex={-1}
         className={`${modalPanelBase} ${focusRing} ${panelClassName}`}
         onClick={closeOnBackdrop ? (e) => e.stopPropagation() : undefined}

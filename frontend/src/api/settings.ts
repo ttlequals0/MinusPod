@@ -345,14 +345,15 @@ export interface TemplateValidationResult {
 
 // Data Management
 
-// slugs limits the export to those feeds; omit it to export every feed.
+// Omit slugs to export all feeds; pass a list to export only those feeds.
 export async function exportOpml(
   mode: 'original' | 'modified' = 'original',
   slugs?: string[],
 ): Promise<void> {
   const fallback = mode === 'modified' ? 'minuspod-feeds-modified.opml' : 'minuspod-feeds.opml';
-  const slugsQs = slugs ? `&slugs=${encodeURIComponent(slugs.join(','))}` : '';
-  const { blob, filename } = await apiFileRequest(`/feeds/export-opml?mode=${mode}${slugsQs}`, {
+  const { blob, filename } = await apiFileRequest(`/feeds/export-opml?mode=${mode}`, {
+    method: slugs === undefined ? 'GET' : 'POST',
+    body: slugs === undefined ? undefined : { slugs },
     fallbackFilename: fallback,
   });
   downloadBlob(blob, filename);

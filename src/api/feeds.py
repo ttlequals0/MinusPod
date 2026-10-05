@@ -1587,24 +1587,29 @@ def import_opml():
     }, 201 if imported else 200)
 
 
-@api.route('/feeds/export-opml', methods=['GET'])
+@api.route('/feeds/export-opml', methods=['GET', 'POST'])
 @log_request
 def export_opml():
-    """Export podcast feeds as an OPML 2.0 download (admin UI).
-
-    Optional ``slugs`` (comma-separated) limits the export to those feeds, in
-    the usual feed order. Slugs that no longer exist are skipped, since a feed
-    can be deleted while the picker is open; 400 if none match.
-    """
+    """Export podcast feeds as an OPML 2.0 download (admin UI)."""
     mode = request.args.get('mode', 'original')
     if mode not in ('original', 'modified'):
         return error_response('mode must be "original" or "modified"', 400)
 
+    if request.method == 'POST':
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return error_response('request body must be a JSON object', 400)
+        slugs_param = payload.get('slugs')
+        if not isinstance(slugs_param, list) or any(not isinstance(slug, str) for slug in slugs_param):
+            return error_response('slugs must be an array of strings', 400)
+        wanted = {slug.strip() for slug in slugs_param if slug.strip()}
+    else:
+        slugs_param = request.args.get('slugs')
+        wanted = {slug.strip() for slug in slugs_param.split(',') if slug.strip()} if slugs_param is not None else None
+
     db = get_database()
     podcasts = db.get_all_podcasts()
-    slugs_param = request.args.get('slugs')
-    if slugs_param is not None:
-        wanted = {s.strip() for s in slugs_param.split(',') if s.strip()}
+    if wanted is not None:
         podcasts = [p for p in podcasts if p['slug'] in wanted]
         if not podcasts:
             return error_response('slugs matched no feeds', 400)

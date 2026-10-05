@@ -50,3 +50,32 @@ def test_structure_and_empty():
 def test_title_falls_back_to_slug():
     root = ET.fromstring(build_opml_xml(PODCASTS, 'original', BASE, None))
     assert root.findall('.//outline')[1].get('text') == 'other'
+
+
+def test_title_override_is_used_in_both_modes():
+    podcasts = [{
+        'slug': 'my-show',
+        'title': 'Source Title',
+        'title_override': 'Display Title',
+        'source_url': 'https://up.example.com/a.xml',
+    }]
+    for mode in ('modified', 'original'):
+        outline = ET.fromstring(
+            build_opml_xml(podcasts, mode, BASE, None)
+        ).find('.//outline')
+        assert outline.get('text') == 'Display Title'
+        assert outline.get('title') == 'Display Title'
+
+
+def test_blank_title_override_falls_back_to_title():
+    podcast = {
+        'slug': 'my-show',
+        'title': 'Source Title',
+        'title_override': '  ',
+        'source_url': 'https://up.example.com/a.xml',
+    }
+    outline = ET.fromstring(
+        build_opml_xml([podcast], 'original', BASE, None)
+    ).find('.//outline')
+    assert outline.get('text') == 'Source Title'
+    assert outline.get('title') == 'Source Title'

@@ -51,6 +51,52 @@ class TestOpmlExportModeValidation:
         assert 'minuspod-feeds.opml' in response.headers['Content-Disposition']
 
 
+class TestOpmlExportPost:
+    @patch('api.feeds.get_database')
+    def test_post_exports_selected_slugs_in_feed_order(self, mock_db, client):
+        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        mock_db.return_value.get_setting_bool.return_value = False
+
+        response = client.post(
+            '/api/v1/feeds/export-opml?mode=modified',
+            json={'slugs': [' another-show ', 'missing-show', 'my-podcast', 'my-podcast']},
+        )
+
+        assert response.status_code == 200
+        outlines = _parse_opml(response.data).findall('.//outline')
+        assert [outline.get('xmlUrl') for outline in outlines] == [
+            'http://localhost:8000/my-podcast',
+            'http://localhost:8000/another-show',
+        ]
+
+    @patch('api.feeds.get_database')
+    def test_post_accepts_large_slug_list(self, mock_db, client):
+        slugs = [f'feed-{index:04}' for index in range(1600)]
+        mock_db.return_value.get_all_podcasts.return_value = [
+            {'slug': slug, 'title': slug, 'source_url': f'https://example.com/{slug}.xml'}
+            for slug in slugs
+        ]
+        mock_db.return_value.get_setting_bool.return_value = False
+
+        response = client.post('/api/v1/feeds/export-opml?mode=original', json={'slugs': slugs})
+
+        assert response.status_code == 200
+        assert len(_parse_opml(response.data).findall('.//outline')) == len(slugs)
+
+    @pytest.mark.parametrize('body', [None, [], {'slugs': 'my-podcast'}, {'slugs': [1]}, {}])
+    def test_post_rejects_malformed_slug_body(self, client, body):
+        response = client.post('/api/v1/feeds/export-opml', json=body)
+        assert response.status_code == 400
+
+    @pytest.mark.parametrize('slugs', [[], [' ', '\t'], ['missing-show']])
+    @patch('api.feeds.get_database')
+    def test_post_requires_a_matching_slug(self, mock_db, client, slugs):
+        mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        response = client.post('/api/v1/feeds/export-opml', json={'slugs': slugs})
+        assert response.status_code == 400
+        assert 'matched no feeds' in response.get_json()['error']
+
+
 class TestOpmlExportOriginalMode:
     """Tests for mode=original (default behavior)."""
 
