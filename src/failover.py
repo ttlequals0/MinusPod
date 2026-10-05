@@ -5,6 +5,7 @@ import logging
 import os
 import threading
 import time
+import uuid
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
@@ -260,7 +261,11 @@ _ORIGIN_OF = {'llm:primary': TARGET_LLM_PRIMARY, 'llm:secondary': TARGET_LLM_SEC
               'whisper:active': TARGET_WHISPER}
 _PROBE_OF = {origin: probe for probe, origin in _ORIGIN_OF.items()}
 _MAX_PROBE_WORKERS = 5
-_fresh_probe_lock = threading.Lock()
+_PROBE_LEASE_SECONDS = 30.0
+_PROBE_LEASE_RENEW_SECONDS = 5.0
+_PROBE_WAIT_SECONDS = 6.0
+_PROBE_WAIT_POLL_SECONDS = 0.05
+_ANY_CHECKED_AT = object()
 _PROBE_CONFIG = {
     'llm:primary': (
         ('llm_provider', 'openai_base_url', 'anthropic_api_key', 'openai_api_key',
@@ -279,26 +284,29 @@ _PROBE_CONFIG = {
         (),
     ),
     'whisper:active': (
-        ('whisper_backend', 'whisper_api_base_url', 'whisper_api_key'),
-        ('WHISPER_BACKEND', 'WHISPER_API_BASE_URL', 'WHISPER_API_KEY'),
+        ('whisper_backend', 'whisper_api_base_url', 'whisper_api_key',
+         'whisper_model', 'whisper_compute_type'),
+        ('WHISPER_BACKEND', 'WHISPER_API_BASE_URL', 'WHISPER_API_KEY',
+         'WHISPER_MODEL', 'WHISPER_DEVICE', 'WHISPER_COMPUTE_TYPE'),
     ),
     'whisper:failover': (
         ('failover_whisper_enabled', 'failover_whisper_backend',
-         'failover_whisper_api_base_url', 'failover_whisper_api_key'),
-        (),
+         'failover_whisper_api_base_url', 'failover_whisper_api_key',
+         'failover_whisper_model', 'whisper_model', 'whisper_compute_type'),
+        ('WHISPER_MODEL', 'WHISPER_DEVICE', 'WHISPER_COMPUTE_TYPE'),
     ),
 }
 _PROBE_CONFIG_QUERY = {
     'llm:primary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?,?)",
     'llm:secondary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?)",
     'llm:failover': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?)",
-    'whisper:active': "SELECT key, value FROM settings WHERE key IN (?,?,?)",
-    'whisper:failover': "SELECT key, value FROM settings WHERE key IN (?,?,?,?)",
+    'whisper:active': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?)",
+    'whisper:failover': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?,?)",
 }
 _PROBE_CONTEXT_QUERY = {
     'llm:primary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?,?,?)",
     'llm:secondary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?)",
-    'whisper:active': "SELECT key, value FROM settings WHERE key IN (?,?,?,?)",
+    'whisper:active': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?,?,?)",
 }
 
 
@@ -328,21 +336,45 @@ def enabled_probe_targets() -> list[str]:
     return targets
 
 
-def run_probe_targets() -> list[str]:
-    """Probe targets an episode run depends on; a local transcriber is left to the background probe."""
-    targets = [t for t in enabled_probe_targets() if t not in ('llm:failover', 'whisper:failover')]
-    if (_setting('whisper_backend') or WHISPER_BACKEND_LOCAL) != WHISPER_BACKEND_API:
-        targets.remove('whisper:active')
-    return targets
+def run_probe_targets(active_phases: dict | None = None,
+                      *, whisper_required: bool = True) -> list[str]:
+    targets = []
+    if active_phases is None:
+        for target in (TARGET_LLM_PRIMARY, TARGET_LLM_SECONDARY):
+            if target == TARGET_LLM_SECONDARY and not coerce_bool_setting(
+                    _setting('secondary_provider_enabled')):
+                continue
+            targets.append(
+                'llm:failover' if state(target)['active'] and is_configured(target)
+                else target
+            )
+    else:
+        slots = {route.get('credential_slot', 'primary')
+                 for route in active_phases.values() if isinstance(route, dict)}
+        targets.extend(
+            target for slot, target in (
+                ('primary', 'llm:primary'),
+                ('secondary', 'llm:secondary'),
+                ('failover', 'llm:failover'),
+            ) if slot in slots
+        )
+    if not whisper_required:
+        return targets
+    whisper_failover = state(TARGET_WHISPER)['active'] and is_configured(TARGET_WHISPER)
+    if whisper_failover:
+        failover_enabled = coerce_bool_setting(_setting('failover_whisper_enabled'))
+        backend = _setting('failover_whisper_backend') or WHISPER_BACKEND_API
+        base_url = _setting('failover_whisper_api_base_url') or ''
+        if failover_enabled and backend == WHISPER_BACKEND_API and base_url:
+            targets.append('whisper:failover')
+    elif (_setting('whisper_backend') or WHISPER_BACKEND_LOCAL) == WHISPER_BACKEND_API:
+        targets.append('whisper:active')
+    return list(dict.fromkeys(targets))
 
 
 def probe_state(target: str) -> dict:
-    raw = _setting(f'failover_probe:{target}')
-    try:
-        data = json.loads(raw) if raw else {}
-    except (TypeError, ValueError):
-        data = {}
-    return {**_PROBE_DEFAULT, **{k: data.get(k, v) for k, v in _PROBE_DEFAULT.items()}}
+    raw = database.Database().get_setting(f'failover_probe:{target}')
+    return _public_probe_state(_probe_state_value(raw))
 
 
 def _probe_config_identity(conn, target: str) -> str:
@@ -363,6 +395,8 @@ def _capture_probe_context(db, target: str) -> dict:
     keys = list(setting_keys)
     if origin:
         keys.append(f'failover_generation:{origin}')
+    if target == 'whisper:active':
+        keys.extend(('failover_state:whisper', 'transcribe_last_local_outcome'))
     query = _PROBE_CONTEXT_QUERY.get(target, _PROBE_CONFIG_QUERY[target])
     rows = conn.execute(query, keys).fetchall()
     values = {row['key']: row['value'] for row in rows}
@@ -372,11 +406,22 @@ def _capture_probe_context(db, target: str) -> dict:
         generation = 0 if origin else None
     environment = {key: os.environ.get(key) for key in _PROBE_CONFIG[target][1]}
     identity = _probe_config_identity_from_values(target, values, environment)
+    request_config = _probe_request_config(db, target, values, environment)
+    local_state = {}
+    if target == 'whisper:active':
+        try:
+            local_state = json.loads(values.get('failover_state:whisper') or '{}')
+        except (TypeError, ValueError):
+            local_state = {}
+        request_config['recover_runtime'] = bool(
+            isinstance(local_state, dict) and local_state.get('active'))
     return {
         'generation': generation,
         'config_identity': identity,
         'observed_at': _probe_observation_time(),
-        'request_config': _probe_request_config(db, target, values, environment),
+        'request_config': request_config,
+        'local_outcome_stamp': values.get('transcribe_last_local_outcome')
+        if target == 'whisper:active' else None,
     }
 
 
@@ -446,11 +491,22 @@ def _probe_request_config(db, target: str, settings: dict[str, str],
                             environment.get('WHISPER_API_BASE_URL') or '',
             'api_key': _probe_secret(db, settings.get('whisper_api_key')) or
                        environment.get('WHISPER_API_KEY') or '',
+            'local_model': settings.get('whisper_model') or
+                           environment.get('WHISPER_MODEL') or 'small',
+            'device': environment.get('WHISPER_DEVICE') or 'cpu',
+            'compute_type': settings.get('whisper_compute_type') or
+                            environment.get('WHISPER_COMPUTE_TYPE') or 'auto',
         }
     return {
         'backend': settings.get('failover_whisper_backend') or WHISPER_BACKEND_API,
         'api_base_url': settings.get('failover_whisper_api_base_url') or '',
         'api_key': _probe_secret(db, settings.get('failover_whisper_api_key')) or '',
+        'local_model': settings.get('failover_whisper_model') or
+                       settings.get('whisper_model') or
+                       environment.get('WHISPER_MODEL') or 'small',
+        'device': environment.get('WHISPER_DEVICE') or 'cpu',
+        'compute_type': settings.get('whisper_compute_type') or
+                        environment.get('WHISPER_COMPUTE_TYPE') or 'auto',
     }
 
 
@@ -458,18 +514,15 @@ def _probe_context_is_current(conn, target: str, context: dict) -> bool:
     origin = _ORIGIN_OF.get(target)
     if origin and _generation_in_transaction(conn, origin) != context['generation']:
         return False
+    if (target == 'whisper:active'
+            and _setting_in_transaction(conn, 'transcribe_last_local_outcome')
+            != context.get('local_outcome_stamp')):
+        return False
     return _probe_config_identity(conn, target) == context['config_identity']
 
 
 def all_probe_states() -> dict[str, dict]:
     return {t: probe_state(t) for t in PROBE_TARGETS}
-
-
-def _probe_local_whisper() -> dict:
-    import transcriber  # inline: importing it loads the local whisper stack
-    if transcriber.local_transcription_available():
-        return {'reachable': True, 'status': None, 'detail': 'Local stack available'}
-    return {'reachable': False, 'status': None, 'detail': 'Local whisper stack is not installed'}
 
 
 def probe_target(target: str, request_config: dict | None = None) -> dict:
@@ -491,7 +544,8 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         else:
             settings = request_config
             if settings['backend'] == WHISPER_BACKEND_LOCAL:
-                return _probe_local_whisper()
+                import transcriber
+                return transcriber.probe_local_transcription(settings)
             if not settings['api_base_url']:
                 return {'reachable': None, 'status': None, 'detail': 'Not configured'}
             result = provider_probe.probe_models_endpoint(
@@ -513,27 +567,123 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         return {'reachable': False, 'status': None, 'detail': str(exc)[:200]}
 
 
+def _probe_state_value(raw: str | None) -> dict:
+    try:
+        data = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        data = {}
+    return {**_PROBE_DEFAULT, **data} if isinstance(data, dict) else dict(_PROBE_DEFAULT)
+
+
+def _public_probe_state(data: dict) -> dict:
+    return {key: data.get(key, default) for key, default in _PROBE_DEFAULT.items()}
+
+
+def _probe_lease_key(target: str) -> str:
+    return f'failover_probe_lease:{target}'
+
+
+def _claim_probe_lease(db, target: str, *,
+                       expected_checked_at=_ANY_CHECKED_AT) -> str | None:
+    token = uuid.uuid4().hex
+    with db.transaction(immediate=True) as conn:
+        now = time.time()
+        if expected_checked_at is not _ANY_CHECKED_AT:
+            raw_state = _setting_in_transaction(conn, f'failover_probe:{target}')
+            if _probe_state_value(raw_state)['checked_at'] != expected_checked_at:
+                return None
+        raw = _setting_in_transaction(conn, _probe_lease_key(target))
+        try:
+            lease = json.loads(raw) if raw else {}
+        except (TypeError, ValueError):
+            lease = {}
+        try:
+            expires_at = float(lease.get('expires_at', 0))
+        except (TypeError, ValueError, AttributeError):
+            expires_at = 0
+        if expires_at > now:
+            return None
+        database.Database._upsert_setting(
+            conn, _probe_lease_key(target),
+            json.dumps({'token': token, 'expires_at': now + _PROBE_LEASE_SECONDS}),
+            is_default=False,
+        )
+    return token
+
+
+def _release_probe_lease_in_transaction(conn, target: str, token: str) -> None:
+    key = _probe_lease_key(target)
+    raw = _setting_in_transaction(conn, key)
+    try:
+        lease = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        lease = {}
+    if isinstance(lease, dict) and lease.get('token') == token:
+        conn.execute('DELETE FROM settings WHERE key = ?', (key,))
+
+
+def _release_probe_lease(db, target: str, token: str) -> None:
+    with db.transaction(immediate=True) as conn:
+        _release_probe_lease_in_transaction(conn, target, token)
+
+
+def _renew_probe_lease(db, target: str, token: str) -> bool:
+    with db.transaction(immediate=True) as conn:
+        key = _probe_lease_key(target)
+        raw = _setting_in_transaction(conn, key)
+        try:
+            lease = json.loads(raw) if raw else {}
+        except (TypeError, ValueError):
+            lease = {}
+        if not isinstance(lease, dict) or lease.get('token') != token:
+            return False
+        now = time.time()
+        database.Database._upsert_setting(
+            conn, key,
+            json.dumps({'token': token, 'expires_at': now + _PROBE_LEASE_SECONDS}),
+            is_default=False,
+        )
+    return True
+
+
 def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, str | None]:
     key = f'failover_probe:{target}'
     origin = _ORIGIN_OF.get(target)
     action = None
     with db.transaction(immediate=True) as conn:
         raw = _setting_in_transaction(conn, key)
+        previous = _probe_state_value(raw)
+        lease_raw = _setting_in_transaction(conn, _probe_lease_key(target))
         try:
-            previous = json.loads(raw) if raw else {}
+            lease = json.loads(lease_raw) if lease_raw else {}
         except (TypeError, ValueError):
-            previous = {}
-        if not isinstance(previous, dict):
-            previous = {}
+            lease = {}
+        if not isinstance(lease, dict) or lease.get('token') != context['lease_token']:
+            return _public_probe_state(previous), None
         if not _probe_context_is_current(conn, target, context):
-            return {k: previous.get(k, default)
-                    for k, default in _PROBE_DEFAULT.items()}, None
+            _release_probe_lease_in_transaction(conn, target, context['lease_token'])
+            return _public_probe_state(previous), None
         same_context = (
             previous.get('_generation') == context['generation']
             and previous.get('_config_identity') == context['config_identity']
         )
         healthy_streak = previous.get('healthy_streak', 0) if same_context else 0
         failed_streak = previous.get('failed_streak', 0) if same_context else 0
+        local_outcome = result.get('local_outcome')
+        request_config = context.get('request_config', {})
+        if (target == 'whisper:active' and result.get('reachable') is True
+                and isinstance(local_outcome, dict)
+                and local_outcome.get('outcome') == 'success'
+                and local_outcome.get('backend') == WHISPER_BACKEND_LOCAL
+                and local_outcome.get('model') == request_config.get('local_model')
+                and local_outcome.get('device') == request_config.get('device')
+                and local_outcome.get('compute_type') == request_config.get('compute_type')):
+            database.Database._upsert_setting(
+                conn, 'transcribe_last_local_outcome', json.dumps(local_outcome),
+                is_default=False,
+            )
+        probe_result = {key: value for key, value in result.items()
+                        if key != 'local_outcome'}
         if result['reachable'] is None:
             streaks = {'healthy_streak': 0, 'failed_streak': 0}
         elif result['reachable'] is True:
@@ -542,13 +692,14 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
             streaks = {'healthy_streak': 0, 'failed_streak': failed_streak + 1}
         data = {
             **{key: previous.get(key, default) for key, default in _PROBE_DEFAULT.items()},
-            **result,
+            **probe_result,
             'checked_at': context['observed_at'],
             **streaks,
             '_generation': context['generation'],
             '_config_identity': context['config_identity'],
         }
         database.Database._upsert_setting(conn, key, json.dumps(data), is_default=False)
+        _release_probe_lease_in_transaction(conn, target, context['lease_token'])
         if origin and result['reachable'] is not None:
             current = _state_in_transaction(conn, origin)
             if data['failed_streak'] >= AUTO_TRIGGER_FAILURES and not current['active']:
@@ -587,21 +738,77 @@ def _recovery_probes_in_transaction(conn) -> int:
         return 3
 
 
-def probe_tick(db, targets: list[str] | None = None) -> dict[str, dict]:
-    """Probe every enabled target, then apply auto trigger and auto recovery."""
-    targets = list(targets or enabled_probe_targets())
-    def run(target):
-        context = _capture_probe_context(db, target)
-        return context, probe_target(target, context['request_config'])
+def _claim_or_wait(db, target: str, previous_checked_at: str | None,
+                   wait_for_inflight: bool) -> str | None:
+    deadline = time.monotonic() + _PROBE_WAIT_SECONDS
+    while True:
+        if wait_for_inflight:
+            latest = probe_state(target)['checked_at']
+            if latest and latest != previous_checked_at:
+                return None
+        token = _claim_probe_lease(
+            db, target,
+            expected_checked_at=(previous_checked_at if wait_for_inflight
+                                 else _ANY_CHECKED_AT),
+        )
+        if token or not wait_for_inflight:
+            return token
+        latest = probe_state(target)['checked_at']
+        if latest and latest != previous_checked_at:
+            return None
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(_PROBE_WAIT_POLL_SECONDS)
 
-    # Probe concurrently so a batch costs one probe timeout, not one per target.
-    with ThreadPoolExecutor(max_workers=min(len(targets), _MAX_PROBE_WORKERS)) as exe:
-        probed = list(exe.map(run, targets))
-    results = {}
-    for target, (context, result) in zip(targets, probed, strict=True):
+
+def _probe_requested_target(db, target: str, checked_at: str | None,
+                            wait_for_inflight: bool) -> dict:
+    token = _claim_or_wait(db, target, checked_at, wait_for_inflight)
+    if not token:
+        return probe_state(target)
+    stop_renewal = threading.Event()
+
+    def keep_lease_alive():
+        lease_db = database.Database()
+        while not stop_renewal.wait(_PROBE_LEASE_RENEW_SECONDS):
+            try:
+                if not _renew_probe_lease(lease_db, target, token):
+                    return
+            except Exception:
+                logger.debug(f"Probe lease renewal failed for {target}", exc_info=True)
+                return
+
+    renewal = threading.Thread(target=keep_lease_alive, daemon=True)
+    renewal.start()
+    try:
+        context = _capture_probe_context(db, target)
+        context['lease_token'] = token
+        result = probe_target(target, context['request_config'])
         data, _ = _record_probe(db, target, result, context)
-        results[target] = data
-    return results
+        return data
+    except Exception as exc:
+        try:
+            _release_probe_lease(db, target, token)
+        except Exception:
+            logger.debug(f"Probe lease release failed for {target}", exc_info=True)
+        logger.debug(f"Probe setup failed for {target}: {exc}")
+        return probe_state(target)
+    finally:
+        stop_renewal.set()
+        renewal.join(timeout=1)
+
+
+def probe_tick(db, targets: list[str] | None = None,
+               *, wait_for_inflight: bool = False) -> dict[str, dict]:
+    targets = list(dict.fromkeys(enabled_probe_targets() if targets is None else targets))
+    if not targets:
+        return {}
+    baselines = {target: probe_state(target)['checked_at'] for target in targets}
+    with ThreadPoolExecutor(max_workers=min(len(targets), _MAX_PROBE_WORKERS)) as executor:
+        results = executor.map(
+            lambda target: _probe_requested_target(
+                db, target, baselines[target], wait_for_inflight), targets)
+        return dict(zip(targets, results, strict=True))
 
 
 def _parse_iso(value: str | None) -> float:
@@ -610,14 +817,15 @@ def _parse_iso(value: str | None) -> float:
 
 
 def ensure_fresh_probes(targets: list[str]) -> None:
-    """Probe only targets whose last probe is older than the interval."""
-    # Serialized so concurrent episode starts do not re-probe the same stale targets.
-    with _fresh_probe_lock:
-        cutoff = time.time() - probe_interval_seconds()
-        stale = []
-        for target in targets:
-            checked = probe_state(target)['checked_at']
-            if not checked or _parse_iso(checked) < cutoff:
-                stale.append(target)
-        if stale:
-            probe_tick(database.Database(), stale)
+    cutoff = time.time() - probe_interval_seconds()
+    baselines = []
+    for target in dict.fromkeys(targets):
+        checked = probe_state(target)['checked_at']
+        if not checked or _parse_iso(checked) < cutoff:
+            baselines.append((target, checked))
+    db = database.Database()
+    if not baselines:
+        return
+    with ThreadPoolExecutor(max_workers=min(len(baselines), _MAX_PROBE_WORKERS)) as executor:
+        list(executor.map(
+            lambda item: _probe_requested_target(db, item[0], item[1], True), baselines))

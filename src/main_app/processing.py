@@ -6311,11 +6311,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ctx.run_id = run_id
         _check_cancel(cancel_event, slug, episode_id, run_id)
 
-    try:
-        failover.ensure_fresh_probes(failover.run_probe_targets())
-    except Exception as exc:
-        audio_logger.debug(f"pre-run failover probe skipped: {exc}")
-
     route_snapshot = _resolve_or_load_route_snapshot(run_id)
     _assert_route_snapshot_current(route_snapshot)
     if ctx is not None and route_snapshot is not None:
@@ -6372,6 +6367,17 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     # the feed also opts into that.
     cue_only = processing_mode == PROCESSING_MODE_CUE_ONLY
     skip_transcription_active = cue_only and resolve_skip_transcription(podcast_settings)
+
+    try:
+        active_phases = _active_phases_for_admission(
+            slug, episode_id, snapshot=route_snapshot)
+        targets = failover.run_probe_targets(
+            active_phases,
+            whisper_required=not skip_transcription_active and reprocess_mode != 'llm',
+        )
+        failover.ensure_fresh_probes(targets)
+    except Exception as exc:
+        audio_logger.debug(f"pre-run failover probe skipped: {exc}")
 
     # Per-run pipeline stats (#519), recorded as JSON with the history row
     # and renamed to API casing in api/episodes.py. Defined before the try

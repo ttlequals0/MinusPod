@@ -44,6 +44,7 @@ from api.feeds import _normalize_processing_mode, _normalize_detection_mode
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
+_PROBE_PHASES_UNSET = object()
 
 
 class TestResolveFeedProcessingMode:
@@ -124,12 +125,25 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                    download_error=None, detect_error=None,
                    token_cost=0.012, real_token_tracking=False,
                    approval_recut=False, route_snapshot=None,
-                   failover_state=None, standby_dispatch=False):
+                   failover_state=None, standby_dispatch=False,
+                   probe_phases=_PROBE_PHASES_UNSET):
     """Run stubbed pipeline stages with optional frozen routes and failover state."""
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
         db = p(processing, 'db')
         p(processing, 'status_service')
+        slot_targets = {'primary': 'llm:primary', 'secondary': 'llm:secondary',
+                        'failover': 'llm:failover'}
+        probe_selector = p(
+            processing.failover, 'run_probe_targets',
+            side_effect=lambda phases, whisper_required: list(dict.fromkeys(
+                slot_targets[route.get('credential_slot', 'primary')]
+                for route in (phases or {}).values() if isinstance(route, dict)
+            )),
+        )
+        ensure_probes = p(processing.failover, 'ensure_fresh_probes')
+        if probe_phases is not _PROBE_PHASES_UNSET:
+            p(processing, '_active_phases_for_admission', return_value=probe_phases)
         if route_snapshot is not None:
             p(processing, '_resolve_or_load_route_snapshot', return_value=route_snapshot)
             p(processing, '_assert_route_snapshot_current')
@@ -230,7 +244,8 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                 run_context.end(ctx)
     return {'result': result, 'detect': detect, 'verify': verify,
             'analyze': analyze, 'refine': refine, 'finalize': finalize,
-            'dat': dat, 'db': db, 'reviewer': reviewer, 'recut': recut}
+            'dat': dat, 'db': db, 'reviewer': reviewer, 'recut': recut,
+            'probe_selector': probe_selector, 'ensure_probes': ensure_probes}
 
 
 def _row(pt=None, skip=None, mode=None):
@@ -244,7 +259,9 @@ class TestProcessEpisodeModePlumbing:
     def test_passthrough_wins_over_skip_and_keep_content(self):
         with patch.object(processing, 'db') as db, \
              patch.object(processing, '_passthrough_episode') as pt, \
-             patch.object(processing, 'start_episode_token_tracking'):
+             patch.object(processing, 'start_episode_token_tracking'), \
+             patch.object(processing.failover, 'run_probe_targets') as select_probes, \
+             patch.object(processing.failover, 'ensure_fresh_probes') as ensure_probes:
             db.get_episode.return_value = {}
             db.get_podcast_by_slug.return_value = _row(
                 pt=1, skip=1, mode=DETECTION_MODE_KEEP_CONTENT)
@@ -253,6 +270,8 @@ class TestProcessEpisodeModePlumbing:
                 'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
         assert result is True
         pt.assert_called_once()
+        select_probes.assert_not_called()
+        ensure_probes.assert_not_called()
 
     def test_episode_passthrough_flag_routes_to_passthrough_on_standard_feed(self):
         # Issue #746: the per-episode flag must win even though the feed
@@ -290,6 +309,46 @@ class TestProcessEpisodeModePlumbing:
         assert m['result'] is True
         assert m['detect'].call_args.kwargs['keep_content'] is None
         assert m['verify'].call_args.kwargs['skip_verification'] is False
+
+    def test_pre_run_probe_selection_uses_effective_enabled_routes(self):
+        phases = {
+            'detection': {'credential_slot': 'secondary'},
+            'review': {'credential_slot': 'primary'},
+        }
+        snapshot = {
+            'detection': {'credential_slot': 'secondary'},
+            'review': {'credential_slot': 'primary'},
+        }
+        m = _run_pipeline(_row(), route_snapshot=snapshot, probe_phases=phases)
+        m['probe_selector'].assert_called_once_with(phases, whisper_required=True)
+        m['ensure_probes'].assert_called_once_with(['llm:secondary', 'llm:primary'])
+
+    def test_cue_only_skip_transcription_omits_pre_run_probes(self):
+        row = dict(_row(mode=DETECTION_MODE_CUE_ONLY), skip_transcription=1)
+        m = _run_pipeline(row, route_snapshot={}, probe_phases={})
+        m['probe_selector'].assert_called_once_with({}, whisper_required=False)
+        m['ensure_probes'].assert_called_once_with([])
+
+    def test_unresolved_active_phases_use_conservative_route_fallback(self):
+        m = _run_pipeline(_row(), route_snapshot={}, probe_phases=None)
+        m['probe_selector'].assert_called_once_with(None, whisper_required=True)
+        m['ensure_probes'].assert_called_once_with([])
+
+    def test_recut_skips_pre_run_probes(self):
+        with patch.object(processing, 'db') as db, \
+             patch.object(processing, '_recut_episode', return_value=True) as recut, \
+             patch.object(processing, '_resolve_or_load_route_snapshot', return_value={}), \
+             patch.object(processing, '_assert_route_snapshot_current'), \
+             patch.object(processing, 'start_episode_token_tracking'), \
+             patch.object(processing.failover, 'run_probe_targets') as select_probes, \
+             patch.object(processing.failover, 'ensure_fresh_probes') as ensure_probes:
+            db.get_episode.return_value = {'reprocess_mode': 'recut'}
+            result = processing.process_episode(
+                'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
+        assert result is True
+        recut.assert_called_once()
+        select_probes.assert_not_called()
+        ensure_probes.assert_not_called()
 
     def test_records_disabled_normalization_in_run_stats(self):
         m = _run_pipeline(_row())

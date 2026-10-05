@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
+import transcriber
 
 from tests.app_bootstrap import bootstrap
 bootstrap('failover_prober_test_')
@@ -33,6 +34,7 @@ def _clock():
 def _reset(db):
     for t in failover.PROBE_TARGETS:
         db.clear_setting(f'failover_probe:{t}')
+        db.clear_setting(f'failover_probe_lease:{t}')
     for t in failover.TARGETS:
         db.clear_setting(f'failover_state:{t}')
         db.clear_setting(f'failover_generation:{t}')
@@ -138,20 +140,273 @@ def test_probe_tick_probes_targets_concurrently():
     assert failover.probe_state('llm:failover')['reachable'] is True
 
 
+def test_fast_probe_result_is_recorded_while_another_target_is_still_running():
+    db = Database(); _reset(db)
+    primary_started = threading.Event()
+    release_primary = threading.Event()
+    failover_finished = threading.Event()
+    failover_recorded = threading.Event()
+
+    def probe(target, request_config=None):
+        if target == 'llm:primary':
+            primary_started.set()
+            assert release_primary.wait(5)
+        else:
+            failover_finished.set()
+        return {'reachable': True, 'status': 200, 'detail': ''}
+
+    record_probe = failover._record_probe
+
+    def record(db_arg, target, result, context):
+        recorded_result = record_probe(db_arg, target, result, context)
+        if target == 'llm:failover':
+            failover_recorded.set()
+        return recorded_result
+
+    with patch.object(failover, 'probe_target', side_effect=probe), \
+            patch.object(failover, '_record_probe', side_effect=record):
+        worker = threading.Thread(
+            target=failover.probe_tick, args=(db, ['llm:primary', 'llm:failover']))
+        worker.start()
+        assert primary_started.wait(5)
+        assert failover_finished.wait(5)
+        assert failover_recorded.wait(5)
+        recorded = failover.probe_state('llm:failover')['checked_at'] is not None
+        release_primary.set()
+        worker.join(5)
+
+    assert not worker.is_alive()
+    assert recorded is True
+
+
 def test_concurrent_ensure_fresh_probes_share_one_probe():
     db = Database(); _reset(db)
+    entered = threading.Barrier(4)
+    started = threading.Event()
+    release = threading.Event()
 
     def slow(target, request_config=None):
-        time.sleep(0.2)
+        started.set()
+        assert release.wait(5)
         return {'reachable': True, 'status': 200, 'detail': ''}
+
+    def ensure():
+        entered.wait(timeout=5)
+        failover.ensure_fresh_probes(['llm:primary'])
+
     with patch.object(failover, 'probe_target', side_effect=slow) as p:
-        workers = [threading.Thread(target=failover.ensure_fresh_probes, args=(['llm:primary'],))
-                   for _ in range(3)]
+        workers = [threading.Thread(target=ensure) for _ in range(3)]
         for w in workers:
             w.start()
+        entered.wait(timeout=5)
+        assert started.wait(timeout=5)
+        time.sleep(0.1)
+        assert p.call_count == 1
+        release.set()
         for w in workers:
             w.join()
     assert p.call_count == 1
+
+
+def test_ensure_fresh_probes_waits_for_distinct_targets_concurrently():
+    waiting = threading.Barrier(2)
+
+    def wait_for_target(_db, target, _checked_at, wait_for_inflight):
+        assert wait_for_inflight is True
+        waiting.wait(timeout=5)
+        return {'target': target}
+
+    with patch.object(failover, 'probe_state', return_value={'checked_at': None}), \
+            patch.object(failover, '_probe_requested_target', side_effect=wait_for_target) as run:
+        failover.ensure_fresh_probes(['llm:primary', 'llm:secondary'])
+
+    assert {call.args[1] for call in run.call_args_list} == {
+        'llm:primary', 'llm:secondary',
+    }
+
+
+def test_probe_tick_empty_targets_does_not_probe_everything():
+    db = Database(); _reset(db)
+    with patch.object(failover, 'probe_target') as probe:
+        assert failover.probe_tick(db, []) == {}
+    probe.assert_not_called()
+
+
+def test_probe_lease_prevents_duplicate_cross_thread_requests():
+    db = Database(); _reset(db)
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow(target, request_config=None):
+        started.set()
+        assert release.wait(5)
+        return {'reachable': True, 'status': 200, 'detail': ''}
+
+    with patch.object(failover, 'probe_target', side_effect=slow) as probe:
+        worker = threading.Thread(target=failover.probe_tick,
+                                  args=(db, ['llm:primary']))
+        worker.start()
+        assert started.wait(5)
+        result = failover.probe_tick(db, ['llm:primary'])
+        release.set()
+        worker.join(5)
+    assert not worker.is_alive()
+    assert probe.call_count == 1
+    assert result['llm:primary']['checked_at'] is None
+    assert failover.probe_state('llm:primary')['reachable'] is True
+
+
+def test_expired_probe_owner_cannot_overwrite_newer_result():
+    db = Database(); _reset(db)
+    first_started = threading.Event()
+    release_first = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def probe(target, request_config=None):
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            first_call = calls == 1
+        if first_call:
+            first_started.set()
+            assert release_first.wait(5)
+            return {'reachable': False, 'status': 503, 'detail': 'old result'}
+        return {'reachable': True, 'status': 200, 'detail': 'new result'}
+
+    with patch.object(failover, 'probe_target', side_effect=probe):
+        worker = threading.Thread(
+            target=failover.probe_tick, args=(db, ['llm:primary']),
+            name='slow-probe')
+        worker.start()
+        assert first_started.wait(5)
+        db.set_setting(
+            'failover_probe_lease:llm:primary',
+            json.dumps({'token': 'expired-owner', 'expires_at': time.time() - 1}),
+            is_default=False,
+        )
+        failover.probe_tick(db, ['llm:primary'])
+        release_first.set()
+        worker.join(5)
+    assert not worker.is_alive()
+    assert failover.probe_state('llm:primary')['reachable'] is True
+    assert failover.probe_state('llm:primary')['detail'] == 'new result'
+
+
+def test_probe_renews_lease_while_slow_request_is_running():
+    db = Database(); _reset(db)
+    started = threading.Event()
+    renewed = threading.Event()
+    release = threading.Event()
+    original_renew = failover._renew_probe_lease
+
+    def renew(lease_db, target, token):
+        result = original_renew(lease_db, target, token)
+        renewed.set()
+        return result
+
+    def slow_probe(_target, request_config=None):
+        started.set()
+        assert release.wait(5)
+        return {'reachable': True, 'status': 200, 'detail': ''}
+
+    with patch.object(failover, '_PROBE_LEASE_SECONDS', 0.15), \
+            patch.object(failover, '_PROBE_LEASE_RENEW_SECONDS', 0.01), \
+            patch.object(failover, '_renew_probe_lease', side_effect=renew), \
+            patch.object(failover, 'probe_target', side_effect=slow_probe) as probe:
+        worker = threading.Thread(target=failover.probe_tick, args=(db, ['llm:primary']))
+        worker.start()
+        assert started.wait(5)
+        assert renewed.wait(5)
+        failover.probe_tick(db, ['llm:primary'])
+        assert probe.call_count == 1
+        release.set()
+        worker.join(5)
+
+    assert not worker.is_alive()
+    assert probe.call_count == 1
+
+
+def test_probe_lease_stays_owned_until_result_publication_finishes():
+    db = Database(); _reset(db)
+    publishing = threading.Event()
+    renewed_during_publish = threading.Event()
+    release_publish = threading.Event()
+    original_renew = failover._renew_probe_lease
+    original_record = failover._record_probe
+
+    def renew(lease_db, target, token):
+        result = original_renew(lease_db, target, token)
+        if publishing.is_set():
+            renewed_during_publish.set()
+        return result
+
+    def record(db_arg, target, result, context):
+        publishing.set()
+        assert release_publish.wait(5)
+        return original_record(db_arg, target, result, context)
+
+    with patch.object(failover, '_PROBE_LEASE_SECONDS', 0.15), \
+            patch.object(failover, '_PROBE_LEASE_RENEW_SECONDS', 0.01), \
+            patch.object(failover, '_renew_probe_lease', side_effect=renew), \
+            patch.object(failover, '_record_probe', side_effect=record), \
+            patch.object(failover, 'probe_target', return_value={
+                'reachable': True, 'status': 200, 'detail': '',
+            }) as probe:
+        worker = threading.Thread(target=failover.probe_tick, args=(db, ['llm:primary']))
+        worker.start()
+        assert publishing.wait(5)
+        assert renewed_during_publish.wait(5)
+        failover.probe_tick(db, ['llm:primary'])
+        assert probe.call_count == 1
+        release_publish.set()
+        worker.join(5)
+
+    assert not worker.is_alive()
+    assert probe.call_count == 1
+
+
+def test_free_target_publishes_before_another_target_waits_for_lease():
+    db = Database(); _reset(db)
+    db.set_setting('failover_probe_lease:llm:primary', json.dumps({
+        'token': 'active-owner', 'expires_at': time.time() + 10,
+    }), is_default=False)
+    primary_waiting = threading.Event()
+    release_primary_wait = threading.Event()
+    failover_recorded = threading.Event()
+    original_wait = failover._claim_or_wait
+    original_record = failover._record_probe
+
+    def wait_for_target(wait_db, target, checked_at, wait_for_inflight):
+        if target == 'llm:primary':
+            primary_waiting.set()
+            assert release_primary_wait.wait(5)
+            return None
+        return original_wait(wait_db, target, checked_at, wait_for_inflight)
+
+    def record(db_arg, target, result, context):
+        value = original_record(db_arg, target, result, context)
+        if target == 'llm:failover':
+            failover_recorded.set()
+        return value
+
+    with patch.object(failover, '_claim_or_wait', side_effect=wait_for_target), \
+            patch.object(failover, '_record_probe', side_effect=record), \
+            patch.object(failover, 'probe_target', return_value={
+                'reachable': True, 'status': 200, 'detail': '',
+            }) as probe:
+        worker = threading.Thread(
+            target=failover.ensure_fresh_probes,
+            args=(['llm:primary', 'llm:failover'],))
+        worker.start()
+        assert primary_waiting.wait(5)
+        assert failover_recorded.wait(5)
+        assert worker.is_alive()
+        assert {call.args[0] for call in probe.call_args_list} == {'llm:failover'}
+        release_primary_wait.set()
+        worker.join(5)
+
+    assert not worker.is_alive()
 
 
 def test_run_probe_targets_skip_standby_and_local_transcriber():
@@ -162,6 +417,79 @@ def test_run_probe_targets_skip_standby_and_local_transcriber():
     db.set_setting('failover_whisper_enabled', 'true', is_default=False)
     failover.invalidate_cache()
     assert failover.run_probe_targets() == ['llm:primary', 'llm:secondary', 'whisper:active']
+
+
+def test_run_probe_targets_uses_only_effective_phase_slots():
+    db = Database(); _reset(db)
+    phases = {
+        'detection': {'credential_slot': 'secondary'},
+        'review': {'credential_slot': 'secondary'},
+        'verification': {'credential_slot': 'failover'},
+    }
+    assert failover.run_probe_targets(phases, whisper_required=False) == [
+        'llm:secondary', 'llm:failover',
+    ]
+    assert failover.run_probe_targets({}, whisper_required=False) == []
+
+
+def test_run_probe_targets_uses_effective_whisper_backend():
+    db = Database(); _reset(db)
+    db.set_setting('whisper_backend', 'openai-api', is_default=False)
+    failover.invalidate_cache()
+    assert failover.run_probe_targets({}, whisper_required=True) == ['whisper:active']
+    db.set_setting('failover_state:whisper', json.dumps({
+        'active': True, 'source': 'manual', 'since': '2026-01-01T00:00:00Z',
+        'reason': 'operator',
+    }), is_default=False)
+    db.set_setting('failover_whisper_backend', 'openai-api', is_default=False)
+    db.set_setting('failover_whisper_enabled', 'true', is_default=False)
+    db.set_setting('failover_whisper_api_base_url', 'https://standby.example/v1', is_default=False)
+    assert failover.run_probe_targets({}, whisper_required=True) == ['whisper:failover']
+    assert failover.run_probe_targets({}, whisper_required=False) == []
+
+
+def test_local_whisper_standby_does_not_probe_the_original_api():
+    db = Database(); _reset(db)
+    db.set_setting('whisper_backend', 'openai-api', is_default=False)
+    db.set_setting('failover_whisper_enabled', 'true', is_default=False)
+    db.set_setting('failover_whisper_backend', 'local', is_default=False)
+    db.set_setting('failover_whisper_model', 'tiny', is_default=False)
+    db.set_setting('failover_state:whisper', json.dumps({
+        'active': True, 'source': 'auto', 'since': '2026-01-01T00:00:00Z',
+        'reason': 'provider outage',
+    }), is_default=False)
+    failover.invalidate_cache()
+    with patch.object(transcriber, 'local_transcription_available', return_value=True):
+        assert failover.run_probe_targets({}, whisper_required=True) == []
+    with patch.object(transcriber, 'local_transcription_available', return_value=False):
+        assert failover.run_probe_targets({}, whisper_required=True) == ['whisper:active']
+
+
+def test_run_probe_targets_falls_back_when_active_standby_is_unconfigured():
+    db = Database(); _reset(db)
+    db.set_setting('whisper_backend', 'openai-api', is_default=False)
+    db.set_setting('failover_state:whisper', json.dumps({
+        'active': True, 'source': 'auto', 'since': '2026-01-01T00:00:00Z',
+        'reason': 'outage',
+    }), is_default=False)
+    failover.invalidate_cache()
+    assert failover.run_probe_targets({}, whisper_required=True) == ['whisper:active']
+
+
+def test_unresolved_route_fallback_probes_the_effective_configured_slot():
+    db = Database(); _reset(db)
+    db.set_setting('failover_state:llm:primary', json.dumps({
+        'active': True, 'source': 'auto', 'since': '2026-01-01T00:00:00Z',
+        'reason': 'outage',
+    }), is_default=False)
+    failover.invalidate_cache()
+    with patch('main_app.processing._resolve_route_snapshot', return_value=None):
+        assert failover.run_probe_targets(None, whisper_required=False) == ['llm:failover']
+
+    db.set_setting('failover_llm_enabled', 'false', is_default=False)
+    failover.invalidate_cache()
+    with patch('main_app.processing._resolve_route_snapshot', return_value=None):
+        assert failover.run_probe_targets(None, whisper_required=False) == ['llm:primary']
 
 
 def test_runtime_trigger_resets_recovery_streak():
@@ -197,31 +525,29 @@ def test_recovery_ignores_probe_older_than_trigger():
 
 def test_delayed_healthy_result_is_discarded_after_trigger():
     db = Database(); _reset(db)
-    release_slow = threading.Event()
-    first_result_returned = threading.Event()
+    record_started = threading.Event()
+    release_record = threading.Event()
 
     def fake_probe(target, request_config=None):
-        if target == 'llm:failover':
-            assert release_slow.wait(5)
         return {'reachable': True, 'status': 200, 'detail': ''}
 
-    original_map = failover.ThreadPoolExecutor.map
+    original_record = failover._record_probe
 
-    def controlled_map(executor, fn, targets):
-        values = iter(original_map(executor, fn, targets))
-        yield next(values)
-        first_result_returned.set()
-        yield from values
+    def delayed_record(db_arg, target, result, context):
+        if target == 'llm:primary':
+            record_started.set()
+            assert release_record.wait(5)
+        return original_record(db_arg, target, result, context)
 
     with patch.object(failover, 'probe_target', side_effect=fake_probe), \
-            patch.object(failover.ThreadPoolExecutor, 'map', controlled_map), \
+            patch.object(failover, '_record_probe', side_effect=delayed_record), \
             patch.object(failover.webhook_service, 'fire_failover_event'):
         worker = threading.Thread(
             target=failover.probe_tick, args=(db, ['llm:primary', 'llm:failover']))
         worker.start()
-        assert first_result_returned.wait(5)
+        assert record_started.wait(5)
         failover.trigger('llm:primary', 'probe overlap')
-        release_slow.set()
+        release_record.set()
         worker.join(5)
     assert not worker.is_alive()
     assert failover.is_active('llm:primary') is True
@@ -435,7 +761,6 @@ def test_llm_probe_read_timeout_is_unreachable():
 
 
 def test_local_whisper_probes_follow_local_stack():
-    import transcriber
     db = Database(); _reset(db)
     db.set_setting('failover_whisper_enabled', 'true', is_default=False)
     db.set_setting('failover_whisper_backend', 'local', is_default=False)
@@ -446,6 +771,61 @@ def test_local_whisper_probes_follow_local_stack():
     with patch.object(transcriber, 'local_transcription_available', return_value=False):
         assert failover.probe_target('whisper:active')['reachable'] is False
         assert failover.probe_target('whisper:failover')['reachable'] is False
+
+
+def test_local_recovery_outcome_is_persisted_with_accepted_probe():
+    db = Database(); _reset(db)
+    db.set_setting('whisper_model', 'tiny', is_default=False)
+    db.set_setting('failover_state:whisper', json.dumps({
+        'active': True, 'source': 'auto', 'since': '2026-01-01T00:00:00Z',
+        'reason': 'local decode failed',
+    }), is_default=False)
+    failover.invalidate_cache()
+    outcome = {
+        'outcome': 'success', 'backend': 'local', 'model': 'tiny',
+        'device': 'cpu', 'compute_type': 'auto',
+        'observed_at': '2026-10-05T00:00:00.123456Z',
+    }
+    with patch.object(transcriber, 'probe_local_transcription', return_value={
+        'reachable': True, 'status': None, 'detail': 'diagnostic decode succeeded',
+        'local_outcome': outcome,
+    }) as probe:
+        failover.probe_tick(db, ['whisper:active'])
+
+    request_config = probe.call_args.args[0]
+    assert request_config['recover_runtime'] is True
+    assert request_config['local_model'] == 'tiny'
+    assert json.loads(db.get_setting('transcribe_last_local_outcome')) == outcome
+    assert 'local_outcome' not in failover.probe_state('whisper:active')
+
+
+def test_stale_local_recovery_does_not_overwrite_new_failure():
+    db = Database(); _reset(db)
+    db.set_setting('whisper_model', 'tiny', is_default=False)
+    db.set_setting('failover_state:whisper', json.dumps({
+        'active': True, 'source': 'auto', 'since': '2026-01-01T00:00:00Z',
+        'reason': 'local decode failed',
+    }), is_default=False)
+    failover.invalidate_cache()
+    newer_failure = {
+        'outcome': 'failed', 'backend': 'local', 'model': 'tiny',
+        'device': 'cpu', 'compute_type': 'auto',
+        'observed_at': '2026-10-05T00:00:00.654321Z',
+    }
+    stale_success = {**newer_failure, 'outcome': 'success',
+                     'observed_at': '2026-10-05T00:00:00.123456Z'}
+
+    def delayed_probe(_config):
+        db.set_setting('transcribe_last_local_outcome', json.dumps(newer_failure),
+                       is_default=False)
+        return {'reachable': True, 'status': None, 'detail': 'diagnostic decode succeeded',
+                'local_outcome': stale_success}
+
+    with patch.object(transcriber, 'probe_local_transcription', side_effect=delayed_probe):
+        failover.probe_tick(db, ['whisper:active'])
+
+    assert json.loads(db.get_setting('transcribe_last_local_outcome')) == newer_failure
+    assert failover.probe_state('whisper:active')['checked_at'] is None
 
 
 def test_unconfigured_target_never_counts_or_triggers():
