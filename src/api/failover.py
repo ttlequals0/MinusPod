@@ -2,6 +2,7 @@
 import logging
 
 from flask import request
+from werkzeug.exceptions import BadRequest, UnsupportedMediaType
 
 import failover
 from api import api, error_response, json_response, log_request, get_database
@@ -54,9 +55,21 @@ def trigger_failover(name):
         return error_response('unknown failover target', 404)
     if not failover.is_configured(target):
         return error_response('failover_not_configured', 409)
-    body = request.get_json(silent=True) or {}
-    reason = body.get('reason') if isinstance(body.get('reason'), str) else ''
-    failover.trigger(target, reason or 'manual trigger', source='manual')
+    try:
+        body = request.get_json() if request.get_data() else None
+    except (BadRequest, UnsupportedMediaType):
+        return error_response('request body must be valid JSON', 400)
+    if body is None:
+        body = {}
+    if not isinstance(body, dict):
+        return error_response('request body must be a JSON object', 400)
+    reason = body.get('reason', '')
+    if not isinstance(reason, str):
+        return error_response('reason must be a string', 400)
+    try:
+        failover.trigger(target, reason or 'manual trigger', source='manual', raise_on_error=True)
+    except failover.FailoverTransitionError:
+        return error_response('failover_transition_failed', 503)
     return json_response({'target': name, 'state': _target_view(target)})
 
 
@@ -66,7 +79,10 @@ def cancel_failover(name):
     target = failover.API_TARGET_NAMES.get(name)
     if target is None:
         return error_response('unknown failover target', 404)
-    failover.cancel(target, source='manual')
+    try:
+        failover.cancel(target, source='manual', raise_on_error=True)
+    except failover.FailoverTransitionError:
+        return error_response('failover_transition_failed', 503)
     return json_response({'target': name, 'state': _target_view(target)})
 
 

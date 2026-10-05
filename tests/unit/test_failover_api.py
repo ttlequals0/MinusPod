@@ -11,6 +11,8 @@ from tests.app_bootstrap import authenticate_test_client
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='failover-api-test-'))
 
+import failover
+
 
 @pytest.fixture
 def hdr(app_client):
@@ -19,7 +21,6 @@ def hdr(app_client):
 
 @pytest.fixture
 def configured(app_client, hdr):
-    import failover
     from api import get_database
     db = get_database()
     db.set_setting('failover_llm_enabled', 'true', is_default=False)
@@ -65,6 +66,65 @@ def test_trigger_unconfigured_is_409(app_client, hdr):
     r = app_client.post('/api/v1/failover/transcriber/trigger', headers=hdr)
     assert r.status_code == 409
     assert r.get_json()['error'] == 'failover_not_configured'
+
+
+@pytest.mark.parametrize('body', [[], [1], 'reason', 1, 0, False, True])
+def test_trigger_rejects_non_object_json(app_client, hdr, configured, body):
+    with patch('failover.trigger') as trigger:
+        r = app_client.post('/api/v1/failover/llm-a/trigger', json=body, headers=hdr)
+    assert r.status_code == 400
+    assert r.get_json()['error'] == 'request body must be a JSON object'
+    trigger.assert_not_called()
+
+
+@pytest.mark.parametrize('reason', [None, 1, False, [], {}])
+def test_trigger_rejects_non_string_reason(app_client, hdr, configured, reason):
+    with patch('failover.trigger') as trigger:
+        r = app_client.post('/api/v1/failover/llm-a/trigger', json={'reason': reason}, headers=hdr)
+    assert r.status_code == 400
+    assert r.get_json()['error'] == 'reason must be a string'
+    trigger.assert_not_called()
+
+
+@pytest.mark.parametrize('body', ['{', '[', 'not-json', ' '])
+def test_trigger_rejects_malformed_json(app_client, hdr, configured, body):
+    with patch('failover.trigger') as trigger:
+        r = app_client.post('/api/v1/failover/llm-a/trigger', data=body,
+                            content_type='application/json', headers=hdr)
+    assert r.status_code == 400
+    assert r.get_json()['error'] == 'request body must be valid JSON'
+    trigger.assert_not_called()
+
+
+@pytest.mark.parametrize('body', ['', 'null', '{}'])
+def test_trigger_accepts_default_reason(app_client, hdr, configured, body):
+    with patch('failover.fire_failover_event'):
+        r = app_client.post('/api/v1/failover/llm-a/trigger', data=body,
+                            content_type='application/json', headers=hdr)
+    assert r.status_code == 200
+    assert r.get_json()['state']['reason'] == 'manual trigger'
+
+
+@pytest.mark.parametrize('action', ['trigger', 'cancel'])
+def test_manual_transition_reports_persistence_failure(app_client, hdr, configured, action):
+    if action == 'cancel':
+        with patch('failover.fire_failover_event'):
+            assert failover.trigger(failover.TARGET_LLM_PRIMARY, 'drill', source='manual')
+    before = failover.state(failover.TARGET_LLM_PRIMARY)
+    with patch('failover.Database.transaction', side_effect=RuntimeError('transaction failed')):
+        r = app_client.post(f'/api/v1/failover/llm-a/{action}', json={}, headers=hdr)
+    assert r.status_code == 503
+    assert r.get_json()['error'] == 'failover_transition_failed'
+    assert failover.state(failover.TARGET_LLM_PRIMARY) == before
+
+
+def test_repeated_manual_actions_stay_successful_without_duplicate_events(app_client, hdr, configured):
+    with patch('failover.fire_failover_event') as fire:
+        for action in ('trigger', 'trigger', 'cancel', 'cancel'):
+            r = app_client.post(f'/api/v1/failover/llm-a/{action}', json={}, headers=hdr)
+            assert r.status_code == 200
+            assert r.get_json()['state']['active'] is (action == 'trigger')
+    assert fire.call_count == 2
 
 
 def test_unknown_target_404(app_client, hdr):
