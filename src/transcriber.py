@@ -1797,7 +1797,7 @@ class Transcriber:
                                 logger.warning(
                                     "%sWhisper API still busy (429) after the "
                                     "retry deadline; giving up", _log_prefix())
-                                return None
+                                raise TranscriptionRejectedError(429, 'retry deadline exceeded')
                             # Floor so a Retry-After: 0 (or absent) header still yields.
                             parsed_retry_after = parse_retry_after(
                                 (response.headers or {}).get('Retry-After'), max_seconds=300.0)
@@ -1809,7 +1809,7 @@ class Transcriber:
                             time.sleep(retry_after)
                             response = None
                             continue
-                        if response.status_code < 500:
+                        if response.status_code < 500 and response.status_code != 408:
                             break
                         logger.warning(
                             "Whisper API attempt %d/%d returned %d",
@@ -1846,9 +1846,9 @@ class Transcriber:
                 break
 
             if response is None or response.status_code != 200:
-                if response is not None and response.status_code in (401, 402, 403, 404):
+                if response is not None and response.status_code in (401, 402, 403, 404, 429):
                     raise TranscriptionRejectedError(response.status_code)
-                if response is not None and response.status_code >= 500:
+                if response is not None and (response.status_code == 408 or response.status_code >= 500):
                     raise ServiceUnavailableError(
                         'whisper',
                         f"Whisper API returned {response.status_code} after retries")

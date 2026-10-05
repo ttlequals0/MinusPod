@@ -6,6 +6,7 @@ import pytest
 
 import transcriber
 from whisper_pool import WhisperPool
+from utils.errors import ServiceUnavailableError, TranscriptionRejectedError
 
 
 def _settings(enabled=True, max_requests=2):
@@ -76,18 +77,21 @@ def test_429_deadline_bounds_a_zero_retry_after_loop(pool, tmp_path, monkeypatch
         r = MagicMock(); r.status_code = 429; r.headers = {'Retry-After': '0'}; r.text = 'busy'
         return r
     with patch('transcriber.safe_post', side_effect=fake_post):
-        result = transcriber.Transcriber()._transcribe_via_api(str(audio), _whisper_settings(), preprocessed=True)
-    assert result is None
+        with pytest.raises(TranscriptionRejectedError) as caught:
+            transcriber.Transcriber()._transcribe_via_api(str(audio), _whisper_settings(), preprocessed=True)
+    assert caught.value.status == 429
     assert len(calls) < 10
 
 
-def test_429_is_a_plain_failure_while_inactive(tmp_path, monkeypatch):
+def test_429_is_standby_eligible_while_inactive(tmp_path, monkeypatch):
     p = WhisperPool(_settings(enabled=False))
     monkeypatch.setattr(transcriber, 'get_pool', lambda: p)
     audio = tmp_path / 'a.wav'; audio.write_bytes(b'0' * 4096)
     r = MagicMock(); r.status_code = 429; r.headers = {}; r.text = 'busy'
     with patch('transcriber.safe_post', return_value=r):
-        assert transcriber.Transcriber()._transcribe_via_api(str(audio), _whisper_settings(), preprocessed=True) is None
+        with pytest.raises(TranscriptionRejectedError) as caught:
+            transcriber.Transcriber()._transcribe_via_api(str(audio), _whisper_settings(), preprocessed=True)
+    assert caught.value.status == 429
 
 
 def test_chunk_pool_size_comes_from_the_pool(pool, monkeypatch):
@@ -150,3 +154,24 @@ def test_permit_wait_does_not_consume_the_429_window(tmp_path, monkeypatch):
         segs = transcriber.Transcriber()._transcribe_via_api(
             str(audio), _whisper_settings(), preprocessed=True)
     assert segs and len(posts) == 2
+
+
+def test_408_exhausts_configured_attempts_before_standby_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(transcriber, 'get_pool', lambda: WhisperPool(_settings(enabled=False)))
+    audio = tmp_path / 'timeout.wav'; audio.write_bytes(b'0' * 4096)
+    response = MagicMock(); response.status_code = 408; response.text = 'request timed out'
+    settings = {**_whisper_settings(), 'max_attempts': 3}
+    with patch('transcriber.safe_post', return_value=response) as post:
+        with pytest.raises(ServiceUnavailableError, match='408 after retries'):
+            transcriber.Transcriber()._transcribe_via_api(str(audio), settings, preprocessed=True)
+    assert post.call_count == 3
+
+
+@pytest.mark.parametrize('status', [400, 422])
+def test_malformed_transcription_requests_remain_ineligible(status, tmp_path):
+    audio = tmp_path / 'bad-request.wav'; audio.write_bytes(b'0' * 4096)
+    response = MagicMock(); response.status_code = status; response.text = 'bad request'; response.json.return_value = {}
+    with patch('transcriber.safe_post', return_value=response) as post:
+        result = transcriber.Transcriber()._transcribe_via_api(str(audio), _whisper_settings(), preprocessed=True)
+    assert result is None
+    post.assert_called_once()

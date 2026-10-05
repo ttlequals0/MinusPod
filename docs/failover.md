@@ -43,7 +43,7 @@ Failover is different from the Provider A / Provider B slot a stage is configure
 
 Real provider throttling and exhausted provider quotas can use the configured standby. Manual caps and structurally oversized requests cannot. If the standby also reports a rate limit, the existing [Rate-Limit Hold](configuration.md#rate-limit-hold) behavior applies to that account.
 
-The transcriber side uses the same shape: connection errors and 5xx-equivalent backend outages trigger failover, and so do 401/402/403/404 from an API backend (`TranscriptionRejectedError`), and a local backend's model-load failure. Other 4xx responses from an API backend are left alone, same as before this feature.
+The transcriber side uses the same shape: connection errors and 5xx-equivalent backend outages trigger failover, and so do 401/402/403/404 and exhausted 429 retries from an API backend (`TranscriptionRejectedError`), exhausted HTTP 408 timeout retries, and a local backend's model-load failure. Other 4xx responses from an API backend are left alone, same as before this feature.
 
 ## What happens mid-run
 

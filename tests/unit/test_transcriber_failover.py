@@ -10,7 +10,7 @@ import failover
 import transcriber
 import run_context
 from transcriber import ServiceUnavailableError, Transcriber
-from utils.errors import LocalTranscriptionUnavailableError
+from utils.errors import LocalTranscriptionUnavailableError, TranscriptionRejectedError
 
 ACTIVE = {'backend': 'openai-api', 'api_base_url': 'http://a.example.com/v1', 'api_key': 'k1',
           'api_model': 'whisper-1', 'language': 'en', 'skip_flac_compression': True,
@@ -329,3 +329,27 @@ def test_failed_local_standby_decode_records_actual_usage(t):
         assert ctx.failover_usage() == {'llm': [], 'whisper': True}
     finally:
         run_context.end(ctx)
+
+
+@pytest.mark.parametrize('status', [408, 429])
+def test_exhausted_timeout_or_throttle_dispatches_standby_once(t, status):
+    used = []
+    error = (ServiceUnavailableError('whisper', '408 after retries') if status == 408
+             else TranscriptionRejectedError(429, 'retry deadline exceeded'))
+    def api(path, settings, **kwargs):
+        used.append(settings['api_base_url'])
+        if not settings.get('is_failover'):
+            raise error
+        return _seg(0, 1)
+    with patch.object(failover, 'is_active', return_value=False), \
+            patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True) as trigger, \
+            patch.object(transcriber, '_get_failover_whisper_settings', return_value=FAILOVER), \
+            patch.object(transcriber, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
+            patch.object(transcriber, 'extract_audio_chunk', return_value='/tmp/chunk.wav'), \
+            patch.object(transcriber, '_unlink_quiet'), \
+            patch.object(t, '_transcribe_via_api', side_effect=api), \
+            patch.object(t, 'filter_hallucinations', side_effect=lambda segments: segments):
+        assert t._transcribe_chunked_parallel_api('/tmp/audio.wav', 100.0, ACTIVE)
+    trigger.assert_called_once()
+    assert used == [ACTIVE['api_base_url'], FAILOVER['api_base_url']]

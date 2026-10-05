@@ -21,6 +21,7 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- Exhausted transcription timeouts and provider throttling can switch to the standby transcriber.
 - Processing tests preserve dependency filesystem checks, preventing a partial native-library import and shutdown crash.
 - Provider throttling and exhausted daily quotas can use independent standby capacity; manual caps and oversized requests remain enforced.
 - Fixed-provider probes validate response bodies, and transcription probes no longer count timeout or rate-limit responses as healthy.

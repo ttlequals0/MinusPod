@@ -21,7 +21,7 @@ class ServiceUnavailableError(Exception):
 
 
 class TranscriptionRejectedError(Exception):
-    """The transcription API refused the request with an auth, billing or missing-model status."""
+    """The transcription API rejected a request or exhausted its throttle retry window."""
 
     def __init__(self, status: int, detail: str = ''):
         super().__init__(f"Whisper API returned {status}{(': ' + detail) if detail else ''}")
