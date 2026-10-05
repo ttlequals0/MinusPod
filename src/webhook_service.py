@@ -35,6 +35,8 @@ EVENT_QUEUE_HELD = 'Queue Held'
 EVENT_QUEUE_RESUMED = 'Queue Resumed'
 EVENT_SERVICE_OFFLINE = 'Service Offline'
 EVENT_SERVICE_REACHABLE = 'Service Reachable'
+EVENT_FAILOVER_TRIGGERED = 'Failover Triggered'
+EVENT_FAILOVER_CANCELLED = 'Failover Cancelled'
 VALID_EVENTS = {
     EVENT_EPISODE_PROCESSED,
     EVENT_EPISODE_FAILED,
@@ -48,7 +50,13 @@ VALID_EVENTS = {
     EVENT_QUEUE_RESUMED,
     EVENT_SERVICE_OFFLINE,
     EVENT_SERVICE_REACHABLE,
+    EVENT_FAILOVER_TRIGGERED,
+    EVENT_FAILOVER_CANCELLED,
 }
+
+# Maps the API-facing failover target names to webhook/email payload values,
+# kept local to avoid importing failover (which imports this module).
+API_TARGET_NAMES_FOR_WEBHOOK = {'llm-a': 'llm:primary', 'llm-b': 'llm:secondary', 'transcriber': 'whisper'}
 
 _sandbox_env = SandboxedEnvironment()
 
@@ -181,6 +189,16 @@ _ALERT_SAMPLE_CONTEXTS = {
     EVENT_SERVICE_REACHABLE: {
         'service': 'llm',
         'requeued': 3,
+    },
+    EVENT_FAILOVER_TRIGGERED: {
+        'target': 'llm-a',
+        'source': 'auto',
+        'reason': 'HTTP 503',
+    },
+    EVENT_FAILOVER_CANCELLED: {
+        'target': 'llm-a',
+        'source': 'manual',
+        'reason': '',
     },
 }
 
@@ -558,6 +576,17 @@ def fire_service_reachable_event(service, requeued):
         'requeued': requeued,
     }, f"service={service}, requeued={requeued}",
         dedup_key=f"{EVENT_SERVICE_REACHABLE}:{service}")
+
+
+def fire_failover_event(action: str, target: str, source: str, reason: str | None) -> None:
+    """Notify operators that a target switched to or from its failover config."""
+    event = EVENT_FAILOVER_TRIGGERED if action == 'trigger' else EVENT_FAILOVER_CANCELLED
+    api_name = next((k for k, v in API_TARGET_NAMES_FOR_WEBHOOK.items() if v == target), target)
+    _fire_alert_event(event, {
+        'target': api_name,
+        'source': source,
+        'reason': reason or '',
+    }, f"target={api_name}, source={source}")
 
 
 def fire_update_available_event(version, channel, release_date, url):

@@ -24,6 +24,7 @@ from database.podping_hosts import PodpingHostMixin
 from database.feed_subscribers import FeedSubscriberMixin
 from database.provider_admission import ProviderAdmissionMixin
 from database.upload_reservations import UploadReservationMixin
+from database.failover_events import FailoverEventsMixin
 from utils.paths import resolve_data_dir
 
 logger = logging.getLogger(__name__)
@@ -453,7 +454,7 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                FingerprintMixin, CueTemplateMixin, CueDetectionMixin,
                QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin,
                FeedSubscriberMixin, ProviderAdmissionMixin,
-               UploadReservationMixin):
+               UploadReservationMixin, FailoverEventsMixin):
     """SQLite database manager with thread-safe connections."""
 
     _instance = None

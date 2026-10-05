@@ -343,6 +343,15 @@ TABLE_DDL['provider_spend_reservations'] = """CREATE TABLE IF NOT EXISTS provide
     expires_at TEXT NOT NULL
 )"""
 
+TABLE_DDL['failover_events'] = """CREATE TABLE IF NOT EXISTS failover_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target TEXT NOT NULL,
+    action TEXT NOT NULL,
+    source TEXT NOT NULL,
+    reason TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+)"""
+
 TABLE_DDL['audio_fingerprints'] = """CREATE TABLE IF NOT EXISTS audio_fingerprints (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pattern_id INTEGER UNIQUE REFERENCES ad_patterns(id) ON DELETE CASCADE,
@@ -692,6 +701,11 @@ CREATE INDEX IF NOT EXISTS idx_provider_spend_provider_day
     ON provider_spend_reservations(provider, created_at, status);
 CREATE INDEX IF NOT EXISTS idx_provider_spend_run
     ON provider_spend_reservations(run_id, status);
+
+-- failover_events table (#806): audit log of provider failover triggers/cancels
+""" + TABLE_DDL['failover_events'] + """;
+CREATE INDEX IF NOT EXISTS idx_failover_events_created
+    ON failover_events(created_at DESC);
 
 -- audio_fingerprints table (Chromaprint hashes for DAI-inserted ads)
 """ + TABLE_DDL['audio_fingerprints'] + """;

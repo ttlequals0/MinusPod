@@ -178,6 +178,7 @@ class SchemaMixin:
         'upload_reservations',
         'feed_subscriber_keys',
         'provider_spend_reservations',
+        'failover_events',
     )
 
     def _create_new_tables_only(self, conn):
@@ -230,6 +231,10 @@ class SchemaMixin:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_provider_spend_provider_day "
             "ON provider_spend_reservations(provider, created_at, status)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_failover_events_created "
+            "ON failover_events(created_at DESC)"
         )
         conn.execute("DROP INDEX IF EXISTS idx_upload_reservations_active_target")
         conn.execute(

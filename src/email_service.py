@@ -32,6 +32,7 @@ DEFAULT_EVENTS = [
     'Episode Failed', 'Auth Failure', 'Limit Exceeded', 'Rate Limit Structural',
     'Feed Refresh Failed', 'Update Available', 'Cue Template Quiet',
     'Queue Held', 'Queue Resumed', 'Service Offline', 'Service Reachable',
+    'Failover Triggered', 'Failover Cancelled',
 ]
 
 
@@ -285,6 +286,29 @@ def _fmt_service_reachable(ctx):
     return subject, rows, None
 
 
+def _fmt_failover_triggered(ctx):
+    subject = f"[MinusPod] Failover Triggered: {_value(ctx.get('target'))}"
+    rows = [
+        ('Target', _value(ctx.get('target'))),
+        ('Source', _value(ctx.get('source'))),
+        ('Reason', _value(ctx.get('reason'))),
+        ('Timestamp', _display_timestamp(ctx)),
+    ]
+    return subject, rows, ('Requests for this target now use its failover '
+                           'configuration. It switches back automatically once '
+                           'the primary endpoint is reachable again.')
+
+
+def _fmt_failover_cancelled(ctx):
+    subject = f"[MinusPod] Failover Cancelled: {_value(ctx.get('target'))}"
+    rows = [
+        ('Target', _value(ctx.get('target'))),
+        ('Source', _value(ctx.get('source'))),
+        ('Timestamp', _display_timestamp(ctx)),
+    ]
+    return subject, rows, None
+
+
 FORMATTERS = {
     'Episode Processed': _fmt_episode_processed,
     'Episode Failed': _fmt_episode_failed,
@@ -298,6 +322,8 @@ FORMATTERS = {
     'Queue Resumed': _fmt_queue_resumed,
     'Service Offline': _fmt_service_offline,
     'Service Reachable': _fmt_service_reachable,
+    'Failover Triggered': _fmt_failover_triggered,
+    'Failover Cancelled': _fmt_failover_cancelled,
 }
 
 
