@@ -21,6 +21,7 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- Deferred episodes resume through healthy providers required by their current routes, including standby providers. Health results are refreshed after configuration, failover state, or local outcome changes.
 - Failover startup avoids circular imports through audio and subprocess helpers.
 - Health checks share ownership across workers and probe only stale endpoints required by each run.
 - Local transcription recovers only after an idle diagnostic decode of the original model; disabled standby configurations no longer receive work.

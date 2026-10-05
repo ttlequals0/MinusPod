@@ -668,6 +668,7 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
         healthy_streak = previous.get('healthy_streak', 0) if same_context else 0
         failed_streak = previous.get('failed_streak', 0) if same_context else 0
         local_outcome = result.get('local_outcome')
+        local_outcome_stamp = context.get('local_outcome_stamp')
         request_config = context.get('request_config', {})
         if (target == 'whisper:active' and result.get('reachable') is True
                 and isinstance(local_outcome, dict)
@@ -676,8 +677,9 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
                 and local_outcome.get('model') == request_config.get('local_model')
                 and local_outcome.get('device') == request_config.get('device')
                 and local_outcome.get('compute_type') == request_config.get('compute_type')):
+            local_outcome_stamp = json.dumps(local_outcome)
             database.Database._upsert_setting(
-                conn, 'transcribe_last_local_outcome', json.dumps(local_outcome),
+                conn, 'transcribe_last_local_outcome', local_outcome_stamp,
                 is_default=False,
             )
         probe_result = {key: value for key, value in result.items()
@@ -695,6 +697,7 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
             **streaks,
             '_generation': context['generation'],
             '_config_identity': context['config_identity'],
+            '_local_outcome_stamp': local_outcome_stamp,
         }
         database.Database._upsert_setting(conn, key, json.dumps(data), is_default=False)
         _release_probe_lease_in_transaction(conn, target, context['lease_token'])
@@ -814,14 +817,42 @@ def _parse_iso(value: str | None) -> float:
     return dt.timestamp() if dt else 0.0
 
 
+def _probe_matches_context(cached: dict, context: dict) -> bool:
+    return (
+        cached.get('_generation') == context['generation']
+        and cached.get('_config_identity') == context['config_identity']
+        and cached.get('_local_outcome_stamp') == context.get('local_outcome_stamp')
+    )
+
+
+def current_probe_state(target: str) -> dict:
+    """Return a probe verdict only while its age and captured config remain current."""
+    db = database.Database()
+    cached = _probe_state_value(db.get_setting(f'failover_probe:{target}'))
+    context = _capture_probe_context(db, target)
+    checked = cached.get('checked_at')
+    current = (
+        checked
+        and _parse_iso(checked) >= time.time() - probe_interval_seconds()
+        and _probe_matches_context(cached, context)
+    )
+    result = _public_probe_state(cached)
+    if not current:
+        result['reachable'] = None
+    return result
+
+
 def ensure_fresh_probes(targets: list[str]) -> None:
     cutoff = time.time() - probe_interval_seconds()
+    db = database.Database()
     baselines = []
     for target in dict.fromkeys(targets):
-        checked = probe_state(target)['checked_at']
-        if not checked or _parse_iso(checked) < cutoff:
+        cached = _probe_state_value(db.get_setting(f'failover_probe:{target}'))
+        context = _capture_probe_context(db, target)
+        checked = cached.get('checked_at')
+        if (not checked or _parse_iso(checked) < cutoff
+                or not _probe_matches_context(cached, context)):
             baselines.append((target, checked))
-    db = database.Database()
     if not baselines:
         return
     with ThreadPoolExecutor(max_workers=min(len(baselines), _MAX_PROBE_WORKERS)) as executor:

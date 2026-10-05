@@ -4,7 +4,9 @@ and re-drive.
 Uses the main_app boot pattern from test_history_ad_count: bind a temp
 DATA_DIR before importing main_app so singletons initialize against it.
 """
+import json
 import socket
+import time
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -21,6 +23,7 @@ import llm_route
 from ad_detector import _windows_failed_response
 from config import MAX_EPISODE_RETRIES
 from main_app import db
+import main_app.background as background
 from main_app.episode_context import EpisodeContext
 from main_app.processing import _detect_ads_first_pass, _handle_processing_failure, is_transient_error
 from utils import llm_call
@@ -55,6 +58,11 @@ class TestIsConnectivityError:
 
 
 SLUG = 'offline-queue-feed'
+
+
+def _target_resolver(routes=None):
+    routes = routes or {'llm': ['llm:primary'], 'whisper': ['whisper:active']}
+    return lambda _db: lambda service, _episode: routes.get(service, [])
 
 
 @pytest.fixture
@@ -244,9 +252,8 @@ class TestTtlAndRequeue:
     def test_expired_episode_fires_history_and_webhook(self, seeded_episode):
         self._defer('ep-old', '2020-01-01T00:00:00Z')
         with patch('offline_queue.fire_event') as webhook, \
-             patch.object(db, 'record_processing_history') as history, \
-             patch('llm_client.check_llm_connectivity', return_value=False):
-            offline_queue_tick(db)
+             patch.object(db, 'record_processing_history') as history:
+            offline_queue_tick(db, _target_resolver())
         assert history.call_count == 1
         assert webhook.call_count == 1
         kwargs = webhook.call_args.kwargs
@@ -254,23 +261,190 @@ class TestTtlAndRequeue:
         assert kwargs['llm_cost'] == 0.0
 
     def test_tick_no_deferred_makes_no_probe_calls(self, seeded_episode):
-        with patch('llm_client.check_llm_connectivity') as llm_probe, \
-             patch('transcriber.check_whisper_connectivity') as whisper_probe:
-            offline_queue_tick(db)
-            llm_probe.assert_not_called()
-            whisper_probe.assert_not_called()
+        with patch('failover.ensure_fresh_probes') as probe:
+            offline_queue_tick(db, _target_resolver())
+            probe.assert_not_called()
 
     def test_tick_probe_false_requeues_nothing(self, seeded_episode):
         self._defer('ep-llm', '2999-01-01T00:00:00Z', service='llm')
-        with patch('llm_client.check_llm_connectivity', return_value=False):
-            offline_queue_tick(db)
+        with patch('failover.ensure_fresh_probes'), \
+                patch('failover.current_probe_state', return_value={'reachable': False}):
+            offline_queue_tick(db, _target_resolver())
         assert db.get_episode(SLUG, 'ep-llm')['status'] == 'deferred'
 
     def test_tick_probe_true_requeues(self, seeded_episode):
         self._defer('ep-llm', '2999-01-01T00:00:00Z', service='llm')
-        with patch('llm_client.check_llm_connectivity', return_value=True):
-            offline_queue_tick(db)
+        with patch('failover.ensure_fresh_probes'), \
+                patch('failover.current_probe_state', return_value={'reachable': True}):
+            offline_queue_tick(db, _target_resolver())
         assert db.get_episode(SLUG, 'ep-llm')['status'] == 'pending'
+
+    def test_effective_route_probes_only_required_targets_and_requeues_per_episode(
+            self, seeded_episode):
+        self._defer('ep-primary', '2999-01-01T00:00:00Z', service='llm')
+        self._defer('ep-secondary', '2999-01-01T00:00:00Z', service='llm')
+        target_map = {
+            'ep-primary': ['llm:primary'],
+            'ep-secondary': ['llm:secondary'],
+        }
+        probe_results = {
+            'llm:primary': {'reachable': True},
+            'llm:secondary': {'reachable': False},
+        }
+        with patch('failover.ensure_fresh_probes') as ensure_fresh, \
+                patch('failover.current_probe_state', side_effect=probe_results.__getitem__):
+            offline_queue_tick(
+                db,
+                lambda _db: lambda _service, episode: target_map[episode['episode_id']])
+        ensure_fresh.assert_called_once_with(['llm:primary', 'llm:secondary'])
+        assert db.get_episode(SLUG, 'ep-primary')['status'] == 'pending'
+        assert db.get_episode(SLUG, 'ep-secondary')['status'] == 'deferred'
+
+    def test_changed_route_uses_fresh_standby_result(self, seeded_episode):
+        self._defer('ep-flipped', '2999-01-01T00:00:00Z', service='llm')
+        route_calls = 0
+
+        def resolve(_service, _episode):
+            nonlocal route_calls
+            route_calls += 1
+            return ['llm:primary'] if route_calls == 1 else ['llm:failover']
+
+        with patch('failover.ensure_fresh_probes') as ensure_fresh, \
+                patch('failover.current_probe_state',
+                      return_value={'reachable': True}):
+            offline_queue_tick(db, lambda _db: resolve)
+        assert ensure_fresh.call_args_list == [
+            call(['llm:primary']), call(['llm:failover']),
+        ]
+        assert db.get_episode(SLUG, 'ep-flipped')['status'] == 'pending'
+
+    def test_stale_result_after_probe_timeout_does_not_requeue(self, seeded_episode):
+        self._defer('ep-stale', '2999-01-01T00:00:00Z', service='llm')
+        with patch('failover.ensure_fresh_probes'), \
+                patch('failover.current_probe_state', return_value={'reachable': None}):
+            offline_queue_tick(
+                db,
+                lambda _db: lambda _service, _episode: ['llm:primary'])
+        assert db.get_episode(SLUG, 'ep-stale')['status'] == 'deferred'
+
+    def test_changed_config_and_live_lease_do_not_requeue_stale_healthy_result(
+            self, seeded_episode, preserve_setting):
+        for key in ('provider_config_revision', 'failover_probe:llm:primary',
+                    'failover_probe_lease:llm:primary'):
+            preserve_setting(key)
+        self._defer('ep-lease', '2999-01-01T00:00:00Z')
+        db.set_setting('provider_config_revision', 'before', is_default=False)
+        with patch('failover.probe_target',
+                   return_value={'reachable': True, 'status': 200, 'detail': ''}):
+            failover.probe_tick(db, ['llm:primary'])
+        db.set_setting('provider_config_revision', 'after', is_default=False)
+        db.set_setting(
+            'failover_probe_lease:llm:primary',
+            json.dumps({'token': 'other-worker', 'expires_at': time.time() + 60}),
+            is_default=False,
+        )
+        with patch.object(failover, '_PROBE_WAIT_SECONDS', 0), \
+                patch('failover.probe_target') as probe:
+            offline_queue_tick(
+                db,
+                lambda _db: lambda _service, _episode: ['llm:primary'])
+        probe.assert_not_called()
+        assert db.get_episode(SLUG, 'ep-lease')['status'] == 'deferred'
+
+    def test_recut_does_not_probe_unused_services(self, seeded_episode):
+        self._defer('ep-recut', '2999-01-01T00:00:00Z')
+        db.upsert_episode(SLUG, 'ep-recut', reprocess_mode='recut')
+        episode = {'podcast_slug': SLUG, 'episode_id': 'ep-recut'}
+        snapshot = {'detection': {'credential_slot': 'primary'}}
+        with patch.object(background, '_resolve_route_snapshot', return_value=snapshot), \
+                patch.object(background, '_active_phases_for_admission') as active_phases, \
+                patch('failover.run_probe_targets') as run_targets:
+            resolve = background._offline_queue_target_resolver(db)
+            assert resolve('llm', episode) == []
+            assert resolve('whisper', episode) == []
+        active_phases.assert_not_called()
+        run_targets.assert_not_called()
+
+    def test_resolver_uses_only_enabled_llm_phase_slots(self, seeded_episode, preserve_setting):
+        for key in ('enable_ad_review', 'secondary_provider_enabled'):
+            preserve_setting(key)
+        self._defer('ep-routed', '2999-01-01T00:00:00Z')
+        db.update_podcast(SLUG, skip_second_pass=True, chapters_mode='off')
+        db.set_setting('enable_ad_review', 'false', is_default=False)
+        db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+        failover.invalidate_cache()
+        snapshot = {
+            'detection': {'credential_slot': 'primary'},
+            'review': {'credential_slot': 'secondary'},
+            'verification': {'credential_slot': 'secondary'},
+            'chapters': {'credential_slot': 'secondary'},
+        }
+        with patch.object(background, '_resolve_route_snapshot', return_value=snapshot):
+            resolve = background._offline_queue_target_resolver(db)
+            assert resolve('llm', {
+                'podcast_slug': SLUG, 'episode_id': 'ep-routed'}) == ['llm:primary']
+
+    def test_offline_tick_probes_active_llm_standby(self, seeded_episode, preserve_setting):
+        self._defer('ep-llm-standby', '2999-01-01T00:00:00Z')
+        for key in ('failover_llm_enabled', 'failover_llm_provider',
+                    'failover_llm_detection_model', 'failover_llm_base_url',
+                    'failover_state:llm:primary', 'failover_generation:llm:primary',
+                    'failover_probe:llm:failover', 'failover_probe_lease:llm:failover'):
+            preserve_setting(key)
+        db.set_setting('failover_llm_enabled', 'true', is_default=False)
+        db.set_setting('failover_llm_provider', 'openai-compatible', is_default=False)
+        db.set_setting('failover_llm_detection_model', 'standby-model', is_default=False)
+        failover.invalidate_cache()
+        episode = {'podcast_slug': SLUG, 'episode_id': 'ep-llm-standby'}
+        snapshot = {
+            'detection': {'credential_slot': 'primary'},
+            'review': {'credential_slot': 'primary'},
+            'verification': {'credential_slot': 'primary'},
+            'chapters': {'credential_slot': 'primary'},
+        }
+        with patch.object(background, '_resolve_route_snapshot', return_value=snapshot), \
+                patch('failover.webhook_service.fire_failover_event'), \
+                patch('failover.probe_target', return_value={
+                    'reachable': True, 'status': 200, 'detail': ''}) as probe:
+            failover.trigger('llm:primary', 'offline queue test')
+            offline_queue_tick(db, background._offline_queue_target_resolver)
+        assert [call.args[0] for call in probe.call_args_list] == ['llm:failover']
+        assert db.get_episode(SLUG, episode['episode_id'])['status'] == 'pending'
+
+    def test_offline_tick_probes_active_whisper_standby(self, seeded_episode, preserve_setting):
+        self._defer('ep-whisper-standby', '2999-01-01T00:00:00Z', service='whisper')
+        for key in ('failover_whisper_enabled', 'failover_whisper_backend',
+                    'failover_whisper_api_base_url', 'failover_state:whisper',
+                    'failover_generation:whisper', 'failover_probe:whisper:failover',
+                    'failover_probe_lease:whisper:failover'):
+            preserve_setting(key)
+        db.set_setting('failover_whisper_enabled', 'true', is_default=False)
+        db.set_setting('failover_whisper_backend', 'openai-api', is_default=False)
+        db.set_setting('failover_whisper_api_base_url', 'https://standby.example/v1',
+                       is_default=False)
+        failover.invalidate_cache()
+        with patch.object(background, '_resolve_route_snapshot', return_value={}), \
+                patch('failover.webhook_service.fire_failover_event'), \
+                patch('failover.probe_target', return_value={
+                    'reachable': True, 'status': 200, 'detail': ''}) as probe:
+            failover.trigger('whisper', 'offline queue test')
+            offline_queue_tick(db, background._offline_queue_target_resolver)
+        assert [call.args[0] for call in probe.call_args_list] == ['whisper:failover']
+        assert db.get_episode(SLUG, 'ep-whisper-standby')['status'] == 'pending'
+
+    def test_passthrough_skips_llm_when_route_snapshot_is_unresolved(
+            self, seeded_episode, preserve_setting):
+        preserve_setting('secondary_provider_enabled')
+        self._defer('ep-passthrough', '2999-01-01T00:00:00Z')
+        db.update_podcast(SLUG, passthrough_enabled=True)
+        db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+        failover.invalidate_cache()
+        with patch.object(background, '_resolve_route_snapshot', return_value=None), \
+                patch('failover.run_probe_targets') as run_targets:
+            resolve = background._offline_queue_target_resolver(db)
+            assert resolve('llm', {
+                'podcast_slug': SLUG, 'episode_id': 'ep-passthrough'}) == []
+        run_targets.assert_not_called()
 
 
 class TestServiceAlerts:
@@ -294,16 +468,18 @@ class TestServiceAlerts:
     def test_probe_false_to_true_fires_reachable(self, mock_fire, seeded_episode):
         self._defer_llm()
         db.set_setting('offline_probe_llm_reachable', 'false', is_default=False)
-        with patch('llm_client.check_llm_connectivity', return_value=True):
-            offline_queue_tick(db)
+        with patch('failover.ensure_fresh_probes'), \
+                patch('failover.current_probe_state', return_value={'reachable': True}):
+            offline_queue_tick(db, _target_resolver())
         mock_fire.assert_called_once_with(service='llm', requeued=1)
 
     @patch('offline_queue.fire_service_reachable_event')
     def test_first_probe_does_not_fire_reachable(self, mock_fire, seeded_episode):
         self._defer_llm()
         db.clear_setting('offline_probe_llm_reachable')
-        with patch('llm_client.check_llm_connectivity', return_value=True):
-            offline_queue_tick(db)
+        with patch('failover.ensure_fresh_probes'), \
+                patch('failover.current_probe_state', return_value={'reachable': True}):
+            offline_queue_tick(db, _target_resolver())
         mock_fire.assert_not_called()
         assert db.get_episode(SLUG, 'ep-llm')['status'] == 'pending'
 
@@ -314,9 +490,13 @@ class TestServiceAlerts:
         self._defer_whisper('ep-w2')
         db.set_setting('offline_probe_llm_reachable', 'false', is_default=False)
         db.set_setting('offline_probe_whisper_reachable', 'false', is_default=False)
-        with patch('llm_client.check_llm_connectivity', return_value=True), \
-             patch('transcriber.check_whisper_connectivity', return_value=True):
-            offline_queue_tick(db)
+        states = {
+            'llm:primary': {'reachable': True},
+            'whisper:active': {'reachable': True},
+        }
+        with patch('failover.ensure_fresh_probes'), \
+                patch('failover.current_probe_state', side_effect=states.__getitem__):
+            offline_queue_tick(db, _target_resolver())
         assert mock_fire.call_args_list == [
             call(service='llm', requeued=1),
             call(service='whisper', requeued=2),
@@ -340,8 +520,9 @@ class TestServiceAlerts:
         a recovery reads False -> True even with no earlier tick."""
         db.set_setting('offline_queue_enabled', 'true')
         _fail(seeded_episode, ServiceUnavailableError('llm', 'down'))
-        with patch('llm_client.check_llm_connectivity', return_value=True):
-            offline_queue_tick(db)
+        with patch('failover.ensure_fresh_probes'), \
+                patch('failover.current_probe_state', return_value={'reachable': True}):
+            offline_queue_tick(db, _target_resolver())
         mock_fire.assert_called_once_with(service='llm', requeued=1)
         assert db.get_episode(SLUG, seeded_episode)['status'] == 'pending'
 

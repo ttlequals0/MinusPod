@@ -11,18 +11,24 @@ from typing import Literal
 import failover
 import run_log
 from config import (
+    DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER,
     FEED_REFRESH_OUTAGE_MIN_FEEDS, MAX_EPISODE_RETRIES,
-    resolve_episode_log_retention_days, title_matches_skip_patterns,
+    PROCESSING_MODE_CUE_ONLY, PROCESSING_MODE_PASSTHROUGH,
+    resolve_episode_log_retention_days, resolve_processing_mode,
+    resolve_skip_transcription, title_matches_skip_patterns,
 )
 from database.queue import PENDING_QUEUE_LIMIT
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 from utils.time import parse_iso_utc
-from transcriber import unload_whisper_if_idle
+from transcriber import active_whisper_settings, unload_whisper_if_idle
 from whisper_pool import get_pool
 # Singletons are bound in main_app/__init__.py before this submodule
 # is loaded by the explicit `from main_app.background import ...` at
 # the bottom of that file, so the apparent circular import is safe.
 from main_app import db, storage, shutdown_event
+from main_app.processing import (
+    _active_phases_for_admission, _admission_gates, _resolve_route_snapshot,
+)
 from recents_feed import rebuild_recents_feed
 
 refresh_logger = logging.getLogger('podcast.refresh')
@@ -114,6 +120,43 @@ def _run_tick(tick_fn, name):
         # tick's partial work (issue #566).
         db.clear_leaked_transaction(refresh_logger, name)
         return None
+
+
+def _offline_queue_target_resolver(settings_db):
+    snapshot = _resolve_route_snapshot()
+    try:
+        gates = _admission_gates(settings_db)
+    except Exception:
+        gates = None
+
+    def resolve(service, episode):
+        slug = episode['podcast_slug']
+        episode_id = episode['episode_id']
+        podcast_row = settings_db.get_podcast_row(slug)
+        episode_row = settings_db.get_episode(slug, episode_id)
+        rerun_mode = (episode_row or {}).get('reprocess_mode')
+        mode = resolve_processing_mode(podcast_row, episode_row)
+        if rerun_mode == 'recut':
+            return []
+        if mode == PROCESSING_MODE_PASSTHROUGH:
+            return []
+        if service == DEFER_SERVICE_LLM:
+            phases = None if snapshot is None else _active_phases_for_admission(
+                slug, episode_id, snapshot=snapshot, gates=gates)
+            return failover.run_probe_targets(phases, whisper_required=False)
+        if service != DEFER_SERVICE_WHISPER:
+            return []
+
+        skip_transcription = (
+            mode == PROCESSING_MODE_CUE_ONLY
+            and resolve_skip_transcription(podcast_row)
+        )
+        if (skip_transcription or rerun_mode == 'llm'):
+            return []
+        active = active_whisper_settings()
+        return ['whisper:failover' if active.get('is_failover') else 'whisper:active']
+
+    return resolve
 
 
 def run_cleanup():
@@ -536,7 +579,10 @@ def background_queue_processor():
 
                 # Offline queue (#482): expire deferred episodes past their
                 # TTL and re-queue the rest once their service is reachable.
-                _run_tick(offline_queue_tick, 'offline_queue_tick')
+                _run_tick(
+                    lambda settings_db: offline_queue_tick(
+                        settings_db, _offline_queue_target_resolver),
+                    'offline_queue_tick')
 
                 db.clear_completed_queue_items(older_than_hours=24)
 

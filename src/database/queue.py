@@ -940,22 +940,13 @@ class QueueMixin:
         conn.commit()
         return expired
 
-    def requeue_deferred_episodes(self, services: set[str]) -> int:
-        """Flip deferred episodes back to pending for the given services.
-
-        The offline tick passes the probe-derived reachable services.
-
-        Each episode gets its auto_process_queue row upserted to pending (the
-        background processor's atomic claim drives it from there).
-        deferred_service NULL reads as llm. deferred_at is deliberately
-        KEPT: it marks the first entry into the offline queue, so the TTL
-        keeps ticking across re-drive cycles (success and TTL expiry clear
-        it). Episodes on auto-process-disabled feeds without a user-initiated
-        reprocess stay deferred -- the claim-time gate would otherwise close
-        their queue row and strand them in 'pending' outside every ladder.
-        """
+    def requeue_deferred_episodes(
+            self, services: set[str], episode_ids: set[int] | None = None) -> int:
+        """Requeue matching deferred episodes while preserving their TTL."""
         requeued = 0
         for episode in self.get_deferred_episodes():
+            if episode_ids is not None and episode['id'] not in episode_ids:
+                continue
             service = episode.get('deferred_service') or DEFER_SERVICE_LLM
             if service not in services:
                 continue

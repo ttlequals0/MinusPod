@@ -126,6 +126,51 @@ def test_ensure_fresh_probes_skips_recent():
         assert p.call_count == 1
 
 
+def test_ensure_fresh_probes_rechecks_recent_result_after_configuration_change(
+        preserve_setting):
+    preserve_setting('provider_config_revision')
+    db = Database(); _reset(db)
+    db.set_setting('provider_config_revision', 'before', is_default=False)
+    with _probe({'llm:primary': True}) as p:
+        failover.probe_tick(db, ['llm:primary'])
+        db.set_setting('provider_config_revision', 'after', is_default=False)
+        failover.ensure_fresh_probes(['llm:primary'])
+    assert p.call_count == 2
+
+
+def test_current_probe_state_rejects_recent_result_after_configuration_change(
+        preserve_setting):
+    preserve_setting('provider_config_revision')
+    db = Database(); _reset(db)
+    db.set_setting('provider_config_revision', 'before', is_default=False)
+    with _probe({'llm:primary': True}):
+        failover.probe_tick(db, ['llm:primary'])
+        before = failover._capture_probe_context(db, 'llm:primary')['config_identity']
+        db.set_setting('provider_config_revision', 'after', is_default=False)
+        after = failover._capture_probe_context(db, 'llm:primary')['config_identity']
+        assert before != after
+        assert failover.probe_state('llm:primary')['reachable'] is True
+        assert failover.current_probe_state('llm:primary')['reachable'] is None
+
+
+def test_current_probe_state_rejects_result_after_generation_change():
+    db = Database(); _reset(db)
+    with _probe({'llm:primary': True}):
+        failover.probe_tick(db, ['llm:primary'])
+        failover.trigger('llm:primary', 'test')
+    assert failover.current_probe_state('llm:primary')['reachable'] is None
+
+
+def test_current_probe_state_rejects_result_after_local_outcome_changes(preserve_setting):
+    preserve_setting('transcribe_last_local_outcome')
+    db = Database(); _reset(db)
+    with _probe({'whisper:active': True}):
+        failover.probe_tick(db, ['whisper:active'])
+        db.set_setting('transcribe_last_local_outcome', '{"outcome":"failure"}',
+                       is_default=False)
+    assert failover.current_probe_state('whisper:active')['reachable'] is None
+
+
 def test_probe_tick_probes_targets_concurrently():
     db = Database(); _reset(db)
 
