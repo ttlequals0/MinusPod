@@ -39,7 +39,7 @@ from llm_client import (
     extract_retry_after, get_client_for_provider, get_effective_provider,
     is_rate_limit_error,
 )
-from llm_route import resolve_route
+from llm_route import ALL_CREDENTIAL_SLOTS, resolve_route
 import run_context
 from utils.safe_http import safe_get, URLTrust
 from utils.time import ISO_FORMAT, epoch_to_iso, parse_iso_utc, utc_now, utc_now_iso
@@ -271,7 +271,7 @@ def active_held_pairs(db) -> set[tuple[str, str]]:
         if not hold_is_active(get_hold_until(db, suffix)):
             continue
         provider, _, slot = suffix.rpartition(':')
-        if slot not in ('primary', 'secondary'):
+        if slot not in ALL_CREDENTIAL_SLOTS:
             provider, slot = suffix, 'primary'
         pairs.add((provider, slot))
     return pairs
@@ -575,14 +575,17 @@ def hold_queue_for_provider_limit(db, error, *, slug: str, episode_id: str,
     return hold_until
 
 
-def _rate_limit_setting_keys(credential_slot: str) -> tuple[str, str, str]:
-    """(rpm_key, rpd_key, tpm_key) for a slot: secondary reads secondary_*."""
+def _rate_limit_setting_keys(credential_slot: str) -> tuple[str, str, str] | None:
+    """(rpm_key, rpd_key, tpm_key) for a slot: secondary reads secondary_*.
+    None for a slot with no manual-cap settings (e.g. failover)."""
     if credential_slot == 'secondary':
         return ('secondary_provider_requests_per_min',
                 'secondary_provider_requests_per_day',
                 'secondary_provider_tokens_per_min')
-    return ('provider_requests_per_min', 'provider_requests_per_day',
-            'provider_tokens_per_min')
+    if credential_slot == 'primary':
+        return ('provider_requests_per_min', 'provider_requests_per_day',
+                'provider_tokens_per_min')
+    return None
 
 
 def manual_rate_limit_caps(credential_slot: str = 'primary') -> dict:
@@ -591,15 +594,21 @@ def manual_rate_limit_caps(credential_slot: str = 'primary') -> dict:
     The single definition of the manual caps and their windows, shared by the
     pre-start evaluation and the atomic per-request reservation, so the two
     can never disagree on what counts as "inside the window". All-zero caps
-    mean no manual limit is configured.
+    mean no manual limit is configured. A slot with no cap settings (e.g.
+    failover) always reads as all-zero/unlimited.
     """
-    rpm_key, rpd_key, tpm_key = _rate_limit_setting_keys(credential_slot)
+    keys = _rate_limit_setting_keys(credential_slot)
     now = utc_now()
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if keys is None:
+        rpm = rpd = tpm = 0
+    else:
+        rpm_key, rpd_key, tpm_key = keys
+        rpm = get_env_backed_int(rpm_key, floor=0)
+        rpd = get_env_backed_int(rpd_key, floor=0)
+        tpm = get_env_backed_int(tpm_key, floor=0)
     return {
-        'rpm': get_env_backed_int(rpm_key, floor=0),
-        'rpd': get_env_backed_int(rpd_key, floor=0),
-        'tpm': get_env_backed_int(tpm_key, floor=0),
+        'rpm': rpm, 'rpd': rpd, 'tpm': tpm,
         'minute_since': (now - timedelta(seconds=60)).strftime(ISO_FORMAT),
         'day_since': midnight.strftime(ISO_FORMAT),
     }
@@ -871,7 +880,7 @@ def _active_hold_sources(db) -> list[tuple[str, str | None, str, str | None]]:
         if not hold_is_active(hold_until):
             continue
         held_provider, _, slot = suffix.rpartition(':')
-        if slot not in ('primary', 'secondary'):
+        if slot not in ALL_CREDENTIAL_SLOTS:
             held_provider, slot = suffix, 'primary'
         sources.append((hold_until, held_provider, slot, suffix))
     return sources

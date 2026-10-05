@@ -15,6 +15,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
+import failover
 from config import (
     ModelNotConfiguredError, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
     PROVIDERS_NON_ANTHROPIC, OPENROUTER_BASE_URL, DEFAULT_OPENAI_BASE_URL,
@@ -36,7 +37,9 @@ SAME_AS_PASS = 'same_as_pass'
 SAME_AS_DETECTION = 'same_as_detection'
 SLOT_PRIMARY = 'primary'
 SLOT_SECONDARY = 'secondary'
+SLOT_FAILOVER = 'failover'
 VALID_SLOTS = (SLOT_PRIMARY, SLOT_SECONDARY)
+ALL_CREDENTIAL_SLOTS = (SLOT_PRIMARY, SLOT_SECONDARY, SLOT_FAILOVER)
 
 # Stages already warned about a secondary-disabled/misconfigured fallback,
 # so a busy queue logs once instead of once per resolve_route call.
@@ -115,6 +118,11 @@ def account_identity_for_slot(credential_slot: str, db=None) -> str | None:
         if not provider:
             return None
         return account_identity(provider, _base_url_for_secondary(db, provider))
+    if credential_slot == SLOT_FAILOVER:
+        cfg = failover.failover_llm_config()
+        if not cfg['provider']:
+            return None
+        return account_identity(cfg['provider'], _failover_base_url(cfg['provider'], cfg['base_url']))
     return account_identity_for_primary_provider(get_effective_provider())
 
 
@@ -125,10 +133,13 @@ def current_account_identity(provider_key: str | None,
 
     The secondary slot shares one key across every provider type it can hold,
     so its identity follows the slot's own configuration; the primary slot's
-    follows the provider type being called.
+    follows the provider type being called. The failover slot follows its
+    own configuration too, like secondary.
     """
     if credential_slot == SLOT_SECONDARY:
         return account_identity_for_slot(SLOT_SECONDARY)
+    if credential_slot == SLOT_FAILOVER:
+        return account_identity_for_slot(SLOT_FAILOVER)
     return account_identity_for_primary_provider(provider_key)
 
 
@@ -227,6 +238,43 @@ def _base_url_for_secondary(db, provider: str) -> str | None:
         raw = db.get_setting('secondary_provider_base_url') or DEFAULT_OPENAI_BASE_URL
         return _normalize_base_url_for_provider(provider, raw)
     return None
+
+
+def _failover_base_url(provider: str, raw: str | None) -> str | None:
+    """Non-secret endpoint for the failover slot."""
+    if provider == PROVIDER_ANTHROPIC:
+        return None
+    if provider == PROVIDER_OPENROUTER:
+        return OPENROUTER_BASE_URL
+    return _normalize_base_url_for_provider(provider, raw or DEFAULT_OPENAI_BASE_URL)
+
+
+def apply_failover(route: Route) -> Route:
+    """The failover Route for `route` while its slot is failed over, else `route`."""
+    target = failover.llm_target_for_slot(route.credential_slot)
+    if target is None or not failover.is_active(target) or not failover.is_configured(target):
+        return route
+    cfg = failover.failover_llm_config()
+    model = cfg['models'].get(route.phase) or cfg['models']['detection']
+    base_url = _failover_base_url(cfg['provider'], cfg['base_url'])
+    return Route(phase=route.phase, provider_key=cfg['provider'], model_id=model,
+                 base_url=base_url, slot=SLOT_FAILOVER, credential_slot=SLOT_FAILOVER,
+                 account_id=account_identity(cfg['provider'], base_url))
+
+
+def apply_failover_dict(route: dict) -> dict:
+    """Snapshot-dict form of apply_failover; marks the replaced slot in failover_from."""
+    slot = route.get('credential_slot', SLOT_PRIMARY)
+    target = failover.llm_target_for_slot(slot)
+    if target is None or not failover.is_active(target) or not failover.is_configured(target):
+        return route
+    cfg = failover.failover_llm_config()
+    phase = route.get('phase')
+    model = cfg['models'].get(phase) or cfg['models']['detection']
+    base_url = _failover_base_url(cfg['provider'], cfg['base_url'])
+    return {**route, 'provider_key': cfg['provider'], 'configured_model': model,
+            'base_url': base_url, 'credential_slot': SLOT_FAILOVER,
+            'account_id': account_identity(cfg['provider'], base_url), 'failover_from': slot}
 
 
 def _resolve_slot_config(db, slot: str) -> tuple[str, str | None, str]:

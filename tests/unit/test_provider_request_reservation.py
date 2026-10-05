@@ -28,6 +28,13 @@ def _caps(rpm=0, rpd=0, tpm=0):
     return caps
 
 
+def test_manual_rate_limit_caps_failover_slot_is_unlimited():
+    """The failover slot has no manual-cap settings; it must read as
+    all-zero/unlimited rather than raising or inheriting primary's caps."""
+    caps = manual_rate_limit_caps('failover')
+    assert caps['rpm'] == 0 and caps['rpd'] == 0 and caps['tpm'] == 0
+
+
 class TestReservationIsAtomic:
     def test_cap_of_one_admits_one_of_two_reservations(self, temp_db):
         first = temp_db.reserve_llm_attempt(

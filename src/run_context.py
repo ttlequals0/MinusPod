@@ -211,11 +211,20 @@ def record_ffmpeg_elapsed(seconds: float) -> None:
 
 def route_for_phase(phase: str) -> dict | None:
     """This thread's run route for `phase` ({provider_key, configured_model}),
-    or None outside a run or before the snapshot is resolved."""
+    with the live failover override applied, or None outside a run or
+    before the snapshot is resolved."""
     ctx = current()
     if ctx is None or not ctx.route_snapshot:
         return None
-    return ctx.route_snapshot.get(phase)
+    route = ctx.route_snapshot.get(phase)
+    if route is None or route.get('credential_slot') == 'failover':
+        return route
+    from llm_route import apply_failover_dict  # cycle: llm_route imports run_context
+    overridden = apply_failover_dict({**route, 'phase': phase})
+    if overridden.get('credential_slot') != 'failover':
+        return route  # not overridden: return the stored entry unchanged
+    overridden.pop('phase', None)
+    return overridden
 
 
 def run_in_worker_thread(fn):

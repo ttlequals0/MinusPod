@@ -148,7 +148,7 @@ from llm_client import (
     get_effective_provider,
 )
 from database.queue import compute_queue_priority
-from llm_route import resolve_route, route_account_mismatch
+from llm_route import apply_failover_dict, resolve_route, route_account_mismatch
 from offline_queue import is_offline_queue_enabled, record_probe_state
 from rate_limit_hold import (
     HOLD_REASON_ACCOUNT_CHANGED, HOLD_REASON_PAUSED, active_hold_reason,
@@ -6136,8 +6136,9 @@ def _resolve_route_snapshot() -> dict | None:
     except Exception as exc:
         audio_logger.warning(f"Could not resolve per-phase LLM routes: {exc}")
         return None
-    snapshot = {
-        route.phase: {
+    snapshot = {}
+    for route in (detection, review, verification, chapters):
+        entry = {
             'provider_key': route.provider_key, 'configured_model': route.model_id,
             'base_url': route.base_url, 'credential_slot': route.credential_slot,
             # Non-secret account identity (provider type + endpoint), so a
@@ -6145,8 +6146,12 @@ def _resolve_route_snapshot() -> dict | None:
             # belongs to a different account.
             'account_id': route.account_id,
         }
-        for route in (detection, review, verification, chapters)
-    }
+        # 'phase' is only needed by apply_failover_dict to pick the right
+        # per-phase failover model; drop it so a non-overridden entry's
+        # shape is unchanged. 'failover_from' is kept when added.
+        entry = apply_failover_dict({**entry, 'phase': route.phase})
+        entry.pop('phase', None)
+        snapshot[route.phase] = entry
     snapshot['review']['gate'] = review_gate
     return snapshot
 

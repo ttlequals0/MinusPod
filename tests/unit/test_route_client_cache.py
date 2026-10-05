@@ -6,7 +6,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('route_client_cache_test_')
 
 import llm_client
-from llm_client import get_client_for_provider, get_llm_client, OpenAICompatibleClient
+from llm_client import _build_client, get_client_for_provider, get_llm_client, OpenAICompatibleClient
 
 
 class TestGetClientForProviderCache(unittest.TestCase):
@@ -212,6 +212,12 @@ class TestCredentialSlotRouting(unittest.TestCase):
         for key in llm_client._circuit_breakers.keys():
             self.assertNotIn('top-secret-anthropic-primary', str(key))
             self.assertNotIn('top-secret-anthropic-secondary', str(key))
+
+    @patch('llm_client.get_effective_failover_llm_api_key', return_value='fo-key')
+    def test_failover_slot_resolves_failover_api_key(self, *_mocks):
+        client = _build_client('openai-compatible', base_url='http://a/v1',
+                               credential_slot='failover')
+        self.assertEqual(client.api_key, 'fo-key')
 
 
 if __name__ == '__main__':

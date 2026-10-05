@@ -473,6 +473,11 @@ def get_effective_secondary_provider_api_key() -> str | None:
     return _get_cached_secret('secondary_provider_api_key')
 
 
+def get_effective_failover_llm_api_key() -> str | None:
+    """Return the failover-slot LLM API key. DB secret only, like secondary."""
+    return _get_cached_secret('failover_llm_api_key')
+
+
 def _apply_pass_fallback(
     episode_id: str | None,
     pass_name: str | None,
@@ -2028,21 +2033,27 @@ def _build_client(provider: str, base_url: str | None = None,
     providers (used by per-provider routing); when omitted, the effective
     setting is used as before. ``credential_slot`` picks which secret to
     resolve: 'primary' (default) reads the provider type's own key;
-    'secondary' reads secondary_provider_api_key instead, so a secondary
-    slot of the same type as primary never reuses primary's credential. An
-    unset secondary key builds with no/empty key (matching the keyless-local
-    path below) rather than falling back to the primary secret; the auth
-    error then surfaces at call time, not here.
+    'secondary' reads secondary_provider_api_key, 'failover' reads
+    failover_llm_api_key, so neither slot ever reuses primary's credential
+    when it shares a provider type. An unset secondary/failover key builds
+    with no/empty key (matching the keyless-local path below) rather than
+    falling back to the primary secret; the auth error then surfaces at
+    call time, not here.
     """
-    secondary = credential_slot == 'secondary'
+    def slot_key(primary_getter):
+        if credential_slot == 'secondary':
+            return get_effective_secondary_provider_api_key()
+        if credential_slot == 'failover':
+            return get_effective_failover_llm_api_key()
+        return primary_getter()
+
     if provider == PROVIDER_ANTHROPIC:
         client = AnthropicClient()
-        if secondary:
-            client.api_key = get_effective_secondary_provider_api_key()
+        if credential_slot != 'primary':
+            client.api_key = slot_key(lambda: client.api_key)
         return client
     elif provider == PROVIDER_OPENROUTER:
-        api_key = (get_effective_secondary_provider_api_key() if secondary
-                   else get_effective_openrouter_api_key()) or 'not-needed'
+        api_key = slot_key(get_effective_openrouter_api_key) or 'not-needed'
         return OpenAICompatibleClient(
             base_url=base_url or OPENROUTER_BASE_URL,
             api_key=api_key,
@@ -2057,8 +2068,7 @@ def _build_client(provider: str, base_url: str | None = None,
         if provider == PROVIDER_OLLAMA:
             if normalized_base_url != raw_base_url:
                 logger.info(f"Ollama provider: normalized base_url to {safe_url_for_log(normalized_base_url)}")
-            api_key = (get_effective_secondary_provider_api_key() if secondary
-                       else get_effective_ollama_api_key()) or 'not-needed'
+            api_key = slot_key(get_effective_ollama_api_key) or 'not-needed'
             ollama_num_ctx = get_effective_ollama_num_ctx()
             if ollama_num_ctx:
                 logger.info(f"Ollama provider: num_ctx={ollama_num_ctx}, using native /api/chat")
@@ -2067,8 +2077,7 @@ def _build_client(provider: str, base_url: str | None = None,
                     extra_headers=_opencode_headers(normalized_base_url),
                     ollama_num_ctx=ollama_num_ctx)
         else:
-            api_key = (get_effective_secondary_provider_api_key() if secondary
-                       else get_effective_openai_api_key()) or 'not-needed'
+            api_key = slot_key(get_effective_openai_api_key) or 'not-needed'
         return OpenAICompatibleClient(base_url=normalized_base_url, api_key=api_key,
                                       extra_headers=_opencode_headers(normalized_base_url))
     return None

@@ -2,11 +2,18 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('branch_audit_')
 
+from unittest.mock import patch
+
 import pytest
 
+import failover
 from llm_client import LLMResponse, ProviderRateLimitedError, invalidate_provider_cache
 from main_app.processing import _required_providers_for_admission, _resolve_route_snapshot
 from tests.unit.test_llm_call_window_loss import _FakeLLMClient, _window_call
+
+FAILOVER_CFG = {'provider': 'openai-compatible', 'base_url': 'http://127.0.0.1:11434/v1',
+                'timeout': None, 'max_retries': None,
+                'models': {'detection': 'qwen3:8b', 'review': '', 'verification': '', 'chapters': ''}}
 
 
 def configure_routes(db):
@@ -31,6 +38,21 @@ def test_review_snapshot_preserves_detection_account(temp_db):
     snapshot = _resolve_route_snapshot()
     assert snapshot['review']['credential_slot'] == 'secondary'
     assert snapshot['review']['base_url'] == snapshot['detection']['base_url']
+
+
+def test_admission_includes_failover_pair_when_slot_overridden(temp_db):
+    """Detection resolves to secondary; when secondary is failed over, the
+    frozen snapshot's provider pair for admission must be the failover
+    slot's provider, not the stale secondary one."""
+    configure_routes(temp_db)
+    temp_db.create_podcast('audit-failover', 'https://example.com/feed.xml', 'Audit')
+    with patch.object(failover, 'is_active', side_effect=lambda t: t == 'llm:secondary'), \
+            patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
+        snapshot = _resolve_route_snapshot()
+    assert snapshot['detection']['credential_slot'] == 'failover'
+    required = _required_providers_for_admission('audit-failover', snapshot=snapshot)
+    assert ('openai-compatible', 'failover') in required
 
 
 @pytest.mark.parametrize('projected', [False, True])
