@@ -185,7 +185,9 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                       (processing.get_episode_token_totals(), True)[1])
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
-        p(processing.os.path, 'exists', return_value=False)
+        path_exists = processing.os.path.exists
+        p(processing.os.path, 'exists', side_effect=lambda path:
+          False if path in ('/tmp/mode.mp3', '/tmp/cut.mp3') else path_exists(path))
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
