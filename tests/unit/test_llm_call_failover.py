@@ -2,12 +2,16 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+import httpx
+import openai
 
 from tests.app_bootstrap import bootstrap
 bootstrap('llm_call_failover_test_')
 
 import failover
 import llm_route
+from cancel import ProcessingCancelled
+from llm_client import ProviderAccountChangedError, ProviderRateLimitedError
 from utils import llm_call
 
 FAILOVER_ROUTE = llm_route.Route(
@@ -94,13 +98,11 @@ def test_no_redispatch_when_unconfigured(no_sleep):
     trig.assert_not_called()
 
 
-def test_failover_failure_keeps_original_connectivity_error(no_sleep):
-    """A primary connectivity outage stays the returned error even when the
-    failover attempt also fails, since deferral classifies on the active
-    provider's state (#806 review)."""
+def test_standby_rejection_replaces_primary_connectivity_error(no_sleep):
     primary_error = _outage()
     primary = MagicMock(); primary.create_message.side_effect = primary_error
-    fo_client = MagicMock(); fo_client.create_message.side_effect = _bad_request()
+    standby_error = _bad_request()
+    fo_client = MagicMock(); fo_client.create_message.side_effect = standby_error
     with patch.object(failover, 'is_configured', return_value=True), \
             patch.object(failover, 'trigger', return_value=True), \
             patch.object(llm_call, '_failover_route', return_value=FAILOVER_ROUTE), \
@@ -108,16 +110,16 @@ def test_failover_failure_keeps_original_connectivity_error(no_sleep):
             patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
         response, err = _call(primary)
     assert response is None
-    assert err is primary_error
+    assert err is standby_error
+    assert err.__context__ is primary_error
     assert fo_client.create_message.call_count >= 1
 
 
-def test_failover_failure_keeps_original_not_found_error(no_sleep):
-    """The reverse case: a primary 404 stays the returned error even when the
-    failover attempt fails with a connectivity outage."""
+def test_standby_outage_replaces_primary_not_found_error(no_sleep):
     primary_error = _not_found()
     primary = MagicMock(); primary.create_message.side_effect = primary_error
-    fo_client = MagicMock(); fo_client.create_message.side_effect = _outage()
+    standby_error = _outage()
+    fo_client = MagicMock(); fo_client.create_message.side_effect = standby_error
     with patch.object(failover, 'is_configured', return_value=True), \
             patch.object(failover, 'trigger', return_value=True), \
             patch.object(llm_call, '_failover_route', return_value=FAILOVER_ROUTE), \
@@ -125,7 +127,8 @@ def test_failover_failure_keeps_original_not_found_error(no_sleep):
             patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
         response, err = _call(primary)
     assert response is None
-    assert err is primary_error
+    assert err is standby_error
+    assert err.__context__ is primary_error
     assert fo_client.create_message.call_count >= 1
 
 
@@ -159,6 +162,41 @@ def test_trigger_raising_returns_original_error(no_sleep):
             patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
         response, err = _call(primary)
     assert response is None and err is primary_error
+
+
+@pytest.mark.parametrize('standby_error', [
+    ProviderRateLimitedError('standby hold', 60, provider_key='openai-compatible', credential_slot='failover'),
+    openai.AuthenticationError('rejected', response=httpx.Response(
+        401, request=httpx.Request('POST', 'http://example.com')), body=None),
+    ProcessingCancelled('cancelled'),
+    ProviderAccountChangedError('account changed', credential_slot='failover'),
+])
+def test_standby_terminal_error_retains_type_and_primary_context(no_sleep, standby_error):
+    primary_error = _not_found()
+    primary = MagicMock(); primary.create_message.side_effect = primary_error
+    standby = MagicMock(); standby.create_message.side_effect = standby_error
+    setup_error = standby_error if isinstance(standby_error, (ProcessingCancelled, ProviderAccountChangedError)) else None
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(llm_call, '_failover_route', return_value=FAILOVER_ROUTE), \
+            patch.object(llm_call, 'client_for_route', return_value=standby, side_effect=setup_error), \
+            patch.object(llm_call, '_fire_auth_failure_webhook'), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, error = _call(primary)
+    assert response is None
+    assert error is standby_error
+    assert error.__context__ is primary_error
+
+
+def test_missing_standby_route_returns_original_error(no_sleep):
+    primary_error = _not_found()
+    primary = MagicMock(); primary.create_message.side_effect = primary_error
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=False), \
+            patch.object(llm_call, '_failover_route', return_value=None), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, error = _call(primary)
+    assert response is None and error is primary_error
 
 
 def test_failover_downgrades_json_schema_when_model_lacks_support(no_sleep):

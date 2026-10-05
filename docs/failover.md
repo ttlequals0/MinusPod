@@ -44,7 +44,7 @@ The transcriber side uses the same shape: connection errors and 5xx-equivalent b
 
 ## What happens mid-run
 
-**LLM calls.** A call that exhausts its normal retry ladder on a trigger error is retried once on the failover provider. That retry runs the failover provider's full retry ladder, with its own model for the pipeline phase, its own timeout, and its own retry count. Later calls in the same run follow immediately, because failover state is checked live, not just at run start. If the failover attempt also fails, the *original* error is what gets returned and classified for deferral or retry, since that reflects the account the pipeline is actually trying to use.
+**LLM calls.** A call that exhausts its normal retry ladder on a trigger error is retried once on the failover provider. That retry runs the failover provider's full retry ladder, with its own model for the pipeline phase, its own timeout, and its own retry count. Later calls in the same run follow immediately, because failover state is checked live, not just at run start. If the standby attempt also fails, its error determines deferral or retry. The original provider error is retained as context for diagnostics.
 
 **Transcription.** The behavior differs by whether the failover transcriber is the same kind of backend as the active one:
 

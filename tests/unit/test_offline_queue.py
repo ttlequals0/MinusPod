@@ -5,17 +5,25 @@ Uses the main_app boot pattern from test_history_ad_count: bind a temp
 DATA_DIR before importing main_app so singletons initialize against it.
 """
 import socket
-from unittest.mock import call, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 import requests
+import httpx
+import openai
 
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('offline_queue_test_')
 from llm_client import is_connectivity_error, LimitExceededError, StructuralRateLimitError
+import failover
+import llm_route
+from ad_detector import _windows_failed_response
+from config import MAX_EPISODE_RETRIES
 from main_app import db
-from main_app.processing import _handle_processing_failure, is_transient_error
+from main_app.episode_context import EpisodeContext
+from main_app.processing import _detect_ads_first_pass, _handle_processing_failure, is_transient_error
+from utils import llm_call
 from offline_queue import offline_queue_tick
 from utils.circuit_breaker import CircuitBreakerOpen
 from utils.errors import (
@@ -67,6 +75,44 @@ def _fail(episode_id, error):
 
 
 class TestDeferral:
+    def test_standby_outage_after_primary_rejection_preserves_final_retry(self, seeded_episode):
+        db.set_setting('offline_queue_enabled', 'true')
+        final_retry = MAX_EPISODE_RETRIES - 1
+        db.upsert_episode(SLUG, seeded_episode, retry_count=final_retry)
+        request = httpx.Request('POST', 'http://example.com')
+        primary_error = openai.NotFoundError('missing model', response=httpx.Response(404, request=request), body=None)
+        standby_error = openai.InternalServerError('unavailable', response=httpx.Response(503, request=request), body=None)
+        primary = MagicMock(); primary.create_message.side_effect = primary_error
+        standby = MagicMock(); standby.create_message.side_effect = standby_error
+        route = llm_route.Route(
+            phase='detection', provider_key='openai-compatible', model_id='standby-model',
+            base_url='http://example.com/v1', slot='failover', credential_slot='failover')
+        with patch.object(failover, 'is_configured', return_value=True), \
+                patch.object(failover, 'trigger', return_value=True), \
+                patch.object(llm_call, '_failover_route', return_value=route), \
+                patch.object(llm_call, 'client_for_route', return_value=standby), \
+                patch.object(llm_call, '_manual_rate_limit_error', return_value=None), \
+                patch.object(llm_call, '_sleep_before_retry', return_value=True), \
+                patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+            response, error = llm_call.call_llm(
+                llm_client=primary, model='active-model', system_prompt='s', prompt='p',
+                llm_timeout=1, max_retries=0, max_tokens=10, slug=SLUG,
+                episode_id=seeded_episode, call_label='detection', phase_key='detection',
+                provider='openai-compatible', credential_slot='primary')
+        assert response is None and error is standby_error
+        failure = _windows_failed_response('detection', 1, 1, error, 'standby-model')
+        ctx = EpisodeContext(slug=SLUG, episode_id=seeded_episode)
+        with patch('main_app.processing.ad_detector.process_transcript', return_value=failure), \
+                patch('main_app.processing.storage'), patch('main_app.processing.status_service'), \
+                pytest.raises(ServiceUnavailableError) as caught:
+            _detect_ads_first_pass(ctx, [], '/unused.mp3', skip_patterns=False,
+                                   audio_analysis_result=None, progress_callback=None)
+        _fail(seeded_episode, caught.value)
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['status'] == 'deferred'
+        assert episode['deferred_service'] == 'llm'
+        assert episode['retry_count'] == final_retry
+
     def test_service_unavailable_defers_when_enabled(self, seeded_episode):
         db.set_setting('offline_queue_enabled', 'true')
         _fail(seeded_episode, ServiceUnavailableError('whisper', 'unreachable'))

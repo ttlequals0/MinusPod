@@ -575,11 +575,15 @@ def _failover_route(phase: str, provider_key: str, credential_slot: str, model: 
 
 def _dispatch_on_failover(run_ladder, llm_kwargs, last_error, *, target, phase, provider_key,
                          credential_slot, model, slug, episode_id, call_label):
-    """Trigger failover and rerun the ladder on the failover route; the response or None."""
-    failover.trigger(target, f"{call_label}: {type(last_error).__name__}: {str(last_error)[:200]}")
+    """Retry on standby and return its effective response or error."""
+    try:
+        failover.trigger(target, f"{call_label}: {type(last_error).__name__}: {str(last_error)[:200]}")
+    except Exception as error:
+        logger.warning(f"[{slug}:{episode_id}] {call_label} failover trigger errored: {error}")
+        return None, last_error
     route = _failover_route(phase, provider_key, credential_slot, model)
     if route is None:
-        return None
+        return None, last_error
     fo_kwargs = {**llm_kwargs, 'model': route.model_id,
                  'timeout': get_llm_timeout(route.provider_key, SLOT_FAILOVER)}
     rf = llm_kwargs.get('response_format') or {}
@@ -592,11 +596,11 @@ def _dispatch_on_failover(run_ladder, llm_kwargs, last_error, *, target, phase, 
         get_llm_max_retries(route.provider_key, SLOT_FAILOVER),
         SLOT_FAILOVER, route.provider_key)
     if response is None:
-        # The caller keeps the original trigger error: deferral classifies on
-        # the active provider, not the failover attempt.
+        if fo_error is not None and fo_error is not last_error:
+            fo_error.__context__ = last_error
         logger.warning(f"[{slug}:{episode_id}] {call_label} failover attempt on "
                        f"{route.provider_key} {route.model_id} also failed: {fo_error}")
-    return response
+    return response, fo_error
 
 
 def call_llm(
@@ -832,13 +836,15 @@ def call_llm(
     if (last_error is not None and phase and target
             and is_failover_trigger_error(last_error) and failover.is_configured(target)):
         try:
-            response = _dispatch_on_failover(
+            response, last_error = _dispatch_on_failover(
                 _run_ladder, llm_kwargs, last_error, target=target, phase=phase,
                 provider_key=provider_key, credential_slot=credential_slot, model=model,
                 slug=slug, episode_id=episode_id, call_label=call_label)
         except Exception as e:
-            # Failover is best effort: its own failure must not mask the original error.
             logger.warning(f"[{slug}:{episode_id}] {call_label} failover dispatch errored: {e}")
+            if e is not last_error:
+                e.__context__ = last_error
+            last_error = e
             response = None
         if response is not None:
             return response, None
