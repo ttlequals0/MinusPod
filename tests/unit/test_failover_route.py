@@ -1,5 +1,5 @@
 """Failover route override (#806)."""
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from tests.app_bootstrap import bootstrap
 bootstrap('failover_route_test_')
@@ -8,6 +8,8 @@ import failover
 import llm_route
 import run_context
 from llm_route import Route, apply_failover, apply_failover_dict
+from main_app import processing
+from ad_reviewer import AdReviewer
 
 PRIMARY = Route(phase='detection', provider_key='anthropic', model_id='claude-sonnet-5',
                 base_url=None, slot='primary', credential_slot='primary',
@@ -120,3 +122,66 @@ def test_reviewer_live_route_follows_mid_pass_trigger():
             patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
         route = reviewer._live_route()
     assert (route.credential_slot, route.model_id) == ('failover', 'qwen3:8b')
+
+
+def test_new_snapshot_retains_original_routes_while_standby_is_active():
+    secondary = Route(**{**PRIMARY.__dict__, 'phase': 'verification',
+                         'slot': 'secondary', 'credential_slot': 'secondary'})
+    routes = {phase: Route(**{**PRIMARY.__dict__, 'phase': phase})
+              for phase in ('detection', 'review', 'chapters')}
+    routes['verification'] = secondary
+    with patch.object(processing, 'resolve_route', side_effect=lambda phase, **kw: routes[phase]), \
+            patch.object(processing, 'Database', return_value=MagicMock()), \
+            _active({'llm:primary', 'llm:secondary'}), _configured(), \
+            patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
+        snapshot = processing._resolve_route_snapshot()
+        ctx = run_context.RunContext.__new__(run_context.RunContext)
+        ctx.route_snapshot = snapshot
+        with patch.object(run_context, 'current', return_value=ctx):
+            assert run_context.route_for_phase('detection')['configured_model'] == 'qwen3:8b'
+            assert run_context.route_for_phase('verification')['configured_model'] == 'qwen3:4b'
+    with patch.object(run_context, 'current', return_value=ctx), _active(set()):
+        assert run_context.route_for_phase('detection') is snapshot['detection']
+        assert run_context.route_for_phase('verification') is snapshot['verification']
+    assert snapshot['detection']['credential_slot'] == 'primary'
+    assert snapshot['verification']['credential_slot'] == 'secondary'
+    assert snapshot['detection']['account_id'] == PRIMARY.account_id
+
+
+def test_reviewer_started_on_standby_restores_original_frozen_pass():
+    reviewer = AdReviewer(MagicMock())
+    ctx = run_context.RunContext.__new__(run_context.RunContext)
+    ctx.route_snapshot = {
+        'detection': {'provider_key': PRIMARY.provider_key, 'configured_model': PRIMARY.model_id,
+                      'base_url': PRIMARY.base_url, 'credential_slot': 'primary'},
+        'review': {'provider_key': PRIMARY.provider_key, 'configured_model': PRIMARY.model_id,
+                   'base_url': PRIMARY.base_url, 'credential_slot': 'primary',
+                   'gate': {'review_provider': 'same_as_pass', 'review_model': 'same_as_pass'}}}
+    with patch.object(run_context, 'current', return_value=ctx), \
+            _active({'llm:primary'}), _configured(), \
+            patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
+        reviewer._active_route = reviewer._resolve_route('openai-compatible', 'qwen3:8b')
+        assert reviewer._live_route().credential_slot == 'failover'
+    with _active(set()):
+        restored = reviewer._live_route()
+    assert restored.credential_slot == 'primary'
+    assert restored.model_id == PRIMARY.model_id
+    assert restored.provider_key == PRIMARY.provider_key
+
+
+def test_admission_uses_live_standby_without_mutating_original_snapshot():
+    snapshot = {'detection': {'provider_key': PRIMARY.provider_key,
+                             'configured_model': PRIMARY.model_id,
+                             'base_url': PRIMARY.base_url, 'credential_slot': 'primary'}}
+    with patch.object(processing, 'Database'), \
+            patch.object(processing, '_admission_mode_rows', return_value=({}, {})), \
+            patch.object(processing, 'resolve_processing_mode', return_value='standard'), \
+            patch.object(processing, 'resolve_skip_second_pass', return_value=True), \
+            patch.object(processing, '_chapters_enabled_for_admission', return_value=False), \
+            _active({'llm:primary'}), _configured(), \
+            patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
+        routes = processing._active_phases_for_admission(
+            'example-podcast', snapshot=snapshot, gates={'review': False, 'chapters_enabled': False})
+    assert routes['detection']['credential_slot'] == 'failover'
+    assert routes['detection']['configured_model'] == 'qwen3:8b'
+    assert snapshot['detection']['credential_slot'] == 'primary'

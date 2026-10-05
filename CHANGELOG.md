@@ -21,6 +21,7 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- Running episodes return to their original LLM routes after standby recovery or cancellation; legacy standby snapshots requeue safely.
 - LLM recovery requires a valid successful endpoint response; malformed responses and rate limits no longer mark a provider healthy.
 - Failover forms and actions have 44 px mobile tap targets; switches keep their compact track inside a larger clickable area.
 - Health probes use a captured provider configuration and discard results after configuration or failover state changes.

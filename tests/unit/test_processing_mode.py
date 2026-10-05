@@ -125,13 +125,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                    token_cost=0.012, real_token_tracking=False,
                    approval_recut=False, route_snapshot=None,
                    failover_state=None):
-    """Drive process_episode with all stages stubbed (mirrors
-    test_skip_ad_detection's harness) and return the interesting mocks.
-
-    route_snapshot/failover_state, when given, stub the run's frozen route
-    snapshot and failover.state()/is_active() so run_stats['failover'] tests
-    do not depend on real DB-backed failover settings.
-    """
+    """Run stubbed pipeline stages with optional frozen routes and failover state."""
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
         db = p(processing, 'db')

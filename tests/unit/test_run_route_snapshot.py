@@ -1,10 +1,17 @@
 """Tests for the per-run route snapshot on RunContext and its persisted column."""
+import json
+from unittest.mock import patch
+
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 bootstrap('run_route_snapshot_test_')
 
 import run_context
 from database import Database
+from main_app import processing
+from llm_client import ProviderAccountChangedError
 
 
 def test_route_snapshot_defaults_none_and_sets():
@@ -138,3 +145,44 @@ def test_reviewer_explicit_slot_uses_frozen_review_route():
         assert route.credential_slot == 'secondary'
     finally:
         run_context.end(ctx)
+
+
+def test_legacy_standby_snapshot_requeues_without_spending_retry_budget():
+    db = processing.db
+    slug, episode_id, run_id = 'legacy-route', 'a1b2c3d4e5f6', 'legacy-route-run'
+    db.create_podcast(slug, 'https://example.com/feed.xml', title='Route Test')
+    db.upsert_episode(slug, episode_id, title='Episode', status='processing',
+                      original_url='https://example.com/episode.mp3', retry_count=2)
+    podcast_id = db.get_podcast_by_slug(slug)['id']
+    legacy = {'detection': {'provider_key': 'openai-compatible',
+                           'configured_model': 'standby-model', 'credential_slot': 'failover',
+                           'failover_from': 'primary'}}
+    conn = db.get_connection()
+    conn.execute("INSERT INTO processing_runs (run_id, podcast_id, episode_id, owner_pid, "
+                 "state, route_snapshot_json) VALUES (?, ?, ?, 1, 'running', ?)",
+                 (run_id, podcast_id, episode_id, json.dumps(legacy)))
+    conn.commit()
+    ctx = run_context.begin(slug, episode_id, run_id=run_id)
+    try:
+        loaded = processing._resolve_or_load_route_snapshot(run_id)
+        with pytest.raises(ProviderAccountChangedError) as caught:
+            processing._assert_route_snapshot_current(loaded)
+        with patch.object(processing, '_require_publication_owner'), \
+                patch.object(processing, '_publish_status'):
+            processing._handle_processing_failure(
+                slug, episode_id, 'Episode', 'Route Test', db.get_episode(slug, episode_id),
+                caught.value, 0.0)
+        assert processing._load_route_snapshot(run_id) is None
+        episode = db.get_episode(slug, episode_id)
+        assert episode['status'] == 'pending'
+        assert episode['retry_count'] == 2
+        original = {'detection': {'provider_key': 'anthropic', 'configured_model': 'primary-model',
+                                 'credential_slot': 'primary'},
+                    'verification': {'provider_key': 'openai-compatible',
+                                     'configured_model': 'secondary-model', 'credential_slot': 'secondary'}}
+        with patch.object(processing, '_resolve_route_snapshot', return_value=original):
+            assert processing._resolve_or_load_route_snapshot(run_id) == original
+        assert processing._load_route_snapshot(run_id) == original
+    finally:
+        run_context.end(ctx)
+        db.delete_podcast(slug)

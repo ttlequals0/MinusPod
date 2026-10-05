@@ -6048,7 +6048,8 @@ def _active_phases_for_admission(slug: str, episode_id: str | None = None,
         # provider as required is the safe direction, a crash here is not.
         audio_logger.warning(f"Could not resolve phase enablement for admission: {exc}")
         active_phases = dict(snapshot)
-    return active_phases
+    return {phase: apply_failover_dict({**route, 'phase': phase})
+            for phase, route in active_phases.items()}
 
 
 # Pipeline order, so an explanation names the phase a run reaches first.
@@ -6148,11 +6149,6 @@ def _resolve_route_snapshot() -> dict | None:
             # belongs to a different account.
             'account_id': route.account_id,
         }
-        # 'phase' is only needed by apply_failover_dict to pick the right
-        # per-phase failover model; drop it so a non-overridden entry's
-        # shape is unchanged. 'failover_from' is kept when added.
-        entry = apply_failover_dict({**entry, 'phase': route.phase})
-        entry.pop('phase', None)
         snapshot[route.phase] = entry
     snapshot['review']['gate'] = review_gate
     return snapshot
@@ -6177,6 +6173,11 @@ def _assert_route_snapshot_current(snapshot: dict | None) -> None:
     A recovered run reloads its persisted snapshot, so without this it would
     spend calls pairing the old endpoint with the slot's new credential.
     """
+    for phase, route in (snapshot or {}).items():
+        if isinstance(route, dict) and route.get('credential_slot') == 'failover':
+            raise ProviderAccountChangedError(
+                'Legacy standby snapshot requires fresh original routes',
+                credential_slot=route.get('failover_from', 'primary'), phase=phase)
     stale = _stale_snapshot_phases(snapshot)
     if not stale:
         return

@@ -2044,12 +2044,7 @@ def _opencode_headers(base_url: str) -> dict[str, str]:
 
 def _build_client(provider: str, base_url: str | None = None,
                    credential_slot: str = 'primary') -> LLMClient | None:
-    """Build an LLM client for a given provider without caching.
-
-    ``base_url`` overrides the endpoint for non-Anthropic providers.
-    ``credential_slot`` picks the secret: secondary and failover never fall
-    back to primary's key; unset, they build keyless and fail at call time.
-    """
+    """Build an uncached client; secondary and standby credentials never fall back to primary."""
     def slot_key(primary_getter):
         if credential_slot == 'secondary':
             return get_effective_secondary_provider_api_key()

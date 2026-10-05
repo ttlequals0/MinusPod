@@ -128,14 +128,7 @@ def account_identity_for_slot(credential_slot: str, db=None) -> str | None:
 
 def current_account_identity(provider_key: str | None,
                              credential_slot: str) -> str | None:
-    """The account a call on (provider_key, credential_slot) would
-    authenticate as right now.
-
-    The secondary slot shares one key across every provider type it can hold,
-    so its identity follows the slot's own configuration; the primary slot's
-    follows the provider type being called. The failover slot follows its
-    own configuration too, like secondary.
-    """
+    """Current account identity: primary follows the provider type, other slots their configuration."""
     if credential_slot == SLOT_SECONDARY:
         return account_identity_for_slot(SLOT_SECONDARY)
     if credential_slot == SLOT_FAILOVER:
@@ -308,11 +301,7 @@ def live_route_from(route: Route | dict | None, model=None, llm_timeout=None,
 
 
 def live_route_params(phase: str, model=None, llm_timeout=None, max_retries=None) -> LiveRoute:
-    """The phase's live run route and its request fields, read once per call.
-
-    Read per call so a mid-pass failover switches client, model, slot and
-    tunables together; the arguments are the outside-a-run fallback.
-    """
+    """Read the live route and request settings together; arguments supply the outside-run fallback."""
     return live_route_from(route_for_phase(phase), model, llm_timeout, max_retries)
 
 
@@ -408,16 +397,7 @@ def _resolve_review_route_parts(
         pass_provider: str | None, pass_model: str | None,
         pass_base_url: str | None, pass_credential_slot: str | None,
         db) -> tuple[str, str, str | None, str]:
-    """(provider_key, model_id, base_url, credential_slot) for the review
-    phase from explicit review_provider/review_model setting VALUES.
-
-    review_provider_setting is a SLOT (primary/secondary/same_as_pass).
-    same_as_pass inherits the calling pass's provider/model/base_url/
-    credential_slot, ignoring review_model; a pass on the failover slot uses
-    the failover review model instead of the pass model. Shared by
-    resolve_route's live read and AdReviewer's frozen run-start gate, so the
-    rule never drifts between the two call paths.
-    """
+    """Resolve review settings; same_as_pass inherits its route, using the standby review model on failover."""
     configured_slot = review_provider_setting or SAME_AS_PASS
     if configured_slot == SAME_AS_PASS:
         if not pass_provider or not pass_model:

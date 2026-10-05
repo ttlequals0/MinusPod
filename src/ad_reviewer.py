@@ -2467,7 +2467,7 @@ class AdReviewer:
         same_as_pass inherits the invoking pass's full route (pass 1 detection,
         pass 2 verification). Outside a run, falls back to a live resolve_route.
         """
-        review_entry = route_for_phase('review')
+        review_entry = route_for_phase('review', apply_live_failover=False)
         gate = review_entry.get('gate') if review_entry else None
         if gate is not None:
             review_provider_setting = gate.get('review_provider') or SAME_AS_PASS
@@ -2477,9 +2477,13 @@ class AdReviewer:
                     phase='review', provider_key=review_entry['provider_key'],
                     model_id=review_entry['configured_model'],
                     base_url=review_entry.get('base_url'),
-                    slot=slot, credential_slot=slot)
+                    slot=slot, credential_slot=slot,
+                    account_id=review_entry.get('account_id'))
             invoking_phase = 'verification' if pass_num == 2 else 'detection'
-            pass_entry = route_for_phase(invoking_phase) or {}
+            pass_entry = route_for_phase(invoking_phase, apply_live_failover=False) or {}
+            if pass_entry:
+                pass_provider = pass_entry['provider_key']
+                pass_model = pass_entry['configured_model']
             pass_base_url = None
             pass_credential_slot = None
             if pass_entry.get('provider_key') == pass_provider:

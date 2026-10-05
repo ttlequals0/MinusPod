@@ -626,38 +626,9 @@ def call_llm(
     is_window: bool = False,
     route_phase: str | None = None,
 ) -> tuple[object | None, Exception | None]:
-    """Call LLM with an in-loop retry then a per-window fallback retry.
-
-    Both retry loops stay on the same route/slot; that ladder is not itself a
-    cross-provider failover chain (see ``provider``/``credential_slot``
-    below). If both are exhausted by a failover-eligible error, one more
-    dispatch runs the same ladder against the failover provider (#806);
-    ``route_phase`` names the phase for that lookup, defaulting to
-    ``phase_key`` when it is already one of ``PHASES``.
-
-    Generic seam shared by ad detection/review (via ``call_llm_for_window``)
-    and chapters generation. Never raises: all failures come back as the
-    second tuple element so callers can degrade gracefully.
-
-    ``provider``, when given, is the resolved route's provider for this
-    call; error/webhook context uses it instead of the global effective
-    provider. ``credential_slot`` is that route's account ('primary' or
-    'secondary'), carried onto a held 429 so the queue pauses only that
-    account, not every account on the same provider type.
-
-    ``phase_key`` labels this call in the llm_call_usage ledger ('detection',
-    'verification', 'review', 'chapters'); every real dispatch (including
-    each retry below) is recorded as its own billable ledger row.
-
-    ``blank_json_is_failure`` treats a budget-truncated blank JSON object as a
-    failed call; only window calls, where it means an unexamined span, opt in.
-
-    ``is_window`` marks a detection/review window, the only calls whose loss
-    is a coverage gap worth its own log line.
-
-    Returns:
-        Tuple of (response, last_error). response is None if all retries failed.
-    """
+    """Return (response, last_error) after account-scoped retries and eligible standby dispatch.
+    route_phase selects standby model; phase_key labels usage; is_window logs coverage loss.
+    blank_json_is_failure rejects truncated empty JSON; provider/credential_slot scope the account."""
     provider_key = provider or get_effective_provider()
 
     invoking_pass = _invoking_pass_from_name(pass_name)
