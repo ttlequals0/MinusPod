@@ -128,7 +128,6 @@ from config import (
     resolve_splice_veto_enabled,
     ModelNotConfiguredError,
     coerce_bool_setting,
-    WHISPER_BACKEND_API,
 )
 from database import Database
 from database.podcasts import is_local_feed
@@ -6286,12 +6285,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         _check_cancel(cancel_event, slug, episode_id, run_id)
 
     try:
-        needed = ['llm:primary']
-        if coerce_bool_setting(db.get_setting('secondary_provider_enabled')):
-            needed.append('llm:secondary')
-        if (db.get_setting('whisper_backend') or 'local') == WHISPER_BACKEND_API:
-            needed.append('whisper:active')
-        failover.ensure_fresh_probes(needed)
+        failover.ensure_fresh_probes(failover.run_probe_targets())
     except Exception as exc:
         audio_logger.debug(f"pre-run failover probe skipped: {exc}")
 

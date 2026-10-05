@@ -794,13 +794,11 @@ def check_whisper_connectivity(timeout: float = 5.0) -> bool:
 
 
 def _trigger_whisper_failover(original: Exception) -> None:
-    """Trigger whisper failover; if that fails, re-raise `original` so the episode still defers."""
+    """Trigger whisper failover; re-raise `original` when no failover ends up active, so the episode defers."""
     import failover  # inline: see active_whisper_settings for the cycle reason
-    try:
-        failover.trigger(failover.TARGET_WHISPER, str(original))
-    except Exception as e:
-        logger.warning(f"Whisper failover trigger failed: {e}")
-        raise original from e
+    target = failover.TARGET_WHISPER
+    if not failover.trigger(target, str(original)) and not failover.is_active(target):
+        raise original
 
 
 def _note_whisper_settings(whisper_settings: dict) -> None:

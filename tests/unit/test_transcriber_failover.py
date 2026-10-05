@@ -204,7 +204,7 @@ def test_failover_settings_language_inherits_active():
 def test_single_shot_trigger_failure_reraises_original_error(t):
     original = ServiceUnavailableError('whisper', 'down')
     with patch.object(failover, 'is_configured', return_value=True), \
-            patch.object(failover, 'trigger', side_effect=RuntimeError('db locked')), \
+            patch.object(failover, '_write_state', side_effect=RuntimeError('db locked')), \
             patch.object(transcriber, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
             patch.object(t, 'transcribe', side_effect=original):
         with pytest.raises(ServiceUnavailableError) as exc:

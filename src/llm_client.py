@@ -382,6 +382,12 @@ def reset_schema_probe_memo() -> None:
     _SCHEMA_PROBE_ATTEMPTED.clear()
 
 
+def clear_settings_cache() -> None:
+    """Drop cached setting reads without bumping the client config revision."""
+    with _provider_cache_lock:
+        _provider_cache.clear()
+
+
 def invalidate_provider_cache() -> None:
     """Flush the provider settings TTL cache and bump the shared config
     revision so already-built clients rebuild with the new credentials or

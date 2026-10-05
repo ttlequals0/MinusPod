@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from jinja2 import TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
-from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
+from config import FAILOVER_API_TARGET_NAMES, HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
 from database import Database
 from database.settings import registry_current_value, registry_default
 from utils.http import safe_url_for_log
@@ -56,7 +56,6 @@ VALID_EVENTS = {
 
 # Maps the API-facing failover target names to webhook/email payload values,
 # kept local to avoid importing failover (which imports this module).
-API_TARGET_NAMES_FOR_WEBHOOK = {'llm-a': 'llm:primary', 'llm-b': 'llm:secondary', 'transcriber': 'whisper'}
 
 _sandbox_env = SandboxedEnvironment()
 
@@ -581,7 +580,7 @@ def fire_service_reachable_event(service, requeued):
 def fire_failover_event(action: str, target: str, source: str, reason: str | None) -> bool:
     """Notify operators that a target switched to or from its failover config."""
     event = EVENT_FAILOVER_TRIGGERED if action == 'trigger' else EVENT_FAILOVER_CANCELLED
-    api_name = next((k for k, v in API_TARGET_NAMES_FOR_WEBHOOK.items() if v == target), target)
+    api_name = next((k for k, v in FAILOVER_API_TARGET_NAMES.items() if v == target), target)
     return _fire_alert_event(event, {
         'target': api_name,
         'source': source,

@@ -106,3 +106,26 @@ def test_auto_trigger_rereads_state_another_worker_wrote():
         assert failover.trigger('llm:primary', 'window outage') is False
     assert failover.state('llm:primary')['source'] == 'manual'
     _reset(db)
+
+
+def test_trigger_and_cancel_swallow_write_failures():
+    db = Database(); _reset(db); _configure_llm(db)
+    with patch.object(failover, '_write_state', side_effect=RuntimeError('db locked')):
+        assert failover.trigger('llm:primary', 'HTTP 503') is False
+    assert failover.is_active('llm:primary') is False
+    with patch.object(failover, 'fire_failover_event'):
+        failover.trigger('llm:primary', 'HTTP 503')
+    with patch.object(failover, '_write_state', side_effect=RuntimeError('db locked')):
+        assert failover.cancel('llm:primary') is False
+    assert failover.is_active('llm:primary') is True
+    _reset(db)
+
+
+def test_webhook_failure_keeps_the_state_change():
+    db = Database(); _reset(db); _configure_llm(db)
+    with patch.object(failover, 'fire_failover_event', side_effect=RuntimeError('smtp down')):
+        assert failover.trigger('llm:primary', 'HTTP 503') is True
+        assert failover.is_active('llm:primary') is True
+        assert failover.cancel('llm:primary') is True
+    assert failover.is_active('llm:primary') is False
+    _reset(db)

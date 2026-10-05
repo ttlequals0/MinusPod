@@ -1528,6 +1528,9 @@ API_CHUNK_DURATION_SECONDS = 600
 WHISPER_BACKEND_LOCAL = 'local'
 WHISPER_BACKEND_API = 'openai-api'
 
+# Failover targets by API name (#806); shared by failover and webhook_service.
+FAILOVER_API_TARGET_NAMES = {'llm-a': 'llm:primary', 'llm-b': 'llm:secondary', 'transcriber': 'whisper'}
+
 # Whisper pool bounds. The settings registry validator, the POST /settings
 # range check and the pool's own reader clamp all read these, so an env var
 # or a direct DB write cannot route around the range.

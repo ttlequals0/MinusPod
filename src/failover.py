@@ -3,16 +3,17 @@ import json
 import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import llm_client
 import provider_probe
 from config import (
-    WHISPER_BACKEND_LOCAL, DEFAULT_OPENAI_BASE_URL, coerce_bool_setting,
+    FAILOVER_API_TARGET_NAMES, WHISPER_BACKEND_API, WHISPER_BACKEND_LOCAL,
+    DEFAULT_OPENAI_BASE_URL, coerce_bool_setting,
 )
 from database import Database
 from llm_client import invalidate_provider_cache
 from utils.time import parse_iso_utc, utc_now_iso
-from utils.ttl_cache import TTLCache
 from webhook_service import fire_failover_event
 
 logger = logging.getLogger('podcast.failover')
@@ -21,32 +22,17 @@ TARGET_LLM_PRIMARY = 'llm:primary'
 TARGET_LLM_SECONDARY = 'llm:secondary'
 TARGET_WHISPER = 'whisper'
 TARGETS = (TARGET_LLM_PRIMARY, TARGET_LLM_SECONDARY, TARGET_WHISPER)
-API_TARGET_NAMES = {
-    'llm-a': TARGET_LLM_PRIMARY, 'llm-b': TARGET_LLM_SECONDARY, 'transcriber': TARGET_WHISPER}
+API_TARGET_NAMES = FAILOVER_API_TARGET_NAMES
 PHASES = ('detection', 'review', 'verification', 'chapters')
 _INACTIVE = {'active': False, 'source': None, 'since': None, 'reason': None}
-_CACHE_TTL = 5.0
-_cache = TTLCache(ttl_seconds=_CACHE_TTL)
-_lock = threading.Lock()
-# Sentinel so a setting that is genuinely unset (None) can be cached too,
-# distinguished from "not in the cache" (see llm_client._get_cached_setting).
-_CACHED_NONE = object()
 
 
 def invalidate_cache() -> None:
-    with _lock:
-        _cache.clear()
+    llm_client.clear_settings_cache()
 
 
 def _setting(key: str) -> str | None:
-    with _lock:
-        cached = _cache.get(key)
-    if cached is not None:
-        return None if cached is _CACHED_NONE else cached
-    value = Database().get_setting(key)
-    with _lock:
-        _cache.set(key, _CACHED_NONE if value is None else value)
-    return value
+    return llm_client._get_cached_setting(key)
 
 
 def llm_target_for_slot(credential_slot: str) -> str | None:
@@ -112,44 +98,61 @@ def _write_state(target: str, data: dict | None) -> None:
         db.clear_setting(key)
     else:
         db.set_setting(key, json.dumps(data), is_default=False)
-    invalidate_cache()
     invalidate_provider_cache()
 
 
 def trigger(target: str, reason: str, source: str = 'auto') -> bool:
+    """Switch `target` to its failover config; never raises past an unknown target."""
     if target not in TARGETS:
         raise ValueError(f'unknown failover target: {target}')
-    # Another worker may have just written this state; never act on a stale read.
-    invalidate_cache()
-    if not is_configured(target):
-        logger.info(f"Failover for {target} not configured; not triggering ({reason})")
+    try:
+        # Another worker may have just written this state; never act on a stale read.
+        invalidate_cache()
+        if not is_configured(target):
+            logger.info(f"Failover for {target} not configured; not triggering ({reason})")
+            return False
+        current = state(target)
+        if current['active'] and (current['source'] == 'manual' or source != 'manual'):
+            return False
+        _write_state(target, {
+            'active': True, 'source': source, 'since': utc_now_iso(), 'reason': (reason or '')[:500]})
+    except Exception as exc:
+        logger.warning(f"Failover trigger for {target} failed: {exc}")
         return False
-    current = state(target)
-    if current['active'] and (current['source'] == 'manual' or source != 'manual'):
-        return False
-    _write_state(target, {
-        'active': True, 'source': source, 'since': utc_now_iso(), 'reason': (reason or '')[:500]})
-    _reset_healthy_streak(target)
-    Database().record_failover_event(target, 'trigger', source, reason)
     logger.warning(f"Failover triggered for {target} ({source}): {reason}")
-    fire_failover_event('trigger', target, source, reason)
+    _after_change(target, 'trigger', source, reason)
     return True
 
 
 def cancel(target: str, source: str = 'manual') -> bool:
+    """End `target`'s failover; never raises past an unknown target."""
     if target not in TARGETS:
         raise ValueError(f'unknown failover target: {target}')
-    invalidate_cache()
-    current = state(target)
-    if not current['active']:
+    try:
+        invalidate_cache()
+        current = state(target)
+        if not current['active']:
+            return False
+        if current['source'] == 'manual' and source != 'manual':
+            return False
+        _write_state(target, None)
+    except Exception as exc:
+        logger.warning(f"Failover cancel for {target} failed: {exc}")
         return False
-    if current['source'] == 'manual' and source != 'manual':
-        return False
-    _write_state(target, None)
-    Database().record_failover_event(target, 'cancel', source, None)
     logger.info(f"Failover cancelled for {target} ({source})")
-    fire_failover_event('cancel', target, source, None)
+    _after_change(target, 'cancel', source, None)
     return True
+
+
+def _after_change(target: str, action: str, source: str, reason: str | None) -> None:
+    """Streak reset, events row and webhook; a failure here leaves the state change in place."""
+    try:
+        if action == 'trigger':
+            _reset_healthy_streak(target)
+        Database().record_failover_event(target, action, source, reason)
+        fire_failover_event(action, target, source, reason)
+    except Exception as exc:
+        logger.warning(f"Failover {action} for {target} applied, but recording it failed: {exc}")
 
 
 def _reset_healthy_streak(target: str) -> None:
@@ -179,6 +182,8 @@ _PROBE_DEFAULT = {'reachable': None, 'status': None, 'detail': '', 'checked_at':
 _ORIGIN_OF = {'llm:primary': TARGET_LLM_PRIMARY, 'llm:secondary': TARGET_LLM_SECONDARY,
               'whisper:active': TARGET_WHISPER}
 _PROBE_OF = {origin: probe for probe, origin in _ORIGIN_OF.items()}
+_MAX_PROBE_WORKERS = 5
+_fresh_probe_lock = threading.Lock()
 
 
 def probe_interval_seconds() -> int:
@@ -204,6 +209,14 @@ def enabled_probe_targets() -> list[str]:
     targets.append('whisper:active')
     if coerce_bool_setting(_setting('failover_whisper_enabled')):
         targets.append('whisper:failover')
+    return targets
+
+
+def run_probe_targets() -> list[str]:
+    """Probe targets an episode run depends on; a local transcriber is left to the background probe."""
+    targets = [t for t in enabled_probe_targets() if t not in ('llm:failover', 'whisper:failover')]
+    if (_setting('whisper_backend') or WHISPER_BACKEND_LOCAL) != WHISPER_BACKEND_API:
+        targets.remove('whisper:active')
     return targets
 
 
@@ -295,9 +308,13 @@ def _record_probe(db, target: str, result: dict) -> dict:
 
 def probe_tick(db, targets: list[str] | None = None) -> dict[str, dict]:
     """Probe every enabled target, then apply auto trigger and auto recovery."""
+    targets = list(targets or enabled_probe_targets())
+    # Probe concurrently so a batch costs one probe timeout, not one per target.
+    with ThreadPoolExecutor(max_workers=min(len(targets), _MAX_PROBE_WORKERS)) as exe:
+        probed = list(exe.map(probe_target, targets))
     results = {}
-    for target in targets or enabled_probe_targets():
-        data = _record_probe(db, target, probe_target(target))
+    for target, result in zip(targets, probed, strict=True):
+        data = _record_probe(db, target, result)
         results[target] = data
         origin = _ORIGIN_OF.get(target)
         if origin is None or data['reachable'] is None:
@@ -317,11 +334,13 @@ def _parse_iso(value: str | None) -> float:
 
 def ensure_fresh_probes(targets: list[str]) -> None:
     """Probe only targets whose last probe is older than the interval."""
-    stale = []
-    cutoff = time.time() - probe_interval_seconds()
-    for target in targets:
-        checked = probe_state(target)['checked_at']
-        if not checked or _parse_iso(checked) < cutoff:
-            stale.append(target)
-    if stale:
-        probe_tick(Database(), stale)
+    # Serialized so concurrent episode starts do not re-probe the same stale targets.
+    with _fresh_probe_lock:
+        cutoff = time.time() - probe_interval_seconds()
+        stale = []
+        for target in targets:
+            checked = probe_state(target)['checked_at']
+            if not checked or _parse_iso(checked) < cutoff:
+                stale.append(target)
+        if stale:
+            probe_tick(Database(), stale)

@@ -12,7 +12,7 @@ from api import (
     api, log_request, json_response,
     get_database, get_status_service,
 )
-import failover
+from api.failover import targets_view as failover_targets_view
 from config import DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER
 from offline_queue import get_probe_state
 from rate_limit_hold import get_any_active_hold
@@ -141,11 +141,10 @@ def status_payload(status=None) -> dict:
     pool = get_pool()
     pool.refresh()
     payload['whisper'] = pool.snapshot()
-    states = failover.all_states()
+    targets = failover_targets_view()
     payload['failover'] = {
-        'active': [n for n, t in failover.API_TARGET_NAMES.items() if states[t]['active']],
-        'targets': {n: {k: states[t][k] for k in ('active', 'source', 'since')}
-                    for n, t in failover.API_TARGET_NAMES.items()},
+        'active': [n for n, t in targets.items() if t['active']],
+        'targets': {n: {k: t[k] for k in ('active', 'source', 'since')} for n, t in targets.items()},
     }
     return payload
 

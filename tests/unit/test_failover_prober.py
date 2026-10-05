@@ -1,6 +1,8 @@
 """Failover prober (#806)."""
 import itertools
 import json
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -111,6 +113,46 @@ def test_ensure_fresh_probes_skips_recent():
     with _probe({'llm:primary': True}) as p:
         failover.ensure_fresh_probes(['llm:primary'])
         assert p.call_count == 1
+
+
+def test_probe_tick_probes_targets_concurrently():
+    db = Database(); _reset(db)
+
+    def slow(target):
+        time.sleep(0.3)
+        return {'reachable': True, 'status': 200, 'detail': ''}
+    with patch.object(failover, 'probe_target', side_effect=slow) as p:
+        started = time.monotonic()
+        failover.probe_tick(db, ['llm:primary', 'llm:failover'])
+        elapsed = time.monotonic() - started
+    assert p.call_count == 2 and elapsed < 0.55
+    assert failover.probe_state('llm:failover')['reachable'] is True
+
+
+def test_concurrent_ensure_fresh_probes_share_one_probe():
+    db = Database(); _reset(db)
+
+    def slow(target):
+        time.sleep(0.2)
+        return {'reachable': True, 'status': 200, 'detail': ''}
+    with patch.object(failover, 'probe_target', side_effect=slow) as p:
+        workers = [threading.Thread(target=failover.ensure_fresh_probes, args=(['llm:primary'],))
+                   for _ in range(3)]
+        for w in workers:
+            w.start()
+        for w in workers:
+            w.join()
+    assert p.call_count == 1
+
+
+def test_run_probe_targets_skip_standby_and_local_transcriber():
+    db = Database(); _reset(db)
+    assert failover.run_probe_targets() == ['llm:primary']
+    db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+    db.set_setting('whisper_backend', 'openai-api', is_default=False)
+    db.set_setting('failover_whisper_enabled', 'true', is_default=False)
+    failover.invalidate_cache()
+    assert failover.run_probe_targets() == ['llm:primary', 'llm:secondary', 'whisper:active']
 
 
 def test_runtime_trigger_resets_recovery_streak():
