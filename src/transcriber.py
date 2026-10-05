@@ -23,7 +23,7 @@ import database
 import failover
 import run_context
 from user_agent import download_user_agent
-from utils.audio import get_audio_duration, mean_volume_db
+import utils.audio
 from utils.errors import (
     ServiceUnavailableError, AudioTooLargeError, AudioExtractionError,
     AudioExtractionTimeout, LocalTranscriptionUnavailableError, ModelLoadError,
@@ -41,7 +41,7 @@ from utils.safe_http import (
     ResponseTooLargeError,
 )
 from utils.rate_limit import parse_retry_after
-from utils.subprocess_registry import tracked_run
+import utils.subprocess_registry
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.ttl_cache import TTLCache
 from whisper_pool import get_pool
@@ -438,7 +438,7 @@ def extract_audio_chunk(
         # other ffmpeg call site does (#644): chunk size follows available GPU
         # memory, so a flat budget silently fails once chunks grow past it.
         timeout = (FFMPEG_LONG_TIMEOUT if preprocess else FFMPEG_CHUNK_TIMEOUT) + int(duration / 12)
-        result = tracked_run(cmd, capture_output=True, timeout=timeout)
+        result = utils.subprocess_registry.tracked_run(cmd, capture_output=True, timeout=timeout)
 
         if result.returncode == 0 and os.path.exists(output_path):
             logger.debug(f"Extracted chunk {start_time:.1f}s-{end_time:.1f}s to {output_path}")
@@ -1147,7 +1147,7 @@ def _probe_upload(skip_flac_compression: bool) -> tuple[str, bytes]:
             fh.write(wav)
         fd, flac_path = tempfile.mkstemp(suffix='.flac')
         os.close(fd)
-        encode = tracked_run(
+        encode = utils.subprocess_registry.tracked_run(
             ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y', '-i', wav_path, '-c:a', 'flac', flac_path],
             capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT,
         )
@@ -1698,7 +1698,7 @@ class Transcriber:
                 fd, flac_path = tempfile.mkstemp(suffix='.flac')
                 os.close(fd)
                 try:
-                    ffmpeg_result = tracked_run(
+                    ffmpeg_result = utils.subprocess_registry.tracked_run(
                         ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y', '-i', transcribe_path, '-c:a', 'flac', flac_path],
                         capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT,
                     )
@@ -2003,7 +2003,7 @@ class Transcriber:
         label = _NOVAD_LABELS[flag]
         prefix = _log_prefix()
         if quiet_db is not None:
-            volume = mean_volume_db(audio_path, start, end - start)
+            volume = utils.audio.mean_volume_db(audio_path, start, end - start)
             if volume is None or volume < quiet_db:
                 reading = 'unreadable' if volume is None else f'{volume:.1f} dB'
                 logger.info(f"{prefix}{label} {start:.1f}s-{end:.1f}s mean volume {reading}; skipping")
@@ -2188,7 +2188,7 @@ class Transcriber:
 
         Delegates to utils.audio.get_audio_duration for consistent implementation.
         """
-        duration = get_audio_duration(audio_path)
+        duration = utils.audio.get_audio_duration(audio_path)
         if duration is not None:
             logger.info(f"Audio duration: {duration:.1f}s ({duration/60:.1f} min)")
         return duration
@@ -2311,7 +2311,7 @@ class Transcriber:
             # e.g. 50MB file = 500s, 100MB = 1000s, floor at FFMPEG_LONG_TIMEOUT (300s)
             file_size_mb = os.path.getsize(input_path) / (1024 * 1024)
             preprocess_timeout = max(FFMPEG_LONG_TIMEOUT, int(file_size_mb * 10))
-            result = tracked_run(cmd, capture_output=True, timeout=preprocess_timeout)
+            result = utils.subprocess_registry.tracked_run(cmd, capture_output=True, timeout=preprocess_timeout)
             if result.returncode == 0:
                 logger.info(f"Audio preprocessed: {input_path} -> {output_path}")
                 success = True

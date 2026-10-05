@@ -14,6 +14,7 @@ import provider_probe
 import secrets_crypto
 import database
 import webhook_service
+import transcriber
 from config import (
     FAILOVER_API_TARGET_NAMES, WHISPER_BACKEND_API, WHISPER_BACKEND_LOCAL,
     DEFAULT_OPENAI_BASE_URL, coerce_bool_setting,
@@ -90,7 +91,6 @@ def is_configured(target: str, cfg: dict | None = None) -> bool:
         if not coerce_bool_setting(_setting('failover_whisper_enabled')):
             return False
         if (_setting('failover_whisper_backend') or 'openai-api') == WHISPER_BACKEND_LOCAL:
-            import transcriber  # inline: importing it loads the local whisper stack
             return transcriber.local_transcription_available()
         return bool(_setting('failover_whisper_api_base_url'))
     return False
@@ -116,7 +116,6 @@ def _configured_in_transaction(conn, target: str) -> bool:
         return False
     backend = _setting_in_transaction(conn, 'failover_whisper_backend') or WHISPER_BACKEND_API
     if backend == WHISPER_BACKEND_LOCAL:
-        import transcriber
         return transcriber.local_transcription_available()
     return bool(_setting_in_transaction(conn, 'failover_whisper_api_base_url'))
 
@@ -544,7 +543,6 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         else:
             settings = request_config
             if settings['backend'] == WHISPER_BACKEND_LOCAL:
-                import transcriber
                 return transcriber.probe_local_transcription(settings)
             if not settings['api_base_url']:
                 return {'reachable': None, 'status': None, 'detail': 'Not configured'}

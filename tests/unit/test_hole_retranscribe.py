@@ -18,6 +18,7 @@ import pytest
 import main_app.processing as processing
 import transcriber as transcriber_mod
 from transcriber import Transcriber
+from utils import audio as audio_utils
 from utils.errors import ModelLoadError
 
 
@@ -51,7 +52,7 @@ def _repair(tmp_path, segments, decoded, volume=-20.0, min_s=8.0, skip=()):
         decode.side_effect = lambda *a: [dict(s, words=[dict(w) for w in s['words']])
                                          for s in decoded] if decoded is not None else None
     with patch.object(transcriber_mod, 'extract_audio_chunk', side_effect=_extract), \
-         patch.object(transcriber_mod, 'mean_volume_db', return_value=volume) as probe, \
+         patch.object(audio_utils, 'mean_volume_db', return_value=volume) as probe, \
          patch.object(Transcriber, '_transcribe_sequential', decode):
         added, empty = Transcriber().repair_gaps(
             '/audio.mp3', segments, min_s, None, skip=skip)
@@ -303,7 +304,6 @@ def test_first_run_writes_originals_once_and_records_empty_holes():
 
 
 def test_mean_volume_db_parses_volumedetect():
-    from utils import audio as audio_utils
     out = MagicMock(stderr='[Parsed_volumedetect_0 @ 0x1] mean_volume: -61.3 dB\n')
     with patch.object(audio_utils, 'tracked_run', return_value=out) as run:
         assert audio_utils.mean_volume_db('/x.wav', 10.0, 5.0) == -61.3

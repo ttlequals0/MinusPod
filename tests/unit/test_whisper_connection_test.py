@@ -88,14 +88,14 @@ class TestProbeUpload:
                 fh.write(b'fLaC-probe-data')
             return MagicMock(returncode=0)
 
-        with patch('transcriber.tracked_run', side_effect=fake_ffmpeg):
+        with patch('transcriber.utils.subprocess_registry.tracked_run', side_effect=fake_ffmpeg):
             filename, audio = _probe_upload(skip_flac_compression=False)
         assert filename == 'probe.flac'
         assert audio == b'fLaC-probe-data'
 
     def test_flac_encode_failure_falls_back_to_wav(self):
         # Mirrors the real upload path, which sends WAV when ffmpeg fails.
-        with patch('transcriber.tracked_run',
+        with patch('transcriber.utils.subprocess_registry.tracked_run',
                    return_value=MagicMock(returncode=1)):
             filename, audio = _probe_upload(skip_flac_compression=False)
         assert filename == 'probe.wav'
@@ -137,7 +137,7 @@ class TestProbeTranscriptionEndpoint:
                 fh.write(b'fLaC')
             return MagicMock(returncode=0)
 
-        with patch('transcriber.tracked_run', side_effect=fake_ffmpeg), \
+        with patch('transcriber.utils.subprocess_registry.tracked_run', side_effect=fake_ffmpeg), \
              patch('transcriber.safe_post',
                    return_value=_response(200, json_body={})) as sp:
             probe_transcription_endpoint('http://transcriber:8001/v3',

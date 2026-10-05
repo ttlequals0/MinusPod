@@ -10,6 +10,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('failover_state_test_')
 
 import failover
+import transcriber
 from database import Database
 
 
@@ -172,7 +173,6 @@ def test_whisper_configured_rules():
 
 
 def test_whisper_local_backend_requires_local_stack():
-    import transcriber
     db = Database(); _reset(db)
     db.set_setting('failover_whisper_enabled', 'true', is_default=False)
     db.set_setting('failover_whisper_backend', 'local', is_default=False)
@@ -199,7 +199,6 @@ def test_state_survives_json_garbage():
 
 
 def test_auto_trigger_rereads_state_another_worker_wrote():
-    import json
     db = Database(); _reset(db); _configure_llm(db)
     assert failover.is_active('llm:primary') is False  # primes the cache
     db.set_setting('failover_state:llm:primary', json.dumps(

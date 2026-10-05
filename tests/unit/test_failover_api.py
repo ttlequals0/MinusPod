@@ -11,6 +11,7 @@ from tests.app_bootstrap import authenticate_test_client
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='failover-api-test-'))
 
+import api
 import failover
 
 
@@ -21,8 +22,7 @@ def hdr(app_client):
 
 @pytest.fixture
 def configured(app_client, hdr):
-    from api import get_database
-    db = get_database()
+    db = api.get_database()
     db.set_setting('failover_llm_enabled', 'true', is_default=False)
     db.set_setting('failover_llm_provider', 'openai-compatible', is_default=False)
     db.set_setting('failover_llm_detection_model', 'qwen3:8b', is_default=False)
