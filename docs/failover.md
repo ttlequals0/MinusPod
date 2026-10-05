@@ -32,13 +32,16 @@ Failover is different from the Provider A / Provider B slot a stage is configure
 | Condition | Triggers failover | Notes |
 |---|---|---|
 | Connection refused, DNS failure, timeout, open circuit breaker | Yes | |
-| 5xx response | Yes | |
+| HTTP 408 (request timeout) or 5xx response | Yes | |
 | 401 or 403, invalid/expired key or a spend/quota limit | Yes | |
 | 402, or a 400 the provider marks as a credit/quota exhaustion | Yes | |
 | 404 (model or resource not found) | Yes | |
-| 429 (rate limit) | No | The [Rate-Limit Hold](configuration.md#rate-limit-hold) waits out the provider's reset instead; a different account would not be the problem. |
+| Provider 429 (rate limit) or exhausted daily quota | Yes | The standby provider has independent capacity. |
+| Operator-configured RPM/RPD/TPM cap | No | Manual caps remain enforced. |
 | 400 or 422 that is not a quota rejection (bad request, bad parameters) | No | Handled by retrying with fallback parameters, not by switching providers. |
-| The provider itself rejects the request for a reason failover cannot fix (e.g. the model isn't offered) | No | |
+| A token request exceeds the provider's per-request or per-minute cap | No | Reduce the window size or requested output budget. |
+
+Real provider throttling and exhausted provider quotas can use the configured standby. Manual caps and structurally oversized requests cannot. If the standby also reports a rate limit, the existing [Rate-Limit Hold](configuration.md#rate-limit-hold) behavior applies to that account.
 
 The transcriber side uses the same shape: connection errors and 5xx-equivalent backend outages trigger failover, and so do 401/402/403/404 from an API backend (`TranscriptionRejectedError`), and a local backend's model-load failure. Other 4xx responses from an API backend are left alone, same as before this feature.
 

@@ -51,7 +51,7 @@ from llm_client import (
     get_effective_provider,
     is_rate_limit_error,
     is_review_inconclusive_error, ProviderRateLimitedError,
-    StructuralRateLimitError,
+    StructuralRateLimitError, LimitExceededError,
 )
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
@@ -103,14 +103,8 @@ logger = logging.getLogger(__name__)
 
 
 def _review_failure_reason(error: Exception) -> str:
-    """Short, non-leaking reason for a failed reviewer LLM call.
-
-    The full error is logged separately; the raw provider payload (e.g. a Gemini
-    429 JSON blob) must never reach the verdict reasoning, which the UI renders.
-    StructuralRateLimitError carries our own already-sanitized, actionable text
-    (per-minute cap or daily-quota guidance), so surface it verbatim.
-    """
-    if isinstance(error, StructuralRateLimitError):
+    """Show sanitized quota guidance without exposing raw provider payloads."""
+    if isinstance(error, (StructuralRateLimitError, LimitExceededError)):
         return f"Review unavailable: {error}"
     if is_rate_limit_error(error):
         return "Review unavailable: LLM rate limit reached"

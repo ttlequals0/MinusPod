@@ -13,7 +13,7 @@ bootstrap('google_rate_limit_test_')
 
 from utils.rate_limit import parse_google_retry_delay, parse_google_daily_quota
 from llm_client import (
-    classify_daily_quota_exhaustion, extract_retry_after, StructuralRateLimitError,
+    classify_daily_quota_exhaustion, extract_retry_after, LimitExceededError,
 )
 from ad_reviewer import _review_failure_reason
 
@@ -213,8 +213,8 @@ class TestCodeReviewRegressions:
                           "message": "Quota exceeded: 10 per minute (also 50 per day)"}}
         assert parse_google_daily_quota(body) is None
 
-    def test_structural_error_surfaces_actionable_text(self):
-        err = StructuralRateLimitError(
+    def test_daily_quota_error_surfaces_actionable_text(self):
+        err = LimitExceededError(
             "openrouter free-tier daily quota (limit 50) exhausted; retry tomorrow, "
             "raise the tier, or switch provider.")
         reason = _review_failure_reason(err)

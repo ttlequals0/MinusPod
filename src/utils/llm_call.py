@@ -22,6 +22,7 @@ from llm_client import (
     extract_retry_after,
     get_effective_provider,
     StructuralRateLimitError,
+    LimitExceededError,
     ProviderRateLimitedError,
     supports_json_schema_for_calls,
 )
@@ -482,7 +483,9 @@ def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None
         logger.warning(
             f"[{slug}:{episode_id}] {call_label} daily quota exhausted: {actionable}"
         )
-        return StructuralRateLimitError(actionable)
+        quota_error = LimitExceededError(actionable)
+        quota_error.__context__ = error
+        return quota_error
 
     structural = classify_structural_rate_limit(error)
     if structural is not None:

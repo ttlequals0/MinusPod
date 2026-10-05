@@ -11,7 +11,8 @@ bootstrap('llm_call_failover_test_')
 import failover
 import llm_route
 from cancel import ProcessingCancelled
-from llm_client import ProviderAccountChangedError, ProviderRateLimitedError
+from llm_client import (ProviderAccountChangedError, ProviderRateLimitedError,
+                        StructuralRateLimitError, ProviderRequestRejectedError, is_failover_trigger_error)
 from utils import llm_call
 
 FAILOVER_ROUTE = llm_route.Route(
@@ -77,15 +78,40 @@ def test_no_redispatch_when_already_on_failover(no_sleep):
     trig.assert_not_called()
 
 
-def test_no_redispatch_on_rate_limit(no_sleep):
-    import httpx, openai
-    resp = httpx.Response(429, request=httpx.Request('POST', 'http://example.com'))
+@pytest.mark.parametrize('held', [False, True])
+def test_provider_rate_limit_uses_independent_standby(no_sleep, held):
+    resp = httpx.Response(429, headers={'retry-after': '300'},
+                          request=httpx.Request('POST', 'http://example.com'))
     client = MagicMock(); client.create_message.side_effect = openai.RateLimitError('x', response=resp, body=None)
-    with patch.object(failover, 'is_configured', return_value=True), \
-            patch.object(failover, 'trigger') as trig, \
+    standby = MagicMock(); standby.create_message.return_value = {'content': 'ok'}
+    with patch.object(llm_call, 'is_rate_limit_hold_enabled', return_value=held), \
+            patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True) as trig, \
+            patch.object(llm_call, '_failover_route', return_value=FAILOVER_ROUTE), \
+            patch.object(llm_call, 'client_for_route', return_value=standby), \
             patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
-        _call(client)
-    trig.assert_not_called()
+        response, error = _call(client)
+    assert response == {'content': 'ok'} and error is None
+    trig.assert_called_once()
+    standby.create_message.assert_called_once()
+
+
+@pytest.mark.parametrize('error', [
+    ProviderRateLimitedError('manual cap', 60, manual=True),
+    StructuralRateLimitError('requested tokens exceed cap'),
+    ProviderRequestRejectedError('bad request', 400),
+    ProviderRequestRejectedError('bad parameters', 422),
+])
+def test_manual_and_invalid_request_limits_cannot_bypass_caps(error, no_sleep):
+    assert not is_failover_trigger_error(error)
+    client = MagicMock(); client.create_message.side_effect = error
+    with patch.object(llm_call, '_manual_rate_limit_error', return_value=None), \
+            patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger') as trigger, \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, last_error = _call(client)
+    assert response is None and last_error is error
+    trigger.assert_not_called()
 
 
 def test_no_redispatch_when_unconfigured(no_sleep):
@@ -252,3 +278,28 @@ def test_detector_switches_model_and_slot_mid_pass():
     assert (sent[0]['model'], sent[0]['credential_slot']) == ('claude-sonnet-5', 'primary')
     assert (sent[1]['model'], sent[1]['credential_slot'], sent[1]['provider']) == (
         'qwen3:8b', 'failover', 'openai-compatible')
+
+
+def test_exhausted_provider_daily_quota_uses_standby(no_sleep):
+    body = {'error': {'code': 429, 'status': 'RESOURCE_EXHAUSTED', 'details': [{
+        '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+        'violations': [{'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier',
+                        'quotaValue': '50', 'quotaDimensions': {'model': 'example-model'}}]}]}}
+    response = httpx.Response(429, request=httpx.Request('POST', 'http://example.com'))
+    primary_error = openai.RateLimitError('daily quota', response=response, body=body)
+    primary = MagicMock(); primary.create_message.side_effect = primary_error
+    standby = MagicMock(); standby.create_message.return_value = {'content': 'ok'}
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True) as trigger, \
+            patch.object(llm_call, '_failover_route', return_value=FAILOVER_ROUTE), \
+            patch.object(llm_call, 'client_for_route', return_value=standby), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        result, error = _call(primary)
+    assert result == {'content': 'ok'} and error is None
+    primary.create_message.assert_called_once()
+    standby.create_message.assert_called_once()
+    trigger.assert_called_once()
+
+
+def test_normalized_provider429_can_use_standby():
+    assert is_failover_trigger_error(ProviderRateLimitedError('provider reset', 300))

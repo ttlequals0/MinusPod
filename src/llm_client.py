@@ -2337,12 +2337,13 @@ def is_connectivity_error(error: Exception) -> bool:
 
 
 def is_failover_trigger_error(error: Exception) -> bool:
-    """True for faults the failover provider can route around: outages,
-    auth rejections, missing models and exhausted quota. Never a 429."""
-    if isinstance(error, ProviderRequestRejectedError):
+    """Allow provider faults and throttling, preserving manual caps and invalid-request limits."""
+    if isinstance(error, (ProviderRequestRejectedError, StructuralRateLimitError)):
+        return False
+    if isinstance(error, ProviderRateLimitedError) and error.manual:
         return False
     if is_rate_limit_error(error):
-        return False
+        return True
     return (is_connectivity_error(error) or is_auth_error(error)
             or is_not_found_error(error) or is_limit_exceeded_error(error))
 
