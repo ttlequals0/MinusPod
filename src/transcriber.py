@@ -673,10 +673,7 @@ def _get_whisper_settings() -> dict[str, str]:
 
 
 def _get_failover_whisper_settings() -> dict[str, str]:
-    """Failover whisper config, read from failover_whisper_* settings (#806).
-    Same shape as _get_whisper_settings plus 'local_model' and 'is_failover': True;
-    blank language falls back to the active config's value. Max attempts has
-    no separate failover setting; it is shared with the active transcriber."""
+    """Return standby settings, inheriting blank language and max attempts."""
     active = _get_whisper_settings()
     defaults = {
         'backend': WHISPER_BACKEND_API,
@@ -714,6 +711,8 @@ def _get_failover_whisper_settings() -> dict[str, str]:
 
         defaults['api_timeout'] = _clamp_api_timeout(db.get_setting_float(
             'failover_whisper_api_timeout_seconds', defaults['api_timeout']))
+        defaults['max_attempts'] = db.get_setting_int(
+            'failover_whisper_max_attempts', active['max_attempts'])
     except Exception as e:
         logger.warning(f"Could not read failover whisper settings from DB, using defaults: {e}")
 

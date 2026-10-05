@@ -351,6 +351,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'failover_whisper_api_timeout_seconds': SettingSpec(
         default='600', seeded=True, payload_key='failoverWhisperApiTimeoutSeconds',
         payload_kind='int'),
+    'failover_whisper_max_attempts': SettingSpec(
+        default=None, seeded=True, payload_key='failoverWhisperMaxAttempts',
+        payload_kind='int', validator=_int_in_range((1, 10))),
     'failover_whisper_language': SettingSpec(
         default='', seeded=True, payload_key='failoverWhisperLanguage'),
     'failover_probe_interval_minutes': SettingSpec(
@@ -924,7 +927,8 @@ FAILOVER_LLM_KEYS = (
 FAILOVER_WHISPER_KEYS = (
     'failover_whisper_enabled', 'failover_whisper_backend', 'failover_whisper_model',
     'failover_whisper_api_base_url', 'failover_whisper_api_model',
-    'failover_whisper_api_timeout_seconds', 'failover_whisper_language')
+    'failover_whisper_api_timeout_seconds', 'failover_whisper_max_attempts',
+    'failover_whisper_language')
 
 
 def _validate_registry():

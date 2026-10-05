@@ -9,6 +9,7 @@ import { testFailoverProviderConnection, testFailoverWhisperConnection } from '.
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import NumberInput from '../../components/NumberInput';
+import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { SkeletonRows } from '../../components/Skeleton';
 import { badgeBase, tint } from '../../components/badgeStyles';
@@ -40,6 +41,7 @@ interface FailoverWhisper {
   apiBaseUrl: string;
   apiModel: string;
   apiTimeoutSeconds: number;
+  maxAttempts: number | null;
   language: string;
   apiKeyConfigured: boolean;
 }
@@ -65,6 +67,7 @@ interface FailoverSectionProps {
   onLlmApiKeyClear: () => Promise<void>;
   failoverCatalog: ModelCatalog;
   whisper: FailoverWhisper;
+  activeWhisperMaxAttempts: number;
   onWhisperChange: (patch: Partial<FailoverWhisper>) => void;
   onWhisperApiKeySave: (key: string) => Promise<void>;
   onWhisperApiKeyClear: () => Promise<void>;
@@ -186,7 +189,7 @@ function FailoverSection({
   overview, overviewLoading, onTrigger, onCancel, onProbeNow, actionPending, probePending, actionError,
   probeIntervalMinutes, onProbeIntervalChange, recoveryProbes, onRecoveryProbesChange,
   llm, onLlmChange, onLlmApiKeySave, onLlmApiKeyClear, failoverCatalog,
-  whisper, onWhisperChange, onWhisperApiKeySave, onWhisperApiKeyClear, skipFlacCompression, cryptoReady,
+  whisper, activeWhisperMaxAttempts, onWhisperChange, onWhisperApiKeySave, onWhisperApiKeyClear, skipFlacCompression, cryptoReady,
 }: FailoverSectionProps) {
   const keyMeta = keyMetaForType(llm.provider);
   const whisperKey = keyStatus(whisper.apiKeyConfigured);
@@ -483,6 +486,26 @@ function FailoverSection({
                         className={`w-full ${inputBase}`}
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label htmlFor="failoverWhisperMaxAttempts" className="block text-sm font-medium text-foreground mb-2">
+                      Max upload attempts
+                    </label>
+                    <DraftNumberInput
+                      id="failoverWhisperMaxAttempts"
+                      value={whisper.maxAttempts}
+                      min={1}
+                      max={10}
+                      step={1}
+                      fallback={null}
+                      placeholder={String(activeWhisperMaxAttempts)}
+                      parse={parseOptionalNumber}
+                      onChange={(maxAttempts) => onWhisperChange({ maxAttempts })}
+                      className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+                    />
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Includes the first upload. Leave blank to use the active transcriber's setting ({activeWhisperMaxAttempts} attempts).
+                    </p>
                   </div>
                 </>
               )}

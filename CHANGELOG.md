@@ -12,6 +12,7 @@ release notes.
 ## [2.98.0] - Unreleased
 
 ### Added
+- Standby transcription has its own upload-attempt limit, including when the active transcriber runs locally. Leaving it blank preserves inheritance.
 - Visiting the server root redirects to the web UI. (#808)
 - Export selected feeds as OPML from the Feeds page. (#810)
 - Choose Podcasts or Episodes from an icon menu in the mobile dashboard toolbar.

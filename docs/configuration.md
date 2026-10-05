@@ -221,6 +221,8 @@ Each of Provider A, Provider B, and the LLM failover provider has its own reques
 
 Every value here must be a JSON integer or `null`/omitted; a numeric string (`"30"`) is rejected with a 400 rather than coerced. `null` or an empty string clears the override back to the provider-type default. These were previously read only from Provider A's values regardless of which slot a stage used; each slot now reads its own override. See [Failover](failover.md#per-provider-timeouts-and-retries) for how the failover provider's timeout and retries are used mid-run.
 
+Transcription uses `whisperMaxAttempts` for upload attempts per chunk, including the first upload. `failoverWhisperMaxAttempts` independently sets standby upload attempts from 1 to 10. Null or blank inherits the current `whisperMaxAttempts`; omitting it leaves the override unchanged. Configure it under Settings > Failover, including when the active transcriber runs locally.
+
 ### Rotating or clearing a provider key
 
 Saving a new key, or clearing one, takes effect without a container restart. Provider settings carry a revision marker that every write path bumps, and an already-built client checks that marker before each use, so a cached connection built on the old key is rebuilt rather than reused. The marker lives in the database, so sibling workers pick up the change too, not just the one that handled the request.

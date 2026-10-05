@@ -909,6 +909,7 @@ export interface Settings {
   failoverWhisperApiBaseUrl: SettingValue;
   failoverWhisperApiModel: SettingValue;
   failoverWhisperApiTimeoutSeconds: SettingValueNumber;
+  failoverWhisperMaxAttempts: SettingValueNumberOrNull;
   failoverWhisperLanguage: SettingValue;
   failoverWhisperApiKeyConfigured: boolean;
   failoverProbeIntervalMinutes: SettingValueNumber;
@@ -1211,6 +1212,7 @@ export interface UpdateSettingsPayload {
   failoverWhisperApiKey?: string;
   failoverWhisperApiModel?: string;
   failoverWhisperApiTimeoutSeconds?: number;
+  failoverWhisperMaxAttempts?: number | null;
   failoverWhisperLanguage?: string;
   failoverProbeIntervalMinutes?: number;
   failoverRecoveryProbes?: number;

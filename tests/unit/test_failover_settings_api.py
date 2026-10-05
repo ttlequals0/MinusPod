@@ -43,6 +43,7 @@ _WRITTEN_KEYS = (
     'failover_whisper_enabled', 'failover_whisper_backend',
     'failover_whisper_api_base_url', 'failover_whisper_api_model',
     'failover_whisper_api_timeout_seconds',
+    'failover_whisper_max_attempts',
     'failover_probe_interval_minutes', 'failover_recovery_probes',
     'llm_timeout_seconds', 'llm_max_retries',
     'secondary_llm_timeout_seconds', 'secondary_llm_max_retries',
@@ -154,6 +155,40 @@ def test_blank_timeout_clears_to_type_default(app_client, hdr):
     assert r.status_code == 200
     body = app_client.get('/api/v1/settings').get_json()
     assert body['providerATimeoutSeconds']['value'] is None
+
+
+@pytest.mark.parametrize('value', [1, 10])
+def test_standby_attempts_override_round_trip_and_omission(app_client, hdr, value):
+    r = app_client.put('/api/v1/settings/ad-detection',
+                       json={'failoverWhisperMaxAttempts': value}, headers=hdr)
+    assert r.status_code == 200, r.get_json()
+    r = app_client.put('/api/v1/settings/ad-detection', json={'whisperMaxAttempts': 3}, headers=hdr)
+    assert r.status_code == 200
+    body = app_client.get('/api/v1/settings').get_json()
+    assert body['failoverWhisperMaxAttempts']['value'] == value
+    assert body['defaults']['failoverWhisperMaxAttempts'] is None
+
+
+@pytest.mark.parametrize('value', [None, ''])
+def test_standby_attempts_clear_to_inheritance(app_client, hdr, value):
+    db = get_database()
+    db.set_setting('failover_whisper_max_attempts', '5', is_default=False)
+    r = app_client.put('/api/v1/settings/ad-detection',
+                       json={'failoverWhisperMaxAttempts': value}, headers=hdr)
+    assert r.status_code == 200, r.get_json()
+    assert db.get_setting('failover_whisper_max_attempts') is None
+    assert app_client.get('/api/v1/settings').get_json()['failoverWhisperMaxAttempts']['value'] is None
+
+
+@pytest.mark.parametrize('value', [0, 11, True, False, 2.5, '3', [], {}])
+def test_invalid_standby_attempts_are_atomic(app_client, hdr, value):
+    db = get_database()
+    db.set_setting('failover_llm_detection_model', 'existing-model', is_default=False)
+    r = app_client.put('/api/v1/settings/ad-detection', json={
+        'failoverLlmDetectionModel': 'replacement-model', 'failoverWhisperMaxAttempts': value,
+    }, headers=hdr)
+    assert r.status_code == 400
+    assert db.get_setting('failover_llm_detection_model') == 'existing-model'
 
 
 def test_provider_b_aliases_write_secondary_keys(app_client, hdr):

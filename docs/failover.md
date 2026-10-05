@@ -130,6 +130,7 @@ All settings are under `PUT /api/v1/settings/ad-detection`; database-only, no en
 | `failoverWhisperApiKey` | secret; write-only, omit to leave unchanged | - |
 | `failoverWhisperApiModel` | string | `whisper-1` |
 | `failoverWhisperApiTimeoutSeconds` | int 30-3600 | `600` |
+| `failoverWhisperMaxAttempts` | int 1-10 or null; blank inherits `whisperMaxAttempts` | null |
 | `failoverWhisperLanguage` | string, blank matches the active transcriber's language | - |
 
 A local-backend failover transcriber is considered configured once enabled; an API-backend one additionally needs its base URL set.
@@ -156,7 +157,7 @@ Both carry `target` (`llm-a`, `llm-b`, or `transcriber`), `source` (`auto`, `pro
 
 Provider A, Provider B, and the LLM failover provider each have their own request timeout and max-retries setting (`providerATimeoutSeconds`/`providerAMaxRetries`, `providerBTimeoutSeconds`/`providerBMaxRetries`, `failoverLlmTimeoutSeconds`/`failoverLlmMaxRetries`). Blank falls back to the provider-type default: 120 seconds and 3 retries for Anthropic and OpenRouter, 600 seconds and 2 retries for OpenAI-compatible endpoints and Ollama. A stage that fails over mid-run uses the failover provider's own timeout and retry count on the extra attempt, not Provider A's or Provider B's. See [Configuration > Per-provider timeout and retries](configuration.md#per-provider-timeout-and-retries) for the full table.
 
-On the transcription side, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) governs how many times an API backend retries a chunk before it counts as failed, on both the active and failover transcriber.
+On the transcription side, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) sets upload attempts per chunk, including the first upload. The standby transcriber inherits it unless `failoverWhisperMaxAttempts` is set. Configure the standby override under Settings > Failover, even when the active transcriber runs locally. Null or blank clears the override; omitting the field leaves it unchanged.
 
 ---
 

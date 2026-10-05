@@ -283,6 +283,7 @@ function Settings() {
     apiBaseUrl: '',
     apiModel: '',
     apiTimeoutSeconds: 600,
+    maxAttempts: null as number | null,
     language: '',
   });
   const [failoverProbeIntervalMinutes, setFailoverProbeIntervalMinutes] = useState(5);
@@ -670,6 +671,7 @@ function Settings() {
     { key: 'failoverWhisperApiBaseUrl', kind: 'str', value: failoverWhisper.apiBaseUrl, obj: 'failoverWhisper', prop: 'apiBaseUrl' },
     { key: 'failoverWhisperApiModel', kind: 'str', useDefault: true, value: failoverWhisper.apiModel, obj: 'failoverWhisper', prop: 'apiModel' },
     { key: 'failoverWhisperApiTimeoutSeconds', kind: 'val', literal: 600, value: failoverWhisper.apiTimeoutSeconds, obj: 'failoverWhisper', prop: 'apiTimeoutSeconds' },
+    { key: 'failoverWhisperMaxAttempts', kind: 'val', literal: null, value: failoverWhisper.maxAttempts, obj: 'failoverWhisper', prop: 'maxAttempts' },
     { key: 'failoverWhisperLanguage', kind: 'str', value: failoverWhisper.language, obj: 'failoverWhisper', prop: 'language' },
     { key: 'failoverProbeIntervalMinutes', kind: 'val', useDefault: true, literal: 5, value: failoverProbeIntervalMinutes, set: setFailoverProbeIntervalMinutes },
     { key: 'failoverRecoveryProbes', kind: 'val', useDefault: true, literal: 3, value: failoverRecoveryProbes, set: setFailoverRecoveryProbes },
@@ -1253,6 +1255,7 @@ function Settings() {
         onLlmApiKeyClear={() => saveFailoverKey({ failoverLlmApiKey: '' })}
         failoverCatalog={failoverCatalog}
         whisper={{ ...failoverWhisper, apiKeyConfigured: settings?.failoverWhisperApiKeyConfigured ?? false }}
+        activeWhisperMaxAttempts={whisperMaxAttempts}
         onWhisperChange={(patch) => setFailoverWhisper((prev) => ({ ...prev, ...patch }))}
         onWhisperApiKeySave={(apiKey) => saveFailoverKey(
           { failoverWhisperApiKey: apiKey }, ['failoverWhisperApiBaseUrl'],

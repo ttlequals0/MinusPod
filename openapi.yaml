@@ -6335,6 +6335,12 @@ paths:
                   minimum: 30
                   maximum: 3600
                   description: Request timeout for the transcriber failover API backend.
+                failoverWhisperMaxAttempts:
+                  type: integer
+                  nullable: true
+                  minimum: 1
+                  maximum: 10
+                  description: Upload attempts for the standby transcriber, including the first upload. Null or blank inherits whisperMaxAttempts; omit to leave unchanged.
                 failoverWhisperLanguage:
                   type: string
                   description: Language for the transcriber failover. Empty means same as the active transcriber; otherwise 'auto' or a 2-3 letter code.
@@ -15003,6 +15009,17 @@ components:
               type: integer
             isDefault:
               type: boolean
+        failoverWhisperMaxAttempts:
+          type: object
+          description: Standby upload attempts; null inherits whisperMaxAttempts.
+          properties:
+            value:
+              type: integer
+              nullable: true
+              minimum: 1
+              maximum: 10
+            isDefault:
+              type: boolean
         failoverWhisperLanguage:
           type: object
           description: Language for the transcriber failover. Empty means same as the active transcriber.
@@ -15204,6 +15221,9 @@ components:
               type: string
             failoverWhisperApiTimeoutSeconds:
               type: integer
+            failoverWhisperMaxAttempts:
+              type: integer
+              nullable: true
             failoverWhisperLanguage:
               type: string
             failoverProbeIntervalMinutes:

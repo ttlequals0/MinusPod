@@ -431,6 +431,7 @@ def _build_settings_payload():
     failover_whisper_api_model = _setting_value(
         settings, 'failover_whisper_api_model', registry_default('failover_whisper_api_model'))
     failover_whisper_api_timeout_seconds = _int_setting('failover_whisper_api_timeout_seconds')
+    failover_whisper_max_attempts = _int_setting('failover_whisper_max_attempts')
     failover_whisper_language = _setting_value(
         settings, 'failover_whisper_language', registry_default('failover_whisper_language'))
     failover_whisper_api_key_configured = bool(db.get_secret('failover_whisper_api_key'))
@@ -796,6 +797,7 @@ def _build_settings_payload():
         'failoverWhisperApiModel': _sv('failover_whisper_api_model', failover_whisper_api_model),
         'failoverWhisperApiTimeoutSeconds': _sv(
             'failover_whisper_api_timeout_seconds', failover_whisper_api_timeout_seconds),
+        'failoverWhisperMaxAttempts': _sv('failover_whisper_max_attempts', failover_whisper_max_attempts),
         'failoverWhisperLanguage': _sv('failover_whisper_language', failover_whisper_language),
         'failoverWhisperApiKeyConfigured': failover_whisper_api_key_configured,
         'failoverProbeIntervalMinutes': _sv(
@@ -2023,6 +2025,7 @@ def _validate_failover_settings_payload(data):
 
     optional_integers = (
         'failoverLlmTimeoutSeconds', 'failoverLlmMaxRetries',
+        'failoverWhisperMaxAttempts',
         'providerATimeoutSeconds', 'providerAMaxRetries',
         'providerBTimeoutSeconds', 'providerBMaxRetries',
     )
@@ -2255,9 +2258,9 @@ def _apply_secondary_provider_fields(db, data):
     return None
 
 
-# Per-slot overrides are shared by primary, secondary, and failover LLM settings.
-# Blank clears the row to the provider-type default.
+# Blank overrides clear the row to its inherited value.
 _INT_OR_BLANK_FIELDS = {
+    'failoverWhisperMaxAttempts': ('failover_whisper_max_attempts', 1, 10),
     'failoverLlmTimeoutSeconds': ('failover_llm_timeout_seconds', 10, 3600),
     'failoverLlmMaxRetries': ('failover_llm_max_retries', 0, 10),
     'providerATimeoutSeconds': ('llm_timeout_seconds', 10, 3600),
@@ -2349,6 +2352,11 @@ def _apply_failover_llm_fields(db, data):
 def _apply_failover_whisper_fields(db, data):
     """Persist transcriber failover settings and clear active state when disabled."""
     changed = False
+    if 'failoverWhisperMaxAttempts' in data:
+        err = _apply_int_or_blank(db, data, 'failoverWhisperMaxAttempts')
+        if err is not None:
+            return err
+        changed = True
     if 'failoverWhisperEnabled' in data:
         enabled = data['failoverWhisperEnabled']
         db.set_setting('failover_whisper_enabled', 'true' if enabled else 'false', is_default=False)

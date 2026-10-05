@@ -201,10 +201,36 @@ def test_failover_settings_language_inherits_active():
     assert s['language'] == 'de' and s['api_key'] == 'k2' and s['is_failover'] is True
 
 
+@pytest.mark.parametrize('override', [None, ''])
+def test_standby_attempts_inherit_current_active_value(override):
+    db = MagicMock()
+    db.get_setting.return_value = None
+    db.get_secret.return_value = ''
+    db.get_setting_float.side_effect = lambda key, fallback: fallback
+    db.get_setting_int.side_effect = lambda key, fallback: int(override) if override else fallback
+    active = {**ACTIVE, 'backend': 'local', 'max_attempts': 3}
+    with patch('database.Database', return_value=db), patch.object(transcriber, '_get_whisper_settings', return_value=active):
+        assert transcriber._get_failover_whisper_settings()['max_attempts'] == 3
+        active['max_attempts'] = 7
+        assert transcriber._get_failover_whisper_settings()['max_attempts'] == 7
+
+
+def test_standby_attempts_override_active_backend_setting():
+    db = MagicMock()
+    db.get_setting.return_value = None
+    db.get_secret.return_value = ''
+    db.get_setting_float.side_effect = lambda key, fallback: fallback
+    db.get_setting_int.return_value = 5
+    with patch('database.Database', return_value=db), patch.object(
+            transcriber, '_get_whisper_settings', return_value={**ACTIVE, 'backend': 'local', 'max_attempts': 3}):
+        assert transcriber._get_failover_whisper_settings()['max_attempts'] == 5
+    db.get_setting_int.assert_called_once_with('failover_whisper_max_attempts', 3)
+
+
 def test_single_shot_trigger_failure_reraises_original_error(t):
     original = ServiceUnavailableError('whisper', 'down')
     with patch.object(failover, 'is_configured', return_value=True), \
-            patch.object(failover, '_write_state', side_effect=RuntimeError('db locked')), \
+            patch.object(failover, '_apply_transition', side_effect=RuntimeError('db locked')), \
             patch.object(transcriber, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
             patch.object(t, 'transcribe', side_effect=original):
         with pytest.raises(ServiceUnavailableError) as exc:

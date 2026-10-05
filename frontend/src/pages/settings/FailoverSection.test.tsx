@@ -38,7 +38,7 @@ const baseLlm: Props['llm'] = {
 
 const baseWhisper: Props['whisper'] = {
   enabled: false, backend: 'openai-api', model: '', apiBaseUrl: '', apiModel: 'whisper-1',
-  apiTimeoutSeconds: 600, language: '', apiKeyConfigured: false,
+  apiTimeoutSeconds: 600, maxAttempts: null, language: '', apiKeyConfigured: false,
 };
 
 function props(overrides: Partial<Props> = {}): Props {
@@ -61,6 +61,7 @@ function props(overrides: Partial<Props> = {}): Props {
     onLlmApiKeyClear: vi.fn().mockResolvedValue(undefined),
     failoverCatalog: { models, isLoading: false, isError: false },
     whisper: baseWhisper,
+    activeWhisperMaxAttempts: 2,
     onWhisperChange: vi.fn(),
     onWhisperApiKeySave: vi.fn().mockResolvedValue(undefined),
     onWhisperApiKeyClear: vi.fn().mockResolvedValue(undefined),
@@ -220,7 +221,30 @@ describe('FailoverSection transcription failover', () => {
     expect(screen.getByLabelText('API base URL')).toBeDefined();
     expect(screen.getByLabelText('API model')).toBeDefined();
     expect(screen.getByLabelText('API timeout (seconds)')).toBeDefined();
+    expect(screen.getByLabelText('Max upload attempts')).toBeDefined();
     expect(screen.queryByLabelText('Local model')).toBeNull();
     expect(screen.getByLabelText('Language')).toBeDefined();
+  });
+
+  it('edits standby attempts and clearing restores dynamic inheritance', async () => {
+    const onWhisperChange = vi.fn();
+    const { rerender } = renderSection({
+      onWhisperChange, activeWhisperMaxAttempts: 3,
+      whisper: { ...baseWhisper, enabled: true, maxAttempts: 5 },
+    });
+    await openSection();
+    const field = screen.getByLabelText('Max upload attempts') as HTMLInputElement;
+    expect(field.value).toBe('5');
+    await userEvent.clear(field);
+    expect(onWhisperChange).toHaveBeenLastCalledWith({ maxAttempts: null });
+    await userEvent.type(field, '4');
+    expect(onWhisperChange).toHaveBeenLastCalledWith({ maxAttempts: 4 });
+    field.blur();
+    rerender(sectionWith({
+      activeWhisperMaxAttempts: 7,
+      whisper: { ...baseWhisper, enabled: true, maxAttempts: null },
+    }));
+    expect(field.value).toBe('');
+    expect(field.placeholder).toBe('7');
   });
 });
