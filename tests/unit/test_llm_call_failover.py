@@ -8,6 +8,9 @@ import openai
 from tests.app_bootstrap import bootstrap
 bootstrap('llm_call_failover_test_')
 
+import ad_detector
+import run_context
+from ad_detector import AdDetector, PASS_AD_DETECTION_1
 import failover
 import llm_route
 from cancel import ProcessingCancelled
@@ -31,18 +34,15 @@ def _call(client, **overrides):
 
 
 def _outage():
-    import httpx, openai
     return openai.APIConnectionError(request=httpx.Request('POST', 'http://example.com'))
 
 
 def _bad_request():
-    import httpx, openai
     resp = httpx.Response(400, request=httpx.Request('POST', 'http://example.com'))
     return openai.BadRequestError('bad request', response=resp, body=None)
 
 
 def _not_found():
-    import httpx, openai
     resp = httpx.Response(404, request=httpx.Request('POST', 'http://example.com'))
     return openai.NotFoundError('not found', response=resp, body=None)
 
@@ -242,9 +242,6 @@ def test_failover_downgrades_json_schema_when_model_lacks_support(no_sleep):
 
 def test_detector_switches_model_and_slot_mid_pass():
     """Window 2 after a window-1 trigger goes out with the failover model and slot."""
-    import ad_detector
-    import run_context
-    from ad_detector import AdDetector, PASS_AD_DETECTION_1
 
     cfg = {'provider': 'openai-compatible', 'base_url': 'http://127.0.0.1:11434/v1',
            'timeout': None, 'max_retries': None,

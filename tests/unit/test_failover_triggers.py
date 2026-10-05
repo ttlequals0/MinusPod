@@ -8,6 +8,8 @@ import httpx2
 from tests.app_bootstrap import bootstrap
 bootstrap('failover_triggers_test_')
 
+from config import ModelNotConfiguredError  # noqa: E402
+from utils.circuit_breaker import CircuitBreakerOpen  # noqa: E402
 from llm_client import (  # noqa: E402
     ProviderRequestRejectedError, is_connectivity_error, is_failover_trigger_error,
     is_retryable_error,
@@ -53,12 +55,10 @@ def test_connection_and_timeout_trigger():
 
 
 def test_breaker_open_triggers():
-    from utils.circuit_breaker import CircuitBreakerOpen
     assert is_failover_trigger_error(CircuitBreakerOpen('llm', 30)) is True
 
 
 def test_non_provider_errors_do_not_trigger():
-    from config import ModelNotConfiguredError
     assert is_failover_trigger_error(ModelNotConfiguredError('claude_model')) is False
     assert is_failover_trigger_error(ValueError('bad json')) is False
 

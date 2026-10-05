@@ -112,8 +112,6 @@ def test_client_for_failover_dict_does_not_raise_account_changed():
 
 
 def test_reviewer_live_route_follows_mid_pass_trigger():
-    from unittest.mock import MagicMock
-    from ad_reviewer import AdReviewer
     reviewer = AdReviewer(MagicMock())
     reviewer._active_route = Route(**{**PRIMARY.__dict__, 'phase': 'review'})
     with _active(set()), _configured():
