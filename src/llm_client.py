@@ -2311,6 +2311,15 @@ def is_connectivity_error(error: Exception) -> bool:
     return False
 
 
+def is_failover_trigger_error(error: Exception) -> bool:
+    """True for faults the failover provider can route around: outages,
+    auth rejections, missing models and exhausted quota. Never a 429."""
+    if is_rate_limit_error(error):
+        return False
+    return (is_connectivity_error(error) or is_auth_error(error)
+            or is_not_found_error(error) or is_limit_exceeded_error(error))
+
+
 def check_llm_connectivity(timeout: float = 5.0) -> bool:
     """Availability probe for the offline queue re-drive (#482).
 

@@ -24,6 +24,7 @@ from utils.audio import get_audio_duration, mean_volume_db
 from utils.errors import (
     ServiceUnavailableError, AudioTooLargeError, AudioExtractionError,
     AudioExtractionTimeout, LocalTranscriptionUnavailableError, ModelLoadError,
+    TranscriptionRejectedError,
 )
 from utils.text import transcript_gaps
 from utils.time import format_vtt_timestamp, parse_iso_utc, utc_now, utc_now_iso
@@ -629,6 +630,7 @@ def _get_whisper_settings() -> dict[str, str]:
         'skip_flac_compression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
         'api_timeout': _clamp_api_timeout(
             os.environ.get('WHISPER_API_TIMEOUT') or HTTP_TIMEOUT_WHISPER),
+        'max_attempts': 2,
     }
     try:
         # Inline import: Database depends on modules that import transcriber,
@@ -655,6 +657,8 @@ def _get_whisper_settings() -> dict[str, str]:
 
         defaults['api_timeout'] = _clamp_api_timeout(db.get_setting_float(
             'whisper_api_timeout_seconds', defaults['api_timeout']))
+        defaults['max_attempts'] = db.get_setting_int(
+            'whisper_max_attempts', defaults['max_attempts'])
     except Exception as e:
         logger.warning(f"Could not read whisper settings from DB, using env defaults: {e}")
 
@@ -717,6 +721,12 @@ def check_whisper_connectivity(timeout: float = 5.0) -> bool:
     except Exception as e:
         logger.debug(f"Whisper connectivity probe failed: {e}")
         return False
+
+
+def is_whisper_failover_trigger(exc: Exception) -> bool:
+    """Errors that mean this transcriber config cannot serve the episode right now."""
+    return isinstance(exc, (ServiceUnavailableError, TranscriptionRejectedError,
+                            ModelLoadError, LocalTranscriptionUnavailableError))
 
 
 _HEALTH_INSTANCE_FIELDS = (
@@ -1618,7 +1628,7 @@ class Transcriber:
             # response body signals that rejection.
             response = None
             last_request_exc = None
-            max_attempts = 2
+            max_attempts = int(whisper_settings.get('max_attempts') or 2)
             granularity_modes = (
                 ['segment', 'word'],
                 ['segment'],
@@ -1725,6 +1735,8 @@ class Transcriber:
                 break
 
             if response is None or response.status_code != 200:
+                if response is not None and response.status_code in (401, 402, 403, 404):
+                    raise TranscriptionRejectedError(response.status_code)
                 if response is not None and response.status_code >= 500:
                     raise ServiceUnavailableError(
                         'whisper',
@@ -1781,7 +1793,7 @@ class Transcriber:
 
             return result
 
-        except ServiceUnavailableError:
+        except (ServiceUnavailableError, TranscriptionRejectedError):
             raise
         except Exception as e:
             logger.error(f"API transcription failed: {e}")

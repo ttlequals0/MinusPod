@@ -7,9 +7,16 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('error_class_test_')
 from main_app.processing import is_transient_error
+from transcriber import TranscriptionRejectedError
 
 
 @pytest.mark.parametrize("error, transient", [
+    # Whisper auth rejection never resolves on retry; billing/missing-model
+    # statuses keep the default "assume transient" fallback (#806).
+    (TranscriptionRejectedError(401), False),
+    (TranscriptionRejectedError(403), False),
+    (TranscriptionRejectedError(402), True),
+    (TranscriptionRejectedError(404), True),
     # Download 404: freshly published episodes 404 while the host provisions
     # the media URL, so retry. The retry cap still fails a genuinely dead link.
     (requests.exceptions.HTTPError(

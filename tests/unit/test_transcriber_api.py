@@ -15,6 +15,8 @@ from transcriber import (
     extract_audio_chunk,
     _ffmpeg_error_tail,
     PREPROCESS_AUDIO_FILTERS,
+    TranscriptionRejectedError,
+    is_whisper_failover_trigger,
 )
 from utils.errors import (
     ServiceUnavailableError, AudioExtractionError, AudioExtractionTimeout,
@@ -795,6 +797,73 @@ class TestWhisperServiceUnavailable:
                 whisper_settings=self._make_settings(api_base_url=''))
             assert result is None
             mock_post.assert_not_called()
+
+
+class TestTranscriptionRejected:
+    """401/402/403/404 from the whisper API refuse the request outright (#806)."""
+
+    def _make_settings(self, **overrides):
+        settings = {
+            'backend': WHISPER_BACKEND_API,
+            'api_base_url': 'http://localhost:8765/v1',
+            'api_key': '',
+            'api_model': 'whisper-1',
+            'skip_flac_compression': True,
+        }
+        settings.update(overrides)
+        return settings
+
+    def _make_audio_file(self):
+        f = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        f.write(b'fake' * 512)
+        f.close()
+        return f.name
+
+    @pytest.mark.parametrize('status', [401, 402, 403, 404])
+    def test_auth_and_missing_raise(self, status):
+        temp_path = self._make_audio_file()
+        try:
+            mock_response = MagicMock()
+            mock_response.status_code = status
+            with patch('transcriber.safe_post', return_value=mock_response):
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                with pytest.raises(TranscriptionRejectedError) as exc:
+                    transcriber._transcribe_via_api(
+                        temp_path, whisper_settings=self._make_settings())
+                assert exc.value.status == status
+                assert is_whisper_failover_trigger(exc.value) is True
+        finally:
+            os.unlink(temp_path)
+
+    def test_other_4xx_still_returns_none(self):
+        temp_path = self._make_audio_file()
+        try:
+            mock_response = MagicMock()
+            mock_response.status_code = 413
+            with patch('transcriber.safe_post', return_value=mock_response):
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                result = transcriber._transcribe_via_api(
+                    temp_path, whisper_settings=self._make_settings())
+                assert result is None
+        finally:
+            os.unlink(temp_path)
+
+    def test_max_attempts_setting_is_honoured(self):
+        temp_path = self._make_audio_file()
+        try:
+            post = MagicMock(side_effect=requests_lib.exceptions.ConnectionError('down'))
+            with patch('transcriber.safe_post', post):
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                with pytest.raises(ServiceUnavailableError):
+                    transcriber._transcribe_via_api(
+                        temp_path,
+                        whisper_settings=self._make_settings(max_attempts=3))
+            assert post.call_count == 3
+        finally:
+            os.unlink(temp_path)
 
 
 class TestCheckWhisperConnectivity:

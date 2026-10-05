@@ -165,7 +165,7 @@ from reprocess_modes import (
     FORCE_TRANSCRIBE_MODES, clear_episode_for_mode,
 )
 from splice_calibration import SPLICE_EVENTS_CALIBRATED_STATUSES, compute_splice_calibration
-from transcriber import CDN_REFUSED_PREFIX
+from transcriber import CDN_REFUSED_PREFIX, TranscriptionRejectedError
 from user_agent import download_user_agent, feed_user_agent
 from utils.constants import (
     CANCELED_ERROR_MESSAGE, EpisodeStatus, PIPELINE_REPROCESS_SOURCES,
@@ -289,6 +289,10 @@ def is_transient_error(error: Exception) -> bool:
     # offline queue (#482) disabled this keeps today's retry behavior.
     if isinstance(error, ServiceUnavailableError):
         return True
+
+    # Whisper API auth rejection: a retry sends the same bad credentials (#806).
+    if isinstance(error, TranscriptionRejectedError) and error.status in (401, 403):
+        return False
 
     # Provider spend/usage limits are terminal until the operator adds
     # credits or raises the limit (#491).
