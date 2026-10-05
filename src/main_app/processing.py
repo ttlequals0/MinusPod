@@ -128,6 +128,7 @@ from config import (
     resolve_splice_veto_enabled,
     ModelNotConfiguredError,
     coerce_bool_setting,
+    WHISPER_BACKEND_API,
 )
 from database import Database
 from database.podcasts import is_local_feed
@@ -158,6 +159,7 @@ from rate_limit_hold import (
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
 from text_recurrence import find_recurring_spans
+import failover
 import run_context
 import run_log
 from reprocess_modes import (
@@ -6281,6 +6283,16 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ctx.run_id = run_id
         _check_cancel(cancel_event, slug, episode_id, run_id)
 
+    try:
+        needed = ['llm:primary']
+        if coerce_bool_setting(db.get_setting('secondary_provider_enabled')):
+            needed.append('llm:secondary')
+        if (db.get_setting('whisper_backend') or 'local') == WHISPER_BACKEND_API:
+            needed.append('whisper:active')
+        failover.ensure_fresh_probes(needed)
+    except Exception as exc:
+        audio_logger.debug(f"pre-run failover probe skipped: {exc}")
+
     route_snapshot = _resolve_or_load_route_snapshot(run_id)
     _assert_route_snapshot_current(route_snapshot)
     if ctx is not None and route_snapshot is not None:
@@ -7089,6 +7101,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     f"[{slug}:{episode_id}] Approval recut failed before it "
                     f"rewrote anything; finalizing this run's render"
                 )
+
+            used = {route['failover_from'] for route in (route_snapshot or {}).values()
+                    if isinstance(route, dict) and route.get('failover_from')}
+            used |= {t for t in ('primary', 'secondary') if failover.is_active(f'llm:{t}')}
+            if used or failover.is_active(failover.TARGET_WHISPER):
+                run_stats['failover'] = {'llm': sorted(used), 'whisper': failover.is_active(failover.TARGET_WHISPER)}
 
             _finalize_episode(slug, episode_id, episode_title, podcast_name,
                                pass1_cut_count, verification_count, first_pass_count,

@@ -478,6 +478,17 @@ def get_effective_failover_llm_api_key() -> str | None:
     return _get_cached_secret('failover_llm_api_key')
 
 
+def get_effective_api_key_for(provider: str) -> str | None:
+    """Return the effective API key for an arbitrary provider name."""
+    if provider == PROVIDER_ANTHROPIC:
+        return get_effective_anthropic_api_key()
+    if provider == PROVIDER_OPENROUTER:
+        return get_effective_openrouter_api_key()
+    if provider == PROVIDER_OLLAMA:
+        return get_effective_ollama_api_key() or 'not-needed'
+    return get_effective_openai_api_key()
+
+
 def _apply_pass_fallback(
     episode_id: str | None,
     pass_name: str | None,

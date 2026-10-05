@@ -8,6 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
+import failover
 import run_log
 from config import (
     FEED_REFRESH_OUTAGE_MIN_FEEDS, MAX_EPISODE_RETRIES,
@@ -505,6 +506,7 @@ def background_queue_processor():
     running: set[threading.Thread] = set()
     # Backdated so the very first pass always runs the maintenance block.
     last_maintenance = time.monotonic() - MAINTENANCE_INTERVAL_SECONDS
+    last_probe = time.monotonic() - 3600
     backoff = 30  # Initial backoff for a bounced claim
     rate_limit_pause_logged = False
     processing_pause_logged = False
@@ -537,6 +539,12 @@ def background_queue_processor():
                 _run_tick(offline_queue_tick, 'offline_queue_tick')
 
                 db.clear_completed_queue_items(older_than_hours=24)
+
+            # Provider health probe (#806): own interval, independent of the
+            # maintenance cadence above.
+            if time.monotonic() - last_probe >= failover.probe_interval_seconds():
+                last_probe = time.monotonic()
+                _run_tick(failover.probe_tick, 'failover_probe_tick')
 
             for waiter in list(running):
                 if not waiter.is_alive():

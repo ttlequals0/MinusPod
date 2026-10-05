@@ -53,7 +53,7 @@ def _response(status, body=b'', json_body=None):
 
 class TestProbeModelsEndpoint:
     def test_success(self):
-        with patch('api.providers.safe_get',
+        with patch('provider_probe.safe_get',
                    return_value=_response(200, json_body={'data': []})) as sg:
             result = _probe_models_endpoint('http://localhost:11434/v1', 'sk-x')
         assert result['ok'] is True
@@ -62,26 +62,26 @@ class TestProbeModelsEndpoint:
         assert sg.call_args[1]['headers']['Authorization'] == 'Bearer sk-x'
 
     def test_no_key_sends_no_auth_header(self):
-        with patch('api.providers.safe_get',
+        with patch('provider_probe.safe_get',
                    return_value=_response(200, json_body={'data': []})) as sg:
             _probe_models_endpoint('http://localhost:11434/v1', '')
         assert 'Authorization' not in sg.call_args[1]['headers']
 
     def test_404_points_at_path(self):
-        with patch('api.providers.safe_get', return_value=_response(404)):
+        with patch('provider_probe.safe_get', return_value=_response(404)):
             result = _probe_models_endpoint('http://localhost:11434', '')
         assert result['ok'] is False
         assert result['reachable'] is True
         assert '/v1' in result['detail']
 
     def test_401_points_at_key(self):
-        with patch('api.providers.safe_get', return_value=_response(401)):
+        with patch('provider_probe.safe_get', return_value=_response(401)):
             result = _probe_models_endpoint('http://server:8000/v1', '')
         assert result['reachable'] is True
         assert 'API key' in result['detail']
 
     def test_200_non_json_is_not_ok(self):
-        with patch('api.providers.safe_get',
+        with patch('provider_probe.safe_get',
                    return_value=_response(200, body=b'<html>')):
             result = _probe_models_endpoint('http://some-web-server', '')
         assert result['ok'] is False
@@ -90,19 +90,19 @@ class TestProbeModelsEndpoint:
     def test_200_json_without_data_list_is_not_ok(self):
         # The real client reads response.data; JSON without it means
         # discovery would fail despite the 200.
-        with patch('api.providers.safe_get',
+        with patch('provider_probe.safe_get',
                    return_value=_response(200, json_body={'error': 'nope'})):
             result = _probe_models_endpoint('http://server:8000/v1', '')
         assert result['ok'] is False
         assert 'model list' in result['detail']
 
     def test_401_with_key_names_saved_key(self):
-        with patch('api.providers.safe_get', return_value=_response(401)):
+        with patch('provider_probe.safe_get', return_value=_response(401)):
             result = _probe_models_endpoint('http://server:8000/v1', 'sk-x')
         assert 'rejected the saved API key' in result['detail']
 
     def test_connection_error_unreachable(self):
-        with patch('api.providers.safe_get',
+        with patch('provider_probe.safe_get',
                    side_effect=requests_lib.ConnectionError('refused')):
             result = _probe_models_endpoint('http://server:8000/v1', '')
         assert result['ok'] is False
@@ -197,7 +197,7 @@ class TestFixedProviderConnection:
                            content_type='application/json')
 
     def test_anthropic_probes_fixed_url(self, client):
-        with patch('api.providers.safe_get',
+        with patch('provider_probe.safe_get',
                    return_value=_response(200, json_body={'data': []})) as sg:
             r = self._post(client, 'anthropic')
         assert r.status_code == 200
@@ -205,7 +205,7 @@ class TestFixedProviderConnection:
         assert sg.call_args[0][0] == 'https://api.anthropic.com/v1/models'
 
     def test_openrouter_probes_fixed_url(self, client):
-        with patch('api.providers.safe_get',
+        with patch('provider_probe.safe_get',
                    return_value=_response(200, json_body={'data': {}})) as sg:
             r = self._post(client, 'openrouter')
         assert r.get_json()['ok'] is True
@@ -214,14 +214,14 @@ class TestFixedProviderConnection:
     def test_body_base_url_ignored_for_fixed_provider(self, client):
         # No baseUrl input exists for fixed providers; a body value must
         # never redirect the probe (or the saved key) anywhere else.
-        with patch('api.providers.safe_get',
+        with patch('provider_probe.safe_get',
                    return_value=_response(200, json_body={'data': []})) as sg:
             self._post(client, 'anthropic',
                        {'baseUrl': 'http://evil.example.com'})
         assert sg.call_args[0][0] == 'https://api.anthropic.com/v1/models'
 
     def test_401_without_key(self, client):
-        with patch('api.providers.safe_get', return_value=_response(401)):
+        with patch('provider_probe.safe_get', return_value=_response(401)):
             r = self._post(client, 'anthropic')
         data = r.get_json()
         assert data['ok'] is False
@@ -230,14 +230,14 @@ class TestFixedProviderConnection:
 
     def test_401_with_saved_key(self, client, temp_db):
         temp_db.set_secret('anthropic_api_key', 'sk-ant-bad')
-        with patch('api.providers.safe_get', return_value=_response(401)) as sg:
+        with patch('provider_probe.safe_get', return_value=_response(401)) as sg:
             r = self._post(client, 'anthropic')
         data = r.get_json()
         assert 'rejected the saved key' in data['detail']
         assert sg.call_args[1]['headers']['x-api-key'] == 'sk-ant-bad'
 
     def test_unreachable(self, client):
-        with patch('api.providers.safe_get',
+        with patch('provider_probe.safe_get',
                    side_effect=requests_lib.ConnectionError('no route')):
             r = self._post(client, 'openrouter')
         data = r.get_json()
@@ -267,7 +267,7 @@ class TestSecondaryProviderConnection:
         temp_db.set_setting('secondary_provider', 'anthropic', is_default=False)
         temp_db.set_secret('secondary_provider_api_key', 'sk-ant-secondary')
         temp_db.set_secret('anthropic_api_key', 'sk-ant-primary')
-        with patch('api.providers.safe_get', return_value=_response(200, json_body={'data': []})) as sg:
+        with patch('provider_probe.safe_get', return_value=_response(200, json_body={'data': []})) as sg:
             r = self._post(client)
         assert r.status_code == 200
         assert r.get_json()['ok'] is True
@@ -321,7 +321,7 @@ class TestSecondaryProviderConnection:
         selection, not the last-saved secondary_provider setting."""
         temp_db.set_setting('secondary_provider', 'ollama', is_default=False)
         temp_db.set_secret('secondary_provider_api_key', 'sk-ollama-secondary')
-        with patch('api.providers.safe_get', return_value=_response(200, json_body={'data': []})) as sg:
+        with patch('provider_probe.safe_get', return_value=_response(200, json_body={'data': []})) as sg:
             r = self._post(client, {'provider': 'anthropic'})
         assert r.status_code == 200
         assert r.get_json()['ok'] is True
@@ -332,7 +332,7 @@ class TestSecondaryProviderConnection:
         probe of an unsaved type override must not send it."""
         temp_db.set_setting('secondary_provider', 'ollama', is_default=False)
         temp_db.set_secret('secondary_provider_api_key', 'sk-ollama-secondary')
-        with patch('api.providers.safe_get', return_value=_response(401)) as sg:
+        with patch('provider_probe.safe_get', return_value=_response(401)) as sg:
             r = self._post(client, {'provider': 'anthropic'})
         assert r.status_code == 200
         assert 'x-api-key' not in sg.call_args[1]['headers']

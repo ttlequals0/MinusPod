@@ -2,13 +2,16 @@
 import json
 import logging
 import threading
+import time
 
+import llm_client
+import provider_probe
 from config import (
     WHISPER_BACKEND_LOCAL, DEFAULT_OPENAI_BASE_URL, coerce_bool_setting,
 )
 from database import Database
 from llm_client import invalidate_provider_cache
-from utils.time import utc_now_iso
+from utils.time import parse_iso_utc, utc_now_iso
 from utils.ttl_cache import TTLCache
 from webhook_service import fire_failover_event
 
@@ -146,3 +149,141 @@ def cancel(target: str, source: str = 'manual') -> bool:
 
 def recent_events(limit: int = 50) -> list[dict]:
     return Database().get_failover_events(limit)
+
+
+# --- Health probing (#806) ------------------------------------------------
+
+PROBE_TARGETS = ('llm:primary', 'llm:secondary', 'llm:failover', 'whisper:active', 'whisper:failover')
+AUTO_TRIGGER_FAILURES = 2
+_PROBE_DEFAULT = {'reachable': None, 'status': None, 'detail': '', 'checked_at': None,
+                  'healthy_streak': 0, 'failed_streak': 0}
+_ORIGIN_OF = {'llm:primary': TARGET_LLM_PRIMARY, 'llm:secondary': TARGET_LLM_SECONDARY,
+              'whisper:active': TARGET_WHISPER}
+
+
+def probe_interval_seconds() -> int:
+    try:
+        return max(1, min(60, int(_setting('failover_probe_interval_minutes') or 5))) * 60
+    except (TypeError, ValueError):
+        return 300
+
+
+def recovery_probes() -> int:
+    try:
+        return max(1, min(10, int(_setting('failover_recovery_probes') or 3)))
+    except (TypeError, ValueError):
+        return 3
+
+
+def enabled_probe_targets() -> list[str]:
+    targets = ['llm:primary']
+    if coerce_bool_setting(_setting('secondary_provider_enabled')):
+        targets.append('llm:secondary')
+    if coerce_bool_setting(_setting('failover_llm_enabled')) and _setting('failover_llm_provider'):
+        targets.append('llm:failover')
+    if (_setting('whisper_backend') or 'local') == 'openai-api':
+        targets.append('whisper:active')
+    if (coerce_bool_setting(_setting('failover_whisper_enabled'))
+            and (_setting('failover_whisper_backend') or 'openai-api') == 'openai-api'):
+        targets.append('whisper:failover')
+    return targets
+
+
+def probe_state(target: str) -> dict:
+    raw = _setting(f'failover_probe:{target}')
+    try:
+        data = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        data = {}
+    return {**_PROBE_DEFAULT, **{k: data.get(k, v) for k, v in _PROBE_DEFAULT.items()}}
+
+
+def all_probe_states() -> dict[str, dict]:
+    return {t: probe_state(t) for t in PROBE_TARGETS}
+
+
+def _llm_slot_config(slot: str) -> tuple[str, str | None, str]:
+    """(provider, base_url, api_key) for an LLM probe target."""
+    if slot == 'failover':
+        cfg = failover_llm_config()
+        return cfg['provider'], cfg['base_url'], llm_client.get_effective_failover_llm_api_key() or ''
+    if slot == 'secondary':
+        return (_setting('secondary_provider') or '', _setting('secondary_provider_base_url'),
+                llm_client.get_effective_secondary_provider_api_key() or '')
+    provider = llm_client.get_effective_provider()
+    return provider, llm_client.get_effective_base_url(), llm_client.get_effective_api_key_for(provider) or ''
+
+
+def _whisper_probe_config(slot: str) -> tuple[str | None, str]:
+    """(base_url, api_key) for a whisper probe target."""
+    prefix = 'failover_whisper' if slot == 'failover' else 'whisper'
+    return _setting(f'{prefix}_api_base_url'), Database().get_secret(f'{prefix}_api_key') or ''
+
+
+def probe_target(target: str) -> dict:
+    try:
+        kind, which = target.split(':', 1)
+        if kind == 'llm':
+            provider, base_url, key = _llm_slot_config(which)
+            if not provider:
+                return {'reachable': None, 'status': None, 'detail': 'Not configured'}
+            if provider in provider_probe.FIXED_PROVIDER_PROBES:
+                result = provider_probe.probe_fixed_endpoint(provider, key)
+            else:
+                norm = llm_client._normalize_base_url_for_provider(provider, base_url or DEFAULT_OPENAI_BASE_URL)
+                result = provider_probe.probe_models_endpoint(norm, key)
+        else:
+            base_url, key = _whisper_probe_config(which)
+            if not base_url:
+                return {'reachable': None, 'status': None, 'detail': 'Not configured'}
+            result = provider_probe.probe_models_endpoint(base_url.rstrip('/'), key)
+        status = result.get('status')
+        reachable = bool(result.get('reachable')) and status not in (401, 402, 403, 404) and (status is None or status < 500)
+        return {'reachable': reachable, 'status': status, 'detail': result.get('detail', '')}
+    except Exception as exc:
+        logger.debug(f"probe {target} failed: {exc}")
+        return {'reachable': False, 'status': None, 'detail': str(exc)[:200]}
+
+
+def _record_probe(db, target: str, result: dict) -> dict:
+    prev = probe_state(target)
+    healthy = result['reachable'] is True
+    data = {**prev, **result, 'checked_at': utc_now_iso(),
+            'healthy_streak': prev['healthy_streak'] + 1 if healthy else 0,
+            'failed_streak': 0 if healthy else prev['failed_streak'] + 1}
+    db.set_setting(f'failover_probe:{target}', json.dumps(data), is_default=False)
+    invalidate_cache()
+    return data
+
+
+def probe_tick(db, targets: list[str] | None = None) -> dict[str, dict]:
+    """Probe every enabled target, then apply auto trigger and auto recovery."""
+    results = {}
+    for target in targets or enabled_probe_targets():
+        data = _record_probe(db, target, probe_target(target))
+        results[target] = data
+        origin = _ORIGIN_OF.get(target)
+        if origin is None:
+            continue
+        if data['failed_streak'] >= AUTO_TRIGGER_FAILURES and not is_active(origin):
+            trigger(origin, f"health probe failed {data['failed_streak']} times: {data['detail']}", source='probe')
+        elif data['healthy_streak'] >= recovery_probes() and is_active(origin):
+            cancel(origin, source='auto')
+    return results
+
+
+def _parse_iso(value: str | None) -> float:
+    dt = parse_iso_utc(value)
+    return dt.timestamp() if dt else 0.0
+
+
+def ensure_fresh_probes(targets: list[str]) -> None:
+    """Probe only targets whose last probe is older than the interval."""
+    stale = []
+    cutoff = time.time() - probe_interval_seconds()
+    for target in targets:
+        checked = probe_state(target)['checked_at']
+        if not checked or _parse_iso(checked) < cutoff:
+            stale.append(target)
+    if stale:
+        probe_tick(Database(), stale)
