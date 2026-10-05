@@ -43,7 +43,13 @@ vi.mock('./settings/AppearanceSection', () => ({ default: () => null }));
 vi.mock('./settings/PodcastIndexSection', () => ({ default: () => null }));
 vi.mock('./settings/LLMProviderSection', () => ({ default: () => null }));
 vi.mock('./settings/AIModelsSection', () => ({ default: () => <div data-testid="ai-models-section" /> }));
-vi.mock('./settings/FailoverSection', () => ({ default: () => <div data-testid="failover-section" /> }));
+vi.mock('./settings/FailoverSection', () => ({
+  default: ({ onToggle }: { onToggle?: (open: boolean) => void }) => (
+    <div data-testid="failover-section">
+      <button type="button" onClick={() => onToggle?.(true)}>Open failover</button>
+    </div>
+  ),
+}));
 vi.mock('./settings/StageTunablesSection', () => ({ default: () => <div data-testid="stage-tunables-section" /> }));
 vi.mock('./settings/TranscriptionSection', () => ({ default: () => null }));
 vi.mock('./settings/AudioSection', () => ({ default: () => null }));
@@ -60,6 +66,9 @@ vi.mock('./settings/QueueControlSection', () => ({ default: () => null }));
 vi.mock('./settings/TranscriptNormalizationSection', () => ({ default: () => null }));
 
 const mockGetSettings = vi.fn();
+const mockGetFailover = vi.fn().mockResolvedValue({
+  targets: {}, probes: {}, policy: { probeIntervalMinutes: 5, recoveryProbes: 3 }, events: [],
+});
 const mockResetPrompt = vi.fn();
 
 vi.mock('../api/settings', () => ({
@@ -128,7 +137,7 @@ vi.mock('../api/providers', () => ({
 }));
 
 vi.mock('../api/failover', () => ({
-  getFailover: vi.fn().mockResolvedValue({ targets: {}, probes: {}, policy: { probeIntervalMinutes: 5, recoveryProbes: 3 }, events: [] }),
+  getFailover: (...a: unknown[]) => mockGetFailover(...a),
   triggerFailover: vi.fn(),
   cancelFailover: vi.fn(),
   probeFailover: vi.fn(),
@@ -303,6 +312,20 @@ describe('Settings: Failover placement', () => {
     const failover = await screen.findByTestId('failover-section');
     expect(precedes(screen.getByTestId('ai-models-section'), failover)).toBe(true);
     expect(precedes(failover, screen.getByTestId('stage-tunables-section'))).toBe(true);
+  });
+
+  it('fetches failover state only once the card is opened', async () => {
+    localStorage.removeItem('settings-section-failover');
+    mockGetFailover.mockClear();
+    mockGetSettings.mockResolvedValue(makeSettings());
+    const user = userEvent.setup();
+    renderSettings();
+
+    await screen.findByTestId('failover-section');
+    expect(mockGetFailover).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Open failover' }));
+    await waitFor(() => expect(mockGetFailover).toHaveBeenCalledTimes(1));
   });
 });
 

@@ -10,7 +10,7 @@ import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { SkeletonRows } from '../../components/Skeleton';
 import { badgeBase, tint } from '../../components/badgeStyles';
-import { btnSecondary, touchTarget } from '../../components/buttonStyles';
+import { btnOutline, btnSecondary } from '../../components/buttonStyles';
 import { focusRing, inputBase, selectBase } from '../../components/fieldStyles';
 import { formatDateTime, formatTimeAgo } from '../../utils/format';
 import ConnectionTestButton from './ConnectionTestButton';
@@ -43,6 +43,8 @@ interface FailoverWhisper {
 }
 
 interface FailoverSectionProps {
+  storageKey?: string;
+  onToggle?: (isOpen: boolean) => void;
   overview: FailoverOverview | undefined;
   overviewLoading: boolean;
   onTrigger: (t: FailoverTargetName) => void;
@@ -82,6 +84,10 @@ function keyStatus(configured: boolean): ProviderStatus {
 
 function targetBadge(state: FailoverTargetState, probe: FailoverProbe | undefined) {
   if (state.active) return { label: 'Failed over', tone: tint.warning };
+  return probeBadge(probe);
+}
+
+function probeBadge(probe: FailoverProbe | undefined) {
   if (!probe || probe.reachable === null) return { label: 'Unprobed', tone: tint.neutral };
   return probe.reachable
     ? { label: 'Healthy', tone: tint.success }
@@ -106,6 +112,10 @@ function targetMeta(state: FailoverTargetState, probe: FailoverProbe | undefined
     const since = state.since ? `Since ${formatTimeAgo(state.since)}` : 'Active';
     return `${since}${viaText(state.source, state.reason)}`;
   }
+  return probeMeta(probe);
+}
+
+function probeMeta(probe: FailoverProbe | undefined): string {
   if (!probe?.checkedAt) return 'Not probed yet';
   const detail = probe.reachable === false && probe.detail ? `: ${probe.detail}` : '';
   return `Last probe ${formatTimeAgo(probe.checkedAt)}${detail}`;
@@ -142,7 +152,7 @@ function TargetRow({
           aria-label={`${verb} failover for ${label}`}
           disabled={pending || (!state.active && !state.configured)}
           onClick={() => (state.active ? onCancel(name) : onTrigger(name))}
-          className={`${touchTarget} shrink-0 px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`shrink-0 px-3 py-1.5 rounded-md ${btnOutline} text-sm font-medium disabled:opacity-50 transition-colors ${focusRing}`}
         >
           {verb} failover
         </button>
@@ -151,7 +161,26 @@ function TargetRow({
   );
 }
 
+// A standby account's own health: no action, so it reads as subordinate to the targets.
+function StandbyRow({ label, configured, probe }: {
+  label: string;
+  configured: boolean;
+  probe: FailoverProbe | undefined;
+}) {
+  const badge = configured ? probeBadge(probe) : { label: 'Not configured', tone: tint.neutral };
+  return (
+    <li className="px-3 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+        <span className={`${badgeBase} shrink-0 font-medium ${badge.tone}`}>{badge.label}</span>
+      </div>
+      {configured && <p className="mt-1 text-xs text-muted-foreground break-words">{probeMeta(probe)}</p>}
+    </li>
+  );
+}
+
 function FailoverSection({
+  storageKey, onToggle,
   overview, overviewLoading, onTrigger, onCancel, onProbeNow, actionPending, probePending, actionError,
   probeIntervalMinutes, onProbeIntervalChange, recoveryProbes, onRecoveryProbesChange,
   llm, onLlmChange, onLlmApiKeySave, onLlmApiKeyClear, failoverCatalog,
@@ -164,6 +193,8 @@ function FailoverSection({
   return (
     <CollapsibleSection
       title="Failover"
+      storageKey={storageKey}
+      onToggle={onToggle}
       subtitle="Switch to a standby provider when one is down. Both LLM providers and the transcriber can fail over."
       headerRight={(
         <button
@@ -190,9 +221,12 @@ function FailoverSection({
                 onCancel={onCancel}
               />
             ))}
+            {/* Both LLM targets share one failover account, so either's flag says whether it is set up. */}
+            <StandbyRow label="LLM failover" configured={overview.targets['llm-a'].configured} probe={overview.probes['llm-failover']} />
+            <StandbyRow label="Transcriber failover" configured={overview.targets.transcriber.configured} probe={overview.probes['transcriber-failover']} />
           </ul>
         ) : overviewLoading ? (
-          <SkeletonRows count={3} />
+          <SkeletonRows count={5} />
         ) : (
           <p className="text-sm text-muted-foreground">Failover status could not be loaded.</p>
         )}
@@ -470,7 +504,7 @@ function FailoverSection({
             <p className="text-sm text-muted-foreground">No failover events yet.</p>
           ) : (
             <details className="group">
-              <summary className={`inline-flex items-center min-h-11 sm:min-h-0 text-sm text-primary hover:underline cursor-pointer list-none rounded ${focusRing}`}>
+              <summary className={`text-sm text-primary hover:underline cursor-pointer list-none rounded ${focusRing}`}>
                 Recent events ({events.length})
               </summary>
               <ul className="mt-2 space-y-1.5">

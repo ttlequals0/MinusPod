@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FailoverSection from './FailoverSection';
@@ -123,7 +123,30 @@ describe('FailoverSection status rows', () => {
     await openSection();
     expect(screen.getByText('Healthy')).toBeDefined();
     expect(screen.getByText('Unreachable')).toBeDefined();
-    expect(screen.getByText('Unprobed')).toBeDefined();
+    // Transcriber plus the two standby rows are unprobed.
+    expect(screen.getAllByText('Unprobed')).toHaveLength(3);
+  });
+
+  it('shows the standby accounts as rows without actions', async () => {
+    renderSection({ overview: makeOverview({
+      targets: { 'llm-a': { active: false, source: null, since: null, reason: null, configured: true },
+                 'llm-b': { active: false, source: null, since: null, reason: null, configured: true },
+                 transcriber: { active: false, source: null, since: null, reason: null, configured: false } },
+      probes: {
+        'llm-a': unprobed, 'llm-b': unprobed, transcriber: unprobed,
+        'llm-failover': { ...unprobed, reachable: false, detail: 'Connection refused', checkedAt: '2026-10-05T00:00:00Z' },
+        'transcriber-failover': unprobed,
+      } }) });
+    await openSection();
+    const rows = within(screen.getByRole('list', { name: 'Failover status' })).getAllByRole('listitem');
+    expect(rows.map((r) => r.querySelector('span')?.textContent)).toEqual(
+      ['Provider A', 'Provider B', 'Transcriber', 'LLM failover', 'Transcriber failover']);
+    const [llmStandby, whisperStandby] = rows.slice(3);
+    expect(within(llmStandby).getByText('Unreachable')).toBeDefined();
+    expect(within(llmStandby).getByText(/Connection refused/)).toBeDefined();
+    expect(within(whisperStandby).getByText('Not configured')).toBeDefined();
+    expect(within(llmStandby).queryByRole('button')).toBeNull();
+    expect(within(whisperStandby).queryByRole('button')).toBeNull();
   });
 
   it('probe now calls back', async () => {

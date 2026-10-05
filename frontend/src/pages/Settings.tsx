@@ -40,6 +40,9 @@ import {
 import AIModelsSection from './settings/AIModelsSection';
 import FailoverSection from './settings/FailoverSection';
 import { cancelFailover, failoverQueryKey, getFailover, probeFailover, triggerFailover, type FailoverTargetName } from '../api/failover';
+import { useCollapsibleOpen, useSectionVisible } from '../components/CollapsibleSection';
+
+const FAILOVER_STORAGE_KEY = 'settings-section-failover';
 import StageTunablesSection from './settings/StageTunablesSection';
 import TranscriptionSection from './settings/TranscriptionSection';
 import AudioSection from './settings/AudioSection';
@@ -477,9 +480,13 @@ function Settings() {
     failoverLlm.provider, 'failover', catalogsEnabled && failoverLlm.enabled === true,
   );
 
+  // Poll the failover overview only while its card is on screen.
+  const [failoverOpen, setFailoverOpen] = useCollapsibleOpen(FAILOVER_STORAGE_KEY);
+  const failoverVisible = useSectionVisible(FAILOVER_STORAGE_KEY, failoverOpen);
   const { data: failoverOverview, isLoading: failoverOverviewLoading } = useQuery({
     queryKey: failoverQueryKey,
     queryFn: getFailover,
+    enabled: failoverVisible,
     refetchInterval: 30_000,
   });
   // One mutation for trigger, cancel and probe so the card shows a single
@@ -1223,6 +1230,8 @@ function Settings() {
       />
 
       <FailoverSection
+        storageKey={FAILOVER_STORAGE_KEY}
+        onToggle={setFailoverOpen}
         overview={failoverOverview}
         overviewLoading={failoverOverviewLoading}
         onTrigger={(target) => failoverAction.mutate({ kind: 'trigger', target })}
