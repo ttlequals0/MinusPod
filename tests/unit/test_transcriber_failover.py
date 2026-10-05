@@ -8,6 +8,7 @@ bootstrap('transcriber_failover_test_')
 
 import failover
 import transcriber
+import run_context
 from transcriber import ServiceUnavailableError, Transcriber
 from utils.errors import LocalTranscriptionUnavailableError
 
@@ -267,15 +268,14 @@ def test_second_pass_classifies_on_its_own_errors(t):
     assert seen[1] == []
 
 
-def test_run_context_records_failover_use(t):
-    import run_context
+def test_selecting_standby_without_dispatch_does_not_record_use(t):
     ctx = run_context.begin('example-podcast', 'a1b2c3d4e5f6', run_id='r-wfo')
     try:
         with patch.object(t, '_transcribe_via_api', return_value=_seg(0, 1)):
             t.transcribe('/tmp/a.mp3', whisper_settings=ACTIVE)
             assert ctx.whisper_failover_used is False
             t.transcribe('/tmp/a.mp3', whisper_settings=FAILOVER)
-        assert ctx.whisper_failover_used is True
+        assert ctx.whisper_failover_used is False
     finally:
         run_context.end(ctx)
 
@@ -293,3 +293,39 @@ def test_local_failover_model_override_covers_chunk_sizing(t):
         t._transcribe_chunked_local('/tmp/a.mp3', 300.0, local_fo, None)
     assert seen == ['base']
     assert transcriber._local_model_override.get() is None
+
+
+def test_failed_whisper_upload_records_usage_only_at_dispatch(t, tmp_path):
+    audio = tmp_path / 'upload.wav'
+    audio.write_bytes(b'audio' * 1024)
+    ctx = run_context.begin('example-podcast', 'whisper-upload', run_id='whisper-upload')
+    try:
+        with patch.object(t, 'preprocess_audio', return_value=None), \
+                patch.object(transcriber, 'safe_post', return_value=None) as upload:
+            assert t._transcribe_via_api(str(audio), {**FAILOVER, 'api_base_url': ''}) is None
+            assert ctx.failover_usage() is None
+            assert upload.call_count == 0
+            t._transcribe_via_api(str(audio), FAILOVER)
+            assert upload.call_count == 1
+            assert ctx.failover_usage() == {'llm': [], 'whisper': True}
+    finally:
+        run_context.end(ctx)
+
+
+def test_failed_local_standby_decode_records_actual_usage(t):
+    model = MagicMock()
+    model.transcribe.side_effect = ValueError('decode failed')
+    ctx = run_context.begin('example-podcast', 'local-decode', run_id='local-decode')
+    try:
+        with patch.object(transcriber, 'active_whisper_settings', return_value={
+                'backend': 'local', 'language': 'en', 'is_failover': True}), \
+                patch.object(transcriber, '_require_local_transcription'), \
+                patch.object(transcriber, '_gpu_admission_acquire', return_value=False), \
+                patch.object(transcriber, 'resolve_whisper_device', return_value='cpu'), \
+                patch.object(transcriber.WhisperModelSingleton, 'get_instance', return_value=(model, None)), \
+                patch.object(t, 'preprocess_audio', return_value=None):
+            assert t._transcribe_sequential('/tmp/local.wav') is None
+        model.transcribe.assert_called_once()
+        assert ctx.failover_usage() == {'llm': [], 'whisper': True}
+    finally:
+        run_context.end(ctx)

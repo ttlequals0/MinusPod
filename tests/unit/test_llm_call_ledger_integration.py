@@ -3,9 +3,13 @@
 Covers the contract that begin_llm_attempt/finalize_llm_attempt
 are the single writer of billed LLM calls.
 """
+from unittest.mock import patch
+
 import run_context
+from llm_route import Route
 from llm_client import LLMResponse, ProviderRateLimitedError
 from utils.llm_call import EmptyCompletionError, call_llm
+from utils import llm_call
 
 
 class _FakeLLMClient:
@@ -273,5 +277,75 @@ def test_secondary_slot_fallback_retry_tags_ledger_secondary(temp_db, monkeypatc
         rows = _rows_for_episode(temp_db, 'ep-slot')
         assert len(rows) == 2
         assert [r['credential_slot'] for r in rows] == ['secondary', 'secondary']
+    finally:
+        run_context.end(ctx)
+
+
+def test_actual_standby_dispatch_retains_both_origins_after_failure(temp_db):
+    temp_db.create_podcast('standby-usage', 'https://example.com/feed.xml', 'Route Test')
+    ctx = run_context.begin('standby-usage', 'episode', run_id='usage-run')
+    ctx.set_route_snapshot({
+        'detection': {'credential_slot': 'primary'},
+        'verification': {'credential_slot': 'secondary'},
+        'review': {'gate': {'review_provider': 'same_as_pass'}}})
+    try:
+        for phase, pass_name, outcome in (
+                ('detection', 'ad_detection_pass_1', LLMResponse(content='ok', model='standby')),
+                ('review', 'ad_review_pass_2', _Other422Error('standby failed'))):
+            call_llm(
+                llm_client=_FakeLLMClient([outcome]), model='standby', system_prompt='s', prompt='p',
+                llm_timeout=1, max_retries=0, max_tokens=10, slug='standby-usage', episode_id='episode',
+                call_label=phase, phase_key=phase, pass_name=pass_name,
+                provider='openai-compatible', credential_slot='failover')
+        assert ctx.failover_usage() == {'llm': ['primary', 'secondary'], 'whisper': False}
+        assert len(_rows_for_episode(temp_db, 'episode')) == 2
+    finally:
+        run_context.end(ctx)
+
+
+def test_refused_standby_reservation_records_no_usage(temp_db, monkeypatch):
+    ctx = run_context.begin('standby-usage', 'refused', run_id='refused-run')
+    ctx.set_route_snapshot({'detection': {'credential_slot': 'primary'}})
+    monkeypatch.setattr(llm_call, 'reserve_provider_request', lambda *a, **k: (None, None))
+    monkeypatch.setattr(llm_call, '_reservation_refused',
+                        lambda *a: ProviderRateLimitedError('manual cap', 10, manual=True))
+    client = _FakeLLMClient([])
+    try:
+        try:
+            llm_call._ledger_call_once(
+                client, {}, 'standby', phase_key='detection', invoking_pass=1,
+                provider_key='openai-compatible', credential_slot='failover',
+                slug='standby-usage', episode_id='refused', call_label='window')
+        except ProviderRateLimitedError:
+            pass
+        else:
+            raise AssertionError('reservation should fail')
+        assert ctx.failover_usage() is None
+        assert client.calls == 0
+    finally:
+        run_context.end(ctx)
+
+
+def test_standby_dispatch_without_snapshot_records_explicit_original_slot(temp_db):
+    temp_db.create_podcast('unresolved-route', 'https://example.com/feed.xml', 'Route Test')
+    ctx = run_context.begin('unresolved-route', 'episode', run_id='unresolved-route')
+    try:
+        primary = _FakeLLMClient([ConnectionError('primary unavailable')])
+        standby = _FakeLLMClient([LLMResponse(content='ok', model='standby')])
+        route = Route(phase='detection', provider_key='openai-compatible', model_id='standby',
+                      base_url='http://example.com/v1', slot='failover', credential_slot='failover')
+        with patch.object(llm_call, '_manual_rate_limit_error', return_value=None), \
+                patch.object(llm_call, '_sleep_before_retry', return_value=False), \
+                patch.object(llm_call.failover, 'is_configured', return_value=True), \
+                patch.object(llm_call.failover, 'trigger', return_value=True), \
+                patch.object(llm_call, '_failover_route', return_value=route), \
+                patch.object(llm_call, 'client_for_route', return_value=standby):
+            response, error = call_llm(
+                llm_client=primary, model='primary', system_prompt='s', prompt='p',
+                llm_timeout=1, max_retries=0, max_tokens=10, slug='unresolved-route', episode_id='episode',
+                call_label='window', phase_key='detection', provider='openai-compatible', credential_slot='secondary')
+        assert error is None and response.content == 'ok'
+        assert standby.calls == 1
+        assert ctx.failover_usage() == {'llm': ['secondary'], 'whisper': False}
     finally:
         run_context.end(ctx)

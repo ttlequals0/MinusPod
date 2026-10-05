@@ -124,7 +124,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                    download_error=None, detect_error=None,
                    token_cost=0.012, real_token_tracking=False,
                    approval_recut=False, route_snapshot=None,
-                   failover_state=None):
+                   failover_state=None, standby_dispatch=False):
     """Run stubbed pipeline stages with optional frozen routes and failover state."""
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
@@ -214,8 +214,18 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         local_ap.process_episode.return_value = ('/tmp/cut.mp3', [])
         local_ap.get_audio_duration.return_value = 100.0
         storage.get_episode_path.return_value = '/tmp/final.mp3'
-        result = processing.process_episode(
-            'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
+        ctx = run_context.begin('mode-feed', 'ep1') if standby_dispatch else None
+        if standby_dispatch:
+            def dispatched(*args, **kwargs):
+                ctx.note_llm_failover('detection', 1)
+                return [], 0, None
+            detect.side_effect = dispatched
+        try:
+            result = processing.process_episode(
+                'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
+        finally:
+            if ctx:
+                run_context.end(ctx)
     return {'result': result, 'detect': detect, 'verify': verify,
             'analyze': analyze, 'refine': refine, 'finalize': finalize,
             'dat': dat, 'db': db, 'reviewer': reviewer, 'recut': recut}
@@ -291,7 +301,7 @@ class TestProcessEpisodeModePlumbing:
                                   'provider_key': 'openai-compatible',
                                   'credential_slot': 'primary'}}
         m = _run_pipeline(_row(), approval_recut=True,
-                           route_snapshot=snapshot, failover_state={})
+                           route_snapshot=snapshot, failover_state={}, standby_dispatch=True)
         assert m['result'] is True
         m['finalize'].assert_not_called()
         assert m['recut'].call_args.kwargs['run_stats']['failover'] == {
@@ -309,7 +319,8 @@ class TestProcessEpisodeModePlumbing:
     def test_failover_reported_when_triggered_mid_run(self):
         state = {'llm:primary': {'active': True, 'source': 'probe',
                                  'since': '2999-01-01T00:00:00Z', 'reason': 'x'}}
-        m = _run_pipeline(_row(), route_snapshot={}, failover_state=state)
+        snapshot = {'detection': {'provider_key': 'anthropic', 'credential_slot': 'primary'}}
+        m = _run_pipeline(_row(), route_snapshot=snapshot, failover_state=state, standby_dispatch=True)
         assert m['result'] is True
         assert m['finalize'].call_args.kwargs['run_stats']['failover'] == {
             'llm': ['primary'], 'whisper': False}

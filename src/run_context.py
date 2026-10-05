@@ -142,8 +142,31 @@ class RunContext:
         self.timing.add('ffmpeg', 0.0)
         self.route_snapshot = None
         self.whisper_failover_used = False
+        self._llm_failover_used = set()
+        self._failover_usage_lock = threading.Lock()
+        self.failover_history_recorded = False
         self._thinking_notices = {}
         self._thinking_notice_lock = threading.Lock()
+
+    def note_llm_failover(self, phase: str, invoking_pass: int | None, original_slot: str | None = None) -> None:
+        route = (self.route_snapshot or {}).get(phase, {})
+        if phase == 'review' and route.get('gate', {}).get('review_provider') in (None, '', 'same_as_pass'):
+            phase = 'verification' if invoking_pass == 2 else 'detection'
+            route = (self.route_snapshot or {}).get(phase, {})
+        slot = route.get('credential_slot') or original_slot
+        if slot in ('primary', 'secondary'):
+            with self._failover_usage_lock:
+                self._llm_failover_used.add(slot)
+
+    def note_whisper_failover(self) -> None:
+        with self._failover_usage_lock:
+            self.whisper_failover_used = True
+
+    def failover_usage(self) -> dict | None:
+        with self._failover_usage_lock:
+            if self._llm_failover_used or self.whisper_failover_used:
+                return {'llm': sorted(self._llm_failover_used), 'whisper': self.whisper_failover_used}
+        return None
 
     def set_route_snapshot(self, snapshot: dict) -> None:
         """Store the non-secret per-phase route for this run. Rejects credential

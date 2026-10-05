@@ -805,7 +805,7 @@ def _note_whisper_settings(whisper_settings: dict) -> None:
     if whisper_settings.get('is_failover'):
         ctx = run_context.current()
         if ctx is not None:
-            ctx.whisper_failover_used = True
+            ctx.note_whisper_failover()
 
 
 def is_whisper_failover_trigger(exc: Exception) -> bool:
@@ -1770,6 +1770,7 @@ class Transcriber:
                                         retry_deadline = now + _api_timeout(whisper_settings)
                                     else:
                                         retry_deadline += now - permit_wait_start
+                                    _note_whisper_settings(whisper_settings)
                                     response = safe_post(
                                         url,
                                         trust=URLTrust.OPERATOR_CONFIGURED,
@@ -1948,6 +1949,7 @@ class Transcriber:
         try:
             preprocessed_path = self.preprocess_audio(audio_path)
             model, _batched = WhisperModelSingleton.get_instance()
+            _note_whisper_settings(whisper_settings)
             segments, _info = model.transcribe(
                 preprocessed_path or audio_path, language=language, beam_size=5,
                 word_timestamps=True, vad_filter=False)
@@ -2479,7 +2481,6 @@ class Transcriber:
         dict (e.g. a chunk loop) pass it through so every chunk agrees.
         """
         whisper_settings = whisper_settings or active_whisper_settings()
-        _note_whisper_settings(whisper_settings)
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
             return self._transcribe_via_api(
                 audio_path, whisper_settings,
@@ -2583,6 +2584,7 @@ class Transcriber:
                     # _should_detect_foreign_language so it only runs when the audio
                     # is English; on non-English podcasts it would false-positive
                     # every segment.
+                    _note_whisper_settings(whisper_settings)
                     segments_generator, info = model.transcribe(
                         transcribe_path,
                         language=transcribe_language,
@@ -2761,7 +2763,6 @@ class Transcriber:
         make, or None when the subset finishes. Raises ServiceUnavailableError/
         AudioExtractionError/AudioExtractionTimeout otherwise (#806).
         """
-        _note_whisper_settings(whisper_settings)
         audio_path, language_override, prefix = ctx.audio_path, ctx.language_override, ctx.prefix
         max_failed_chunks = ctx.max_failed_chunks
         # Per pass, so each pass classifies on its own failures; stragglers from
@@ -3083,7 +3084,6 @@ class Transcriber:
     ) -> list[dict] | None:
         """Local chunked transcription; a trigger error reruns the whole episode
         on the failover whisper config, once (#806)."""
-        _note_whisper_settings(whisper_settings)
         failover_local_model = (
             whisper_settings.get('local_model') if whisper_settings.get('is_failover') else None)
         # Set for the whole body so chunk sizing also sees the failover model.

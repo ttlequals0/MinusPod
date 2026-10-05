@@ -216,7 +216,7 @@ def _reserved_tokens(llm_kwargs) -> int:
 
 def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass,
                       provider_key, credential_slot, slug, episode_id, call_label,
-                      blank_json_is_failure=False):
+                      blank_json_is_failure=False, original_slot=None):
     """One ledger-tracked adapter dispatch.
 
     Reserves the request by creating its attempt row before the network call
@@ -246,6 +246,8 @@ def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass
         raise _reservation_refused(provider_key, credential_slot, hold_until,
                                    slug, episode_id, call_label, phase_key)
 
+    if ctx is not None and credential_slot == 'failover':
+        ctx.note_llm_failover(phase_key, invoking_pass, original_slot)
     run_context.begin_dispatch(attempt_id)
     try:
         response = _call_once(llm_client, llm_kwargs, model, blank_json_is_failure)
@@ -648,6 +650,8 @@ def call_llm(
     # never a failover trigger, so only one provider ever spends this retry.
     reasoning_retried = False
 
+    original_slot = credential_slot
+
     def _run_ladder(client, model, llm_kwargs, max_retries, credential_slot, provider_key):
         """In-loop retry then two fixed per-window rungs, all on one route/slot."""
         nonlocal reasoning_retried
@@ -663,7 +667,7 @@ def call_llm(
                 phase_key=phase_key, invoking_pass=invoking_pass,
                 provider_key=provider_key, credential_slot=credential_slot,
                 slug=slug, episode_id=episode_id, call_label=call_label,
-                blank_json_is_failure=blank_json_is_failure)
+                blank_json_is_failure=blank_json_is_failure, original_slot=original_slot)
             try:
                 return _ledger_call_once(client, llm_kwargs, model, **call)
             except ReasoningExhaustedError:

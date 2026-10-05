@@ -511,6 +511,8 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
                             slug, episode_id, status=EpisodeStatus.PENDING.value,
                             error_message=CANCELED_ERROR_MESSAGE)
                     status_service.complete_job(slug, episode_id, run_id=run_id)
+                    _record_standby_partial_history(
+                        slug, episode_id, title, podcast_name, CANCELED_ERROR_MESSAGE, start_time)
             except Exception as db_err:
                 audio_logger.warning(f"[{slug}:{episode_id}] Failed to reset status after cancel: {db_err}")
     except ProcessingOwnershipLost as exc:
@@ -5022,6 +5024,9 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
         return False
     stats = dict(run_stats or {})
     ctx = run_context.current()
+    usage = ctx.failover_usage() if ctx is not None and ctx.slug == slug and ctx.episode_id == str(episode_id) else None
+    if usage:
+        stats['failover'] = usage
     run_totals = token_totals
     run_id_for_history = None
     if (ctx is not None and ctx.slug == slug
@@ -5055,8 +5060,24 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
         processing_stats=stats or None,
         run_id=run_id_for_history,
     )
+    if usage:
+        ctx.failover_history_recorded = True
     _finalize_run_log(db, history_id, slug, episode_id)
     return True
+
+
+def _record_standby_partial_history(slug, episode_id, title, podcast_name, error,
+                                    start_time, run_stats=None):
+    ctx = run_context.current()
+    if ctx is None or ctx.failover_history_recorded or not ctx.failover_usage():
+        return
+    try:
+        _record_history_row(
+            db, slug, episode_id, title, podcast_name, status='failed',
+            processing_time=time.time() - start_time, ads_detected=0,
+            token_totals=get_episode_token_totals(), error_message=str(error), run_stats=run_stats)
+    except Exception as exc:
+        audio_logger.warning(f"[{slug}:{episode_id}] Failed to record standby attempt: {exc}")
 
 
 def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
@@ -5760,6 +5781,8 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         audio_logger.warning(
             f"[{slug}:{episode_id}] Provider account changed mid-run; requeued "
             f"to re-resolve routes")
+        _record_standby_partial_history(
+            slug, episode_id, episode_title, podcast_name, error, start_time, run_stats)
         return
 
     # Rate-limit hold (#696): a 429 with a reset sends the episode back to
@@ -5780,6 +5803,8 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         if hold_until:
             _requeue_episode_after_hold(
                 db, slug, episode_id, episode_title, episode_data, hold_until, error)
+            _record_standby_partial_history(
+                slug, episode_id, episode_title, podcast_name, error, start_time, run_stats)
             return
 
     # Offline queue (#482): endpoint-down failures defer instead of failing.
@@ -5812,6 +5837,8 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         fire_service_offline_event(
             service=service, error_message=error, slug=slug,
             episode_id=episode_id, podcast_name=podcast_name)
+        _record_standby_partial_history(
+            slug, episode_id, episode_title, podcast_name, error, start_time, run_stats)
         return
 
     transient = is_transient_error(error)
@@ -6277,7 +6304,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     8. Finalize (update DB, record history, refresh RSS)
     """
     start_time = time.time()
-    run_started_at = utc_now_iso()
     start_episode_token_tracking()
     ctx = run_context.current()
     if run_id:
@@ -7058,23 +7084,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 run_stats['verification_ads_cut'] = verification_count
             _record_cut_seconds(run_stats, all_cuts_for_assets, original_duration,
                                 new_duration)
-            # 'used' is slots on failover at snapshot time (failover_from) plus
-            # any slot that failed over mid-run (since >= this run's start).
-            # Without a snapshot there is no phase info, so fall back to
-            # checking both slots rather than under-reporting.
-            routes = [r for r in (route_snapshot or {}).values() if isinstance(r, dict)]
-            used = {r['failover_from'] for r in routes if r.get('failover_from')}
-            snapshot_slots = (used | {r['credential_slot'] for r in routes if r.get('credential_slot')}
-                              if route_snapshot else ('primary', 'secondary'))
-            for slot in ('primary', 'secondary'):
-                if slot not in snapshot_slots:
-                    continue
-                since = failover.state(f'llm:{slot}')['since']
-                if since and since >= run_started_at:
-                    used.add(slot)
-            whisper_used = getattr(run_context.current(), 'whisper_failover_used', False)
-            if used or whisper_used:
-                run_stats['failover'] = {'llm': sorted(used), 'whisper': whisper_used}
+            run = run_context.current()
+            usage = run.failover_usage() if run else None
+            if usage:
+                run_stats['failover'] = usage
             # File the confirms before finalizing so the recut below applies
             # them in this run: two finalizes wrote two history rows and
             # notified twice for one reprocess.

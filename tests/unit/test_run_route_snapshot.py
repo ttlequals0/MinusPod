@@ -1,6 +1,6 @@
 """Tests for the per-run route snapshot on RunContext and its persisted column."""
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -11,7 +11,9 @@ bootstrap('run_route_snapshot_test_')
 import run_context
 from database import Database
 from main_app import processing
-from llm_client import ProviderAccountChangedError
+from llm_client import ProviderAccountChangedError, ProviderRateLimitedError
+from utils.errors import ServiceUnavailableError
+from cancel import ProcessingCancelled
 
 
 def test_route_snapshot_defaults_none_and_sets():
@@ -147,7 +149,9 @@ def test_reviewer_explicit_slot_uses_frozen_review_route():
         run_context.end(ctx)
 
 
-def test_legacy_standby_snapshot_requeues_without_spending_retry_budget():
+def test_legacy_standby_snapshot_requeues_without_spending_retry_budget(monkeypatch):
+    monkeypatch.setattr('transcriber.WhisperModelSingleton.unload_model', lambda: None)
+    monkeypatch.setattr('utils.gpu.clear_gpu_memory', lambda: None)
     db = processing.db
     slug, episode_id, run_id = 'legacy-route', 'a1b2c3d4e5f6', 'legacy-route-run'
     db.create_podcast(slug, 'https://example.com/feed.xml', title='Route Test')
@@ -186,3 +190,68 @@ def test_legacy_standby_snapshot_requeues_without_spending_retry_budget():
     finally:
         run_context.end(ctx)
         db.delete_podcast(slug)
+
+
+@pytest.mark.parametrize('failure', ['offline', 'hold', 'account'])
+def test_early_deferral_persists_actual_standby_usage(temp_db, monkeypatch, failure):
+    temp_db.create_podcast('usage-history', 'https://example.com/feed.xml', 'Route Test')
+    temp_db.upsert_episode('usage-history', 'episode', status='processing', retry_count=2,
+                           original_url='https://example.com/episode.mp3')
+    temp_db.set_setting('offline_queue_enabled', 'true')
+    monkeypatch.setattr(processing, 'db', temp_db)
+    monkeypatch.setattr(processing, '_require_publication_owner', lambda *a: None)
+    monkeypatch.setattr(processing, '_publish_status', lambda *a: None)
+    monkeypatch.setattr(processing, '_finalize_run_log', lambda *a: None)
+    monkeypatch.setattr(processing, 'clear_route_snapshot', lambda *a: None)
+    monkeypatch.setattr('transcriber.WhisperModelSingleton.unload_model', lambda: None)
+    monkeypatch.setattr('utils.gpu.clear_gpu_memory', lambda: None)
+    monkeypatch.setattr(processing, 'hold_queue_for_provider_limit', lambda *a, **k: '2999-01-01T00:00:00Z')
+    ctx = run_context.begin('usage-history', 'episode', run_id='usage-history-run')
+    ctx.set_route_snapshot({'detection': {'credential_slot': 'primary'}})
+    ctx.note_llm_failover('detection', 1)
+    errors = {'offline': ServiceUnavailableError('llm', 'standby down'),
+              'hold': ProviderRateLimitedError('standby429', 300, credential_slot='failover'),
+              'account': ProviderAccountChangedError('account changed')}
+    try:
+        processing._handle_processing_failure(
+            'usage-history', 'episode', 'Episode', 'Route Test',
+            temp_db.get_episode('usage-history', 'episode'), errors[failure], 0.0)
+        rows = temp_db.get_connection().execute('SELECT * FROM processing_history').fetchall()
+        assert len(rows) == 1
+        assert json.loads(rows[0]['processing_stats_json'])['failover'] == {
+            'llm': ['primary'], 'whisper': False}
+        assert temp_db.get_episode('usage-history', 'episode')['retry_count'] == 2
+        processing._record_standby_partial_history(
+            'usage-history', 'episode', 'Episode', 'Route Test', errors[failure], 0.0)
+        assert temp_db.get_connection().execute('SELECT COUNT(*) FROM processing_history').fetchone()[0] == 1
+    finally:
+        run_context.end(ctx)
+
+
+@pytest.mark.parametrize('dispatched', [False, True])
+def test_cancellation_records_history_only_after_actual_standby(temp_db, monkeypatch, dispatched):
+    temp_db.create_podcast('cancel-usage', 'https://example.com/feed.xml', 'Route Test')
+    temp_db.upsert_episode('cancel-usage', 'episode', status='processing', retry_count=2)
+    monkeypatch.setattr(processing, 'db', temp_db)
+    monkeypatch.setattr(processing, '_start_run_log', lambda *a: None)
+    monkeypatch.setattr(processing, '_end_run_log', lambda *a: None)
+    monkeypatch.setattr(processing, '_finalize_run_log', lambda *a: None)
+    monkeypatch.setattr(processing, 'ProcessingQueue', MagicMock())
+    monkeypatch.setattr(processing, 'status_service', MagicMock())
+    monkeypatch.setattr(processing, '_cleanup_cancelled_processing_output', lambda *a, **k: (True, False))
+    def cancel(*args, **kwargs):
+        ctx = run_context.current()
+        ctx.set_route_snapshot({'detection': {'credential_slot': 'primary'}})
+        if dispatched:
+            ctx.note_llm_failover('detection', 1)
+        raise ProcessingCancelled('cancelled')
+    monkeypatch.setattr(processing, 'process_episode', cancel)
+    processing._process_episode_background(
+        'cancel-usage', 'episode', 'https://example.com/episode.mp3',
+        'Episode', 'Route Test', '', None, run_id='cancel-usage-run')
+    rows = temp_db.get_connection().execute('SELECT * FROM processing_history').fetchall()
+    assert len(rows) == int(dispatched)
+    if dispatched:
+        assert rows[0]['error_message'] == processing.CANCELED_ERROR_MESSAGE
+        assert json.loads(rows[0]['processing_stats_json'])['failover']['llm'] == ['primary']
+    assert temp_db.get_episode('cancel-usage', 'episode')['status'] == 'pending'
