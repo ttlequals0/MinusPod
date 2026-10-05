@@ -39,6 +39,7 @@ def _chunk_path_for(start):
 
 def test_active_failover_uses_failover_settings_up_front(t):
     with patch.object(failover, 'is_active', return_value=True), \
+            patch.object(failover, 'is_configured', return_value=True), \
             patch.object(transcriber, '_get_failover_whisper_settings', return_value=FAILOVER), \
             patch.object(t, 'get_audio_duration', return_value=100.0), \
             patch.object(t, '_transcribe_chunked_parallel_api', return_value=_seg(0, 1)) as api:
@@ -353,3 +354,12 @@ def test_exhausted_timeout_or_throttle_dispatches_standby_once(t, status):
         assert t._transcribe_chunked_parallel_api('/tmp/audio.wav', 100.0, ACTIVE)
     trigger.assert_called_once()
     assert used == [ACTIVE['api_base_url'], FAILOVER['api_base_url']]
+
+
+def test_active_but_disabled_or_unconfigured_standby_uses_primary():
+    with patch.object(failover, 'is_active', return_value=True), \
+            patch.object(failover, 'is_configured', return_value=False), \
+            patch.object(transcriber, '_get_whisper_settings', return_value=ACTIVE), \
+            patch.object(transcriber, '_get_failover_whisper_settings') as standby:
+        assert transcriber.active_whisper_settings() is ACTIVE
+    standby.assert_not_called()

@@ -13,7 +13,7 @@ import subprocess
 import threading
 import time
 import wave
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 
 import requests
@@ -135,15 +135,48 @@ BATCH_SIZE_TIERS = [
     (120 * 60, 8),      # 90-120 min: batch_size=8
 ]
 
-# Bounded admission for local (in-process) CUDA transcription. A single GPU
-# holds one Whisper model at a time (WhisperModelSingleton); two concurrent
-# local transcriptions would each allocate batched-inference memory against
-# the same device and OOM each other. This is unrelated to whisper_pool
-# (bounded admission for the remote API backend only) and to LLM provider
-# budgets/holds: it guards local GPU memory specifically. CPU transcription
-# is unaffected (no shared VRAM to protect).
+# Limit concurrent CUDA decodes to protect shared model memory; CPU work is unaffected.
 GPU_TRANSCRIBE_MAX_CONCURRENT = max(1, int(os.getenv('GPU_TRANSCRIBE_MAX_CONCURRENT', '1')))
 _GPU_ADMISSION_SEMAPHORE = threading.Semaphore(GPU_TRANSCRIBE_MAX_CONCURRENT)
+
+
+_local_activity = threading.Condition()
+_local_decode_count = 0
+_local_probe_active = False
+
+
+@contextmanager
+def _local_decode_activity():
+    global _local_decode_count
+    with _local_activity:
+        _local_activity.wait_for(lambda: not _local_probe_active)
+        _local_decode_count += 1
+    try:
+        yield
+    finally:
+        with _local_activity:
+            _local_decode_count -= 1
+            _local_activity.notify_all()
+
+
+@contextmanager
+def _idle_local_probe():
+    global _local_probe_active
+    with _local_activity:
+        admitted = not _local_probe_active and _local_decode_count == 0
+        if admitted:
+            _local_probe_active = True
+    try:
+        if not admitted:
+            yield False
+            return
+        with _all_admission_permits() as free:
+            yield free
+    finally:
+        if admitted:
+            with _local_activity:
+                _local_probe_active = False
+                _local_activity.notify_all()
 
 
 def _gpu_admission_acquire(device: str) -> bool:
@@ -177,7 +210,7 @@ def _all_admission_permits():
 
 def unload_whisper_if_idle() -> bool:
     """Unload the local model when no transcription holds an admission permit; True if one was unloaded."""
-    with _all_admission_permits() as free:
+    with _idle_local_probe() as free:
         if not free or not WhisperModelSingleton.is_loaded():
             return False
         WhisperModelSingleton.unload_model()
@@ -204,7 +237,7 @@ def _record_local_transcription_outcome(outcome: dict) -> None:
     record['backend'] = WHISPER_BACKEND_LOCAL
     if not record.get('device'):
         record['device'] = resolve_whisper_device()
-    record['observed_at'] = utc_now_iso()
+    record['observed_at'] = utc_now().isoformat().replace('+00:00', 'Z')
     with _local_transcription_state_lock:
         _last_local_transcription_outcome = record
     try:
@@ -230,18 +263,15 @@ def _read_persisted_local_outcome() -> dict | None:
 
 
 def _latest_local_outcome(device: str) -> dict | None:
-    """Newest outcome for `device` across this process and shared state.
-
-    A record from another device (the setting changed since) says nothing
-    about the device now configured, so it is ignored rather than reported.
-    """
+    """Newest persisted or in-process outcome for the configured device."""
     with _local_transcription_state_lock:
         in_process = dict(_last_local_transcription_outcome) if _last_local_transcription_outcome else None
     candidates = [c for c in (in_process, _read_persisted_local_outcome())
                   if c and c.get('device') == device]
     if not candidates:
         return None
-    return max(candidates, key=lambda c: c.get('observed_at') or '')
+    return max(candidates, key=lambda c: (stamp.timestamp()
+               if (stamp := parse_iso_utc(c.get('observed_at'))) else 0))
 
 
 def get_local_transcriber_health() -> dict:
@@ -276,6 +306,35 @@ def get_local_transcriber_health() -> dict:
         'available': outcome is None or outcome.get('outcome') != 'failed',
         'lastOutcome': last_outcome,
     }
+
+
+def probe_local_transcription(request_config: dict) -> dict:
+    """Probe the captured local config without interrupting active decodes."""
+    if not local_transcription_available():
+        return {'reachable': False, 'status': None, 'detail': 'Local stack unavailable'}
+    load_config = {'model': request_config['local_model'], 'device': request_config['device'],
+                   'compute_type': request_config['compute_type']}
+    outcome = _latest_local_outcome(load_config['device'])
+    failed = (outcome and outcome.get('outcome') == 'failed'
+              and outcome.get('model') in (None, load_config['model']))
+    if not request_config.get('recover_runtime') and not failed:
+        return {'reachable': True, 'status': None, 'detail': 'Local stack available'}
+    with _idle_local_probe() as free:
+        if not free:
+            return {'reachable': None, 'status': None, 'detail': 'Local transcription busy'}
+        try:
+            model, _pipeline = WhisperModelSingleton.get_instance(load_config=load_config)
+            segments, _info = model.transcribe(
+                io.BytesIO(_probe_wav_bytes()), language='en', beam_size=1, vad_filter=False)
+            list(segments)
+        except Exception as exc:
+            logger.warning('Local recovery decode failed: %s', exc)
+            return {'reachable': False, 'status': None, 'detail': f'Local decode failed: {type(exc).__name__}'}
+    return {'reachable': True, 'status': None, 'detail': 'Local diagnostic decode succeeded',
+            'local_outcome': {'outcome': 'success', 'backend': WHISPER_BACKEND_LOCAL,
+                              'model': load_config['model'], 'device': load_config['device'],
+                              'compute_type': load_config['compute_type'],
+                              'observed_at': utc_now().isoformat().replace('+00:00', 'Z')}}
 
 
 def get_remote_transcriber_health() -> dict:
@@ -712,10 +771,10 @@ def _get_failover_whisper_settings() -> dict[str, str]:
 
 
 def active_whisper_settings() -> dict[str, str]:
-    """Whisper settings to use right now (#806): the failover config while
-    whisper failover is active, otherwise the primary config."""
+    """Use eligible active standby settings, otherwise the primary settings."""
     try:
-        if failover.is_active(failover.TARGET_WHISPER):
+        if (failover.is_active(failover.TARGET_WHISPER)
+                and failover.is_configured(failover.TARGET_WHISPER)):
             return _get_failover_whisper_settings()
     except Exception as e:
         logger.warning(f"Could not check whisper failover state: {e}")
@@ -1341,6 +1400,7 @@ class WhisperModelSingleton:
     _base_model = None
     _current_model_name = None
     _needs_reload = False
+    _load_config = None
 
     @classmethod
     def get_configured_model(cls) -> str:
@@ -1366,21 +1426,6 @@ class WhisperModelSingleton:
         logger.info("Whisper model marked for reload")
 
     @classmethod
-    def _should_reload(cls) -> str | None:
-        """Check if model needs to be reloaded.
-
-        Returns the configured model name if a reload is needed, None otherwise.
-        This avoids a duplicate DB query in get_instance().
-        """
-        configured = cls.get_configured_model()
-        if cls._needs_reload:
-            return configured
-        if cls._current_model_name and cls._current_model_name != configured:
-            logger.info(f"Model changed from {cls._current_model_name} to {configured}")
-            return configured
-        return None
-
-    @classmethod
     def unload_model(cls):
         """Unload the current model and free GPU memory.
 
@@ -1394,6 +1439,7 @@ class WhisperModelSingleton:
             cls._base_model = None
             cls._current_model_name = None
             cls._needs_reload = False
+            cls._load_config = None
 
             # Force garbage collection and clear CUDA cache
             clear_gpu_memory()
@@ -1404,24 +1450,19 @@ class WhisperModelSingleton:
         return cls._instance is not None or cls._base_model is not None
 
     @classmethod
-    def get_instance(cls) -> tuple[WhisperModel, BatchedInferencePipeline]:
-        """
-        Get both the base model and batched pipeline instance.
-        Will reload if the configured model has changed.
-        Returns:
-            Tuple[WhisperModel, BatchedInferencePipeline]: Base model for operations like language detection,
-                                                          and batched pipeline for transcription
-        """
-        # Check if we need to reload
-        reload_model = cls._should_reload() if cls._instance is not None else None
-        if reload_model:
+    def get_instance(cls, *, load_config: dict | None = None) -> tuple[WhisperModel, BatchedInferencePipeline]:
+        """Return the local model and pipeline, reloading for a captured probe config when needed."""
+        requested_config = load_config or {
+            'model': cls.get_configured_model(), 'device': resolve_whisper_device(),
+            'compute_type': _get_whisper_compute_type()}
+        if cls._instance is not None and (cls._needs_reload or cls._load_config != requested_config):
             cls.unload_model()
 
         if cls._instance is None:
             _require_local_transcription()
-            model_size = reload_model or cls.get_configured_model()
-            device = resolve_whisper_device()
-            configured_compute_type = _get_whisper_compute_type()
+            model_size = requested_config['model']
+            device = requested_config['device']
+            configured_compute_type = requested_config['compute_type']
 
             # Resolve device and the compute type 'auto' falls back to.
             if device == "cuda":
@@ -1485,6 +1526,7 @@ class WhisperModelSingleton:
                 cls._base_model
             )
             cls._current_model_name = model_size
+            cls._load_config = requested_config
             cls._needs_reload = False
             logger.info(
                 f"Whisper model '{model_size}' and batched pipeline initialized "
@@ -1502,14 +1544,8 @@ class WhisperModelSingleton:
 
     @classmethod
     def get_batched_pipeline(cls) -> BatchedInferencePipeline:
-        """
-        Get just the batched pipeline for transcription
-        Returns:
-            BatchedInferencePipeline: Batched pipeline for efficient transcription
-        """
-        if cls._instance is None or cls._should_reload():
-            cls.get_instance()
-        return cls._instance
+        """Return the pipeline after validating the current requested configuration."""
+        return cls.get_instance()[1]
 
     @classmethod
     def get_current_model_name(cls) -> str | None:
@@ -1929,30 +1965,31 @@ class Transcriber:
         language_setting = _effective_language(language_override, whisper_settings)
         language = None if language_setting == 'auto' else (language_setting or 'en')
         preprocessed_path = None
-        acquired = _gpu_admission_acquire(resolve_whisper_device())
-        try:
-            preprocessed_path = self.preprocess_audio(audio_path)
-            model, _batched = WhisperModelSingleton.get_instance()
-            _note_whisper_settings(whisper_settings)
-            segments, _info = model.transcribe(
-                preprocessed_path or audio_path, language=language, beam_size=5,
-                word_timestamps=True, vad_filter=False)
-            return [{
-                'start': seg.start,
-                'end': seg.end,
-                'text': seg.text.strip(),
-                'words': [{'word': w.word, 'start': w.start, 'end': w.end}
-                          for w in seg.words or []],
-            } for seg in segments]
-        except ModelLoadError:
-            raise
-        except Exception as e:
-            logger.error(f"{_log_prefix()}Sequential transcription failed: {e}")
-            return None
-        finally:
-            if acquired:
-                _gpu_admission_release()
-            _unlink_quiet(preprocessed_path)
+        with _local_decode_activity():
+            acquired = _gpu_admission_acquire(resolve_whisper_device())
+            try:
+                preprocessed_path = self.preprocess_audio(audio_path)
+                model, _batched = WhisperModelSingleton.get_instance()
+                _note_whisper_settings(whisper_settings)
+                segments, _info = model.transcribe(
+                    preprocessed_path or audio_path, language=language, beam_size=5,
+                    word_timestamps=True, vad_filter=False)
+                return [{
+                    'start': seg.start,
+                    'end': seg.end,
+                    'text': seg.text.strip(),
+                    'words': [{'word': w.word, 'start': w.start, 'end': w.end}
+                              for w in seg.words or []],
+                } for seg in segments]
+            except ModelLoadError:
+                raise
+            except Exception as e:
+                logger.error(f"{_log_prefix()}Sequential transcription failed: {e}")
+                return None
+            finally:
+                if acquired:
+                    _gpu_admission_release()
+                _unlink_quiet(preprocessed_path)
 
     def transcribe_span_no_vad(self, audio_path: str, start: float, end: float,
                                language_override: str | None, flag: str,
@@ -2012,7 +2049,7 @@ class Transcriber:
     @staticmethod
     def unload_after_repair() -> None:
         """Free the model the repair decodes reloaded after transcribe_chunked unloaded it."""
-        with _all_admission_permits() as free:
+        with _idle_local_probe() as free:
             if not free:
                 logger.debug("Skipping the post-repair Whisper unload: a local transcription holds the GPU")
                 return
@@ -2172,6 +2209,7 @@ class Transcriber:
         """Stored ceiling for this device as {'size', 'recorded_at'}, or None
         when unset, malformed, or recorded for a different device. recorded_at
         is None for pre-2.96.0 payloads, which read as expired."""
+
         try:
             raw = database.Database().get_setting(self.BATCH_CEILING_SETTING)
         except Exception as e:
@@ -2439,27 +2477,9 @@ class Transcriber:
         preprocessed: bool = False,
         whisper_settings: dict[str, str] | None = None,
     ) -> list[dict]:
-        """Transcribe audio file using Faster Whisper with batched pipeline.
-
-        Uses adaptive batch sizing based on audio duration to prevent CUDA OOM errors.
-        Automatically retries with smaller batch size on OOM.
-
-        `language_override` (when non-empty) takes precedence over the global
-        whisper_language setting for this call only -- used to honor per-feed
-        language overrides without mutating shared settings.
-
-        ``vad_filter=False`` disables Whisper's VAD (tail re-transcription,
-        spec 1.2). The API backend forwards it as a `vad_filter=false` form
-        field; servers without the switch ignore it.
-
-        ``preprocessed=True`` means the caller already applied the preprocess
-        filter chain (chunks from extract_audio_chunk(preprocess=True)), so
-        the redundant preprocess pass is skipped.
-
-        ``whisper_settings``, when given, is used as-is instead of resolving
-        the active/failover config (#806); callers already holding a settings
-        dict (e.g. a chunk loop) pass it through so every chunk agrees.
-        """
+        """Transcribe with OOM retries; explicit settings pin the backend.
+        language_override replaces the global language; preprocessed skips filtering.
+        vad_filter is forwarded to either backend."""
         whisper_settings = whisper_settings or active_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
             return self._transcribe_via_api(
@@ -2480,9 +2500,7 @@ class Transcriber:
         if failover_local_model:
             override_token = _local_model_override.set(failover_local_model)
 
-        # try opens immediately after the override set above so the finally
-        # resets it on every exit path, including a failure before any of
-        # the lines below run.
+        activity = ExitStack()
         try:
             preprocessed_path = None
             # Defensive defaults: referenced in the stats recording below even if
@@ -2498,6 +2516,7 @@ class Transcriber:
             # Bound before the call itself in case resolve_whisper_device() or
             # the acquire raises, so the finally below never sees it unbound.
             gpu_admission_acquired = False
+            activity.enter_context(_local_decode_activity())
             gpu_admission_acquired = _gpu_admission_acquire(resolve_whisper_device())
 
             language_setting = _effective_language(language_override, whisper_settings)
@@ -2718,6 +2737,7 @@ class Transcriber:
         finally:
             if gpu_admission_acquired:
                 _gpu_admission_release()
+            activity.close()
             if override_token is not None:
                 _local_model_override.reset(override_token)
             # Clean up preprocessed file
@@ -2736,13 +2756,7 @@ class Transcriber:
         results: list[list[dict] | None],
         stop_on_connectivity_error: bool,
     ) -> tuple[object, list[Exception]]:
-        """Submit plan_subset to a fresh executor, filling results[idx] in place.
-
-        Returns (outcome, connectivity_errors): outcome is a chunk index to
-        trigger failover, _ABORT_CHUNK_PLAN on a blown budget with no switch to
-        make, or None when the subset finishes. Raises ServiceUnavailableError/
-        AudioExtractionError/AudioExtractionTimeout otherwise (#806).
-        """
+        """Fill indexed results; return a failover chunk, _ABORT_CHUNK_PLAN, or None."""
         audio_path, language_override, prefix = ctx.audio_path, ctx.language_override, ctx.prefix
         max_failed_chunks = ctx.max_failed_chunks
         # Per pass, so each pass classifies on its own failures; stragglers from
@@ -2872,20 +2886,7 @@ class Transcriber:
         language_override: str | None = None,
         allow_failover: bool = True,
     ) -> list[dict] | None:
-        """Parallel chunked transcription for remote API backends.
-
-        Submits all chunks to a ThreadPoolExecutor; preserves chronological
-        ordering at merge time so merge_overlapping_segments dedupes the
-        overlap zone exactly as in the sequential path. Failure tolerance
-        matches the sequential loop (~20% chunks may fail before abort).
-
-        A connectivity failure (ServiceUnavailableError/TranscriptionRejectedError)
-        triggers an immediate switch to the failover whisper config when one
-        is configured (#806): the same backend type reruns only the chunks
-        still missing a result on it, keeping whatever this pass already
-        finished; a different backend type discards partial results and
-        reruns the whole episode via _transcribe_chunked_local.
-        """
+        """Merge parallel API chunks; failover retains completed chunks only for the same backend."""
         chunk_settings = _get_chunk_settings()
         chunk_duration = chunk_settings['max_chunk_seconds']
         overlap = chunk_settings['chunk_overlap_seconds']
@@ -3021,22 +3022,7 @@ class Transcriber:
         language_override: str | None = None,
         whisper_settings: dict[str, str] | None = None,
     ) -> list[dict]:
-        """Transcribe audio files with dynamic chunking to prevent OOM errors.
-
-        Branches to the parallel API path or the local chunked path by
-        backend; see each for its own chunking strategy.
-
-        Args:
-            audio_path: Path to the audio file to transcribe
-            language_override: Optional per-feed language; when set, takes
-                precedence over the global whisper_language setting for this
-                call only (forwarded to each chunk's transcribe()).
-            whisper_settings: Pre-resolved settings (#806); when omitted,
-                resolves the active/failover config.
-
-        Returns:
-            List of transcript segments with timestamps, or None on failure
-        """
+        """Choose API or local chunking using explicit settings, otherwise the active configuration."""
         duration = self.get_audio_duration(audio_path)
         if duration is None:
             logger.error("Cannot determine audio duration for chunked transcription")
@@ -3068,8 +3054,9 @@ class Transcriber:
         override_token = _local_model_override.set(failover_local_model) if failover_local_model else None
         try:
             _require_local_transcription()
-            return self._transcribe_chunked_local_body(
-                audio_path, duration, whisper_settings, language_override)
+            with _local_decode_activity():
+                return self._transcribe_chunked_local_body(
+                    audio_path, duration, whisper_settings, language_override)
         except Exception as e:
             if not whisper_settings.get('is_failover') and is_whisper_failover_trigger(e):
                 if failover.is_configured(failover.TARGET_WHISPER):
@@ -3089,13 +3076,7 @@ class Transcriber:
         whisper_settings: dict[str, str],
         language_override: str | None = None,
     ) -> list[dict] | None:
-        """_transcribe_chunked_local's chunking loop.
-
-        1. Checks available memory and model size to calculate optimal chunk duration
-        2. Processes audio in appropriately-sized chunks
-        3. Catches OOM errors and retries with smaller chunks
-        4. Clears GPU memory between chunks to limit peak usage
-        """
+        """Decode memory-sized chunks, reducing their size after OOM."""
         # Get current model and device for memory calculation
         model_name = WhisperModelSingleton.get_configured_model()
         device = resolve_whisper_device()
