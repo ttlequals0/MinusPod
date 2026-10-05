@@ -5028,8 +5028,8 @@ paths:
         Snapshot of the three failover targets (llm-a, llm-b, transcriber),
         the five health probes that drive them (llm-a, llm-b, llm-failover,
         transcriber, transcriber-failover), the auto-trigger/recovery policy,
-        and the most recent manual/auto/probe events (#806). Reads through a
-        5-second cache; never probes on the read path.
+        and the most recent manual/auto/probe events (#806). Reads committed
+        control state without running health probes.
       operationId: getFailover
       responses:
         '200':
@@ -5078,13 +5078,15 @@ paths:
                   state:
                     $ref: '#/components/schemas/FailoverTargetState'
         '404': { description: Unknown failover target }
+        '503': { description: 'State could not be saved (error: failover_transition_failed)' }
         '409': { description: 'Target has no failover configuration (error: failover_not_configured)' }
+        '400': { description: Invalid JSON body or non-string reason }
   /failover/{target}/cancel:
     post:
       tags:
         - Failover
       summary: Manually cancel failover for one target
-      description: Switches `target` back onto its primary configuration.
+      description: Switches `target` back onto its original configuration.
       operationId: cancelFailover
       parameters:
         - in: path
@@ -5106,6 +5108,7 @@ paths:
                   state:
                     $ref: '#/components/schemas/FailoverTargetState'
         '404': { description: Unknown failover target }
+        '503': { description: 'State could not be saved (error: failover_transition_failed)' }
   /failover/probe:
     post:
       tags:

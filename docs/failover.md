@@ -17,13 +17,13 @@
 
 ## What failover is
 
-Failover is a standby account that takes over for one of three targets when the active one stops answering:
+Failover is a standby account that takes over when a configured provider fails:
 
-- **Provider A** (`llm-a`) - the main LLM provider.
-- **Provider B** (`llm-b`) - the optional second LLM provider, when enabled.
+- **Provider A** (`llm-a`) - the first LLM provider slot.
+- **Provider B** (`llm-b`) - the second LLM provider slot, when enabled.
 - **Transcriber** (`transcriber`) - the active Whisper backend.
 
-There is one shared LLM failover provider, used by whichever of Provider A or Provider B is in trouble, and one failover transcriber. Each has its own type, endpoint, key, timeout, retries, and (for the LLM side) its own models per pipeline stage.
+There is one shared LLM standby provider, used by whichever of Provider A or Provider B is in trouble, and one standby transcriber. Each has its own type, endpoint, key, timeout, retries, and (for the LLM side) its own models per pipeline stage.
 
 Failover is different from the Provider A / Provider B slot a stage is configured to use (see [LLM Providers > Per-Stage Providers](llm-providers.md#per-stage-providers)). Picking Provider A or Provider B for a stage is routing, decided ahead of time and only re-evaluated when you change the setting. Failover moves work at runtime, without touching that setting, and moves it back once the active account is healthy again.
 
@@ -47,33 +47,35 @@ The transcriber side uses the same shape: connection errors and 5xx-equivalent b
 
 ## What happens mid-run
 
-**LLM calls.** A call that exhausts its normal retry ladder on a trigger error is retried once on the failover provider. That retry runs the failover provider's full retry ladder, with its own model for the pipeline phase, its own timeout, and its own retry count. Later calls in the same run follow immediately, because failover state is checked live, not just at run start. If the standby attempt also fails, its error determines deferral or retry. The original provider error is retained as context for diagnostics.
+**LLM calls.** A call that exhausts its normal retry ladder on a trigger error is retried once on the standby provider. That retry runs the standby provider's full retry ladder, with its own model for the pipeline phase, its own timeout, and its own retry count. Later calls in the same run follow immediately, because failover state is checked live, not just at run start. If the standby attempt also fails, its error determines deferral or retry. The original provider error is retained as context for diagnostics.
 
-**Transcription.** The behavior differs by whether the failover transcriber is the same kind of backend as the active one:
+The run retains its original per-phase Provider A/B routes. Cancelling failover or recovering the original provider restores those routes for subsequent calls. Processing history records actual standby dispatches, including failed, deferred, and cancelled attempts, even if recovery happens before the run ends.
+
+**Transcription.** The behavior differs by whether the standby transcriber is the same kind of backend as the active one:
 
 - **API to API**: only the chunks that have not finished yet rerun on the failover settings; chunks the first pass already finished are kept.
 - **Any switch with a local backend on either side** (local to local, local to API, or API to local): the partial results from the first pass are discarded and the whole episode reruns on the failover backend.
 - **Short episodes** that never reach the chunk plan (single-shot transcription) switch the same way: the failed attempt reruns on the failover config, either as a single call (same backend type) or by rerunning the whole episode through the other backend's chunking path.
 
-If the failover attempt also fails, the error propagates as it did before this feature: into the offline-queue deferral (when enabled) or the normal retry ladder.
-
-Both down at once is not a new state: it is the existing behavior for an unreachable account, now reached after the failover attempt has also been tried and failed.
+If the standby attempt also fails, its error determines offline-queue deferral or the normal failure/retry path. Deferred episodes resume when the endpoints required by their current processing mode and phase routes are healthy, including an active standby. An unused provider does not block them.
 
 ## Health probes
 
-A background tick checks every enabled target on an interval (**Probe interval**, `failoverProbeIntervalMinutes`, 1-60 minutes, default 5): an LLM probe lists models on the provider's catalog endpoint (or the fixed Anthropic/OpenRouter endpoint); an API transcriber probe requests its `/models` endpoint. Any answer other than a 5xx, 401, or 403 counts as up, because many Whisper servers have no `/models` route. A local transcriber probe checks that the local Whisper stack is installed. None of them sends a real completion or transcription request.
+A background tick checks enabled targets at the configured **Probe interval** (`failoverProbeIntervalMinutes`, 1-60 minutes, default 5).
 
-- **Two consecutive failed probes** of an *active* target (Provider A, Provider B, or the transcriber, not a failover account itself) trigger failover automatically.
-- **N consecutive healthy probes** of the original account (**Recovery probes**, `failoverRecoveryProbes`, 1-10, default 3) cancel an *automatic* failover and switch back. Only probes taken after the failover started count.
-- A **manual** failover is never cancelled by probes. It stays active until you cancel it.
-- A run-time trigger error (an actual failed call, not a probe) triggers failover immediately, without waiting for two failed probes.
-- A local transcriber probe only checks that the local Whisper stack is importable, so it reads healthy even when a model load or GPU error breaks the local runtime. An automatic failover caused by such an error switches back after the configured number of healthy probes, then triggers again if the error recurs.
+- LLM probes require a successful response with a valid model catalog or provider-specific key metadata. Malformed responses, authentication failures, timeouts, and throttling do not count as healthy.
+- API transcriber probes request `/models`. A 2xx response counts as reachable, as does HTTP 404 because many transcription servers do not expose that route. Other errors do not count as healthy.
+- Routine local checks verify that the Whisper stack is available. After a local model or runtime failure, recovery requires a successful diagnostic decode using the original model and device. Busy local processing leaves recovery unconfirmed; a successful standby model does not prove that the original model recovered.
 
-Before a run starts, MinusPod probes any target it is about to use whose last probe result is older than the probe interval, so a run never starts on stale health data. This happens once per run, not once per queue item, and does not probe a target that was already checked recently.
+Two consecutive failed probes of an original provider trigger automatic failover. Recovery requires **N consecutive healthy probes** of that provider (**Recovery probes**, `failoverRecoveryProbes`, 1-10, default 3). Results from before the failover or from an obsolete provider configuration cannot recover it. A manual failover stays active until cancelled.
+
+An eligible failed processing call triggers failover immediately after its normal retries, without waiting for two failed probes.
+
+Before processing, MinusPod checks the effective endpoints needed for the run when their cached probes are older than the interval or no longer match the provider configuration, failover state, or local transcription outcome. Concurrent background, manual, and pre-run checks share probe ownership across workers. Scheduled checks continue probing the original providers so automatic recovery can occur while work uses standby endpoints.
 
 ## Manual control
 
-The Failover card (Settings > AI & Processing > Failover) shows a status row per target: badge (**Healthy**, **Failed over**, **Unprobed**, or **Not configured**), last probe time, and, while active, the source (automatic, probe, or manual) and reason, plus a **Trigger** or **Cancel** button. A **Probe now** button in the header runs every enabled probe immediately, and a collapsed **Recent events** list shows the last 20 trigger/cancel events.
+The Failover card (Settings > AI & Processing > Failover) shows a status row per target: badge (**Healthy**, **Failed over**, **Unprobed**, or **Not configured**), last probe time, and, while active, the source (automatic, probe, or manual) and reason, plus a **Trigger** or **Cancel** button. A **Probe now** button in the header requests checks for every enabled target, sharing checks already in progress, and a collapsed **Recent events** list shows the last 20 trigger/cancel events.
 
 The same actions are available over the API. All writes require the `X-CSRF-Token` header; see [API & Webhooks](api-and-webhooks.md#api).
 
@@ -86,7 +88,7 @@ curl -s http://your-server:8000/api/v1/failover \
 curl -s -X POST http://your-server:8000/api/v1/failover/llm-a/trigger \
   -H "Cookie: $COOKIE" -H "X-CSRF-Token: $CSRF" \
   -H "Content-Type: application/json" \
-  -d '{"reason": "testing the failover provider"}'
+  -d '{"reason": "testing the standby provider"}'
 
 # Manually cancel it
 curl -s -X POST http://your-server:8000/api/v1/failover/llm-a/cancel \
@@ -96,6 +98,8 @@ curl -s -X POST http://your-server:8000/api/v1/failover/llm-a/cancel \
 curl -s -X POST http://your-server:8000/api/v1/failover/probe \
   -H "Cookie: $COOKIE" -H "X-CSRF-Token: $CSRF"
 ```
+
+Malformed trigger bodies and non-string reasons return HTTP 400. If a state change cannot be saved, trigger and cancel return `503 failover_transition_failed`. Repeating an already-applied action succeeds without duplicating its event.
 
 A manual trigger on a target with no failover configured returns `409 failover_not_configured`. Triggering an already-active automatic failover by hand upgrades it to manual, so it no longer auto-recovers on healthy probes; cancelling with `source=manual` (the API default) clears either kind.
 
@@ -136,7 +140,7 @@ All settings are under `PUT /api/v1/settings/ad-detection`; database-only, no en
 | `failoverWhisperMaxAttempts` | int 1-10 or null; blank inherits `whisperMaxAttempts` | null |
 | `failoverWhisperLanguage` | string, blank matches the active transcriber's language | - |
 
-A local-backend failover transcriber is considered configured once enabled; an API-backend one additionally needs its base URL set.
+Local standby requires its switch enabled and the local Whisper stack available. API standby requires its switch enabled and a base URL. Disabling or clearing a standby configuration sends subsequent calls to the original transcriber, even if its failover state remains active.
 
 **Policy:**
 
@@ -158,7 +162,7 @@ Both carry `target` (`llm-a`, `llm-b`, or `transcriber`), `source` (`auto`, `pro
 
 ## Per-provider timeouts and retries
 
-Provider A, Provider B, and the LLM failover provider each have their own request timeout and max-retries setting (`providerATimeoutSeconds`/`providerAMaxRetries`, `providerBTimeoutSeconds`/`providerBMaxRetries`, `failoverLlmTimeoutSeconds`/`failoverLlmMaxRetries`). Blank falls back to the provider-type default: 120 seconds and 3 retries for Anthropic and OpenRouter, 600 seconds and 2 retries for OpenAI-compatible endpoints and Ollama. A stage that fails over mid-run uses the failover provider's own timeout and retry count on the extra attempt, not Provider A's or Provider B's. See [Configuration > Per-provider timeout and retries](configuration.md#per-provider-timeout-and-retries) for the full table.
+Provider A, Provider B, and the LLM standby provider each have their own request timeout and max-retries setting (`providerATimeoutSeconds`/`providerAMaxRetries`, `providerBTimeoutSeconds`/`providerBMaxRetries`, `failoverLlmTimeoutSeconds`/`failoverLlmMaxRetries`). Blank falls back to the provider-type default: 120 seconds and 3 retries for Anthropic and OpenRouter, 600 seconds and 2 retries for OpenAI-compatible endpoints and Ollama. A stage that fails over mid-run uses the standby provider's own timeout and retry count on the extra attempt, not Provider A's or Provider B's. See [Configuration > Per-provider timeout and retries](configuration.md#per-provider-timeout-and-retries) for the full table.
 
 On the transcription side, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) sets upload attempts per chunk, including the first upload. The standby transcriber inherits it unless `failoverWhisperMaxAttempts` is set. Configure the standby override under Settings > Failover, even when the active transcriber runs locally. Null or blank clears the override; omitting the field leaves it unchanged.
 
