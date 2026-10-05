@@ -1139,7 +1139,8 @@ class Storage:
         excluded because it admits script execution. Oversize responses are
         rejected outright with a structured log rather than saved partially.
         Returns (success, failure_status): failure_status is 'not_found' for
-        an HTTP 404, else 'error', and is None on success.
+        a definitive 4xx (404, 403, etc; 429 is excluded as rate-limiting,
+        not rejection), else 'error', and is None on success.
         """
         try:
             # Check if we already have this artwork on disk. Callers that
@@ -1179,7 +1180,9 @@ class Storage:
                     "[%s] artwork_fetch_failed status=%s url=%s",
                     slug, status_code, safe_url_for_log(artwork_url),
                 )
-                return False, ('not_found' if status_code == 404 else 'error')
+                not_found = (status_code is not None and 400 <= status_code < 500
+                             and status_code != 429)
+                return False, ('not_found' if not_found else 'error')
 
             declared_type = (response.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower()
             if declared_type and declared_type not in _ALLOWED_IMAGE_TYPES:

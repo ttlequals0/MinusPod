@@ -159,6 +159,59 @@ def test_both_candidates_fail_without_cache_records_404_backoff(temp_db, tmp_pat
     assert mock_get2.call_count == 0
 
 
+# --- 4xx classification: definitive rejection vs transient/rate-limited -----
+
+def test_uncached_403_is_classified_not_found(temp_db, tmp_path):
+    storage = Storage(data_dir=str(tmp_path))
+    slug = 'forbidden-pod'
+    storage.db.create_podcast(slug, 'https://example.com/feed.xml')
+    url = 'https://cdn.example.com/blocked.png'
+
+    with patch('storage.safe_get', return_value=_mock_response(status_code=403)):
+        result = storage._download_artwork_uncached(slug, url, force=False)
+
+    assert result == (False, 'not_found')
+
+
+def test_uncached_429_is_classified_error_not_not_found(temp_db, tmp_path):
+    storage = Storage(data_dir=str(tmp_path))
+    slug = 'rate-limited-pod'
+    storage.db.create_podcast(slug, 'https://example.com/feed.xml')
+    url = 'https://cdn.example.com/throttled.png'
+
+    with patch('storage.safe_get', return_value=_mock_response(status_code=429)):
+        result = storage._download_artwork_uncached(slug, url, force=False)
+
+    assert result == (False, 'error')
+
+
+def test_uncached_404_is_still_classified_not_found(temp_db, tmp_path):
+    storage = Storage(data_dir=str(tmp_path))
+    slug = 'missing-pod'
+    storage.db.create_podcast(slug, 'https://example.com/feed.xml')
+    url = 'https://cdn.example.com/gone.png'
+
+    with patch('storage.safe_get', return_value=_mock_response(status_code=404)):
+        result = storage._download_artwork_uncached(slug, url, force=False)
+
+    assert result == (False, 'not_found')
+
+
+def test_download_artwork_backs_off_a_day_after_403(temp_db, tmp_path):
+    storage = Storage(data_dir=str(tmp_path))
+    slug = 'forbidden-backoff'
+    storage.db.create_podcast(slug, 'https://example.com/feed.xml')
+    url = 'https://cdn.example.com/blocked.png'
+
+    with patch('storage.safe_get', return_value=_mock_response(status_code=403)) as mock_get:
+        assert storage.download_artwork(slug, url) is False
+    assert mock_get.call_count == 1
+
+    with patch('storage.safe_get', return_value=_mock_response(status_code=403)) as mock_get2:
+        assert storage.download_artwork(slug, url) is False
+    assert mock_get2.call_count == 0, "403 must share the 24h not_found backoff, not retry every 6h"
+
+
 # --- negative cache: status-aware + durable ---------------------------------
 
 def test_negative_cache_is_404_aware_and_survives_a_restart(temp_db, tmp_path):
