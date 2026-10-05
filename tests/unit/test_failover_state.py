@@ -211,6 +211,22 @@ def test_auto_trigger_rereads_state_another_worker_wrote():
     _reset(db)
 
 
+def test_state_reads_manual_changes_without_waiting_for_settings_cache_ttl():
+    db = Database(); _reset(db); _configure_llm(db)
+    key = 'failover_state:llm:primary'
+    failover.llm_client._provider_cache.set(key, failover.llm_client._CACHED_NONE)
+    assert failover.llm_client._get_cached_setting(key) is None
+    active = {'active': True, 'source': 'manual', 'since': '2026-01-01T00:00:00Z',
+              'reason': 'drill'}
+    db.set_setting(key, json.dumps(active), is_default=False)
+    assert failover.state('llm:primary') == active
+
+    failover.llm_client._provider_cache.set(key, json.dumps(active))
+    db.clear_setting(key)
+    assert failover.state('llm:primary') == failover._INACTIVE
+    _reset(db)
+
+
 def test_trigger_and_cancel_swallow_write_failures():
     db = Database(); _reset(db); _configure_llm(db)
     with patch.object(failover, '_apply_transition', side_effect=RuntimeError('db locked')):

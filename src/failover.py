@@ -44,7 +44,7 @@ def llm_target_for_slot(credential_slot: str) -> str | None:
 
 
 def state(target: str) -> dict:
-    raw = _setting(f'failover_state:{target}')
+    raw = Database().get_setting(f'failover_state:{target}')
     if not raw:
         return dict(_INACTIVE)
     try:
