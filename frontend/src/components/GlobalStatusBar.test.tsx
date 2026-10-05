@@ -10,6 +10,7 @@ import { render, screen, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import GlobalStatusBar from './GlobalStatusBar';
+import { makeFailoverTarget } from '../test/failover';
 
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
@@ -300,9 +301,8 @@ describe('GlobalStatusBar failover', () => {
     vi.unstubAllGlobals();
   });
 
-  const target = (active: boolean) => ({
-    active, source: active ? 'manual' : null, since: active ? new Date().toISOString() : null,
-  });
+  const target = (active: boolean) => makeFailoverTarget(
+    active ? { active, source: 'manual', since: new Date().toISOString() } : {});
 
   it('shows on an idle queue while a target is failed over', async () => {
     await renderBar(makeStatus({
@@ -320,7 +320,7 @@ describe('GlobalStatusBar failover', () => {
     act(() => {
       screen.getByRole('button', { name: 'Expand status bar' }).click();
     });
-    expect(holdRow('Provider A').textContent).toMatch(/manual/);
+    expect(holdRow('Provider A').textContent).toMatch(/via manual trigger/);
     expect(holdRow('Transcriber').textContent).toMatch(/since \d{1,2}:\d{2}/);
   });
 

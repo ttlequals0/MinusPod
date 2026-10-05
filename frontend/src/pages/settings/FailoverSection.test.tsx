@@ -3,23 +3,22 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FailoverSection from './FailoverSection';
-import type { FailoverOverview, FailoverProbe } from '../../api/failover';
+import type { FailoverOverview } from '../../api/failover';
 import type { ClaudeModel } from '../../api/types';
+import { makeFailoverProbe, makeFailoverTarget } from '../../test/failover';
 
 type Props = Parameters<typeof FailoverSection>[0];
 
 const models: ClaudeModel[] = [{ id: 'gpt-5', name: 'GPT-5' }];
 
-const unprobed: FailoverProbe = {
-  reachable: null, status: null, detail: '', checkedAt: null, healthyStreak: 0, failedStreak: 0,
-};
+const unprobed = makeFailoverProbe();
+const idle = makeFailoverTarget();
+const unconfigured = makeFailoverTarget({ configured: false });
 
 function makeOverview(overrides: Partial<FailoverOverview> = {}): FailoverOverview {
   return {
     targets: {
-      'llm-a': { active: false, source: null, since: null, reason: null, configured: true },
-      'llm-b': { active: false, source: null, since: null, reason: null, configured: true },
-      transcriber: { active: false, source: null, since: null, reason: null, configured: true },
+      'llm-a': idle, 'llm-b': idle, transcriber: idle,
     },
     probes: {
       'llm-a': unprobed, 'llm-b': unprobed, 'llm-failover': unprobed,
@@ -98,9 +97,9 @@ describe('FailoverSection status rows', () => {
   it('shows one status row per target with trigger or cancel', async () => {
     const onTrigger = vi.fn(); const onCancel = vi.fn();
     renderSection({ onTrigger, onCancel, overview: makeOverview({
-      targets: { 'llm-a': { active: true, source: 'probe', since: '2026-10-05T00:00:00Z', reason: 'HTTP 503', configured: true },
-                 'llm-b': { active: false, source: null, since: null, reason: null, configured: true },
-                 transcriber: { active: false, source: null, since: null, reason: null, configured: false } } }) });
+      targets: {
+        'llm-a': makeFailoverTarget({ active: true, source: 'probe', since: '2026-10-05T00:00:00Z', reason: 'HTTP 503' }),
+        'llm-b': idle, transcriber: unconfigured } }) });
     await openSection();
     expect(screen.getByText('Provider A')).toBeDefined();
     expect(screen.getByText('Failed over')).toBeDefined();
@@ -116,8 +115,8 @@ describe('FailoverSection status rows', () => {
   it('badges a probed target by reachability', async () => {
     renderSection({ overview: makeOverview({
       probes: {
-        'llm-a': { ...unprobed, reachable: true, checkedAt: '2026-10-05T00:00:00Z' },
-        'llm-b': { ...unprobed, reachable: false, checkedAt: '2026-10-05T00:00:00Z' },
+        'llm-a': makeFailoverProbe({ reachable: true, checkedAt: '2026-10-05T00:00:00Z' }),
+        'llm-b': makeFailoverProbe({ reachable: false, checkedAt: '2026-10-05T00:00:00Z' }),
         'llm-failover': unprobed, transcriber: unprobed, 'transcriber-failover': unprobed,
       } }) });
     await openSection();
@@ -129,12 +128,10 @@ describe('FailoverSection status rows', () => {
 
   it('shows the standby accounts as rows without actions', async () => {
     renderSection({ overview: makeOverview({
-      targets: { 'llm-a': { active: false, source: null, since: null, reason: null, configured: true },
-                 'llm-b': { active: false, source: null, since: null, reason: null, configured: true },
-                 transcriber: { active: false, source: null, since: null, reason: null, configured: false } },
+      targets: { 'llm-a': idle, 'llm-b': idle, transcriber: unconfigured },
       probes: {
         'llm-a': unprobed, 'llm-b': unprobed, transcriber: unprobed,
-        'llm-failover': { ...unprobed, reachable: false, detail: 'Connection refused', checkedAt: '2026-10-05T00:00:00Z' },
+        'llm-failover': makeFailoverProbe({ reachable: false, detail: 'Connection refused', checkedAt: '2026-10-05T00:00:00Z' }),
         'transcriber-failover': unprobed,
       } }) });
     await openSection();

@@ -9,7 +9,7 @@ import ChevronCaret from './ChevronCaret';
 import { apiRequest } from '../api/client';
 import { tint } from './badgeStyles';
 import ProcessingJobProgress, { formatJobDuration } from './ProcessingJobProgress';
-import { failoverTargetLabel } from '../api/failover';
+import { failoverSourceLabel, failoverTargetLabel } from '../api/failover';
 import type { ProcessingStatus } from '../api/status';
 
 interface ProcessingJob {
@@ -124,12 +124,6 @@ function queueHoldText(hold: QueueHold | undefined, compact = false): string | n
   }
   return null;
 }
-
-const FAILOVER_SOURCE_TEXT: Record<string, string> = {
-  auto: 'after a failed request',
-  probe: 'after a failed probe',
-  manual: 'triggered manually',
-};
 
 function failoverText(failover: StatusData['failover'], compact: boolean): string | null {
   if (!failover?.active?.length) return null;
@@ -387,7 +381,7 @@ function GlobalStatusBar() {
                     <li key={name} className="text-xs text-foreground">
                       {failoverTargetLabel(name)} on its failover account
                       {target?.since ? ` since ${formatClock(target.since)}` : ''}
-                      {target?.source ? `, ${FAILOVER_SOURCE_TEXT[target.source] ?? target.source}` : ''}.
+                      {target?.source ? `, via ${failoverSourceLabel(target.source)}` : ''}.
                     </li>
                   );
                 })}

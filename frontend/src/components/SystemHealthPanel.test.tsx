@@ -4,6 +4,7 @@ import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SystemStatus } from '../api/types';
 import SystemHealthPanel, { rollupHealth } from './SystemHealthPanel';
+import { makeFailoverProbe, makeFailoverTarget } from '../test/failover';
 
 const requestPodpingCheck = vi.hoisted(() => vi.fn());
 
@@ -359,11 +360,11 @@ describe('SystemHealthPanel: house recipes', () => {
 });
 
 describe('SystemHealthPanel: failover', () => {
-  const idle = { active: false, source: null, since: null, reason: null, configured: true };
-  const probe = { reachable: null, status: null, detail: '', checkedAt: null, healthyStreak: 0, failedStreak: 0 };
+  const idle = makeFailoverTarget();
+  const probe = makeFailoverProbe();
   const failover = (llmA: boolean) => ({
     targets: {
-      'llm-a': llmA ? { ...idle, active: true, source: 'auto' as const, since: '2026-10-05T00:00:00Z' } : idle,
+      'llm-a': llmA ? makeFailoverTarget({ active: true, source: 'auto', since: '2026-10-05T00:00:00Z' }) : idle,
       'llm-b': idle,
       transcriber: idle,
     },

@@ -76,3 +76,14 @@ export const FAILOVER_TARGET_LABELS: Record<FailoverTargetName, string> = {
 export function failoverTargetLabel(name: string): string {
   return FAILOVER_TARGET_LABELS[name as FailoverTargetName] ?? name;
 }
+
+// How a target entered failover, phrased to follow "via".
+export const FAILOVER_SOURCE_LABELS: Record<string, string> = {
+  auto: 'a failed request',
+  probe: 'a failed probe',
+  manual: 'manual trigger',
+};
+
+export function failoverSourceLabel(source: string): string {
+  return FAILOVER_SOURCE_LABELS[source] ?? source;
+}

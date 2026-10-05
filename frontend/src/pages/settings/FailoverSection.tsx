@@ -1,5 +1,7 @@
-import type { FailoverEvent, FailoverOverview, FailoverProbe, FailoverTargetName, FailoverTargetState } from '../../api/failover';
-import { FAILOVER_TARGET_LABELS, FAILOVER_TARGETS, failoverTargetLabel } from '../../api/failover';
+import type {
+  FailoverEvent, FailoverOverview, FailoverProbe, FailoverProbeName, FailoverTargetName, FailoverTargetState,
+} from '../../api/failover';
+import { FAILOVER_TARGET_LABELS, FAILOVER_TARGETS, failoverSourceLabel, failoverTargetLabel } from '../../api/failover';
 import type { LlmProvider, WhisperBackend } from '../../api/types';
 import { SLOT_LABELS, WHISPER_BACKENDS } from '../../api/types';
 import type { ProviderStatus } from '../../api/providers';
@@ -70,13 +72,13 @@ interface FailoverSectionProps {
   cryptoReady: boolean;
 }
 
-const SOURCE_TEXT: Record<string, string> = {
-  auto: 'a failed request',
-  probe: 'a failed probe',
-  manual: 'manual trigger',
-};
-
 const EVENT_LIMIT = 20;
+
+// Both LLM targets share one failover account, so either's flag says whether it is set up.
+const STANDBY_ROWS: { label: string; target: FailoverTargetName; probe: FailoverProbeName }[] = [
+  { label: 'LLM failover', target: 'llm-a', probe: 'llm-failover' },
+  { label: 'Transcriber failover', target: 'transcriber', probe: 'transcriber-failover' },
+];
 
 function keyStatus(configured: boolean): ProviderStatus {
   return { configured, source: configured ? 'db' : 'none' };
@@ -96,7 +98,7 @@ function probeBadge(probe: FailoverProbe | undefined) {
 
 // "via <source>: <reason>", dropping a reason that only repeats the source.
 function viaText(source: string | null, reason: string | null): string {
-  const sourceText = source ? SOURCE_TEXT[source] ?? source : '';
+  const sourceText = source ? failoverSourceLabel(source) : '';
   const via = sourceText ? ` via ${sourceText}` : '';
   return reason && reason !== sourceText ? `${via}: ${reason}` : via;
 }
@@ -221,9 +223,14 @@ function FailoverSection({
                 onCancel={onCancel}
               />
             ))}
-            {/* Both LLM targets share one failover account, so either's flag says whether it is set up. */}
-            <StandbyRow label="LLM failover" configured={overview.targets['llm-a'].configured} probe={overview.probes['llm-failover']} />
-            <StandbyRow label="Transcriber failover" configured={overview.targets.transcriber.configured} probe={overview.probes['transcriber-failover']} />
+            {STANDBY_ROWS.map((row) => (
+              <StandbyRow
+                key={row.probe}
+                label={row.label}
+                configured={overview.targets[row.target].configured}
+                probe={overview.probes[row.probe]}
+              />
+            ))}
           </ul>
         ) : overviewLoading ? (
           <SkeletonRows count={5} />
