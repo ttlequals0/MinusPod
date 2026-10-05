@@ -81,3 +81,42 @@ def test_route_for_phase_applies_live_override():
         assert run_context.route_for_phase('detection')['credential_slot'] == 'failover'
     with patch.object(run_context, 'current', return_value=ctx), _active(set()), _configured():
         assert run_context.route_for_phase('detection')['credential_slot'] == 'primary'
+
+
+def test_same_as_pass_review_on_failover_uses_failover_review_model():
+    cfg = {**FAILOVER_CFG, 'models': {**FAILOVER_CFG['models'], 'review': 'qwen3:14b'}}
+    with patch.object(failover, 'failover_llm_config', return_value=cfg):
+        route = llm_route.resolve_review_route(
+            review_provider_setting='same_as_pass', review_model_setting=None,
+            pass_provider='openai-compatible', pass_model='qwen3:8b',
+            pass_base_url='http://127.0.0.1:11434/v1', pass_credential_slot='failover')
+        assert route.model_id == 'qwen3:14b' and route.credential_slot == 'failover'
+    with patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
+        route = llm_route.resolve_review_route(
+            review_provider_setting='same_as_pass', review_model_setting=None,
+            pass_provider='openai-compatible', pass_model='qwen3:4b',
+            pass_base_url='http://127.0.0.1:11434/v1', pass_credential_slot='failover')
+        assert route.model_id == 'qwen3:8b'
+
+
+def test_client_for_failover_dict_does_not_raise_account_changed():
+    snap = {'phase': 'detection', 'provider_key': 'anthropic', 'configured_model': 'claude-sonnet-5',
+            'base_url': None, 'credential_slot': 'primary', 'account_id': PRIMARY.account_id}
+    with _active({'llm:primary'}), _configured(), \
+            patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG), \
+            patch.object(llm_route, 'get_client_for_provider', return_value='client') as build:
+        assert llm_route.client_for_route(apply_failover_dict(snap)) == 'client'
+    assert build.call_args.kwargs['credential_slot'] == 'failover'
+
+
+def test_reviewer_live_route_follows_mid_pass_trigger():
+    from unittest.mock import MagicMock
+    from ad_reviewer import AdReviewer
+    reviewer = AdReviewer(MagicMock())
+    reviewer._active_route = Route(**{**PRIMARY.__dict__, 'phase': 'review'})
+    with _active(set()), _configured():
+        assert reviewer._live_route() is reviewer._active_route
+    with _active({'llm:primary'}), _configured(), \
+            patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
+        route = reviewer._live_route()
+    assert (route.credential_slot, route.model_id) == ('failover', 'qwen3:8b')

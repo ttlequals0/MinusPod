@@ -573,6 +573,32 @@ def _failover_route(phase: str, provider_key: str, credential_slot: str, model: 
     return route if route.credential_slot == SLOT_FAILOVER else None
 
 
+def _dispatch_on_failover(run_ladder, llm_kwargs, last_error, *, target, phase, provider_key,
+                         credential_slot, model, slug, episode_id, call_label):
+    """Trigger failover and rerun the ladder on the failover route; the response or None."""
+    failover.trigger(target, f"{call_label}: {type(last_error).__name__}: {str(last_error)[:200]}")
+    route = _failover_route(phase, provider_key, credential_slot, model)
+    if route is None:
+        return None
+    fo_kwargs = {**llm_kwargs, 'model': route.model_id,
+                 'timeout': get_llm_timeout(route.provider_key, SLOT_FAILOVER)}
+    rf = llm_kwargs.get('response_format') or {}
+    if rf.get('type') == 'json_schema' and not supports_json_schema_for_calls(route.model_id):
+        fo_kwargs['response_format'] = {'type': 'json_object'}
+    logger.warning(f"[{slug}:{episode_id}] {call_label} switching to failover provider "
+                   f"{route.provider_key} model {route.model_id}")
+    response, fo_error = run_ladder(
+        client_for_route(route), route.model_id, fo_kwargs,
+        get_llm_max_retries(route.provider_key, SLOT_FAILOVER),
+        SLOT_FAILOVER, route.provider_key)
+    if response is None:
+        # The caller keeps the original trigger error: deferral classifies on
+        # the active provider, not the failover attempt.
+        logger.warning(f"[{slug}:{episode_id}] {call_label} failover attempt on "
+                       f"{route.provider_key} {route.model_id} also failed: {fo_error}")
+    return response
+
+
 def call_llm(
     *,
     llm_client,
@@ -803,27 +829,19 @@ def call_llm(
 
     phase = route_phase or (phase_key if phase_key in PHASES else None)
     target = failover.llm_target_for_slot(credential_slot)
-    if (response is None and last_error is not None and phase and target
+    if (last_error is not None and phase and target
             and is_failover_trigger_error(last_error) and failover.is_configured(target)):
-        failover.trigger(target, f"{call_label}: {type(last_error).__name__}: {str(last_error)[:200]}")
-        route = _failover_route(phase, provider_key, credential_slot, model)
-        if route is not None:
-            fo_client = client_for_route(route)
-            fo_kwargs = {**llm_kwargs, 'model': route.model_id,
-                         'timeout': get_llm_timeout(route.provider_key, SLOT_FAILOVER)}
-            logger.warning(f"[{slug}:{episode_id}] {call_label} switching to failover provider "
-                           f"{route.provider_key} model {route.model_id}")
-            response, fo_error = _run_ladder(
-                fo_client, route.model_id, fo_kwargs,
-                get_llm_max_retries(route.provider_key, SLOT_FAILOVER),
-                SLOT_FAILOVER, route.provider_key)
-            if response is not None:
-                return response, None
-            # Keep the original trigger error: downstream deferral classifies
-            # on it, and that must track the active provider, not the failover
-            # attempt that was never the probe target.
-            logger.warning(f"[{slug}:{episode_id}] {call_label} failover attempt on "
-                            f"{route.provider_key} {route.model_id} also failed: {fo_error}")
+        try:
+            response = _dispatch_on_failover(
+                _run_ladder, llm_kwargs, last_error, target=target, phase=phase,
+                provider_key=provider_key, credential_slot=credential_slot, model=model,
+                slug=slug, episode_id=episode_id, call_label=call_label)
+        except Exception as e:
+            # Failover is best effort: its own failure must not mask the original error.
+            logger.warning(f"[{slug}:{episode_id}] {call_label} failover dispatch errored: {e}")
+            response = None
+        if response is not None:
+            return response, None
 
     return None, _lost_window(last_error, is_window, slug, episode_id, call_label)
 

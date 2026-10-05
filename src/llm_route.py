@@ -374,7 +374,8 @@ def _resolve_review_route_parts(
 
     review_provider_setting is a SLOT (primary/secondary/same_as_pass).
     same_as_pass inherits the calling pass's provider/model/base_url/
-    credential_slot verbatim, ignoring review_model entirely. Shared by
+    credential_slot, ignoring review_model; a pass on the failover slot uses
+    the failover review model instead of the pass model. Shared by
     resolve_route's live read and AdReviewer's frozen run-start gate, so the
     rule never drifts between the two call paths.
     """
@@ -387,7 +388,9 @@ def _resolve_review_route_parts(
         credential_slot = pass_credential_slot or SLOT_PRIMARY
         base_url = (pass_base_url if pass_base_url is not None
                     else _base_url_for_primary(pass_provider))
-        return pass_provider, pass_model, base_url, credential_slot
+        model = (failover.failover_llm_model('review') if credential_slot == SLOT_FAILOVER
+                 else pass_model)
+        return pass_provider, model, base_url, credential_slot
 
     if configured_slot not in VALID_SLOTS:
         configured_slot = SLOT_PRIMARY

@@ -149,3 +149,68 @@ def test_failover_ledger_rows_use_failover_slot(no_sleep):
     failover_calls = [k for k in seen_calls if k['credential_slot'] == 'failover']
     assert len(failover_calls) >= 1
     assert all(k['provider_key'] == 'openai-compatible' for k in failover_calls)
+
+
+def test_trigger_raising_returns_original_error(no_sleep):
+    primary_error = _outage()
+    primary = MagicMock(); primary.create_message.side_effect = primary_error
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', side_effect=RuntimeError('db locked')), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, err = _call(primary)
+    assert response is None and err is primary_error
+
+
+def test_failover_downgrades_json_schema_when_model_lacks_support(no_sleep):
+    primary = MagicMock(); primary.create_message.side_effect = _outage()
+    fo_client = MagicMock(); fo_client.create_message.return_value = {'content': 'ok'}
+    schema = llm_call.json_schema_format('x', {'type': 'object'})
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(llm_call, '_failover_route', return_value=FAILOVER_ROUTE), \
+            patch.object(llm_call, 'client_for_route', return_value=fo_client), \
+            patch.object(llm_call, 'supports_json_schema_for_calls', return_value=False), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        _call(primary, response_format=schema)
+    assert primary.create_message.call_args.kwargs['response_format'] == schema
+    assert fo_client.create_message.call_args.kwargs['response_format'] == {'type': 'json_object'}
+
+
+def test_detector_switches_model_and_slot_mid_pass():
+    """Window 2 after a window-1 trigger goes out with the failover model and slot."""
+    import ad_detector
+    import run_context
+    from ad_detector import AdDetector, PASS_AD_DETECTION_1
+
+    cfg = {'provider': 'openai-compatible', 'base_url': 'http://127.0.0.1:11434/v1',
+           'timeout': None, 'max_retries': None,
+           'models': {'detection': 'qwen3:8b', 'review': '', 'verification': '', 'chapters': ''}}
+    active = {'on': False}
+    sent = []
+
+    def fake_window_call(**kw):
+        sent.append(kw)
+        active['on'] = True
+        return None, _outage()
+
+    detector = AdDetector.__new__(AdDetector)
+    detector._llm_client_override = MagicMock()
+    ctx = run_context.begin('example-podcast', 'a1b2c3d4e5f6', run_id='r-fo1')
+    try:
+        ctx.set_route_snapshot({'detection': {
+            'provider_key': 'anthropic', 'configured_model': 'claude-sonnet-5',
+            'base_url': None, 'credential_slot': 'primary'}})
+        with patch.object(failover, 'is_active', side_effect=lambda t: active['on'] and t == 'llm:primary'), \
+                patch.object(failover, 'is_configured', return_value=True), \
+                patch.object(failover, 'failover_llm_config', return_value=cfg), \
+                patch.object(ad_detector, 'call_llm_for_window', side_effect=fake_window_call):
+            for label in ('Window 1', 'Window 2'):
+                detector._call_llm_for_window(
+                    model='claude-sonnet-5', system_prompt='s', prompt='p', llm_timeout=1,
+                    max_retries=0, slug='example-podcast', episode_id='a1b2c3d4e5f6',
+                    window_label=label, pass_name=PASS_AD_DETECTION_1)
+    finally:
+        run_context.end(ctx)
+    assert (sent[0]['model'], sent[0]['credential_slot']) == ('claude-sonnet-5', 'primary')
+    assert (sent[1]['model'], sent[1]['credential_slot'], sent[1]['provider']) == (
+        'qwen3:8b', 'failover', 'openai-compatible')

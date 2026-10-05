@@ -42,8 +42,8 @@ from text_pattern_matcher import is_defined_pattern
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from llm_route import (
-    Route, SAME_AS_PASS, SLOT_PRIMARY, client_for_route, resolve_review_route,
-    resolve_route,
+    Route, SAME_AS_PASS, SLOT_PRIMARY, apply_failover, client_for_route,
+    resolve_review_route, resolve_route,
 )
 from run_context import route_for_phase, run_in_worker_thread
 from llm_client import (
@@ -1322,12 +1322,17 @@ class AdReviewer:
         self.sponsor_service = sponsor_service
         self._sponsor_history_provider = sponsor_history_provider
 
+    def _live_route(self) -> Route | None:
+        """The resolved review route, switched to failover if one triggered since."""
+        return apply_failover(self._active_route) if self._active_route else None
+
+    def _client_for(self, route: Route | None):
+        """An explicit override (tests, calibration) wins; otherwise `route`'s client."""
+        return client_for_route(route, override=self._llm_client_override)
+
     @property
     def _llm_client(self):
-        """Client for the in-progress review() call: an explicit override
-        (tests, calibration) wins; otherwise the resolved route's client."""
-        return client_for_route(self._active_route,
-                                override=self._llm_client_override)
+        return self._client_for(self._live_route())
 
     def review(
         self,
@@ -1746,13 +1751,15 @@ class AdReviewer:
         window_label = f"reviewer-pass{pass_num}-{pool}"
 
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
-        provider = self._active_route.provider_key if self._active_route else None
+        route = self._live_route()
+        provider = route.provider_key if route else None
+        credential_slot = route.credential_slot if route else 'primary'
+        model = route.model_id if route else model
         max_tokens, temperature, reasoning = resolve_stage_tunables(
             'reviewer', provider=provider)
-        credential_slot = self._active_route.credential_slot if self._active_route else 'primary'
         t0 = time.monotonic()
         response, error = call_llm_for_window(
-            llm_client=self._llm_client,
+            llm_client=self._client_for(route),
             model=model,
             system_prompt=system_prompt,
             prompt=user_prompt,
@@ -2176,11 +2183,13 @@ class AdReviewer:
         )
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
         call_label = f"reviewer-pass{pass_num}-trim-recovery"
-        provider = self._active_route.provider_key if self._active_route else None
-        credential_slot = self._active_route.credential_slot if self._active_route else 'primary'
+        route = self._live_route()
+        provider = route.provider_key if route else None
+        credential_slot = route.credential_slot if route else 'primary'
+        model = route.model_id if route else model
         try:
             response, error = call_llm(
-                llm_client=self._llm_client,
+                llm_client=self._client_for(route),
                 model=model,
                 system_prompt=_TRIM_RECOVERY_SYSTEM_PROMPT,
                 prompt=user_prompt,

@@ -692,6 +692,32 @@ def _phase_for_pass(pass_name: str) -> str:
     return 'detection'
 
 
+class _LiveRoute(NamedTuple):
+    route: dict | None
+    provider: str | None
+    credential_slot: str
+    model: str | None
+    timeout: float
+    max_retries: int
+
+
+def _live_route_params(phase: str, model=None, llm_timeout=None, max_retries=None) -> _LiveRoute:
+    """The phase's live route and the request fields derived from it.
+
+    Read per call so a mid-pass failover switches client, model, slot and
+    tunables together; the arguments are the outside-a-run fallback.
+    """
+    route = route_for_phase(phase)
+    if not route:
+        return _LiveRoute(None, None, 'primary', model,
+                          get_llm_timeout() if llm_timeout is None else llm_timeout,
+                          get_llm_max_retries() if max_retries is None else max_retries)
+    provider = route['provider_key']
+    slot = route.get('credential_slot', 'primary')
+    return _LiveRoute(route, provider, slot, route.get('configured_model') or model,
+                      get_llm_timeout(provider, slot), get_llm_max_retries(provider, slot))
+
+
 class AdDetector:
     """Detect advertisements in podcast transcripts using Claude API.
 
@@ -893,11 +919,11 @@ class AdDetector:
         route = route_for_phase('verification')
         return route['provider_key'] if route else get_effective_provider()
 
-    def _client_for_pass(self, pass_name: str) -> LLMClient | None:
-        """LLM client for a detection pass: the run's routed provider client,
-        or the legacy override/global client outside a run."""
+    def _client_for_pass(self, pass_name: str, route: dict | None = None) -> LLMClient | None:
+        """LLM client for a detection pass: `route` (else the run's routed
+        provider) client, or the legacy override/global client outside a run."""
         return client_for_route(
-            _phase_for_pass(pass_name), override=self._llm_client_override,
+            route or _phase_for_pass(pass_name), override=self._llm_client_override,
             fallback=lambda: get_llm_client() if self.api_key else None)
 
     def _apply_pass_override(self, rendered: str, setting_key: str) -> str:
@@ -1161,14 +1187,13 @@ class AdDetector:
         client for per-pass fallback flag scoping.
         """
         phase = _phase_for_pass(pass_name)
-        route = route_for_phase(phase)
-        provider = route['provider_key'] if route else None
-        credential_slot = route.get('credential_slot', 'primary') if route else 'primary'
+        live = _live_route_params(phase, model, llm_timeout, max_retries)
+        _, provider, credential_slot, model, llm_timeout, max_retries = live
         max_tokens, temperature, reasoning = resolve_stage_tunables(
             phase, provider=provider)
 
         return call_llm_for_window(
-            llm_client=self._client_for_pass(pass_name),
+            llm_client=self._client_for_pass(pass_name, live.route),
             model=model,
             system_prompt=system_prompt,
             prompt=prompt,
@@ -1625,11 +1650,8 @@ class AdDetector:
         window_losses = {}
         last_error = None
         provider_error = None
-        route = route_for_phase(_phase_for_pass(pass_name))
-        route_provider = route['provider_key'] if route else None
-        route_slot = route.get('credential_slot', 'primary') if route else 'primary'
-        llm_timeout = get_llm_timeout(route_provider, route_slot)
-        max_retries = get_llm_max_retries(route_provider, route_slot)
+        live = _live_route_params(_phase_for_pass(pass_name))
+        llm_timeout, max_retries = live.timeout, live.max_retries
 
         # Instantiate audio signal formatter if audio analysis available
         audio_enforcer = None
@@ -1816,12 +1838,11 @@ class AdDetector:
 
         prompt = format_category_repair_prompt(transcript_excerpt, missing)
         phase = _phase_for_pass(pass_name)
-        route = route_for_phase(phase)
-        provider = route['provider_key'] if route else None
-        credential_slot = route.get('credential_slot', 'primary') if route else 'primary'
+        live = _live_route_params(phase, model, llm_timeout, max_retries)
+        _, provider, credential_slot, model, llm_timeout, max_retries = live
 
         response, error = call_llm(
-            llm_client=self._client_for_pass(pass_name),
+            llm_client=self._client_for_pass(pass_name, live.route),
             model=model,
             system_prompt=CATEGORY_REPAIR_SYSTEM_PROMPT,
             prompt=prompt,
@@ -2487,15 +2508,12 @@ class AdDetector:
                         kc_desc += f"Podcast Description:\n{podcast_description}\n\n"
                     if episode_description:
                         kc_desc += f"Episode Description:\n{episode_description}\n"
-                    kc_route = route_for_phase('detection')
-                    kc_provider = kc_route['provider_key'] if kc_route else None
-                    kc_slot = kc_route.get('credential_slot', 'primary') if kc_route else 'primary'
+                    kc_live = _live_route_params('detection')
                     inverted = self._detect_keep_content_ads(
                         segments, model=model, slug=slug, episode_id=episode_id,
                         podcast_name=podcast_name, episode_title=episode_title,
                         description_section=kc_desc,
-                        llm_timeout=get_llm_timeout(kc_provider, kc_slot),
-                        max_retries=get_llm_max_retries(kc_provider, kc_slot),
+                        llm_timeout=kc_live.timeout, max_retries=kc_live.max_retries,
                     )
                     if inverted is not None:
                         result = {"ads": inverted, "status": "success",
