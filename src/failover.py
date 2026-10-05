@@ -89,11 +89,12 @@ def failover_llm_model(phase: str) -> str:
     return models.get(phase) or models['detection']
 
 
-def is_configured(target: str) -> bool:
+def is_configured(target: str, cfg: dict | None = None) -> bool:
+    """`cfg` is an already-built failover_llm_config(), to skip a second build."""
     if target in (TARGET_LLM_PRIMARY, TARGET_LLM_SECONDARY):
         if not coerce_bool_setting(_setting('failover_llm_enabled')):
             return False
-        cfg = failover_llm_config()
+        cfg = cfg or failover_llm_config()
         return bool(cfg['provider'] and cfg['models']['detection'])
     if target == TARGET_WHISPER:
         if not coerce_bool_setting(_setting('failover_whisper_enabled')):

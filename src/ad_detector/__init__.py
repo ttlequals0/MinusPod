@@ -21,11 +21,10 @@ from llm_client import (
     is_connectivity_error, is_retryable_error, is_not_found_error,
     is_rate_limit_error, is_limit_exceeded_error,
     is_permanent_request_rejection_status,
-    get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
     StructuralRateLimitError, ProviderRateLimitedError,
 )
-from llm_route import client_for_route
+from llm_route import client_for_route, live_route_params
 from run_context import route_for_phase, run_in_worker_thread
 from sponsor_context import description_sponsor_re
 from sponsor_normalize import segment_category_for
@@ -692,32 +691,6 @@ def _phase_for_pass(pass_name: str) -> str:
     return 'detection'
 
 
-class _LiveRoute(NamedTuple):
-    route: dict | None
-    provider: str | None
-    credential_slot: str
-    model: str | None
-    timeout: float
-    max_retries: int
-
-
-def _live_route_params(phase: str, model=None, llm_timeout=None, max_retries=None) -> _LiveRoute:
-    """The phase's live route and the request fields derived from it.
-
-    Read per call so a mid-pass failover switches client, model, slot and
-    tunables together; the arguments are the outside-a-run fallback.
-    """
-    route = route_for_phase(phase)
-    if not route:
-        return _LiveRoute(None, None, 'primary', model,
-                          get_llm_timeout() if llm_timeout is None else llm_timeout,
-                          get_llm_max_retries() if max_retries is None else max_retries)
-    provider = route['provider_key']
-    slot = route.get('credential_slot', 'primary')
-    return _LiveRoute(route, provider, slot, route.get('configured_model') or model,
-                      get_llm_timeout(provider, slot), get_llm_max_retries(provider, slot))
-
-
 class AdDetector:
     """Detect advertisements in podcast transcripts using Claude API.
 
@@ -1187,8 +1160,9 @@ class AdDetector:
         client for per-pass fallback flag scoping.
         """
         phase = _phase_for_pass(pass_name)
-        live = _live_route_params(phase, model, llm_timeout, max_retries)
-        _, provider, credential_slot, model, llm_timeout, max_retries = live
+        live = live_route_params(phase, model, llm_timeout, max_retries)
+        provider, credential_slot, model = live.provider, live.credential_slot, live.model
+        llm_timeout, max_retries = live.timeout, live.max_retries
         max_tokens, temperature, reasoning = resolve_stage_tunables(
             phase, provider=provider)
 
@@ -1650,7 +1624,7 @@ class AdDetector:
         window_losses = {}
         last_error = None
         provider_error = None
-        live = _live_route_params(_phase_for_pass(pass_name))
+        live = live_route_params(_phase_for_pass(pass_name))
         llm_timeout, max_retries = live.timeout, live.max_retries
 
         # Instantiate audio signal formatter if audio analysis available
@@ -1838,8 +1812,9 @@ class AdDetector:
 
         prompt = format_category_repair_prompt(transcript_excerpt, missing)
         phase = _phase_for_pass(pass_name)
-        live = _live_route_params(phase, model, llm_timeout, max_retries)
-        _, provider, credential_slot, model, llm_timeout, max_retries = live
+        live = live_route_params(phase, model, llm_timeout, max_retries)
+        provider, credential_slot, model = live.provider, live.credential_slot, live.model
+        llm_timeout, max_retries = live.timeout, live.max_retries
 
         response, error = call_llm(
             llm_client=self._client_for_pass(pass_name, live.route),
@@ -2508,7 +2483,7 @@ class AdDetector:
                         kc_desc += f"Podcast Description:\n{podcast_description}\n\n"
                     if episode_description:
                         kc_desc += f"Episode Description:\n{episode_description}\n"
-                    kc_live = _live_route_params('detection')
+                    kc_live = live_route_params('detection')
                     inverted = self._detect_keep_content_ads(
                         segments, model=model, slug=slug, episode_id=episode_id,
                         podcast_name=podcast_name, episode_title=episode_title,

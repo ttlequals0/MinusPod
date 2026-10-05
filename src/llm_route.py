@@ -24,8 +24,8 @@ from config import (
 from database import Database
 from llm_client import (
     get_client_for_provider, get_effective_provider, get_effective_base_url,
-    LLMClient, ProviderAccountChangedError, _get_cached_setting,
-    _normalize_base_url_for_provider,
+    get_llm_max_retries, get_llm_timeout, LLMClient, ProviderAccountChangedError,
+    _get_cached_setting, _normalize_base_url_for_provider,
 )
 from run_context import route_for_phase
 
@@ -249,32 +249,71 @@ def _failover_base_url(provider: str, raw: str | None) -> str | None:
     return _normalize_base_url_for_provider(provider, raw or DEFAULT_OPENAI_BASE_URL)
 
 
-def apply_failover(route: Route) -> Route:
-    """The failover Route for `route` while its slot is failed over, else `route`."""
-    target = failover.llm_target_for_slot(route.credential_slot)
-    if target is None or not failover.is_active(target) or not failover.is_configured(target):
-        return route
+def _failover_route(phase: str | None, credential_slot: str) -> Route | None:
+    """The failover Route for a phase on `credential_slot` while that slot is failed over."""
+    target = failover.llm_target_for_slot(credential_slot)
+    if target is None or not failover.is_active(target):
+        return None
     cfg = failover.failover_llm_config()
-    model = cfg['models'].get(route.phase) or cfg['models']['detection']
+    if not failover.is_configured(target, cfg):
+        return None
+    model = cfg['models'].get(phase) or cfg['models']['detection']
     base_url = _failover_base_url(cfg['provider'], cfg['base_url'])
-    return Route(phase=route.phase, provider_key=cfg['provider'], model_id=model,
+    return Route(phase=phase, provider_key=cfg['provider'], model_id=model,
                  base_url=base_url, slot=SLOT_FAILOVER, credential_slot=SLOT_FAILOVER,
                  account_id=account_identity(cfg['provider'], base_url))
+
+
+def apply_failover(route: Route) -> Route:
+    """The failover Route for `route` while its slot is failed over, else `route`."""
+    return _failover_route(route.phase, route.credential_slot) or route
 
 
 def apply_failover_dict(route: dict) -> dict:
     """Snapshot-dict form of apply_failover; marks the replaced slot in failover_from."""
     slot = route.get('credential_slot', SLOT_PRIMARY)
-    target = failover.llm_target_for_slot(slot)
-    if target is None or not failover.is_active(target) or not failover.is_configured(target):
+    fo = _failover_route(route.get('phase'), slot)
+    if fo is None:
         return route
-    cfg = failover.failover_llm_config()
-    phase = route.get('phase')
-    model = cfg['models'].get(phase) or cfg['models']['detection']
-    base_url = _failover_base_url(cfg['provider'], cfg['base_url'])
-    return {**route, 'provider_key': cfg['provider'], 'configured_model': model,
-            'base_url': base_url, 'credential_slot': SLOT_FAILOVER,
-            'account_id': account_identity(cfg['provider'], base_url), 'failover_from': slot}
+    return {**route, 'provider_key': fo.provider_key, 'configured_model': fo.model_id,
+            'base_url': fo.base_url, 'credential_slot': SLOT_FAILOVER,
+            'account_id': fo.account_id, 'failover_from': slot}
+
+
+@dataclass(frozen=True)
+class LiveRoute:
+    route: Route | dict | None
+    provider: str | None
+    credential_slot: str
+    model: str | None
+    timeout: float
+    max_retries: int
+
+
+def live_route_from(route: Route | dict | None, model=None, llm_timeout=None,
+                    max_retries=None) -> LiveRoute:
+    """Request fields derived from an already-live route; the arguments are the no-route fallback."""
+    if not route:
+        return LiveRoute(None, None, SLOT_PRIMARY, model,
+                         get_llm_timeout() if llm_timeout is None else llm_timeout,
+                         get_llm_max_retries() if max_retries is None else max_retries)
+    if isinstance(route, Route):
+        provider, slot, route_model = route.provider_key, route.credential_slot, route.model_id
+    else:
+        provider = route['provider_key']
+        slot = route.get('credential_slot', SLOT_PRIMARY)
+        route_model = route.get('configured_model')
+    return LiveRoute(route, provider, slot, route_model or model,
+                     get_llm_timeout(provider, slot), get_llm_max_retries(provider, slot))
+
+
+def live_route_params(phase: str, model=None, llm_timeout=None, max_retries=None) -> LiveRoute:
+    """The phase's live run route and its request fields, read once per call.
+
+    Read per call so a mid-pass failover switches client, model, slot and
+    tunables together; the arguments are the outside-a-run fallback.
+    """
+    return live_route_from(route_for_phase(phase), model, llm_timeout, max_retries)
 
 
 def _resolve_slot_config(db, slot: str) -> tuple[str, str | None, str]:

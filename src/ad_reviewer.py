@@ -43,13 +43,13 @@ from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from llm_route import (
     Route, SAME_AS_PASS, SLOT_PRIMARY, apply_failover, client_for_route,
-    resolve_review_route, resolve_route,
+    live_route_from, resolve_review_route, resolve_route,
 )
 from run_context import route_for_phase, run_in_worker_thread
 from llm_client import (
     extract_error_body,
     get_effective_provider,
-    get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
+    is_rate_limit_error,
     is_review_inconclusive_error, ProviderRateLimitedError,
     StructuralRateLimitError,
 )
@@ -1751,20 +1751,18 @@ class AdReviewer:
         window_label = f"reviewer-pass{pass_num}-{pool}"
 
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
-        route = self._live_route()
-        provider = route.provider_key if route else None
-        credential_slot = route.credential_slot if route else 'primary'
-        model = route.model_id if route else model
+        live = live_route_from(self._live_route(), model)
+        provider, credential_slot, model = live.provider, live.credential_slot, live.model
         max_tokens, temperature, reasoning = resolve_stage_tunables(
             'reviewer', provider=provider)
         t0 = time.monotonic()
         response, error = call_llm_for_window(
-            llm_client=self._client_for(route),
+            llm_client=self._client_for(live.route),
             model=model,
             system_prompt=system_prompt,
             prompt=user_prompt,
-            llm_timeout=get_llm_timeout(provider, credential_slot),
-            max_retries=get_llm_max_retries(provider, credential_slot),
+            llm_timeout=live.timeout,
+            max_retries=live.max_retries,
             max_tokens=max_tokens,
             temperature=temperature,
             reasoning_effort=reasoning,
@@ -2183,17 +2181,15 @@ class AdReviewer:
         )
         pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
         call_label = f"reviewer-pass{pass_num}-trim-recovery"
-        route = self._live_route()
-        provider = route.provider_key if route else None
-        credential_slot = route.credential_slot if route else 'primary'
-        model = route.model_id if route else model
+        live = live_route_from(self._live_route(), model)
+        provider, credential_slot, model = live.provider, live.credential_slot, live.model
         try:
             response, error = call_llm(
-                llm_client=self._client_for(route),
+                llm_client=self._client_for(live.route),
                 model=model,
                 system_prompt=_TRIM_RECOVERY_SYSTEM_PROMPT,
                 prompt=user_prompt,
-                llm_timeout=get_llm_timeout(provider, credential_slot),
+                llm_timeout=live.timeout,
                 max_retries=0,
                 max_tokens=300,
                 slug=slug,

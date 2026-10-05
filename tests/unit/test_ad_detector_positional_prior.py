@@ -34,8 +34,8 @@ def _detect(positional_prior_hint):
          patch.object(detector, '_build_known_pattern_hint', return_value=''), \
          patch.object(detector, '_run_windows', run_windows), \
          patch('ad_detector._resolve_parallel_windows', return_value=1), \
-         patch('ad_detector.get_llm_timeout', return_value=60), \
-         patch('ad_detector.get_llm_max_retries', return_value=1):
+         patch('llm_route.get_llm_timeout', return_value=60), \
+         patch('llm_route.get_llm_max_retries', return_value=1):
         result = detector.detect_ads(
             SEGMENTS, podcast_name='Test', episode_title='Ep', slug='test',
             episode_id='e1', positional_prior_hint=positional_prior_hint)

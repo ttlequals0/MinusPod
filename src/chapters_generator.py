@@ -17,9 +17,9 @@ from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    get_llm_timeout, get_llm_max_retries, ProviderRateLimitedError,
+    ProviderRateLimitedError,
 )
-from llm_route import client_for_route
+from llm_route import client_for_route, live_route_params
 from run_context import route_for_phase
 from utils.llm_call import call_llm
 
@@ -212,23 +212,16 @@ class ChaptersGenerator:
         """Current LLM client: this run's chapters-route client, or the
         global client outside a run. Reads through on every access so a
         settings change takes effect without restarting the worker."""
-        return client_for_route(
-            'chapters', override=self._llm_client_override,
-            fallback=lambda: get_llm_client() if self.api_key else None)
+        return self._client_for('chapters')
 
     @_llm_client.setter
     def _llm_client(self, value: LLMClient | None) -> None:
         self._llm_client_override = value
 
-    @staticmethod
-    def _chapters_provider() -> str | None:
-        route = route_for_phase('chapters')
-        return route['provider_key'] if route else None
-
-    @staticmethod
-    def _chapters_credential_slot() -> str:
-        route = route_for_phase('chapters')
-        return route.get('credential_slot', 'primary') if route else 'primary'
+    def _client_for(self, route: str | dict | None) -> LLMClient | None:
+        return client_for_route(
+            route, override=self._llm_client_override,
+            fallback=lambda: get_llm_client() if self.api_key else None)
 
     def _initialize_client(self):
         """Surface LLM client init errors before a generation run."""
@@ -349,16 +342,16 @@ class ChaptersGenerator:
         )
 
         try:
+            live = live_route_params('chapters')
             max_tokens, temperature, reasoning = resolve_stage_tunables(
-                'chapter_boundary', provider=self._chapters_provider())
-            chapters_slot = self._chapters_credential_slot()
+                'chapter_boundary', provider=live.provider)
             response, last_error = call_llm(
-                llm_client=self._llm_client,
-                model=get_chapters_model(),
+                llm_client=self._client_for(live.route),
+                model=live.model if live.route else get_chapters_model(),
                 system_prompt="",
                 prompt=prompt,
-                llm_timeout=get_llm_timeout(self._chapters_provider(), chapters_slot),
-                max_retries=get_llm_max_retries(self._chapters_provider(), chapters_slot),
+                llm_timeout=live.timeout,
+                max_retries=live.max_retries,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 reasoning_effort=reasoning,
@@ -367,8 +360,8 @@ class ChaptersGenerator:
                 call_label="chapter topic detection",
                 pass_name=PASS_CHAPTER_GENERATION,
                 phase_key='chapters',
-                provider=self._chapters_provider(),
-                credential_slot=self._chapters_credential_slot(),
+                provider=live.provider,
+                credential_slot=live.credential_slot,
             )
             if response is None:
                 # A rate-limit hold is queue-wide state, not a degraded run.
@@ -537,16 +530,16 @@ class ChaptersGenerator:
 
         prompt = "\n".join(prompt_parts)
 
+        live = live_route_params('chapters')
         max_tokens, temperature, reasoning = resolve_stage_tunables(
-            'chapter_title', provider=self._chapters_provider())
-        chapters_slot = self._chapters_credential_slot()
+            'chapter_title', provider=live.provider)
         response, last_error = call_llm(
-            llm_client=self._llm_client,
-            model=get_chapters_model(),
+            llm_client=self._client_for(live.route),
+            model=live.model if live.route else get_chapters_model(),
             system_prompt="",
             prompt=prompt,
-            llm_timeout=get_llm_timeout(self._chapters_provider(), chapters_slot),
-            max_retries=get_llm_max_retries(self._chapters_provider(), chapters_slot),
+            llm_timeout=live.timeout,
+            max_retries=live.max_retries,
             max_tokens=max_tokens,
             temperature=temperature,
             reasoning_effort=reasoning,
@@ -555,8 +548,8 @@ class ChaptersGenerator:
             call_label="chapter title generation",
             pass_name=PASS_CHAPTER_GENERATION,
             phase_key='chapters',
-            provider=self._chapters_provider(),
-            credential_slot=self._chapters_credential_slot(),
+            provider=live.provider,
+            credential_slot=live.credential_slot,
         )
         if response is None:
             # Caller (generate_chapter_titles) catches this and degrades to
