@@ -1,12 +1,16 @@
 """Provider failover state (#806): which targets currently run on their failover config."""
 import json
+import hashlib
 import logging
+import os
 import threading
 import time
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 import llm_client
 import provider_probe
+import secrets_crypto
 from config import (
     FAILOVER_API_TARGET_NAMES, WHISPER_BACKEND_API, WHISPER_BACKEND_LOCAL,
     DEFAULT_OPENAI_BASE_URL, coerce_bool_setting,
@@ -128,6 +132,14 @@ def _state_in_transaction(conn, target: str) -> dict:
     return {key: data.get(key) for key in _INACTIVE}
 
 
+def _generation_in_transaction(conn, target: str) -> int:
+    raw = _setting_in_transaction(conn, f'failover_generation:{target}')
+    try:
+        return max(0, int(raw or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _reset_healthy_streak_in_transaction(conn, target: str) -> None:
     probe = _PROBE_OF.get(target)
     if probe is None:
@@ -143,32 +155,42 @@ def _reset_healthy_streak_in_transaction(conn, target: str) -> None:
             conn, key, json.dumps({**data, 'healthy_streak': 0}), is_default=False)
 
 
+def _apply_transition_in_transaction(conn, target: str, action: str,
+                                     source: str, reason: str | None) -> bool:
+    setting_key = f'failover_state:{target}'
+    if action == 'trigger' and not _configured_in_transaction(conn, target):
+        return False
+    current = _state_in_transaction(conn, target)
+    if action == 'trigger':
+        if current['active'] and (current['source'] == 'manual' or source != 'manual'):
+            return False
+        value = json.dumps({
+            'active': True, 'source': source, 'since': utc_now_iso(),
+            'reason': (reason or '')[:500],
+        })
+        Database._upsert_setting(conn, setting_key, value, is_default=False)
+        _reset_healthy_streak_in_transaction(conn, target)
+    else:
+        if not current['active'] or (current['source'] == 'manual' and source != 'manual'):
+            return False
+        conn.execute("DELETE FROM settings WHERE key = ?", (setting_key,))
+    generation_key = f'failover_generation:{target}'
+    Database._upsert_setting(
+        conn, generation_key, str(_generation_in_transaction(conn, target) + 1),
+        is_default=False,
+    )
+    conn.execute(
+        "INSERT INTO failover_events (target, action, source, reason) VALUES (?, ?, ?, ?)",
+        (target, action, source, (reason or '')[:500]),
+    )
+    return True
+
+
 def _apply_transition(target: str, action: str, source: str,
                       reason: str | None) -> bool:
     db = Database()
-    setting_key = f'failover_state:{target}'
     with db.transaction(immediate=True) as conn:
-        if action == 'trigger' and not _configured_in_transaction(conn, target):
-            return False
-        current = _state_in_transaction(conn, target)
-        if action == 'trigger':
-            if current['active'] and (current['source'] == 'manual' or source != 'manual'):
-                return False
-            value = json.dumps({
-                'active': True, 'source': source, 'since': utc_now_iso(),
-                'reason': (reason or '')[:500],
-            })
-            Database._upsert_setting(conn, setting_key, value, is_default=False)
-            _reset_healthy_streak_in_transaction(conn, target)
-        else:
-            if not current['active'] or (current['source'] == 'manual' and source != 'manual'):
-                return False
-            conn.execute("DELETE FROM settings WHERE key = ?", (setting_key,))
-        conn.execute(
-            "INSERT INTO failover_events (target, action, source, reason) VALUES (?, ?, ?, ?)",
-            (target, action, source, (reason or '')[:500]),
-        )
-    return True
+        return _apply_transition_in_transaction(conn, target, action, source, reason)
 
 
 def _transition(target: str, action: str, source: str, reason: str | None,
@@ -240,6 +262,45 @@ _ORIGIN_OF = {'llm:primary': TARGET_LLM_PRIMARY, 'llm:secondary': TARGET_LLM_SEC
 _PROBE_OF = {origin: probe for probe, origin in _ORIGIN_OF.items()}
 _MAX_PROBE_WORKERS = 5
 _fresh_probe_lock = threading.Lock()
+_PROBE_CONFIG = {
+    'llm:primary': (
+        ('llm_provider', 'openai_base_url', 'anthropic_api_key', 'openai_api_key',
+         'openrouter_api_key', 'ollama_api_key', 'provider_config_revision'),
+        ('LLM_PROVIDER', 'OPENAI_BASE_URL', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY',
+         'OPENROUTER_API_KEY', 'OLLAMA_API_KEY'),
+    ),
+    'llm:secondary': (
+        ('secondary_provider_enabled', 'secondary_provider', 'secondary_provider_base_url',
+         'secondary_provider_api_key', 'provider_config_revision'),
+        (),
+    ),
+    'llm:failover': (
+        ('failover_llm_enabled', 'failover_llm_provider', 'failover_llm_base_url',
+         'failover_llm_api_key', 'provider_config_revision'),
+        (),
+    ),
+    'whisper:active': (
+        ('whisper_backend', 'whisper_api_base_url', 'whisper_api_key'),
+        ('WHISPER_BACKEND', 'WHISPER_API_BASE_URL', 'WHISPER_API_KEY'),
+    ),
+    'whisper:failover': (
+        ('failover_whisper_enabled', 'failover_whisper_backend',
+         'failover_whisper_api_base_url', 'failover_whisper_api_key'),
+        (),
+    ),
+}
+_PROBE_CONFIG_QUERY = {
+    'llm:primary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?,?)",
+    'llm:secondary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?)",
+    'llm:failover': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?)",
+    'whisper:active': "SELECT key, value FROM settings WHERE key IN (?,?,?)",
+    'whisper:failover': "SELECT key, value FROM settings WHERE key IN (?,?,?,?)",
+}
+_PROBE_CONTEXT_QUERY = {
+    'llm:primary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?,?,?)",
+    'llm:secondary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?)",
+    'whisper:active': "SELECT key, value FROM settings WHERE key IN (?,?,?,?)",
+}
 
 
 def probe_interval_seconds() -> int:
@@ -285,28 +346,124 @@ def probe_state(target: str) -> dict:
     return {**_PROBE_DEFAULT, **{k: data.get(k, v) for k, v in _PROBE_DEFAULT.items()}}
 
 
+def _probe_config_identity(conn, target: str) -> str:
+    setting_keys, _ = _PROBE_CONFIG[target]
+    rows = conn.execute(_PROBE_CONFIG_QUERY[target], setting_keys).fetchall()
+    settings = {row['key']: row['value'] for row in rows}
+    return _probe_config_identity_from_values(target, settings)
+
+
+def _probe_observation_time() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec='microseconds').replace('+00:00', 'Z')
+
+
+def _capture_probe_context(db, target: str) -> dict:
+    origin = _ORIGIN_OF.get(target)
+    conn = db.get_connection()
+    setting_keys = _PROBE_CONFIG[target][0]
+    keys = list(setting_keys)
+    if origin:
+        keys.append(f'failover_generation:{origin}')
+    query = _PROBE_CONTEXT_QUERY.get(target, _PROBE_CONFIG_QUERY[target])
+    rows = conn.execute(query, keys).fetchall()
+    values = {row['key']: row['value'] for row in rows}
+    try:
+        generation = max(0, int(values.get(f'failover_generation:{origin}') or 0)) if origin else None
+    except (TypeError, ValueError):
+        generation = 0 if origin else None
+    environment = {key: os.environ.get(key) for key in _PROBE_CONFIG[target][1]}
+    identity = _probe_config_identity_from_values(target, values, environment)
+    return {
+        'generation': generation,
+        'config_identity': identity,
+        'observed_at': _probe_observation_time(),
+        'request_config': _probe_request_config(db, target, values, environment),
+    }
+
+
+def _probe_config_identity_from_values(target: str, settings: dict[str, str],
+                                       environment: dict[str, str | None] | None = None) -> str:
+    setting_keys, env_keys = _PROBE_CONFIG[target]
+    payload = {
+        'settings': {key: settings.get(key) for key in setting_keys},
+        'environment': environment or {key: os.environ.get(key) for key in env_keys},
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode()
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _probe_secret(db, raw: str | None) -> str | None:
+    if not raw:
+        return None
+    try:
+        return secrets_crypto.decrypt(db, raw) if secrets_crypto.is_ciphertext(raw) else raw
+    except Exception:
+        return None
+
+
+def _probe_request_config(db, target: str, settings: dict[str, str],
+                          environment: dict[str, str | None]) -> dict:
+    if target.startswith('llm:'):
+        slot = target.split(':', 1)[1]
+        if slot == 'primary':
+            provider = (settings.get('llm_provider') or
+                        environment.get('LLM_PROVIDER') or llm_client.PROVIDER_ANTHROPIC).lower()
+            key_name = {
+                llm_client.PROVIDER_ANTHROPIC: 'anthropic_api_key',
+                llm_client.PROVIDER_OPENROUTER: 'openrouter_api_key',
+                llm_client.PROVIDER_OLLAMA: 'ollama_api_key',
+            }.get(provider, 'openai_api_key')
+            env_name = {
+                'anthropic_api_key': 'ANTHROPIC_API_KEY',
+                'openrouter_api_key': 'OPENROUTER_API_KEY',
+                'ollama_api_key': 'OLLAMA_API_KEY',
+                'openai_api_key': 'OPENAI_API_KEY',
+            }[key_name]
+            key = _probe_secret(db, settings.get(key_name)) or environment.get(env_name)
+            if key_name in ('openai_api_key', 'ollama_api_key') and not key:
+                key = 'not-needed'
+            return {
+                'provider': provider,
+                'base_url': settings.get('openai_base_url') or
+                            environment.get('OPENAI_BASE_URL') or DEFAULT_OPENAI_BASE_URL,
+                'api_key': key or '',
+            }
+        if slot == 'secondary':
+            return {
+                'provider': settings.get('secondary_provider') or '',
+                'base_url': settings.get('secondary_provider_base_url'),
+                'api_key': _probe_secret(db, settings.get('secondary_provider_api_key')) or '',
+            }
+        return {
+            'provider': settings.get('failover_llm_provider') or '',
+            'base_url': settings.get('failover_llm_base_url') or DEFAULT_OPENAI_BASE_URL,
+            'api_key': _probe_secret(db, settings.get('failover_llm_api_key')) or '',
+        }
+    if target == 'whisper:active':
+        return {
+            'backend': settings.get('whisper_backend') or
+                       environment.get('WHISPER_BACKEND') or WHISPER_BACKEND_LOCAL,
+            'api_base_url': settings.get('whisper_api_base_url') or
+                            environment.get('WHISPER_API_BASE_URL') or '',
+            'api_key': _probe_secret(db, settings.get('whisper_api_key')) or
+                       environment.get('WHISPER_API_KEY') or '',
+        }
+    return {
+        'backend': settings.get('failover_whisper_backend') or WHISPER_BACKEND_API,
+        'api_base_url': settings.get('failover_whisper_api_base_url') or '',
+        'api_key': _probe_secret(db, settings.get('failover_whisper_api_key')) or '',
+    }
+
+
+def _probe_context_is_current(conn, target: str, context: dict) -> bool:
+    origin = _ORIGIN_OF.get(target)
+    if origin and _generation_in_transaction(conn, origin) != context['generation']:
+        return False
+    return _probe_config_identity(conn, target) == context['config_identity']
+
+
 def all_probe_states() -> dict[str, dict]:
     return {t: probe_state(t) for t in PROBE_TARGETS}
-
-
-def _llm_slot_config(slot: str) -> tuple[str, str | None, str]:
-    """(provider, base_url, api_key) for an LLM probe target."""
-    if slot == 'failover':
-        cfg = failover_llm_config()
-        return cfg['provider'], cfg['base_url'], llm_client.get_effective_failover_llm_api_key() or ''
-    if slot == 'secondary':
-        return (_setting('secondary_provider') or '', _setting('secondary_provider_base_url'),
-                llm_client.get_effective_secondary_provider_api_key() or '')
-    provider = llm_client.get_effective_provider()
-    return provider, llm_client.get_effective_base_url(), llm_client.get_effective_api_key_for(provider) or ''
-
-
-def _whisper_probe_settings(slot: str) -> dict:
-    """The transcriber's own settings for a whisper probe target, env fallbacks included."""
-    import transcriber  # inline: importing it loads the local whisper stack
-    if slot == 'failover':
-        return transcriber._get_failover_whisper_settings()
-    return transcriber._get_whisper_settings()
 
 
 def _probe_local_whisper() -> dict:
@@ -316,11 +473,15 @@ def _probe_local_whisper() -> dict:
     return {'reachable': False, 'status': None, 'detail': 'Local whisper stack is not installed'}
 
 
-def probe_target(target: str) -> dict:
+def probe_target(target: str, request_config: dict | None = None) -> dict:
     try:
+        if request_config is None:
+            request_config = _capture_probe_context(Database(), target)['request_config']
         kind, which = target.split(':', 1)
         if kind == 'llm':
-            provider, base_url, key = _llm_slot_config(which)
+            provider = request_config['provider']
+            base_url = request_config['base_url']
+            key = request_config['api_key']
             if not provider:
                 return {'reachable': None, 'status': None, 'detail': 'Not configured'}
             if provider in provider_probe.FIXED_PROVIDER_PROBES:
@@ -330,7 +491,7 @@ def probe_target(target: str) -> dict:
                 result = provider_probe.probe_models_endpoint(norm, key)
             rejected = (401, 402, 403, 404)
         else:
-            settings = _whisper_probe_settings(which)
+            settings = request_config
             if settings['backend'] == WHISPER_BACKEND_LOCAL:
                 return _probe_local_whisper()
             if not settings['api_base_url']:
@@ -350,39 +511,94 @@ def probe_target(target: str) -> dict:
         return {'reachable': False, 'status': None, 'detail': str(exc)[:200]}
 
 
-def _record_probe(db, target: str, result: dict) -> dict:
-    prev = probe_state(target)
-    healthy = result['reachable'] is True
-    if result['reachable'] is None:
-        # Not configured: neither healthy nor failed.
-        streaks = {'healthy_streak': 0, 'failed_streak': 0}
-    else:
-        streaks = {'healthy_streak': prev['healthy_streak'] + 1 if healthy else 0,
-                   'failed_streak': 0 if healthy else prev['failed_streak'] + 1}
-    data = {**prev, **result, 'checked_at': utc_now_iso(), **streaks}
-    db.set_setting(f'failover_probe:{target}', json.dumps(data), is_default=False)
+def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, str | None]:
+    key = f'failover_probe:{target}'
+    origin = _ORIGIN_OF.get(target)
+    action = None
+    with db.transaction(immediate=True) as conn:
+        raw = _setting_in_transaction(conn, key)
+        try:
+            previous = json.loads(raw) if raw else {}
+        except (TypeError, ValueError):
+            previous = {}
+        if not isinstance(previous, dict):
+            previous = {}
+        if not _probe_context_is_current(conn, target, context):
+            return {k: previous.get(k, default)
+                    for k, default in _PROBE_DEFAULT.items()}, None
+        same_context = (
+            previous.get('_generation') == context['generation']
+            and previous.get('_config_identity') == context['config_identity']
+        )
+        healthy_streak = previous.get('healthy_streak', 0) if same_context else 0
+        failed_streak = previous.get('failed_streak', 0) if same_context else 0
+        if result['reachable'] is None:
+            streaks = {'healthy_streak': 0, 'failed_streak': 0}
+        elif result['reachable'] is True:
+            streaks = {'healthy_streak': healthy_streak + 1, 'failed_streak': 0}
+        else:
+            streaks = {'healthy_streak': 0, 'failed_streak': failed_streak + 1}
+        data = {
+            **{key: previous.get(key, default) for key, default in _PROBE_DEFAULT.items()},
+            **result,
+            'checked_at': context['observed_at'],
+            **streaks,
+            '_generation': context['generation'],
+            '_config_identity': context['config_identity'],
+        }
+        Database._upsert_setting(conn, key, json.dumps(data), is_default=False)
+        if origin and result['reachable'] is not None:
+            current = _state_in_transaction(conn, origin)
+            if data['failed_streak'] >= AUTO_TRIGGER_FAILURES and not current['active']:
+                changed = _apply_transition_in_transaction(
+                    conn, origin, 'trigger', 'probe',
+                    f"health probe failed {data['failed_streak']} times: {data['detail']}",
+                )
+                if changed:
+                    action = 'trigger'
+            elif (data['healthy_streak'] >= _recovery_probes_in_transaction(conn)
+                  and current['active'] and current['source'] != 'manual'
+                  and _parse_iso(context['observed_at']) > _parse_iso(current['since'])):
+                changed = _apply_transition_in_transaction(conn, origin, 'cancel', 'auto', None)
+                if changed:
+                    action = 'cancel'
     invalidate_cache()
-    return data
+    if action:
+        try:
+            invalidate_provider_cache()
+        except Exception as exc:
+            logger.warning(f"Failover {action} for {origin} applied, but cache invalidation failed: {exc}")
+        if action == 'trigger':
+            logger.warning(f"Failover triggered for {origin} (probe): {data['detail']}")
+        else:
+            logger.info(f"Failover cancelled for {origin} (auto)")
+        _after_change(origin, action, 'probe' if action == 'trigger' else 'auto',
+                      data['detail'] if action == 'trigger' else None)
+    return {k: data[k] for k in _PROBE_DEFAULT}, action
+
+
+def _recovery_probes_in_transaction(conn) -> int:
+    try:
+        raw = _setting_in_transaction(conn, 'failover_recovery_probes')
+        return max(1, min(10, int(raw or 3)))
+    except (TypeError, ValueError):
+        return 3
 
 
 def probe_tick(db, targets: list[str] | None = None) -> dict[str, dict]:
     """Probe every enabled target, then apply auto trigger and auto recovery."""
     targets = list(targets or enabled_probe_targets())
+    def run(target):
+        context = _capture_probe_context(db, target)
+        return context, probe_target(target, context['request_config'])
+
     # Probe concurrently so a batch costs one probe timeout, not one per target.
     with ThreadPoolExecutor(max_workers=min(len(targets), _MAX_PROBE_WORKERS)) as exe:
-        probed = list(exe.map(probe_target, targets))
+        probed = list(exe.map(run, targets))
     results = {}
-    for target, result in zip(targets, probed, strict=True):
-        data = _record_probe(db, target, result)
+    for target, (context, result) in zip(targets, probed, strict=True):
+        data, _ = _record_probe(db, target, result, context)
         results[target] = data
-        origin = _ORIGIN_OF.get(target)
-        if origin is None or data['reachable'] is None:
-            continue
-        if data['failed_streak'] >= AUTO_TRIGGER_FAILURES and not is_active(origin):
-            trigger(origin, f"health probe failed {data['failed_streak']} times: {data['detail']}", source='probe')
-        elif (data['healthy_streak'] >= recovery_probes() and is_active(origin)
-              and _parse_iso(data['checked_at']) > _parse_iso(state(origin)['since'])):
-            cancel(origin, source='auto')
     return results
 
 

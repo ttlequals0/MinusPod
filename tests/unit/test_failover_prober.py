@@ -35,6 +35,7 @@ def _reset(db):
         db.clear_setting(f'failover_probe:{t}')
     for t in failover.TARGETS:
         db.clear_setting(f'failover_state:{t}')
+        db.clear_setting(f'failover_generation:{t}')
     db.set_setting('failover_llm_enabled', 'true', is_default=False)
     db.set_setting('failover_llm_provider', 'openai-compatible', is_default=False)
     db.set_setting('failover_llm_detection_model', 'qwen3:8b', is_default=False)
@@ -46,7 +47,7 @@ def _reset(db):
 
 
 def _probe(results):
-    def fake(t):
+    def fake(t, request_config=None):
         ok = results.get(t, True)
         return {'reachable': ok, 'status': 200 if ok else 503,
                 'detail': '' if ok else 'The server is reachable but rejected the test request (HTTP 503).'}
@@ -126,7 +127,7 @@ def test_ensure_fresh_probes_skips_recent():
 def test_probe_tick_probes_targets_concurrently():
     db = Database(); _reset(db)
 
-    def slow(target):
+    def slow(target, request_config=None):
         time.sleep(0.3)
         return {'reachable': True, 'status': 200, 'detail': ''}
     with patch.object(failover, 'probe_target', side_effect=slow) as p:
@@ -140,7 +141,7 @@ def test_probe_tick_probes_targets_concurrently():
 def test_concurrent_ensure_fresh_probes_share_one_probe():
     db = Database(); _reset(db)
 
-    def slow(target):
+    def slow(target, request_config=None):
         time.sleep(0.2)
         return {'reachable': True, 'status': 200, 'detail': ''}
     with patch.object(failover, 'probe_target', side_effect=slow) as p:
@@ -192,6 +193,127 @@ def test_recovery_ignores_probe_older_than_trigger():
                 _probe({'llm:primary': True, 'llm:failover': True}):
             failover.probe_tick(db, ['llm:primary'])
     assert failover.is_active('llm:primary') is True
+
+
+def test_delayed_healthy_result_is_discarded_after_trigger():
+    db = Database(); _reset(db)
+    release_slow = threading.Event()
+    first_result_returned = threading.Event()
+
+    def fake_probe(target, request_config=None):
+        if target == 'llm:failover':
+            assert release_slow.wait(5)
+        return {'reachable': True, 'status': 200, 'detail': ''}
+
+    original_map = failover.ThreadPoolExecutor.map
+
+    def controlled_map(executor, fn, targets):
+        values = iter(original_map(executor, fn, targets))
+        yield next(values)
+        first_result_returned.set()
+        yield from values
+
+    with patch.object(failover, 'probe_target', side_effect=fake_probe), \
+            patch.object(failover.ThreadPoolExecutor, 'map', controlled_map), \
+            patch.object(failover, 'fire_failover_event'):
+        worker = threading.Thread(
+            target=failover.probe_tick, args=(db, ['llm:primary', 'llm:failover']))
+        worker.start()
+        assert first_result_returned.wait(5)
+        failover.trigger('llm:primary', 'probe overlap')
+        release_slow.set()
+        worker.join(5)
+    assert not worker.is_alive()
+    assert failover.is_active('llm:primary') is True
+    assert failover.probe_state('llm:primary')['checked_at'] is None
+    assert failover.probe_state('llm:primary')['healthy_streak'] == 0
+
+
+def test_probe_from_previous_generation_is_discarded_after_same_second_retrigger():
+    db = Database(); _reset(db)
+    probe_started = threading.Event()
+    release_probe = threading.Event()
+
+    def slow_probe(target, request_config=None):
+        probe_started.set()
+        assert release_probe.wait(5)
+        return {'reachable': True, 'status': 200, 'detail': ''}
+
+    with patch.object(failover, 'probe_target', side_effect=slow_probe), \
+            patch.object(failover, 'fire_failover_event'), \
+            patch.object(failover, 'utc_now_iso', return_value='2026-10-05T12:00:00Z'):
+        failover.trigger('llm:primary', 'first outage')
+        first_since = failover.state('llm:primary')['since']
+        worker = threading.Thread(
+            target=failover.probe_tick, args=(db, ['llm:primary']))
+        worker.start()
+        assert probe_started.wait(5)
+        assert failover.cancel('llm:primary', source='auto') is True
+        assert failover.trigger('llm:primary', 'second outage', source='auto') is True
+        assert failover.state('llm:primary')['since'] == first_since
+        release_probe.set()
+        worker.join(5)
+    assert not worker.is_alive()
+    assert failover.state('llm:primary')['active'] is True
+    assert failover.probe_state('llm:primary')['checked_at'] is None
+    assert failover.probe_state('llm:primary')['healthy_streak'] == 0
+
+
+def test_probe_result_is_discarded_after_target_configuration_changes():
+    db = Database(); _reset(db)
+    db.set_setting('openai_base_url', 'https://first.example/v1', is_default=False)
+    failover.invalidate_cache()
+    probe_started = threading.Event()
+    release_probe = threading.Event()
+
+    def slow_probe(target, request_config=None):
+        probe_started.set()
+        assert release_probe.wait(5)
+        return {'reachable': True, 'status': 200, 'detail': ''}
+
+    with patch.object(failover, 'probe_target', side_effect=slow_probe):
+        worker = threading.Thread(
+            target=failover.probe_tick, args=(db, ['llm:primary']))
+        worker.start()
+        assert probe_started.wait(5)
+        db.set_setting('openai_base_url', 'https://second.example/v1', is_default=False)
+        failover.invalidate_cache()
+        release_probe.set()
+        worker.join(5)
+    assert not worker.is_alive()
+    assert failover.probe_state('llm:primary')['checked_at'] is None
+    assert failover.probe_state('llm:primary')['healthy_streak'] == 0
+
+
+def test_probe_uses_the_captured_config_when_stale_cache_is_repopulated():
+    db = Database(); _reset(db)
+    db.set_setting('llm_provider', 'openai-compatible', is_default=False)
+    db.set_setting('openai_base_url', 'https://captured.example/v1', is_default=False)
+    db.set_setting('openai_api_key', 'captured-key', is_default=False)
+    failover.invalidate_cache()
+    capture = failover._capture_probe_context
+    requests = []
+
+    def capture_then_repopulate(db_arg, target):
+        context = capture(db_arg, target)
+        with failover.llm_client._provider_cache_lock:
+            failover.llm_client._provider_cache.set('llm_provider', 'anthropic')
+            failover.llm_client._provider_cache.set('openai_base_url', 'https://stale.example/v1')
+            failover.llm_client._provider_cache.set('openai_api_key', 'stale-key')
+        return context
+
+    def record_request(endpoint, api_key):
+        requests.append((endpoint, api_key))
+        return {'reachable': True, 'status': 200, 'detail': ''}
+
+    with patch.object(failover, '_capture_probe_context', side_effect=capture_then_repopulate), \
+            patch.object(failover.provider_probe, 'probe_models_endpoint', side_effect=record_request):
+        failover.probe_tick(db, ['llm:primary'])
+    expected_endpoint = failover.llm_client._normalize_base_url_for_provider(
+        'openai-compatible', 'https://captured.example/v1')
+    assert requests == [(expected_endpoint, 'captured-key')]
+    assert failover._probe_request_config(db, 'llm:primary', {'llm_provider': 'ollama'}, {})[
+        'api_key'] == 'not-needed'
 
 
 class _Http:
