@@ -84,6 +84,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## F
 
+**Failover** - A standby LLM provider or transcriber that takes over a target (Provider A, Provider B, or the active transcriber) when it is unreachable, times out, or rejects the key, model, or billing. Switches back after enough consecutive healthy health-probe checks for an automatic switch, or on manual cancel for one triggered by hand. [Failover](failover.md)
+
 **False-positive text** - Transcript text stored from a confirmed "Mark as Not Ad" correction, matched against future episodes of the same podcast to suppress similar text automatically. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
 **Fingerprint** - An acoustic signature of a known ad, matched against new episodes without any transcript. One of the pattern types MinusPod learns from confirmed cuts. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
@@ -139,6 +141,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Processing queue** - The Queue page shows active jobs and the full waiting list, with controls for queue behavior and priority. [How It Works > Processing Queue](how-it-works.md#processing-queue)
 
 **Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified, plus elapsed stage and FFmpeg timing when available. [Web Interface > Processing stats](web-interface.md#processing-stats)
+
+**Provider A / Provider B** - The two LLM provider slots a pipeline stage can be routed to, renamed from Primary/Secondary. The API still accepts the old `primary`/`secondary` field names and values. [LLM Providers > Per-Stage Providers](llm-providers.md#per-stage-providers)
 
 ## Q
 

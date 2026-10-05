@@ -71,7 +71,7 @@ Cost is one extra LLM call per detected ad (and one extra call per rejected dete
 Settings live under AI & Processing -> Ad Reviewer:
 
 - **Enable ad reviewer** - master toggle, off by default
-- **Review provider** - `Same as pass` (default) runs the reviewer on whichever provider and model resolved the pass it is reviewing, and ignores the review model setting below. Pick `Primary` or `Secondary` to run the reviewer on that slot instead, such as detection on primary with review on a cheaper secondary account
+- **Review provider** - `Same as pass` (default) runs the reviewer on whichever provider and model resolved the pass it is reviewing, and ignores the review model setting below. Pick `Provider A` or `Provider B` to run the reviewer on that slot instead, such as detection on Provider A with review on a cheaper Provider B account
 - **Review model** - only used when Review provider is not `Same as pass`. `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
 - **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says
 - **Review prompt** - system prompt for the confirm/adjust/reject reviewer
@@ -188,22 +188,38 @@ Two things have to be in place first:
 
 If the passphrase is missing, the key inputs collapse to a "Setup required" note, the API returns `409 provider_crypto_unavailable`, and env-var credentials keep working. GET responses never include key values, only booleans plus a `db`/`env`/`none` source marker.
 
-### Secondary provider
+### Provider B
 
-Alongside the primary provider above, you can configure one secondary provider: a separate provider type, base URL, and API key that a stage's provider selector can route to instead of primary. This is useful for splitting cost or capacity across two accounts, or across two different providers, without switching your main configuration back and forth.
+Alongside Provider A above, you can configure one Provider B: a separate provider type, base URL, and API key that a stage's provider selector can route to instead of Provider A. This is useful for splitting cost or capacity across two accounts, or across two different providers, without switching your main configuration back and forth.
 
-The secondary provider is off by default, so an install with only a primary provider configured behaves exactly as before. Configure it via `PUT /api/v1/settings/ad-detection`:
+Provider B is off by default, so an install with only Provider A configured behaves exactly as before. Configure it via `PUT /api/v1/settings/ad-detection`:
 
-- `secondaryProviderEnabled` (boolean) - turns the slot on or off. A stage set to route to secondary while this is off falls back to primary.
-- `secondaryProvider` - the provider type: `anthropic`, `openrouter`, `openai-compatible`, or `ollama`. An empty value clears it.
-- `secondaryProviderBaseUrl` - base URL, used only when the type is `openai-compatible` or `ollama`. SSRF-validated the same way as the primary provider's base URL. Empty clears it back to the default.
-- `secondaryProviderApiKey` - API key for the secondary provider, encrypted the same way as every other provider key. Omit to leave it unchanged; null or empty clears it.
+- `secondaryProviderEnabled` (boolean) - turns the slot on or off. A stage set to route to Provider B while this is off falls back to Provider A. Alias: `providerBEnabled`.
+- `secondaryProvider` - the provider type: `anthropic`, `openrouter`, `openai-compatible`, or `ollama`. An empty value clears it. Alias: `providerB`.
+- `secondaryProviderBaseUrl` - base URL, used only when the type is `openai-compatible` or `ollama`. SSRF-validated the same way as Provider A's base URL. Empty clears it back to the default. Alias: `providerBBaseUrl`.
+- `secondaryProviderApiKey` - API key for Provider B, encrypted the same way as every other provider key. Omit to leave it unchanged; null or empty clears it. Alias: `providerBApiKey`.
+- `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - manual rate caps; see [Manual request-rate limits](#manual-request-rate-limits). Aliases: `providerBRequestsPerMin`, `providerBRequestsPerDay`, `providerBTokensPerMin`.
 
-`GET /api/v1/settings` reports the current configuration as `secondaryProviderEnabled`, `secondaryProvider`, and `secondaryProviderBaseUrl`, plus `secondaryProviderApiKeyConfigured` (a boolean; the key itself is never returned). `POST /api/v1/settings/providers/secondary/test-connection` runs the same staged connection probe used for the primary provider, but against the secondary type, base URL, and key, so you can confirm it works before pointing a stage at it.
+The `providerB*` spellings are the current ones; the `secondary*` keys above keep working on both read and write, so an existing integration needs no change. `GET /api/v1/settings` reports both spellings side by side (`secondaryProviderEnabled` and `providerBEnabled`, and so on), plus `secondaryProviderApiKeyConfigured` (a boolean; the key itself is never returned). `POST /api/v1/settings/providers/secondary/test-connection` runs the same staged connection probe used for Provider A, but against Provider B's type, base URL, and key, so you can confirm it works before pointing a stage at it.
 
-Changing any secondary provider field lifts an active rate-limit hold for that account, the same as changing the primary provider's credentials does.
+Changing any Provider B field lifts an active rate-limit hold for that account, the same as changing Provider A's credentials does.
 
 Base URLs for either slot are rejected if they embed credentials in the `user:pass@host` form, on save and on a connection test alike. The URL is copied into each run's non-secret route snapshot and returned by `GET /api/v1/settings`, so an embedded password would leak. Put the key in the API key field instead. Remote Whisper is exempt, since its endpoint is not part of that snapshot.
+
+### Per-provider timeout and retries
+
+Each of Provider A, Provider B, and the LLM failover provider has its own request timeout and max-retries override, blank by default. A blank value falls back to the provider-type default: 120 seconds and 3 retries for Anthropic and OpenRouter, 600 seconds and 2 retries for OpenAI-compatible endpoints and Ollama. Set via `PUT /api/v1/settings/ad-detection`:
+
+| Payload key | DB setting | Range |
+|---|---|---|
+| `providerATimeoutSeconds` | `llm_timeout_seconds` | 10-3600 seconds, or blank |
+| `providerAMaxRetries` | `llm_max_retries` | 0-10, or blank |
+| `providerBTimeoutSeconds` | `secondary_llm_timeout_seconds` | 10-3600 seconds, or blank |
+| `providerBMaxRetries` | `secondary_llm_max_retries` | 0-10, or blank |
+| `failoverLlmTimeoutSeconds` | `failover_llm_timeout_seconds` | 10-3600 seconds, or blank |
+| `failoverLlmMaxRetries` | `failover_llm_max_retries` | 0-10, or blank |
+
+Every value here must be a JSON integer or `null`/omitted; a numeric string (`"30"`) is rejected with a 400 rather than coerced. `null` or an empty string clears the override back to the provider-type default. These were previously read only from Provider A's values regardless of which slot a stage used; each slot now reads its own override. See [Failover](failover.md#per-provider-timeouts-and-retries) for how the failover provider's timeout and retries are used mid-run.
 
 ### Rotating or clearing a provider key
 
@@ -489,18 +505,20 @@ While a hold is active, a probe re-checks it instead of waiting out the provider
 
 A hold on one provider is lifted automatically when you update that provider's own credentials in Settings > Providers, or when you turn this toggle off. Changing several provider settings together in one save does not clear a hold that belongs to just one of them.
 
-Holds are scoped per credential, not just per provider type. If primary and secondary use the same provider type, for example two Anthropic accounts, a 429 on one does not pause the other. Updating a slot's credentials lifts only that slot's hold.
+Holds are scoped per credential, not just per provider type. If Provider A and Provider B use the same provider type, for example two Anthropic accounts, a 429 on one does not pause the other. Updating a slot's credentials lifts only that slot's hold.
+
+A 429 never triggers failover: the rate-limit hold above handles it by waiting out the reset, since the provider answered and only needs time, not a different account. See [Failover > What triggers it](failover.md#what-triggers-it).
 
 ### Manual request-rate limits
 
 The rate-limit hold above reacts to a 429 after it happens. Manual request-rate limits check recent ledger usage before a tracked call. They are best-effort controls: concurrent calls can pass the check together, and adapter-internal compatibility retries are not recorded as separate requests. Token limits use recorded usage, not a reservation for the next request, so a call can cross the configured token limit. Both features share the same queue-hold machinery, so a manual limit pauses the queue exactly like a real 429 and resumes on its own. A manual hold clears only when its reset time passes, and is never cleared early by the usage probe (that probe sends a real request, which would burn the quota the cap protects).
 
-Limits are scoped to one provider account, meaning one credential slot on one provider type: primary and secondary count separately even when both point at the same provider. Counting comes from the LLM call ledger: requests in the last 60 seconds against the per-minute cap (RPM), input plus output tokens of finalized calls in the last 60 seconds against the tokens-per-minute cap (TPM), and requests since the last UTC midnight against the per-day cap (RPD). When any cap is reached, that account's queue is paused. A per-minute pause (RPM or TPM) lifts about 60 seconds after the oldest contributing call in the window; the per-day pause lifts at the next UTC midnight, which is the fixed reset boundary regardless of your server's timezone or the provider's own billing day. When more than one cap is over, the later reset wins.
+Limits are scoped to one provider account, meaning one credential slot on one provider type: Provider A and Provider B count separately even when both point at the same provider. Counting comes from the LLM call ledger: requests in the last 60 seconds against the per-minute cap (RPM), input plus output tokens of finalized calls in the last 60 seconds against the tokens-per-minute cap (TPM), and requests since the last UTC midnight against the per-day cap (RPD). When any cap is reached, that account's queue is paused. A per-minute pause (RPM or TPM) lifts about 60 seconds after the oldest contributing call in the window; the per-day pause lifts at the next UTC midnight, which is the fixed reset boundary regardless of your server's timezone or the provider's own billing day. When more than one cap is over, the later reset wins.
 
 All are off by default (0 means unlimited), so existing installs are unaffected. Configure them under **Settings > AI & Processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
 
-- `providerRequestsPerMin`, `providerRequestsPerDay`, `providerTokensPerMin` - caps for the primary provider account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`, `PROVIDER_TOKENS_PER_MIN`).
-- `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - caps for the secondary provider account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`, `SECONDARY_PROVIDER_TOKENS_PER_MIN`).
+- `providerRequestsPerMin`, `providerRequestsPerDay`, `providerTokensPerMin` - caps for the Provider A account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`, `PROVIDER_TOKENS_PER_MIN`).
+- `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - caps for the Provider B account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`, `SECONDARY_PROVIDER_TOKENS_PER_MIN`); aliases `providerBRequestsPerMin`, `providerBRequestsPerDay`, `providerBTokensPerMin`.
 
 Example, using figures that were current for one provider's free tier at the time of writing: an account allowed 5 requests per minute and 20 per day. Providers change their tiers often, so read your own account's limits rather than trusting this number, then set `providerRequestsPerMin` to 5 and `providerRequestsPerDay` to 20. Pair this with a large detection window size (see [Detection window geometry](#detection-window-geometry)) so each episode spends fewer requests, and a whole episode can fit inside a small daily budget. The token-per-minute allowance on a tier like that is often generous enough that TPM is not the binding limit, but you can set `providerTokensPerMin` if your account has a tighter token budget.
 

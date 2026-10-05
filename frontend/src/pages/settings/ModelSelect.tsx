@@ -17,8 +17,7 @@ interface ModelSelectProps {
   inheritLabel?: string;
 }
 
-// A saved model id the catalog does not list (wrong provider for the stored
-// tag, renamed model) or no catalog at all (loading, failed probe) would
+// A saved model id the catalog does not list, or no catalog at all, would
 // render the <select> blank, which users read as "the setting was reset".
 function renderOrphan(value: string, models: ClaudeModel[] | undefined) {
   if (!value) return null;
@@ -28,10 +27,8 @@ function renderOrphan(value: string, models: ClaudeModel[] | undefined) {
 }
 
 function ModelSelect({ id, label, value, catalog, onChange, description, inheritLabel }: ModelSelectProps) {
-  // The catalog only lists what the provider advertises. Proxies, private
-  // deployments, and brand-new model ids need a way in, so the field can
-  // switch to free text. An orphaned value still renders as a list option,
-  // so the switch stays the user's call rather than an inference.
+  // Free-text toggle lets proxies, private deployments and new model ids in
+  // despite the catalog only listing what the provider advertises.
   const [typed, setTyped] = useState(false);
   const notConfigured = !value && !inheritLabel;
   return (

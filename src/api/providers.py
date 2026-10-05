@@ -32,6 +32,7 @@ from provider_probe import (
     models_request as _models_request,
     probe_fixed_endpoint as _probe_fixed_endpoint,
     probe_models_endpoint,
+    # Second name so the failover route's test-connection call can be patched independently of _probe_models_endpoint.
     probe_models_endpoint as _probe_models_endpoint,
     same_server as _same_server,
 )
@@ -368,15 +369,8 @@ def _health_detail(health: dict) -> str:
 
 
 def _whisper_connection_test(saved: dict, body: dict):
-    """Shared whisper-shaped connection probe (#544, #806).
-
-    Resolves baseUrl/model/skipFlacCompression against `saved` (whichever
-    whisper slot's settings the caller resolved), gates the saved key to
-    the saved server, uploads a sample through the real transcription
-    request shape, and layers on the optional /health follow-up. Shared by
-    the primary whisper route and the whisper-failover route so both stay
-    byte-for-byte identical in behaviour.
-    """
+    """Shared whisper-shaped connection probe (#544, #806); resolves against
+    `saved`, so the primary and failover whisper routes stay byte-for-byte identical."""
     saved_base, saved_key = saved['api_base_url'], saved['api_key']
     base = body['baseUrl'] if 'baseUrl' in body else saved_base
     if base is not None and not isinstance(base, str):
@@ -442,11 +436,8 @@ def test_provider_connection(provider):
         # gate inside the helper fails closed.
         return _whisper_connection_test(transcriber._get_whisper_settings(), body)
 
-    # For the default probe target, use the same resolution the real LLM
-    # client does (DB, then env, then the documented default). The key gate
-    # must NOT see that default: only a URL the operator explicitly saved
-    # may receive the key, otherwise "testing" the never-configured default
-    # URL would ship the key to whatever listens there.
+    # Resolve the default like the real LLM client (DB, then env, then default);
+    # the key gate below only ever sees an explicitly saved URL, never that default.
     cfg = _PROVIDERS[provider]
     db = Database()
     saved_base = get_effective_base_url()
@@ -555,12 +546,8 @@ def test_secondary_provider_connection():
 
 @api.route('/settings/providers/failover/test-connection', methods=['POST'])
 def test_failover_provider_connection():
-    """End-to-end probe of the shared LLM failover slot (#806).
-
-    Mirrors /settings/providers/secondary/test-connection, but reads its
-    type, base URL, and key from the failover_llm_* settings and the
-    failover_llm_api_key secret instead of the secondary provider config.
-    """
+    """End-to-end probe of the shared LLM failover slot (#806); mirrors
+    /settings/providers/secondary/test-connection against failover_llm_* settings."""
     db = Database()
     body = request.get_json(silent=True) or {}
     cfg = failover.failover_llm_config()
@@ -613,11 +600,7 @@ def test_failover_provider_connection():
 
 @api.route('/settings/providers/failover-whisper/test-connection', methods=['POST'])
 def test_failover_whisper_connection():
-    """End-to-end probe of the whisper failover slot (#806).
-
-    Same contract as the primary whisper test-connection route, but reads
-    saved values from the failover_whisper_* settings and the
-    failover_whisper_api_key secret via _get_failover_whisper_settings.
-    """
+    """End-to-end probe of the whisper failover slot (#806); same contract as the
+    primary whisper route, reading saved values via _get_failover_whisper_settings."""
     body = request.get_json(silent=True) or {}
     return _whisper_connection_test(transcriber._get_failover_whisper_settings(), body)

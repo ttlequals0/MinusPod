@@ -25,9 +25,8 @@ def traced_pair(tmp_path, monkeypatch):
 
 
 def test_long_held_write_transaction_is_logged_with_opener(traced_pair, caplog):
-    # The opener label names the first real statement, not the BEGIN that
-    # merely started the transaction (#728 follow-up: "opened by: BEGIN
-    # IMMEDIATE" on every warning gave no way to trace the holder).
+    # Opener label names the first real statement, not the BEGIN that started it
+    # (#728 follow-up: "opened by: BEGIN IMMEDIATE" gave no way to trace the holder).
     holder, _ = traced_pair
     with caplog.at_level(logging.WARNING, logger='database'):
         holder.execute('BEGIN IMMEDIATE')

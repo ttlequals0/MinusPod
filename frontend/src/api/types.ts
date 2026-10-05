@@ -732,10 +732,8 @@ export const SLOT_SECONDARY = 'secondary';
 export const SAME_AS_DETECTION = 'same_as_detection';
 export type ProviderSlot = typeof SLOT_PRIMARY | typeof SLOT_SECONDARY;
 
-// User-facing names for the credential slots: "Provider A"/"Provider B" in
-// the UI, while the API and stored settings keep the primary/secondary
-// slot values (see llm_route.py). 'failover' covers the dedicated failover
-// account surfaced alongside the two slots (e.g. spend attempt rows).
+// Display names for the credential slots; API and stored settings keep the
+// primary/secondary values (see llm_route.py). 'failover' is the shared failover account.
 export const SLOT_LABELS: Record<ProviderSlot | 'failover', string> = {
   primary: 'Provider A',
   secondary: 'Provider B',

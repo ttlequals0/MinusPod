@@ -15,7 +15,9 @@ release notes.
 - Visiting the server root redirects to the web UI. (#808)
 - Export selected feeds as OPML from the Feeds page. (#810)
 - Choose Podcasts or Episodes from an icon menu in the mobile dashboard toolbar.
-- API settings accept failover configuration and Provider B field aliases.
+- Provider failover for LLM and transcription: a standby provider with its own key, endpoint, timeout, retries, and per-stage models takes over when the active one is unreachable, times out, returns a 5xx, or rejects the key, model, or billing. A failing call or transcription chunk moves onto it mid-run; health probes run on a configurable interval and switch back after a configurable number of healthy probes; failover can also be triggered and cancelled by hand from Settings or the API. (#806)
+- Per-provider LLM request timeout and max retries for Provider A, Provider B, and the failover provider, and a max upload attempts setting for the transcription API.
+- Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
 - The OPML picker shows feed-loading errors with retry and keeps selected feeds in sync after a refresh.
@@ -25,7 +27,12 @@ release notes.
 - OPML picker rows and actions have 44 px mobile tap targets, long feed names wrap into view, and list scrolling stays inside the dialog.
 - The full navigation collapses below 1280 px so header controls stay visible without crowding.
 - Reduced the processing mode selector's leading padding.
-- Invalid failover settings are rejected without partially saving changes.
+- A stage routed to Provider B used Provider A's request timeout and retry count.
+- A transcription API that answered 401, 402, 403, or 404 failed the episode as a generic transient error; it now reports the status, and auth failures no longer burn retries.
+- A non-string value for a stage's provider field (detection, verification, chapters, or review) returned a 500 instead of a 400.
+- Per-provider timeout, retry, and failover policy settings now reject a numeric string instead of silently accepting it, and invalid failover settings are rejected without partially saving the rest of the request.
+- Artwork hosts that answer a definitive 4xx other than 429 now back off for 24 hours instead of 6, matching how a 404 is already handled, so a host that permanently blocks the request is not retried every refresh cycle.
+- Slow-transaction warnings now name the first real statement in the transaction instead of always saying "opened by: BEGIN IMMEDIATE", so a long hold can be traced to its actual call site.
 - Successful processing resets the episode retry budget before a future automatic rerun.
 - Cancelling a rerun preserves the published audio and removes only its unpublished replacement.
 - Public episode URLs no longer expose unpublished processed files. Reprocessing advances the file version even for unversioned publications.
@@ -36,6 +43,7 @@ release notes.
 - Updated fast-uri to 3.1.8 to fix a moderate vulnerability in frontend build tooling.
 
 ### Changed
+- The two LLM provider slots are now labelled Provider A and Provider B. The API accepts `providerB*` payload keys and `a`/`b` slot values; the `secondary*` keys and `primary`/`secondary` values keep working, and `GET` responses still emit both spellings.
 - Updated Python dependencies and frontend test tools from dependency PRs #811 through #820. The TypeScript ESLint packages now share one version.
 
 ## [2.97.45] - 2026-10-01

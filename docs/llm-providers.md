@@ -239,23 +239,25 @@ All of these can be changed at runtime from the Settings UI. No container restar
 
 ## Per-Stage Providers
 
-MinusPod supports up to two full provider configurations: the primary LLM Provider, and one optional secondary provider with its own type, base URL, and API key. Secondary is off by default (see [Secondary provider](configuration.md#secondary-provider)). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI & Processing > AI Models shows a slot selector next to each model selector:
+MinusPod supports up to two full provider configurations: Provider A, and one optional Provider B with its own type, base URL, and API key. Provider B is off by default (see [Provider B](configuration.md#provider-b)). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI & Processing > AI Models shows a slot selector next to each model selector:
 
-- **Ad Detection Provider** - `Default (Primary)` or `Secondary`. Secondary only appears in the list once the secondary provider is enabled and configured.
-- **Verification Provider** - `Same as detection` (default), `Default (Primary)`, or `Secondary`. Pointing it at the other slot is useful for cost control (a cheap pass-2 sanity check) or comparing two providers' output on the same episode.
-- **Chapters Provider** - `Same as detection` (default), `Default (Primary)`, or `Secondary`, independent of the other two.
+- **Ad Detection Provider** - `Default (Provider A)` or `Provider B`. Provider B only appears in the list once it is enabled and configured.
+- **Verification Provider** - `Same as detection` (default), `Default (Provider A)`, or `Provider B`. Pointing it at the other slot is useful for cost control (a cheap pass-2 sanity check) or comparing two providers' output on the same episode.
+- **Chapters Provider** - `Same as detection` (default), `Default (Provider A)`, or `Provider B`, independent of the other two.
 
-The Ad Reviewer section has its own slot selector, described in [Ad Reviewer](configuration.md#ad-reviewer). `Same as pass` inherits both the provider and model of whichever pass is being reviewed. `Primary` or `Secondary` runs the reviewer on that slot instead, and enables the Review Model selector for its catalog.
+The Ad Reviewer section has its own slot selector, described in [Ad Reviewer](configuration.md#ad-reviewer). `Same as pass` inherits both the provider and model of whichever pass is being reviewed. `Provider A` or `Provider B` runs the reviewer on that slot instead, and enables the Review Model selector for its catalog.
 
-Switching a stage's slot only changes that stage. Model discovery re-runs for the newly selected slot, so the model dropdown next to it shows that slot's own catalog. Every other stage's slot and model stay exactly as you left them. A stage still accepts a hand-typed model ID (the "Type a model ID" link) for models a slot's catalog does not list, the same as the single-provider case. If a stage is set to Secondary and the secondary provider is later disabled, that stage falls back to Primary until Secondary is turned back on.
+Switching a stage's slot only changes that stage. Model discovery re-runs for the newly selected slot, so the model dropdown next to it shows that slot's own catalog. Every other stage's slot and model stay exactly as you left them. A stage still accepts a hand-typed model ID (the "Type a model ID" link) for models a slot's catalog does not list, the same as the single-provider case. If a stage is set to Provider B and Provider B is later disabled, that stage falls back to Provider A until Provider B is turned back on.
 
 Each slot needs its own API key and, where relevant, base URL configured under Settings > LLM Provider before a stage can use it; an unconfigured slot's model list comes back empty until credentials are saved.
 
-### The slots are routes, not a failover chain
+### Routing versus failover
 
-Primary and Secondary are two independent accounts a stage can be pointed at. They are not a chain, and nothing at runtime moves a call from one to the other. When a call fails, it retries against the same slot and endpoint, then gives up; the episode never spills onto the other provider. Credentials can change if a key is rotated between attempts; see [provider key rotation and active runs](configuration.md#rotating-or-clearing-a-provider-key). A rate-limit pause behaves the same way: the episode waits in the queue for that account's reset instead of rerouting.
+Provider A and Provider B are two independent accounts a stage can be pointed at. Picking one at configuration time is routing: it is not a chain, and nothing at runtime moves a call from one to the other on its own. When a call fails, it retries against the same slot and endpoint, then gives up; the episode does not spill onto the other provider through routing alone. Credentials can change if a key is rotated between attempts; see [provider key rotation and active runs](configuration.md#rotating-or-clearing-a-provider-key). A rate-limit pause behaves the same way: the episode waits in the queue for that account's reset instead of rerouting.
 
-The one time a stage changes slot is at configuration time, not on failure. A stage set to Secondary while the secondary provider is disabled or has no type saved resolves to Primary, and logs a warning once. That is a fail-safe for an incomplete configuration, evaluated when the route is resolved, not a response to an error.
+The one time a stage's slot changes on its own, outside failover, is at configuration time: a stage set to Provider B while Provider B is disabled or has no type saved resolves to Provider A, and logs a warning once. That is a fail-safe for an incomplete configuration, evaluated when the route is resolved, not a response to an error.
+
+A separate feature, failover, does move work between providers at runtime: a dedicated standby provider (and transcriber) takes over a slot when the active one is unreachable, times out, or rejects the key, model, or billing, then switches back once it recovers. See [Failover](failover.md) for triggers, mid-run behavior, health probes, and manual control.
 
 A run's routes are frozen when it starts. Each phase's provider, model, and endpoint are snapshotted at run start and reused for the whole run, so editing a provider or a stage's model mid-run does not re-route work already underway. The change applies to the next run. Credentials are the exception: they are read when the client is built, so a rotated key is picked up without a restart. See [Rotating a provider key](configuration.md#rotating-or-clearing-a-provider-key).
 

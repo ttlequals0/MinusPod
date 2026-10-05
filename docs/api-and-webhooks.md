@@ -96,8 +96,14 @@ Key endpoints:
 - `GET/PUT /api/v1/settings/update-check` - Get or update the update-check settings (`enabled` for the daily auto-check, `channel`: `stable` or `edge`)
 - `GET /api/v1/feeds/{slug}/episodes/{id}/original.mp3` - Stream the retained pre-cut audio (used by ad editor Review mode)
 - `PUT /api/v1/settings/ad-detection` - Update ad detection config, including a partial `modelPricingOverrides` map. Each model entry has input and output prices in USD per 1 million tokens; `null` removes an override.
-- `GET /api/v1/settings/models` - List available AI models from current provider
-- `POST /api/v1/settings/models/refresh` - Force refresh model list from provider. Optional JSON body `{"slot": "primary" | "secondary"}` picks the credential slot (default primary).
+- `GET /api/v1/settings/models` - List available AI models from current provider. Optional `?slot=` picks the credential slot to probe: `primary` (default), `secondary`, `failover`, or the `a`/`b` aliases for primary/secondary.
+- `POST /api/v1/settings/models/refresh` - Force refresh model list from provider. Optional JSON body `{"slot": "primary" | "secondary" | "failover" | "a" | "b"}` picks the credential slot (default primary).
+- `GET /api/v1/failover` - Current state, probe results, policy, and recent events for every failover target. See [Failover](failover.md#manual-control).
+- `POST /api/v1/failover/{target}/trigger` - Manually switch `target` (`llm-a`, `llm-b`, or `transcriber`) onto its failover configuration. Body `{"reason": "..."}` is optional. 409 when that target has no failover configured.
+- `POST /api/v1/failover/{target}/cancel` - Manually switch `target` back to its own configuration.
+- `POST /api/v1/failover/probe` - Run a health probe for every enabled target immediately and return the results.
+- `POST /api/v1/settings/providers/failover/test-connection` - Test the shared LLM failover provider's connection, the same contract as the secondary provider test.
+- `POST /api/v1/settings/providers/failover-whisper/test-connection` - Test the transcriber failover connection, including the sample-audio upload.
 - `POST /api/v1/settings/rate-limit-hold/reset` - Clear every active rate-limit hold without disabling the hold feature
 - `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD
 - `POST /api/v1/settings/webhooks/{id}/test` - Fire test webhook
@@ -150,6 +156,8 @@ Key endpoints:
 
 `jobs` lists every running job, oldest first, with the same fields as `currentJob`, which stays as the oldest one. `whisper` is the pool snapshot: whether it is on and active, the request cap, and how many requests and episodes are in flight. Pool counters are per gunicorn worker, so `inFlight` and `transcribingEpisodes` are only meaningful when `leader` is true; a non-leader worker always reports those as 0.
 
+Both frames also carry a `failover` block: `{"active": ["llm-a"], "targets": {"llm-a": {"active": true, "source": "auto", "since": "2026-01-01T12:00:00Z"}, "llm-b": {...}, "transcriber": {...}}}`. `active` lists the targets currently on their failover configuration; `targets` gives every target's state regardless. See [Failover](failover.md) for what drives a switch. `GET /api/v1/system/status` additionally carries `failover.targets` (with the `configured` flag) and `failover.probes` (the health-probe results behind auto-trigger and auto-recovery).
+
 ### Public feed-domain routes
 
 A handful of routes live on the feed domain itself, outside `/api/v1`, and are not part of the OpenAPI spec: the served RSS feed at `/{slug}`, episode audio at `/episodes/{slug}/{episodeId}.mp3`, transcripts and chapters (`.vtt`, `/chapters.json`), feed cover art at `/{slug}/cover-minuspod.jpg`, and:
@@ -186,6 +194,8 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Queue Resumed` | The rate-limit hold cleared and the queue is claiming work again. One alert per 5 minutes. |
 | `Service Offline` | An episode deferred because the LLM or Whisper endpoint was unreachable (Offline queue). One alert per service per 5 minutes. |
 | `Service Reachable` | The offline probe found a service back up and re-queued its deferred episodes. One alert per service per 5 minutes. |
+| `Failover Triggered` | A target (`llm-a`, `llm-b`, or `transcriber`) switched to its failover configuration, automatically or by hand. One alert per target per 5 minutes. See [Failover](failover.md). |
+| `Failover Cancelled` | A target switched back to its own configuration. One alert per target per 5 minutes. |
 
 The **Test** button sends one sample payload per event the webhook is subscribed to, each shaped like that event's real payload (see Default Payloads below) with `test: true` set. A webhook subscribed to three events gets three test deliveries in one click; a custom payload template renders against each event's own variable set (episode-shaped for `Episode Processed`/`Episode Failed`, provider-shaped for the alert events, and so on).
 
@@ -195,7 +205,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, `Cue Template Quiet`, `Queue Held`, `Queue Resumed`, `Service Offline`, or `Service Reachable` |
+| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, `Cue Template Quiet`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`, `Failover Triggered`, or `Failover Cancelled` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
@@ -337,6 +347,17 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `service` | string | `llm` or `whisper` |
 | `requeued` | int | Deferred episodes the probe pass sent back to the queue |
+
+**Failover Triggered and Failover Cancelled events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Failover Triggered` or `Failover Cancelled` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
+| `target` | string | `llm-a`, `llm-b`, or `transcriber` |
+| `source` | string | `auto` (mid-run trigger error), `probe` (two failed health probes), or `manual` |
+| `reason` | string | Free text: the triggering error, or empty on a manual cancel |
 
 ### Default Payloads
 
@@ -548,11 +569,37 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 }
 ```
 
+**Failover Triggered:**
+
+```json
+{
+  "event": "Failover Triggered",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
+  "target": "llm-a",
+  "source": "auto",
+  "reason": "HTTP 503"
+}
+```
+
+**Failover Cancelled:**
+
+```json
+{
+  "event": "Failover Cancelled",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "timestamp_local": "2026-04-12T00:15:42+00:00",
+  "target": "llm-a",
+  "source": "manual",
+  "reason": ""
+}
+```
+
 ## Email notifications
 
 Point MinusPod at an SMTP server and it emails you for the events you pick. Community webhook-to-email sidecars like minuspod-webhook-mailer are no longer needed. One configuration: SMTP host, port, security (None, STARTTLS, or SSL/TLS), optional username and password, a from address, and a comma-separated recipient list. The password is stored encrypted like provider API keys, so saving one needs `MINUSPOD_MASTER_PASSPHRASE` set.
 
-Emails are HTML with the MinusPod logo embedded inline (no external image fetch) and a plain-text fallback part for text-only clients. Each event renders a subject like `[MinusPod] Episode Failed: My Show - Episode 42` with a short table of facts and, for alert events, the action to take. Alert events (`Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`) keep their 5-minute dedup window, shared with webhooks, so a burst of failures produces one email. The webhook Test button never emails; the email form has its own **Send test email** button that delivers a real message through the saved settings.
+Emails are HTML with the MinusPod logo embedded inline (no external image fetch) and a plain-text fallback part for text-only clients. Each event renders a subject like `[MinusPod] Episode Failed: My Show - Episode 42` with a short table of facts and, for alert events, the action to take. Alert events (`Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`, `Failover Triggered`, `Failover Cancelled`) keep their 5-minute dedup window, shared with webhooks, so a burst of failures produces one email. The webhook Test button never emails; the email form has its own **Send test email** button that delivers a real message through the saved settings.
 
 By default the failure and alert events, including the four new hold and offline events, are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing. An `Episode Processed` email adds an "Ads held for review" and/or "Detections not cut" row when the run produced either, so a quiet run's table stays short. A send failure logs the full traceback (issue #571) rather than just the exception message, for easier SMTP troubleshooting from container logs.
 

@@ -7062,12 +7062,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 run_stats['verification_ads_cut'] = verification_count
             _record_cut_seconds(run_stats, all_cuts_for_assets, original_duration,
                                 new_duration)
-            # Set once before every exit (recut success, recut fallback, main
-            # completion) so all three carry it. 'used' is failovers already
-            # active when the snapshot was resolved (failover_from) plus any
-            # LLM slot that failed over mid-run (since >= this run's start);
-            # a slot active before run start but not in the snapshot was
-            # simply never routed to, so it is not reported.
+            # 'used' is slots on failover at snapshot time (failover_from) plus
+            # any slot that failed over mid-run (since >= this run's start).
             used = {route['failover_from'] for route in (route_snapshot or {}).values()
                     if isinstance(route, dict) and route.get('failover_from')}
             for slot in ('primary', 'secondary'):

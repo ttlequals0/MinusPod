@@ -669,13 +669,8 @@ def _get_whisper_settings() -> dict[str, str]:
 
 def _get_failover_whisper_settings() -> dict[str, str]:
     """Failover whisper config, read from failover_whisper_* settings (#806).
-
-    Same shape as _get_whisper_settings, plus 'local_model' (the failover
-    local-backend model name) and 'is_failover': True. Falls back to the
-    active whisper_language when failover_whisper_language is unset, and to
-    whisper_max_attempts for the retry budget (shared with the primary
-    backend, not failover-specific).
-    """
+    Same shape as _get_whisper_settings plus 'local_model' and 'is_failover': True;
+    blank language/max_attempts fall back to the active config's values."""
     active = _get_whisper_settings()
     defaults = {
         'backend': WHISPER_BACKEND_API,
@@ -2737,14 +2732,9 @@ class Transcriber:
         stop_on_connectivity_error: bool,
     ):
         """Submit plan_subset to a fresh executor, filling results[idx] in place.
-
-        Returns the chunk index whose connectivity failure should trigger a
-        failover switch (only when stop_on_connectivity_error), _ABORT_CHUNK_PLAN
-        when the failure budget is blown with no switch to make, or None once
-        the whole subset has run. Raises ServiceUnavailableError /
-        AudioExtractionError / AudioExtractionTimeout when the budget is blown
-        and the dominant cause says so (#482, #556, #644, #806).
-        """
+        Returns a chunk index to trigger failover, _ABORT_CHUNK_PLAN on a blown
+        budget with no switch to make, or None when the subset finishes; raises
+        ServiceUnavailableError/AudioExtractionError/AudioExtractionTimeout otherwise (#806)."""
         extract_as_flac = not bool(whisper_settings.get('skip_flac_compression', False))
 
         def _process_chunk(chunk_idx: int, c_start: float, c_end: float):
@@ -2797,10 +2787,8 @@ class Transcriber:
         # a `with` block's __exit__ calls shutdown(wait=True), which would
         # re-block on the in-flight workers and defeat the short-circuit.
         exe = ThreadPoolExecutor(max_workers=max_workers)
-        # Baseline before any chunk completes; a future only reaches
-        # as_completed() once _process_chunk has fully run (append included),
-        # so re-reading len(connectivity_errors) right before fut.result()
-        # would already count that same chunk's own error as "before" it.
+        # Baseline before any chunk completes: a future only reaches as_completed()
+        # after _process_chunk appends, so reading this later would double-count it.
         seen_connectivity = len(connectivity_errors)
         try:
             futures = [
@@ -2972,15 +2960,11 @@ class Transcriber:
                 # Different backend type: discard the partial chunk results
                 # and rerun the whole episode on the failover backend.
                 return self._transcribe_chunked_local(audio_path, duration, fo, language_override)
-            # Same backend type: rerun only the chunks still missing a
-            # result, keeping whatever this pass already finished. No
-            # further switch (stop_on_connectivity_error=False): this is
-            # already the failover config.
+            # Same backend type: rerun only chunks still missing a result,
+            # keeping what this pass finished. No further switch, already failover.
             remaining = [(i, s, e) for i, s, e in plan if results[i] is None]
-            # A straggler from the first pass's abandoned executor can still
-            # append to connectivity_errors/extraction_* after this point;
-            # accepted, since stop_on_connectivity_error=False here means it
-            # cannot trigger a second switch.
+            # A straggler from the first pass's abandoned executor can still append
+            # here, but stop_on_connectivity_error=False means it cannot switch again.
             second = Transcriber._run_chunk_plan(
                 self, remaining, fo, results, connectivity_errors,
                 extraction_failures, extraction_timeouts, audio_path, language_override,

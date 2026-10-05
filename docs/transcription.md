@@ -14,6 +14,7 @@
 - [Groq](#groq)
 - [OpenAI Whisper API](#openai-whisper-api)
 - [Chunked transcription](#chunked-transcription)
+- [Failover transcriber](#failover-transcriber)
 - [Transcription language](#transcription-language)
 - [Processing timeouts](#processing-timeouts)
 
@@ -156,6 +157,10 @@ chunk size is halved and the queued extractions are redone at the new size.
 
 The remote API backend parallelizes differently: with no shared GPU to
 protect, chunks upload and transcribe concurrently.
+
+## Failover transcriber
+
+An optional standby transcriber (Settings > AI & Processing > Failover) takes over when the active backend is unreachable, times out, or an API backend rejects the request with 401, 402, 403, or 404. On the API backend, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) replaces the old fixed retry count before a chunk counts as failed and the switch is considered. See [Failover](failover.md#what-happens-mid-run) for how a switch affects a chunk already in progress, and [Failover > Configuration reference](failover.md#configuration-reference) for every failover transcriber setting.
 
 ## Transcription language
 
