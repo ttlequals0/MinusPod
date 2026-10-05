@@ -64,6 +64,7 @@ A background tick checks every enabled target on an interval (**Probe interval**
 - **N consecutive healthy probes** of the original account (**Recovery probes**, `failoverRecoveryProbes`, 1-10, default 3) cancel an *automatic* failover and switch back. Only probes taken after the failover started count.
 - A **manual** failover is never cancelled by probes. It stays active until you cancel it.
 - A run-time trigger error (an actual failed call, not a probe) triggers failover immediately, without waiting for two failed probes.
+- A local transcriber probe only checks that the local Whisper stack is importable, so it reads healthy even when a model load or GPU error breaks the local runtime. An automatic failover caused by such an error switches back after the configured number of healthy probes, then triggers again if the error recurs.
 
 Before a run starts, MinusPod probes any target it is about to use whose last probe result is older than the probe interval, so a run never starts on stale health data. This happens once per run, not once per queue item, and does not probe a target that was already checked recently.
 
