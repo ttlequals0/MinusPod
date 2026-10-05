@@ -578,15 +578,15 @@ def fire_service_reachable_event(service, requeued):
         dedup_key=f"{EVENT_SERVICE_REACHABLE}:{service}")
 
 
-def fire_failover_event(action: str, target: str, source: str, reason: str | None) -> None:
+def fire_failover_event(action: str, target: str, source: str, reason: str | None) -> bool:
     """Notify operators that a target switched to or from its failover config."""
     event = EVENT_FAILOVER_TRIGGERED if action == 'trigger' else EVENT_FAILOVER_CANCELLED
     api_name = next((k for k, v in API_TARGET_NAMES_FOR_WEBHOOK.items() if v == target), target)
-    _fire_alert_event(event, {
+    return _fire_alert_event(event, {
         'target': api_name,
         'source': source,
         'reason': reason or '',
-    }, f"target={api_name}, source={source}")
+    }, f"target={api_name}, source={source}", dedup_key=f"{event}:{target}")
 
 
 def fire_update_available_event(version, channel, release_date, url):

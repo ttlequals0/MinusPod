@@ -2,7 +2,6 @@
 import json
 import logging
 import threading
-import time
 
 from config import (
     WHISPER_BACKEND_LOCAL, DEFAULT_OPENAI_BASE_URL, coerce_bool_setting,
@@ -10,6 +9,7 @@ from config import (
 from database import Database
 from llm_client import invalidate_provider_cache
 from utils.time import utc_now_iso
+from utils.ttl_cache import TTLCache
 from webhook_service import fire_failover_event
 
 logger = logging.getLogger('podcast.failover')
@@ -23,8 +23,11 @@ API_TARGET_NAMES = {
 PHASES = ('detection', 'review', 'verification', 'chapters')
 _INACTIVE = {'active': False, 'source': None, 'since': None, 'reason': None}
 _CACHE_TTL = 5.0
-_cache: dict[str, tuple[float, object]] = {}
+_cache = TTLCache(ttl_seconds=_CACHE_TTL)
 _lock = threading.Lock()
+# Sentinel so a setting that is genuinely unset (None) can be cached too,
+# distinguished from "not in the cache" (see llm_client._get_cached_setting).
+_CACHED_NONE = object()
 
 
 def invalidate_cache() -> None:
@@ -32,20 +35,15 @@ def invalidate_cache() -> None:
         _cache.clear()
 
 
-def _cached(key, loader):
-    now = time.monotonic()
-    with _lock:
-        hit = _cache.get(key)
-        if hit and now - hit[0] < _CACHE_TTL:
-            return hit[1]
-    value = loader()
-    with _lock:
-        _cache[key] = (now, value)
-    return value
-
-
 def _setting(key: str) -> str | None:
-    return _cached(f'setting:{key}', lambda: Database().get_setting(key))
+    with _lock:
+        cached = _cache.get(key)
+    if cached is not None:
+        return None if cached is _CACHED_NONE else cached
+    value = Database().get_setting(key)
+    with _lock:
+        _cache.set(key, _CACHED_NONE if value is None else value)
+    return value
 
 
 def llm_target_for_slot(credential_slot: str) -> str | None:

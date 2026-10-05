@@ -717,6 +717,22 @@ class TestQueueAndServiceAlerts:
     @patch('webhook_service.email_service.send_event_email')
     @patch('webhook_service._prepare_and_dispatch')
     @patch('webhook_service.load_webhooks')
+    @patch('webhook_service.time.time')
+    def test_failover_triggered_dedups_per_target_not_globally(
+            self, mock_time, mock_load, mock_dispatch, _mock_email):
+        """Each target gets its own 300s dedup key; past the shared 60s burst
+        cap, a second target's trigger still fires (#806 review finding)."""
+        mock_load.return_value = []
+        mock_time.side_effect = [1000.0, 1070.0]
+        assert webhook_service.fire_failover_event(
+            'trigger', 'llm:primary', 'auto', 'HTTP 503') is True
+        assert webhook_service.fire_failover_event(
+            'trigger', 'whisper', 'auto', 'down') is True
+
+    @patch('webhook_service.threading.Thread', SyncThread)
+    @patch('webhook_service.email_service.send_event_email')
+    @patch('webhook_service._prepare_and_dispatch')
+    @patch('webhook_service.load_webhooks')
     def test_resumed_and_reachable_contexts(self, mock_load, mock_dispatch, _mock_email):
         mock_load.return_value = [{'url': 'https://example.com/h', 'enabled': True,
                                    'events': ['Queue Resumed', 'Service Reachable']}]

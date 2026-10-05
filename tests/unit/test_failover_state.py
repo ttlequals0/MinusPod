@@ -62,6 +62,13 @@ def test_manual_upgrades_auto():
     assert failover.state('llm:primary')['source'] == 'manual'
 
 
+def test_auto_trigger_blocked_by_existing_manual():
+    db = Database(); _reset(db); _configure_llm(db)
+    failover.trigger('llm:primary', 'operator', source='manual')
+    assert failover.trigger('llm:primary', 'HTTP 503') is False
+    assert failover.state('llm:primary')['source'] == 'manual'
+
+
 def test_whisper_configured_rules():
     db = Database(); _reset(db)
     db.set_setting('failover_whisper_enabled', 'true', is_default=False)

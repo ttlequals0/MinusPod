@@ -296,7 +296,7 @@ def _fmt_failover_triggered(ctx):
     ]
     return subject, rows, ('Requests for this target now use its failover '
                            'configuration. It switches back automatically once '
-                           'the primary endpoint is reachable again.')
+                           "that target's regular configuration is reachable again.")
 
 
 def _fmt_failover_cancelled(ctx):
