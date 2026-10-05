@@ -351,13 +351,14 @@ class ChaptersGenerator:
         try:
             max_tokens, temperature, reasoning = resolve_stage_tunables(
                 'chapter_boundary', provider=self._chapters_provider())
+            chapters_slot = self._chapters_credential_slot()
             response, last_error = call_llm(
                 llm_client=self._llm_client,
                 model=get_chapters_model(),
                 system_prompt="",
                 prompt=prompt,
-                llm_timeout=get_llm_timeout(),
-                max_retries=get_llm_max_retries(),
+                llm_timeout=get_llm_timeout(self._chapters_provider(), chapters_slot),
+                max_retries=get_llm_max_retries(self._chapters_provider(), chapters_slot),
                 max_tokens=max_tokens,
                 temperature=temperature,
                 reasoning_effort=reasoning,
@@ -538,13 +539,14 @@ class ChaptersGenerator:
 
         max_tokens, temperature, reasoning = resolve_stage_tunables(
             'chapter_title', provider=self._chapters_provider())
+        chapters_slot = self._chapters_credential_slot()
         response, last_error = call_llm(
             llm_client=self._llm_client,
             model=get_chapters_model(),
             system_prompt="",
             prompt=prompt,
-            llm_timeout=get_llm_timeout(),
-            max_retries=get_llm_max_retries(),
+            llm_timeout=get_llm_timeout(self._chapters_provider(), chapters_slot),
+            max_retries=get_llm_max_retries(self._chapters_provider(), chapters_slot),
             max_tokens=max_tokens,
             temperature=temperature,
             reasoning_effort=reasoning,

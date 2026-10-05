@@ -1625,8 +1625,11 @@ class AdDetector:
         window_losses = {}
         last_error = None
         provider_error = None
-        llm_timeout = get_llm_timeout()
-        max_retries = get_llm_max_retries()
+        route = route_for_phase(_phase_for_pass(pass_name))
+        route_provider = route['provider_key'] if route else None
+        route_slot = route.get('credential_slot', 'primary') if route else 'primary'
+        llm_timeout = get_llm_timeout(route_provider, route_slot)
+        max_retries = get_llm_max_retries(route_provider, route_slot)
 
         # Instantiate audio signal formatter if audio analysis available
         audio_enforcer = None
@@ -2484,11 +2487,15 @@ class AdDetector:
                         kc_desc += f"Podcast Description:\n{podcast_description}\n\n"
                     if episode_description:
                         kc_desc += f"Episode Description:\n{episode_description}\n"
+                    kc_route = route_for_phase('detection')
+                    kc_provider = kc_route['provider_key'] if kc_route else None
+                    kc_slot = kc_route.get('credential_slot', 'primary') if kc_route else 'primary'
                     inverted = self._detect_keep_content_ads(
                         segments, model=model, slug=slug, episode_id=episode_id,
                         podcast_name=podcast_name, episode_title=episode_title,
                         description_section=kc_desc,
-                        llm_timeout=get_llm_timeout(), max_retries=get_llm_max_retries(),
+                        llm_timeout=get_llm_timeout(kc_provider, kc_slot),
+                        max_retries=get_llm_max_retries(kc_provider, kc_slot),
                     )
                     if inverted is not None:
                         result = {"ads": inverted, "status": "success",

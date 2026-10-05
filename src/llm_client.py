@@ -1771,26 +1771,37 @@ class OllamaNativeClient(OpenAICompatibleClient):
 # Provider-aware timeout / retry helpers
 # =============================================================================
 
-def get_llm_timeout() -> float:
-    """Return the LLM request timeout based on the configured provider.
+_TIMEOUT_KEYS = {'primary': 'llm_timeout_seconds', 'secondary': 'secondary_llm_timeout_seconds',
+                 'failover': 'failover_llm_timeout_seconds'}
+_RETRY_KEYS = {'primary': 'llm_max_retries', 'secondary': 'secondary_llm_max_retries',
+               'failover': 'failover_llm_max_retries'}
 
-    Non-Anthropic providers (except OpenRouter, which is a fast cloud API)
-    get a longer timeout since inference may be on-device or routed through
-    a wrapper and significantly slower than the direct Anthropic API.
-    """
-    provider = get_effective_provider()
+
+def _slot_int_setting(key: str) -> int | None:
+    raw = _get_cached_setting(key)
+    try:
+        return int(raw) if raw not in (None, '') else None
+    except (TypeError, ValueError):
+        return None
+
+
+def get_llm_timeout(provider_key: str | None = None, credential_slot: str = 'primary') -> float:
+    """Per-slot request timeout; blank falls back to the provider-type default."""
+    configured = _slot_int_setting(_TIMEOUT_KEYS.get(credential_slot, 'llm_timeout_seconds'))
+    if configured is not None:
+        return float(configured)
+    provider = provider_key or get_effective_provider()
     if provider in (PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER):
         return LLM_TIMEOUT_DEFAULT
     return LLM_TIMEOUT_LOCAL
 
 
-def get_llm_max_retries() -> int:
-    """Return the max retry count based on the configured provider.
-
-    Non-Anthropic providers (except OpenRouter) use fewer retries since
-    each attempt may be slower than the direct Anthropic API.
-    """
-    provider = get_effective_provider()
+def get_llm_max_retries(provider_key: str | None = None, credential_slot: str = 'primary') -> int:
+    """Per-slot max retries; blank falls back to the provider-type default."""
+    configured = _slot_int_setting(_RETRY_KEYS.get(credential_slot, 'llm_max_retries'))
+    if configured is not None:
+        return configured
+    provider = provider_key or get_effective_provider()
     if provider in (PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER):
         return LLM_RETRY_MAX_RETRIES
     return LLM_RETRY_MAX_RETRIES_LOCAL
