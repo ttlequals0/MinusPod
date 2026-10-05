@@ -21,9 +21,10 @@ describe('ToggleSwitch', () => {
   it('uses the slim design-system track and knob', () => {
     render(<ToggleSwitch checked={false} onChange={() => {}} ariaLabel="Toggle" />);
     const toggle = screen.getByRole('switch', { name: 'Toggle' });
-    expect(toggle.className).toContain('h-5');
-    expect(toggle.className).toContain('w-9');
-    const knob = toggle.querySelector('span');
+    const track = toggle.querySelector('span');
+    expect(track?.className).toContain('h-5');
+    expect(track?.className).toContain('w-9');
+    const knob = track?.querySelector('span');
     expect(knob?.className).toContain('h-3.5');
     expect(knob?.className).toContain('w-3.5');
   });
@@ -45,5 +46,18 @@ describe('ToggleSwitch', () => {
   it('marks the checked state for assistive tech', () => {
     render(<ToggleSwitch checked onChange={() => {}} ariaLabel="Toggle" />);
     expect(screen.getByRole('switch', { name: 'Toggle' }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('ignores pointer and keyboard activation while disabled', async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(<ToggleSwitch checked={false} disabled onChange={onChange} ariaLabel="Toggle" />);
+    const toggle = screen.getByRole('switch', { name: 'Toggle' });
+    await user.click(toggle);
+    toggle.focus();
+    await user.keyboard('{Enter}{ }');
+    expect(onChange).not.toHaveBeenCalled();
+    expect(toggle.getAttribute('aria-disabled')).toBe('true');
+    expect(toggle.tabIndex).toBe(-1);
   });
 });

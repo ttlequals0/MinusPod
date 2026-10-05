@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getErrorMessage } from '../../api/client';
-import { btnOutline } from '../../components/buttonStyles';
+import { btnOutline, touchTarget } from '../../components/buttonStyles';
 import type { ConnectionTestResult } from '../../api/providers';
 import { focusRing } from '../../components/fieldStyles';
 
@@ -45,7 +45,7 @@ function ConnectionTestButton({
           disabled={busy || disabled}
           onClick={handleTest}
           title={disabled ? disabledReason : undefined}
-          className={`px-3 py-1.5 rounded-md ${btnOutline} text-sm font-medium disabled:opacity-50 ${focusRing}`}
+          className={`px-3 py-1.5 rounded-md ${btnOutline} ${touchTarget} text-sm font-medium disabled:opacity-50 ${focusRing}`}
         >
           {busy ? 'Testing...' : 'Test connection'}
         </button>

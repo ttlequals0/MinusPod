@@ -1,4 +1,5 @@
 import { focusRing } from './fieldStyles';
+import { touchTarget } from './buttonStyles';
 
 interface ToggleSwitchProps {
   checked: boolean;
@@ -15,9 +16,7 @@ function ToggleSwitch({ checked, onChange, disabled, ariaLabel }: ToggleSwitchPr
       aria-disabled={disabled}
       aria-label={ariaLabel}
       tabIndex={disabled ? -1 : 0}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${focusRing} ${
-        checked ? 'bg-primary' : 'bg-secondary'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`relative shrink-0 rounded-full ${touchTarget} ${focusRing} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       onClick={() => {
         if (!disabled) onChange(!checked);
       }}
@@ -30,10 +29,17 @@ function ToggleSwitch({ checked, onChange, disabled, ariaLabel }: ToggleSwitchPr
       }}
     >
       <span
-        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-primary-foreground transition-transform ${
-          checked ? 'translate-x-5' : 'translate-x-[2px]'
+        aria-hidden="true"
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+          checked ? 'bg-primary' : 'bg-secondary'
         }`}
-      />
+      >
+        <span
+          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-primary-foreground transition-transform ${
+            checked ? 'translate-x-5' : 'translate-x-[2px]'
+          }`}
+        />
+      </span>
     </div>
   );
 }

@@ -212,7 +212,7 @@ function FailoverSection({
         </button>
       )}
     >
-      <div className="space-y-4">
+      <div className="space-y-4 max-sm:[&_input:is([type=text],[type=password],[type=number])]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11 max-sm:[&_button]:min-w-11">
         {overview ? (
           <ul aria-label="Failover status" className="rounded-lg border border-border divide-y divide-border overflow-hidden">
             {FAILOVER_TARGETS.map((name) => (
@@ -534,7 +534,7 @@ function FailoverSection({
             <p className="text-sm text-muted-foreground">No failover events yet.</p>
           ) : (
             <details className="group">
-              <summary className={`text-sm text-primary hover:underline cursor-pointer list-none rounded ${focusRing}`}>
+              <summary className={`text-sm text-primary hover:underline cursor-pointer list-none rounded max-sm:inline-flex max-sm:min-h-11 max-sm:items-center ${focusRing}`}>
                 Recent events ({events.length})
               </summary>
               <ul className="mt-2 space-y-1.5">
