@@ -21,6 +21,7 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- Fixed-provider probes validate response bodies, and transcription probes no longer count timeout or rate-limit responses as healthy.
 - Processing history records actual standby requests, including failed, deferred and cancelled attempts, and retains usage after recovery.
 - Manual failover changes take effect on subsequent calls across workers without waiting for the settings cache.
 - Running episodes return to their original LLM routes after standby recovery or cancellation; legacy standby snapshots requeue safely.

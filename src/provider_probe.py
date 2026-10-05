@@ -10,20 +10,42 @@ from utils.connection_probe import parse_probe_json, rejected_detail, run_probe
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_get
 
-# Fixed public endpoints per provider: probe URL + auth header builder.
-# Shared by /test and /test-connection so the contract lives once. These
-# providers accept no baseUrl input anywhere, so the key can only ever be
-# sent to the canonical host.
+# Fixed providers send credentials only to their canonical endpoints.
 FIXED_PROVIDER_PROBES = {
     'anthropic': (
         'https://api.anthropic.com/v1/models',
         lambda key: {'x-api-key': key, 'anthropic-version': '2023-06-01'} if key else {},
     ),
     'openrouter': (
-        'https://openrouter.ai/api/v1/auth/key',
+        'https://openrouter.ai/api/v1/key',
         lambda key: {'Authorization': f'Bearer {key}'} if key else {},
     ),
 }
+
+
+def _fixed_response_usable(provider: str, body) -> bool:
+    if not isinstance(body, dict):
+        return False
+    data = body.get('data')
+    if provider == 'anthropic':
+        return isinstance(data, list) and all(
+            isinstance(model, dict)
+            and isinstance(model.get('id'), str)
+            and bool(model['id'])
+            for model in data
+        )
+    if provider == 'openrouter':
+        if not isinstance(data, dict):
+            return False
+        numeric_fields = ('usage', 'limit', 'limit_remaining')
+        return any(
+            isinstance(data.get(field), (int, float))
+            and not isinstance(data.get(field), bool)
+            and data[field] >= 0
+            for field in numeric_fields
+        ) or (isinstance(data.get('label'), str) and bool(data['label'])) \
+            or isinstance(data.get('is_free_tier'), bool)
+    return False
 
 
 def same_server(url_a: str, url_b: str) -> bool:
@@ -87,7 +109,7 @@ def probe_models_endpoint(base_url: str, api_key: str) -> dict:
             result['detail'] = (f'The endpoint requires an API key '
                                 f'(HTTP {status}). The test sends the saved '
                                 'key, and only when the tested URL matches '
-                                'the saved one -- save your key and base '
+                                'the saved one. Save your key and base '
                                 'URL, then test again.')
     elif status == 404:
         result['detail'] = ('The server is running, but there is no models '
@@ -117,8 +139,8 @@ def probe_fixed_endpoint(provider: str, api_key: str) -> dict:
         return error
 
     result = {'ok': False, 'reachable': True, 'status': status}
-    if status < 400:
-        if isinstance(parse_probe_json(body_bytes), dict):
+    if 200 <= status < 300:
+        if _fixed_response_usable(provider, parse_probe_json(body_bytes)):
             result['ok'] = True
             result['detail'] = (f'Connected. The API accepted the request '
                                 f'(HTTP {status}).')

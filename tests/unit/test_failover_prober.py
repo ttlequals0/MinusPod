@@ -334,16 +334,25 @@ def _whisper_api(db):
     failover.invalidate_cache()
 
 
-def test_whisper_probe_404_is_reachable_and_503_is_not():
+@pytest.mark.parametrize('status', [400, 401, 402, 408, 429, 500, 503])
+def test_whisper_probe_rejects_unhealthy_http_statuses(status):
     db = Database(); _reset(db); _whisper_api(db)
-    with _Http({'reachable': True, 'status': 404, 'detail': ''}):
-        assert failover.probe_target('whisper:active')['reachable'] is True
-    with _Http({'reachable': True, 'status': 503, 'detail': ''}):
-        assert failover.probe_target('whisper:active')['reachable'] is False
-    with _Http({'reachable': True, 'status': 401, 'detail': ''}):
+    with _Http({'reachable': True, 'status': status, 'detail': ''}):
         assert failover.probe_target('whisper:active')['reachable'] is False
     with _Http({'reachable': False, 'status': None, 'detail': 'refused'}):
         assert failover.probe_target('whisper:active')['reachable'] is False
+
+
+def test_whisper_probe_404_is_reachable():
+    db = Database(); _reset(db); _whisper_api(db)
+    with _Http({'reachable': True, 'status': 404, 'detail': ''}):
+        assert failover.probe_target('whisper:active')['reachable'] is True
+
+
+def test_whisper_probe_accepts_successful_status():
+    db = Database(); _reset(db); _whisper_api(db)
+    with _Http({'reachable': True, 'status': 200, 'detail': ''}):
+        assert failover.probe_target('whisper:active')['reachable'] is True
 
 
 def test_llm_probe_404_stays_unreachable():
@@ -385,6 +394,31 @@ def test_only_valid_llm_probe_response_counts_toward_recovery(invalid_result):
         with _Http({'ok': True, 'reachable': True, 'status': 200,
                     'detail': 'valid model list'}):
             failover.probe_tick(db, ['llm:primary'])
+    assert failover.is_active('llm:primary') is False
+
+
+@pytest.mark.parametrize('provider', ['anthropic', 'openrouter'])
+def test_malformed_fixed_provider_response_does_not_recover(provider):
+    db = Database(); _reset(db)
+    db.set_setting('llm_provider', provider, is_default=False)
+    db.set_setting('failover_llm_enabled', 'true', is_default=False)
+    db.set_setting('failover_llm_provider', 'anthropic', is_default=False)
+    db.set_setting('failover_llm_detection_model', 'claude-example', is_default=False)
+    db.set_setting('failover_recovery_probes', '1', is_default=False)
+    failover.invalidate_cache()
+    malformed = {'ok': False, 'reachable': True, 'status': 200,
+                 'detail': 'malformed provider response'}
+    healthy = {'ok': True, 'reachable': True, 'status': 200,
+               'detail': 'valid provider response'}
+    with patch.object(failover, 'fire_failover_event'), \
+            patch.object(failover.provider_probe, 'probe_fixed_endpoint',
+                         side_effect=[malformed, healthy]) as probe:
+        failover.trigger('llm:primary', 'provider outage', source='auto')
+        failover.probe_tick(db, ['llm:primary'])
+        assert failover.is_active('llm:primary') is True
+        assert failover.probe_state('llm:primary')['healthy_streak'] == 0
+        failover.probe_tick(db, ['llm:primary'])
+    assert probe.call_count == 2
     assert failover.is_active('llm:primary') is False
 
 

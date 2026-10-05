@@ -497,8 +497,6 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
                 return {'reachable': None, 'status': None, 'detail': 'Not configured'}
             result = provider_probe.probe_models_endpoint(
                 settings['api_base_url'].rstrip('/'), settings['api_key'] or '')
-            # Many whisper servers have no /models, so a 404 still proves the server is up.
-            rejected = (401, 403)
         status = result.get('status')
         # No HTTP status at all means run_probe never got a real response
         # (connect/DNS failure or a read timeout, which reports reachable
@@ -506,7 +504,10 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         if kind == 'llm':
             reachable = result.get('ok') is True and status is not None and 200 <= status < 300
         else:
-            reachable = status is not None and status not in rejected and status < 500
+            # Some Whisper servers omit /models, so only their 404 is exceptional.
+            reachable = status == 404 or (
+                status is not None and 200 <= status < 300
+            )
         return {'reachable': reachable, 'status': status, 'detail': result.get('detail', '')}
     except Exception as exc:
         logger.debug(f"probe {target} failed: {exc}")
