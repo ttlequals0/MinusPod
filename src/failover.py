@@ -280,9 +280,13 @@ def probe_target(target: str) -> dict:
 def _record_probe(db, target: str, result: dict) -> dict:
     prev = probe_state(target)
     healthy = result['reachable'] is True
-    data = {**prev, **result, 'checked_at': utc_now_iso(),
-            'healthy_streak': prev['healthy_streak'] + 1 if healthy else 0,
-            'failed_streak': 0 if healthy else prev['failed_streak'] + 1}
+    if result['reachable'] is None:
+        # Not configured: neither healthy nor failed.
+        streaks = {'healthy_streak': 0, 'failed_streak': 0}
+    else:
+        streaks = {'healthy_streak': prev['healthy_streak'] + 1 if healthy else 0,
+                   'failed_streak': 0 if healthy else prev['failed_streak'] + 1}
+    data = {**prev, **result, 'checked_at': utc_now_iso(), **streaks}
     db.set_setting(f'failover_probe:{target}', json.dumps(data), is_default=False)
     invalidate_cache()
     return data
@@ -295,7 +299,7 @@ def probe_tick(db, targets: list[str] | None = None) -> dict[str, dict]:
         data = _record_probe(db, target, probe_target(target))
         results[target] = data
         origin = _ORIGIN_OF.get(target)
-        if origin is None:
+        if origin is None or data['reachable'] is None:
             continue
         if data['failed_streak'] >= AUTO_TRIGGER_FAILURES and not is_active(origin):
             trigger(origin, f"health probe failed {data['failed_streak']} times: {data['detail']}", source='probe')

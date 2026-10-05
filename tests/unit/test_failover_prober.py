@@ -194,3 +194,17 @@ def test_local_whisper_probes_follow_local_stack():
     with patch.object(transcriber, 'local_transcription_available', return_value=False):
         assert failover.probe_target('whisper:active')['reachable'] is False
         assert failover.probe_target('whisper:failover')['reachable'] is False
+
+
+def test_unconfigured_target_never_counts_or_triggers():
+    db = Database(); _reset(db)
+    db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+    db.clear_setting('secondary_provider')
+    failover.invalidate_cache()
+    with patch.object(failover, 'fire_failover_event'):
+        failover.probe_tick(db, ['llm:secondary'])
+        failover.probe_tick(db, ['llm:secondary'])
+    data = failover.probe_state('llm:secondary')
+    assert data['reachable'] is None and data['checked_at']
+    assert data['failed_streak'] == 0 and data['healthy_streak'] == 0
+    assert failover.is_active('llm:secondary') is False
