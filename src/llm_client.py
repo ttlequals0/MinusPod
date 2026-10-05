@@ -2280,7 +2280,7 @@ def is_retryable_error(error: Exception) -> bool:
             return True
         # Check for specific status codes in generic APIError
         if isinstance(error, a.APIError):
-            if _provider_status_code(error) in (429, 500, 502, 503, 529):
+            if _provider_status_code(error) in (408, 429, 500, 502, 503, 529):
                 return True
             return False  # Non-retryable Anthropic error -- don't fall to string matching
 
@@ -2290,7 +2290,7 @@ def is_retryable_error(error: Exception) -> bool:
         if isinstance(error, (o.APIConnectionError, o.RateLimitError, o.InternalServerError)):
             return True
         if isinstance(error, o.APIError):
-            if _provider_status_code(error) in (429, 500, 502, 503, 529):
+            if _provider_status_code(error) in (408, 429, 500, 502, 503, 529):
                 return True
             return False  # Non-retryable OpenAI error
 
@@ -2330,13 +2330,13 @@ def is_connectivity_error(error: Exception) -> bool:
         # APITimeoutError subclasses APIConnectionError in both SDKs.
         if isinstance(error, (a.APIConnectionError, a.InternalServerError)):
             return True
-        if isinstance(error, a.APIError) and _provider_status_code(error) in (500, 502, 503, 504, 529):
+        if isinstance(error, a.APIError) and _provider_status_code(error) in (408, 500, 502, 503, 504, 529):
             return True
     o = _openai_exc()
     if o is not None:
         if isinstance(error, (o.APIConnectionError, o.InternalServerError)):
             return True
-        if isinstance(error, o.APIError) and _provider_status_code(error) in (500, 502, 503, 504, 529):
+        if isinstance(error, o.APIError) and _provider_status_code(error) in (408, 500, 502, 503, 504, 529):
             return True
     return False
 
