@@ -4,6 +4,7 @@ import random
 import time
 from typing import Union
 
+import failover
 import run_context
 from llm_capabilities import supports_json_schema
 from llm_client import (
@@ -15,11 +16,17 @@ from llm_client import (
     classify_daily_quota_exhaustion,
     is_auth_error,
     is_limit_exceeded_error,
+    is_failover_trigger_error,
+    get_llm_timeout,
+    get_llm_max_retries,
     extract_retry_after,
     get_effective_provider,
     StructuralRateLimitError,
     ProviderRateLimitedError,
     supports_json_schema_for_calls,
+)
+from llm_route import (
+    Route, apply_failover, account_identity, client_for_route, SLOT_FAILOVER, PHASES,
 )
 from rate_limit_hold import (
     MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, enforce_provider_rate_limit,
@@ -556,6 +563,16 @@ def _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id,
         credential_slot=credential_slot, manual=True, phase=phase)
 
 
+def _failover_route(phase: str, provider_key: str, credential_slot: str, model: str,
+                    base_url=None):
+    """Failover Route for the phase whose slot just failed, or None."""
+    original = Route(phase=phase, provider_key=provider_key, model_id=model, base_url=base_url,
+                     slot=credential_slot, credential_slot=credential_slot,
+                     account_id=account_identity(provider_key, base_url))
+    route = apply_failover(original)
+    return route if route.credential_slot == SLOT_FAILOVER else None
+
+
 def call_llm(
     *,
     llm_client,
@@ -577,11 +594,16 @@ def call_llm(
     credential_slot: str = 'primary',
     blank_json_is_failure: bool = False,
     is_window: bool = False,
+    route_phase: str | None = None,
 ) -> tuple[object | None, Exception | None]:
     """Call LLM with an in-loop retry then a per-window fallback retry.
 
-    Both retry loops stay on the same route/slot; this is not a cross-provider
-    failover chain (see ``provider``/``credential_slot`` below).
+    Both retry loops stay on the same route/slot; that ladder is not itself a
+    cross-provider failover chain (see ``provider``/``credential_slot``
+    below). If both are exhausted by a failover-eligible error, one more
+    dispatch runs the same ladder against the failover provider (#806);
+    ``route_phase`` names the phase for that lookup, defaulting to
+    ``phase_key`` when it is already one of ``PHASES``.
 
     Generic seam shared by ad detection/review (via ``call_llm_for_window``)
     and chapters generation. Never raises: all failures come back as the
@@ -621,151 +643,181 @@ def call_llm(
         episode_id=episode_id,
         pass_name=pass_name,
     )
-    response = None
-    last_error = None
     reasoning_retried = False
 
-    def dispatch():
-        """One dispatch, plus the single retry an exhausted reasoning budget
-        earns wherever in the ladder it lands. A ReasoningExhaustedError out of
-        here has already spent that retry and is terminal for the window."""
+    def _run_ladder(client, model, llm_kwargs, max_retries, credential_slot, provider_key):
+        """In-loop retry then two fixed per-window rungs, all on one route/slot."""
         nonlocal reasoning_retried
-        call = dict(
-            phase_key=phase_key, invoking_pass=invoking_pass,
-            provider_key=provider_key, credential_slot=credential_slot,
-            slug=slug, episode_id=episode_id, call_label=call_label,
-            blank_json_is_failure=blank_json_is_failure)
-        try:
-            return _ledger_call_once(llm_client, llm_kwargs, model, **call)
-        except ReasoningExhaustedError:
-            if reasoning_retried:
-                logger.warning(
-                    f"[{slug}:{episode_id}] {call_label} exhausted its output "
-                    f"budget again; giving up"
-                )
-                raise
-            reasoning_retried = True
-            _apply_reasoning_fallback(llm_kwargs, slug=slug, episode_id=episode_id,
-                                      call_label=call_label)
-        held = _manual_rate_limit_error(provider_key, credential_slot, slug,
-                                        episode_id, phase=phase_key)
-        if held is not None:
-            raise held
-        return _ledger_call_once(llm_client, llm_kwargs, model, **call)
+        response = None
+        last_error = None
 
-    for attempt in range(max_retries + 1):
-        # Manual rate-limit backstop (#747): re-checked before every dispatch,
-        # not once up front, so a cap crossed mid-retry defers instead of
-        # burning more requests. Admission is still the primary gate.
-        held = _manual_rate_limit_error(provider_key, credential_slot, slug,
-                                        episode_id, phase=phase_key)
-        if held is not None:
-            return None, _lost_window(held, is_window, slug, episode_id, call_label)
-        try:
-            response = dispatch()
-            return response, None
-        except Exception as e:
-            last_error = e
-            if is_review_inconclusive_error(e):
-                break
-            if isinstance(e, ReasoningExhaustedError):
-                break
-            # A cap that refused the reservation already recorded its hold;
-            # re-classifying it would only retry into the same refusal.
-            if _is_manual_cap_error(e):
-                return None, _lost_window(e, is_window, slug, episode_id, call_label)
-            terminal = _terminal_error(
-                e, model=model, slug=slug, episode_id=episode_id,
-                call_label=call_label, provider=provider,
-                credential_slot=credential_slot, phase=phase_key)
-            if terminal is not None:
-                last_error = terminal
-                break
-            if _is_retryable(e) and attempt < max_retries:
-                if is_rate_limit_error(e):
-                    retry_after = extract_retry_after(e)
-                    if retry_after is not None:
-                        delay = retry_after + random.uniform(0.0, 2.0)
-                        source = f"retry-after={retry_after:.1f}s"
-                    else:
-                        delay = calculate_backoff(attempt, base_delay=30.0, max_delay=120.0)
-                        source = "backoff"
+        def dispatch():
+            """One dispatch, plus the single retry an exhausted reasoning budget
+            earns wherever in the ladder it lands. A ReasoningExhaustedError out of
+            here has already spent that retry and is terminal for the window."""
+            nonlocal reasoning_retried
+            call = dict(
+                phase_key=phase_key, invoking_pass=invoking_pass,
+                provider_key=provider_key, credential_slot=credential_slot,
+                slug=slug, episode_id=episode_id, call_label=call_label,
+                blank_json_is_failure=blank_json_is_failure)
+            try:
+                return _ledger_call_once(client, llm_kwargs, model, **call)
+            except ReasoningExhaustedError:
+                if reasoning_retried:
                     logger.warning(
-                        f"[{slug}:{episode_id}] {call_label} rate limit ({source}), "
-                        f"waiting {delay:.1f}s"
+                        f"[{slug}:{episode_id}] {call_label} exhausted its output "
+                        f"budget again; giving up"
                     )
-                else:
-                    delay = calculate_backoff(attempt)
-                    delay = _breaker_retry_delay(llm_client, e, delay)
-                    logger.warning(
-                        f"[{slug}:{episode_id}] {call_label} API error: {e}. "
-                        f"Retrying in {delay:.1f}s"
-                    )
-                if not _sleep_before_retry(delay):
-                    break
-                continue
-            logger.warning(f"[{slug}:{episode_id}] {call_label} failed: {e}")
-            break
-
-    if (response is None and last_error is not None and _is_retryable(last_error)
-            and not isinstance(last_error, ReasoningExhaustedError)):
-        # A CircuitBreakerOpen on the last fixed rung earns one more rung once
-        # its cooldown clears, appended here rather than pre-planned: no other
-        # error qualifies for it.
-        rungs = [2, 5]
-        retry_num = 0
-        while retry_num < len(rungs):
-            retry_num += 1
+                    raise
+                reasoning_retried = True
+                _apply_reasoning_fallback(llm_kwargs, slug=slug, episode_id=episode_id,
+                                          call_label=call_label)
             held = _manual_rate_limit_error(provider_key, credential_slot, slug,
                                             episode_id, phase=phase_key)
             if held is not None:
-                return None, _lost_window(held, is_window, slug, episode_id, call_label)
-            rung = rungs[retry_num - 1]
-            if rung == 'breaker':
-                if not _wait_past_breaker_cooldown(last_error.seconds_until_retry):
-                    break
-                wait = last_error.seconds_until_retry + BREAKER_RETRY_MARGIN_SECONDS
-                logger.warning(
-                    f"[{slug}:{episode_id}] {call_label} per-window retry "
-                    f"{retry_num}/{len(rungs)} after breaker cooldown ({wait:.1f}s)"
-                )
-            else:
-                delay = _fallback_delay(last_error, rung, retry_num == 1)
-                delay = _breaker_retry_delay(llm_client, last_error, delay)
-                logger.warning(
-                    f"[{slug}:{episode_id}] {call_label} per-window retry "
-                    f"{retry_num}/{len(rungs)} after {delay:.1f}s backoff"
-                )
-                if not _sleep_before_retry(delay):
-                    break
+                raise held
+            return _ledger_call_once(client, llm_kwargs, model, **call)
+
+        for attempt in range(max_retries + 1):
+            # Manual rate-limit backstop (#747): re-checked before every dispatch,
+            # not once up front, so a cap crossed mid-retry defers instead of
+            # burning more requests. Admission is still the primary gate.
+            held = _manual_rate_limit_error(provider_key, credential_slot, slug,
+                                            episode_id, phase=phase_key)
+            if held is not None:
+                return None, held
             try:
                 response = dispatch()
-                logger.info(
-                    f"[{slug}:{episode_id}] {call_label} succeeded on retry {retry_num}"
-                )
                 return response, None
             except Exception as e:
                 last_error = e
+                if is_review_inconclusive_error(e):
+                    break
                 if isinstance(e, ReasoningExhaustedError):
                     break
+                # A cap that refused the reservation already recorded its hold;
+                # re-classifying it would only retry into the same refusal.
                 if _is_manual_cap_error(e):
-                    return None, _lost_window(e, is_window, slug, episode_id,
-                                              call_label)
+                    return None, e
                 terminal = _terminal_error(
                     e, model=model, slug=slug, episode_id=episode_id,
-                    call_label=call_label, provider=provider,
+                    call_label=call_label, provider=provider_key,
                     credential_slot=credential_slot, phase=phase_key)
                 if terminal is not None:
                     last_error = terminal
                     break
-                if not _is_retryable(e):
-                    break
-                logger.warning(
-                    f"[{slug}:{episode_id}] {call_label} retry {retry_num} failed: {e}"
-                )
-                if (retry_num == len(rungs) and rungs[-1] != 'breaker'
-                        and isinstance(last_error, CircuitBreakerOpen)):
-                    rungs = rungs + ['breaker']
+                if _is_retryable(e) and attempt < max_retries:
+                    if is_rate_limit_error(e):
+                        retry_after = extract_retry_after(e)
+                        if retry_after is not None:
+                            delay = retry_after + random.uniform(0.0, 2.0)
+                            source = f"retry-after={retry_after:.1f}s"
+                        else:
+                            delay = calculate_backoff(attempt, base_delay=30.0, max_delay=120.0)
+                            source = "backoff"
+                        logger.warning(
+                            f"[{slug}:{episode_id}] {call_label} rate limit ({source}), "
+                            f"waiting {delay:.1f}s"
+                        )
+                    else:
+                        delay = calculate_backoff(attempt)
+                        delay = _breaker_retry_delay(client, e, delay)
+                        logger.warning(
+                            f"[{slug}:{episode_id}] {call_label} API error: {e}. "
+                            f"Retrying in {delay:.1f}s"
+                        )
+                    if not _sleep_before_retry(delay):
+                        break
+                    continue
+                logger.warning(f"[{slug}:{episode_id}] {call_label} failed: {e}")
+                break
+
+        if (response is None and last_error is not None and _is_retryable(last_error)
+                and not isinstance(last_error, ReasoningExhaustedError)):
+            # A CircuitBreakerOpen on the last fixed rung earns one more rung once
+            # its cooldown clears, appended here rather than pre-planned: no other
+            # error qualifies for it.
+            rungs = [2, 5]
+            retry_num = 0
+            while retry_num < len(rungs):
+                retry_num += 1
+                held = _manual_rate_limit_error(provider_key, credential_slot, slug,
+                                                episode_id, phase=phase_key)
+                if held is not None:
+                    return None, held
+                rung = rungs[retry_num - 1]
+                if rung == 'breaker':
+                    if not _wait_past_breaker_cooldown(last_error.seconds_until_retry):
+                        break
+                    wait = last_error.seconds_until_retry + BREAKER_RETRY_MARGIN_SECONDS
+                    logger.warning(
+                        f"[{slug}:{episode_id}] {call_label} per-window retry "
+                        f"{retry_num}/{len(rungs)} after breaker cooldown ({wait:.1f}s)"
+                    )
+                else:
+                    delay = _fallback_delay(last_error, rung, retry_num == 1)
+                    delay = _breaker_retry_delay(client, last_error, delay)
+                    logger.warning(
+                        f"[{slug}:{episode_id}] {call_label} per-window retry "
+                        f"{retry_num}/{len(rungs)} after {delay:.1f}s backoff"
+                    )
+                    if not _sleep_before_retry(delay):
+                        break
+                try:
+                    response = dispatch()
+                    logger.info(
+                        f"[{slug}:{episode_id}] {call_label} succeeded on retry {retry_num}"
+                    )
+                    return response, None
+                except Exception as e:
+                    last_error = e
+                    if isinstance(e, ReasoningExhaustedError):
+                        break
+                    if _is_manual_cap_error(e):
+                        return None, e
+                    terminal = _terminal_error(
+                        e, model=model, slug=slug, episode_id=episode_id,
+                        call_label=call_label, provider=provider_key,
+                        credential_slot=credential_slot, phase=phase_key)
+                    if terminal is not None:
+                        last_error = terminal
+                        break
+                    if not _is_retryable(e):
+                        break
+                    logger.warning(
+                        f"[{slug}:{episode_id}] {call_label} retry {retry_num} failed: {e}"
+                    )
+                    if (retry_num == len(rungs) and rungs[-1] != 'breaker'
+                            and isinstance(last_error, CircuitBreakerOpen)):
+                        rungs = rungs + ['breaker']
+
+        return response, last_error
+
+    response, last_error = _run_ladder(
+        llm_client, model, llm_kwargs, max_retries, credential_slot, provider_key)
+    if response is not None:
+        return response, None
+
+    phase = route_phase or (phase_key if phase_key in PHASES else None)
+    target = failover.llm_target_for_slot(credential_slot)
+    if (response is None and last_error is not None and phase and target
+            and is_failover_trigger_error(last_error) and failover.is_configured(target)):
+        failover.trigger(target, f"{call_label}: {type(last_error).__name__}: {str(last_error)[:200]}")
+        route = _failover_route(phase, provider_key, credential_slot, model)
+        if route is not None:
+            fo_client = client_for_route(route)
+            fo_kwargs = {**llm_kwargs, 'model': route.model_id,
+                         'timeout': get_llm_timeout(route.provider_key, SLOT_FAILOVER)}
+            logger.warning(f"[{slug}:{episode_id}] {call_label} switching to failover provider "
+                           f"{route.provider_key} model {route.model_id}")
+            response, fo_error = _run_ladder(
+                fo_client, route.model_id, fo_kwargs,
+                get_llm_max_retries(route.provider_key, SLOT_FAILOVER),
+                SLOT_FAILOVER, route.provider_key)
+            if response is not None:
+                return response, None
+            last_error = fo_error or last_error
 
     return None, _lost_window(last_error, is_window, slug, episode_id, call_label)
 
