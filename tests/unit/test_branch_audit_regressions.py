@@ -41,18 +41,20 @@ def test_review_snapshot_preserves_detection_account(temp_db):
 
 
 def test_admission_includes_failover_pair_when_slot_overridden(temp_db):
-    """Detection resolves to secondary; when secondary is failed over, the
-    frozen snapshot's provider pair for admission must be the failover
-    slot's provider, not the stale secondary one."""
+    """Admission applies failover to the frozen original route while active."""
     configure_routes(temp_db)
     temp_db.create_podcast('audit-failover', 'https://example.com/feed.xml', 'Audit')
     with patch.object(failover, 'is_active', side_effect=lambda t: t == 'llm:secondary'), \
             patch.object(failover, 'is_configured', return_value=True), \
             patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
         snapshot = _resolve_route_snapshot()
-    assert snapshot['detection']['credential_slot'] == 'failover'
-    required = _required_providers_for_admission('audit-failover', snapshot=snapshot)
+        assert snapshot['detection']['credential_slot'] == 'secondary'
+        required = _required_providers_for_admission('audit-failover', snapshot=snapshot)
     assert ('openai-compatible', 'failover') in required
+    assert ('openai-compatible', 'secondary') not in required
+    restored = _required_providers_for_admission('audit-failover', snapshot=snapshot)
+    assert ('openai-compatible', 'secondary') in restored
+    assert ('openai-compatible', 'failover') not in restored
 
 
 @pytest.mark.parametrize('projected', [False, True])

@@ -67,10 +67,10 @@ def test_lock_contention_raises_instead_of_dropping_episodes(monkeypatch):
     rather than returning a count that looks like a successful refresh."""
     slug = _feed('upsert-contended')
 
-    def busy_transaction(immediate=False):
+    def busy_transaction(self, immediate=False):
         raise sqlite3.OperationalError('database is locked')
 
-    monkeypatch.setattr(db, 'transaction', busy_transaction)
+    monkeypatch.setattr(type(db), 'transaction', busy_transaction)
     with pytest.raises(sqlite3.OperationalError):
         db.bulk_upsert_discovered_episodes(slug, [_episode(_eid())])
 
@@ -103,7 +103,7 @@ def test_lock_error_inside_the_loop_aborts_the_batch(monkeypatch):
         def __exit__(self, *exc):
             return self._ctx.__exit__(*exc)
 
-    monkeypatch.setattr(db, 'transaction', WrappedTransaction)
+    monkeypatch.setattr(type(db), 'transaction', WrappedTransaction)
     with pytest.raises(sqlite3.OperationalError):
         db.bulk_upsert_discovered_episodes(slug, [_episode(_eid()), _episode(_eid())])
 

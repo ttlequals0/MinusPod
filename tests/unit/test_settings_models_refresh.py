@@ -67,6 +67,7 @@ class TestRefreshModelsSlot:
     @pytest.mark.parametrize('body', [None, {'slot': 'primary'}])
     def test_primary_is_the_default_slot(self, client, db, body):
         with patch('api.settings.get_llm_client') as get_primary, \
+                patch('api.settings.get_effective_provider', return_value='anthropic'), \
                 patch('api.settings.AdDetector', _primary_detector()):
             response = _post(client, body)
         assert response.status_code == 200, response.data

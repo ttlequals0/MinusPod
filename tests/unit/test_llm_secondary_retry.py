@@ -14,6 +14,7 @@ bootstrap('llm_secondary_retry_test_')
 import run_context
 from llm_client import (
     AnthropicClient,
+    LimitExceededError,
     OpenAICompatibleClient,
     ProviderRateLimitedError,
     StructuralRateLimitError,
@@ -547,7 +548,7 @@ def test_secondary_retry_applies_daily_quota(no_retry_wait):
     response, error = _secondary_result(client)
 
     assert response is None
-    assert isinstance(error, StructuralRateLimitError)
+    assert isinstance(error, LimitExceededError)
     assert 'daily quota' in str(error)
     assert client.calls == 2
     assert no_retry_wait == [2]
