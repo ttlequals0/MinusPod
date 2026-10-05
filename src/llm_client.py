@@ -2325,6 +2325,8 @@ def is_connectivity_error(error: Exception) -> bool:
 def is_failover_trigger_error(error: Exception) -> bool:
     """True for faults the failover provider can route around: outages,
     auth rejections, missing models and exhausted quota. Never a 429."""
+    if isinstance(error, ProviderRequestRejectedError):
+        return False
     if is_rate_limit_error(error):
         return False
     return (is_connectivity_error(error) or is_auth_error(error)

@@ -6,7 +6,7 @@ import pytest
 from tests.app_bootstrap import bootstrap
 bootstrap('failover_triggers_test_')
 
-from llm_client import is_failover_trigger_error  # noqa: E402
+from llm_client import is_failover_trigger_error, ProviderRequestRejectedError  # noqa: E402
 
 
 def _api_status(status):
@@ -39,3 +39,9 @@ def test_non_provider_errors_do_not_trigger():
     from config import ModelNotConfiguredError
     assert is_failover_trigger_error(ModelNotConfiguredError('claude_model')) is False
     assert is_failover_trigger_error(ValueError('bad json')) is False
+
+
+@pytest.mark.parametrize('status_code', [402, 404])
+def test_provider_request_rejected_does_not_trigger(status_code):
+    assert is_failover_trigger_error(
+        ProviderRequestRejectedError('x', status_code=status_code)) is False
