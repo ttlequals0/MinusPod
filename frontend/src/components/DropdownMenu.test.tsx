@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DropdownMenu from './DropdownMenu';
-import { DESKTOP, rect, restoreViewport, setupPlacement } from '../test/placement';
+import { DESKTOP, PHONE, rect, restoreViewport, setupPlacement } from '../test/placement';
 
 const items = [{ title: 'One', onClick: vi.fn() }];
 const threeItems = [
@@ -55,11 +55,40 @@ describe('DropdownMenu', () => {
     expect(screen.getByRole('menu').style.left).toBe('300px');
   });
 
+  it('anchors an opted-out phone menu below and left-aligned with its trigger', async () => {
+    setupPlacement(PHONE, { width: MENU_WIDTH_PX, height: 200 });
+    const { root } = renderMenu({ align: 'left', centerOnMobile: false });
+    root.getBoundingClientRect = rect({ left: 20, right: 100, top: 30, bottom: 50 });
+    await openMenu();
+    const menu = screen.getByRole('menu');
+    expect(menu.style.top).toBe('54px');
+    expect(menu.style.left).toBe('20px');
+    expect(menu.style.transform).toBe('');
+  });
+
   it('announces the trigger and its items as a menu', async () => {
     renderMenu({ items: threeItems });
     expect(screen.getByRole('button', { name: 'Act' }).getAttribute('aria-haspopup')).toBe('menu');
     await openMenu();
     expect(screen.getAllByRole('menuitem')).toHaveLength(3);
+  });
+
+  it('uses radio menu semantics and restores trigger focus on Escape', async () => {
+    renderMenu({
+      items: [
+        { title: 'One', onClick: vi.fn(), checked: true },
+        { title: 'Two', onClick: vi.fn(), checked: false },
+      ],
+    });
+    const trigger = screen.getByRole('button', { name: 'Act' });
+    await userEvent.click(trigger);
+    const selected = screen.getByRole('menuitemradio', { name: 'One' });
+    expect(selected.getAttribute('aria-checked')).toBe('true');
+    expect(selected.querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('menuitemradio', { name: 'Two' }).getAttribute('aria-checked')).toBe('false');
+    await userEvent.keyboard('{Escape}');
+    expect(document.activeElement).toBe(trigger);
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('walks the items with the arrow keys and wraps at the ends', async () => {

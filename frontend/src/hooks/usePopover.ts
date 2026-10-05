@@ -5,8 +5,7 @@ import {
 import { FOCUSABLE } from '../components/Modal';
 import { useOutsideClick } from './useOutsideClick';
 
-// Below Tailwind's sm breakpoint a popover is centered on the screen under the
-// trigger's row: a row that wraps on a phone leaves no side with room.
+// Phone panels center below their trigger row unless an anchored menu opts out.
 const PHONE_MAX_WIDTH_PX = 640;
 const GAP_PX = 4;
 const VIEWPORT_MARGIN_PX = 8;
@@ -21,6 +20,7 @@ export interface PopoverOptions {
   anchorRef: RefObject<HTMLElement | null>;
   /** Which panel edge lines up with the anchor. `auto` flips to the edge that fits. */
   align?: PopoverAlign;
+  centerOnMobile?: boolean;
 }
 
 interface Placement {
@@ -54,7 +54,7 @@ function chromeInset(edge: 'top' | 'bottom'): number {
 // Horizontal insets are measured against documentElement, not window.innerWidth:
 // a fixed box's containing block excludes the scrollbar that innerWidth counts.
 // Returns null once the anchor is out of view.
-function place(anchor: HTMLElement, panel: HTMLElement, align: PopoverAlign): Placement | null {
+function place(anchor: HTMLElement, panel: HTMLElement, align: PopoverAlign, centerOnMobile: boolean): Placement | null {
   const rect = anchor.getBoundingClientRect();
   const viewportWidth = document.documentElement.clientWidth;
   const viewportHeight = document.documentElement.clientHeight;
@@ -86,7 +86,7 @@ function place(anchor: HTMLElement, panel: HTMLElement, align: PopoverAlign): Pl
     maxHeight: height,
   };
   // The phone test reads window.innerWidth, the box Tailwind's sm: breakpoint sees.
-  if (window.innerWidth < PHONE_MAX_WIDTH_PX) return { ...common, centered: true };
+  if (window.innerWidth < PHONE_MAX_WIDTH_PX && centerOnMobile) return { ...common, centered: true };
 
   const span = panel.offsetWidth;
   const rightEdgeFits = rect.right - span >= VIEWPORT_MARGIN_PX;
@@ -100,23 +100,24 @@ function place(anchor: HTMLElement, panel: HTMLElement, align: PopoverAlign): Pl
 
 /** Fixed placement that follows the anchor, plus the Escape, outside-click and
  *  focus-loss dismissal. Mounts with the open panel, so a closed one holds none. */
-export function usePopover({ onClose, anchorRef, align = 'auto' }: PopoverOptions) {
+export function usePopover({ onClose, anchorRef, align = 'auto', centerOnMobile = true }: PopoverOptions) {
   const [placement, setPlacement] = useState<Placement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   // Latest callback and alignment, so a re-render never re-attaches the listeners
   // below. Layout phase, so the measure effect sees the alignment it renders with.
-  const latest = useRef({ onClose, align });
+  const latest = useRef({ onClose, align, centerOnMobile });
   useLayoutEffect(() => {
     latest.current.onClose = onClose;
     latest.current.align = align;
+    latest.current.centerOnMobile = centerOnMobile;
   });
 
   const measure = useCallback(() => {
     const anchor = anchorRef.current;
     const panel = panelRef.current;
     if (!anchor || !panel) return;
-    const next = place(anchor, panel, latest.current.align);
+    const next = place(anchor, panel, latest.current.align, latest.current.centerOnMobile);
     if (!next) latest.current.onClose('anchor-hidden');
     else setPlacement((prev) => (unchanged(prev, next) ? prev : next));
   }, [anchorRef]);
@@ -130,7 +131,7 @@ export function usePopover({ onClose, anchorRef, align = 'auto' }: PopoverOption
 
   // Both call sites nest the panel inside the anchor, so the panel ref attaches
   // first and that measure finds no anchor. Also re-places on an align change.
-  useLayoutEffect(() => { measure(); }, [align, measure]);
+  useLayoutEffect(() => { measure(); }, [align, centerOnMobile, measure]);
 
   useEffect(() => {
     // Scroll is captured because the anchor's scroller may be any ancestor. The

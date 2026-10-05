@@ -3,7 +3,7 @@ import DashboardControlsMenu from '../components/DashboardControlsMenu';
 import SegmentedToggle from '../components/SegmentedToggle';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
-import { Download } from 'lucide-react';
+import { Download, PanelsTopLeft } from 'lucide-react';
 import { feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import { FeedOpmlExportDialog } from '../components/FeedOpmlExportDialog';
 import DropdownMenu from '../components/DropdownMenu';
@@ -182,6 +182,8 @@ function Dashboard() {
     );
   }
 
+  const dashboardViewLabel = DASHBOARD_VIEW_OPTIONS.find((option) => option.value === dashboardView)?.label ?? 'Podcasts';
+
   return (
     <div>
       <div
@@ -249,7 +251,7 @@ function Dashboard() {
       </div>
 
       <div className="flex flex-wrap justify-between items-center gap-y-2 mb-6">
-        <div className="w-full sm:w-auto flex flex-wrap items-baseline gap-x-3">
+        <div className="w-full sm:w-auto flex min-w-0 flex-wrap items-baseline gap-x-3">
           <h1 className="text-2xl font-bold text-foreground">Feeds</h1>
           {lastRefreshCompletedAt && (
             <span
@@ -259,24 +261,33 @@ function Dashboard() {
               Updated {formatDateTime(lastRefreshCompletedAt)}
             </span>
           )}
-          <button
-            type="button"
-            onClick={() => setOpmlExportOpen(true)}
-            className={`sm:hidden ml-auto self-center h-11 min-w-11 px-2.5 rounded shrink-0 ${btnSecondary} transition-colors inline-flex items-center justify-center ${focusRing}`}
-            title="Export feeds as OPML for a podcast app"
-            aria-label="Export OPML"
-          >
-            <Download className="w-5 h-5" />
-          </button>
         </div>
         <div className="w-full sm:w-auto flex gap-2 items-center justify-between sm:justify-start overflow-x-auto no-scrollbar sm:overflow-visible">
-          <SegmentedToggle
-            options={DASHBOARD_VIEW_OPTIONS}
-            value={dashboardView}
-            onChange={setDashboardView}
-            ariaLabel="Dashboard view"
-            variant="toolbar"
-          />
+          <div className="hidden sm:block">
+            <SegmentedToggle
+              options={DASHBOARD_VIEW_OPTIONS}
+              value={dashboardView}
+              onChange={setDashboardView}
+              ariaLabel="Dashboard view"
+              variant="toolbar"
+            />
+          </div>
+          <div className="sm:hidden">
+            <DropdownMenu
+              triggerLabel={<PanelsTopLeft className="h-5 w-5" aria-hidden="true" />}
+              triggerClassName={`${touchTarget} h-11 w-11 min-w-11 px-2.5 rounded ${btnSecondary} transition-colors`}
+              chevronClassName="hidden"
+              ariaLabel={`View by ${dashboardViewLabel}`}
+              title={`View by ${dashboardViewLabel}`}
+              align="left"
+              centerOnMobile={false}
+              items={DASHBOARD_VIEW_OPTIONS.map((option) => ({
+                title: option.label,
+                checked: dashboardView === option.value,
+                onClick: () => setDashboardView(option.value),
+              }))}
+            />
+          </div>
           <div className="flex gap-2 items-center shrink-0">
           <DashboardControlsMenu
             dashboardView={dashboardView}
@@ -316,15 +327,15 @@ function Dashboard() {
               },
             ]}
           />
-          {/* Phones get this button in the title row instead: one more icon here
-              pushes Add Feed off a 390px-wide screen. */}
           <button
             type="button"
             onClick={() => setOpmlExportOpen(true)}
-            className={`hidden sm:inline-flex h-11 px-4 text-sm rounded shrink-0 ${btnSecondary} transition-colors items-center justify-center whitespace-nowrap ${focusRing}`}
+            className={`${touchTarget} px-2.5 sm:px-4 h-11 text-sm rounded shrink-0 ${btnSecondary} transition-colors inline-flex items-center justify-center whitespace-nowrap ${focusRing}`}
             title="Export feeds as OPML for a podcast app"
+            aria-label="Export OPML"
           >
-            Export OPML
+            <Download className="h-5 w-5 sm:hidden" aria-hidden="true" />
+            <span className="hidden sm:inline">Export OPML</span>
           </button>
           <Link
             to="/add"

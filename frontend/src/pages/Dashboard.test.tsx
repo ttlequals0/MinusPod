@@ -246,18 +246,37 @@ describe('Dashboard delete confirmation', () => {
 describe('Dashboard OPML export', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  // Both render in jsdom: the phone icon (title row) and the desktop button
-  // (toolbar) are only switched by Tailwind breakpoints.
-  it.each([0, 1])('either Export OPML button opens the feed picker (%i)', async (which) => {
+  it('opens the feed picker from the responsive toolbar button', async () => {
     renderDashboard();
     await screen.findByText('Existing Feed');
-    const buttons = screen.getAllByRole('button', { name: 'Export OPML' });
-    expect(buttons).toHaveLength(2);
-
-    await userEvent.click(buttons[which]);
+    await userEvent.click(screen.getByRole('button', { name: 'Export OPML' }));
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('heading', { name: 'Export OPML' })).toBeDefined();
+  });
+});
+
+describe('Dashboard mobile view menu', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem('dashboardView');
+  });
+
+  afterEach(() => localStorage.removeItem('dashboardView'));
+
+  it('switches and persists the selected dashboard view', async () => {
+    renderDashboard();
+    await screen.findByText('Existing Feed');
+
+    const trigger = screen.getByRole('button', { name: 'View by Podcasts' });
+    await userEvent.click(trigger);
+    expect(screen.getByRole('menuitemradio', { name: 'Podcasts' }).getAttribute('aria-checked')).toBe('true');
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Episodes' }));
+
+    expect(screen.getByRole('button', { name: 'View by Episodes' })).toBeDefined();
+    await waitFor(() => expect(localStorage.getItem('dashboardView')).toBe('"episodes"'));
+    await userEvent.click(screen.getByRole('button', { name: 'View by Episodes' }));
+    expect(screen.getByRole('menuitemradio', { name: 'Episodes' }).getAttribute('aria-checked')).toBe('true');
   });
 });
 

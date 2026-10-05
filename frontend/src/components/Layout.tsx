@@ -19,6 +19,7 @@ const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/queue', label: 'Queue' },
   { to: '/settings', label: 'Settings' },
 ];
+const COMPACT_HEADER_CONTROL_SIZE = 'h-11 w-11 xl:h-auto xl:w-auto';
 
 interface NavLinkProps {
   to: string;
@@ -33,7 +34,7 @@ function NavLink({ to, label, active, onClick, count }: NavLinkProps) {
     <Link
       to={to}
       onClick={onClick}
-      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${focusRing} ${
+      className={`flex min-h-11 items-center px-3 py-2 text-sm font-medium transition-colors xl:min-h-0 rounded-md ${focusRing} ${
         active
           ? 'bg-primary text-primary-foreground'
           : btnGhost
@@ -107,14 +108,14 @@ function Layout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
-              <Link to="/" className={`flex items-center ${focusRing}`}>
+              <Link to="/" className={`flex h-11 shrink-0 items-center ${focusRing} xl:h-auto`}>
                 <img
                   src={theme === 'dark' ? '/ui/logo-dark.svg' : '/ui/logo.svg'}
                   alt="MinusPod"
-                  className="h-8"
+                  className="h-7 xl:h-8"
                 />
               </Link>
-              <nav className="hidden sm:flex gap-4">
+              <nav className="hidden shrink-0 gap-4 xl:flex">
                 {NAV_ITEMS.map((item) => (
                   <NavLink
                     key={item.to}
@@ -126,10 +127,10 @@ function Layout() {
                 ))}
               </nav>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1 xl:gap-2">
               <Link
                 to="/search"
-                className={`${touchTarget} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                className={`${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Search"
                 title="Search"
               >
@@ -139,7 +140,7 @@ function Layout() {
               </Link>
               <button
                 onClick={toggleTheme}
-                className={`${touchTarget} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                className={`${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Toggle theme"
               >
                 {theme === 'dark' ? (
@@ -165,7 +166,7 @@ function Layout() {
               {isPasswordSet && (
                 <button
                   onClick={handleLogout}
-                  className={`${touchTarget} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                  className={`${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                   aria-label="Log out"
                   title="Log out"
                 >
@@ -181,8 +182,9 @@ function Layout() {
               )}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className={`sm:hidden ${touchTarget} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                className={`xl:hidden ${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Toggle menu"
+                aria-expanded={mobileMenuOpen}
               >
                 {mobileMenuOpen ? (
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -198,7 +200,7 @@ function Layout() {
           </div>
         </div>
         {mobileMenuOpen && (
-          <div className="sm:hidden border-t border-border bg-card">
+          <div className="xl:hidden max-h-[calc(100dvh-6.5rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
             <nav className="flex flex-col px-4 py-2 gap-1">
               {NAV_ITEMS.map((item) => (
                 <NavLink

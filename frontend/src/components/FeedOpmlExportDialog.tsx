@@ -6,8 +6,9 @@ import { getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
-import { btnOutline, btnPrimary } from './buttonStyles';
+import { btnOutline, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { feedDisplayTitle } from '../utils/feedTitle';
+import { Skeleton } from './Skeleton';
 
 interface Props {
   open: boolean;
@@ -78,37 +79,42 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
           disabled={feeds.length === 0}
           label={allSelected ? 'Deselect all' : 'Select all'}
           labelClassName=""
+          className={touchTarget}
         />
         <span className="text-xs text-muted-foreground">
           {effective.size} of {feeds.length} selected
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-3">
         {isLoading && (
-          <p className="text-sm text-muted-foreground text-center py-8">Loading feeds...</p>
+          <div role="status" aria-busy="true" aria-label="Loading feeds" className="space-y-3 py-4">
+            <Skeleton className="h-11 rounded-lg" />
+            <Skeleton className="h-11 rounded-lg" />
+            <Skeleton className="h-11 rounded-lg" />
+          </div>
         )}
         {feedsFailed && feeds.length === 0 && (
-          <div className="text-center py-8 space-y-3">
+          <div className="space-y-3 rounded-lg bg-destructive/10 p-3">
             <p className="text-sm text-destructive">{getErrorMessage(feedsError, 'Failed to load feeds')}</p>
             <button
               type="button"
               onClick={() => void refetch()}
               disabled={isFetching}
-              className={`px-3 py-1.5 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+              className={`${touchTarget} px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors disabled:opacity-50 ${focusRing}`}
             >
               {isFetching ? 'Loading...' : 'Retry'}
             </button>
           </div>
         )}
         {feedsFailed && feeds.length > 0 && (
-          <div className="mb-3 rounded border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
+          <div className="mb-3 space-y-1 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
             <p>{getErrorMessage(feedsError, 'Could not refresh feeds')}. Showing the last loaded list.</p>
             <button
               type="button"
               onClick={() => void refetch()}
               disabled={isFetching}
-              className={`mt-2 text-primary underline disabled:opacity-50 ${focusRing}`}
+              className={`${touchTarget} px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors disabled:opacity-50 ${focusRing}`}
             >
               {isFetching ? 'Refreshing...' : 'Retry'}
             </button>
@@ -124,15 +130,16 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
               <li key={f.slug}>
                 <label
                   htmlFor={`opml-export-${f.slug}`}
-                  className="flex items-center gap-2 px-2 py-2 rounded hover:bg-accent/50 cursor-pointer"
+                  className="flex min-h-11 items-center gap-2 px-2 py-2 rounded hover:bg-accent/50 cursor-pointer sm:min-h-0"
                 >
                   <Checkbox
                     id={`opml-export-${f.slug}`}
                     checked={effective.has(f.slug)}
                     onChange={() => toggleOne(f.slug)}
                     ariaLabel={`Include ${title}`}
+                    className="shrink-0"
                   />
-                  <span className="text-sm truncate">{title}</span>
+                  <span className="min-w-0 text-sm break-words sm:truncate">{title}</span>
                 </label>
               </li>
             );
@@ -141,13 +148,13 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
       </div>
 
       <div className="p-6 pt-3 border-t border-border space-y-3">
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors disabled:opacity-50 ${focusRing}`}
+            className={`${touchTarget} px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors disabled:opacity-50 ${focusRing}`}
           >
             Cancel
           </button>
@@ -155,7 +162,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
             type="button"
             onClick={download}
             disabled={effective.size === 0 || busy}
-            className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
+            className={`${touchTarget} px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
           >
             {busy ? 'Exporting...' : `Download ${effective.size} feed${effective.size === 1 ? '' : 's'}`}
           </button>

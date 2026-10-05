@@ -1,5 +1,5 @@
 import { ReactNode, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { usePopoverTabs } from '../hooks/usePopover';
 import { focusRing } from './fieldStyles';
 import Popover from './Popover';
@@ -9,6 +9,8 @@ export interface DropdownMenuItem {
   subtitle?: string;
   onClick: () => void;
   disabled?: boolean;
+  /** Adds radio-menu semantics and a visible mark for the selected value. */
+  checked?: boolean;
   /** Native tooltip on the item. */
   tooltip?: string;
 }
@@ -26,6 +28,8 @@ interface DropdownMenuProps {
   /** Which menu edge aligns to the trigger. `auto` (default) opens leftward when
    *  the menu fits on the trigger's left, otherwise rightward; `left`/`right` force a side. */
   align?: 'left' | 'right' | 'auto';
+  /** Set false to align phone menus to their anchor instead of centering. */
+  centerOnMobile?: boolean;
 }
 
 const ROVING_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
@@ -39,6 +43,7 @@ function DropdownMenu({
   ariaLabel,
   chevronClassName = 'w-4 h-4',
   align = 'auto',
+  centerOnMobile,
 }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -85,6 +90,7 @@ function DropdownMenu({
         open={isOpen}
         anchorRef={rootRef}
         align={align}
+        centerOnMobile={centerOnMobile}
         role="menu"
         className="w-56"
         {...popoverProps}
@@ -95,6 +101,7 @@ function DropdownMenu({
           const cls = [
             'w-full px-4 py-2 text-left hover:bg-accent transition-colors',
             'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent',
+            item.checked !== undefined ? 'min-h-11 sm:min-h-0' : '',
             isFirst ? 'rounded-t-lg' : '',
             isLast ? 'rounded-b-lg' : '',
             isFirst ? '' : 'border-t border-border',
@@ -102,7 +109,8 @@ function DropdownMenu({
           return (
             <button
               key={item.title}
-              role="menuitem"
+              role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+              aria-checked={item.checked}
               disabled={item.disabled}
               title={item.tooltip}
               onClick={() => {
@@ -112,10 +120,11 @@ function DropdownMenu({
               onKeyDown={onItemKeyDown}
               className={`${cls} ${focusRing}`}
             >
-              <span className="block text-sm font-medium text-foreground">{item.title}</span>
-              {item.subtitle && (
-                <span className="block text-xs text-muted-foreground">{item.subtitle}</span>
-              )}
+              <span className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 text-sm font-medium text-foreground">{item.title}</span>
+                {item.checked && <Check className="h-4 w-4 shrink-0" aria-hidden="true" />}
+              </span>
+              {item.subtitle && <span className="block text-xs text-muted-foreground">{item.subtitle}</span>}
             </button>
           );
         })}

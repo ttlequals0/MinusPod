@@ -3,6 +3,7 @@
 // palette can no longer be the mobile entry point.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './Layout';
@@ -52,6 +53,16 @@ describe('Layout header hit targets', () => {
       expect(el.className).toContain('min-h-11');
       expect(el.className).toContain('min-w-11');
     }
+  });
+
+  it('announces when the compact navigation is expanded', async () => {
+    renderLayout();
+    const menu = screen.getByRole('button', { name: 'Toggle menu' });
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
+    await userEvent.click(menu);
+    expect(menu.getAttribute('aria-expanded')).toBe('true');
+    await userEvent.click(menu);
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
   });
 });
 

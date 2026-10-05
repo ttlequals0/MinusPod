@@ -14,13 +14,14 @@ interface PopoverProps extends Omit<HTMLAttributes<HTMLDivElement>, 'style'> {
   anchorRef: RefObject<HTMLElement | null>;
   onClose: (reason: PopoverCloseReason) => void;
   align?: PopoverAlign;
+  centerOnMobile?: boolean;
   children: ReactNode;
 }
 
 function PopoverPanel({
-  anchorRef, onClose, align, className = '', children, ...rest
+  anchorRef, onClose, align, centerOnMobile, className = '', children, ...rest
 }: Omit<PopoverProps, 'open'>) {
-  const { centered, panelProps } = usePopover({ onClose, anchorRef, align });
+  const { centered, panelProps } = usePopover({ onClose, anchorRef, align, centerOnMobile });
   return createPortal(
     <div
       {...rest}

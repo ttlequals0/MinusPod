@@ -14,12 +14,15 @@ release notes.
 ### Added
 - Visiting the server root redirects to the web UI. (#808)
 - Export selected feeds as OPML from the Feeds page. (#810)
+- Choose Podcasts or Episodes from an icon menu in the mobile dashboard toolbar.
 
 ### Fixed
 - The OPML picker shows feed-loading errors with retry and keeps selected feeds in sync after a refresh.
 - OPML exports and the feed picker use custom feed names.
 - Large feed selections use a POST request so exports do not exceed the server URL limit.
 - The OPML export dialog now has an accessible name for screen readers.
+- OPML picker rows and actions have 44 px mobile tap targets, long feed names wrap into view, and list scrolling stays inside the dialog.
+- The full navigation collapses below 1280 px so header controls stay visible without crowding.
 
 ### Security
 - Updated fast-uri to 3.1.8 to fix a moderate vulnerability in frontend build tooling.
