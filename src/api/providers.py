@@ -31,8 +31,6 @@ from provider_probe import (
     FIXED_PROVIDER_PROBES as _FIXED_PROVIDER_PROBES,
     models_request as _models_request,
     probe_fixed_endpoint as _probe_fixed_endpoint,
-    probe_models_endpoint,
-    # Second name so the failover route's test-connection call can be patched independently of _probe_models_endpoint.
     probe_models_endpoint as _probe_models_endpoint,
     same_server as _same_server,
 )
@@ -495,15 +493,36 @@ def test_secondary_provider_connection():
     type and the tested URL is the explicitly saved one.
     """
     db = Database()
-    body = request.get_json(silent=True) or {}
+    return _llm_slot_connection_test(
+        db.get_setting('secondary_provider'), db.get_setting('secondary_provider_base_url') or '',
+        get_effective_secondary_provider_api_key, request.get_json(silent=True) or {},
+        'Configure a secondary provider type first.')
 
-    provider = body['provider'] if 'provider' in body else db.get_setting('secondary_provider')
+
+@api.route('/settings/providers/failover/test-connection', methods=['POST'])
+def test_failover_provider_connection():
+    """End-to-end probe of the shared LLM failover slot (#806); mirrors
+    /settings/providers/secondary/test-connection against failover_llm_* settings."""
+    return _llm_slot_connection_test(
+        failover.failover_llm_config()['provider'],
+        Database().get_setting('failover_llm_base_url') or '',
+        get_effective_failover_llm_api_key, request.get_json(silent=True) or {},
+        'Configure a failover provider type first.')
+
+
+def _llm_slot_connection_test(saved_type, gate_base: str, saved_key_fn, body: dict,
+                              missing_type_detail: str):
+    """Connection test for a slot that stores its own type, base URL and key.
+
+    `gate_base` is the explicitly saved base URL; `saved_key_fn` is called only
+    when the tested type is the saved one.
+    """
+    provider = body['provider'] if 'provider' in body else saved_type
     if provider is not None and not isinstance(provider, str):
         return error_response('provider must be a string', 400)
     if not provider:
         return json_response(
-            {'ok': False, 'reachable': False,
-             'detail': 'Configure a secondary provider type first.'}, 200)
+            {'ok': False, 'reachable': False, 'detail': missing_type_detail}, 200)
     if provider not in _SECONDARY_PROVIDER_TYPES:
         return error_response(
             f'provider must be one of: {", ".join(_SECONDARY_PROVIDER_TYPES)}', 400)
@@ -512,15 +531,14 @@ def test_secondary_provider_connection():
     # override must not borrow it: that would ship the key to a vendor the
     # operator never designated.
     saved_key = ''
-    if provider == (db.get_setting('secondary_provider') or ''):
-        saved_key = get_effective_secondary_provider_api_key() or ''
+    if provider == (saved_type or ''):
+        saved_key = saved_key_fn() or ''
 
     if provider in _FIXED_PROVIDER_PROBES:
         return json_response(_probe_fixed_endpoint(provider, saved_key), 200)
 
     # Effective default matches llm_route; the key gate below sees only an
     # explicitly saved URL, never that default.
-    gate_base = db.get_setting('secondary_provider_base_url') or ''
     base = body['baseUrl'] if 'baseUrl' in body else (gate_base or DEFAULT_OPENAI_BASE_URL)
     if base is not None and not isinstance(base, str):
         return error_response('baseUrl must be a string', 400)
@@ -534,68 +552,13 @@ def test_secondary_provider_connection():
 
     # Same anti-exfiltration gate as the primary test-connection route
     # (#544): the saved key only goes out when the tested URL matches the
-    # explicitly saved secondary base URL.
+    # explicitly saved base URL.
     api_key = saved_key if _same_server(base, gate_base) else ''
 
     norm = _normalize_base_url_for_provider(
         PROVIDER_OLLAMA if provider == PROVIDER_OLLAMA
         else PROVIDER_OPENAI_COMPATIBLE, base)
-    result = _probe_models_endpoint(norm, api_key)
-    return json_response(result, 200)
-
-
-@api.route('/settings/providers/failover/test-connection', methods=['POST'])
-def test_failover_provider_connection():
-    """End-to-end probe of the shared LLM failover slot (#806); mirrors
-    /settings/providers/secondary/test-connection against failover_llm_* settings."""
-    db = Database()
-    body = request.get_json(silent=True) or {}
-    cfg = failover.failover_llm_config()
-
-    provider = body['provider'] if 'provider' in body else cfg['provider']
-    if provider is not None and not isinstance(provider, str):
-        return error_response('provider must be a string', 400)
-    if not provider:
-        return json_response(
-            {'ok': False, 'reachable': False,
-             'detail': 'Configure a failover provider type first.'}, 200)
-    if provider not in _SECONDARY_PROVIDER_TYPES:
-        return error_response(
-            f'provider must be one of: {", ".join(_SECONDARY_PROVIDER_TYPES)}', 400)
-
-    # The stored key was entered for the saved type, so an unsaved type
-    # override must not borrow it (same rule as the secondary route).
-    saved_key = ''
-    if provider == (cfg['provider'] or ''):
-        saved_key = get_effective_failover_llm_api_key() or ''
-
-    if provider in _FIXED_PROVIDER_PROBES:
-        return json_response(_probe_fixed_endpoint(provider, saved_key), 200)
-
-    # Effective default matches failover.failover_llm_config(); the key
-    # gate below sees only an explicitly saved URL, never that default.
-    gate_base = db.get_setting('failover_llm_base_url') or ''
-    base = body['baseUrl'] if 'baseUrl' in body else (gate_base or DEFAULT_OPENAI_BASE_URL)
-    if base is not None and not isinstance(base, str):
-        return error_response('baseUrl must be a string', 400)
-    if not base or not base.strip():
-        return json_response(
-            {'ok': False, 'reachable': False,
-             'detail': 'Enter a base URL first.'}, 200)
-    base = base.strip()
-    if url_has_userinfo(base):
-        return error_response(BASE_URL_USERINFO_ERROR, 400)
-
-    # Same anti-exfiltration gate as the other test-connection routes
-    # (#544): the saved key only goes out when the tested URL matches the
-    # explicitly saved failover base URL.
-    api_key = saved_key if _same_server(base, gate_base) else ''
-
-    norm = _normalize_base_url_for_provider(
-        PROVIDER_OLLAMA if provider == PROVIDER_OLLAMA
-        else PROVIDER_OPENAI_COMPATIBLE, base)
-    result = probe_models_endpoint(norm, api_key)
-    return json_response(result, 200)
+    return json_response(_probe_models_endpoint(norm, api_key), 200)
 
 
 @api.route('/settings/providers/failover-whisper/test-connection', methods=['POST'])

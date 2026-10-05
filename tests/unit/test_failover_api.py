@@ -100,7 +100,7 @@ def test_models_slot_alias_b(app_client, hdr):
 
 
 def test_failover_llm_test_connection(app_client, hdr, configured):
-    with patch('api.providers.probe_models_endpoint', return_value={'ok': True, 'reachable': True, 'status': 200, 'detail': 'ok'}) as p:
+    with patch('api.providers._probe_models_endpoint', return_value={'ok': True, 'reachable': True, 'status': 200, 'detail': 'ok'}) as p:
         r = app_client.post('/api/v1/settings/providers/failover/test-connection',
                             json={'baseUrl': 'http://127.0.0.1:11434/v1'}, headers=hdr)
     assert r.status_code == 200 and r.get_json()['ok'] is True

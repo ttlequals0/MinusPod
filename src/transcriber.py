@@ -14,6 +14,7 @@ import threading
 import time
 import wave
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -824,6 +825,16 @@ _local_model_override: contextvars.ContextVar[str | None] = contextvars.ContextV
 # Sentinel: a chunk plan's failure budget was blown with no failover switch
 # available, so the caller aborts with no transcript (#806).
 _ABORT_CHUNK_PLAN = object()
+
+
+@dataclass(frozen=True)
+class _ChunkPlanContext:
+    """Per-episode inputs shared by every pass of a chunk plan."""
+    audio_path: str
+    language_override: str | None
+    prefix: str
+    max_workers: int
+    max_failed_chunks: int
 
 
 _HEALTH_INSTANCE_FIELDS = (
@@ -2739,24 +2750,30 @@ class Transcriber:
 
     def _run_chunk_plan(
         self,
+        ctx: _ChunkPlanContext,
         plan_subset: list[tuple[int, float, float]],
         whisper_settings: dict[str, str],
         results: list[list[dict] | None],
-        connectivity_errors: list[Exception],
-        extraction_failures: list[int],
-        extraction_timeouts: list[int],
-        audio_path: str,
-        language_override: str | None,
-        prefix: str,
-        max_workers: int,
-        max_failed_chunks: int,
         stop_on_connectivity_error: bool,
-    ):
+    ) -> tuple[object, list[Exception]]:
         """Submit plan_subset to a fresh executor, filling results[idx] in place.
-        Returns a chunk index to trigger failover, _ABORT_CHUNK_PLAN on a blown
-        budget with no switch to make, or None when the subset finishes; raises
-        ServiceUnavailableError/AudioExtractionError/AudioExtractionTimeout otherwise (#806)."""
+
+        Returns (outcome, connectivity_errors): outcome is a chunk index to
+        trigger failover, _ABORT_CHUNK_PLAN on a blown budget with no switch to
+        make, or None when the subset finishes. Raises ServiceUnavailableError/
+        AudioExtractionError/AudioExtractionTimeout otherwise (#806).
+        """
         _note_whisper_settings(whisper_settings)
+        audio_path, language_override, prefix = ctx.audio_path, ctx.language_override, ctx.prefix
+        max_failed_chunks = ctx.max_failed_chunks
+        # Per pass, so each pass classifies on its own failures; stragglers from
+        # an aborted pass keep appending only to that pass's lists.
+        connectivity_errors: list[Exception] = []
+        # Chunks whose ffmpeg extract failed before any API call, so an abort
+        # can name local extraction as the cause (#556).
+        extraction_failures: list[int] = []
+        # Subset of the above that ran out of clock rather than failing to decode (#644).
+        extraction_timeouts: list[int] = []
         extract_as_flac = not bool(whisper_settings.get('skip_flac_compression', False))
 
         def _process_chunk(chunk_idx: int, c_start: float, c_end: float):
@@ -2808,10 +2825,8 @@ class Transcriber:
         # Managed manually (not `with`) so an early abort can return promptly:
         # a `with` block's __exit__ calls shutdown(wait=True), which would
         # re-block on the in-flight workers and defeat the short-circuit.
-        exe = ThreadPoolExecutor(max_workers=max_workers)
-        # Baseline before any chunk completes: a future only reaches as_completed()
-        # after _process_chunk appends, so reading this later would double-count it.
-        seen_connectivity = len(connectivity_errors)
+        exe = ThreadPoolExecutor(max_workers=ctx.max_workers)
+        seen_connectivity = 0
         try:
             futures = [
                 exe.submit(run_in_worker_thread(_process_chunk), i, s, e)
@@ -2831,7 +2846,7 @@ class Transcriber:
                 # than waiting on the failure budget below (#806).
                 if (stop_on_connectivity_error and segs is None
                         and len(connectivity_errors) > seen_connectivity):
-                    return chunk_idx
+                    return chunk_idx, connectivity_errors
                 seen_connectivity = len(connectivity_errors)
                 # Short-circuit like the sequential path: once the failure
                 # budget is blown the run can't succeed, so stop instead of
@@ -2862,13 +2877,13 @@ class Transcriber:
                             'Audio chunk extraction failed (ffmpeg could not '
                             'decode the source file); the transcription API '
                             'was not the problem')
-                    return _ABORT_CHUNK_PLAN
+                    return _ABORT_CHUNK_PLAN, connectivity_errors
         finally:
             # wait=False: return without blocking on in-flight workers (they
             # finish in the background and self-clean temp files via
             # _process_chunk's finally). cancel_futures drops queued chunks.
             exe.shutdown(wait=False, cancel_futures=True)
-        return None
+        return None, connectivity_errors
 
     def _transcribe_chunked_parallel_api(
         self,
@@ -2951,22 +2966,12 @@ class Transcriber:
             f"overlap={overlap}s, workers={max_workers})"
         )
 
-        connectivity_errors: list[Exception] = []
-        # Chunk indexes whose ffmpeg extract failed (before any API call).
-        # list.append is thread-safe; used so an abort can name local
-        # extraction as the cause instead of the generic transcription
-        # failure that sent #556's reporter debugging a healthy provider.
-        extraction_failures: list[int] = []
-        # Subset of the above that ran out of clock rather than failing to
-        # decode, so the abort message does not blame the source file (#644).
-        extraction_timeouts: list[int] = []
         results: list[list[dict] | None] = [None] * num_chunks
+        plan_ctx = _ChunkPlanContext(audio_path, language_override, prefix, max_workers, max_failed_chunks)
 
         # Class-qualified: some callers pass a duck-typed self.
-        outage = Transcriber._run_chunk_plan(
-            self, plan, whisper_settings, results, connectivity_errors,
-            extraction_failures, extraction_timeouts, audio_path, language_override,
-            prefix, max_workers, max_failed_chunks,
+        outage, connectivity_errors = Transcriber._run_chunk_plan(
+            self, plan_ctx, plan, whisper_settings, results,
             stop_on_connectivity_error=can_switch_on_outage,
         )
 
@@ -2980,12 +2985,8 @@ class Transcriber:
             # Same backend type: rerun only chunks still missing a result,
             # keeping what this pass finished. No further switch, already failover.
             remaining = [(i, s, e) for i, s, e in plan if results[i] is None]
-            # Fresh error lists: the second pass classifies on its own failures,
-            # and first-pass stragglers keep appending to the old ones.
-            second = Transcriber._run_chunk_plan(
-                self, remaining, fo, results, [], [], [], audio_path, language_override,
-                prefix, max_workers, max_failed_chunks,
-                stop_on_connectivity_error=False,
+            second, _ = Transcriber._run_chunk_plan(
+                self, plan_ctx, remaining, fo, results, stop_on_connectivity_error=False,
             )
             if second is _ABORT_CHUNK_PLAN:
                 return None

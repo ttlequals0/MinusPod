@@ -222,9 +222,10 @@ def test_second_pass_classifies_on_its_own_errors(t):
     seen = []
     real = Transcriber._run_chunk_plan
 
-    def spy(self, plan, settings, results, conn, *rest, **kw):
-        seen.append(list(conn))
-        return real(self, plan, settings, results, conn, *rest, **kw)
+    def spy(*args, **kw):
+        out = real(*args, **kw)
+        seen.append(list(out[1]))
+        return out
 
     with patch.object(failover, 'is_active', return_value=False), \
             patch.object(failover, 'is_configured', return_value=True), \

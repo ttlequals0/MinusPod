@@ -143,7 +143,7 @@ class TracedConnection(sqlite3.Connection):
             self._tx_started = time.monotonic() if immediate else started
             self._tx_start_includes_wait = not immediate
             self._tx_opener = _sql_head(sql)
-        elif self._tx_opener == 'BEGIN IMMEDIATE':
+        elif self._tx_opener and self._tx_opener.split(None, 1)[0].upper() == 'BEGIN':
             # Name the first real statement instead of the BEGIN that opened it.
             self._tx_opener = _sql_head(sql)
 
