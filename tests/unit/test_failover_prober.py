@@ -46,8 +46,11 @@ def _reset(db):
 
 
 def _probe(results):
-    return patch.object(failover, 'probe_target',
-                        side_effect=lambda t: {'reachable': results.get(t, True), 'status': 200 if results.get(t, True) else 503, 'detail': ''})
+    def fake(t):
+        ok = results.get(t, True)
+        return {'reachable': ok, 'status': 200 if ok else 503,
+                'detail': '' if ok else 'The server is reachable but rejected the test request (HTTP 503).'}
+    return patch.object(failover, 'probe_target', side_effect=fake)
 
 
 def test_enabled_targets_follow_configuration():
@@ -73,6 +76,11 @@ def test_two_failures_trigger_and_recovery_cancels():
         failover.probe_tick(db)
         assert failover.is_active('llm:primary') is True
         assert failover.state('llm:primary')['source'] == 'probe'
+        # The recorded reason must carry the probe's own detail text (#806
+        # ruling): a persistent 4xx still counts as unreachable, but the
+        # webhook/events/card must show why, not just a bare streak count.
+        trigger_event = next(e for e in failover.recent_events() if e['action'] == 'trigger')
+        assert 'HTTP 503' in trigger_event['reason']
     with _probe(up), patch.object(failover, 'fire_failover_event'):
         failover.probe_tick(db)
         assert failover.is_active('llm:primary') is True   # streak 1 of 2
@@ -221,6 +229,18 @@ def test_llm_probe_404_stays_unreachable():
     db.set_setting('failover_llm_base_url', 'http://example.com/v1', is_default=False)
     failover.invalidate_cache()
     with _Http({'reachable': True, 'status': 404, 'detail': ''}):
+        assert failover.probe_target('llm:failover')['reachable'] is False
+
+
+def test_llm_probe_read_timeout_is_unreachable():
+    # utils/connection_probe.run_probe reports a read timeout as
+    # {'reachable': True, no 'status'}: the connection succeeded but no HTTP
+    # response ever arrived, so this must not read as healthy.
+    db = Database(); _reset(db)
+    db.set_setting('failover_llm_base_url', 'http://example.com/v1', is_default=False)
+    failover.invalidate_cache()
+    with _Http({'ok': False, 'reachable': True,
+               'detail': 'The server accepted the connection but did not answer within 10 seconds.'}):
         assert failover.probe_target('llm:failover')['reachable'] is False
 
 

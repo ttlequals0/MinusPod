@@ -320,6 +320,17 @@ class TestProcessEpisodeModePlumbing:
         assert m['finalize'].call_args.kwargs['run_stats']['failover'] == {
             'llm': ['primary'], 'whisper': False}
 
+    def test_failover_not_reported_for_slot_absent_from_snapshot(self):
+        # #806: a snapshot that only ever routed to primary must not report
+        # secondary, even if secondary's own failover state changed mid-run.
+        snapshot = {'detection': {'provider_key': 'openai-compatible',
+                                  'credential_slot': 'primary'}}
+        state = {'llm:secondary': {'active': True, 'source': 'probe',
+                                   'since': '2999-01-01T00:00:00Z', 'reason': 'x'}}
+        m = _run_pipeline(_row(), route_snapshot=snapshot, failover_state=state)
+        assert m['result'] is True
+        assert 'failover' not in m['finalize'].call_args.kwargs['run_stats']
+
     def test_provider_denial_happens_after_transcription_before_detection(self):
         m = _run_pipeline(
             _row(), admission={'allowed': False, 'reason': 'daily limit'})

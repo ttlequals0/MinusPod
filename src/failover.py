@@ -86,7 +86,8 @@ def is_configured(target: str, cfg: dict | None = None) -> bool:
         if not coerce_bool_setting(_setting('failover_whisper_enabled')):
             return False
         if (_setting('failover_whisper_backend') or 'openai-api') == WHISPER_BACKEND_LOCAL:
-            return True
+            import transcriber  # inline: importing it loads the local whisper stack
+            return transcriber.local_transcription_available()
         return bool(_setting('failover_whisper_api_base_url'))
     return False
 
@@ -284,7 +285,10 @@ def probe_target(target: str) -> dict:
             # Many whisper servers have no /models, so a 404 still proves the server is up.
             rejected = (401, 403)
         status = result.get('status')
-        reachable = bool(result.get('reachable')) and status not in rejected and (status is None or status < 500)
+        # No HTTP status at all means run_probe never got a real response
+        # (connect/DNS failure or a read timeout, which reports reachable
+        # True with no status); never classify that as reachable.
+        reachable = status is not None and status not in rejected and status < 500
         return {'reachable': reachable, 'status': status, 'detail': result.get('detail', '')}
     except Exception as exc:
         logger.debug(f"probe {target} failed: {exc}")

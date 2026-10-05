@@ -7059,9 +7059,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                 new_duration)
             # 'used' is slots on failover at snapshot time (failover_from) plus
             # any slot that failed over mid-run (since >= this run's start).
-            used = {route['failover_from'] for route in (route_snapshot or {}).values()
-                    if isinstance(route, dict) and route.get('failover_from')}
+            # Without a snapshot there is no phase info, so fall back to
+            # checking both slots rather than under-reporting.
+            routes = [r for r in (route_snapshot or {}).values() if isinstance(r, dict)]
+            used = {r['failover_from'] for r in routes if r.get('failover_from')}
+            snapshot_slots = (used | {r['credential_slot'] for r in routes if r.get('credential_slot')}
+                              if route_snapshot else ('primary', 'secondary'))
             for slot in ('primary', 'secondary'):
+                if slot not in snapshot_slots:
+                    continue
                 since = failover.state(f'llm:{slot}')['since']
                 if since and since >= run_started_at:
                     used.add(slot)

@@ -80,6 +80,18 @@ def test_whisper_configured_rules():
     assert failover.is_configured('whisper') is True
 
 
+def test_whisper_local_backend_requires_local_stack():
+    import transcriber
+    db = Database(); _reset(db)
+    db.set_setting('failover_whisper_enabled', 'true', is_default=False)
+    db.set_setting('failover_whisper_backend', 'local', is_default=False)
+    failover.invalidate_cache()
+    with patch.object(transcriber, 'local_transcription_available', return_value=False):
+        assert failover.is_configured('whisper') is False
+    with patch.object(transcriber, 'local_transcription_available', return_value=True):
+        assert failover.is_configured('whisper') is True
+
+
 def test_llm_model_inheritance():
     db = Database(); _reset(db); _configure_llm(db)
     db.set_setting('failover_llm_review_model', 'qwen3:4b', is_default=False)
