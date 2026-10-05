@@ -105,6 +105,10 @@ def _local_unavailable_message() -> str:
     )
 
 
+def local_transcription_available() -> bool:
+    return _LOCAL_IMPORT_ERROR is None
+
+
 def _require_local_transcription() -> None:
     if _LOCAL_IMPORT_ERROR is not None:
         raise LocalTranscriptionUnavailableError(_local_unavailable_message())

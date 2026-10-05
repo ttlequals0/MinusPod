@@ -93,3 +93,16 @@ def test_state_survives_json_garbage():
     db.set_setting('failover_state:whisper', 'not json', is_default=False)
     failover.invalidate_cache()
     assert failover.is_active('whisper') is False
+
+
+def test_auto_trigger_rereads_state_another_worker_wrote():
+    import json
+    db = Database(); _reset(db); _configure_llm(db)
+    assert failover.is_active('llm:primary') is False  # primes the cache
+    db.set_setting('failover_state:llm:primary', json.dumps(
+        {'active': True, 'source': 'manual', 'since': '2026-01-01T00:00:00Z', 'reason': 'drill'}),
+        is_default=False)
+    with patch.object(failover, 'fire_failover_event'):
+        assert failover.trigger('llm:primary', 'window outage') is False
+    assert failover.state('llm:primary')['source'] == 'manual'
+    _reset(db)

@@ -118,6 +118,8 @@ def _write_state(target: str, data: dict | None) -> None:
 def trigger(target: str, reason: str, source: str = 'auto') -> bool:
     if target not in TARGETS:
         raise ValueError(f'unknown failover target: {target}')
+    # Another worker may have just written this state; never act on a stale read.
+    invalidate_cache()
     if not is_configured(target):
         logger.info(f"Failover for {target} not configured; not triggering ({reason})")
         return False
@@ -126,6 +128,7 @@ def trigger(target: str, reason: str, source: str = 'auto') -> bool:
         return False
     _write_state(target, {
         'active': True, 'source': source, 'since': utc_now_iso(), 'reason': (reason or '')[:500]})
+    _reset_healthy_streak(target)
     Database().record_failover_event(target, 'trigger', source, reason)
     logger.warning(f"Failover triggered for {target} ({source}): {reason}")
     fire_failover_event('trigger', target, source, reason)
@@ -135,6 +138,7 @@ def trigger(target: str, reason: str, source: str = 'auto') -> bool:
 def cancel(target: str, source: str = 'manual') -> bool:
     if target not in TARGETS:
         raise ValueError(f'unknown failover target: {target}')
+    invalidate_cache()
     current = state(target)
     if not current['active']:
         return False
@@ -145,6 +149,16 @@ def cancel(target: str, source: str = 'manual') -> bool:
     logger.info(f"Failover cancelled for {target} ({source})")
     fire_failover_event('cancel', target, source, None)
     return True
+
+
+def _reset_healthy_streak(target: str) -> None:
+    """Recovery must count only probes taken after this trigger."""
+    probe = _PROBE_OF[target]
+    data = probe_state(probe)
+    if data['healthy_streak']:
+        Database().set_setting(f'failover_probe:{probe}',
+                               json.dumps({**data, 'healthy_streak': 0}), is_default=False)
+        invalidate_cache()
 
 
 def recent_events(limit: int = 50) -> list[dict]:
@@ -163,6 +177,7 @@ _PROBE_DEFAULT = {'reachable': None, 'status': None, 'detail': '', 'checked_at':
                   'healthy_streak': 0, 'failed_streak': 0}
 _ORIGIN_OF = {'llm:primary': TARGET_LLM_PRIMARY, 'llm:secondary': TARGET_LLM_SECONDARY,
               'whisper:active': TARGET_WHISPER}
+_PROBE_OF = {origin: probe for probe, origin in _ORIGIN_OF.items()}
 
 
 def probe_interval_seconds() -> int:
@@ -185,10 +200,8 @@ def enabled_probe_targets() -> list[str]:
         targets.append('llm:secondary')
     if coerce_bool_setting(_setting('failover_llm_enabled')) and _setting('failover_llm_provider'):
         targets.append('llm:failover')
-    if (_setting('whisper_backend') or 'local') == 'openai-api':
-        targets.append('whisper:active')
-    if (coerce_bool_setting(_setting('failover_whisper_enabled'))
-            and (_setting('failover_whisper_backend') or 'openai-api') == 'openai-api'):
+    targets.append('whisper:active')
+    if coerce_bool_setting(_setting('failover_whisper_enabled')):
         targets.append('whisper:failover')
     return targets
 
@@ -218,10 +231,19 @@ def _llm_slot_config(slot: str) -> tuple[str, str | None, str]:
     return provider, llm_client.get_effective_base_url(), llm_client.get_effective_api_key_for(provider) or ''
 
 
-def _whisper_probe_config(slot: str) -> tuple[str | None, str]:
-    """(base_url, api_key) for a whisper probe target."""
-    prefix = 'failover_whisper' if slot == 'failover' else 'whisper'
-    return _setting(f'{prefix}_api_base_url'), Database().get_secret(f'{prefix}_api_key') or ''
+def _whisper_probe_settings(slot: str) -> dict:
+    """The transcriber's own settings for a whisper probe target, env fallbacks included."""
+    import transcriber  # inline: importing it loads the local whisper stack
+    if slot == 'failover':
+        return transcriber._get_failover_whisper_settings()
+    return transcriber._get_whisper_settings()
+
+
+def _probe_local_whisper() -> dict:
+    import transcriber  # inline: importing it loads the local whisper stack
+    if transcriber.local_transcription_available():
+        return {'reachable': True, 'status': None, 'detail': 'Local stack available'}
+    return {'reachable': False, 'status': None, 'detail': 'Local whisper stack is not installed'}
 
 
 def probe_target(target: str) -> dict:
@@ -236,13 +258,19 @@ def probe_target(target: str) -> dict:
             else:
                 norm = llm_client._normalize_base_url_for_provider(provider, base_url or DEFAULT_OPENAI_BASE_URL)
                 result = provider_probe.probe_models_endpoint(norm, key)
+            rejected = (401, 402, 403, 404)
         else:
-            base_url, key = _whisper_probe_config(which)
-            if not base_url:
+            settings = _whisper_probe_settings(which)
+            if settings['backend'] == WHISPER_BACKEND_LOCAL:
+                return _probe_local_whisper()
+            if not settings['api_base_url']:
                 return {'reachable': None, 'status': None, 'detail': 'Not configured'}
-            result = provider_probe.probe_models_endpoint(base_url.rstrip('/'), key)
+            result = provider_probe.probe_models_endpoint(
+                settings['api_base_url'].rstrip('/'), settings['api_key'] or '')
+            # Many whisper servers have no /models, so a 404 still proves the server is up.
+            rejected = (401, 403)
         status = result.get('status')
-        reachable = bool(result.get('reachable')) and status not in (401, 402, 403, 404) and (status is None or status < 500)
+        reachable = bool(result.get('reachable')) and status not in rejected and (status is None or status < 500)
         return {'reachable': reachable, 'status': status, 'detail': result.get('detail', '')}
     except Exception as exc:
         logger.debug(f"probe {target} failed: {exc}")
@@ -271,7 +299,8 @@ def probe_tick(db, targets: list[str] | None = None) -> dict[str, dict]:
             continue
         if data['failed_streak'] >= AUTO_TRIGGER_FAILURES and not is_active(origin):
             trigger(origin, f"health probe failed {data['failed_streak']} times: {data['detail']}", source='probe')
-        elif data['healthy_streak'] >= recovery_probes() and is_active(origin):
+        elif (data['healthy_streak'] >= recovery_probes() and is_active(origin)
+              and _parse_iso(data['checked_at']) > _parse_iso(state(origin)['since'])):
             cancel(origin, source='auto')
     return results
 
