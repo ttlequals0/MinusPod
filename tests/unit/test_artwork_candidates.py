@@ -173,13 +173,14 @@ def test_uncached_403_is_classified_not_found(temp_db, tmp_path):
     assert result == (False, 'not_found')
 
 
-def test_uncached_429_is_classified_error_not_not_found(temp_db, tmp_path):
+@pytest.mark.parametrize('status', [408, 429])
+def test_uncached_transient_4xx_is_classified_error_not_not_found(temp_db, tmp_path, status):
     storage = Storage(data_dir=str(tmp_path))
     slug = 'rate-limited-pod'
     storage.db.create_podcast(slug, 'https://example.com/feed.xml')
     url = 'https://cdn.example.com/throttled.png'
 
-    with patch('storage.safe_get', return_value=_mock_response(status_code=429)):
+    with patch('storage.safe_get', return_value=_mock_response(status_code=status)):
         result = storage._download_artwork_uncached(slug, url, force=False)
 
     assert result == (False, 'error')

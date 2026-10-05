@@ -370,3 +370,11 @@ def test_new_alert_formatters_render():
         assert subject.startswith(f'[MinusPod] {event}')
         assert rows and all(len(r) == 2 for r in rows)
         assert event in DEFAULT_EVENTS
+
+
+def test_failover_triggered_hint_depends_on_source():
+    ctx = {'target': 'llm-a', 'reason': 'HTTP 503', 'timestamp': 't'}
+    _, _, auto_hint = FORMATTERS['Failover Triggered'](dict(ctx, source='probe'))
+    _, _, manual_hint = FORMATTERS['Failover Triggered'](dict(ctx, source='manual'))
+    assert 'switches back automatically' in auto_hint
+    assert 'until you cancel it' in manual_hint and 'automatically' not in manual_hint

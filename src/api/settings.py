@@ -2301,8 +2301,8 @@ def _apply_failover_llm_fields(db, data):
         enabled = data['failoverLlmEnabled']
         db.set_setting('failover_llm_enabled', 'true' if enabled else 'false', is_default=False)
         if not enabled:
-            for slot in ('primary', 'secondary'):
-                db.clear_setting(f'failover_state:llm:{slot}')
+            for target in (failover.TARGET_LLM_PRIMARY, failover.TARGET_LLM_SECONDARY):
+                _after_commit(lambda t=target: failover.cancel(t, source='manual'))
         changed = True
     if 'failoverLlmProvider' in data:
         value = data['failoverLlmProvider']
@@ -2353,7 +2353,7 @@ def _apply_failover_whisper_fields(db, data):
         enabled = data['failoverWhisperEnabled']
         db.set_setting('failover_whisper_enabled', 'true' if enabled else 'false', is_default=False)
         if not enabled:
-            db.clear_setting('failover_state:whisper')
+            _after_commit(lambda: failover.cancel(failover.TARGET_WHISPER, source='manual'))
         changed = True
     if 'failoverWhisperBackend' in data:
         valid_backends = (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API)

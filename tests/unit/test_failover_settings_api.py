@@ -2,6 +2,7 @@
 import os
 import sys
 import tempfile
+from unittest.mock import patch
 
 import pytest
 
@@ -186,7 +187,11 @@ def test_disabling_failover_clears_active_state(app_client, hdr):
     db.set_setting('failover_state:llm:primary',
                    '{"active": true, "source": "manual", "since": "x", "reason": "r"}',
                    is_default=False)
-    r = app_client.put('/api/v1/settings/ad-detection',
-                       json={'failoverLlmEnabled': False}, headers=hdr)
+    with patch('failover.fire_failover_event') as fire:
+        r = app_client.put('/api/v1/settings/ad-detection',
+                           json={'failoverLlmEnabled': False}, headers=hdr)
     assert r.status_code == 200
     assert db.get_setting('failover_state:llm:primary') is None
+    fire.assert_called_once_with('cancel', 'llm:primary', 'manual', None)
+    event = db.get_failover_events(1)[0]
+    assert (event['target'], event['action'], event['source']) == ('llm:primary', 'cancel', 'manual')

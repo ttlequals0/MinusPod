@@ -31,7 +31,7 @@ release notes.
 - A transcription API that answered 401, 402, 403, or 404 failed the episode as a generic transient error; it now reports the status, and auth failures no longer burn retries.
 - A non-string value for a stage's provider field (detection, verification, chapters, or review) returned a 500 instead of a 400.
 - Per-provider timeout, retry, and failover policy settings now reject a numeric string instead of silently accepting it, and invalid failover settings are rejected without partially saving the rest of the request.
-- Artwork hosts that answer a definitive 4xx other than 429 now back off for 24 hours instead of 6, matching how a 404 is already handled, so a host that permanently blocks the request is not retried every refresh cycle.
+- Artwork hosts that answer a definitive 4xx other than 408 or 429 now back off for 24 hours instead of 6, matching how a 404 is already handled, so a host that permanently blocks the request is not retried every refresh cycle.
 - Slow-transaction warnings now name the first real statement in the transaction instead of always saying "opened by: BEGIN IMMEDIATE", so a long hold can be traced to its actual call site.
 - Successful processing resets the episode retry budget before a future automatic rerun.
 - Cancelling a rerun preserves the published audio and removes only its unpublished replacement.

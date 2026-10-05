@@ -6277,8 +6277,8 @@ paths:
                 failoverLlmProvider:
                   type: string
                   nullable: true
-                  enum: [anthropic, openai-compatible, ollama, openrouter]
-                  description: LLM failover provider type.
+                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                  description: LLM failover provider type. Empty or null clears it.
                 failoverLlmBaseUrl:
                   type: string
                   description: Base URL for the LLM failover provider; requests are SSRF-validated.

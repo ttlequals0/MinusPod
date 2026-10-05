@@ -294,9 +294,12 @@ def _fmt_failover_triggered(ctx):
         ('Reason', _value(ctx.get('reason'))),
         ('Timestamp', _display_timestamp(ctx)),
     ]
-    return subject, rows, ('Requests for this target now use its failover '
-                           'configuration. It switches back automatically once '
-                           "that target's regular configuration is reachable again.")
+    if ctx.get('source') == 'manual':
+        back = 'It stays on failover until you cancel it.'
+    else:
+        back = ("It switches back automatically once that target's regular "
+                'configuration is reachable again.')
+    return subject, rows, f'Requests for this target now use its failover configuration. {back}'
 
 
 def _fmt_failover_cancelled(ctx):

@@ -44,12 +44,12 @@ The transcriber side uses the same shape: connection errors and 5xx-equivalent b
 
 ## What happens mid-run
 
-**LLM calls.** A call that exhausts its normal retry ladder on a trigger error gets one more attempt, on the failover provider's model, timeout, and retry count for that pipeline phase. Later calls in the same run follow immediately, because failover state is checked live, not just at run start. If the failover attempt also fails, the *original* error is what gets returned and classified for deferral or retry, since that reflects the account the pipeline is actually trying to use.
+**LLM calls.** A call that exhausts its normal retry ladder on a trigger error is retried once on the failover provider. That retry runs the failover provider's full retry ladder, with its own model for the pipeline phase, its own timeout, and its own retry count. Later calls in the same run follow immediately, because failover state is checked live, not just at run start. If the failover attempt also fails, the *original* error is what gets returned and classified for deferral or retry, since that reflects the account the pipeline is actually trying to use.
 
 **Transcription.** The behavior differs by whether the failover transcriber is the same kind of backend as the active one:
 
-- **Same backend type** (API to API, or local to local): only the chunks that have not finished yet rerun on the failover settings; chunks the first pass already finished are kept.
-- **Different backend type** (API to local, or local to API): the partial results from the first pass are discarded and the whole episode reruns on the failover backend.
+- **API to API**: only the chunks that have not finished yet rerun on the failover settings; chunks the first pass already finished are kept.
+- **Any switch with a local backend on either side** (local to local, local to API, or API to local): the partial results from the first pass are discarded and the whole episode reruns on the failover backend.
 - **Short episodes** that never reach the chunk plan (single-shot transcription) switch the same way: the failed attempt reruns on the failover config, either as a single call (same backend type) or by rerunning the whole episode through the other backend's chunking path.
 
 If the failover attempt also fails, the error propagates as it did before this feature: into the offline-queue deferral (when enabled) or the normal retry ladder.
@@ -58,10 +58,10 @@ Both down at once is not a new state: it is the existing behavior for an unreach
 
 ## Health probes
 
-A background tick checks every enabled target on an interval (**Probe interval**, `failoverProbeIntervalMinutes`, 1-60 minutes, default 5): an LLM probe lists models on the provider's catalog endpoint (or the fixed Anthropic/OpenRouter endpoint); a transcriber probe lists models on the API backend. Neither sends a real completion request.
+A background tick checks every enabled target on an interval (**Probe interval**, `failoverProbeIntervalMinutes`, 1-60 minutes, default 5): an LLM probe lists models on the provider's catalog endpoint (or the fixed Anthropic/OpenRouter endpoint); an API transcriber probe requests its `/models` endpoint. Any answer other than a 5xx, 401, or 403 counts as up, because many Whisper servers have no `/models` route. A local transcriber probe checks that the local Whisper stack is installed. None of them sends a real completion or transcription request.
 
 - **Two consecutive failed probes** of an *active* target (Provider A, Provider B, or the transcriber, not a failover account itself) trigger failover automatically.
-- **N consecutive healthy probes** of the original account (**Recovery probes**, `failoverRecoveryProbes`, 1-10, default 3) cancel an *automatic* failover and switch back.
+- **N consecutive healthy probes** of the original account (**Recovery probes**, `failoverRecoveryProbes`, 1-10, default 3) cancel an *automatic* failover and switch back. Only probes taken after the failover started count.
 - A **manual** failover is never cancelled by probes. It stays active until you cancel it.
 - A run-time trigger error (an actual failed call, not a probe) triggers failover immediately, without waiting for two failed probes.
 
