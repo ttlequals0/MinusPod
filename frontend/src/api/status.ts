@@ -22,6 +22,12 @@ export interface ProcessingStatus {
       reachable: boolean | null;
     }>;
   };
+  // Provider failover (#806): which targets are on their failover account
+  // right now, keyed by target name ('llm-a', 'llm-b', 'transcriber').
+  failover?: {
+    active: string[];
+    targets: Record<string, { active: boolean; source: string | null; since: string | null }>;
+  };
 }
 
 export function getProcessingStatus(): Promise<ProcessingStatus> {

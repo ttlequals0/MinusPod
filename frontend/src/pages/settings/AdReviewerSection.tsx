@@ -9,7 +9,7 @@ import type { ModelsRefresh } from '../../hooks/useModelsRefresh';
 import { formatModelLabel } from './settingsUtils';
 import { selectBase } from '../../components/fieldStyles';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
-import { SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
+import { SAME_AS_PASS, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 
 export interface ReviewerState {
   enabled: boolean;
@@ -112,17 +112,17 @@ function AdReviewerSection({
                 className={`w-full ${selectBase}`}
               >
                 <option value={SAME_AS_PASS}>Same as pass</option>
-                <option value={SLOT_PRIMARY}>Primary</option>
+                <option value={SLOT_PRIMARY}>{SLOT_LABELS.primary}</option>
                 {secondaryProviderEnabled && (
-                  <option value={SLOT_SECONDARY}>Secondary</option>
+                  <option value={SLOT_SECONDARY}>{SLOT_LABELS.secondary}</option>
                 )}
                 {strandedOnSecondary && (
-                  <option value={SLOT_SECONDARY}>Secondary (provider off)</option>
+                  <option value={SLOT_SECONDARY}>{SLOT_LABELS.secondary} (off)</option>
                 )}
               </select>
               {strandedOnSecondary && (
                 <p className="mt-1 text-sm text-warning">
-                  Secondary provider is off, so the reviewer runs on the primary.
+                  {SLOT_LABELS.secondary} is off, so the reviewer runs on {SLOT_LABELS.primary}.
                 </p>
               )}
               <p className="mt-1 text-sm text-muted-foreground">

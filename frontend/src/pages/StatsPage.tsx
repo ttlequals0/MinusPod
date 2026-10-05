@@ -23,6 +23,7 @@ import { SortHeader, useSortState } from '../components/SortHeader';
 import DisclosureButton from '../components/DisclosureButton';
 import CostAmount from '../components/CostAmount';
 import { selectBase, inputBase, focusRing } from '../components/fieldStyles';
+import { SLOT_LABELS } from '../api/types';
 import { btnSecondary } from '../components/buttonStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 import { getErrorMessage } from '../api/client';
@@ -336,7 +337,8 @@ const ATTEMPT_COLUMNS: {
 }[] = [
   { label: 'Phase', align: 'left',
     render: (a) => `${a.phase}${a.invokingPass ? ` (pass ${a.invokingPass})` : ''}` },
-  { label: 'Provider', align: 'left', render: (a) => `${a.provider} / ${a.credentialSlot}` },
+  { label: 'Provider', align: 'left',
+    render: (a) => `${a.provider} / ${SLOT_LABELS[a.credentialSlot as keyof typeof SLOT_LABELS] ?? a.credentialSlot}` },
   { label: 'Model', align: 'left', render: (a) => a.returnedModel ?? a.model },
   { label: 'Status', align: 'left', render: (a) => a.status === 'inconclusive'
     ? <span className={`${badgeBase} font-medium ${tint.neutral}`}>Abstained</span>

@@ -39,6 +39,8 @@ interface TranscriptionSectionProps {
   transcribeChunkOverlapSeconds: number;
   whisperApiTimeoutSeconds: number;
   onWhisperApiTimeoutSecondsChange: (value: number) => void;
+  whisperMaxAttempts: number;
+  onWhisperMaxAttemptsChange: (value: number) => void;
   onTranscribeChunkOverlapSecondsChange: (value: number) => void;
   skipFlacCompression: boolean;
   onSkipFlacCompressionChange: (value: boolean) => void;
@@ -88,6 +90,8 @@ function TranscriptionSection({
   onTranscribeChunkOverlapSecondsChange,
   whisperApiTimeoutSeconds,
   onWhisperApiTimeoutSecondsChange,
+  whisperMaxAttempts,
+  onWhisperMaxAttemptsChange,
   skipFlacCompression,
   onSkipFlacCompressionChange,
   whisperPoolEnabled,
@@ -279,6 +283,21 @@ function TranscriptionSection({
                     onCommit={onWhisperApiTimeoutSecondsChange}
                   />
                   <span className="text-sm text-muted-foreground">seconds to wait per chunk</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label htmlFor="whisperMaxAttempts" className="text-sm text-muted-foreground w-44">
+                    Max upload attempts
+                  </label>
+                  <NumberInput
+                    id="whisperMaxAttempts"
+                    value={whisperMaxAttempts}
+                    min={1}
+                    max={10}
+                    fallback={2}
+                    parse={(s) => parseInt(s, 10)}
+                    onCommit={onWhisperMaxAttemptsChange}
+                  />
+                  <span className="text-sm text-muted-foreground">retries on a failed upload</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Chunk size and overlap for the parallel API path. A chunk is sent as max plus

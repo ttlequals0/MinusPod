@@ -150,10 +150,10 @@ describe('AIModelsSection: per-stage provider selects', () => {
     expect(screen.getByLabelText('Chapters Provider')).toBeDefined();
   });
 
-  it('defaults detection to "Default (Primary)" and the others to "Same as detection"', () => {
+  it('defaults detection to "Provider A" and the others to "Same as detection"', () => {
     renderSection();
     expect((screen.getByLabelText('Ad Detection Provider') as HTMLSelectElement).selectedOptions[0].textContent)
-      .toBe('Default (Primary)');
+      .toBe('Provider A');
     expect((screen.getByLabelText('Verification Provider') as HTMLSelectElement).selectedOptions[0].textContent)
       .toBe('Same as detection');
     expect((screen.getByLabelText('Chapters Provider') as HTMLSelectElement).selectedOptions[0].textContent)
@@ -194,26 +194,26 @@ describe('AIModelsSection: per-stage provider selects', () => {
 });
 
 describe('AIModelsSection: secondary provider slot', () => {
-  it('hides the Secondary option on every stage select while the secondary provider is off', () => {
+  it('hides the Provider B option on every stage select while the secondary provider is off', () => {
     renderSection();
     for (const label of ['Ad Detection Provider', 'Verification Provider', 'Chapters Provider']) {
-      expect(within(screen.getByLabelText(label)).queryByRole('option', { name: 'Secondary' })).toBeNull();
+      expect(within(screen.getByLabelText(label)).queryByRole('option', { name: 'Provider B' })).toBeNull();
     }
   });
 
-  it('shows the Secondary option once the secondary provider is enabled', () => {
+  it('shows the Provider B option once the secondary provider is enabled', () => {
     renderSection({ secondaryProviderEnabled: true });
     for (const label of ['Ad Detection Provider', 'Verification Provider', 'Chapters Provider']) {
-      expect(within(screen.getByLabelText(label)).getByRole('option', { name: 'Secondary' })).toBeDefined();
+      expect(within(screen.getByLabelText(label)).getByRole('option', { name: 'Provider B' })).toBeDefined();
     }
   });
 
-  it('stores the slot value when Secondary is picked', async () => {
+  it('stores the slot value when Provider B is picked', async () => {
     const user = userEvent.setup();
     const onDetectionProviderChange = vi.fn();
     renderSection({ secondaryProviderEnabled: true, onDetectionProviderChange });
 
-    await user.selectOptions(screen.getByLabelText('Ad Detection Provider'), 'Secondary');
+    await user.selectOptions(screen.getByLabelText('Ad Detection Provider'), 'Provider B');
 
     expect(onDetectionProviderChange).toHaveBeenCalledWith('secondary');
   });
@@ -384,23 +384,23 @@ describe('AIModelsSection: per-stage catalog states', () => {
 });
 
 describe('AIModelsSection: stored secondary slot while the secondary provider is off', () => {
-  it('keeps the stored value selected instead of reading as Default (Primary)', () => {
+  it('keeps the stored value selected instead of reading as Provider A', () => {
     renderSection({ detectionProvider: 'secondary' });
     const select = screen.getByLabelText('Ad Detection Provider') as HTMLSelectElement;
     expect(select.value).toBe('secondary');
-    expect(select.selectedOptions[0].textContent).toBe('Secondary (provider off)');
+    expect(select.selectedOptions[0].textContent).toBe('Provider B (off)');
   });
 
   it('explains which provider the stage actually runs on', () => {
     renderSection({ detectionProvider: 'secondary' });
-    expect(screen.getByText('Secondary provider is off, so this stage runs on the primary.')).toBeDefined();
+    expect(screen.getByText('Provider B is off, so this stage runs on Provider A.')).toBeDefined();
   });
 
   it('leaves stages that are not on the secondary slot alone', () => {
     renderSection({ detectionProvider: 'secondary' });
     expect(
-      within(screen.getByLabelText('Verification Provider')).queryByRole('option', { name: 'Secondary (provider off)' })
+      within(screen.getByLabelText('Verification Provider')).queryByRole('option', { name: 'Provider B (off)' })
     ).toBeNull();
-    expect(screen.getAllByText('Secondary provider is off, so this stage runs on the primary.')).toHaveLength(1);
+    expect(screen.getAllByText('Provider B is off, so this stage runs on Provider A.')).toHaveLength(1);
   });
 });

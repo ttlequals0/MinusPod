@@ -128,19 +128,19 @@ describe('AdReviewerSection: review model select', () => {
 });
 
 describe('AdReviewerSection: review provider select', () => {
-  it('renders "Same as pass" plus Primary, with Secondary hidden by default', () => {
+  it('renders "Same as pass" plus Provider A, with Provider B hidden by default', () => {
     renderSection();
     const select = screen.getByLabelText('Review provider') as HTMLSelectElement;
     expect(select.value).toBe('same_as_pass');
     const labels = Array.from(select.options).map((o) => o.textContent);
-    expect(labels).toEqual(['Same as pass', 'Primary']);
+    expect(labels).toEqual(['Same as pass', 'Provider A']);
   });
 
-  it('adds Secondary once the secondary provider is enabled', () => {
+  it('adds Provider B once the secondary provider is enabled', () => {
     renderSection({ secondaryProviderEnabled: true });
     const select = screen.getByLabelText('Review provider') as HTMLSelectElement;
     const labels = Array.from(select.options).map((o) => o.textContent);
-    expect(labels).toEqual(['Same as pass', 'Primary', 'Secondary']);
+    expect(labels).toEqual(['Same as pass', 'Provider A', 'Provider B']);
   });
 
   it('disables the review model select while the provider is "Same as pass"', () => {
@@ -186,8 +186,8 @@ describe('AdReviewerSection: review provider select', () => {
     renderSection({ reviewer: { ...baseReviewer(), provider: 'secondary' } });
     const select = screen.getByLabelText('Review provider') as HTMLSelectElement;
     expect(select.value).toBe('secondary');
-    expect(select.selectedOptions[0].textContent).toBe('Secondary (provider off)');
-    expect(screen.getByText('Secondary provider is off, so the reviewer runs on the primary.')).toBeDefined();
+    expect(select.selectedOptions[0].textContent).toBe('Provider B (off)');
+    expect(screen.getByText('Provider B is off, so the reviewer runs on Provider A.')).toBeDefined();
   });
 
   it('drops the off hint once the secondary provider is enabled', () => {
@@ -196,17 +196,17 @@ describe('AdReviewerSection: review provider select', () => {
       secondaryProviderEnabled: true,
     });
     const select = screen.getByLabelText('Review provider') as HTMLSelectElement;
-    expect(select.selectedOptions[0].textContent).toBe('Secondary');
-    expect(screen.queryByText('Secondary provider is off, so the reviewer runs on the primary.')).toBeNull();
+    expect(select.selectedOptions[0].textContent).toBe('Provider B');
+    expect(screen.queryByText('Provider B is off, so the reviewer runs on Provider A.')).toBeNull();
   });
 
-  it('stores the secondary slot value when Secondary is picked', async () => {
+  it('stores the secondary slot value when Provider B is picked', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     const reviewer = baseReviewer();
     renderSection({ reviewer, onChange, secondaryProviderEnabled: true });
 
-    await user.selectOptions(screen.getByLabelText('Review provider'), 'Secondary');
+    await user.selectOptions(screen.getByLabelText('Review provider'), 'Provider B');
 
     expect(onChange).toHaveBeenCalledWith({ ...reviewer, provider: 'secondary' });
   });

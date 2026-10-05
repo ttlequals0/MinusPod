@@ -627,6 +627,13 @@ export interface SettingValueNumber {
   isDefault: boolean;
 }
 
+// Int-or-blank settings (failover/per-provider timeout and retry overrides):
+// null means "use the provider type's default", not an unset field.
+export interface SettingValueNumberOrNull {
+  value: number | null;
+  isDefault: boolean;
+}
+
 export interface ModelPricingOverride {
   inputCostPerMtok: number;
   outputCostPerMtok: number;
@@ -723,6 +730,16 @@ export const SLOT_PRIMARY = 'primary';
 export const SLOT_SECONDARY = 'secondary';
 export const SAME_AS_DETECTION = 'same_as_detection';
 export type ProviderSlot = typeof SLOT_PRIMARY | typeof SLOT_SECONDARY;
+
+// User-facing names for the credential slots: "Provider A"/"Provider B" in
+// the UI, while the API and stored settings keep the primary/secondary
+// slot values (see llm_route.py). 'failover' covers the dedicated failover
+// account surfaced alongside the two slots (e.g. spend attempt rows).
+export const SLOT_LABELS: Record<ProviderSlot | 'failover', string> = {
+  primary: 'Provider A',
+  secondary: 'Provider B',
+  failover: 'Failover',
+};
 
 export const WHISPER_BACKENDS = {
   LOCAL: 'local' as const,
@@ -875,6 +892,35 @@ export interface Settings {
   secondaryProviderRequestsPerDay: SettingValueNumber;
   providerTokensPerMin: SettingValueNumber;
   secondaryProviderTokensPerMin: SettingValueNumber;
+  // Provider failover (#806): a dedicated LLM/Whisper account traffic moves
+  // to when the primary is down, distinct from the secondary slot above.
+  failoverLlmEnabled: SettingValueBoolean;
+  failoverLlmProvider: SettingValue;
+  failoverLlmBaseUrl: SettingValue;
+  failoverLlmTimeoutSeconds: SettingValueNumberOrNull;
+  failoverLlmMaxRetries: SettingValueNumberOrNull;
+  failoverLlmDetectionModel: SettingValue;
+  failoverLlmReviewModel: SettingValue;
+  failoverLlmVerificationModel: SettingValue;
+  failoverLlmChaptersModel: SettingValue;
+  failoverLlmApiKeyConfigured: boolean;
+  failoverWhisperEnabled: SettingValueBoolean;
+  failoverWhisperBackend: SettingValue;
+  failoverWhisperModel: SettingValue;
+  failoverWhisperApiBaseUrl: SettingValue;
+  failoverWhisperApiModel: SettingValue;
+  failoverWhisperApiTimeoutSeconds: SettingValueNumber;
+  failoverWhisperLanguage: SettingValue;
+  failoverWhisperApiKeyConfigured: boolean;
+  failoverProbeIntervalMinutes: SettingValueNumber;
+  failoverRecoveryProbes: SettingValueNumber;
+  // Blank per-provider overrides fall back to the provider type's default
+  // (see providerDefaults() in LLMProviderSection.tsx).
+  providerATimeoutSeconds: SettingValueNumberOrNull;
+  providerAMaxRetries: SettingValueNumberOrNull;
+  providerBTimeoutSeconds: SettingValueNumberOrNull;
+  providerBMaxRetries: SettingValueNumberOrNull;
+  whisperMaxAttempts: SettingValueNumber;
   pricingSourceMode: SettingValue;
   modelPricingOverrides: { value: ModelPricingOverrides; isDefault: boolean };
   apiKeyConfigured: boolean;
@@ -961,6 +1007,7 @@ export interface Settings {
     transcribeConcurrentChunks: number;
     transcribeChunkOverlapSeconds: number;
     whisperApiTimeoutSeconds: number;
+    whisperMaxAttempts: number;
     whisperPoolEnabled: boolean;
     whisperPoolMaxRequests: number;
     whisperPoolMaxEpisodes: number;
@@ -1143,6 +1190,32 @@ export interface UpdateSettingsPayload {
   secondaryProviderRequestsPerDay?: number;
   providerTokensPerMin?: number;
   secondaryProviderTokensPerMin?: number;
+  // Provider failover (#806).
+  failoverLlmEnabled?: boolean;
+  failoverLlmProvider?: LlmProvider | '';
+  failoverLlmBaseUrl?: string;
+  failoverLlmTimeoutSeconds?: number | null;
+  failoverLlmMaxRetries?: number | null;
+  failoverLlmDetectionModel?: string;
+  failoverLlmReviewModel?: string;
+  failoverLlmVerificationModel?: string;
+  failoverLlmChaptersModel?: string;
+  failoverLlmApiKey?: string;
+  failoverWhisperEnabled?: boolean;
+  failoverWhisperBackend?: WhisperBackend;
+  failoverWhisperModel?: string;
+  failoverWhisperApiBaseUrl?: string;
+  failoverWhisperApiKey?: string;
+  failoverWhisperApiModel?: string;
+  failoverWhisperApiTimeoutSeconds?: number;
+  failoverWhisperLanguage?: string;
+  failoverProbeIntervalMinutes?: number;
+  failoverRecoveryProbes?: number;
+  providerATimeoutSeconds?: number | null;
+  providerAMaxRetries?: number | null;
+  providerBTimeoutSeconds?: number | null;
+  providerBMaxRetries?: number | null;
+  whisperMaxAttempts?: number;
   pricingSourceMode?: string;
   modelPricingOverrides?: Record<string, ModelPricingOverride | null>;
   whisperBackend?: WhisperBackend;

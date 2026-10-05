@@ -126,6 +126,28 @@ export function testSecondaryProviderConnection(provider?: LlmProvider | '', bas
   });
 }
 
+// Probes the failover LLM account (#806) using its saved key; provider and
+// baseUrl override the saved type/base URL, same unsaved-draft pattern as
+// testSecondaryProviderConnection above.
+export function testFailoverProviderConnection(provider?: LlmProvider | '', baseUrl?: string) {
+  const body: Record<string, string> = {};
+  if (provider) body.provider = provider;
+  if (baseUrl !== undefined) body.baseUrl = baseUrl;
+  return apiRequest<ConnectionTestResult>('/settings/providers/failover/test-connection', {
+    method: 'POST',
+    body,
+  });
+}
+
+// Probes the failover Whisper account (#806); same unsaved-draft contract
+// as testWhisperConnection, against the failover-whisper endpoint.
+export function testFailoverWhisperConnection(baseUrl: string, model: string, skipFlacCompression: boolean) {
+  return apiRequest<ConnectionTestResult>('/settings/providers/failover-whisper/test-connection', {
+    method: 'POST',
+    body: { baseUrl, model, skipFlacCompression },
+  });
+}
+
 // Uses the saved credentials only; unsaved drafts must be saved first.
 export function testPodcastIndex() {
   return apiRequest<ConnectionTestResult>('/settings/podcast-index/test', {

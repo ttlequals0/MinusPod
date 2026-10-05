@@ -32,6 +32,7 @@ function renderSection(
     transcribeConcurrentChunks: 4, onTranscribeConcurrentChunksChange: noop,
     transcribeChunkOverlapSeconds: 30, onTranscribeChunkOverlapSecondsChange: noop,
     whisperApiTimeoutSeconds: 600, onWhisperApiTimeoutSecondsChange: noop,
+    whisperMaxAttempts: 2, onWhisperMaxAttemptsChange: noop,
     skipFlacCompression: false, onSkipFlacCompressionChange: noop,
     softTimeoutMinutes: 60, hardTimeoutMinutes: 120, softMinMinutes: 5, hardMaxMinutes: 1440,
     onSoftTimeoutChange: noop, onHardTimeoutChange: noop,
@@ -93,6 +94,11 @@ describe('TranscriptionSection whisper pool', () => {
     renderSection({}, { open: false });
     expect(screen.getByRole('button', { name: 'Transcription' }).getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByText('Chunk overlap seconds:')).toBeTruthy();
+  });
+
+  it('shows the max upload attempts field next to the request timeout', () => {
+    renderSection();
+    expect((screen.getByLabelText('Max upload attempts') as HTMLInputElement).value).toBe('2');
   });
 
   it('shows the health suggestion when it differs from the configured cap', async () => {

@@ -81,7 +81,9 @@ function SettingsGroupHeader({ title }: { title: string }) {
   );
 }
 
-type SettingScalar = string | number | boolean;
+// null covers the int-or-blank provider overrides (#806), where blank means
+// "inherit the provider type's default" rather than an unset field.
+type SettingScalar = string | number | boolean | null;
 
 type StageKey = 'detection' | 'verification' | 'chapters' | 'review';
 
@@ -250,6 +252,12 @@ function Settings() {
   const [secondaryProviderRequestsPerDay, setSecondaryProviderRequestsPerDay] = useState(0);
   const [providerTokensPerMin, setProviderTokensPerMin] = useState(0);
   const [secondaryProviderTokensPerMin, setSecondaryProviderTokensPerMin] = useState(0);
+  // Per-provider timeout/retries overrides (#806); null inherits the
+  // provider type's default (see providerDefaults() in LLMProviderSection).
+  const [providerATimeoutSeconds, setProviderATimeoutSeconds] = useState<number | null>(null);
+  const [providerAMaxRetries, setProviderAMaxRetries] = useState<number | null>(null);
+  const [providerBTimeoutSeconds, setProviderBTimeoutSeconds] = useState<number | null>(null);
+  const [providerBMaxRetries, setProviderBMaxRetries] = useState<number | null>(null);
   const [pricingSourceMode, setPricingSourceMode] = useState('auto');
   const [whisperBackend, setWhisperBackend] = useState<WhisperBackend>('' as WhisperBackend);
   const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
@@ -261,6 +269,7 @@ function Settings() {
   const [transcribeConcurrentChunks, setTranscribeConcurrentChunks] = useState(4);
   const [transcribeChunkOverlapSeconds, setTranscribeChunkOverlapSeconds] = useState(30);
   const [whisperApiTimeoutSeconds, setWhisperApiTimeoutSeconds] = useState(600);
+  const [whisperMaxAttempts, setWhisperMaxAttempts] = useState(2);
   const [whisperPoolEnabled, setWhisperPoolEnabled] = useState(false);
   const [whisperPoolMaxRequests, setWhisperPoolMaxRequests] = useState(4);
   const [whisperPoolMaxEpisodes, setWhisperPoolMaxEpisodes] = useState(1);
@@ -579,6 +588,12 @@ function Settings() {
     { key: 'secondaryProviderEnabled', kind: 'val', literal: false, value: secondaryProviderEnabled, set: setSecondaryProviderEnabled },
     { key: 'secondaryProvider', kind: 'str', value: secondaryProvider, set: (v) => setSecondaryProvider(v as LlmProvider | '') },
     { key: 'secondaryProviderBaseUrl', kind: 'str', value: secondaryProviderBaseUrl, set: setSecondaryProviderBaseUrl },
+    // Per-provider timeout/retries overrides (#806); blank (null) inherits
+    // the provider type's default instead of a literal fallback.
+    { key: 'providerATimeoutSeconds', kind: 'val', literal: null, value: providerATimeoutSeconds, set: setProviderATimeoutSeconds },
+    { key: 'providerAMaxRetries', kind: 'val', literal: null, value: providerAMaxRetries, set: setProviderAMaxRetries },
+    { key: 'providerBTimeoutSeconds', kind: 'val', literal: null, value: providerBTimeoutSeconds, set: setProviderBTimeoutSeconds },
+    { key: 'providerBMaxRetries', kind: 'val', literal: null, value: providerBMaxRetries, set: setProviderBMaxRetries },
     { key: 'providerRequestsPerMin', kind: 'val', useDefault: true, literal: 0, value: providerRequestsPerMin, set: setProviderRequestsPerMin },
     { key: 'providerRequestsPerDay', kind: 'val', useDefault: true, literal: 0, value: providerRequestsPerDay, set: setProviderRequestsPerDay },
     { key: 'secondaryProviderRequestsPerMin', kind: 'val', useDefault: true, literal: 0, value: secondaryProviderRequestsPerMin, set: setSecondaryProviderRequestsPerMin },
@@ -596,6 +611,7 @@ function Settings() {
     { key: 'transcribeConcurrentChunks', kind: 'val', useDefault: true, literal: 4, value: transcribeConcurrentChunks, set: setTranscribeConcurrentChunks },
     { key: 'transcribeChunkOverlapSeconds', kind: 'val', useDefault: true, literal: 30, value: transcribeChunkOverlapSeconds, set: setTranscribeChunkOverlapSeconds },
     { key: 'whisperApiTimeoutSeconds', kind: 'val', useDefault: true, literal: 600, value: whisperApiTimeoutSeconds, set: setWhisperApiTimeoutSeconds },
+    { key: 'whisperMaxAttempts', kind: 'val', useDefault: true, literal: 2, value: whisperMaxAttempts, set: setWhisperMaxAttempts },
     { key: 'whisperPoolEnabled', kind: 'val', useDefault: true, literal: false, value: whisperPoolEnabled, set: setWhisperPoolEnabled },
     { key: 'whisperPoolMaxRequests', kind: 'val', useDefault: true, literal: 4, value: whisperPoolMaxRequests, set: setWhisperPoolMaxRequests },
     { key: 'whisperPoolMaxEpisodes', kind: 'val', useDefault: true, literal: 1, value: whisperPoolMaxEpisodes, set: setWhisperPoolMaxEpisodes },
@@ -1073,6 +1089,14 @@ function Settings() {
         onSecondaryProviderRequestsPerDayChange={setSecondaryProviderRequestsPerDay}
         providerTokensPerMin={providerTokensPerMin}
         onProviderTokensPerMinChange={setProviderTokensPerMin}
+        providerATimeoutSeconds={providerATimeoutSeconds}
+        onProviderATimeoutSecondsChange={setProviderATimeoutSeconds}
+        providerAMaxRetries={providerAMaxRetries}
+        onProviderAMaxRetriesChange={setProviderAMaxRetries}
+        providerBTimeoutSeconds={providerBTimeoutSeconds}
+        onProviderBTimeoutSecondsChange={setProviderBTimeoutSeconds}
+        providerBMaxRetries={providerBMaxRetries}
+        onProviderBMaxRetriesChange={setProviderBMaxRetries}
         primaryAccountChanged={primaryAccountChanged}
         secondaryAccountChanged={secondaryAccountChanged}
         affectedRunsAction={affectedRunsAction}
@@ -1159,6 +1183,8 @@ function Settings() {
         transcribeChunkOverlapSeconds={transcribeChunkOverlapSeconds}
         whisperApiTimeoutSeconds={whisperApiTimeoutSeconds}
         onWhisperApiTimeoutSecondsChange={setWhisperApiTimeoutSeconds}
+        whisperMaxAttempts={whisperMaxAttempts}
+        onWhisperMaxAttemptsChange={setWhisperMaxAttempts}
         onTranscribeChunkOverlapSecondsChange={setTranscribeChunkOverlapSeconds}
         skipFlacCompression={skipFlacCompression}
         onSkipFlacCompressionChange={setSkipFlacCompression}

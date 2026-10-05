@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AffectedRunsAction, LlmProvider, StageTunables, UpdateSettingsPayload } from '../../api/types';
 import {
-  LLM_PROVIDER_LABELS, LLM_PROVIDER_OPTIONS, LLM_PROVIDERS, SLOT_PRIMARY, SLOT_SECONDARY,
+  LLM_PROVIDER_LABELS, LLM_PROVIDER_OPTIONS, LLM_PROVIDERS, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY,
 } from '../../api/types';
 import AccountSwitchPreflight from './AccountSwitchPreflight';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -60,6 +60,16 @@ interface LLMProviderSectionProps {
   onProviderTokensPerMinChange: (value: number) => void;
   secondaryProviderTokensPerMin: number;
   onSecondaryProviderTokensPerMinChange: (value: number) => void;
+  // Per-provider request timeout and retry overrides (#806); null inherits
+  // the provider type's default (see providerDefaults() below).
+  providerATimeoutSeconds: number | null;
+  onProviderATimeoutSecondsChange: (value: number | null) => void;
+  providerAMaxRetries: number | null;
+  onProviderAMaxRetriesChange: (value: number | null) => void;
+  providerBTimeoutSeconds: number | null;
+  onProviderBTimeoutSecondsChange: (value: number | null) => void;
+  providerBMaxRetries: number | null;
+  onProviderBMaxRetriesChange: (value: number | null) => void;
   // Set when the form's endpoint or provider type for that slot differs from
   // what is saved, which is what moves in-flight work to another account.
   primaryAccountChanged: boolean;
@@ -74,6 +84,15 @@ const parseIntOrZero = (s: string) => {
   const n = parseInt(s, 10);
   return Number.isFinite(n) ? n : 0;
 };
+
+// Placeholder shown for a blank timeout/retries override: mirrors the
+// provider-type fallback in get_llm_timeout/get_llm_max_retries (llm_client.py).
+function providerDefaults(type: LlmProvider | ''): { timeout: number; retries: number } {
+  if (type === LLM_PROVIDERS.ANTHROPIC || type === LLM_PROVIDERS.OPENROUTER) {
+    return { timeout: 120, retries: 3 };
+  }
+  return { timeout: 600, retries: 2 };
+}
 
 // Requests-per-minute, requests-per-day, and tokens-per-minute caps for one
 // provider account. Shown for every provider type. Drafts committed to form
@@ -185,6 +204,12 @@ interface ProviderFieldsProps {
   baseUrlLabel: string;
   baseUrl: string;
   onBaseUrlChange: (url: string) => void;
+  // "Provider A" / "Provider B": labels the timeout/retries inputs below.
+  slotLabel: string;
+  timeoutSeconds: number | null;
+  onTimeoutChange: (value: number | null) => void;
+  maxRetries: number | null;
+  onMaxRetriesChange: (value: number | null) => void;
   keyProvider: ProviderName;
   keyStatus: ProviderStatus;
   cryptoReady: boolean;
@@ -200,11 +225,13 @@ interface ProviderFieldsProps {
 function ProviderFields({
   providerSelectId, providerLabel, provider, onProviderChange,
   baseUrlInputId, baseUrlLabel, baseUrl, onBaseUrlChange,
+  slotLabel, timeoutSeconds, onTimeoutChange, maxRetries, onMaxRetriesChange,
   keyProvider, keyStatus, cryptoReady, keyLabel, keyPlaceholder, keyHelper,
   onProviderKeySave, onProviderKeyClear, onProviderKeyTest, onConnectionTest,
 }: ProviderFieldsProps) {
   const hasBaseUrl = provider === LLM_PROVIDERS.OPENAI_COMPATIBLE || provider === LLM_PROVIDERS.OLLAMA;
   const hasFixedEndpoint = provider === LLM_PROVIDERS.ANTHROPIC || provider === LLM_PROVIDERS.OPENROUTER;
+  const defaults = providerDefaults(provider);
 
   return (
     <>
@@ -251,6 +278,43 @@ function ProviderFields({
           />
         </div>
       )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label htmlFor={`${providerSelectId}TimeoutSeconds`} className="block text-sm font-medium text-foreground mb-2">
+            {slotLabel} request timeout (seconds)
+          </label>
+          <DraftNumberInput
+            id={`${providerSelectId}TimeoutSeconds`}
+            min={10}
+            max={3600}
+            step={1}
+            placeholder={String(defaults.timeout)}
+            value={timeoutSeconds}
+            fallback={null}
+            parse={parseOptionalNumber}
+            onChange={onTimeoutChange}
+            className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+          />
+        </div>
+        <div>
+          <label htmlFor={`${providerSelectId}MaxRetries`} className="block text-sm font-medium text-foreground mb-2">
+            {slotLabel} max retries
+          </label>
+          <DraftNumberInput
+            id={`${providerSelectId}MaxRetries`}
+            min={0}
+            max={10}
+            step={1}
+            placeholder={String(defaults.retries)}
+            value={maxRetries}
+            fallback={null}
+            parse={parseOptionalNumber}
+            onChange={onMaxRetriesChange}
+            className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+          />
+        </div>
+      </div>
 
       <ProviderKeyField
         provider={keyProvider}
@@ -312,6 +376,14 @@ function LLMProviderSection({
   onProviderTokensPerMinChange,
   secondaryProviderTokensPerMin,
   onSecondaryProviderTokensPerMinChange,
+  providerATimeoutSeconds,
+  onProviderATimeoutSecondsChange,
+  providerAMaxRetries,
+  onProviderAMaxRetriesChange,
+  providerBTimeoutSeconds,
+  onProviderBTimeoutSecondsChange,
+  providerBMaxRetries,
+  onProviderBMaxRetriesChange,
   primaryAccountChanged,
   secondaryAccountChanged,
   affectedRunsAction,
@@ -330,6 +402,9 @@ function LLMProviderSection({
   return (
     <CollapsibleSection title="LLM Provider" defaultOpen>
       <div className="space-y-4">
+        <div>
+          <span className="text-sm font-medium text-foreground">{SLOT_LABELS.primary}</span>
+        </div>
         <ProviderFields
           providerSelectId="llmProvider"
           providerLabel="Provider"
@@ -339,6 +414,11 @@ function LLMProviderSection({
           baseUrlLabel="Base URL"
           baseUrl={openaiBaseUrl}
           onBaseUrlChange={onBaseUrlChange}
+          slotLabel={SLOT_LABELS.primary}
+          timeoutSeconds={providerATimeoutSeconds}
+          onTimeoutChange={onProviderATimeoutSecondsChange}
+          maxRetries={providerAMaxRetries}
+          onMaxRetriesChange={onProviderAMaxRetriesChange}
           keyProvider={keyProvider ?? 'anthropic'}
           keyStatus={status}
           cryptoReady={cryptoReady}
@@ -398,7 +478,7 @@ function LLMProviderSection({
 
         <RateLimitFields
           idPrefix="provider"
-          legend="Primary provider rate limits"
+          legend={`${SLOT_LABELS.primary} rate limits`}
           rpm={providerRequestsPerMin}
           onRpmChange={onProviderRequestsPerMinChange}
           rpd={providerRequestsPerDay}
@@ -413,27 +493,32 @@ function LLMProviderSection({
               <ToggleSwitch
                 checked={secondaryProviderEnabled}
                 onChange={onSecondaryProviderEnabledChange}
-                ariaLabel="Enable secondary provider"
+                ariaLabel="Enable Provider B"
               />
               <span className="text-sm font-medium text-foreground">
-                Secondary provider
+                {SLOT_LABELS.secondary}
               </span>
             </label>
             <p className="mt-2 text-sm text-muted-foreground ml-14">
-              A second full provider that ad detection, verification, chapters, and the reviewer can each route to instead of the primary provider above. Off by default: every stage stays on the primary provider until you point it here.
+              A second provider that detection, verification, chapters and the reviewer can each route to instead of {SLOT_LABELS.primary}. Both are peers; use the Failover card below for automatic switching when one is down.
             </p>
           </div>
 
           {secondaryProviderEnabled && (
             <ProviderFields
               providerSelectId="secondaryProviderType"
-              providerLabel="Secondary provider type"
+              providerLabel="Provider B type"
               provider={secondaryProvider}
               onProviderChange={onSecondaryProviderChange}
               baseUrlInputId="secondaryProviderBaseUrl"
-              baseUrlLabel="Secondary base URL"
+              baseUrlLabel="Provider B base URL"
               baseUrl={secondaryProviderBaseUrl}
               onBaseUrlChange={onSecondaryProviderBaseUrlChange}
+              slotLabel={SLOT_LABELS.secondary}
+              timeoutSeconds={providerBTimeoutSeconds}
+              onTimeoutChange={onProviderBTimeoutSecondsChange}
+              maxRetries={providerBMaxRetries}
+              onMaxRetriesChange={onProviderBMaxRetriesChange}
               keyProvider="secondary"
               keyStatus={secondaryKeyStatus}
               cryptoReady={cryptoReady}
@@ -462,7 +547,7 @@ function LLMProviderSection({
           {secondaryProviderEnabled && (
             <RateLimitFields
               idPrefix="secondaryProvider"
-              legend="Secondary provider rate limits"
+              legend={`${SLOT_LABELS.secondary} rate limits`}
               rpm={secondaryProviderRequestsPerMin}
               onRpmChange={onSecondaryProviderRequestsPerMinChange}
               rpd={secondaryProviderRequestsPerDay}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { ClaudeModel, ModelPricingOverride, ModelPricingOverrides } from '../../api/types';
-import { SAME_AS_DETECTION, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
+import { SAME_AS_DETECTION, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import CatalogStatus from '../../components/CatalogStatus';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -106,13 +106,13 @@ function AIModelsSection({
   // also inherit detection's resolved slot via "Same as detection". Secondary
   // is listed only while the secondary provider is configured and enabled.
   const detectionSlotOptions = [
-    { value: SLOT_PRIMARY, label: 'Default (Primary)' },
-    ...(secondaryProviderEnabled ? [{ value: SLOT_SECONDARY, label: 'Secondary' }] : []),
+    { value: SLOT_PRIMARY, label: SLOT_LABELS.primary },
+    ...(secondaryProviderEnabled ? [{ value: SLOT_SECONDARY, label: SLOT_LABELS.secondary }] : []),
   ];
   const inheritedSlotOptions = [
     { value: SAME_AS_DETECTION, label: 'Same as detection' },
-    { value: SLOT_PRIMARY, label: 'Default (Primary)' },
-    ...(secondaryProviderEnabled ? [{ value: SLOT_SECONDARY, label: 'Secondary' }] : []),
+    { value: SLOT_PRIMARY, label: SLOT_LABELS.primary },
+    ...(secondaryProviderEnabled ? [{ value: SLOT_SECONDARY, label: SLOT_LABELS.secondary }] : []),
   ];
 
   const renderProviderSelect = ({
@@ -133,7 +133,7 @@ function AIModelsSection({
     // while state and the DB still say secondary.
     const strandedOnSecondary = value === SLOT_SECONDARY && !secondaryProviderEnabled;
     const shownOptions = strandedOnSecondary
-      ? [...options, { value: SLOT_SECONDARY, label: 'Secondary (provider off)' }]
+      ? [...options, { value: SLOT_SECONDARY, label: `${SLOT_LABELS.secondary} (off)` }]
       : options;
     return (
       <div>
@@ -152,7 +152,7 @@ function AIModelsSection({
         </select>
         {strandedOnSecondary && (
           <p className="mt-1 text-sm text-warning">
-            Secondary provider is off, so this stage runs on the primary.
+            {SLOT_LABELS.secondary} is off, so this stage runs on {SLOT_LABELS.primary}.
           </p>
         )}
       </div>

@@ -119,8 +119,9 @@ export async function getProviderBudgetRate(
 }
 
 // slot='secondary' previews the given provider type's catalog using the
-// secondary slot's own credentials/base URL instead of the primary slot's.
-export async function getModels(provider?: string, slot?: ProviderSlot): Promise<ClaudeModel[]> {
+// secondary slot's own credentials/base URL instead of the primary slot's;
+// slot='failover' (#806) does the same for the failover LLM account.
+export async function getModels(provider?: string, slot?: ProviderSlot | 'failover'): Promise<ClaudeModel[]> {
   const params = new URLSearchParams();
   if (provider) params.set('provider', provider);
   if (slot) params.set('slot', slot);
