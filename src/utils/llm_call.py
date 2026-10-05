@@ -643,6 +643,8 @@ def call_llm(
         episode_id=episode_id,
         pass_name=pass_name,
     )
+    # Shared across both ladder runs on purpose: ReasoningExhaustedError is
+    # never a failover trigger, so only one provider ever spends this retry.
     reasoning_retried = False
 
     def _run_ladder(client, model, llm_kwargs, max_retries, credential_slot, provider_key):
@@ -817,7 +819,11 @@ def call_llm(
                 SLOT_FAILOVER, route.provider_key)
             if response is not None:
                 return response, None
-            last_error = fo_error or last_error
+            # Keep the original trigger error: downstream deferral classifies
+            # on it, and that must track the active provider, not the failover
+            # attempt that was never the probe target.
+            logger.warning(f"[{slug}:{episode_id}] {call_label} failover attempt on "
+                            f"{route.provider_key} {route.model_id} also failed: {fo_error}")
 
     return None, _lost_window(last_error, is_window, slug, episode_id, call_label)
 

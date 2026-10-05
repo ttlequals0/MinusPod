@@ -30,6 +30,18 @@ def _outage():
     return openai.APIConnectionError(request=httpx.Request('POST', 'http://example.com'))
 
 
+def _bad_request():
+    import httpx, openai
+    resp = httpx.Response(400, request=httpx.Request('POST', 'http://example.com'))
+    return openai.BadRequestError('bad request', response=resp, body=None)
+
+
+def _not_found():
+    import httpx, openai
+    resp = httpx.Response(404, request=httpx.Request('POST', 'http://example.com'))
+    return openai.NotFoundError('not found', response=resp, body=None)
+
+
 @pytest.fixture
 def no_sleep():
     with patch.object(llm_call, '_sleep_before_retry', return_value=True):
@@ -82,8 +94,29 @@ def test_no_redispatch_when_unconfigured(no_sleep):
     trig.assert_not_called()
 
 
-def test_failover_failure_returns_original_style_error(no_sleep):
-    primary = MagicMock(); primary.create_message.side_effect = _outage()
+def test_failover_failure_keeps_original_connectivity_error(no_sleep):
+    """A primary connectivity outage stays the returned error even when the
+    failover attempt also fails, since deferral classifies on the active
+    provider's state (#806 review)."""
+    primary_error = _outage()
+    primary = MagicMock(); primary.create_message.side_effect = primary_error
+    fo_client = MagicMock(); fo_client.create_message.side_effect = _bad_request()
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(llm_call, '_failover_route', return_value=FAILOVER_ROUTE), \
+            patch.object(llm_call, 'client_for_route', return_value=fo_client), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, err = _call(primary)
+    assert response is None
+    assert err is primary_error
+    assert fo_client.create_message.call_count >= 1
+
+
+def test_failover_failure_keeps_original_not_found_error(no_sleep):
+    """The reverse case: a primary 404 stays the returned error even when the
+    failover attempt fails with a connectivity outage."""
+    primary_error = _not_found()
+    primary = MagicMock(); primary.create_message.side_effect = primary_error
     fo_client = MagicMock(); fo_client.create_message.side_effect = _outage()
     with patch.object(failover, 'is_configured', return_value=True), \
             patch.object(failover, 'trigger', return_value=True), \
@@ -91,7 +124,8 @@ def test_failover_failure_returns_original_style_error(no_sleep):
             patch.object(llm_call, 'client_for_route', return_value=fo_client), \
             patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
         response, err = _call(primary)
-    assert response is None and err is not None
+    assert response is None
+    assert err is primary_error
     assert fo_client.create_message.call_count >= 1
 
 
