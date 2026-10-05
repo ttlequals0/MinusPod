@@ -793,6 +793,24 @@ def check_whisper_connectivity(timeout: float = 5.0) -> bool:
         return False
 
 
+def _trigger_whisper_failover(original: Exception) -> None:
+    """Trigger whisper failover; if that fails, re-raise `original` so the episode still defers."""
+    import failover  # inline: see active_whisper_settings for the cycle reason
+    try:
+        failover.trigger(failover.TARGET_WHISPER, str(original))
+    except Exception as e:
+        logger.warning(f"Whisper failover trigger failed: {e}")
+        raise original from e
+
+
+def _note_whisper_settings(whisper_settings: dict) -> None:
+    """Mark the current run as having used the failover transcriber."""
+    if whisper_settings.get('is_failover'):
+        ctx = run_context.current()
+        if ctx is not None:
+            ctx.whisper_failover_used = True
+
+
 def is_whisper_failover_trigger(exc: Exception) -> bool:
     """Errors that mean this transcriber config cannot serve the episode right now."""
     return isinstance(exc, (ServiceUnavailableError, TranscriptionRejectedError,
@@ -2454,6 +2472,7 @@ class Transcriber:
         dict (e.g. a chunk loop) pass it through so every chunk agrees.
         """
         whisper_settings = whisper_settings or active_whisper_settings()
+        _note_whisper_settings(whisper_settings)
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
             return self._transcribe_via_api(
                 audio_path, whisper_settings,
@@ -2739,6 +2758,7 @@ class Transcriber:
         Returns a chunk index to trigger failover, _ABORT_CHUNK_PLAN on a blown
         budget with no switch to make, or None when the subset finishes; raises
         ServiceUnavailableError/AudioExtractionError/AudioExtractionTimeout otherwise (#806)."""
+        _note_whisper_settings(whisper_settings)
         extract_as_flac = not bool(whisper_settings.get('skip_flac_compression', False))
 
         def _process_chunk(chunk_idx: int, c_start: float, c_end: float):
@@ -2904,9 +2924,7 @@ class Transcriber:
             except (ServiceUnavailableError, TranscriptionRejectedError) as e:
                 if not can_switch_on_outage:
                     raise
-                # Inline import: see active_whisper_settings for the cycle reason.
-                import failover
-                failover.trigger(failover.TARGET_WHISPER, str(e))
+                _trigger_whisper_failover(e)
                 fo = _get_failover_whisper_settings()
                 if fo['backend'] != whisper_settings['backend']:
                     return self._transcribe_chunked_local(audio_path, duration, fo, language_override)
@@ -2946,9 +2964,7 @@ class Transcriber:
         extraction_timeouts: list[int] = []
         results: list[list[dict] | None] = [None] * num_chunks
 
-        # Class-qualified (not self._run_chunk_plan): some callers invoke this
-        # method with a duck-typed self, and an instance attribute lookup on
-        # that would shadow the real method instead of running it.
+        # Class-qualified: some callers pass a duck-typed self.
         outage = Transcriber._run_chunk_plan(
             self, plan, whisper_settings, results, connectivity_errors,
             extraction_failures, extraction_timeouts, audio_path, language_override,
@@ -2957,8 +2973,7 @@ class Transcriber:
         )
 
         if isinstance(outage, int):
-            import failover
-            failover.trigger(failover.TARGET_WHISPER, str(connectivity_errors[0]))
+            _trigger_whisper_failover(connectivity_errors[0])
             fo = _get_failover_whisper_settings()
             if fo['backend'] != whisper_settings['backend']:
                 # Different backend type: discard the partial chunk results
@@ -2967,11 +2982,10 @@ class Transcriber:
             # Same backend type: rerun only chunks still missing a result,
             # keeping what this pass finished. No further switch, already failover.
             remaining = [(i, s, e) for i, s, e in plan if results[i] is None]
-            # A straggler from the first pass's abandoned executor can still append
-            # here, but stop_on_connectivity_error=False means it cannot switch again.
+            # Fresh error lists: the second pass classifies on its own failures,
+            # and first-pass stragglers keep appending to the old ones.
             second = Transcriber._run_chunk_plan(
-                self, remaining, fo, results, connectivity_errors,
-                extraction_failures, extraction_timeouts, audio_path, language_override,
+                self, remaining, fo, results, [], [], [], audio_path, language_override,
                 prefix, max_workers, max_failed_chunks,
                 stop_on_connectivity_error=False,
             )
@@ -3070,16 +3084,13 @@ class Transcriber:
         whisper_settings: dict[str, str],
         language_override: str | None = None,
     ) -> list[dict] | None:
-        """Local-backend branch of transcribe_chunked: dynamic chunking to
-        prevent OOM, with OOM/extraction-timeout shrink-and-retry.
-
-        A trigger error (is_whisper_failover_trigger: local stack missing,
-        model load failure, or anything the API side raises if this is
-        reached as the switch target) fails the whole episode over to the
-        failover whisper config and reruns transcribe_chunked on it (#806),
-        discarding whatever partial local progress was made. Already on the
-        failover config, the error just propagates (no further hop).
-        """
+        """Local chunked transcription; a trigger error reruns the whole episode
+        on the failover whisper config, once (#806)."""
+        _note_whisper_settings(whisper_settings)
+        failover_local_model = (
+            whisper_settings.get('local_model') if whisper_settings.get('is_failover') else None)
+        # Set for the whole body so chunk sizing also sees the failover model.
+        override_token = _local_model_override.set(failover_local_model) if failover_local_model else None
         try:
             _require_local_transcription()
             return self._transcribe_chunked_local_body(
@@ -3089,11 +3100,14 @@ class Transcriber:
                 # Inline import: see active_whisper_settings for the cycle reason.
                 import failover
                 if failover.is_configured(failover.TARGET_WHISPER):
-                    failover.trigger(failover.TARGET_WHISPER, str(e))
+                    _trigger_whisper_failover(e)
                     return self.transcribe_chunked(
                         audio_path, language_override,
                         whisper_settings=_get_failover_whisper_settings())
             raise
+        finally:
+            if override_token is not None:
+                _local_model_override.reset(override_token)
 
     def _transcribe_chunked_local_body(
         self,
@@ -3102,9 +3116,7 @@ class Transcriber:
         whisper_settings: dict[str, str],
         language_override: str | None = None,
     ) -> list[dict] | None:
-        """_transcribe_chunked_local's chunking loop, factored out so the
-        try/except above wraps it without nesting the whole thing one level
-        deeper.
+        """_transcribe_chunked_local's chunking loop.
 
         1. Checks available memory and model size to calculate optimal chunk duration
         2. Processes audio in appropriately-sized chunks

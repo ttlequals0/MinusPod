@@ -2040,16 +2040,9 @@ def _build_client(provider: str, base_url: str | None = None,
                    credential_slot: str = 'primary') -> LLMClient | None:
     """Build an LLM client for a given provider without caching.
 
-    ``base_url`` overrides the DB/env-derived endpoint for non-Anthropic
-    providers (used by per-provider routing); when omitted, the effective
-    setting is used as before. ``credential_slot`` picks which secret to
-    resolve: 'primary' (default) reads the provider type's own key;
-    'secondary' reads secondary_provider_api_key, 'failover' reads
-    failover_llm_api_key, so neither slot ever reuses primary's credential
-    when it shares a provider type. An unset secondary/failover key builds
-    with no/empty key (matching the keyless-local path below) rather than
-    falling back to the primary secret; the auth error then surfaces at
-    call time, not here.
+    ``base_url`` overrides the endpoint for non-Anthropic providers.
+    ``credential_slot`` picks the secret: secondary and failover never fall
+    back to primary's key; unset, they build keyless and fail at call time.
     """
     def slot_key(primary_getter):
         if credential_slot == 'secondary':

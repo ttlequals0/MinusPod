@@ -141,6 +141,7 @@ class RunContext:
         self.timing = RunTiming()
         self.timing.add('ffmpeg', 0.0)
         self.route_snapshot = None
+        self.whisper_failover_used = False
         self._thinking_notices = {}
         self._thinking_notice_lock = threading.Lock()
 

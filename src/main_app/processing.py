@@ -167,7 +167,7 @@ from reprocess_modes import (
     FORCE_TRANSCRIBE_MODES, clear_episode_for_mode,
 )
 from splice_calibration import SPLICE_EVENTS_CALIBRATED_STATUSES, compute_splice_calibration
-from transcriber import CDN_REFUSED_PREFIX, TranscriptionRejectedError
+from transcriber import CDN_REFUSED_PREFIX
 from user_agent import download_user_agent, feed_user_agent
 from utils.constants import (
     CANCELED_ERROR_MESSAGE, EpisodeStatus, PIPELINE_REPROCESS_SOURCES,
@@ -177,6 +177,7 @@ from utils.episode_paths import episode_relative_path, published_episode_version
 from utils.errors import (
     AudioNotReadyError, AudioTooLargeError,
     LocalTranscriptionUnavailableError, ModelLoadError, ServiceUnavailableError,
+    TranscriptionRejectedError,
 )
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.http import safe_url_for_log
@@ -7070,7 +7071,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 since = failover.state(f'llm:{slot}')['since']
                 if since and since >= run_started_at:
                     used.add(slot)
-            whisper_used = failover.is_active(failover.TARGET_WHISPER)
+            whisper_used = getattr(run_context.current(), 'whisper_failover_used', False)
             if used or whisper_used:
                 run_stats['failover'] = {'llm': sorted(used), 'whisper': whisper_used}
             # File the confirms before finalizing so the recut below applies

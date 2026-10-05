@@ -199,3 +199,70 @@ def test_failover_settings_language_inherits_active():
     with patch('database.Database', return_value=db):
         s = transcriber._get_failover_whisper_settings()
     assert s['language'] == 'de' and s['api_key'] == 'k2' and s['is_failover'] is True
+
+
+def test_single_shot_trigger_failure_reraises_original_error(t):
+    original = ServiceUnavailableError('whisper', 'down')
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', side_effect=RuntimeError('db locked')), \
+            patch.object(transcriber, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
+            patch.object(t, 'transcribe', side_effect=original):
+        with pytest.raises(ServiceUnavailableError) as exc:
+            t._transcribe_chunked_parallel_api('/tmp/a.mp3', 50.0, ACTIVE)
+    assert exc.value is original
+
+
+def test_second_pass_classifies_on_its_own_errors(t):
+    """First-pass outages must not make a non-connectivity second-pass failure look like one."""
+    def fake_via_api(path, settings, **kw):
+        if settings['api_base_url'].startswith('http://a.'):
+            raise ServiceUnavailableError('whisper', 'down')
+        raise ValueError('bad audio')
+
+    seen = []
+    real = Transcriber._run_chunk_plan
+
+    def spy(self, plan, settings, results, conn, *rest, **kw):
+        seen.append(list(conn))
+        return real(self, plan, settings, results, conn, *rest, **kw)
+
+    with patch.object(failover, 'is_active', return_value=False), \
+            patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(transcriber, '_get_failover_whisper_settings', return_value=FAILOVER), \
+            patch.object(transcriber, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
+            patch.object(transcriber, 'extract_audio_chunk',
+                        side_effect=lambda path, start, end, **k: _chunk_path_for(start)), \
+            patch.object(transcriber, '_unlink_quiet'), \
+            patch.object(Transcriber, '_run_chunk_plan', spy), \
+            patch.object(t, '_transcribe_via_api', side_effect=fake_via_api):
+        assert t._transcribe_chunked_parallel_api('/tmp/a.mp3', 300.0, ACTIVE) is None
+    assert seen[1] == []
+
+
+def test_run_context_records_failover_use(t):
+    import run_context
+    ctx = run_context.begin('example-podcast', 'a1b2c3d4e5f6', run_id='r-wfo')
+    try:
+        with patch.object(t, '_transcribe_via_api', return_value=_seg(0, 1)):
+            t.transcribe('/tmp/a.mp3', whisper_settings=ACTIVE)
+            assert ctx.whisper_failover_used is False
+            t.transcribe('/tmp/a.mp3', whisper_settings=FAILOVER)
+        assert ctx.whisper_failover_used is True
+    finally:
+        run_context.end(ctx)
+
+
+def test_local_failover_model_override_covers_chunk_sizing(t):
+    local_fo = {'backend': 'local', 'language': 'en', 'is_failover': True, 'local_model': 'base'}
+    seen = []
+
+    def body(*a, **k):
+        seen.append(transcriber.WhisperModelSingleton.get_configured_model())
+        return _seg(0, 1)
+
+    with patch.object(transcriber, '_require_local_transcription'), \
+            patch.object(t, '_transcribe_chunked_local_body', side_effect=body):
+        t._transcribe_chunked_local('/tmp/a.mp3', 300.0, local_fo, None)
+    assert seen == ['base']
+    assert transcriber._local_model_override.get() is None
