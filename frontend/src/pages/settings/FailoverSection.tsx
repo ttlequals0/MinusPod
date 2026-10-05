@@ -12,7 +12,7 @@ import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { SkeletonRows } from '../../components/Skeleton';
 import { badgeBase, tint } from '../../components/badgeStyles';
-import { btnOutline, btnSecondary } from '../../components/buttonStyles';
+import { btnOutline, btnSecondary, touchTarget } from '../../components/buttonStyles';
 import { focusRing, inputBase, selectBase } from '../../components/fieldStyles';
 import { formatDateTime, formatTimeAgo } from '../../utils/format';
 import ConnectionTestButton from './ConnectionTestButton';
@@ -154,7 +154,7 @@ function TargetRow({
           aria-label={`${verb} failover for ${label}`}
           disabled={pending || (!state.active && !state.configured)}
           onClick={() => (state.active ? onCancel(name) : onTrigger(name))}
-          className={`shrink-0 px-3 py-1.5 rounded-md ${btnOutline} text-sm font-medium disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`shrink-0 px-3 py-1.5 rounded-md ${btnOutline} ${touchTarget} text-sm font-medium disabled:opacity-50 transition-colors ${focusRing}`}
         >
           {verb} failover
         </button>
@@ -203,7 +203,7 @@ function FailoverSection({
           type="button"
           onClick={onProbeNow}
           disabled={actionPending}
-          className={`px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`px-2.5 py-1 text-xs rounded ${btnSecondary} ${touchTarget} disabled:opacity-50 transition-colors ${focusRing}`}
         >
           {probePending ? 'Probing...' : 'Probe now'}
         </button>

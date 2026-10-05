@@ -5,6 +5,7 @@ import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import CatalogStatus from '../../components/CatalogStatus';
 import { formatModelLabel } from './settingsUtils';
 import { focusRing, selectBase } from '../../components/fieldStyles';
+import { touchTarget } from '../../components/buttonStyles';
 
 interface ModelSelectProps {
   id: string;
@@ -40,7 +41,7 @@ function ModelSelect({ id, label, value, catalog, onChange, description, inherit
         <button
           type="button"
           onClick={() => setTyped(!typed)}
-          className={`text-xs text-primary hover:underline transition-colors rounded ${focusRing}`}
+          className={`text-xs text-primary hover:underline transition-colors rounded ${focusRing} ${touchTarget}`}
         >
           {typed ? 'Choose from list' : 'Type a model ID'}
         </button>
