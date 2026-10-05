@@ -2474,22 +2474,29 @@ class Transcriber:
         if failover_local_model:
             override_token = _local_model_override.set(failover_local_model)
 
-        language_setting = _effective_language(language_override, whisper_settings)
-        transcribe_language = None if language_setting == 'auto' else (language_setting or 'en')
-
-        preprocessed_path = None
-        # Defensive defaults: referenced in the stats recording below even if
-        # an exception hits before the real assignments further down.
-        device = None
-        batch_size = None
-        current_model = None
-        retry_count = 0
-        # Admission guard (module-level, see GPU_TRANSCRIBE_MAX_CONCURRENT):
-        # taken for the whole call so preprocessing and every retry attempt
-        # for this episode hold the device before another local transcription
-        # can start. Released in the finally below on every exit path.
-        gpu_admission_acquired = _gpu_admission_acquire(resolve_whisper_device())
+        # try opens immediately after the override set above so the finally
+        # resets it on every exit path, including a failure before any of
+        # the lines below run.
         try:
+            preprocessed_path = None
+            # Defensive defaults: referenced in the stats recording below even if
+            # an exception hits before the real assignments further down.
+            device = None
+            batch_size = None
+            current_model = None
+            retry_count = 0
+            # Admission guard (module-level, see GPU_TRANSCRIBE_MAX_CONCURRENT):
+            # taken for the whole call so preprocessing and every retry attempt
+            # for this episode hold the device before another local transcription
+            # can start. Released in the finally below on every exit path.
+            # Bound before the call itself in case resolve_whisper_device() or
+            # the acquire raises, so the finally below never sees it unbound.
+            gpu_admission_acquired = False
+            gpu_admission_acquired = _gpu_admission_acquire(resolve_whisper_device())
+
+            language_setting = _effective_language(language_override, whisper_settings)
+            transcribe_language = None if language_setting == 'auto' else (language_setting or 'en')
+
             # Get audio duration for adaptive batch sizing
             audio_duration = self.get_audio_duration(audio_path)
 
@@ -2881,14 +2888,38 @@ class Transcriber:
         max_workers = get_pool().chunk_workers(chunk_settings['concurrent_chunks'])
         prefix = _log_prefix()
 
+        # Computed once up front (not only for the chunk-plan path below) so
+        # the single-shot branch can also switch on an outage instead of
+        # just propagating it (#806).
+        can_switch_on_outage = False
+        if allow_failover and not whisper_settings.get('is_failover'):
+            try:
+                # Inline import: see active_whisper_settings for the cycle reason.
+                import failover
+                can_switch_on_outage = failover.is_configured(failover.TARGET_WHISPER)
+            except Exception as e:
+                logger.warning(f"Could not check whisper failover configuration: {e}")
+
         # Single-shot if entire audio fits in one chunk
         if duration <= chunk_duration:
             logger.info(
                 f"Audio duration {duration/60:.1f}min fits in one chunk "
                 f"({chunk_duration}s), single-shot API transcription"
             )
-            return self.transcribe(audio_path, language_override=language_override,
-                                   whisper_settings=whisper_settings)
+            try:
+                return self.transcribe(audio_path, language_override=language_override,
+                                       whisper_settings=whisper_settings)
+            except (ServiceUnavailableError, TranscriptionRejectedError) as e:
+                if not can_switch_on_outage:
+                    raise
+                # Inline import: see active_whisper_settings for the cycle reason.
+                import failover
+                failover.trigger(failover.TARGET_WHISPER, str(e))
+                fo = _get_failover_whisper_settings()
+                if fo['backend'] != whisper_settings['backend']:
+                    return self._transcribe_chunked_local(audio_path, duration, fo, language_override)
+                return self.transcribe(audio_path, language_override=language_override,
+                                       whisper_settings=fo)
 
         # Build chunk plan: list of (idx, start, end_with_overlap)
         plan: list[tuple[int, float, float]] = []
@@ -2923,15 +2954,6 @@ class Transcriber:
         extraction_timeouts: list[int] = []
         results: list[list[dict] | None] = [None] * num_chunks
 
-        can_switch_on_outage = False
-        if allow_failover and not whisper_settings.get('is_failover'):
-            try:
-                # Inline import: see active_whisper_settings for the cycle reason.
-                import failover
-                can_switch_on_outage = failover.is_configured(failover.TARGET_WHISPER)
-            except Exception as e:
-                logger.warning(f"Could not check whisper failover configuration: {e}")
-
         # Class-qualified (not self._run_chunk_plan): some callers invoke this
         # method with a duck-typed self, and an instance attribute lookup on
         # that would shadow the real method instead of running it.
@@ -2955,6 +2977,10 @@ class Transcriber:
             # further switch (stop_on_connectivity_error=False): this is
             # already the failover config.
             remaining = [(i, s, e) for i, s, e in plan if results[i] is None]
+            # A straggler from the first pass's abandoned executor can still
+            # append to connectivity_errors/extraction_* after this point;
+            # accepted, since stop_on_connectivity_error=False here means it
+            # cannot trigger a second switch.
             second = Transcriber._run_chunk_plan(
                 self, remaining, fo, results, connectivity_errors,
                 extraction_failures, extraction_timeouts, audio_path, language_override,

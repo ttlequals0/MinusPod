@@ -112,6 +112,37 @@ def test_outage_without_failover_configured_propagates(t):
             t._transcribe_chunked_parallel_api('/tmp/a.mp3', 300.0, ACTIVE)
 
 
+def test_single_shot_outage_switches_to_failover_api(t):
+    """A short episode (duration below the chunk size) never reaches the
+    chunk plan, so the trigger handling has to wrap the single-shot call
+    directly (#806 review)."""
+    calls = []
+
+    def fake_transcribe(audio_path, language_override=None, whisper_settings=None, **kw):
+        calls.append(whisper_settings['api_base_url'])
+        if whisper_settings['api_base_url'].startswith('http://a.'):
+            raise ServiceUnavailableError('whisper', 'down')
+        return _seg(0, 1)
+
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True) as trig, \
+            patch.object(transcriber, '_get_failover_whisper_settings', return_value=FAILOVER), \
+            patch.object(transcriber, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
+            patch.object(t, 'transcribe', side_effect=fake_transcribe):
+        segs = t._transcribe_chunked_parallel_api('/tmp/a.mp3', 50.0, ACTIVE)
+    assert segs
+    trig.assert_called_once()
+    assert any(u.startswith('http://b.') for u in calls)
+
+
+def test_single_shot_outage_without_failover_configured_propagates(t):
+    with patch.object(failover, 'is_configured', return_value=False), \
+            patch.object(transcriber, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
+            patch.object(t, 'transcribe', side_effect=ServiceUnavailableError('whisper', 'down')):
+        with pytest.raises(ServiceUnavailableError):
+            t._transcribe_chunked_parallel_api('/tmp/a.mp3', 50.0, ACTIVE)
+
+
 def test_backend_type_switch_reruns_whole_episode_locally(t):
     local_fo = {**FAILOVER, 'backend': 'local', 'local_model': 'base'}
     with patch.object(failover, 'is_active', return_value=False), \
