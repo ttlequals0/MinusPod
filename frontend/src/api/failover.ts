@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import { SLOT_LABELS } from './types';
 
 export type FailoverTargetName = 'llm-a' | 'llm-b' | 'transcriber';
 export type FailoverProbeName =
@@ -62,3 +63,16 @@ export function probeFailover(): Promise<{ probes: FailoverOverview['probes'] }>
 }
 
 export const failoverQueryKey = ['failover'] as const;
+
+export const FAILOVER_TARGETS: FailoverTargetName[] = ['llm-a', 'llm-b', 'transcriber'];
+
+export const FAILOVER_TARGET_LABELS: Record<FailoverTargetName, string> = {
+  'llm-a': SLOT_LABELS.primary,
+  'llm-b': SLOT_LABELS.secondary,
+  transcriber: 'Transcriber',
+};
+
+// Event rows and status frames carry the name as a plain string.
+export function failoverTargetLabel(name: string): string {
+  return FAILOVER_TARGET_LABELS[name as FailoverTargetName] ?? name;
+}

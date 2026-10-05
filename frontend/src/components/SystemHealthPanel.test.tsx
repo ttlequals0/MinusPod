@@ -357,3 +357,32 @@ describe('SystemHealthPanel: house recipes', () => {
     expect(trigger.parentElement?.className).toContain('rounded-lg');
   });
 });
+
+describe('SystemHealthPanel: failover', () => {
+  const idle = { active: false, source: null, since: null, reason: null, configured: true };
+  const probe = { reachable: null, status: null, detail: '', checkedAt: null, healthyStreak: 0, failedStreak: 0 };
+  const failover = (llmA: boolean) => ({
+    targets: {
+      'llm-a': llmA ? { ...idle, active: true, source: 'auto' as const, since: '2026-10-05T00:00:00Z' } : idle,
+      'llm-b': idle,
+      transcriber: idle,
+    },
+    probes: {
+      'llm-a': probe, 'llm-b': probe, 'llm-failover': probe, transcriber: probe, 'transcriber-failover': probe,
+    },
+  });
+
+  it('reads all providers on their own config while nothing is failed over', () => {
+    render(<SystemHealthPanel status={status({ failover: failover(false) })} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    expect(screen.getByText('All providers on their own config')).toBeDefined();
+    expect(rollupHealth(status({ failover: failover(false) }))).toBe('healthy');
+  });
+
+  it('names the failed-over target and warns in the rollup', () => {
+    render(<SystemHealthPanel status={status({ failover: failover(true) })} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    expect(screen.getByText('Provider A on failover')).toBeDefined();
+    expect(rollupHealth(status({ failover: failover(true) }))).toBe('warning');
+  });
+});

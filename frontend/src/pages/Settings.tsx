@@ -38,6 +38,8 @@ import {
   type ProvidersResponse,
 } from '../api/providers';
 import AIModelsSection from './settings/AIModelsSection';
+import FailoverSection from './settings/FailoverSection';
+import { cancelFailover, failoverQueryKey, getFailover, probeFailover, triggerFailover, type FailoverTargetName } from '../api/failover';
 import StageTunablesSection from './settings/StageTunablesSection';
 import TranscriptionSection from './settings/TranscriptionSection';
 import AudioSection from './settings/AudioSection';
@@ -109,7 +111,7 @@ interface FieldSpec {
   // Dispatch<SetStateAction<...>> is assignable)...
   set?: (v: never) => void;
   // ...or a property patch collected into one of the nested state objects.
-  obj?: 'reviewer' | 'audioCue' | 'whisperApi';
+  obj?: 'reviewer' | 'audioCue' | 'whisperApi' | 'failoverLlm' | 'failoverWhisper';
   prop?: string;
 }
 
@@ -259,6 +261,29 @@ function Settings() {
   const [providerBTimeoutSeconds, setProviderBTimeoutSeconds] = useState<number | null>(null);
   const [providerBMaxRetries, setProviderBMaxRetries] = useState<number | null>(null);
   const [pricingSourceMode, setPricingSourceMode] = useState('auto');
+  // Provider failover (#806); the API keys save separately, like Provider B's.
+  const [failoverLlm, setFailoverLlm] = useState({
+    enabled: false,
+    provider: '' as LlmProvider | '',
+    baseUrl: '',
+    timeoutSeconds: null as number | null,
+    maxRetries: null as number | null,
+    detectionModel: '',
+    reviewModel: '',
+    verificationModel: '',
+    chaptersModel: '',
+  });
+  const [failoverWhisper, setFailoverWhisper] = useState({
+    enabled: false,
+    backend: '' as WhisperBackend,
+    model: '',
+    apiBaseUrl: '',
+    apiModel: '',
+    apiTimeoutSeconds: 600,
+    language: '',
+  });
+  const [failoverProbeIntervalMinutes, setFailoverProbeIntervalMinutes] = useState(5);
+  const [failoverRecoveryProbes, setFailoverRecoveryProbes] = useState(3);
   const [whisperBackend, setWhisperBackend] = useState<WhisperBackend>('' as WhisperBackend);
   const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
     baseUrl: '', model: '',
@@ -448,6 +473,27 @@ function Settings() {
   const reviewCatalog = effectiveReviewProvider
     ? reviewFetch
     : { ...reviewFetch, models: detectionCatalog.models };
+  const failoverCatalog = useModelCatalog(
+    failoverLlm.provider, 'failover', catalogsEnabled && failoverLlm.enabled === true,
+  );
+
+  const { data: failoverOverview, isLoading: failoverOverviewLoading } = useQuery({
+    queryKey: failoverQueryKey,
+    queryFn: getFailover,
+    refetchInterval: 30_000,
+  });
+  // One mutation for trigger, cancel and probe so the card shows a single
+  // pending state and only the latest action's error.
+  const failoverAction = useMutation({
+    mutationFn: ({ kind, target }: { kind: 'trigger' | 'cancel' | 'probe'; target?: FailoverTargetName }): Promise<unknown> => {
+      if (kind === 'probe') return probeFailover();
+      return kind === 'trigger' ? triggerFailover(target!) : cancelFailover(target!);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: failoverQueryKey });
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+    },
+  });
 
   const { data: whisperModels } = useQuery({
     queryKey: ['whisperModels'],
@@ -601,6 +647,25 @@ function Settings() {
     { key: 'providerTokensPerMin', kind: 'val', useDefault: true, literal: 0, value: providerTokensPerMin, set: setProviderTokensPerMin },
     { key: 'secondaryProviderTokensPerMin', kind: 'val', useDefault: true, literal: 0, value: secondaryProviderTokensPerMin, set: setSecondaryProviderTokensPerMin },
     { key: 'pricingSourceMode', kind: 'str', useDefault: true, value: pricingSourceMode, set: setPricingSourceMode },
+    // Provider failover (#806); timeout/retries blank (null) inherit the type default.
+    { key: 'failoverLlmEnabled', kind: 'val', literal: false, value: failoverLlm.enabled, obj: 'failoverLlm', prop: 'enabled' },
+    { key: 'failoverLlmProvider', kind: 'str', value: failoverLlm.provider, obj: 'failoverLlm', prop: 'provider' },
+    { key: 'failoverLlmBaseUrl', kind: 'str', value: failoverLlm.baseUrl, obj: 'failoverLlm', prop: 'baseUrl' },
+    { key: 'failoverLlmTimeoutSeconds', kind: 'val', literal: null, value: failoverLlm.timeoutSeconds, obj: 'failoverLlm', prop: 'timeoutSeconds' },
+    { key: 'failoverLlmMaxRetries', kind: 'val', literal: null, value: failoverLlm.maxRetries, obj: 'failoverLlm', prop: 'maxRetries' },
+    { key: 'failoverLlmDetectionModel', kind: 'str', value: failoverLlm.detectionModel, obj: 'failoverLlm', prop: 'detectionModel' },
+    { key: 'failoverLlmReviewModel', kind: 'str', value: failoverLlm.reviewModel, obj: 'failoverLlm', prop: 'reviewModel' },
+    { key: 'failoverLlmVerificationModel', kind: 'str', value: failoverLlm.verificationModel, obj: 'failoverLlm', prop: 'verificationModel' },
+    { key: 'failoverLlmChaptersModel', kind: 'str', value: failoverLlm.chaptersModel, obj: 'failoverLlm', prop: 'chaptersModel' },
+    { key: 'failoverWhisperEnabled', kind: 'val', literal: false, value: failoverWhisper.enabled, obj: 'failoverWhisper', prop: 'enabled' },
+    { key: 'failoverWhisperBackend', kind: 'str', useDefault: true, value: failoverWhisper.backend, obj: 'failoverWhisper', prop: 'backend' },
+    { key: 'failoverWhisperModel', kind: 'str', value: failoverWhisper.model, obj: 'failoverWhisper', prop: 'model' },
+    { key: 'failoverWhisperApiBaseUrl', kind: 'str', value: failoverWhisper.apiBaseUrl, obj: 'failoverWhisper', prop: 'apiBaseUrl' },
+    { key: 'failoverWhisperApiModel', kind: 'str', useDefault: true, value: failoverWhisper.apiModel, obj: 'failoverWhisper', prop: 'apiModel' },
+    { key: 'failoverWhisperApiTimeoutSeconds', kind: 'val', literal: 600, value: failoverWhisper.apiTimeoutSeconds, obj: 'failoverWhisper', prop: 'apiTimeoutSeconds' },
+    { key: 'failoverWhisperLanguage', kind: 'str', value: failoverWhisper.language, obj: 'failoverWhisper', prop: 'language' },
+    { key: 'failoverProbeIntervalMinutes', kind: 'val', useDefault: true, literal: 5, value: failoverProbeIntervalMinutes, set: setFailoverProbeIntervalMinutes },
+    { key: 'failoverRecoveryProbes', kind: 'val', useDefault: true, literal: 3, value: failoverRecoveryProbes, set: setFailoverRecoveryProbes },
     // Transcription
     { key: 'whisperBackend', kind: 'str', useDefault: true, value: whisperBackend, set: (v) => setWhisperBackend(v as WhisperBackend) },
     { key: 'whisperApiBaseUrl', kind: 'str', value: whisperApiConfig.baseUrl, obj: 'whisperApi', prop: 'baseUrl' },
@@ -722,8 +787,8 @@ function Settings() {
       // Seed every registered field from its baseline. Flat fields set
       // directly (render-phase setState, same pattern as before); nested
       // fields are collected into per-object patches and applied once.
-      const patches: Record<'reviewer' | 'audioCue' | 'whisperApi', Record<string, SettingScalar | undefined>> = {
-        reviewer: {}, audioCue: {}, whisperApi: {},
+      const patches: Record<NonNullable<FieldSpec['obj']>, Record<string, SettingScalar | undefined>> = {
+        reviewer: {}, audioCue: {}, whisperApi: {}, failoverLlm: {}, failoverWhisper: {},
       };
       for (const f of FIELDS) {
         const v = fieldBaseline(settings, f);
@@ -735,6 +800,8 @@ function Settings() {
       setReviewer((prev) => ({ ...prev, ...(patches.reviewer as Partial<typeof prev>) }));
       setAudioCue((prev) => ({ ...prev, ...(patches.audioCue as Partial<typeof prev>) }));
       setWhisperApiConfig((prev) => ({ ...prev, ...(patches.whisperApi as Partial<typeof prev>) }));
+      setFailoverLlm((prev) => ({ ...prev, ...(patches.failoverLlm as Partial<typeof prev>) }));
+      setFailoverWhisper((prev) => ({ ...prev, ...(patches.failoverWhisper as Partial<typeof prev>) }));
     }
   }
 
@@ -838,8 +905,29 @@ function Settings() {
       queryClient.invalidateQueries({ queryKey: ['whisperCapacity'] });
       // A provider or base URL change lifts a rate-limit hold server-side.
       queryClient.invalidateQueries({ queryKey: ['rateLimitHold'] });
+      // Disabling a failover clears its active state server-side.
+      queryClient.invalidateQueries({ queryKey: failoverQueryKey });
     },
   });
+
+  // Failover keys save through the main PUT, like Provider B's. The account's
+  // unsaved type and URL go with the key so the key and endpoint never split.
+  const saveFailoverKey = async (
+    payload: UpdateSettingsPayload,
+    coPersist: Array<keyof UpdateSettingsPayload> = [],
+  ) => {
+    const changed = computeChangedFields();
+    for (const key of coPersist) {
+      if (key in changed) (payload as Record<string, unknown>)[key] = changed[key];
+    }
+    await updateSettings(payload);
+    queryClient.invalidateQueries({ queryKey: ['settings'] });
+    queryClient.invalidateQueries({ queryKey: failoverQueryKey });
+    await queryClient.invalidateQueries({
+      queryKey: ['models'],
+      predicate: (q) => q.queryKey[2] === 'failover',
+    });
+  };
 
   // Single-field tunable saves (e.g. Ollama context window) commit immediately.
   const tunableMutation = useMutation({
@@ -1132,6 +1220,36 @@ function Settings() {
         pricingOverrideSavingModel={
           modelPricingMutation.isPending ? modelPricingMutation.variables?.modelId ?? null : null
         }
+      />
+
+      <FailoverSection
+        overview={failoverOverview}
+        overviewLoading={failoverOverviewLoading}
+        onTrigger={(target) => failoverAction.mutate({ kind: 'trigger', target })}
+        onCancel={(target) => failoverAction.mutate({ kind: 'cancel', target })}
+        onProbeNow={() => failoverAction.mutate({ kind: 'probe' })}
+        actionPending={failoverAction.isPending}
+        probePending={failoverAction.isPending && failoverAction.variables?.kind === 'probe'}
+        actionError={failoverAction.error ? getErrorMessage(failoverAction.error, 'Failover action failed') : null}
+        probeIntervalMinutes={failoverProbeIntervalMinutes}
+        onProbeIntervalChange={setFailoverProbeIntervalMinutes}
+        recoveryProbes={failoverRecoveryProbes}
+        onRecoveryProbesChange={setFailoverRecoveryProbes}
+        llm={{ ...failoverLlm, apiKeyConfigured: settings?.failoverLlmApiKeyConfigured ?? false }}
+        onLlmChange={(patch) => setFailoverLlm((prev) => ({ ...prev, ...patch }))}
+        onLlmApiKeySave={(apiKey) => saveFailoverKey(
+          { failoverLlmApiKey: apiKey }, ['failoverLlmProvider', 'failoverLlmBaseUrl'],
+        )}
+        onLlmApiKeyClear={() => saveFailoverKey({ failoverLlmApiKey: '' })}
+        failoverCatalog={failoverCatalog}
+        whisper={{ ...failoverWhisper, apiKeyConfigured: settings?.failoverWhisperApiKeyConfigured ?? false }}
+        onWhisperChange={(patch) => setFailoverWhisper((prev) => ({ ...prev, ...patch }))}
+        onWhisperApiKeySave={(apiKey) => saveFailoverKey(
+          { failoverWhisperApiKey: apiKey }, ['failoverWhisperApiBaseUrl'],
+        )}
+        onWhisperApiKeyClear={() => saveFailoverKey({ failoverWhisperApiKey: '' })}
+        skipFlacCompression={skipFlacCompression}
+        cryptoReady={providersState?.cryptoReady ?? false}
       />
 
       {settings?.stageTunables && settings?.stageTunableDefaults && (

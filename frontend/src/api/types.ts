@@ -1,6 +1,7 @@
 import type { DetectionStage } from '../utils/detectionStage';
 import type { CorroborationSource } from '../utils/corroboration';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
+import type { FailoverOverview } from './failover';
 
 // Per-feed episode status counts (#466). Keys use the API status aliases
 // (DB 'processed' arrives as 'completed'); 'deferred' is the offline queue.
@@ -1011,6 +1012,10 @@ export interface Settings {
     whisperPoolEnabled: boolean;
     whisperPoolMaxRequests: number;
     whisperPoolMaxEpisodes: number;
+    failoverWhisperBackend: WhisperBackend;
+    failoverWhisperApiModel: string;
+    failoverProbeIntervalMinutes: number;
+    failoverRecoveryProbes: number;
     audioCueDetectionEnabled: boolean;
     audioCueFreqMinHz: number;
     audioCueFreqMaxHz: number;
@@ -1390,6 +1395,7 @@ export interface SystemStatus {
     lastSuccessfulRefreshAt: string | null;
     nextRetryAt: string | null;
   };
+  failover?: Pick<FailoverOverview, 'targets' | 'probes'>;
   security?: {
     cryptoReady: boolean;
     plaintextSecretsCount: number;

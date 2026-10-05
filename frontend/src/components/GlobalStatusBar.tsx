@@ -9,6 +9,8 @@ import ChevronCaret from './ChevronCaret';
 import { apiRequest } from '../api/client';
 import { tint } from './badgeStyles';
 import ProcessingJobProgress, { formatJobDuration } from './ProcessingJobProgress';
+import { failoverTargetLabel } from '../api/failover';
+import type { ProcessingStatus } from '../api/status';
 
 interface ProcessingJob {
   slug: string;
@@ -60,6 +62,7 @@ interface StatusData {
   queuedEpisodes: QueuedEpisode[];
   feedRefreshes: FeedRefresh[];
   hold?: QueueHold;
+  failover?: ProcessingStatus['failover'];
   lastUpdated: number;
   revision?: number;
 }
@@ -105,8 +108,8 @@ function rateLimitText(hold: QueueHold): string {
   return `Provider rate limit. ${resumesText(hold.holdUntil)}${started}`;
 }
 
-/** Short summary for the collapsed bar, or null when nothing is held; compact is the phone wording. */
-function holdSummary(hold: QueueHold | undefined, compact = false): string | null {
+/** Queue-hold wording for the collapsed bar, or null when nothing is held; compact is the phone wording. */
+function queueHoldText(hold: QueueHold | undefined, compact = false): string | null {
   if (!hold) return null;
   if (hold.queuePaused) {
     if (!hold.holdUntil) return 'Queue paused';
@@ -122,6 +125,24 @@ function holdSummary(hold: QueueHold | undefined, compact = false): string | nul
   return null;
 }
 
+const FAILOVER_SOURCE_TEXT: Record<string, string> = {
+  auto: 'after a failed request',
+  probe: 'after a failed probe',
+  manual: 'triggered manually',
+};
+
+function failoverText(failover: StatusData['failover'], compact: boolean): string | null {
+  if (!failover?.active?.length) return null;
+  const names = failover.active.map(failoverTargetLabel).join(', ');
+  return compact ? `Failover: ${names}` : `Failover active: ${names}`;
+}
+
+/** Short summary for the collapsed bar: failover first, then any queue hold. */
+function holdSummary(status: StatusData | null, compact = false): string | null {
+  const parts = [failoverText(status?.failover, compact), queueHoldText(status?.hold, compact)]
+    .filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join('; ') : null;
+}
 
 /** The running jobs in a frame, keyed slug:episodeId. Older frames carry only
  *  currentJob, so that is the fallback. */
@@ -239,8 +260,10 @@ function GlobalStatusBar() {
   // A hold counts as activity: an idle queue that is paused or waiting on a
   // service looks identical to an empty one, which is the case worth surfacing.
   const hold = status?.hold;
-  const summary = holdSummary(hold);
-  const compactSummary = holdSummary(hold, true);
+  const holdText = queueHoldText(hold);
+  const summary = holdSummary(status);
+  const compactSummary = holdSummary(status, true);
+  const failoverActive = status?.failover?.active ?? [];
   const hasActivity = status?.currentJob || (status?.queueLength ?? 0) > 0
     || (status?.feedRefreshes?.length ?? 0) > 0 || summary !== null;
   if (!hasActivity) {
@@ -353,10 +376,29 @@ function GlobalStatusBar() {
             />
           ))}
 
-          {/* Queue holds: why work is not moving, and when it resumes */}
-          {summary && hold && (
+          {/* Targets running on their failover account */}
+          {failoverActive.length > 0 && (
             <div className="py-2 border-b border-border/30">
-              <p className="text-xs font-medium text-warning mb-1">{summary}</p>
+              <p className="text-xs font-medium text-warning mb-1">Failover</p>
+              <ul className="space-y-1">
+                {failoverActive.map((name) => {
+                  const target = status?.failover?.targets[name];
+                  return (
+                    <li key={name} className="text-xs text-foreground">
+                      {failoverTargetLabel(name)} on its failover account
+                      {target?.since ? ` since ${formatClock(target.since)}` : ''}
+                      {target?.source ? `, ${FAILOVER_SOURCE_TEXT[target.source] ?? target.source}` : ''}.
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* Queue holds: why work is not moving, and when it resumes */}
+          {holdText && hold && (
+            <div className="py-2 border-b border-border/30">
+              <p className="text-xs font-medium text-warning mb-1">{holdText}</p>
               <ul className="space-y-1">
                 {hold.queuePaused && (
                   <li className="text-xs text-foreground">

@@ -290,6 +290,48 @@ describe('GlobalStatusBar multiple jobs', () => {
   });
 });
 
+describe('GlobalStatusBar failover', () => {
+  beforeEach(() => {
+    FakeEventSource.instances = [];
+    installStatusFetch();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const target = (active: boolean) => ({
+    active, source: active ? 'manual' : null, since: active ? new Date().toISOString() : null,
+  });
+
+  it('shows on an idle queue while a target is failed over', async () => {
+    await renderBar(makeStatus({
+      hold: emptyHold(),
+      failover: { active: ['llm-a'], targets: { 'llm-a': target(true), 'llm-b': target(false), transcriber: target(false) } },
+    }));
+    const bar = screen.getByRole('button', { name: 'Expand status bar' });
+    expect(bar.textContent).toContain('Failover active: Provider A');
+  });
+
+  it('lists each failed-over target with its source once expanded', async () => {
+    await renderBar(makeStatus({
+      failover: { active: ['llm-a', 'transcriber'], targets: { 'llm-a': target(true), 'llm-b': target(false), transcriber: target(true) } },
+    }));
+    act(() => {
+      screen.getByRole('button', { name: 'Expand status bar' }).click();
+    });
+    expect(holdRow('Provider A').textContent).toMatch(/manual/);
+    expect(holdRow('Transcriber').textContent).toMatch(/since \d{1,2}:\d{2}/);
+  });
+
+  it('stays hidden when no target is failed over', async () => {
+    const { container } = await renderBar(makeStatus({
+      failover: { active: [], targets: { 'llm-a': target(false), 'llm-b': target(false), transcriber: target(false) } },
+    }));
+    expect(container.firstChild).toBeNull();
+  });
+});
+
 describe('GlobalStatusBar completion invalidation', () => {
   beforeEach(() => {
     vi.useFakeTimers();

@@ -42,8 +42,9 @@ vi.mock('./settings/ProcessingQueueSection', () => ({ default: () => null }));
 vi.mock('./settings/AppearanceSection', () => ({ default: () => null }));
 vi.mock('./settings/PodcastIndexSection', () => ({ default: () => null }));
 vi.mock('./settings/LLMProviderSection', () => ({ default: () => null }));
-vi.mock('./settings/AIModelsSection', () => ({ default: () => null }));
-vi.mock('./settings/StageTunablesSection', () => ({ default: () => null }));
+vi.mock('./settings/AIModelsSection', () => ({ default: () => <div data-testid="ai-models-section" /> }));
+vi.mock('./settings/FailoverSection', () => ({ default: () => <div data-testid="failover-section" /> }));
+vi.mock('./settings/StageTunablesSection', () => ({ default: () => <div data-testid="stage-tunables-section" /> }));
 vi.mock('./settings/TranscriptionSection', () => ({ default: () => null }));
 vi.mock('./settings/AudioSection', () => ({ default: () => null }));
 vi.mock('./settings/CoverArtSection', () => ({ default: () => null }));
@@ -124,6 +125,14 @@ vi.mock('../api/providers', () => ({
   testLlmConnection: vi.fn(),
   testSecondaryProviderConnection: vi.fn(),
   testPodcastIndex: vi.fn(),
+}));
+
+vi.mock('../api/failover', () => ({
+  getFailover: vi.fn().mockResolvedValue({ targets: {}, probes: {}, policy: { probeIntervalMinutes: 5, recoveryProbes: 3 }, events: [] }),
+  triggerFailover: vi.fn(),
+  cancelFailover: vi.fn(),
+  probeFailover: vi.fn(),
+  failoverQueryKey: ['failover'],
 }));
 
 vi.mock('../api/feeds', () => ({
@@ -279,6 +288,21 @@ describe('Settings: Ad Reviewer placement', () => {
 
     const experiments = screen.getByRole('heading', { name: 'Experiments' });
     expect(precedes(adReviewer, experiments)).toBe(true);
+  });
+});
+
+describe('Settings: Failover placement', () => {
+  function precedes(a: HTMLElement, b: HTMLElement) {
+    return Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }
+
+  it('renders the Failover card after AI Models and before LLM Tunables', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    renderSettings();
+
+    const failover = await screen.findByTestId('failover-section');
+    expect(precedes(screen.getByTestId('ai-models-section'), failover)).toBe(true);
+    expect(precedes(failover, screen.getByTestId('stage-tunables-section'))).toBe(true);
   });
 });
 

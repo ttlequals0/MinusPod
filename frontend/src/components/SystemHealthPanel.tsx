@@ -7,6 +7,7 @@ import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
 import { badgeBase, tint } from './badgeStyles';
 import { btnSecondary, touchTarget } from './buttonStyles';
+import { FAILOVER_TARGETS, FAILOVER_TARGET_LABELS, type FailoverTargetName } from '../api/failover';
 
 const NODE_STALE_MS = 10 * 60 * 1000;
 
@@ -55,16 +56,22 @@ function podpingHealth(p: SystemStatus['podping'], now = Date.now()): Health | '
   return p.nodes.some((node) => node !== active && nodeFresh(node, now)) ? 'healthy' : 'warning';
 }
 
+function failedOver(status: SystemStatus): FailoverTargetName[] {
+  const targets = status.failover?.targets;
+  return targets ? FAILOVER_TARGETS.filter((name) => targets[name]?.active) : [];
+}
+
 // Single rollup across the health signals: transcriber down or every Podping
-// node down is critical; a degraded refresh, a partial Podping outage, or a
-// failed last transcription is a warning; otherwise healthy.
+// node down is critical; a degraded refresh, a partial Podping outage, a
+// failed last transcription, or any target on failover is a warning.
 export function rollupHealth(status: SystemStatus): Health {
   const t = status.transcriber;
   const p = status.podping;
   const f = status.feedRefresh;
   const podping = podpingHealth(p);
   if (t?.available === false || podping === 'critical') return 'critical';
-  if (f?.outageDegraded || podping === 'warning' || t?.lastOutcome?.status === 'failed') {
+  if (f?.outageDegraded || podping === 'warning' || t?.lastOutcome?.status === 'failed'
+      || failedOver(status).length > 0) {
     return 'warning';
   }
   return 'healthy';
@@ -238,9 +245,17 @@ function FeedRefreshRow({ f }: { f: NonNullable<SystemStatus['feedRefresh']> }) 
   return <Row tone="healthy" label="Feed refresh" detail={`healthy; last success ${last}`} />;
 }
 
+function FailoverRow({ status }: { status: SystemStatus }) {
+  const active = failedOver(status);
+  const detail = active.length > 0
+    ? `${active.map((name) => FAILOVER_TARGET_LABELS[name]).join(', ')} on failover`
+    : 'All providers on their own config';
+  return <Row tone={active.length > 0 ? 'warning' : 'healthy'} label="Failover" detail={detail} />;
+}
+
 function SystemHealthPanel({ status }: { status: SystemStatus }) {
   const [open, setOpen] = useState(false);
-  if (!status.transcriber && !status.podping && !status.feedRefresh) return null;
+  if (!status.transcriber && !status.podping && !status.feedRefresh && !status.failover) return null;
   const overall = rollupHealth(status);
   return (
     <div className="mt-4 rounded-lg border border-border">
@@ -263,6 +278,7 @@ function SystemHealthPanel({ status }: { status: SystemStatus }) {
           {status.transcriber && <TranscriberRow t={status.transcriber} />}
           {status.podping && <PodpingRow p={status.podping} />}
           {status.feedRefresh && <FeedRefreshRow f={status.feedRefresh} />}
+          {status.failover && <FailoverRow status={status} />}
         </div>
       )}
     </div>

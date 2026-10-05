@@ -1,10 +1,12 @@
 import { apiRequest } from './client';
 import type { LlmProvider, ProviderSlot, WhisperHealthProbe } from './types';
 
-// 'secondary' has no dedicated /settings/providers/secondary REST surface
-// (unlike the others): its key saves/clears through PUT /settings and its
-// test hits /settings/providers/secondary/test-connection directly.
-export type ProviderName = 'anthropic' | 'openai' | 'openrouter' | 'whisper' | 'ollama' | 'secondary';
+// 'secondary' and the two failover accounts have no dedicated
+// /settings/providers/<name> REST surface (unlike the others): their keys
+// save/clear through PUT /settings and their tests hit test-connection directly.
+export type ProviderName =
+  | 'anthropic' | 'openai' | 'openrouter' | 'whisper' | 'ollama' | 'secondary'
+  | 'failover' | 'failover-whisper';
 
 export interface ProviderStatus {
   configured: boolean;

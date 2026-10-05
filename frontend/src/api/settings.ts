@@ -132,7 +132,7 @@ export async function getModels(provider?: string, slot?: ProviderSlot | 'failov
 
 // One query key shape for a stage's catalog, so a refresh can invalidate the
 // slot it rebuilt instead of the whole ['models'] prefix.
-export function modelsQueryOptionsFor(provider: string, slot: ProviderSlot) {
+export function modelsQueryOptionsFor(provider: string, slot: ProviderSlot | 'failover') {
   return {
     queryKey: ['models', provider, slot] as const,
     queryFn: () => getModels(provider, slot),

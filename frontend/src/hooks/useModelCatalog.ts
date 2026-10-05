@@ -11,7 +11,7 @@ export interface ModelCatalog {
 /** One stage's model catalog, keyed by the provider and slot it resolves to. */
 export function useModelCatalog(
   provider: string,
-  slot: ProviderSlot,
+  slot: ProviderSlot | 'failover',
   enabled: boolean,
 ): ModelCatalog {
   const { data, isLoading, isError } = useQuery({
