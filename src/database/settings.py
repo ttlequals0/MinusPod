@@ -310,7 +310,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default=DEFAULT_OPENAI_BASE_URL, seeded=True, in_ad_reset=True,
         payload_key='secondaryProviderBaseUrl'),
 
-    # Provider failover (#806). All DB-only; see failover.py.
+    # Provider failover settings.
     'failover_llm_enabled': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='failoverLlmEnabled', payload_kind='bool'),
@@ -359,8 +359,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'failover_recovery_probes': SettingSpec(
         default='3', seeded=True, validator=_int_in_range((1, 10)),
         payload_key='failoverRecoveryProbes', payload_kind='int'),
-    # Per-slot LLM request timeout and retries; blank means the provider
-    # type default in llm_client.get_llm_timeout / get_llm_max_retries.
+    # Blank per-slot LLM overrides use the provider-type default.
     'llm_timeout_seconds': SettingSpec(
         default=None, seeded=True, payload_key='providerATimeoutSeconds',
         payload_kind='int'),
@@ -916,8 +915,7 @@ del _key
 AD_RESET_SETTING_KEYS = tuple(
     key for key, spec in SETTINGS_REGISTRY.items() if spec.in_ad_reset)
 
-# Per-phase failover DB keys, for the failover state service and route
-# override (see failover.py, task 2+).
+# Per-phase failover keys used by settings and routing.
 FAILOVER_LLM_KEYS = (
     'failover_llm_enabled', 'failover_llm_provider', 'failover_llm_base_url',
     'failover_llm_timeout_seconds', 'failover_llm_max_retries',

@@ -15,6 +15,7 @@ release notes.
 - Visiting the server root redirects to the web UI. (#808)
 - Export selected feeds as OPML from the Feeds page. (#810)
 - Choose Podcasts or Episodes from an icon menu in the mobile dashboard toolbar.
+- API settings accept failover configuration and Provider B field aliases.
 
 ### Fixed
 - The OPML picker shows feed-loading errors with retry and keeps selected feeds in sync after a refresh.
@@ -23,6 +24,13 @@ release notes.
 - The OPML export dialog now has an accessible name for screen readers.
 - OPML picker rows and actions have 44 px mobile tap targets, long feed names wrap into view, and list scrolling stays inside the dialog.
 - The full navigation collapses below 1280 px so header controls stay visible without crowding.
+- Reduced the processing mode selector's leading padding.
+- Invalid failover settings are rejected without partially saving changes.
+- Successful processing resets the episode retry budget before a future automatic rerun.
+- Cancelling a rerun preserves the published audio and removes only its unpublished replacement.
+- Public episode URLs no longer expose unpublished processed files. Reprocessing advances the file version even for unversioned publications.
+- Local feeds report byte length and duration for the audio actually served.
+- Startup uses an existence query for the search index and runs the historical marker repair once, recording completion only after a successful transaction.
 
 ### Security
 - Updated fast-uri to 3.1.8 to fix a moderate vulnerability in frontend build tooling.

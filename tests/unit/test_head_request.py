@@ -10,6 +10,7 @@ import pytest
 import requests.exceptions
 
 from tests.app_bootstrap import bootstrap
+from utils.episode_paths import episode_relative_path
 
 _test_data_dir = bootstrap('head_test_')
 from main_app import app
@@ -109,7 +110,12 @@ class TestHeadRequestProcessedEpisode:
         client, feed_map, tmp_path,
     ):
         mock_feed_map.return_value = feed_map
-        mock_db.get_episode.return_value = {'status': 'processed'}
+        mock_db.get_episode.return_value = {
+            'status': 'processed',
+            'episode_id': 'abc123def456',
+            'processed_version': 0,
+            'processed_file': episode_relative_path('abc123def456', 0),
+        }
 
         # Create a fake audio file
         fake_mp3 = tmp_path / 'episode.mp3'

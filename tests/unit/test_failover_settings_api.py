@@ -10,6 +10,8 @@ from tests.app_bootstrap import authenticate_test_client
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='failover-settings-test-'))
 
+from api import get_database
+
 FAILOVER_PAYLOAD = {
     'failoverLlmEnabled': True,
     'failoverLlmProvider': 'openai-compatible',
@@ -53,12 +55,8 @@ _WRITTEN_KEYS = (
 
 @pytest.fixture
 def hdr(app_client):
-    from api import get_database
     db = get_database()
-    # A provider/slot change makes the PUT handler kick off a background
-    # self-test of the review route; with no real secondary endpoint behind
-    # it, that self-test opens the in-process LLM circuit breaker for the
-    # test's (provider, slot), which then leaks into unrelated later tests.
+    # Prevent the provider-change self-test from opening a shared circuit breaker.
     db.set_setting('reviewer_calibration_on_change', 'false', is_default=False)
     token = authenticate_test_client(app_client)
     yield token
@@ -106,6 +104,47 @@ def test_put_rejects_bad_values(app_client, hdr, payload):
     assert r.status_code == 400
 
 
+@pytest.mark.parametrize('payload', [
+    {'detectionProvider': []},
+    {'verificationProvider': {}},
+])
+def test_stage_provider_aliases_reject_unhashable_values(app_client, hdr, payload):
+    r = app_client.put('/api/v1/settings/ad-detection', json=payload, headers=hdr)
+    assert r.status_code == 400
+
+
+@pytest.mark.parametrize(('key', 'value'), [
+    ('failoverLlmEnabled', 'false'),
+    ('failoverWhisperEnabled', 1),
+    ('failoverLlmTimeoutSeconds', 90.5),
+    ('failoverLlmMaxRetries', True),
+    ('providerATimeoutSeconds', 90.5),
+    ('failoverWhisperApiTimeoutSeconds', True),
+    ('failoverProbeIntervalMinutes', 2.5),
+    ('failoverRecoveryProbes', False),
+    ('whisperMaxAttempts', False),
+    ('whisperMaxAttempts', True),
+    ('whisperMaxAttempts', 2.5),
+    ('whisperMaxAttempts', '3'),
+    ('failoverLlmProvider', []),
+    ('failoverLlmDetectionModel', {}),
+    ('failoverWhisperModel', None),
+    ('failoverWhisperApiModel', []),
+    ('failoverWhisperLanguage', {}),
+    ('failoverLlmApiKey', 5),
+    ('failoverWhisperApiKey', []),
+    ('failoverWhisperApiBaseUrl', {}),
+])
+def test_invalid_failover_types_do_not_partially_write(app_client, hdr, key, value):
+    db = get_database()
+    db.set_setting('failover_llm_detection_model', 'existing-model', is_default=False)
+    r = app_client.put('/api/v1/settings/ad-detection', json={
+        'failoverLlmDetectionModel': 'replacement-model', key: value,
+    }, headers=hdr)
+    assert r.status_code == 400
+    assert db.get_setting('failover_llm_detection_model') == 'existing-model'
+
+
 def test_blank_timeout_clears_to_type_default(app_client, hdr):
     app_client.put('/api/v1/settings/ad-detection',
                    json={'providerATimeoutSeconds': 90}, headers=hdr)
@@ -143,7 +182,6 @@ def test_slot_aliases_accepted_for_stage_routing(app_client, hdr):
 
 
 def test_disabling_failover_clears_active_state(app_client, hdr):
-    from api import get_database
     db = get_database()
     db.set_setting('failover_state:llm:primary',
                    '{"active": true, "source": "manual", "since": "x", "reason": "r"}',

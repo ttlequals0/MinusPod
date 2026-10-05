@@ -44,6 +44,7 @@ from config import (
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX, count_pending_review,
 )
 from utils.markers import collapse_duplicate_markers
+from utils.text import extract_text_in_range
 
 # 2.63.2-2.67.0 snippets named the differential hold by its short form.
 _LEGACY_SNIPPET_REASONS = {'differential': HOLD_REASON_DIFFERENTIAL_UNCORROBORATED}
@@ -1189,8 +1190,8 @@ class SchemaMixin:
         # Auto-populate search index if empty
         search_index_freshly_populated = False
         try:
-            cursor = conn.execute("SELECT COUNT(*) FROM search_index")
-            if cursor.fetchone()[0] == 0:
+            cursor = conn.execute("SELECT 1 FROM search_index LIMIT 1")
+            if cursor.fetchone() is None:
                 logger.info("Search index is empty, rebuilding...")
                 count = self.rebuild_search_index()
                 search_index_freshly_populated = True
@@ -3406,12 +3407,20 @@ class SchemaMixin:
             )
 
     def _cleanup_zyn_ad_markers(self, conn):
+        gate = 'cleanup_zyn_ad_markers_once'
+        transaction_started = False
         try:
-            from utils.text import extract_text_in_range
-        except Exception as e:
-            logger.warning(f"Migration: ad-marker Zyn cleanup skipped (import failed): {e}")
-            return
-        try:
+            if conn.execute(
+                    "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)
+            ).fetchone() is not None:
+                return
+            conn.execute("BEGIN IMMEDIATE")
+            transaction_started = True
+            if conn.execute(
+                    "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)
+            ).fetchone() is not None:
+                conn.rollback()
+                return
             rows = conn.execute(
                 "SELECT episode_id, ad_markers_json, original_transcript_text "
                 "FROM episode_details "
@@ -3455,13 +3464,16 @@ class SchemaMixin:
                         (json.dumps(markers), row['episode_id'])
                     )
                     episodes_touched += 1
+            conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
             if markers_cleared:
-                conn.commit()
                 logger.info(
                     f"Migration: cleared sponsor='Zyn' on {markers_cleared} ad markers "
                     f"across {episodes_touched} episodes whose detected text does not contain 'Zyn'"
                 )
         except Exception as e:
+            if transaction_started:
+                conn.rollback()
             logger.warning(f"Migration: ad-marker Zyn cleanup failed: {e}")
 
     def _collapse_duplicate_ad_markers(self, conn):

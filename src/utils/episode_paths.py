@@ -23,6 +23,23 @@ def episode_relative_path(episode_id: str, version: int | None = None,
     return f"episodes/{episode_filename(episode_id, version, extension)}"
 
 
+def published_episode_version(episode: dict | None) -> int | None:
+    """Return the version only when its stored path proves publication."""
+    if not episode:
+        return None
+    version = episode.get('processed_version')
+    if version is None:
+        version = 0
+    if type(version) is not int or version < 0:
+        return None
+    episode_id = episode.get('episode_id')
+    if not isinstance(episode_id, str) or not episode_id:
+        return None
+    if episode.get('processed_file') != episode_relative_path(episode_id, version):
+        return None
+    return version
+
+
 def episode_public_url(base_url: str, slug: str, episode_id: str,
                         version: int | None = None,
                         extension: str = ".mp3",

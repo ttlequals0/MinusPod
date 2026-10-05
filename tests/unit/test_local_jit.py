@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tests.app_bootstrap import bootstrap
+from utils.episode_paths import episode_relative_path, published_episode_version
 
 _test_data_dir = bootstrap('local_jit_test_', reset_storage=True)
 
@@ -43,6 +44,8 @@ _ALL_LOCAL_JIT_SLUGS = [
     'locqbusy', 'locproc', 'locfail', 'locperm', 'locmissing',
     'subqueue', 'locrange', 'locprocessed',
     'locreprocu', 'locreprocv', 'locreprocstale',
+    'locfuturefast', 'locunpubzero', 'locpubzero', 'lochistorical',
+    'locpendinghead',
     'subproc', 'subperm',
 ]
 
@@ -266,6 +269,18 @@ def _write_original(slug, episode_id, data):
     return path
 
 
+def test_published_episode_version_requires_matching_metadata():
+    episode = {
+        'episode_id': 's01e01',
+        'processed_version': None,
+        'processed_file': episode_relative_path('s01e01', 0),
+    }
+    assert published_episode_version(episode) == 0
+    assert published_episode_version({**episode, 'processed_file': 'episodes/other.mp3'}) is None
+    assert published_episode_version({**episode, 'processed_version': -1}) is None
+    assert published_episode_version({**episode, 'processed_version': '0'}) is None
+
+
 def test_local_discovered_queue_busy_serves_original_and_still_queues():
     """(1) discovered + original present + queue busy -> 200 original,
     while the JIT/queue-stamp attempt still happens in the background."""
@@ -405,7 +420,8 @@ def test_local_processed_serves_processed_file_fast_path_untouched():
     # INSERT (see database/episodes.py upsert_episode) -- create discovered
     # first, then transition to processed.
     _make_local_podcast_and_episode(slug, ep, status='discovered')
-    db.upsert_episode(slug, ep, status='processed', processed_version=1)
+    db.upsert_episode(slug, ep, status='processed', processed_version=1,
+                      processed_file=episode_relative_path(ep, 1))
     _write_original(slug, ep, b'ORIGINAL-SHOULD-NOT-BE-SERVED')
     processed_path = storage.get_episode_path(slug, ep, version=1)
     processed_path.parent.mkdir(parents=True, exist_ok=True)
@@ -434,7 +450,8 @@ def test_local_reprocess_window_serves_processed_file_unversioned_url():
     original."""
     slug, ep = 'locreprocu', 's01e01'
     _make_local_podcast_and_episode(slug, ep, status='discovered')
-    db.upsert_episode(slug, ep, status='pending', processed_version=1)
+    db.upsert_episode(slug, ep, status='pending', processed_version=1,
+                      processed_file=episode_relative_path(ep, 1))
     _write_original(slug, ep, b'ORIGINAL-SHOULD-NOT-BE-SERVED')
     processed_path = storage.get_episode_path(slug, ep, version=1)
     processed_path.parent.mkdir(parents=True, exist_ok=True)
@@ -458,7 +475,8 @@ def test_local_reprocess_window_serves_processed_file_versioned_url():
     RSS still points at."""
     slug, ep = 'locreprocv', 's01e01'
     _make_local_podcast_and_episode(slug, ep, status='discovered')
-    db.upsert_episode(slug, ep, status='pending', processed_version=1)
+    db.upsert_episode(slug, ep, status='pending', processed_version=1,
+                      processed_file=episode_relative_path(ep, 1))
     _write_original(slug, ep, b'ORIGINAL-SHOULD-NOT-BE-SERVED')
     processed_path = storage.get_episode_path(slug, ep, version=1)
     processed_path.parent.mkdir(parents=True, exist_ok=True)
@@ -485,7 +503,8 @@ def test_local_reprocess_window_stale_versioned_url_falls_back_to_current_versio
     version" fallback order."""
     slug, ep = 'locreprocstale', 's01e01'
     _make_local_podcast_and_episode(slug, ep, status='discovered')
-    db.upsert_episode(slug, ep, status='pending', processed_version=2)
+    db.upsert_episode(slug, ep, status='pending', processed_version=2,
+                      processed_file=episode_relative_path(ep, 2))
     _write_original(slug, ep, b'ORIGINAL-SHOULD-NOT-BE-SERVED')
     processed_path = storage.get_episode_path(slug, ep, version=2)
     processed_path.parent.mkdir(parents=True, exist_ok=True)
@@ -503,6 +522,121 @@ def test_local_reprocess_window_stale_versioned_url_falls_back_to_current_versio
 
     assert resp.status_code == 200
     assert resp.data == b'PROCESSED-V2-BYTES'
+
+
+def test_local_future_version_is_not_served_by_processed_fast_path():
+    slug, ep = 'locfuturefast', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='discovered')
+    db.upsert_episode(slug, ep, status='processed', processed_version=1,
+                      processed_file=episode_relative_path(ep, 1))
+    current = storage.get_episode_path(slug, ep, version=1)
+    future = storage.get_episode_path(slug, ep, version=2)
+    current.parent.mkdir(parents=True, exist_ok=True)
+    current.write_bytes(b'PUBLISHED-V1')
+    future.write_bytes(b'UNPUBLISHED-V2')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}-v2.mp3')
+            head_resp = c.head(f'/episodes/{slug}/{ep}-v2.mp3')
+
+    assert resp.status_code == 200
+    assert resp.data == b'PUBLISHED-V1'
+    assert head_resp.status_code == 200
+    assert head_resp.headers['Content-Length'] == str(len(b'PUBLISHED-V1'))
+
+
+def test_local_pending_future_request_get_and_head_use_current_published_file():
+    slug, ep = 'locpendinghead', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='discovered')
+    db.upsert_episode(slug, ep, status='pending', processed_version=1,
+                      processed_file=episode_relative_path(ep, 1))
+    current = storage.get_episode_path(slug, ep, version=1)
+    future = storage.get_episode_path(slug, ep, version=2)
+    current.parent.mkdir(parents=True, exist_ok=True)
+    current.write_bytes(b'PUBLISHED-V1')
+    future.write_bytes(b'UNPUBLISHED-V2-LONGER')
+    _write_original(slug, ep, b'RETAINED-ORIGINAL-LONGER-TO-CATCH-HEAD-MISMATCH')
+
+    with patch('main_app.processing.start_background_processing',
+               return_value=(False, 'queue_busy:other:ep')) as mock_start, \
+         patch('main_app.routes.status_service') as mock_status, \
+         patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        mock_status.get_queue_position.return_value = 1
+        with app.test_client() as c:
+            get_resp = c.get(f'/episodes/{slug}/{ep}-v2.mp3')
+            head_resp = c.head(f'/episodes/{slug}/{ep}-v2.mp3')
+
+    assert get_resp.status_code == 200
+    assert get_resp.data == b'PUBLISHED-V1'
+    assert head_resp.status_code == 200
+    assert head_resp.headers['Content-Length'] == str(len(b'PUBLISHED-V1'))
+    mock_start.assert_called_once()
+
+
+def test_local_unpublished_version_zero_falls_back_to_original_for_get_and_head():
+    slug, ep = 'locunpubzero', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='processing')
+    partial = storage.get_episode_path(slug, ep, version=0)
+    partial.parent.mkdir(parents=True, exist_ok=True)
+    partial.write_bytes(b'UNPUBLISHED-V0')
+    _write_original(slug, ep, b'RETAINED-ORIGINAL')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            get_resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+            head_resp = c.head(f'/episodes/{slug}/{ep}.mp3')
+
+    assert get_resp.status_code == 200
+    assert get_resp.data == b'RETAINED-ORIGINAL'
+    assert head_resp.status_code == 200
+    assert head_resp.headers['Content-Length'] == str(len(b'RETAINED-ORIGINAL'))
+
+
+def test_local_published_version_zero_is_served_for_get_and_head():
+    slug, ep = 'locpubzero', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='discovered')
+    db.upsert_episode(slug, ep, status='processing', processed_version=0,
+                      processed_file=episode_relative_path(ep, 0))
+    processed = storage.get_episode_path(slug, ep, version=0)
+    processed.parent.mkdir(parents=True, exist_ok=True)
+    processed.write_bytes(b'PUBLISHED-V0')
+    _write_original(slug, ep, b'RETAINED-ORIGINAL')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            get_resp = c.get(f'/episodes/{slug}/{ep}.mp3')
+            head_resp = c.head(f'/episodes/{slug}/{ep}.mp3')
+
+    assert get_resp.status_code == 200
+    assert get_resp.data == b'PUBLISHED-V0'
+    assert head_resp.status_code == 200
+    assert head_resp.headers['Content-Length'] == str(len(b'PUBLISHED-V0'))
+
+
+def test_local_historical_published_version_is_served_when_requested():
+    slug, ep = 'lochistorical', 's01e01'
+    _make_local_podcast_and_episode(slug, ep, status='processing')
+    db.upsert_episode(slug, ep, status='processing', processed_version=2,
+                      processed_file=episode_relative_path(ep, 2))
+    historical = storage.get_episode_path(slug, ep, version=1)
+    current = storage.get_episode_path(slug, ep, version=2)
+    historical.parent.mkdir(parents=True, exist_ok=True)
+    historical.write_bytes(b'PUBLISHED-V1')
+    current.write_bytes(b'PUBLISHED-V2')
+    _write_original(slug, ep, b'RETAINED-ORIGINAL')
+
+    with patch('main_app.routes.get_feed_map',
+               return_value={slug: {'in': f'local://{slug}', 'out': f'/{slug}'}}):
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{slug}/{ep}-v1.mp3')
+
+    assert resp.status_code == 200
+    assert resp.data == b'PUBLISHED-V1'
 
 
 # ---------------------------------------------------------------------

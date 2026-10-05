@@ -821,7 +821,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       processingMode: e.target.value as UpdateFeedPayload['processingMode'],
                     })}
                     disabled={updateMutation.isPending}
-                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase} pl-2`}
                   >
                     <option value="standard">Standard (detect and cut ads)</option>
                     <option value="keep_content">Keep content only (experimental)</option>

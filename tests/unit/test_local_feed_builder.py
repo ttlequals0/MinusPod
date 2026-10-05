@@ -2,6 +2,7 @@
 (imported-archive) podcast entirely from DB rows -- no upstream source.
 """
 import json
+from pathlib import Path
 
 import feedparser
 
@@ -54,7 +55,8 @@ def _seed(slug):
         new_duration=600, original_duration=650,
         published_at='2026-01-05T00:00:00Z',
     )
-    mf.db.upsert_episode(slug, 's01e02', processed_version=3)
+    mf.db.upsert_episode(slug, 's01e02', processed_version=3,
+                         processed_file='episodes/s01e02-v3.mp3')
     mf.storage.save_transcript_vtt(slug, 's01e02', 'WEBVTT\n\n00:00.000 --> 00:01.000\nHi\n')
     mf.storage.save_chapters_json(slug, 's01e02', {'chapters': []})
 
@@ -369,15 +371,11 @@ def test_episode_artwork_gate_reflects_cached_cover():
     assert f'/episodes/{slug}/s01e01/artwork' not in xml
 
 
-def test_enclosure_length_attribute_matches_file_size_on_disk():
-    """Report smaller item 3: an unprocessed episode's enclosure reports
-    the retained original's size; a processed one reports the served
-    processed file's size -- both already live on disk locally, so the
-    length attribute is cheap to provide."""
+def test_enclosure_metadata_matches_served_audio_during_reprocess():
     slug = 'enclosure-length'
     podcast = _seed(slug)
 
-    original_path = mf.storage.get_original_path(slug, 's01e01')
+    original_path = mf.storage.get_original_path(slug, 's01e02')
     original_bytes = b'\x00' * 4096
     original_path.write_bytes(original_bytes)
 
@@ -385,11 +383,24 @@ def test_enclosure_length_attribute_matches_file_size_on_disk():
     processed_bytes = b'\x01' * 9000
     processed_path.write_bytes(processed_bytes)
 
-    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
-    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+    for status in ('pending', 'processing', 'failed'):
+        mf.db.upsert_episode(slug, 's01e02', status=status)
+        episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+        xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+        item = next(part for part in xml.split('<item>')[1:]
+                    if '<guid isPermaLink="false">s01e02</guid>' in part)
+        assert f'length="{len(processed_bytes)}"' in item
+        assert '<itunes:duration>600</itunes:duration>' in item
 
-    assert f'length="{len(original_bytes)}"' in xml
-    assert f'length="{len(processed_bytes)}"' in xml
+    processed_path.unlink()
+    for status in ('pending', 'processing', 'failed'):
+        mf.db.upsert_episode(slug, 's01e02', status=status)
+        episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+        xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+        item = next(part for part in xml.split('<item>')[1:]
+                    if '<guid isPermaLink="false">s01e02</guid>' in part)
+        assert f'length="{len(original_bytes)}"' in item
+        assert '<itunes:duration>650</itunes:duration>' in item
 
 
 def test_enclosure_length_omitted_when_file_missing():
@@ -401,6 +412,30 @@ def test_enclosure_length_omitted_when_file_missing():
     # Neither fixture episode's audio file exists on disk in this test --
     # the enclosure tags must still render, just without a length attribute.
     assert 'length="' not in xml
+
+
+def test_enclosure_length_is_omitted_when_published_file_stat_fails(monkeypatch):
+    slug = 'enclosure-stat-error'
+    podcast = _seed(slug)
+    original_path = mf.storage.get_original_path(slug, 's01e02')
+    original_path.write_bytes(b'\x00' * 4096)
+    processed_path = mf.storage.get_episode_path(slug, 's01e02', version=3)
+    processed_path.write_bytes(b'\x01' * 9000)
+    real_stat = Path.stat
+
+    def fail_published_file(path, *args, **kwargs):
+        if path == processed_path:
+            raise PermissionError('stat denied')
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'stat', fail_published_file)
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+    item = next(part for part in xml.split('<item>')[1:]
+                if '<guid isPermaLink="false">s01e02</guid>' in part)
+
+    assert 'length="' not in item
+    assert '<itunes:duration>600</itunes:duration>' in item
 
 
 def test_chapter_list_in_description_follows_the_feed_override():

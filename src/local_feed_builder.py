@@ -24,7 +24,7 @@ from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
 from main_app.shared_state import invalidate_episode_lookup_cache
 from rss_parser import RSS_RENDER_VERSION
-from utils.episode_paths import episode_public_url
+from utils.episode_paths import episode_public_url, published_episode_version
 from utils.feed_guid import compute_feed_guid
 from utils.time import utc_now_iso
 
@@ -141,25 +141,25 @@ def _safe_int_or_escaped(value) -> str:
         return rss_parser._escape_xml(str(value))
 
 
-def _enclosure_length_attr(slug: str, ep: dict, storage_, version) -> str:
-    """`` length="N"`` (bytes, leading space included) for the enclosure
-    tag, or '' when the size can't be determined.
-
-    Processed episodes report the size of the served processed file;
-    unprocessed ones report the retained original -- both already live on
-    disk locally for a local feed, so declaring the byte count costs one
-    stat() and some clients want it. Missing file / stat failure omits the
-    attribute rather than erroring the whole feed render.
-    """
+def _enclosure_audio_metadata(slug: str, ep: dict, storage_) -> tuple[str, float | None]:
+    """Use the published file's length and duration, or the original fallback."""
+    version = published_episode_version(ep)
     try:
-        if ep.get('status') == 'processed':
+        if version is not None:
             path = storage_.get_episode_path(slug, ep['episode_id'], version=version)
-        else:
-            path = storage_.get_original_path(slug, ep['episode_id'])
+            try:
+                size = path.stat().st_size
+            except FileNotFoundError:
+                pass
+            except OSError:
+                return '', ep.get('new_duration')
+            else:
+                return f' length="{size}"', ep.get('new_duration')
+        path = storage_.get_original_path(slug, ep['episode_id'])
         size = path.stat().st_size
     except OSError:
-        return ''
-    return f' length="{size}"'
+        return '', ep.get('original_duration')
+    return f' length="{size}"', ep.get('original_duration')
 
 
 def _channel_open(title: str, channel_link: str, description: str, language: str = 'en') -> list[str]:
@@ -217,10 +217,9 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
     version = ep.get('processed_version') or None
     enclosure_url = episode_public_url(base, slug, ep_id, version=version,
                                        key=feed_auth_key)
-    length_attr = _enclosure_length_attr(slug, ep, storage_, version)
+    length_attr, duration = _enclosure_audio_metadata(slug, ep, storage_)
     lines.append(f'  <enclosure url="{enclosure_url}" type="audio/mpeg"{length_attr} />')
 
-    duration = ep.get('new_duration') or ep.get('original_duration')
     if duration:
         lines.append(f'  <itunes:duration>{int(duration)}</itunes:duration>')
 

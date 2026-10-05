@@ -171,7 +171,7 @@ from utils.constants import (
     CANCELED_ERROR_MESSAGE, EpisodeStatus, PIPELINE_REPROCESS_SOURCES,
     REPROCESS_SOURCE_DEGRADED, REPROCESS_SOURCE_JIT, REPROCESS_SOURCE_POLICY,
 )
-from utils.episode_paths import episode_relative_path
+from utils.episode_paths import episode_relative_path, published_episode_version
 from utils.errors import (
     AudioNotReadyError, AudioTooLargeError,
     LocalTranscriptionUnavailableError, ModelLoadError, ServiceUnavailableError,
@@ -382,6 +382,89 @@ def is_transient_error(error: Exception) -> bool:
     return True
 
 
+def _cleanup_cancelled_processing_output(slug, episode_id, run_id, queue,
+                                         episode_at_start, keep_original):
+    """Return whether the run remains owned and its replacement is published."""
+    if not queue.owns(run_id, allow_cancel_requested=True):
+        return False, False
+
+    current_episode = db.get_episode(slug, episode_id)
+    if current_episode is None:
+        return False, False
+
+    rows = (episode_at_start or {}, current_episode)
+    versions = []
+    for row in rows:
+        if row.get('processed_file'):
+            version = published_episode_version(row)
+            if version is None:
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Skipping cancelled-output cleanup: "
+                    "processed-file metadata is invalid"
+                )
+                return queue.owns(run_id, allow_cancel_requested=True), False
+            versions.append(version)
+        else:
+            versions.append(None)
+
+    previous_version, current_version = versions
+    if previous_version is not None and not current_episode.get('processed_file'):
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Skipping cancelled-output cleanup: "
+            "published-file metadata disappeared during the run"
+        )
+        return queue.owns(run_id, allow_cancel_requested=True), False
+
+    replacement_version = _next_processed_version(episode_at_start or {})
+    replacement_rel = episode_relative_path(episode_id, replacement_version)
+    if (current_version == replacement_version
+            and current_episode.get('processed_file') == replacement_rel):
+        return True, True
+
+    if (current_version is not None
+            and current_version not in {previous_version, replacement_version}):
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Skipping cancelled-output cleanup: "
+            "published version changed during the run"
+        )
+        return queue.owns(run_id, allow_cancel_requested=True), False
+
+    if previous_version is None and current_version is None:
+        rows_never_published = all(
+            not row.get('processed_file')
+            and not row.get('processed_at')
+            and row.get('status') != EpisodeStatus.PROCESSED.value
+            and (row.get('processed_version') is None
+                 or (type(row.get('processed_version')) is int
+                     and row.get('processed_version') == 0))
+            for row in rows
+        )
+        if not rows_never_published:
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Skipping cancelled-output cleanup: "
+                "publication metadata is incomplete"
+            )
+            return queue.owns(run_id, allow_cancel_requested=True), False
+        storage.delete_processed_file(
+            slug, episode_id, keep_original=keep_original,
+            can_delete=lambda: queue.owns(
+                run_id, allow_cancel_requested=True),
+        )
+        return queue.owns(run_id, allow_cancel_requested=True), False
+
+    replacement_path = storage.get_episode_path(
+        slug, episode_id, version=replacement_version)
+    if replacement_path.exists():
+        if not queue.owns(run_id, allow_cancel_requested=True):
+            return False, False
+        replacement_path.unlink()
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Removed cancelled replacement audio: "
+            f"{replacement_path.name}"
+        )
+    return True, False
+
+
 def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None, cancel_event=None, run_id=None):
     """Background thread wrapper for process_episode with queue management."""
     ctx = run_context.begin(slug, episode_id, run_id=run_id)
@@ -391,7 +474,9 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
     # failure handler below writes a history row too, and it needs a live
     # recorder to finalize onto it (#660).
     recorder = _start_run_log(slug, episode_id)
+    episode_at_start = None
     try:
+        episode_at_start = db.get_episode(slug, episode_id)
         # Both detection passes read the active pattern catalog once per run.
         with pattern_catalog_scope():
             process_episode(slug, episode_id, original_url, title, podcast_name,
@@ -405,14 +490,21 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
             audio_logger.info(f"[{slug}:{episode_id}] Cancelled - cleaning up partial files")
             try:
                 podcast_row = db.get_podcast_by_slug(slug)
-                storage.delete_processed_file(
-                    slug, episode_id, keep_original=is_local_feed(podcast_row))
+                still_owned, replacement_published = (
+                    _cleanup_cancelled_processing_output(
+                        slug, episode_id, run_id, queue, episode_at_start,
+                        keep_original=is_local_feed(podcast_row)))
             except Exception as cleanup_err:
                 audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up partial file: {cleanup_err}")
+                still_owned = queue.owns(run_id, allow_cancel_requested=True)
+                replacement_published = False
             try:
-                db.upsert_episode(slug, episode_id, status=EpisodeStatus.PENDING.value,
-                                  error_message=CANCELED_ERROR_MESSAGE)
-                status_service.complete_job(slug, episode_id, run_id=run_id)
+                if still_owned and queue.owns(run_id, allow_cancel_requested=True):
+                    if not replacement_published:
+                        db.upsert_episode(
+                            slug, episode_id, status=EpisodeStatus.PENDING.value,
+                            error_message=CANCELED_ERROR_MESSAGE)
+                    status_service.complete_job(slug, episode_id, run_id=run_id)
             except Exception as db_err:
                 audio_logger.warning(f"[{slug}:{episode_id}] Failed to reset status after cancel: {db_err}")
     except ProcessingOwnershipLost as exc:
@@ -643,15 +735,11 @@ def _download_episode_audio(episode_url):
 
 
 def _next_processed_version(episode_data):
-    """Version for the output file. ``processed_at`` is cleared by the
-    reprocess reset before processing starts, so it can't signal "been
-    processed before"; ``processed_version`` is not reset and
-    ``reprocess_requested_at`` is set by the reprocess endpoints and by
-    a JIT play request (the user-intent mark the auto-process gate reads).
-    Either one means this run is a reprocess and the version bumps."""
+    """Choose a fresh version for published or explicitly requested reruns."""
     previous_version = (episode_data or {}).get('processed_version') or 0
     is_reprocess = (previous_version > 0
-                    or bool((episode_data or {}).get('reprocess_requested_at')))
+                    or bool((episode_data or {}).get('reprocess_requested_at'))
+                    or published_episode_version(episode_data) is not None)
     return previous_version + 1 if is_reprocess else 0
 
 
@@ -4668,6 +4756,7 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         # or by the stuck-row sweep, including a failed chapter regeneration
         # whose chapters this run has just replaced.
         error_message=None,
+        retry_count=0,
         chapters_regen_error=None,
         reprocess_mode=None,
         reprocess_requested_at=None,

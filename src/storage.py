@@ -1217,7 +1217,8 @@ class Storage:
     # ========== Cleanup Methods ==========
 
     def delete_processed_file(self, slug: str, episode_id: str,
-                               keep_original: bool = False) -> bool:
+                               keep_original: bool = False,
+                               can_delete=None) -> bool:
         """Delete the processed audio file(s) and any retained original.
 
         keep_original=True skips the original: local feeds keep it as the
@@ -1230,6 +1231,8 @@ class Storage:
             if original and original.exists():
                 candidates.append(original)
         for path in candidates:
+            if can_delete is not None and not can_delete():
+                break
             if path.exists():
                 path.unlink()
                 deleted = True

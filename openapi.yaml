@@ -6064,28 +6064,28 @@ paths:
                   nullable: true
                   minimum: 10
                   maximum: 3600
-                  description: Request timeout for Provider A. Null or omitted clears it back to the provider-type default.
+                  description: Request timeout for Provider A. Null clears it to the provider-type default; omitted leaves it unchanged.
                 providerAMaxRetries:
                   type: integer
                   nullable: true
                   minimum: 0
                   maximum: 10
-                  description: Max retries for Provider A. Null or omitted clears it back to the provider-type default.
+                  description: Max retries for Provider A. Null clears it to the provider-type default; omitted leaves it unchanged.
                 providerBTimeoutSeconds:
                   type: integer
                   nullable: true
                   minimum: 10
                   maximum: 3600
-                  description: Request timeout for Provider B. Null or omitted clears it back to the provider-type default.
+                  description: Request timeout for Provider B. Null clears it to the provider-type default; omitted leaves it unchanged.
                 providerBMaxRetries:
                   type: integer
                   nullable: true
                   minimum: 0
                   maximum: 10
-                  description: Max retries for Provider B. Null or omitted clears it back to the provider-type default.
+                  description: Max retries for Provider B. Null clears it to the provider-type default; omitted leaves it unchanged.
                 failoverLlmEnabled:
                   type: boolean
-                  description: Turn the shared LLM failover provider on or off (#806). Off by default.
+                  description: Enable or disable the shared LLM failover provider. Off by default.
                 failoverLlmProvider:
                   type: string
                   nullable: true
@@ -6093,7 +6093,7 @@ paths:
                   description: LLM failover provider type.
                 failoverLlmBaseUrl:
                   type: string
-                  description: Base URL for the LLM failover provider, SSRF-validated like every other operator-configured URL.
+                  description: Base URL for the LLM failover provider; requests are SSRF-validated.
                 failoverLlmApiKey:
                   type: string
                   nullable: true
@@ -6103,13 +6103,13 @@ paths:
                   nullable: true
                   minimum: 10
                   maximum: 3600
-                  description: Request timeout for the LLM failover provider. Null or omitted clears it to the provider-type default.
+                  description: Request timeout for the LLM failover provider. Null clears it to the provider-type default; omitted leaves it unchanged.
                 failoverLlmMaxRetries:
                   type: integer
                   nullable: true
                   minimum: 0
                   maximum: 10
-                  description: Max retries for the LLM failover provider. Null or omitted clears it to the provider-type default.
+                  description: Max retries for the LLM failover provider. Null clears it to the provider-type default; omitted leaves it unchanged.
                 failoverLlmDetectionModel:
                   type: string
                   description: Model the LLM failover provider uses for ad detection.
@@ -6124,7 +6124,7 @@ paths:
                   description: Model the LLM failover provider uses for chapters. Blank inherits the detection model.
                 failoverWhisperEnabled:
                   type: boolean
-                  description: Turn the transcriber failover provider on or off (#806). Off by default.
+                  description: Enable or disable the transcriber failover provider. Off by default.
                 failoverWhisperBackend:
                   type: string
                   enum: [local, openai-api]
@@ -6159,7 +6159,7 @@ paths:
                   type: integer
                   minimum: 1
                   maximum: 10
-                  description: Consecutive healthy probes needed before an auto failover recovers.
+                  description: Consecutive healthy probes needed before an automatic failover recovers.
                 whisperMaxAttempts:
                   type: integer
                   minimum: 1
@@ -14473,7 +14473,7 @@ components:
               type: boolean
         providerBEnabled:
           type: object
-          description: Alias of secondaryProviderEnabled (Provider A/B rename, #806), one release.
+          description: Alias of secondaryProviderEnabled.
           properties:
             value:
               type: boolean
@@ -14710,7 +14710,7 @@ components:
               type: boolean
         failoverRecoveryProbes:
           type: object
-          description: Consecutive healthy probes needed before an auto failover recovers.
+          description: Consecutive healthy probes needed before an automatic failover recovers.
           properties:
             value:
               type: integer

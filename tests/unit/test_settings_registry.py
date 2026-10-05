@@ -513,11 +513,7 @@ class TestGetDefaults:
         # request-rate limit keys (#747), primary and secondary (121 -> 125),
         # then the two tokens-per-minute keys, primary and secondary (125 -> 127).
         # adDetectionExcludeStartSeconds added after that (127 -> 128).
-        # spliceVetoEnabled added after that (131 -> 132). Provider failover
-        # (#806) added 23 keys after that: failoverLlm* (9), failoverWhisper*
-        # (7), failoverProbeIntervalMinutes + failoverRecoveryProbes (2),
-        # providerA/BTimeoutSeconds + providerA/BMaxRetries (4), and
-        # whisperMaxAttempts (1) (132 -> 155).
+        # Failover and per-slot overrides add the latest settings.
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
