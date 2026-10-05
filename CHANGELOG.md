@@ -20,6 +20,7 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- Standby model catalogs load only when the Failover card is visible. Settings searches pause hidden-card queries and resume matched cards.
 - LLM HTTP 408 responses now retry and trigger failover like connection timeouts.
 - Failover state changes and events are saved atomically, preserving manual overrides during concurrent recovery and outage actions.
 - Failover actions and model-entry toggles have 44 px mobile tap targets.

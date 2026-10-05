@@ -40,7 +40,7 @@ import {
 import AIModelsSection from './settings/AIModelsSection';
 import FailoverSection from './settings/FailoverSection';
 import { cancelFailover, failoverQueryKey, getFailover, probeFailover, triggerFailover, type FailoverTargetName } from '../api/failover';
-import { useCollapsibleOpen, useSectionVisible } from '../components/CollapsibleSection';
+import { useCollapsibleOpen } from '../components/CollapsibleSection';
 
 const FAILOVER_STORAGE_KEY = 'settings-section-failover';
 import StageTunablesSection from './settings/StageTunablesSection';
@@ -476,13 +476,13 @@ function Settings() {
   const reviewCatalog = effectiveReviewProvider
     ? reviewFetch
     : { ...reviewFetch, models: detectionCatalog.models };
-  const failoverCatalog = useModelCatalog(
-    failoverLlm.provider, 'failover', catalogsEnabled && failoverLlm.enabled === true,
-  );
-
-  // Poll the failover overview only while its card is on screen.
+  // Fetch standby models and poll failover only while its card is visible.
   const [failoverOpen, setFailoverOpen] = useCollapsibleOpen(FAILOVER_STORAGE_KEY);
-  const failoverVisible = useSectionVisible(FAILOVER_STORAGE_KEY, failoverOpen);
+  const [searchMatches, setSearchMatches] = useState<Set<string> | null>(null);
+  const failoverVisible = searchMatches !== null ? searchMatches.has(FAILOVER_STORAGE_KEY) : failoverOpen;
+  const failoverCatalog = useModelCatalog(
+    failoverLlm.provider, 'failover', catalogsEnabled && failoverLlm.enabled === true && failoverVisible,
+  );
   const { data: failoverOverview, isLoading: failoverOverviewLoading } = useQuery({
     queryKey: failoverQueryKey,
     queryFn: getFailover,
@@ -1078,6 +1078,7 @@ function Settings() {
       {/* Settings search: filters the configurable sections below by matching a
           section's title or any of its setting labels (client-side, no backend). */}
       <SearchableSectionGroup
+        onMatchKeysChange={setSearchMatches}
         placeholder="Search settings..."
         ariaLabel="Search settings"
         clearLabel="Clear settings search"

@@ -9,6 +9,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Settings, { systemStatusRefetchInterval } from './Settings';
 import type { Settings as SettingsShape, SettingValue, SystemStatus } from '../api/types';
+import CollapsibleSection from '../components/CollapsibleSection';
 
 // The Reset button that belongs to one prompt textarea, found by its label
 // rather than by position, so reordering settings sections cannot break it.
@@ -45,9 +46,9 @@ vi.mock('./settings/LLMProviderSection', () => ({ default: () => null }));
 vi.mock('./settings/AIModelsSection', () => ({ default: () => <div data-testid="ai-models-section" /> }));
 vi.mock('./settings/FailoverSection', () => ({
   default: ({ onToggle }: { onToggle?: (open: boolean) => void }) => (
-    <div data-testid="failover-section">
-      <button type="button" onClick={() => onToggle?.(true)}>Open failover</button>
-    </div>
+    <CollapsibleSection title="Failover" storageKey="settings-section-failover" onToggle={onToggle}>
+      <div data-testid="failover-section" />
+    </CollapsibleSection>
   ),
 }));
 vi.mock('./settings/StageTunablesSection', () => ({ default: () => <div data-testid="stage-tunables-section" /> }));
@@ -66,6 +67,7 @@ vi.mock('./settings/QueueControlSection', () => ({ default: () => null }));
 vi.mock('./settings/TranscriptNormalizationSection', () => ({ default: () => null }));
 
 const mockGetSettings = vi.fn();
+const mockGetModels = vi.fn().mockResolvedValue([]);
 const mockGetFailover = vi.fn().mockResolvedValue({
   targets: {}, probes: {}, policy: { probeIntervalMinutes: 5, recoveryProbes: 3 }, events: [],
 });
@@ -80,7 +82,7 @@ vi.mock('../api/settings', () => ({
   getModels: vi.fn().mockResolvedValue([]),
   modelsQueryOptionsFor: (provider: string, slot: string) => ({
     queryKey: ['models', provider, slot],
-    queryFn: () => Promise.resolve([]),
+    queryFn: () => mockGetModels(provider, slot),
   }),
   getWhisperModels: vi.fn().mockResolvedValue([]),
   getWhisperCapacity: vi.fn().mockResolvedValue({
@@ -185,15 +187,16 @@ function makeClient() {
   });
 }
 
-function renderSettings() {
+function renderSettings(client = makeClient()) {
   return render(
-    <QueryClientProvider client={makeClient()}>
+    <QueryClientProvider client={client}>
       <Settings />
     </QueryClientProvider>,
   );
 }
 
 beforeEach(() => {
+  localStorage.removeItem('settings-section-failover');
   localStorage.setItem('settings-section-prompts', 'true');
   localStorage.setItem('settings-section-ad-reviewer', 'true');
   vi.clearAllMocks();
@@ -324,8 +327,58 @@ describe('Settings: Failover placement', () => {
     await screen.findByTestId('failover-section');
     expect(mockGetFailover).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: 'Open failover' }));
+    await user.click(screen.getByRole('button', { name: /^Failover$/ }));
     await waitFor(() => expect(mockGetFailover).toHaveBeenCalledTimes(1));
+  });
+
+  it('defers the standby catalog until opening and keeps cached models on reopening', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      failoverLlmEnabled: { value: true, isDefault: false },
+      failoverLlmProvider: sv('ollama', false),
+    }));
+    const client = makeClient();
+    client.setQueryDefaults(['models'], { staleTime: Infinity });
+    const user = userEvent.setup();
+    renderSettings(client);
+    await screen.findByLabelText('First Pass System Prompt');
+    expect(mockGetModels.mock.calls.filter(([, slot]) => slot === 'failover')).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: /^Failover$/ }));
+    await waitFor(() => expect(mockGetModels).toHaveBeenCalledWith('ollama', 'failover'));
+    expect(client.getQueryData(['models', 'ollama', 'failover'])).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: /^Failover$/ }));
+    await user.click(screen.getByRole('button', { name: /^Failover$/ }));
+    expect(mockGetModels.mock.calls.filter(([, slot]) => slot === 'failover')).toHaveLength(1);
+  });
+
+  it('fetches search-revealed standby models and disables hidden card queries', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      failoverLlmEnabled: { value: true, isDefault: false },
+      failoverLlmProvider: sv('ollama', false),
+    }));
+    const client = makeClient();
+    const user = userEvent.setup();
+    renderSettings(client);
+    await screen.findByLabelText('First Pass System Prompt');
+    const key = ['models', 'ollama', 'failover'];
+    expect(client.getQueryCache().find({ queryKey: key })?.isActive()).toBe(false);
+
+    const search = screen.getByRole('textbox', { name: 'Search settings' });
+    await user.type(search, 'failover');
+    await waitFor(() => expect(mockGetModels).toHaveBeenCalledWith('ollama', 'failover'));
+    expect(client.getQueryCache().find({ queryKey: key })?.isActive()).toBe(true);
+
+    await user.clear(search);
+    expect(client.getQueryCache().find({ queryKey: key })?.isActive()).toBe(false);
+    await user.click(screen.getByRole('button', { name: /^Failover$/ }));
+    expect(client.getQueryCache().find({ queryKey: key })?.isActive()).toBe(true);
+    await user.type(search, 'resurrect prompt');
+    expect(client.getQueryCache().find({ queryKey: key })?.isActive()).toBe(false);
+    expect(client.getQueryCache().find({ queryKey: ['failover'] })?.isActive()).toBe(false);
+
+    await user.clear(search);
+    expect(client.getQueryCache().find({ queryKey: key })?.isActive()).toBe(true);
   });
 });
 

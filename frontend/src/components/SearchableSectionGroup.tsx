@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import SectionSearchInput from './SectionSearchInput';
 import SectionBulkControls from './SectionBulkControls';
 import { SettingsSearchContext, SettingsSearchRegionContext } from '../context/SettingsSearchContext';
@@ -9,6 +9,7 @@ interface SearchableSectionGroupProps {
   placeholder: string;
   ariaLabel: string;
   clearLabel: string;
+  onMatchKeysChange?: (matches: Set<string> | null) => void;
   children: ReactNode;
 }
 
@@ -17,10 +18,14 @@ export default function SearchableSectionGroup({
   placeholder,
   ariaLabel,
   clearLabel,
+  onMatchKeysChange,
   children,
 }: SearchableSectionGroupProps) {
   const regionRef = useRef<HTMLDivElement>(null);
   const { query, matchKeys, run, clear } = useSectionSearch(regionRef);
+  useEffect(() => {
+    onMatchKeysChange?.(matchKeys);
+  }, [matchKeys, onMatchKeysChange]);
   const [bulkCollapseSignal, triggerBulkCollapse] = useBulkCollapseSignal();
 
   return (

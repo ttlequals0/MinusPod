@@ -1,12 +1,39 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import CollapsibleSection from './CollapsibleSection';
+import CollapsibleSection, { useSectionVisible } from './CollapsibleSection';
 import { SettingsBulkCollapseProvider } from '../context/SettingsBulkCollapseContext';
 import { SettingsSearchContext } from '../context/SettingsSearchContext';
 
 beforeEach(() => {
   localStorage.clear();
+});
+
+describe('section query visibility', () => {
+  function Visibility({ open }: { open: boolean }) {
+    return <span>{String(useSectionVisible('target', open))}</span>;
+  }
+
+  it('search overrides saved openness, and clearing restores it', () => {
+    const { rerender } = render(
+      <SettingsSearchContext.Provider value={new Set()}>
+        <Visibility open />
+      </SettingsSearchContext.Provider>,
+    );
+    expect(screen.getByText('false')).toBeTruthy();
+    rerender(
+      <SettingsSearchContext.Provider value={new Set(['target'])}>
+        <Visibility open={false} />
+      </SettingsSearchContext.Provider>,
+    );
+    expect(screen.getByText('true')).toBeTruthy();
+    rerender(
+      <SettingsSearchContext.Provider value={null}>
+        <Visibility open={false} />
+      </SettingsSearchContext.Provider>,
+    );
+    expect(screen.getByText('false')).toBeTruthy();
+  });
 });
 
 describe('CollapsibleSection bulk expand/collapse', () => {
