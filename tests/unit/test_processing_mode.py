@@ -116,17 +116,34 @@ class TestResolveProcessingMode:
             PROCESSING_MODE_PASSTHROUGH
 
 
+_INACTIVE_FAILOVER_STATE = {'active': False, 'source': None, 'since': None, 'reason': None}
+
+
 def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                    enable_ad_review=False, admission=None,
                    download_error=None, detect_error=None,
                    token_cost=0.012, real_token_tracking=False,
-                   approval_recut=False):
+                   approval_recut=False, route_snapshot=None,
+                   failover_state=None):
     """Drive process_episode with all stages stubbed (mirrors
-    test_skip_ad_detection's harness) and return the interesting mocks."""
+    test_skip_ad_detection's harness) and return the interesting mocks.
+
+    route_snapshot/failover_state, when given, stub the run's frozen route
+    snapshot and failover.state()/is_active() so run_stats['failover'] tests
+    do not depend on real DB-backed failover settings.
+    """
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
         db = p(processing, 'db')
         p(processing, 'status_service')
+        if route_snapshot is not None:
+            p(processing, '_resolve_or_load_route_snapshot', return_value=route_snapshot)
+            p(processing, '_assert_route_snapshot_current')
+        if failover_state is not None:
+            p(processing.failover, 'state',
+              side_effect=lambda t: failover_state.get(t, _INACTIVE_FAILOVER_STATE))
+            p(processing.failover, 'is_active',
+              side_effect=lambda t: failover_state.get(t, _INACTIVE_FAILOVER_STATE)['active'])
         storage = p(processing, 'storage')
         audio_processor = p(processing, 'audio_processor')
         p(processing.ad_detector, 'get_model', return_value='test-model')
@@ -272,6 +289,36 @@ class TestProcessEpisodeModePlumbing:
         m = _run_pipeline(_row())
         assert m['result'] is True
         assert m['finalize'].call_args.kwargs['run_stats']['normalization_skipped'] is True
+
+    def test_failover_recorded_before_approval_recut_success_exit(self):
+        # #806: run_stats['failover'] must be set before _recut_episode is
+        # called, since its success returns before the main finalize call.
+        snapshot = {'detection': {'failover_from': 'primary',
+                                  'provider_key': 'openai-compatible',
+                                  'credential_slot': 'primary'}}
+        m = _run_pipeline(_row(), approval_recut=True,
+                           route_snapshot=snapshot, failover_state={})
+        assert m['result'] is True
+        m['finalize'].assert_not_called()
+        assert m['recut'].call_args.kwargs['run_stats']['failover'] == {
+            'llm': ['primary'], 'whisper': False}
+
+    def test_failover_not_reported_when_trigger_predates_run(self):
+        # A slot active before this run started but absent from the frozen
+        # snapshot was never actually routed to by this run.
+        state = {'llm:primary': {'active': True, 'source': 'auto',
+                                 'since': '2000-01-01T00:00:00Z', 'reason': 'x'}}
+        m = _run_pipeline(_row(), route_snapshot={}, failover_state=state)
+        assert m['result'] is True
+        assert 'failover' not in m['finalize'].call_args.kwargs['run_stats']
+
+    def test_failover_reported_when_triggered_mid_run(self):
+        state = {'llm:primary': {'active': True, 'source': 'probe',
+                                 'since': '2999-01-01T00:00:00Z', 'reason': 'x'}}
+        m = _run_pipeline(_row(), route_snapshot={}, failover_state=state)
+        assert m['result'] is True
+        assert m['finalize'].call_args.kwargs['run_stats']['failover'] == {
+            'llm': ['primary'], 'whisper': False}
 
     def test_provider_denial_happens_after_transcription_before_detection(self):
         m = _run_pipeline(

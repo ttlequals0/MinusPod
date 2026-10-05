@@ -6276,6 +6276,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     8. Finalize (update DB, record history, refresh RSS)
     """
     start_time = time.time()
+    run_started_at = utc_now_iso()
     start_episode_token_tracking()
     ctx = run_context.current()
     if run_id:
@@ -7061,6 +7062,21 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 run_stats['verification_ads_cut'] = verification_count
             _record_cut_seconds(run_stats, all_cuts_for_assets, original_duration,
                                 new_duration)
+            # Set once before every exit (recut success, recut fallback, main
+            # completion) so all three carry it. 'used' is failovers already
+            # active when the snapshot was resolved (failover_from) plus any
+            # LLM slot that failed over mid-run (since >= this run's start);
+            # a slot active before run start but not in the snapshot was
+            # simply never routed to, so it is not reported.
+            used = {route['failover_from'] for route in (route_snapshot or {}).values()
+                    if isinstance(route, dict) and route.get('failover_from')}
+            for slot in ('primary', 'secondary'):
+                since = failover.state(f'llm:{slot}')['since']
+                if since and since >= run_started_at:
+                    used.add(slot)
+            whisper_used = failover.is_active(failover.TARGET_WHISPER)
+            if used or whisper_used:
+                run_stats['failover'] = {'llm': sorted(used), 'whisper': whisper_used}
             # File the confirms before finalizing so the recut below applies
             # them in this run: two finalizes wrote two history rows and
             # notified twice for one reprocess.
@@ -7101,12 +7117,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     f"[{slug}:{episode_id}] Approval recut failed before it "
                     f"rewrote anything; finalizing this run's render"
                 )
-
-            used = {route['failover_from'] for route in (route_snapshot or {}).values()
-                    if isinstance(route, dict) and route.get('failover_from')}
-            used |= {t for t in ('primary', 'secondary') if failover.is_active(f'llm:{t}')}
-            if used or failover.is_active(failover.TARGET_WHISPER):
-                run_stats['failover'] = {'llm': sorted(used), 'whisper': failover.is_active(failover.TARGET_WHISPER)}
 
             _finalize_episode(slug, episode_id, episode_title, podcast_name,
                                pass1_cut_count, verification_count, first_pass_count,
