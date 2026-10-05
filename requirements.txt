@@ -739,9 +739,9 @@ flask==3.1.3 \
     #   -r requirements.in
     #   flask-compress
     #   flask-limiter
-flask-compress==1.24 \
-    --hash=sha256:14097cefe59ecb3e466d52a6aeb62f34f125a9f7dadf1f33a53e430ce4a50f31 \
-    --hash=sha256:1e63668eb6e3242bd4f6ad98825a924e3984409be90c125477893d586007d00c
+flask-compress==1.25 \
+    --hash=sha256:6ca78e29728525e575a9e76e0e8e7acc6e0bf1421e0cbfd452bca0a68626166f \
+    --hash=sha256:802954fb3af048cf4ca2a3b414393bf2b98466ae8067e6654ea0aa34ba34aff5
     # via -r requirements.in
 flask-limiter==4.1.1 \
     --hash=sha256:ca11608fc7eec43dcea606964ca07c3bd4ec1ae89043a0f67f717899a4f48106 \
