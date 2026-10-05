@@ -154,6 +154,10 @@ def recent_events(limit: int = 50) -> list[dict]:
 # --- Health probing (#806) ------------------------------------------------
 
 PROBE_TARGETS = ('llm:primary', 'llm:secondary', 'llm:failover', 'whisper:active', 'whisper:failover')
+PROBE_API_NAMES = {
+    'llm:primary': 'llm-a', 'llm:secondary': 'llm-b', 'llm:failover': 'llm-failover',
+    'whisper:active': 'transcriber', 'whisper:failover': 'transcriber-failover',
+}
 AUTO_TRIGGER_FAILURES = 2
 _PROBE_DEFAULT = {'reachable': None, 'status': None, 'detail': '', 'checked_at': None,
                   'healthy_streak': 0, 'failed_streak': 0}

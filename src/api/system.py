@@ -17,6 +17,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, _get_version, _start_time,
 )
+from api.failover import probes_view, targets_view
 import transcriber
 from config import WHISPER_BACKEND_API, resolve_whisper_device
 from database.settings import registry_default
@@ -206,6 +207,7 @@ def get_system_status():
         # Reports the configured backend, since the local reading says
         # nothing when transcription runs on a remote API.
         'transcriber': transcriber.get_transcriber_health(),
+        'failover': {'targets': targets_view(), 'probes': probes_view()},
     })
 
 

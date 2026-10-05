@@ -9,8 +9,10 @@ import os
 import requests
 from flask import request
 
+import failover
 import transcriber
 from api import api, error_response, json_response, limiter
+from api.settings import SLOT_ALIASES
 from config import (
     DEFAULT_OPENAI_BASE_URL, HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE,
     PROVIDER_ANTHROPIC, PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE,
@@ -18,8 +20,8 @@ from config import (
 )
 from database import Database
 from llm_client import (
-    get_effective_base_url, get_effective_secondary_provider_api_key,
-    _normalize_base_url_for_provider,
+    get_effective_base_url, get_effective_failover_llm_api_key,
+    get_effective_secondary_provider_api_key, _normalize_base_url_for_provider,
 )
 from llm_route import (
     SLOT_PRIMARY, VALID_SLOTS, account_identity_for_primary_provider,
@@ -29,6 +31,7 @@ from provider_probe import (
     FIXED_PROVIDER_PROBES as _FIXED_PROVIDER_PROBES,
     models_request as _models_request,
     probe_fixed_endpoint as _probe_fixed_endpoint,
+    probe_models_endpoint,
     probe_models_endpoint as _probe_models_endpoint,
     same_server as _same_server,
 )
@@ -261,6 +264,7 @@ def account_affected_runs(slot):
     account, so the UI can show what a provider or endpoint change is about
     to interrupt before it writes anything.
     """
+    slot = SLOT_ALIASES.get(slot, slot)
     if slot not in VALID_SLOTS:
         return error_response('unknown provider slot', 404)
     account_id = account_identity_for_slot(slot)
@@ -363,6 +367,50 @@ def _health_detail(health: dict) -> str:
     return f"{hedge}{count} {noun} reporting {model}." if model else f"{hedge}{count} {noun}."
 
 
+def _whisper_connection_test(saved: dict, body: dict):
+    """Shared whisper-shaped connection probe (#544, #806).
+
+    Resolves baseUrl/model/skipFlacCompression against `saved` (whichever
+    whisper slot's settings the caller resolved), gates the saved key to
+    the saved server, uploads a sample through the real transcription
+    request shape, and layers on the optional /health follow-up. Shared by
+    the primary whisper route and the whisper-failover route so both stay
+    byte-for-byte identical in behaviour.
+    """
+    saved_base, saved_key = saved['api_base_url'], saved['api_key']
+    base = body['baseUrl'] if 'baseUrl' in body else saved_base
+    if base is not None and not isinstance(base, str):
+        return error_response('baseUrl must be a string', 400)
+    if not base or not base.strip():
+        return json_response(
+            {'ok': False, 'reachable': False,
+             'detail': 'Enter a base URL first.'}, 200)
+    base = base.strip()
+
+    # Saved key goes out only when the tested URL is the saved server (#544).
+    api_key = saved_key if _same_server(base, saved_base) else ''
+
+    model = body.get('model') or saved['api_model']
+    if not isinstance(model, str):
+        return error_response('model must be a string', 400)
+    skip_flac = body.get('skipFlacCompression', saved['skip_flac_compression'])
+    if not isinstance(skip_flac, bool):
+        return error_response('skipFlacCompression must be a boolean', 400)
+    result = transcriber.probe_transcription_endpoint(
+        base, api_key=api_key, model=model, skip_flac_compression=skip_flac)
+    if result.get('ok'):
+        # refresh=True: re-probe rather than report a cached result. If a
+        # probe for this backend is already running, that one's result is
+        # reused instead.
+        health = transcriber.probe_whisper_health(
+            base_url=base, api_key=api_key, refresh=True)
+        result['health'] = health
+        summary = _health_detail(health)
+        if summary:
+            result['detail'] = f"{result['detail']} {summary}"
+    return json_response(result, 200)
+
+
 @api.route('/settings/providers/<provider>/test-connection', methods=['POST'])
 def test_provider_connection(provider):
     """End-to-end probe of a configured external endpoint (#544).
@@ -387,27 +435,24 @@ def test_provider_connection(provider):
 
     body = request.get_json(silent=True) or {}
 
-    cfg = _PROVIDERS[provider]
     if provider == 'whisper':
         # Saved values come from the same resolver the real transcription
         # path uses, so the probe cannot drift from what an episode upload
         # would do. Its base URL is empty when unconfigured, so the key
-        # gate below fails closed.
-        saved = transcriber._get_whisper_settings()
-        saved_base, saved_key = saved['api_base_url'], saved['api_key']
-        gate_base = saved_base
-    else:
-        # For the default probe target, use the same resolution the real
-        # LLM client does (DB, then env, then the documented default). The
-        # key gate must NOT see that default: only a URL the operator
-        # explicitly saved may receive the key, otherwise "testing" the
-        # never-configured default URL would ship the key to whatever
-        # listens there.
-        db = Database()
-        saved_base = get_effective_base_url()
-        saved_key = _resolve_key(db, cfg) or ''
-        gate_base = db.get_setting(cfg['base_url']) \
-            or os.environ.get(cfg['base_env'], '')
+        # gate inside the helper fails closed.
+        return _whisper_connection_test(transcriber._get_whisper_settings(), body)
+
+    # For the default probe target, use the same resolution the real LLM
+    # client does (DB, then env, then the documented default). The key gate
+    # must NOT see that default: only a URL the operator explicitly saved
+    # may receive the key, otherwise "testing" the never-configured default
+    # URL would ship the key to whatever listens there.
+    cfg = _PROVIDERS[provider]
+    db = Database()
+    saved_base = get_effective_base_url()
+    saved_key = _resolve_key(db, cfg) or ''
+    gate_base = db.get_setting(cfg['base_url']) \
+        or os.environ.get(cfg['base_env'], '')
 
     base = body['baseUrl'] if 'baseUrl' in body else saved_base
     if base is not None and not isinstance(base, str):
@@ -417,7 +462,7 @@ def test_provider_connection(provider):
             {'ok': False, 'reachable': False,
              'detail': 'Enter a base URL first.'}, 200)
     base = base.strip()
-    if provider != 'whisper' and url_has_userinfo(base):
+    if url_has_userinfo(base):
         return error_response(BASE_URL_USERINFO_ERROR, 400)
 
     # The saved API key goes out only when the tested URL points at the
@@ -426,34 +471,12 @@ def test_provider_connection(provider):
     # URL they control -- a secret this API otherwise never returns.
     api_key = saved_key if _same_server(base, gate_base) else ''
 
-    if provider == 'whisper':
-        model = body.get('model') or saved['api_model']
-        if not isinstance(model, str):
-            return error_response('model must be a string', 400)
-        skip_flac = body.get('skipFlacCompression',
-                             saved['skip_flac_compression'])
-        if not isinstance(skip_flac, bool):
-            return error_response('skipFlacCompression must be a boolean', 400)
-        result = transcriber.probe_transcription_endpoint(
-            base, api_key=api_key, model=model,
-            skip_flac_compression=skip_flac)
-        if result.get('ok'):
-            # refresh=True: re-probe rather than report a cached result. If a
-            # probe for this backend is already running, that one's result is
-            # reused instead.
-            health = transcriber.probe_whisper_health(
-                base_url=base, api_key=api_key, refresh=True)
-            result['health'] = health
-            summary = _health_detail(health)
-            if summary:
-                result['detail'] = f"{result['detail']} {summary}"
-    else:
-        # The real client appends /v1 for Ollama; the probe must match or a
-        # URL that works for episodes would fail the test and vice versa.
-        norm = _normalize_base_url_for_provider(
-            PROVIDER_OLLAMA if provider == 'ollama'
-            else PROVIDER_OPENAI_COMPATIBLE, base)
-        result = _probe_models_endpoint(norm, api_key)
+    # The real client appends /v1 for Ollama; the probe must match or a
+    # URL that works for episodes would fail the test and vice versa.
+    norm = _normalize_base_url_for_provider(
+        PROVIDER_OLLAMA if provider == 'ollama'
+        else PROVIDER_OPENAI_COMPATIBLE, base)
+    result = _probe_models_endpoint(norm, api_key)
     return json_response(result, 200)
 
 
@@ -528,3 +551,73 @@ def test_secondary_provider_connection():
         else PROVIDER_OPENAI_COMPATIBLE, base)
     result = _probe_models_endpoint(norm, api_key)
     return json_response(result, 200)
+
+
+@api.route('/settings/providers/failover/test-connection', methods=['POST'])
+def test_failover_provider_connection():
+    """End-to-end probe of the shared LLM failover slot (#806).
+
+    Mirrors /settings/providers/secondary/test-connection, but reads its
+    type, base URL, and key from the failover_llm_* settings and the
+    failover_llm_api_key secret instead of the secondary provider config.
+    """
+    db = Database()
+    body = request.get_json(silent=True) or {}
+    cfg = failover.failover_llm_config()
+
+    provider = body['provider'] if 'provider' in body else cfg['provider']
+    if provider is not None and not isinstance(provider, str):
+        return error_response('provider must be a string', 400)
+    if not provider:
+        return json_response(
+            {'ok': False, 'reachable': False,
+             'detail': 'Configure a failover provider type first.'}, 200)
+    if provider not in _SECONDARY_PROVIDER_TYPES:
+        return error_response(
+            f'provider must be one of: {", ".join(_SECONDARY_PROVIDER_TYPES)}', 400)
+
+    # The stored key was entered for the saved type, so an unsaved type
+    # override must not borrow it (same rule as the secondary route).
+    saved_key = ''
+    if provider == (cfg['provider'] or ''):
+        saved_key = get_effective_failover_llm_api_key() or ''
+
+    if provider in _FIXED_PROVIDER_PROBES:
+        return json_response(_probe_fixed_endpoint(provider, saved_key), 200)
+
+    # Effective default matches failover.failover_llm_config(); the key
+    # gate below sees only an explicitly saved URL, never that default.
+    gate_base = db.get_setting('failover_llm_base_url') or ''
+    base = body['baseUrl'] if 'baseUrl' in body else (gate_base or DEFAULT_OPENAI_BASE_URL)
+    if base is not None and not isinstance(base, str):
+        return error_response('baseUrl must be a string', 400)
+    if not base or not base.strip():
+        return json_response(
+            {'ok': False, 'reachable': False,
+             'detail': 'Enter a base URL first.'}, 200)
+    base = base.strip()
+    if url_has_userinfo(base):
+        return error_response(BASE_URL_USERINFO_ERROR, 400)
+
+    # Same anti-exfiltration gate as the other test-connection routes
+    # (#544): the saved key only goes out when the tested URL matches the
+    # explicitly saved failover base URL.
+    api_key = saved_key if _same_server(base, gate_base) else ''
+
+    norm = _normalize_base_url_for_provider(
+        PROVIDER_OLLAMA if provider == PROVIDER_OLLAMA
+        else PROVIDER_OPENAI_COMPATIBLE, base)
+    result = probe_models_endpoint(norm, api_key)
+    return json_response(result, 200)
+
+
+@api.route('/settings/providers/failover-whisper/test-connection', methods=['POST'])
+def test_failover_whisper_connection():
+    """End-to-end probe of the whisper failover slot (#806).
+
+    Same contract as the primary whisper test-connection route, but reads
+    saved values from the failover_whisper_* settings and the
+    failover_whisper_api_key secret via _get_failover_whisper_settings.
+    """
+    body = request.get_json(silent=True) or {}
+    return _whisper_connection_test(transcriber._get_failover_whisper_settings(), body)

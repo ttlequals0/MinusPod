@@ -65,6 +65,10 @@ tags:
     description: >-
       Local (archive-import) feeds: no upstream RSS, episode upload and
       edits, and bulk directory/upload import (#625)
+  - name: Failover
+    description: >-
+      Provider failover (#806): state of the LLM A/B and transcriber
+      failover targets, manual trigger/cancel, and on-demand health probes.
 
 paths:
   /auth/status:
@@ -5015,6 +5019,116 @@ paths:
                     items:
                       $ref: '#/components/schemas/ProcessingHistoryEntry'
 
+  /failover:
+    get:
+      tags:
+        - Failover
+      summary: Get failover state, probes, policy, and recent events
+      description: >-
+        Snapshot of the three failover targets (llm-a, llm-b, transcriber),
+        the five health probes that drive them (llm-a, llm-b, llm-failover,
+        transcriber, transcriber-failover), the auto-trigger/recovery policy,
+        and the most recent manual/auto/probe events (#806). Reads through a
+        5-second cache; never probes on the read path.
+      operationId: getFailover
+      responses:
+        '200':
+          description: Failover overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailoverOverview'
+  /failover/{target}/trigger:
+    post:
+      tags:
+        - Failover
+      summary: Manually trigger failover for one target
+      description: >-
+        Switches `target` onto its failover configuration. Fails with 409
+        when the target's failover config is not set up, so a manual trigger
+        can never land on an endpoint with nowhere to go.
+      operationId: triggerFailover
+      parameters:
+        - in: path
+          name: target
+          required: true
+          schema:
+            type: string
+            enum: [llm-a, llm-b, transcriber]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Free-text note recorded on the failover event.
+      responses:
+        '200':
+          description: Triggered (or already active)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  target:
+                    type: string
+                  state:
+                    $ref: '#/components/schemas/FailoverTargetState'
+        '404': { description: Unknown failover target }
+        '409': { description: 'Target has no failover configuration (error: failover_not_configured)' }
+  /failover/{target}/cancel:
+    post:
+      tags:
+        - Failover
+      summary: Manually cancel failover for one target
+      description: Switches `target` back onto its primary configuration.
+      operationId: cancelFailover
+      parameters:
+        - in: path
+          name: target
+          required: true
+          schema:
+            type: string
+            enum: [llm-a, llm-b, transcriber]
+      responses:
+        '200':
+          description: Cancelled (or already inactive)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  target:
+                    type: string
+                  state:
+                    $ref: '#/components/schemas/FailoverTargetState'
+        '404': { description: Unknown failover target }
+  /failover/probe:
+    post:
+      tags:
+        - Failover
+      summary: Run an on-demand health probe of every enabled target
+      description: >-
+        Probes every currently enabled target (see `enabled_probe_targets`),
+        records the result, and applies the same auto-trigger/auto-recovery
+        rules as the background probe tick.
+      operationId: probeFailover
+      responses:
+        '200':
+          description: Updated probe states
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  probes:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/FailoverProbe'
+
   /settings/providers:
     get:
       tags:
@@ -5131,9 +5245,11 @@ paths:
         - in: path
           name: slot
           required: true
+          description: >-
+            `a`/`b` are accepted as aliases of `primary`/`secondary`.
           schema:
             type: string
-            enum: [primary, secondary]
+            enum: [primary, secondary, a, b]
       responses:
         '200':
           description: The slot's current account and the runs bound to it
@@ -5277,6 +5393,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConnectionTestResult'
         '400': { description: 'Invalid input (non-string baseUrl, non-string provider, or provider not one of the supported types)' }
+  /settings/providers/failover/test-connection:
+    post:
+      tags:
+        - Settings
+      summary: Test the LLM failover provider connection end to end
+      description: |
+        Same staged probe as `/settings/providers/secondary/test-connection`,
+        but targets the shared LLM failover slot (#806): its key comes from
+        `failoverLlmApiKey`, and its type and endpoint come from
+        `failoverLlmProvider`/`failoverLlmBaseUrl` unless the request body's
+        `provider`/`baseUrl` override them, to test an unsaved form value
+        before Save. Returns `ok: false` with a `detail` explaining the
+        reason when no failover provider type is configured yet.
+      operationId: testFailoverProviderConnection
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                provider:
+                  type: string
+                  enum: [anthropic, openrouter, openai-compatible, ollama]
+                  description: Provider type to test; when absent the saved failoverLlmProvider is used
+                baseUrl:
+                  type: string
+                  description: Base URL to test; when absent the saved failover value is used
+      responses:
+        '200':
+          description: Probe result (always 200; see `ok` field)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionTestResult'
+        '400': { description: 'Invalid input (non-string baseUrl, non-string provider, or provider not one of the supported types)' }
+  /settings/providers/failover-whisper/test-connection:
+    post:
+      tags:
+        - Settings
+      summary: Test the transcriber failover connection end to end
+      description: |
+        Same staged probe as `/settings/providers/whisper/test-connection`
+        (#806), but targets the transcriber failover slot: its key comes
+        from `failoverWhisperApiKey`, and its base URL/model come from
+        `failoverWhisperApiBaseUrl`/`failoverWhisperApiModel` unless the
+        request body overrides them.
+      operationId: testFailoverWhisperConnection
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                baseUrl: { type: string, description: 'Base URL to test; when the key is absent the saved value is used' }
+                model:   { type: string, description: 'Model name to send; falls back to the saved value' }
+                skipFlacCompression: { type: boolean, description: 'Upload WAV (true) or FLAC (false); falls back to the saved setting' }
+      responses:
+        '200':
+          description: Probe result (always 200; see `ok` field)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionTestResult'
+        '400': { description: 'Invalid input (non-string baseUrl or model, non-boolean skipFlacCompression)' }
   /settings/podcast-index/test:
     post:
       tags:
@@ -5429,6 +5611,12 @@ paths:
                     returns 0 segments on larger chunks is hitting this limit;
                     raise it or lower transcribeMaxChunkSeconds. A proxy in front
                     of the backend may cut the request sooner than this value.
+                  example: 600
+                transcribeMaxChunkSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 7200
+                  description: Max duration, in seconds, of each transcription chunk.
                   example: 600
                 transcribeConcurrentChunks:
                   type: integer
@@ -6482,10 +6670,16 @@ paths:
         - name: slot
           in: query
           required: false
-          description: Which credential slot to preview `provider` with. `secondary` uses the secondary provider slot's own API key and base URL instead of the primary slot's; only meaningful together with `provider`.
+          description: >-
+            Which credential slot to preview `provider` with. `secondary`
+            uses the secondary provider slot's own API key and base URL
+            instead of the primary slot's; `failover` likewise uses the LLM
+            failover slot's own key and base URL. `a`/`b` are accepted as
+            aliases of `primary`/`secondary`. Only meaningful together with
+            `provider`.
           schema:
             type: string
-            enum: [primary, secondary]
+            enum: [primary, secondary, failover, a, b]
             default: primary
       responses:
         '200':
@@ -6525,9 +6719,12 @@ paths:
               properties:
                 slot:
                   type: string
-                  enum: [primary, secondary]
+                  enum: [primary, secondary, failover, a, b]
                   default: primary
-                  description: Credential slot to refresh. secondary requires a configured secondary provider.
+                  description: >-
+                    Credential slot to refresh. secondary/failover require a
+                    configured secondary/failover provider. `a`/`b` are
+                    accepted as aliases of `primary`/`secondary`.
       responses:
         '200':
           description: Refreshed model list
@@ -10794,6 +10991,110 @@ components:
         keptPct:
           type: number
           description: 100 * adsKept / adsProposed over yield rows, 0.0 when nothing was proposed.
+    FailoverTargetState:
+      type: object
+      description: Current failover state of one target (#806).
+      properties:
+        active:
+          type: boolean
+          description: True while this target is running on its failover configuration.
+        source:
+          type:
+            - string
+            - 'null'
+          enum: [auto, manual, probe, null]
+          description: What last changed the active state; null while inactive.
+        since:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the current state began; null while inactive.
+        reason:
+          type:
+            - string
+            - 'null'
+          description: Free-text reason recorded with the last trigger; null while inactive.
+        configured:
+          type: boolean
+          description: Whether this target has a failover configuration to switch to.
+    FailoverProbe:
+      type: object
+      description: Most recent health probe of one failover-related endpoint (#806).
+      properties:
+        reachable:
+          type:
+            - boolean
+            - 'null'
+          description: Null before the first probe.
+        status:
+          type:
+            - integer
+            - 'null'
+          description: HTTP status code of the last probe, when a response was received.
+        detail:
+          type: string
+          description: Human-readable outcome of the last probe.
+        checkedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the last probe ran; null before the first probe.
+        healthyStreak:
+          type: integer
+          description: Consecutive healthy probes; resets to 0 on any unhealthy probe.
+        failedStreak:
+          type: integer
+          description: Consecutive unhealthy probes; resets to 0 on any healthy probe.
+    FailoverEvent:
+      type: object
+      description: One manual, automatic, or probe-driven failover state change (#806).
+      properties:
+        id:
+          type: integer
+        target:
+          type: string
+          enum: [llm-a, llm-b, transcriber]
+        action:
+          type: string
+          enum: [trigger, cancel]
+        source:
+          type: string
+          enum: [auto, manual, probe]
+        reason:
+          type:
+            - string
+            - 'null'
+        createdAt:
+          type: string
+          format: date-time
+    FailoverOverview:
+      type: object
+      description: GET /failover response body (#806).
+      properties:
+        targets:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/FailoverTargetState'
+          description: Keyed by target name (llm-a, llm-b, transcriber).
+        probes:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/FailoverProbe'
+          description: Keyed by probe name (llm-a, llm-b, llm-failover, transcriber, transcriber-failover).
+        policy:
+          type: object
+          properties:
+            probeIntervalMinutes:
+              type: integer
+            recoveryProbes:
+              type: integer
+              description: Consecutive healthy probes needed before an automatic failover recovers.
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/FailoverEvent'
     ConnectionTestResult:
       type: object
       properties:
@@ -13481,6 +13782,14 @@ components:
               description: Seconds to wait for each remote Whisper transcription request.
             isDefault:
               type: boolean
+        transcribeMaxChunkSeconds:
+          type: object
+          description: Max duration, in seconds, of each transcription chunk.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
         transcribeConcurrentChunks:
           type: object
           description: Number of transcription chunks sent to the Whisper backend concurrently.
@@ -15220,6 +15529,20 @@ components:
             instanceCount:
               type: integer
               description: API backend only, and present only when probed is true.
+        failover:
+          type: object
+          description: Same shapes as GET /failover, minus events (#806).
+          properties:
+            targets:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/FailoverTargetState'
+              description: Keyed by target name (llm-a, llm-b, transcriber).
+            probes:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/FailoverProbe'
+              description: Keyed by probe name (llm-a, llm-b, llm-failover, transcriber, transcriber-failover).
         security:
           type: object
           properties:
@@ -15665,6 +15988,36 @@ components:
         lastUpdated:
           type: number
           description: Unix timestamp of the last status change
+        failover:
+          type: object
+          description: >-
+            Failover state (#806), read through the same 5-second cache as
+            GET /failover; never probes on this read path.
+          properties:
+            active:
+              type: array
+              items:
+                type: string
+                enum: [llm-a, llm-b, transcriber]
+              description: Target names currently running on their failover configuration.
+            targets:
+              type: object
+              description: Keyed by target name (llm-a, llm-b, transcriber).
+              additionalProperties:
+                type: object
+                properties:
+                  active:
+                    type: boolean
+                  source:
+                    type:
+                      - string
+                      - 'null'
+                    enum: [auto, manual, probe, null]
+                  since:
+                    type:
+                      - string
+                      - 'null'
+                    format: date-time
 
     QueueHold:
       type: object

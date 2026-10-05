@@ -84,9 +84,10 @@ from llm_client import (
     invalidate_provider_cache, reset_schema_probe_memo,
 )
 from llm_route import (
-    VALID_SLOTS, SAME_AS_DETECTION, SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY,
-    resolved_stage_slot,
+    ALL_CREDENTIAL_SLOTS, VALID_SLOTS, SAME_AS_DETECTION, SAME_AS_PASS,
+    SLOT_FAILOVER, SLOT_PRIMARY, SLOT_SECONDARY, resolved_stage_slot,
 )
+import failover
 from tools.reviewer_calibration import (
     calibration_revision, trigger_reviewer_calibration,
 )
@@ -3305,6 +3306,15 @@ def _secondary_slot_base_url(db, provider: str) -> str | None:
     return None
 
 
+def _failover_slot_base_url(provider: str) -> str | None:
+    """Non-secret endpoint for a preview client built against the LLM
+    failover slot (#806). Only configurable-endpoint types have one;
+    anthropic/openrouter use their fixed public URL regardless of slot."""
+    if provider in PROVIDERS_NON_ANTHROPIC:
+        return failover.failover_llm_config()['base_url']
+    return None
+
+
 @api.route('/settings/models', methods=['GET'])
 @log_request
 def get_available_models():
@@ -3317,8 +3327,9 @@ def get_available_models():
     """
     provider_override = request.args.get('provider')
     slot = request.args.get('slot', SLOT_PRIMARY)
-    if slot not in VALID_SLOTS:
-        return error_response(f'slot must be one of: {", ".join(VALID_SLOTS)}', 400)
+    slot = SLOT_ALIASES.get(slot, slot)
+    if slot not in ALL_CREDENTIAL_SLOTS:
+        return error_response(f'slot must be one of: {", ".join(ALL_CREDENTIAL_SLOTS)}', 400)
 
     if provider_override:
         if provider_override not in VALID_LLM_PROVIDERS:
@@ -3330,6 +3341,10 @@ def get_available_models():
             client = create_client_for_provider(
                 provider_override, credential_slot=SLOT_SECONDARY,
                 base_url=_secondary_slot_base_url(db, provider_override))
+        elif slot == SLOT_FAILOVER:
+            client = create_client_for_provider(
+                provider_override, credential_slot=SLOT_FAILOVER,
+                base_url=_failover_slot_base_url(provider_override))
         else:
             client = create_client_for_provider(provider_override)
         models = _models_from_client(client, provider_override)
@@ -3351,8 +3366,9 @@ def refresh_models():
     """
     data = request.get_json(silent=True)
     slot = data.get('slot', SLOT_PRIMARY) if isinstance(data, dict) else SLOT_PRIMARY
-    if slot not in VALID_SLOTS:
-        return error_response(f'slot must be one of: {", ".join(VALID_SLOTS)}', 400)
+    slot = SLOT_ALIASES.get(slot, slot)
+    if slot not in ALL_CREDENTIAL_SLOTS:
+        return error_response(f'slot must be one of: {", ".join(ALL_CREDENTIAL_SLOTS)}', 400)
 
     if slot == SLOT_SECONDARY:
         db = get_database()
@@ -3363,6 +3379,15 @@ def refresh_models():
         client = get_client_for_provider(
             provider, base_url=_secondary_slot_base_url(db, provider),
             credential_slot=SLOT_SECONDARY, force_new=True)
+        models = _models_from_client(client, provider)
+    elif slot == SLOT_FAILOVER:
+        provider = failover.failover_llm_config()['provider']
+        if not provider:
+            return error_response(
+                'No failover provider configured; set failoverLlmProvider first', 400)
+        client = get_client_for_provider(
+            provider, base_url=_failover_slot_base_url(provider),
+            credential_slot=SLOT_FAILOVER, force_new=True)
         models = _models_from_client(client, provider)
     else:
         get_llm_client(force_new=True)

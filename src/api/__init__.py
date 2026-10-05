@@ -499,4 +499,4 @@ def _find_similar_pattern(db, pattern_data: dict) -> dict | None:
 # Import all sub-modules to trigger route registration. `status` is aliased so
 # the submodule name does not shadow the `status` parameter of json_response /
 # error_response defined above.
-from api import feeds, episodes, local_episodes, history, settings, system, patterns, sponsors, status as _status_routes, auth, search, podcast_search, stats, providers, tags, cue_templates, cue_detections, detections, podping
+from api import feeds, episodes, local_episodes, history, settings, system, patterns, sponsors, status as _status_routes, auth, search, podcast_search, stats, providers, tags, cue_templates, cue_detections, detections, podping, failover
