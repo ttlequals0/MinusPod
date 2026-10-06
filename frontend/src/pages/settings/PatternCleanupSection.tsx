@@ -16,7 +16,7 @@ import {
 } from '../../api/patternCleanup';
 import { SAME_AS_DETECTION, SLOT_PRIMARY, SLOT_SECONDARY, type ProviderSlot } from '../../api/types';
 import { useModelCatalog } from '../../hooks/useModelCatalog';
-import { btnPrimary, btnSecondary, touchTarget } from '../../components/buttonStyles';
+import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 import SavedBadge from './SavedBadge';
 import ModelSelect from './ModelSelect';
@@ -31,7 +31,7 @@ interface PatternCleanupSectionProps {
 }
 
 const fieldInput = 'px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm';
-const actionButton = `px-4 py-2 rounded-lg disabled:opacity-50 text-sm ${touchTarget} ${focusRing}`;
+const actionButton = `px-4 py-2 rounded-lg disabled:opacity-50 text-sm ${focusRing}`;
 
 function runErrorMessage(e: unknown): string {
   if (e instanceof ApiError && e.status === 409) return 'A cleanup run is already in progress.';
