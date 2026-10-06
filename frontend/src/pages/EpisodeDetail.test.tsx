@@ -10,7 +10,7 @@
  *   - Description and chapter notes render as separate blocks.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EpisodeDetail, { KeyedEpisodeDetail } from './EpisodeDetail';
 import EpisodeList from '../components/EpisodeList';
@@ -791,6 +791,55 @@ describe('Differential status and corroboration badges', () => {
       daiDifferential: { status: 'error', regions: [], error: 'refetch timed out' },
     }));
     await waitFor(() => expect(screen.getByText('Cross-fetch: failed')).toBeDefined());
+  });
+
+  it('labels a held transcript gap with its stage and hold reason', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [{
+        ...heldMarker,
+        detection_stage: 'transcript_differential',
+        hold_reason: 'transcript_differential_unreviewed',
+      }],
+    }));
+    await waitFor(() => expect(screen.getByTestId('held-for-review-section')).toBeDefined());
+    const section = within(screen.getByTestId('held-for-review-section'));
+    expect(section.getByText('Transcript diff')).toBeDefined();
+    const chip = section.getByTitle(
+      'This span is missing from the upstream transcript, and no other detector confirmed it is an ad.');
+    expect(chip.textContent).toBe('Upstream transcript omits this span');
+  });
+
+  it('renders the transcript corroboration badge', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 70, confidence: 0.9, detection_stage: 'claude',
+        corroborated_by: 'transcript_differential' }],
+    }));
+    await waitFor(() => expect(screen.getByText('Corroborated: transcript')).toBeDefined());
+  });
+
+  it.each([
+    [{ status: 'ok', coverage: 0.93, sourceType: 'text/vtt', spans: [
+      { start: 10, end: 70, offsetConfirmed: true }, { start: 900, end: 915, offsetConfirmed: false }] },
+    'Transcript diff: 2 gaps'],
+    [{ status: 'ok', coverage: 0.97, sourceType: 'text/vtt', spans: [] }, 'Transcript diff: no gaps'],
+    [{ status: 'unreliable', coverage: 0.3, sourceType: 'text/vtt', spans: [] }, 'Transcript diff: unreliable'],
+    [{ status: 'error', coverage: null, sourceType: null, spans: [] }, 'Transcript diff: failed'],
+  ] as const)('shows the transcript diff header badge for %o', async (upstreamTranscript, label) => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      upstreamTranscript: { ...upstreamTranscript, spans: [...upstreamTranscript.spans] },
+    }));
+    await waitFor(() => expect(screen.getByText(label)).toBeDefined());
+  });
+
+  it('omits the transcript diff badge when the stage did not run', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      upstreamTranscript: { status: 'none', coverage: null, sourceType: null, spans: [] },
+    }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+    expect(screen.queryByText(/^Transcript diff:/)).toBeNull();
   });
 
   it('omits the header badge when daiDifferential is absent', async () => {

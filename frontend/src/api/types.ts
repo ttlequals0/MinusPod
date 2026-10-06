@@ -156,6 +156,8 @@ export interface Feed {
   ownEpisodeGuids?: boolean | null;
   // Skip the pass-2 verification scan (#599). Null/false run it.
   skipSecondPass?: boolean | null;
+  // Diff against the publisher's podcast:transcript. Null inherits the global toggle.
+  transcriptDifferential?: boolean | null;
   // Bounded per-feed episode projection (grouped dashboard view), present
   // only when the /feeds request opted in via includeLatestEpisodes.
   latestEpisodes?: EpisodeSummary[];
@@ -261,6 +263,16 @@ export interface DaiDifferential {
   error?: string | null;
 }
 
+export type UpstreamTranscriptStatus = 'ok' | 'none' | 'unreliable' | 'empty' | 'error';
+
+// Spans of Whisper audio the publisher's transcript omits.
+export interface UpstreamTranscript {
+  status: UpstreamTranscriptStatus;
+  coverage: number | null;
+  sourceType: string | null;
+  spans: { start: number; end: number; offsetConfirmed: boolean }[];
+}
+
 // Windows the latest run lost in one pass, and what they were lost to
 // (rate_limit, server_error, connectivity, reasoning_exhausted,
 // output_truncated, empty_completion, other).
@@ -317,6 +329,7 @@ export interface EpisodeDetail extends Episode {
   outputTokens?: number;
   llmCost?: number;
   daiDifferential?: DaiDifferential;
+  upstreamTranscript?: UpstreamTranscript | null;
   // Feed-declared duration (itunes:duration) in seconds; null when the feed
   // does not declare one or the episode was discovered before 2.53.0.
   rssDuration?: number | null;
@@ -419,6 +432,8 @@ export interface ProcessingRunStats {
     fingerprint: number;
     textPattern: number;
     differential: number;
+    // Absent on runs recorded before the transcript diff stage existed.
+    transcriptDifferential?: number;
     llm: number;
   } | null;
   detected?: number;
@@ -429,6 +444,7 @@ export interface ProcessingRunStats {
   sourceSecondsRemoved?: number | null;
   replacementSecondsAdded?: number | null;
   timings?: ProcessingRunTimings | null;
+  transcriptDiff?: { status: UpstreamTranscriptStatus; coverage: number | null; spans: number };
   // Present only when this run retried a rejected thinking setting with
   // pass defaults. The backend deliberately excludes the provider error.
   thinkingNotices?: ThinkingCompatibilityNotice[];
@@ -441,6 +457,7 @@ export interface ProcessingRunTimings {
   // FFmpeg tasks in the run, including retries. Finalize ends before history.
   downloadSeconds?: number | null;
   transcriptionSeconds?: number | null;
+  transcriptDiffSeconds?: number | null;
   differentialSeconds?: number | null;
   audioAnalysisSeconds?: number | null;
   detectionSeconds?: number | null;
@@ -861,6 +878,7 @@ export interface Settings {
   chaptersMode: SettingValue;
   chaptersInNotes: SettingValueBoolean;
   skipSecondPass: SettingValueBoolean;
+  transcriptDifferentialEnabled: SettingValueBoolean;
   differentialFetchMode: SettingValue;
   adChaptersEnabled: SettingValueBoolean;
   adChapterCategories: { value: Record<SegmentCategory, boolean>; isDefault: boolean };
@@ -971,6 +989,7 @@ export interface Settings {
     chaptersMode: string;
     adChaptersEnabled: boolean;
     skipSecondPass: boolean;
+    transcriptDifferentialEnabled: boolean;
     differentialFetchMode: string;
     adChapterCategories: Record<SegmentCategory, boolean>;
     adChaptersIncludeHeld: boolean;
@@ -1173,6 +1192,7 @@ export interface UpdateSettingsPayload {
   chaptersMode?: 'auto' | 'generate' | 'off';
   chaptersInNotes?: boolean;
   skipSecondPass?: boolean;
+  transcriptDifferentialEnabled?: boolean;
   differentialFetchMode?: 'auto' | 'on' | 'off';
   adChaptersEnabled?: boolean;
   // Partial map, merged over the stored global map by the backend.

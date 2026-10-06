@@ -13,7 +13,8 @@ export type DetectionStage =
   | 'vad_gap'
   | 'heuristic_preroll'
   | 'heuristic_postroll'
-  | 'dai_differential';
+  | 'dai_differential'
+  | 'transcript_differential';
 
 export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; className: string }> = {
   first_pass: {
@@ -67,5 +68,9 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   dai_differential: {
     label: 'Cross-fetch',
     className: tint.destructive,
+  },
+  transcript_differential: {
+    label: 'Transcript diff',
+    className: tint.teal,
   },
 };

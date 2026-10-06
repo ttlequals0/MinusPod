@@ -1545,7 +1545,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           {/* Advanced settings (collapsible; rarely-changed knobs) */}
           <CollapsibleSection
             title="Advanced"
-            subtitle="Cut snapping, ad review holds, and cross-fetch"
+            subtitle="Cut snapping, ad review holds, cross-fetch, and transcript diff"
             defaultOpen={false}
             storageKey={`feed-advanced-${slug}`}
           >
@@ -1753,6 +1753,32 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <p className="text-xs text-warning">
                     Downloads each new episode twice and compares them; audio that differs was
                     inserted dynamically. Doubles this feed's download count.
+                  </p>
+                </div>
+              </div>
+              )}
+
+              {/* Local feeds have no publisher transcript to compare against. */}
+              {!isLocal && (
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Transcript diff:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <select
+                    value={feed.transcriptDifferential == null ? 'inherit' : feed.transcriptDifferential ? 'on' : 'off'}
+                    onChange={(e) => updateMutation.mutate({
+                      transcriptDifferential: e.target.value === 'inherit' ? null : e.target.value === 'on',
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 disabled:opacity-50 ${selectBase}`}
+                    aria-label="Compare with the publisher transcript"
+                  >
+                    <option value="inherit">Inherit global ({settings?.transcriptDifferentialEnabled?.value === false ? 'Off' : 'On'})</option>
+                    <option value="on">On</option>
+                    <option value="off">Off</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    When an episode links the publisher's own transcript, speech missing from it is
+                    flagged as a likely ad. Gaps no other detector confirms are held for review.
                   </p>
                 </div>
               </div>

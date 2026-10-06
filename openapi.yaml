@@ -12272,6 +12272,43 @@ components:
                   type:
                     - string
                     - 'null'
+            upstreamTranscript:
+              type:
+                - object
+                - 'null'
+              description: >-
+                Diff of this episode's transcript against the publisher's
+                podcast:transcript. null until the stage has stored a result.
+                status none means the stage did not run (no transcript link, or
+                the feed or global toggle is off); unreliable means the two
+                transcripts matched too little to trust, so no spans are
+                reported. Each span is speech the publisher transcript omits.
+              properties:
+                status:
+                  type: string
+                  enum: [ok, none, unreliable, empty, error]
+                coverage:
+                  type:
+                    - number
+                    - 'null'
+                  description: Fraction of Whisper words matched in the publisher transcript.
+                sourceType:
+                  type:
+                    - string
+                    - 'null'
+                  description: MIME type of the publisher transcript that was compared.
+                spans:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      start:
+                        type: number
+                      end:
+                        type: number
+                      offsetConfirmed:
+                        type: boolean
+                        description: The publisher transcript's timestamps jump by the span's length across it.
             spliceCalibration:
               type:
                 - object
@@ -12927,6 +12964,8 @@ components:
                   type: integer
                 differential:
                   type: integer
+                transcriptDifferential:
+                  type: integer
                 llm:
                   type: integer
             detected:
@@ -12979,6 +13018,10 @@ components:
                     - number
                     - 'null'
                 transcriptionSeconds:
+                  type:
+                    - number
+                    - 'null'
+                transcriptDiffSeconds:
                   type:
                     - number
                     - 'null'
@@ -13074,6 +13117,20 @@ components:
                 gpuDeviceName: NVIDIA GPU
                 model: large-v3
                 error: null
+            transcriptDiff:
+              type: object
+              description: Upstream transcript diff outcome for this run. Absent on runs that did not reach the stage.
+              properties:
+                status:
+                  type: string
+                  enum: [ok, none, unreliable, empty, error]
+                coverage:
+                  type:
+                    - number
+                    - 'null'
+                spans:
+                  type: integer
+                  description: Number of spans the publisher transcript omits.
             thinkingNotices:
               type: array
               description: >-
@@ -13269,9 +13326,13 @@ components:
           description: Sponsor or advertiser name extracted from the ad
         detection_stage:
           type: string
-          enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential]
+          enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential]
           description: Which detection stage found this ad
           example: first_pass
+        corroborated_by:
+          type: string
+          enum: [transition_pair, template_cue, volume_anomaly, splice_evidence, dai_differential, transcript_differential]
+          description: Independent evidence the validator found for this ad. transcript_differential means the publisher's transcript omits most of the span. Absent when none was found.
         category:
           type: string
           enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]

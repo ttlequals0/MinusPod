@@ -69,7 +69,8 @@ STATS_API = {
     'transcriptSegments': 132,
     'windows': {'total': 7, 'failed': 0},
     'verificationWindows': None,
-    'stageHits': {'fingerprint': 0, 'textPattern': 3, 'differential': 11, 'llm': 11},
+    'stageHits': {'fingerprint': 0, 'textPattern': 3, 'differential': 11, 'llm': 11,
+                  'transcriptDifferential': 0},
     'detected': 12,
     'markers': {'cut': 6, 'held': 4, 'notCut': 5},
     'verificationAdsCut': 1,
@@ -79,6 +80,7 @@ STATS_API = {
     'timings': {
         'downloadSeconds': 42.0,
         'transcriptionSeconds': 180.0,
+        'transcriptDiffSeconds': None,
         'differentialSeconds': 3.5,
         'audioAnalysisSeconds': 8.0,
         'detectionSeconds': 120.0,
@@ -186,6 +188,7 @@ def test_failed_run_preserves_partial_stage_timings(app_client, seeded):
     assert run['stats']['timings'] == {
         'downloadSeconds': 42.0,
         'transcriptionSeconds': 180.0,
+        'transcriptDiffSeconds': None,
         'differentialSeconds': None,
         'audioAnalysisSeconds': None,
         'detectionSeconds': None,

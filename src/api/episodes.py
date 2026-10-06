@@ -432,6 +432,20 @@ def _episode_base_json(ep, *, slug=None, is_local=False, storage=None,
     }
 
 
+def _upstream_transcript_to_api(payload):
+    """Shape the stored upstream transcript diff for the episode detail (or None)."""
+    if not isinstance(payload, dict):
+        return None
+    return {
+        'status': payload.get('status'),
+        'coverage': payload.get('coverage'),
+        'sourceType': payload.get('mime'),
+        'spans': [{'start': span.get('start'), 'end': span.get('end'),
+                   'offsetConfirmed': bool(span.get('offset_confirmed'))}
+                  for span in payload.get('spans') or () if isinstance(span, dict)],
+    }
+
+
 def _run_stats_to_api(stats):
     """Rename the pipeline's snake_case stats blob to API casing (or None)."""
     if not stats:
@@ -455,6 +469,7 @@ def _run_stats_to_api(stats):
             'textPattern': stage_hits.get('text_pattern', 0),
             'differential': stage_hits.get('differential', 0),
             'llm': stage_hits.get('llm', 0),
+            'transcriptDifferential': stage_hits.get('transcript_differential', 0),
         } if stage_hits else None,
         'detected': stats.get('detected'),
         'markers': {
@@ -469,6 +484,7 @@ def _run_stats_to_api(stats):
         'timings': {
             'downloadSeconds': timings.get('download'),
             'transcriptionSeconds': timings.get('transcription'),
+            'transcriptDiffSeconds': timings.get('transcript_diff'),
             'differentialSeconds': timings.get('differential'),
             'audioAnalysisSeconds': timings.get('audio_analysis'),
             'detectionSeconds': timings.get('detection'),
@@ -493,6 +509,13 @@ def _run_stats_to_api(stats):
             'gpuDeviceName': transcription.get('gpu_device_name'),
             'model': transcription.get('model'),
             'error': transcription.get('error'),
+        }
+    transcript_diff = stats.get('transcript_diff')
+    if isinstance(transcript_diff, dict):
+        result['transcriptDiff'] = {
+            'status': transcript_diff.get('status'),
+            'coverage': transcript_diff.get('coverage'),
+            'spans': transcript_diff.get('spans', 0),
         }
     notices = stats.get('thinking_notices')
     if notices:
@@ -706,6 +729,9 @@ def get_episode(slug, episode_id):
         except (json.JSONDecodeError, TypeError):
             dai_differential = None
 
+    upstream_transcript = _upstream_transcript_to_api(
+        db.get_episode_upstream_transcript(slug, episode_id))
+
     splice_calibration = db.get_episode_splice_calibration(slug, episode_id)
 
     base = _episode_base_json(
@@ -777,6 +803,7 @@ def get_episode(slug, episode_id):
         'partialDetection': _partial_detection(episode, processing_runs),
         'incompleteCoverage': _incomplete_coverage(processing_runs),
         'daiDifferential': dai_differential,
+        'upstreamTranscript': upstream_transcript,
         'spliceCalibration': splice_calibration,
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),

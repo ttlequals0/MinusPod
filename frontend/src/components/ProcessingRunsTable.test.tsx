@@ -171,8 +171,8 @@ describe('ProcessingRunsTable', () => {
     const table = renderTable([legacyRun]);
     expect(table.getByText('#1')).toBeTruthy();
     expect(table.getByText('1 cut')).toBeTruthy();
-    // Downloaded, Windows, Stage hits, Removed, Second scan all dash out.
-    expect(table.getAllByText('-')).toHaveLength(5);
+    // Downloaded, Windows, Stage hits, Transcript diff, Removed, Second scan all dash out.
+    expect(table.getAllByText('-')).toHaveLength(6);
   });
 
   it('shows elapsed stage timings when the run has them', () => {
@@ -297,6 +297,42 @@ describe('ProcessingRunsTable: phase breakdown', () => {
   });
 });
 
+describe('ProcessingRunsTable: transcript diff', () => {
+  const withDiff = (transcriptDiff: NonNullable<EpisodeProcessingRun['stats']>['transcriptDiff']) => ({
+    ...statsRun,
+    stats: {
+      ...statsRun.stats!,
+      stageHits: { ...statsRun.stats!.stageHits!, transcriptDifferential: 2 },
+      timings: { ...statsRun.stats!.timings, transcriptDiffSeconds: 3 },
+      transcriptDiff,
+    },
+  });
+
+  it('counts transcript hits in the stage hits column', () => {
+    const table = renderTable([withDiff({ status: 'ok', coverage: 0.93, spans: 2 })]);
+    expect(table.getByText('0 fingerprint / 3 text / 11 cross-fetch / 2 transcript / 11 LLM')).toBeTruthy();
+  });
+
+  it.each([
+    [{ status: 'ok', coverage: 0.934, spans: 2 }, '2 gaps (93% match)'],
+    [{ status: 'ok', coverage: 0.97, spans: 1 }, '1 gap (97% match)'],
+    [{ status: 'unreliable', coverage: 0.31, spans: 0 }, 'unreliable (31% match)'],
+    [{ status: 'error', coverage: null, spans: 0 }, 'failed'],
+    [{ status: 'none', coverage: null, spans: 0 }, '-'],
+  ] as const)('renders %o as %s', (diff, text) => {
+    const { container } = render(<ProcessingRunsTable runs={[withDiff({ ...diff })]} />);
+    const headers = [...container.querySelectorAll('thead th')].map((h) => h.textContent);
+    const cells = container.querySelectorAll('tbody tr:first-child td');
+    expect(cells[headers.indexOf('Transcript diff')].textContent).toBe(text);
+  });
+
+  it('lists the transcript diff timing', () => {
+    const table = renderTable([withDiff({ status: 'ok', coverage: 0.9, spans: 0 })]);
+    fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #2/i }));
+    expect(table.getByText('Transcript diff', { selector: 'dt' }).nextSibling?.textContent).toBe('0:03');
+  });
+});
+
 describe('ProcessingRunsTable: incomplete run cost', () => {
   it('labels the run total as known spend when a phase has no recorded cost', () => {
     const table = renderTable([retryPhaseRun]);
@@ -320,7 +356,7 @@ describe('ProcessingRunsTable: wide-table layout', () => {
 
   it('drops the low-priority columns below lg', () => {
     const table = renderTable([statsRun]);
-    for (const label of ['Downloaded', 'Windows', 'Stage hits', 'Second scan']) {
+    for (const label of ['Downloaded', 'Windows', 'Stage hits', 'Transcript diff', 'Second scan']) {
       expect(table.getByRole('columnheader', { name: label }).className).toContain('hidden lg:table-cell');
     }
     expect(table.getByRole('columnheader', { name: 'Cost' }).className).not.toContain('hidden');

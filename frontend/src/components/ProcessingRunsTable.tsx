@@ -21,6 +21,7 @@ const RSS_DELTA_NOTE_SECONDS = 120;
 const TIMING_STAGES = [
   ['downloadSeconds', 'Download'],
   ['transcriptionSeconds', 'Transcription'],
+  ['transcriptDiffSeconds', 'Transcript diff'],
   ['differentialSeconds', 'Differential'],
   ['audioAnalysisSeconds', 'Audio analysis'],
   ['detectionSeconds', 'Detection'],
@@ -82,6 +83,18 @@ function RunResult({ run }: { run: EpisodeProcessingRun }) {
       )}
     </div>
   );
+}
+
+function transcriptDiffSummary(run: EpisodeProcessingRun): string {
+  const diff = run.stats?.transcriptDiff;
+  const match = diff?.coverage != null ? ` (${Math.round(diff.coverage * 100)}% match)` : '';
+  switch (diff?.status) {
+    case 'ok': return `${diff.spans} ${diff.spans === 1 ? 'gap' : 'gaps'}${match}`;
+    case 'unreliable': return `unreliable${match}`;
+    case 'empty': return 'empty transcript';
+    case 'error': return 'failed';
+    default: return '-';
+  }
 }
 
 function timingValue(run: EpisodeProcessingRun, key: typeof TIMING_STAGES[number][0]): string {
@@ -199,10 +212,16 @@ const COLUMNS: Column[] = [
     lowPriority: true,
     render: (run) => {
       const h = run.stats?.stageHits;
-      return h
-        ? `${h.fingerprint} fingerprint / ${h.textPattern} text / ${h.differential} cross-fetch / ${h.llm} LLM`
-        : '-';
+      if (!h) return '-';
+      const transcript = h.transcriptDifferential != null ? ` / ${h.transcriptDifferential} transcript` : '';
+      return `${h.fingerprint} fingerprint / ${h.textPattern} text / ${h.differential} cross-fetch${transcript} / ${h.llm} LLM`;
     },
+  },
+  {
+    label: 'Transcript diff',
+    title: "Audio the publisher's transcript leaves out, and how much of the episode it matched",
+    lowPriority: true,
+    render: transcriptDiffSummary,
   },
   {
     label: 'Ads',

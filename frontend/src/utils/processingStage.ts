@@ -13,6 +13,7 @@ const STAGE_LABELS: Record<string, string> = {
   queued: 'Queued',
   // Pass-prefixed stages
   'pass1:transcribing': 'Pass 1: Transcribing',
+  'pass1:transcript_diff': 'Pass 1: Transcript diff',
   'pass1:analyzing': 'Pass 1: Analyzing audio',
   'pass1:detecting': 'Pass 1: Detecting ads',
   'pass1:reviewing': 'Pass 1: Reviewing detections',

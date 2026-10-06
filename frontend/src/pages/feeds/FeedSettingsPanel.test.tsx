@@ -667,6 +667,48 @@ describe('FeedSettingsPanel skip verification toggle (#599)', () => {
   });
 });
 
+describe('FeedSettingsPanel upstream transcript select', () => {
+  const NAME = 'Compare with the publisher transcript';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({ transcriptDifferentialEnabled: { value: false, isDefault: false } });
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders Inherit with the global value when unset', async () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('inherit');
+    expect(await screen.findByRole('option', { name: 'Inherit global (Off)' })).toBeDefined();
+  });
+
+  it('renders on and off from the feed value', () => {
+    renderPanel(makeFeed({ transcriptDifferential: false }));
+    expect((screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement).value).toBe('off');
+  });
+
+  it.each([
+    ['on', true],
+    ['off', false],
+  ] as const)('choosing %s sends transcriptDifferential %s', async (option, value) => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), option);
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { transcriptDifferential: value });
+  });
+
+  it('choosing inherit sends null', async () => {
+    renderPanel(makeFeed({ transcriptDifferential: true }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), 'inherit');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { transcriptDifferential: null });
+  });
+
+  it('is absent on a local feed', () => {
+    renderPanel(makeFeed({ feedType: 'local' }));
+    expect(screen.queryByRole('combobox', { name: NAME })).toBeNull();
+  });
+});
+
 describe('FeedSettingsPanel cue-only mode controls', () => {
   const PROCESSING_SELECT_NAME = /processing mode/i;
 

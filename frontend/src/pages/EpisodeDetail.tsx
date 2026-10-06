@@ -22,7 +22,7 @@ import { isActionBlocked } from '../utils/processingStage';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
-import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass } from '../api/types';
+import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass, UpstreamTranscript } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
@@ -300,6 +300,29 @@ function SpendSummary({ label, spend, title }: {
 }
 
 // Why a new run cannot start. Only read once isActionBlocked says it cannot.
+// Header summary of the upstream transcript diff; hidden when the stage did not run.
+function TranscriptDiffBadge({ diff }: { diff?: UpstreamTranscript | null }) {
+  if (!diff || diff.status === 'none') return null;
+  const match = diff.coverage != null ? `${Math.round(diff.coverage * 100)}%` : null;
+  const gaps = diff.spans.length;
+  const [label, title] = {
+    ok: [gaps ? `Transcript diff: ${gaps} ${gaps === 1 ? 'gap' : 'gaps'}` : 'Transcript diff: no gaps',
+      `The publisher's transcript matched ${match} of this episode's speech. Gaps in it are treated as likely ads.`],
+    unreliable: ['Transcript diff: unreliable',
+      `The publisher's transcript matched only ${match} of this episode's speech, so its gaps were not used.`],
+    empty: ['Transcript diff: empty', "The publisher's transcript or this episode's transcript had no words to compare."],
+    error: ['Transcript diff: failed', "The publisher's transcript could not be fetched or read."],
+  }[diff.status];
+  return (
+    <span
+      className={`${badgeBase} font-medium ${diff.status === 'ok' && gaps ? tint.teal : tint.neutral}`}
+      title={title}
+    >
+      {label}
+    </span>
+  );
+}
+
 function blockedRunReason(jobState?: JobState): string {
   if (jobState === 'queued') return 'This episode is already queued.';
   if (jobState === 'processing') return 'This episode is already processing.';
@@ -864,6 +887,7 @@ function EpisodeDetail() {
                     : 'Cross-fetch: failed'}
                 </span>
               )}
+              <TranscriptDiffBadge diff={episode.upstreamTranscript} />
               {episode.activeRunSpend && (
                 <SpendSummary
                   label="Active run"

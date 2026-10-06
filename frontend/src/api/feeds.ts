@@ -465,6 +465,7 @@ export interface UpdateFeedPayload {
   detectShowSegments?: boolean | null;
   ownEpisodeGuids?: boolean | null;
   skipSecondPass?: boolean | null;
+  transcriptDifferential?: boolean | null;
 }
 
 export interface Network {

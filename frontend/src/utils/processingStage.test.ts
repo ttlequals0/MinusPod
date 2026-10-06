@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isActionBlocked } from './processingStage';
+import { getStageLabel, isActionBlocked } from './processingStage';
 
 describe('isActionBlocked', () => {
   it('blocks while queued, processing, or the client-side submitting state', () => {
@@ -16,5 +16,11 @@ describe('isActionBlocked', () => {
   it('allows the action when idle and not submitting', () => {
     expect(isActionBlocked('idle', false)).toBe(false);
     expect(isActionBlocked(undefined, false)).toBe(false);
+  });
+});
+
+describe('getStageLabel', () => {
+  it('labels the transcript diff stage', () => {
+    expect(getStageLabel('pass1:transcript_diff')).toBe('Pass 1: Transcript diff');
   });
 });
