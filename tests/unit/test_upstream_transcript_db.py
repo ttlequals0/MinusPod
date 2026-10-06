@@ -115,6 +115,22 @@ class TestDiscoveryUpsert:
         assert episode['upstream_transcript_url'] == 'https://new-host.example.com/ep1-v2.srt'
         assert episode['upstream_transcript_type'] == 'application/srt'
 
+    def test_new_url_with_null_type_clears_the_stale_type(self, temp_db, mock_podcast):
+        slug = mock_podcast['slug']
+        temp_db.bulk_upsert_discovered_episodes(slug, [{
+            'id': 'ep-1', 'url': 'https://example.com/ep1.mp3', 'title': 'Ep 1',
+            'upstream_transcript_url': 'https://upstream.example.com/ep1.vtt',
+            'upstream_transcript_type': 'text/vtt',
+        }])
+        temp_db.bulk_upsert_discovered_episodes(slug, [{
+            'id': 'ep-1', 'url': 'https://example.com/ep1.mp3', 'title': 'Ep 1',
+            'upstream_transcript_url': 'https://upstream.example.com/ep1.txt',
+            'upstream_transcript_type': None,
+        }])
+        episode = temp_db.get_episode(slug, 'ep-1')
+        assert episode['upstream_transcript_url'] == 'https://upstream.example.com/ep1.txt'
+        assert episode['upstream_transcript_type'] is None
+
 
 class TestDetailJsonStorage:
     def test_save_and_get_round_trip(self, temp_db, mock_episode, mock_podcast):

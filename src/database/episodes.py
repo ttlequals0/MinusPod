@@ -1532,7 +1532,8 @@ class EpisodeMixin:
                     rss_duration = COALESCE(excluded.rss_duration, episodes.rss_duration),
                     upstream_chapters_url = COALESCE(excluded.upstream_chapters_url, episodes.upstream_chapters_url),
                     upstream_transcript_url = COALESCE(excluded.upstream_transcript_url, episodes.upstream_transcript_url),
-                    upstream_transcript_type = COALESCE(excluded.upstream_transcript_type, episodes.upstream_transcript_type),
+                    upstream_transcript_type = CASE WHEN excluded.upstream_transcript_url IS NOT NULL
+                        THEN excluded.upstream_transcript_type ELSE episodes.upstream_transcript_type END,
                     original_url = COALESCE(episodes.original_url, excluded.original_url),
                     title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
                     description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
@@ -1543,7 +1544,8 @@ class EpisodeMixin:
                       OR episodes.rss_duration IS NOT COALESCE(episodes.rss_duration, excluded.rss_duration)
                       OR episodes.upstream_chapters_url IS NOT COALESCE(episodes.upstream_chapters_url, excluded.upstream_chapters_url)
                       OR episodes.upstream_transcript_url IS NOT COALESCE(excluded.upstream_transcript_url, episodes.upstream_transcript_url)
-                      OR episodes.upstream_transcript_type IS NOT COALESCE(excluded.upstream_transcript_type, episodes.upstream_transcript_type)
+                      OR episodes.upstream_transcript_type IS NOT CASE WHEN excluded.upstream_transcript_url IS NOT NULL
+                        THEN excluded.upstream_transcript_type ELSE episodes.upstream_transcript_type END
                       OR episodes.original_url IS NOT COALESCE(episodes.original_url, excluded.original_url)
                       OR episodes.title IS NOT CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END
                       OR episodes.description IS NOT CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END
