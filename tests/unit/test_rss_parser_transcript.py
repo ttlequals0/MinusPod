@@ -121,3 +121,25 @@ class TestExtractEpisodesCapturesUpstreamTranscript:
         assert by_title['Ep One']['upstream_transcript_url'] == \
             'https://upstream.example.com/ep1.vtt'
         assert by_title['Ep Two']['upstream_transcript_url'] is None
+
+
+ATOM_FEED = """<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <title>Atom Show</title><id>urn:atom-show</id><updated>2026-01-01T00:00:00Z</updated>
+  <entry>
+    <title>Ep One</title><id>ep-one</id><updated>2026-01-01T00:00:00Z</updated>
+    <link rel="enclosure" href="https://example.com/one.mp3" type="audio/mpeg"/>
+    <podcast:transcript url="https://upstream.example.com/ep1.vtt" type="text/vtt"/>
+  </entry>
+</feed>"""
+
+
+class TestFeedWithoutChannel:
+    def test_atom_feed_parses_episodes_without_transcript_fields(self):
+        parser = RSSParser()
+        assert parser.find_channel_element(ATOM_FEED) is None
+        assert parser._parse_upstream_transcript_tags(None) == ([], {})
+        episodes = parser.extract_episodes(ATOM_FEED)
+        assert [e['url'] for e in episodes] == ['https://example.com/one.mp3']
+        assert episodes[0]['upstream_transcript_url'] is None
+        assert episodes[0]['upstream_transcript_type'] is None
