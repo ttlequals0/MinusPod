@@ -721,7 +721,7 @@ class RSSParser:
         return unknown
 
     @staticmethod
-    def _parse_upstream_transcript_tags(feed_content):
+    def _parse_upstream_transcript_tags(channel):
         """Per-item raw podcast:transcript (url, type) tags, since feedparser
         keeps only one per item. Returns (positional, by_key): positional is
         one list per <item> in document order, for index-matching against
@@ -731,21 +731,6 @@ class RSSParser:
         positional: list = []
         by_key: dict = {}
         ambiguous_keys: set = set()
-        if not feed_content:
-            return positional, by_key
-        try:
-            payload = (_XML_ENCODING_DECL.sub('', feed_content, count=1).encode('utf-8')
-                       if isinstance(feed_content, str) else feed_content)
-            root = defused_fromstring(payload)
-        except Exception:
-            return positional, by_key
-
-        channel = None
-        for child in root:
-            tag = getattr(child, 'tag', '')
-            if isinstance(tag, str) and (tag == 'channel' or tag.endswith('}channel')):
-                channel = child
-                break
         if channel is None:
             return positional, by_key
 
@@ -1794,7 +1779,7 @@ class RSSParser:
         return seconds if seconds > 0 else None
 
     def extract_episodes(self, feed_content: str, parsed_feed=None,
-                         source: str = None) -> list[dict]:
+                         source: str = None, channel=None) -> list[dict]:
         """Extract episode information from feed.
 
         Args:
@@ -1804,14 +1789,17 @@ class RSSParser:
                 does not pay the parse cost three times.
             source: Feed identifier named in a parse warning from the fallback
                 re-parse below.
+            channel: Optional pre-parsed <channel> element from find_channel_element.
         """
         feed = (parsed_feed if parsed_feed is not None
                 else self.parse_feed(feed_content, source=source))
         if not feed:
             return []
 
+        if channel is None:
+            channel = self.find_channel_element(feed_content)
         transcript_positional, transcript_tags_by_key = \
-            self._parse_upstream_transcript_tags(feed_content)
+            self._parse_upstream_transcript_tags(channel)
         # Position is the primary match (immune to duplicate guids); the keyed
         # fallback only applies when the raw item count disagrees with feedparser's.
         transcripts_by_position = (
