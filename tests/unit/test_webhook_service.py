@@ -738,7 +738,8 @@ class TestQueueAndServiceAlerts:
             self, mock_time, mock_load, mock_dispatch, _mock_email):
         mock_load.return_value = [{'url': 'https://example.com/h', 'enabled': True,
                                    'events': ['Failover Triggered', 'Failover Cancelled']}]
-        mock_time.side_effect = [1000.0, 1010.0, 1020.0, 1025.0]
+        clock = iter(range(1000, 2000, 5))
+        mock_time.side_effect = lambda: float(next(clock))
         assert webhook_service.fire_failover_event('trigger', 'llm:primary', 'auto', 'HTTP 503')
         assert webhook_service.fire_failover_event('cancel', 'llm:primary', 'auto', None)
         assert webhook_service.fire_failover_event('trigger', 'llm:primary', 'auto', 'HTTP 503')
