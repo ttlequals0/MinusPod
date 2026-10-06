@@ -96,3 +96,32 @@ class TestExtractEpisodesCapturesUpstreamTranscript:
         episodes = RSSParser().extract_episodes(feed)
         assert episodes[0]['upstream_transcript_url'] == \
             'https://upstream.example.com/ep1.vtt'
+
+    def test_duplicate_guid_does_not_cross_contaminate(self):
+        """Two items sharing a guid, only one carrying a tag: a keyed
+        lookup cannot tell them apart, so the other item must not inherit
+        the first item's URL. Positional matching (by raw-XML item order,
+        same order feedparser preserves) is immune to this."""
+        feed = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <channel>
+    <title>Transcript Show</title>
+    <item>
+      <title>Ep One</title>
+      <guid>dupe-guid</guid>
+      <enclosure url="https://example.com/one.mp3" type="audio/mpeg"/>
+      <podcast:transcript url="https://upstream.example.com/ep1.vtt" type="text/vtt"/>
+    </item>
+    <item>
+      <title>Ep Two</title>
+      <guid>dupe-guid</guid>
+      <enclosure url="https://example.com/two.mp3" type="audio/mpeg"/>
+    </item>
+  </channel>
+</rss>"""
+        episodes = RSSParser().extract_episodes(feed)
+        by_title = {ep['title']: ep for ep in episodes}
+        assert by_title['Ep One']['upstream_transcript_url'] == \
+            'https://upstream.example.com/ep1.vtt'
+        assert by_title['Ep Two']['upstream_transcript_url'] is None

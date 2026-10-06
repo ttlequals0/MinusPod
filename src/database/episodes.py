@@ -1542,8 +1542,8 @@ class EpisodeMixin:
                       OR episodes.published_at IS NOT COALESCE(episodes.published_at, excluded.published_at)
                       OR episodes.rss_duration IS NOT COALESCE(episodes.rss_duration, excluded.rss_duration)
                       OR episodes.upstream_chapters_url IS NOT COALESCE(episodes.upstream_chapters_url, excluded.upstream_chapters_url)
-                      OR episodes.upstream_transcript_url IS NOT COALESCE(episodes.upstream_transcript_url, excluded.upstream_transcript_url)
-                      OR episodes.upstream_transcript_type IS NOT COALESCE(episodes.upstream_transcript_type, excluded.upstream_transcript_type)
+                      OR episodes.upstream_transcript_url IS NOT COALESCE(excluded.upstream_transcript_url, episodes.upstream_transcript_url)
+                      OR episodes.upstream_transcript_type IS NOT COALESCE(excluded.upstream_transcript_type, episodes.upstream_transcript_type)
                       OR episodes.original_url IS NOT COALESCE(episodes.original_url, excluded.original_url)
                       OR episodes.title IS NOT CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END
                       OR episodes.description IS NOT CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END

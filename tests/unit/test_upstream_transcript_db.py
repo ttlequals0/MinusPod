@@ -1,6 +1,8 @@
 """Tests for the upstream podcast:transcript storage (2.98.0 transcript
 differential, Task 1). Mirrors test_upstream_chapters.py's RSS-capture
-style and the dai_differential_json detail-JSON precedent.
+style and the dai_differential_json detail-JSON precedent. Unlike
+upstream_chapters_url, the transcript URL/type columns are not sticky:
+a newer non-null value replaces the stored one (publishers move hosts).
 """
 
 
@@ -18,15 +20,37 @@ class TestSchemaColumnsExist:
         cols = temp_db._get_table_columns(temp_db.get_connection(), 'podcasts')
         assert 'transcript_differential' in cols
 
-    def test_migrated_db_gains_episode_columns(self, temp_db):
+    def test_migrated_db_gains_episode_columns_matching_fresh_shape(self, temp_db):
         conn = temp_db.get_connection()
+        fresh_cols = set(temp_db._get_table_columns(conn, 'episodes'))
         conn.execute("ALTER TABLE episodes DROP COLUMN upstream_transcript_url")
         conn.execute("ALTER TABLE episodes DROP COLUMN upstream_transcript_type")
         conn.commit()
         temp_db._run_schema_migrations()
-        cols = temp_db._get_table_columns(conn, 'episodes')
+        cols = set(temp_db._get_table_columns(conn, 'episodes'))
         assert 'upstream_transcript_url' in cols
         assert 'upstream_transcript_type' in cols
+        assert cols == fresh_cols
+
+    def test_migrated_db_gains_detail_column_matching_fresh_shape(self, temp_db):
+        conn = temp_db.get_connection()
+        fresh_cols = set(temp_db._get_table_columns(conn, 'episode_details'))
+        conn.execute("ALTER TABLE episode_details DROP COLUMN upstream_transcript_json")
+        conn.commit()
+        temp_db._run_schema_migrations()
+        cols = set(temp_db._get_table_columns(conn, 'episode_details'))
+        assert 'upstream_transcript_json' in cols
+        assert cols == fresh_cols
+
+    def test_migrated_db_gains_podcast_column_matching_fresh_shape(self, temp_db):
+        conn = temp_db.get_connection()
+        fresh_cols = set(temp_db._get_table_columns(conn, 'podcasts'))
+        conn.execute("ALTER TABLE podcasts DROP COLUMN transcript_differential")
+        conn.commit()
+        temp_db._run_schema_migrations()
+        cols = set(temp_db._get_table_columns(conn, 'podcasts'))
+        assert 'transcript_differential' in cols
+        assert cols == fresh_cols
 
 
 class TestDiscoveryUpsert:
@@ -60,8 +84,6 @@ class TestDiscoveryUpsert:
         assert episode['upstream_transcript_type'] == 'text/vtt'
 
     def test_coalesce_fills_in_a_previously_null_value(self, temp_db, mock_podcast):
-        """Matches upstream_chapters_url: once set, sticky across refreshes;
-        a later refresh only fills a still-NULL column, never overwrites."""
         slug = mock_podcast['slug']
         temp_db.bulk_upsert_discovered_episodes(slug, [{
             'id': 'ep-1', 'url': 'https://example.com/ep1.mp3', 'title': 'Ep 1',
@@ -76,6 +98,25 @@ class TestDiscoveryUpsert:
         episode = temp_db.get_episode(slug, 'ep-1')
         assert episode['upstream_transcript_url'] == 'https://upstream.example.com/ep1.vtt'
         assert episode['upstream_transcript_type'] == 'text/vtt'
+
+    def test_a_newer_non_null_value_replaces_the_stored_one(self, temp_db, mock_podcast):
+        """Unlike upstream_chapters_url (sticky once set), a transcript URL
+        follows the publisher: a refresh with a different non-null URL/type
+        replaces the stored value, since publishers move hosts."""
+        slug = mock_podcast['slug']
+        temp_db.bulk_upsert_discovered_episodes(slug, [{
+            'id': 'ep-1', 'url': 'https://example.com/ep1.mp3', 'title': 'Ep 1',
+            'upstream_transcript_url': 'https://upstream.example.com/ep1.vtt',
+            'upstream_transcript_type': 'text/vtt',
+        }])
+        temp_db.bulk_upsert_discovered_episodes(slug, [{
+            'id': 'ep-1', 'url': 'https://example.com/ep1.mp3', 'title': 'Ep 1',
+            'upstream_transcript_url': 'https://new-host.example.com/ep1-v2.srt',
+            'upstream_transcript_type': 'application/srt',
+        }])
+        episode = temp_db.get_episode(slug, 'ep-1')
+        assert episode['upstream_transcript_url'] == 'https://new-host.example.com/ep1-v2.srt'
+        assert episode['upstream_transcript_type'] == 'application/srt'
 
 
 class TestDetailJsonStorage:

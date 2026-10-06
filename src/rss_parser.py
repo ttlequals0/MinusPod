@@ -721,23 +721,33 @@ class RSSParser:
         return unknown
 
     @staticmethod
-    def _parse_upstream_transcript_tags(feed_content) -> dict:
-        """Map each item's guid text and enclosure URL to its raw
-        podcast:transcript (url, type) tags.
+    def _parse_upstream_transcript_tags(feed_content):
+        """Per-item raw podcast:transcript (url, type) tags.
 
         feedparser flattens multiple podcast:transcript tags on one item
         down to a single dict, so picking the best of several requires this
-        raw-XML pass.
+        raw-XML pass. Returns (positional, by_key):
+
+        - positional: one list per <item>, in document order (empty when
+          the item carries no tag). extract_episodes matches this by index
+          against feedparser's entries, since feedparser preserves item
+          order; this is immune to duplicate guids, unlike a keyed lookup.
+        - by_key: guid text / enclosure URL -> the same list, used only as
+          a fallback when the raw item count does not match feedparser's
+          entry count. A key seen on more than one item is ambiguous (two
+          items cannot be told apart by it) and is excluded here too.
         """
-        tags_by_key: dict = {}
+        positional: list = []
+        by_key: dict = {}
+        ambiguous_keys: set = set()
         if not feed_content:
-            return tags_by_key
+            return positional, by_key
         try:
             payload = (_XML_ENCODING_DECL.sub('', feed_content, count=1).encode('utf-8')
                        if isinstance(feed_content, str) else feed_content)
             root = defused_fromstring(payload)
         except Exception:
-            return tags_by_key
+            return positional, by_key
 
         channel = None
         for child in root:
@@ -746,7 +756,7 @@ class RSSParser:
                 channel = child
                 break
         if channel is None:
-            return tags_by_key
+            return positional, by_key
 
         for item in channel:
             tag = getattr(item, 'tag', '')
@@ -765,12 +775,18 @@ class RSSParser:
                     url = elem.get('url')
                     if url:
                         transcripts.append((url, elem.get('type') or ''))
-            if not transcripts:
-                continue
+            positional.append(transcripts)
             for key in (guid_text, enclosure_url):
-                if key:
-                    tags_by_key[key] = transcripts
-        return tags_by_key
+                if not key:
+                    continue
+                if key in ambiguous_keys:
+                    continue
+                if key in by_key:
+                    ambiguous_keys.add(key)
+                    del by_key[key]
+                else:
+                    by_key[key] = transcripts
+        return positional, by_key
 
     @staticmethod
     def find_channel_element(feed_content):
@@ -1803,10 +1819,16 @@ class RSSParser:
         if not feed:
             return []
 
-        transcript_tags_by_key = self._parse_upstream_transcript_tags(feed_content)
+        transcript_positional, transcript_tags_by_key = \
+            self._parse_upstream_transcript_tags(feed_content)
+        # feedparser preserves item order, so position is the primary match
+        # (immune to duplicate guids); the keyed fallback only applies when
+        # the raw item count disagrees with feedparser's entry count.
+        transcripts_by_position = (
+            len(transcript_positional) == len(feed.entries))
 
         episodes = []
-        for entry in feed.entries:
+        for entry_index, entry in enumerate(feed.entries):
             episode_url = None
             for enclosure in entry.get('enclosures', []):
                 if 'audio' in enclosure.get('type', ''):
@@ -1849,11 +1871,15 @@ class RSSParser:
 
                 # Upstream podcast:transcript (2.98.0 transcript differential):
                 # several tags may exist per item, so pick the best type from
-                # a raw-XML pass keyed on guid or enclosure URL.
+                # a raw-XML pass matched to this entry by position (falling
+                # back to guid/enclosure only if the counts disagree).
                 upstream_transcript_url = None
                 upstream_transcript_type = None
-                transcript_tags = (transcript_tags_by_key.get(entry.get('id', ''))
-                                    or transcript_tags_by_key.get(episode_url))
+                if transcripts_by_position:
+                    transcript_tags = transcript_positional[entry_index]
+                else:
+                    transcript_tags = (transcript_tags_by_key.get(entry.get('id', ''))
+                                        or transcript_tags_by_key.get(episode_url))
                 if transcript_tags:
                     best = _best_upstream_transcript_tag(transcript_tags)
                     if best:
