@@ -78,6 +78,7 @@ release notes.
 ### Security
 - Updated fsspec to 2026.6.0 and Werkzeug to 3.1.9 to fix CVE-2026-104851 and CVE-2026-102598.
 - Updated fast-uri to 3.1.8 to fix a moderate vulnerability in frontend build tooling.
+- Updated source-map-js to 1.2.2 to fix a high-severity denial of service in frontend build tooling.
 
 ### Changed
 - Updated failover documentation and API responses for live routing, recovery checks, and manual control failures.
