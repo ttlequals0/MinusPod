@@ -21,6 +21,8 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 - Upstream transcript differential: when a feed's `podcast:transcript` tag points at a transcript made before the ad reads were spliced in, MinusPod diffs its own Whisper transcript against it. A gap releases its own hold when another stage's detection covers at least half of it. It also raises the confidence of a detection it covers for at least half of that detection's length. Otherwise it holds for review on its own and never cuts by itself. An oversized or malformed publisher transcript is skipped without stalling the run. On by default, with a global toggle and a per-feed override. See [docs/transcript-differential.md](docs/transcript-differential.md).
 - Pattern Cleanup (Experiments): a scheduled LLM review of learned ad patterns that suggests trims, splits, sponsor renames, and retirements. It also flags patterns with many false positives or copy mixed with show content. Suggestions are reviewed on the Patterns page and change nothing until approved, and an approved change can be undone. Off by default. See [Pattern Cleanup](docs/pattern-cleanup.md).
+- A fourth segment action, Mark, keeps a category's audio in place and also publishes it as a skippable chapter with a resume chapter at its end. See [Podcasting 2.0 > Ad chapters](docs/podcasting-2.0.md#ad-chapters).
+- The ad editor's "By text" mode can mark several separate transcript runs as one missed ad: "Add another span" freezes the current selection as a removable chip, and Save submits one correction per span in time order.
 
 ### Fixed
 - Forced cleanup rechecks continue across bounded batches. Statistics checks run independently of model reviews, preserve dismissed evidence while unchanged, and retain source context without overwriting later decisions.
@@ -99,6 +101,8 @@ release notes.
 - Updated failover documentation and API responses for live routing, recovery checks, and manual control failures.
 - The two LLM provider slots are now labelled Provider A and Provider B. The API accepts `providerB*` payload keys and `a`/`b` slot values; the `secondary*` keys and `primary`/`secondary` values keep working, and `GET` responses still emit both spellings.
 - Updated Python dependencies and frontend test tools from dependency PRs #811 through #820. The TypeScript ESLint packages now share one version.
+- The global ad chapters toggle and the per-category chapter checklist are retired; set a category's segment action to Mark instead. A one-shot migration converts existing Keep-plus-chapter categories to Mark on upgrade. `adChaptersEnabled` and `adChapterCategories` are still accepted on the settings and feed APIs, deprecated, and translated against the segment action map.
+- Keep no longer publishes a chapter. A category that was chaptered through Keep needs its action set to Mark to keep chaptering.
 
 ## [2.97.45] - 2026-10-01
 

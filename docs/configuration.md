@@ -41,7 +41,7 @@ Customize ad detection in Settings:
 - **AI Model** - Model for first pass ad detection. A provider selector sits beside it; leave it on Default to use the LLM Provider above, or pick a different configured provider to run detection there instead
 - **Verification Model** - Separate model for the post-cut verification pass. Its provider selector defaults to Same as detection and can be pointed at any other configured provider
 - **Chapters Model** - Model for chapter generation (a small model like Haiku works well here). Its provider selector also defaults to Same as detection
-- **Ad chapters** - Publish segments left in the audio as their own chapters, so a chapter-aware player can skip them. Off by default. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
+- **Ad chapters** - Set a category's segment action to Mark (see Segment categories below) to publish it as a skippable chapter instead of just leaving it in the audio. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
 - **System Prompts** - Customizable prompts for first pass and verification detection
 - **Ad break filler gap threshold** - ads in the same break separated by less than this many seconds of speech are merged into one cut. Default 12 seconds. Set to 0 to disable. Merges that would exceed 5 minutes total are skipped. See [Nearby-Ad Merge](how-it-works.md#nearby-ad-merge)
@@ -301,6 +301,7 @@ Each category maps to one action:
 | Remove | Cut from the audio. Default for every category. |
 | Beep | Replaced with a tone; the episode's duration is unchanged. |
 | Keep | Left in the audio untouched. |
+| Mark | Left in the audio untouched, and published as a skippable chapter. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters). |
 
 Resolution order: a per-feed override, if set, wins; otherwise the global default applies; otherwise the action is remove. Segment actions have their own dedicated **Segment actions** card in Settings (a sibling of Global Defaults, not nested inside it). Set the global map there. Set per-feed overrides on the feed's settings page under the same **Segment actions** heading; each category starts inherited from the global map until you set it explicitly. API: global map is `segmentCategoryActions` on `PUT /api/v1/settings/ad-detection` (a partial map, merged over the stored global map); per-feed overrides are `segmentCategoryActions` on `PATCH /api/v1/feeds/{slug}` (replaces the stored override map outright; `null` clears every override).
 
