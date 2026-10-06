@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from werkzeug.http import quote_header_value
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='local-import-api-test-'))
@@ -163,7 +164,20 @@ def test_upload_rejects_dangerous_basenames(app_client, local_feed, name, reason
     slug = local_feed['slug']
     _authed(app_client)
 
-    resp = _upload(app_client, slug, [(name, b'x')])
+    boundary = 'MinusPodTestBoundary'
+    body = (
+        f'--{boundary}\r\n'
+        f'Content-Disposition: form-data; name="files"; '
+        f'filename={quote_header_value(name, allow_token=False)}\r\n'
+        'Content-Type: application/octet-stream\r\n\r\nx'
+        f'\r\n--{boundary}--\r\n'
+    ).encode()
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/import/upload',
+        data=body,
+        headers=_csrf_headers(app_client),
+        content_type=f'multipart/form-data; boundary={boundary}',
+    )
 
     assert resp.status_code == 200
     body = resp.get_json()

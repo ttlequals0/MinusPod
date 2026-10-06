@@ -66,6 +66,7 @@ release notes.
 - Updated fast-uri to 3.1.8 to fix a moderate vulnerability in frontend build tooling.
 
 ### Changed
+- Upload security tests now send escaped filenames correctly and preserve path-separator rejection coverage.
 - Updated failover documentation and API responses for live routing, recovery checks, and manual control failures.
 - Regression tests cover live failover admission and daily quotas without leaking database patches or provider assumptions across tests.
 - Failover regression tests declare their dependencies at module scope.
