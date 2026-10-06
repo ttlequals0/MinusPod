@@ -1,6 +1,7 @@
 """Tests for the upstream transcript fetch, parsers and aligner."""
 import random
 import time
+import tracemalloc
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,8 @@ import requests
 
 import transcript_differential as td
 from transcript_differential import (
+    MAX_CUES,
+    MAX_UNTIMED_TRANSCRIPT_CHARS,
     MAX_UPSTREAM_TRANSCRIPT_BYTES,
     UpstreamTranscript,
     align,
@@ -137,6 +140,68 @@ class TestMimeSniffing:
         assert t.mime == 'text/vtt'
 
 
+
+MB = 1024 * 1024
+
+
+class TestParserBounds:
+    @pytest.mark.parametrize('body, mime', [
+        (b'WEBVTT\n\n' + b'1' * MB + b':00:00.000 --> 00:00:01.000\nhi', 'text/vtt'),
+        (b'WEBVTT\n\n' + b'1' * MB, 'text/vtt'),
+        (b'<' * MB, 'text/plain'),
+        (b'<p>hello ' + b'<a' * (MB // 2 - 8), 'text/html'),
+        (b'<p>hi' + b'<p><script' * (MB // 10 - 1), 'text/html'),
+        (b'<html><style>' + b'</style ' * (MB // 8 - 2), 'text/html'),
+        (b'\n' * (5 * MB), 'text/vtt'),
+        (b'\n' * MB, 'text/plain'),
+        (b'a\n' * (MB // 2), 'text/plain'),
+        (b'1' + b'\n' * MB, None),
+        (b'word ' * (MB // 5), 'text/plain'),
+    ], ids=['vtt-digit-timing', 'vtt-digit-line', 'text-lt', 'html-unclosed-tags',
+            'html-unclosed-script', 'html-unclosed-style-close', 'vtt-newlines',
+            'text-newlines', 'text-short-lines', 'srt-sniff-newlines', 'text-one-line'])
+    def test_adversarial_body_is_fast_and_small(self, body, mime):
+        start = time.monotonic()
+        parse_transcript(body, mime, URL)
+        assert time.monotonic() - start < 1.0
+        tracemalloc.start()
+        try:
+            parse_transcript(body, mime, URL)
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        assert peak < 64 * MB
+
+    def test_untimed_body_over_cap_is_rejected(self):
+        assert parse_transcript(b'hello ' * (MAX_UNTIMED_TRANSCRIPT_CHARS // 6 + 1),
+                                'text/plain', URL) is None
+
+    def test_cue_cap_rejects_the_transcript(self):
+        cue = 'w{0}\n00:00:01.000 --> 00:00:02.000\nword {0}\n\n'
+        body = 'WEBVTT\n\n' + ''.join(cue.format(i) for i in range(MAX_CUES + 1))
+        assert parse_transcript(body.encode(), 'text/vtt', URL) is None
+        ok = 'WEBVTT\n\n' + ''.join(cue.format(i) for i in range(10))
+        assert len(parse_transcript(ok.encode(), 'text/vtt', URL).cues) == 10
+
+    def test_long_line_keeps_every_word(self):
+        words = [f'w{i}' for i in range(3000)]
+        t = parse_transcript(' '.join(words).encode(), 'text/plain', URL)
+        assert [tok for tok, _ in upstream_tokens(t)] == words
+
+    def test_blank_and_wordless_lines_make_no_cues(self):
+        t = parse_transcript(b'\n\n  \n---\nhello there\n\n...\n', 'text/plain', URL)
+        assert _texts(t) == ['hello there']
+
+    def test_html_drop_matches_closing_tag_with_space_and_case(self):
+        body = (b'<p>keep one</p><SCRIPT>x()</scripts></Script >'
+                b'<p>keep two</p><style>.a{}</style><p>keep three</p>')
+        joined = ' '.join(_texts(parse_transcript(body, 'text/html', URL)))
+        assert joined == 'keep one keep two keep three'
+
+    def test_unclosed_script_keeps_following_text(self):
+        t = parse_transcript(b'<p>before</p><script>var a<p>after</p>', 'text/html', URL)
+        assert 'after' in ' '.join(_texts(t))
+
 # ---------- fetch ----------
 
 def _response(body: bytes, status: int = 200, content_type: str | None = None):
@@ -192,6 +257,19 @@ class TestFetch:
                             lambda *a, **k: _response(b'WEBVTT'))
         monkeypatch.setattr('transcript_differential.read_response_capped', _too_big)
         assert fetch_upstream_transcript(URL, 'text/vtt') is None
+
+    def test_slow_body_is_abandoned_at_the_total_deadline(self, monkeypatch):
+        def _slow(chunk_size=65536):
+            while True:
+                time.sleep(0.02)
+                yield b'WEBVTT\n'
+        response = _response(b'')
+        response.iter_content = _slow
+        monkeypatch.setattr('transcript_differential.safe_get', lambda *a, **k: response)
+        monkeypatch.setattr('transcript_differential.FETCH_DEADLINE_S', 0.2)
+        start = time.monotonic()
+        assert fetch_upstream_transcript(URL, 'text/vtt') is None
+        assert time.monotonic() - start < 2.0
 
     def test_cap_constant(self):
         assert MAX_UPSTREAM_TRANSCRIPT_BYTES == 5 * 1024 * 1024
@@ -447,6 +525,13 @@ class TestAlign:
         empty = UpstreamTranscript(cues=[], timed=False, source_url=URL, mime='text/plain')
         segs, _ = _build(_content(100))
         assert align(segs, empty)['status'] == 'empty'
+
+    def test_upstream_over_token_cap_is_unreliable(self, monkeypatch):
+        segs, transcript = _build(_content(400))
+        assert align(segs, transcript)['status'] == 'ok'
+        monkeypatch.setattr('transcript_differential.MAX_UPSTREAM_TOKENS', 399)
+        result = align(segs, transcript)
+        assert result['status'] == 'unreliable' and result['spans'] == []
 
     def test_30k_tokens_align_quickly(self):
         content = _content(30000, seed=3)

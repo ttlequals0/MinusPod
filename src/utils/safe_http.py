@@ -27,6 +27,7 @@ from __future__ import annotations
 import enum
 import logging
 import os
+import time
 from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlparse
@@ -53,6 +54,10 @@ class IncompleteResponseError(Exception):
     """Raised when a body ends before its declared Content-Length."""
 
 
+class ResponseDeadlineError(Exception):
+    """Raised when a streamed body is still arriving at the caller's deadline."""
+
+
 @dataclass
 class FetchResult:
     """Distinguishes success, size-cap rejection, and network failure so
@@ -72,12 +77,15 @@ class _ChunkedResponse(Protocol):
 
 
 def read_response_capped(
-    response: _ChunkedResponse, max_bytes: int, chunk_size: int = 65536
+    response: _ChunkedResponse, max_bytes: int, chunk_size: int = 65536,
+    deadline: float | None = None,
 ) -> bytes:
-    """Stream a response body, raising above max_bytes or on a short read:
-    a connection truncated mid-body ends iter_content without raising."""
+    """Stream a response body, raising above max_bytes, past a time.monotonic() deadline,
+    or on a short read: a connection truncated mid-body ends iter_content without raising."""
     buf = bytearray()
     for chunk in response.iter_content(chunk_size=chunk_size):
+        if deadline is not None and time.monotonic() > deadline:
+            raise ResponseDeadlineError(f"body still arriving at deadline ({len(buf)} bytes)")
         if not chunk:
             continue
         if len(buf) + len(chunk) > max_bytes:

@@ -1,10 +1,13 @@
 """Tests for utils.safe_http trust-tier validation and redirect guards."""
+import itertools
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from utils.safe_http import (
     URLTrust,
+    ResponseDeadlineError,
     ResponseTooLargeError,
     read_response_capped,
     _reject_https_downgrade,
@@ -28,6 +31,27 @@ def test_read_response_capped_rejects_over_cap():
     response.iter_content = lambda chunk_size: iter(chunks)
     with pytest.raises(ResponseTooLargeError):
         read_response_capped(response, 100)
+
+
+def _slow_chunks(chunk_size):
+    for _ in itertools.count():
+        time.sleep(0.02)
+        yield b'x'
+
+
+def test_read_response_capped_stops_a_slow_body_at_the_deadline():
+    response = MagicMock()
+    response.iter_content = _slow_chunks
+    start = time.monotonic()
+    with pytest.raises(ResponseDeadlineError):
+        read_response_capped(response, 1_000_000, deadline=start + 0.2)
+    assert time.monotonic() - start < 2.0
+
+
+def test_read_response_capped_without_deadline_reads_to_the_end():
+    response = MagicMock()
+    response.iter_content = lambda chunk_size: itertools.islice(_slow_chunks(chunk_size), 3)
+    assert read_response_capped(response, 100) == b'xxx'
 
 
 def test_reject_https_downgrade_blocks():

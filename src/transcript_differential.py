@@ -2,12 +2,17 @@
 
 Publishers that ship an ad-free transcript let us locate dynamically inserted
 ads as runs of Whisper words the upstream text lacks. Pure functions, no DB.
+
+Bounds: 5 MB timed bodies, 1M-char untimed bodies, MAX_CUES cues and
+MAX_LINE_CHARS regex input; align() refuses more than MAX_UPSTREAM_TOKENS, so
+memory stays linear in the token counts.
 """
 import difflib
 import html
 import json
 import logging
 import re
+import time
 from bisect import bisect_left
 from dataclasses import dataclass
 
@@ -20,6 +25,12 @@ from utils.safe_http import URLTrust, read_response_capped, safe_get
 logger = logging.getLogger(__name__)
 
 MAX_UPSTREAM_TRANSCRIPT_BYTES = 5 * 1024 * 1024
+# Untimed text and HTML carry no cue overhead, so a real transcript is far smaller than this.
+MAX_UNTIMED_TRANSCRIPT_CHARS = 1024 * 1024
+MAX_LINE_CHARS = 2000
+MAX_CUES = 50_000
+MAX_UPSTREAM_TOKENS = 60_000
+FETCH_DEADLINE_S = HTTP_TIMEOUT_API * 3
 FALLBACK_SHINGLE_SIZE = 4
 # SequenceMatcher is roughly quadratic; larger anchor-free chunks are re-anchored or left unmatched.
 MAX_CHUNK_CELLS = 1_000_000
@@ -46,16 +57,22 @@ _MIME_KIND = {
     'text/plain': 'text',
 }
 
-_TIME_RE = r'(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})'
+_TIME_RE = r'(?:(\d{1,3}):)?(\d{1,2}):(\d{2})[.,](\d{1,3})'
 _CUE_TIMING_RE = re.compile(_TIME_RE + r'\s*-->\s*' + _TIME_RE)
-_SRT_SNIFF_RE = re.compile(r'\d+\s*\r?\n\s*' + _TIME_RE + r'\s*-->')
+_SRT_SNIFF_RE = re.compile(r'\d{1,9}[ \t\r]*\n\s*' + _TIME_RE + r'\s*-->')
 _HTML_SNIFF_RE = re.compile(r'<(?:html|body|p|div|br|span)\b', re.I)
-_TAG_RE = re.compile(r'<[^>]*>')
-_HTML_DROP_RE = re.compile(r'<(head|script|style)\b.*?</\1\s*>', re.I | re.S)
-_HTML_BREAK_RE = re.compile(r'<(?:br|/?p|/?div|/?li|/?h[1-6]|/?tr)\b[^>]*>', re.I)
+_TAG_RE = re.compile(r'<[^<>]{0,1024}>')
+_HTML_DROP_OPEN_RE = re.compile(r'<(head|script|style)\b', re.I)
+_HTML_CLOSE_RES = {n: re.compile(rf'</{n}\s*>', re.I) for n in ('head', 'script', 'style')}
+_HTML_BREAK_RE = re.compile(r'<(?:br|/?p|/?div|/?li|/?h[1-6]|/?tr)\b[^<>]{0,1024}>', re.I)
 _INLINE_TIMESTAMP_RE = re.compile(r'\b\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?\b')
 _SPEAKER_RE = re.compile(r"^(?:-\s*)?[A-Z][\w.'-]*(?: [\w.'-]+){0,3}:\s+")
 _SPACE_RE = re.compile(r'\s+')
+_BLANK_RUN_RE = re.compile(r'\n\s*\n')
+
+
+class _TooLarge(ValueError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -70,6 +87,7 @@ def fetch_upstream_transcript(url: str, mime: str | None) -> UpstreamTranscript 
     """Fetch and parse an upstream transcript; None on any failure."""
     if not url:
         return None
+    deadline = time.monotonic() + FETCH_DEADLINE_S
     try:
         response = safe_get(
             url,
@@ -84,7 +102,8 @@ def fetch_upstream_transcript(url: str, mime: str | None) -> UpstreamTranscript 
         )
         try:
             response.raise_for_status()
-            body = read_response_capped(response, MAX_UPSTREAM_TRANSCRIPT_BYTES)
+            body = read_response_capped(response, MAX_UPSTREAM_TRANSCRIPT_BYTES,
+                                        deadline=deadline)
             declared = mime or response.headers.get('Content-Type')
         finally:
             response.close()
@@ -106,17 +125,20 @@ def parse_transcript(body: bytes, mime: str | None, source_url: str) -> Upstream
     """Parse VTT, SRT, podcast JSON, HTML or plain text; None when no cue has words."""
     if not body:
         return None
-    text = body.decode('utf-8-sig', errors='replace')
+    text = body.decode('utf-8-sig', errors='replace').replace('\r\n', '\n').replace('\r', '\n')
     kind = _strong_sniff(text) or _MIME_KIND.get(_base_mime(mime)) or _weak_sniff(text)
-    if kind in ('vtt', 'srt'):
-        cues = _parse_timed_blocks(text)
-    elif kind == 'json':
-        cues = _parse_json(text)
-    elif kind == 'html':
-        cues = _parse_lines(_html_to_text(text))
-    else:
-        cues = _parse_lines(text)
-    cues = [c for c in cues if WORD_RE.search(c['text'].lower())]
+    try:
+        if kind in ('vtt', 'srt'):
+            cues = _parse_timed_blocks(text)
+        elif kind == 'json':
+            cues = _parse_json(text)
+        else:
+            if len(text) > MAX_UNTIMED_TRANSCRIPT_CHARS:
+                raise _TooLarge(f'{len(text)} chars exceeds {MAX_UNTIMED_TRANSCRIPT_CHARS}')
+            cues = _parse_lines(_html_to_text(text) if kind == 'html' else text)
+    except _TooLarge as e:
+        logger.warning(f"Upstream transcript too large, ignored ({kind}): {e}")
+        return None
     if not cues:
         return None
     timed = all(c['start'] is not None for c in cues)
@@ -148,9 +170,32 @@ def _weak_sniff(text: str) -> str:
     return 'html' if _HTML_SNIFF_RE.search(text) else 'text'
 
 
+def _iter_lines(text: str, max_len: int | None = None):
+    """Lines without building a list; with max_len, long lines come back in pieces split at spaces."""
+    pos, n = 0, len(text)
+    while pos < n:
+        nl = text.find('\n', pos)
+        end = n if nl < 0 else nl
+        while max_len and end - pos > max_len:
+            cut = text.rfind(' ', pos + 1, pos + max_len)
+            cut = cut if cut > 0 else pos + max_len
+            yield text[pos:cut]
+            pos = cut
+        yield text[pos:end]
+        pos = end + 1
+
+
+def _add_cue(cues: list[dict], start, end, text: str) -> None:
+    if not WORD_RE.search(text.lower()):
+        return
+    if len(cues) >= MAX_CUES:
+        raise _TooLarge(f'more than {MAX_CUES} cues')
+    cues.append({'start': start, 'end': end, 'text': text})
+
+
 def _clean_cue_text(raw: str) -> str:
     lines = []
-    for line in raw.splitlines():
+    for line in _iter_lines(raw, MAX_LINE_CHARS):
         line = html.unescape(_TAG_RE.sub('', line)).strip()
         line = _SPEAKER_RE.sub('', line)
         if line:
@@ -164,16 +209,21 @@ def _seconds(h, m, s, frac) -> float:
 
 def _parse_timed_blocks(text: str) -> list[dict]:
     """VTT and SRT cues: a timing line followed by text lines, blocks split by blank lines."""
-    cues = []
-    for block in re.split(r'\r?\n\s*\r?\n', text):
-        lines = block.strip().splitlines()
-        for idx, line in enumerate(lines):
+    cues: list[dict] = []
+    timing = None
+    body: list[str] = []
+    for line in _iter_lines(_BLANK_RUN_RE.sub('\n\n', text) + '\n'):
+        if not line.strip():
+            if timing:
+                _add_cue(cues, _seconds(*timing[:4]), _seconds(*timing[4:]),
+                         _clean_cue_text('\n'.join(body)))
+            timing, body = None, []
+        elif timing:
+            body.append(line)
+        else:
             m = _CUE_TIMING_RE.search(line)
             if m:
-                cues.append({'start': _seconds(*m.groups()[:4]),
-                             'end': _seconds(*m.groups()[4:]),
-                             'text': _clean_cue_text('\n'.join(lines[idx + 1:]))})
-                break
+                timing = m.groups()
     return cues
 
 
@@ -200,21 +250,41 @@ def _parse_json(text: str) -> list[dict]:
         # Some hosts emit start/end/text instead of the namespace's startTime/endTime/body.
         body = seg.get('body', seg.get('text'))
         if isinstance(body, str):
-            cues.append({'start': _num(seg.get('startTime', seg.get('start'))),
-                         'end': _num(seg.get('endTime', seg.get('end'))),
-                         'text': _clean_cue_text(body)})
+            _add_cue(cues, _num(seg.get('startTime', seg.get('start'))),
+                     _num(seg.get('endTime', seg.get('end'))), _clean_cue_text(body))
     return cues
 
 
+def _drop_html_blocks(text: str) -> str:
+    """Remove head, script and style elements; linear, an unclosed element is kept."""
+    out = []
+    pos = 0
+    unclosed: set[str] = set()
+    for m in _HTML_DROP_OPEN_RE.finditer(text):
+        name = m.group(1).lower()
+        if m.start() < pos or name in unclosed:
+            continue
+        close = _HTML_CLOSE_RES[name].search(text, m.end())
+        if not close:
+            unclosed.add(name)
+            continue
+        out.append(text[pos:m.start()])
+        out.append(' ')
+        pos = close.end()
+    out.append(text[pos:])
+    return ''.join(out)
+
+
 def _html_to_text(text: str) -> str:
-    text = _HTML_DROP_RE.sub(' ', text)
-    return _HTML_BREAK_RE.sub('\n', text)
+    return _HTML_BREAK_RE.sub('\n', _drop_html_blocks(text))
 
 
 def _parse_lines(text: str) -> list[dict]:
-    return [{'start': None, 'end': None,
-             'text': _clean_cue_text(_INLINE_TIMESTAMP_RE.sub('', line))}
-            for line in text.splitlines()]
+    cues: list[dict] = []
+    for line in _iter_lines(_BLANK_RUN_RE.sub('\n', text), MAX_LINE_CHARS):
+        if line.strip():
+            _add_cue(cues, None, None, _clean_cue_text(_INLINE_TIMESTAMP_RE.sub('', line)))
+    return cues
 
 
 def _spread(words: list[str], start: float, end: float) -> list[tuple[str, float, float]]:
@@ -364,6 +434,8 @@ def align(segments: list[dict], transcript: UpstreamTranscript, *, min_gap_words
     timed = transcript.timed
     if not a or not b:
         return {'status': 'empty', 'coverage': 0.0, 'timed': timed, 'spans': []}
+    if len(b) > MAX_UPSTREAM_TOKENS:
+        return {'status': 'unreliable', 'coverage': 0.0, 'timed': timed, 'spans': []}
 
     aw = [t[0] for t in a]
     bw = [t[0] for t in b]
