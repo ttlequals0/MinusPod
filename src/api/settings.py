@@ -4502,6 +4502,81 @@ def update_db_backup_settings():
     return get_db_backup_settings()
 
 
+# ========== Pattern cleanup (Experiments) settings ==========
+
+@api.route('/settings/pattern-cleanup', methods=['PUT'])
+@log_request
+def update_pattern_cleanup_settings():
+    """Update pattern cleanup (Experiments) settings.
+
+    Body: {enabled?, cron?, batchSize?, unusedDays?, provider?, model?}.
+    provider accepts a slot ('primary'/'secondary', the 'a'/'b' aliases, or
+    'same_as_detection'); blank clears the override so detection's slot is
+    inherited, matching chaptersProvider/verificationProvider.
+    """
+    from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
+    from api.pattern_cleanup import cleanup_settings_view
+
+    db = get_database()
+    data = request.get_json()
+    if not data:
+        return error_response('Request body required', 400)
+
+    staged = {}
+    if 'enabled' in data:
+        staged['pattern_cleanup_enabled'] = 'true' if bool(data['enabled']) else 'false'
+    if 'cron' in data:
+        cron = (data['cron'] or '').strip()
+        if not is_valid_expression(cron):
+            return error_response(f'invalid cron expression: {cron}', 400)
+        staged['pattern_cleanup_cron'] = cron
+    if 'batchSize' in data:
+        value = data['batchSize']
+        lo, hi = BATCH_SIZE_RANGE
+        if not isinstance(value, int) or isinstance(value, bool) or value < lo or value > hi:
+            return error_response(f'batchSize must be an integer between {lo} and {hi}', 400)
+        staged['pattern_cleanup_batch_size'] = str(value)
+    if 'unusedDays' in data:
+        value = data['unusedDays']
+        lo, hi = UNUSED_DAYS_RANGE
+        if not isinstance(value, int) or isinstance(value, bool) or value < lo or value > hi:
+            return error_response(f'unusedDays must be an integer between {lo} and {hi}', 400)
+        staged['pattern_cleanup_unused_days'] = str(value)
+    if 'provider' in data:
+        value = data['provider']
+        if value is not None and not isinstance(value, str):
+            return error_response('provider must be a string or null', 400)
+        value = SLOT_ALIASES.get(value, value) if value else value
+        valid = VALID_SLOTS + (SAME_AS_DETECTION,)
+        if not value:
+            staged['pattern_cleanup_provider'] = ''
+        elif value in valid:
+            staged['pattern_cleanup_provider'] = value
+        else:
+            return error_response(f'provider must be one of: {", ".join(valid)}, or blank', 400)
+    if 'model' in data:
+        value = data['model']
+        if value is not None and not isinstance(value, str):
+            return error_response('model must be a string or null', 400)
+        value = (value or '').strip()
+        if len(value) > 200:
+            return error_response('model must be 200 characters or fewer', 400)
+        staged['pattern_cleanup_model'] = value
+
+    try:
+        with db.settings_transaction():
+            for key, value in staged.items():
+                if value:
+                    db.set_setting(key, value, is_default=False)
+                else:
+                    db.clear_setting(key)
+    except sqlite3.Error:
+        logger.exception("Pattern cleanup settings save failed; no field was persisted")
+        return error_response('Settings could not be saved', 500)
+
+    return json_response(cleanup_settings_view(db))
+
+
 @api.route('/community-patterns/sync', methods=['POST'])
 @limiter.limit('6/hour')
 @log_request

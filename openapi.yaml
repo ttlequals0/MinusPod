@@ -4137,6 +4137,272 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /patterns/cleanup:
+    get:
+      tags:
+        - Patterns
+      summary: Get pattern cleanup status and settings
+      description: >-
+        Scheduled LLM review of learned ad patterns (Experiments). Combines
+        the six configurable settings with live state: whether a run
+        currently holds the lock, the last run's timestamp/error/summary,
+        and the pending suggestion counts by kind.
+      operationId: getPatternCleanupStatus
+      responses:
+        '200':
+          description: Pattern cleanup status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternCleanupStatus'
+
+  /patterns/cleanup/run:
+    post:
+      tags:
+        - Patterns
+      summary: Run pattern cleanup now
+      description: >-
+        Starts a cleanup run on a background thread and returns immediately
+        with the new run's id. `force` clears every learned pattern's review
+        stamp first, so the whole catalog is reviewed again even if nothing
+        changed. Rate limited to 6/hour.
+      operationId: runPatternCleanup
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  default: false
+      responses:
+        '202':
+          description: Run started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runId:
+                    type: integer
+        '400':
+          description: Request body must be a JSON object
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: 'A cleanup run is already in progress (error: cleanup_in_progress)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /patterns/cleanup/runs:
+    get:
+      tags:
+        - Patterns
+      summary: List recent pattern cleanup runs
+      operationId: listPatternCleanupRuns
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+      responses:
+        '200':
+          description: Recent runs, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PatternCleanupRun'
+
+  /patterns/cleanup/suggestions:
+    get:
+      tags:
+        - Patterns
+      summary: List pattern cleanup suggestions
+      description: >-
+        Each suggestion carries the pattern summary it was made against
+        (sponsor, scope, podcast title, counts), the proposed `payload`, and
+        the `before` snapshot used to undo an approval.
+      operationId: listPatternCleanupSuggestions
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, approved, rejected, undone] }
+        - name: kind
+          in: query
+          schema: { type: string, enum: [trim, split, rename, retire, flag] }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+      responses:
+        '200':
+          description: Suggestions, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  suggestions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PatternCleanupSuggestion'
+        '400':
+          description: Unknown status or kind filter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /patterns/cleanup/suggestions/{suggestion_id}/approve:
+    post:
+      tags:
+        - Patterns
+      summary: Approve a pattern cleanup suggestion
+      description: >-
+        Applies the change in place; the pattern keeps a `before` snapshot
+        so it can be undone.
+      operationId: approvePatternCleanupSuggestion
+      parameters:
+        - name: suggestion_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Updated suggestion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternCleanupSuggestion'
+        '404':
+          description: Suggestion not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: >-
+            The suggestion or its pattern does not allow this action
+            (error: invalid_transition)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /patterns/cleanup/suggestions/{suggestion_id}/reject:
+    post:
+      tags:
+        - Patterns
+      summary: Reject a pattern cleanup suggestion
+      description: Leaves the pattern alone and marks it reviewed.
+      operationId: rejectPatternCleanupSuggestion
+      parameters:
+        - name: suggestion_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Updated suggestion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternCleanupSuggestion'
+        '404':
+          description: Suggestion not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: 'The suggestion does not allow this action (error: invalid_transition)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /patterns/cleanup/suggestions/{suggestion_id}/undo:
+    post:
+      tags:
+        - Patterns
+      summary: Undo an approved pattern cleanup suggestion
+      description: Restores the pattern (or split pieces) from the `before` snapshot.
+      operationId: undoPatternCleanupSuggestion
+      parameters:
+        - name: suggestion_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Updated suggestion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternCleanupSuggestion'
+        '404':
+          description: Suggestion not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: 'Only an approved suggestion can be undone (error: invalid_transition)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /patterns/cleanup/suggestions/bulk:
+    post:
+      tags:
+        - Patterns
+      summary: Approve or reject several pattern cleanup suggestions
+      operationId: bulkPatternCleanupSuggestions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids, action]
+              properties:
+                ids:
+                  type: array
+                  items: { type: integer }
+                action:
+                  type: string
+                  enum: [approve, reject]
+      responses:
+        '200':
+          description: Per-id results; a failed id carries an `error` instead of `status`
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        status: { type: string, enum: [approved, rejected] }
+                        error: { type: string, enum: [not_found, invalid_transition] }
+        '400':
+          description: Malformed ids or action
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /podcast-search:
     get:
       tags:
@@ -9586,6 +9852,53 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /settings/pattern-cleanup:
+    put:
+      summary: Update pattern cleanup (Experiments) settings
+      tags: [Settings]
+      operationId: updatePatternCleanupSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                cron:
+                  type: string
+                  description: Standard 5-field cron expression. Must be a valid cron string.
+                batchSize:
+                  type: integer
+                  minimum: 1
+                  maximum: 200
+                unusedDays:
+                  type: integer
+                  minimum: 7
+                  maximum: 3650
+                provider:
+                  type: string
+                  description: >-
+                    'primary'/'secondary' (or the 'a'/'b' aliases) or
+                    'same_as_detection'; blank clears the override so
+                    detection's slot is inherited.
+                model:
+                  type: string
+                  maxLength: 200
+                  description: Blank inherits the detection model.
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PatternCleanupSettings' }
+        '400':
+          description: Invalid cron, batchSize/unusedDays out of range, unknown provider slot, or model too long
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /community-patterns/sync:
     post:
       summary: Force a community-pattern sync now
@@ -11429,6 +11742,170 @@ components:
         finishedAt:
           type: string
           description: ISO 8601 UTC timestamp when the backup completed.
+
+    PatternCleanupSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        cron:
+          type: string
+          description: Cron expression; validated with utils.cron.is_valid_expression.
+        batchSize:
+          type: integer
+          minimum: 1
+          maximum: 200
+        unusedDays:
+          type: integer
+          minimum: 7
+          maximum: 3650
+        provider:
+          type: string
+          description: >-
+            Credential slot ('primary', 'secondary', or 'same_as_detection'),
+            or blank to inherit detection's slot. 'a'/'b' are accepted as
+            aliases for primary/secondary on write.
+        model:
+          type: string
+          maxLength: 200
+          description: Blank inherits the detection model.
+
+    PatternCleanupStatus:
+      allOf:
+        - $ref: '#/components/schemas/PatternCleanupSettings'
+        - type: object
+          properties:
+            inProgress:
+              type: boolean
+              description: Whether another run currently holds the cleanup lock.
+            lastRun:
+              type: string
+              nullable: true
+              description: ISO 8601 UTC timestamp the last run started.
+            lastError:
+              type: string
+              nullable: true
+            lastSummary:
+              type: object
+              nullable: true
+              description: The last run's summary (see PatternCleanupRun fields plus durationMs).
+            pending:
+              type: object
+              properties:
+                total:
+                  type: integer
+                byKind:
+                  type: object
+                  additionalProperties:
+                    type: integer
+
+    PatternCleanupRun:
+      type: object
+      properties:
+        id:
+          type: integer
+        startedAt:
+          type: string
+        finishedAt:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [running, completed, failed]
+        forced:
+          type: boolean
+        trigger:
+          type: string
+          enum: [schedule, manual]
+        model:
+          type: string
+          nullable: true
+        provider:
+          type: string
+          nullable: true
+        credentialSlot:
+          type: string
+          nullable: true
+        reviewedCount:
+          type: integer
+        suggestedCount:
+          type: integer
+        skippedCount:
+          type: integer
+        errorCount:
+          type: integer
+          description: Patterns whose review raised and were skipped; the run still completes.
+        error:
+          type: string
+          nullable: true
+          description: Set only when the whole run failed (e.g. rate limited).
+
+    PatternCleanupSuggestion:
+      type: object
+      properties:
+        id:
+          type: integer
+        runId:
+          type: integer
+          nullable: true
+        patternId:
+          type: integer
+        kind:
+          type: string
+          enum: [trim, split, rename, retire, flag]
+        status:
+          type: string
+          enum: [pending, approved, rejected, undone]
+        confidence:
+          type: number
+          nullable: true
+        reasons:
+          type: array
+          items:
+            type: string
+        payload:
+          type: object
+          description: >-
+            Shape depends on kind: trim {text}; split {pieces: [{text,
+            sponsor}]}; rename {sponsor}; retire {unusedDays, lastMatchedAt,
+            confirmationCount}; flag {falsePositiveCount, confirmationCount,
+            contaminated, contaminationReason, recommended, trimText?}.
+        before:
+          type: object
+          nullable: true
+          description: Snapshot of the pattern at suggestion time, used to undo an approval.
+        applied:
+          type: object
+          nullable: true
+          description: Set once approved (new_pattern_ids, disabled_pattern_id, applied_at).
+        createdAt:
+          type: string
+        reviewedAt:
+          type: string
+          nullable: true
+        pattern:
+          type: object
+          description: Present on the suggestions list; omitted on approve/reject/undo responses.
+          properties:
+            id:
+              type: integer
+            sponsor:
+              type: string
+              nullable: true
+            scope:
+              type: string
+            podcastTitle:
+              type: string
+              nullable: true
+            confirmationCount:
+              type: integer
+            falsePositiveCount:
+              type: integer
+            lastMatchedAt:
+              type: string
+              nullable: true
+            createdAt:
+              type: string
 
     AdDistribution:
       type: object
