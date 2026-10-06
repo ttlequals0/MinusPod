@@ -8,7 +8,7 @@ Kept free of Flask and DB imports so it can be unit tested directly.
 """
 import math
 
-from config import SEGMENT_CATEGORIES, is_pending_review
+from config import SEGMENT_CATEGORIES, is_keep_like, is_pending_review
 from utils.markers import parse_ad_markers, spans_match
 
 # Filter value and summary key for markers no stage classified. Not a member of
@@ -155,12 +155,13 @@ def summarize_cut_detections(items: list[dict]) -> dict:
 def awaits_decision(item: dict) -> bool:
     """True when a person still has a decision to make about this detection.
 
-    A keep marker is settled by feed policy and the corrections endpoint
-    refuses a verdict on it, so listing it would offer an impossible decision.
+    A keep or mark marker is settled by feed policy and the corrections
+    endpoint refuses a verdict on it, so listing it would offer an
+    impossible decision.
     """
     return (item['status'] in ('pending', 'rejected')
             and item['resolution'] == 'unresolved'
-            and item.get('actionApplied') != 'keep')
+            and not is_keep_like(item.get('actionApplied')))
 
 
 def reviewer_moved(item: dict) -> bool:

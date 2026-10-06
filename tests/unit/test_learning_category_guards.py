@@ -82,6 +82,10 @@ def _keep_marker(start=100.0, end=130.0, category='cross_promo'):
     }
 
 
+def _mark_marker(start=100.0, end=130.0, category='cross_promo'):
+    return {**_keep_marker(start, end, category), 'action_applied': 'mark'}
+
+
 def _remove_marker(start=200.0, end=230.0):
     return {
         'start': start, 'end': end, 'sponsor': 'SpansCo',
@@ -152,6 +156,19 @@ class TestKeepMarkerCorrectionGuard:
             )
         assert resp.status_code == 200, resp.data
         assert len(temp_db.get_episode_corrections(_podcast_id(temp_db), EPISODE_ID)) == 1
+
+    def test_reject_on_mark_marker_is_non_actionable(self, client, temp_db):
+        """The 'This segment is kept' guard must fire for mark too (spec 1.2:
+        mark is keep-like in marker state, not just in the audio)."""
+        _seed_episode(temp_db, markers=[_mark_marker()])
+        with patch('api.patterns.get_database', return_value=temp_db):
+            resp = client.post(
+                f'/api/v1/episodes/{SLUG}/{EPISODE_ID}/corrections',
+                data=json.dumps(_correction_payload('reject', 100.0, 130.0)),
+                content_type='application/json',
+            )
+        assert resp.status_code == 409, resp.data
+        assert temp_db.get_episode_corrections(_podcast_id(temp_db), EPISODE_ID) == []
 
     def test_reject_with_no_matching_marker_is_unaffected(self, client, temp_db):
         """No persisted marker at all (e.g. a stale client payload) must not
@@ -385,6 +402,15 @@ class TestKeptMarkersStillLearn:
             'confidence': 0.95,
         }
         assert det._ad_passes_learning_filters(keep_ad, min_confidence=0.5) is True
+
+    def test_learning_filter_allows_mark_action_marker(self):
+        det = AdDetector(api_key='test-key')
+        mark_ad = {
+            'start': 0.0, 'end': 60.0, 'was_cut': False,
+            'action_applied': 'mark', 'detection_stage': 'claude',
+            'confidence': 0.95,
+        }
+        assert det._ad_passes_learning_filters(mark_ad, min_confidence=0.5) is True
 
     def test_learning_filter_still_rejects_plain_uncut_marker(self):
         """Sanity: an ordinary uncut marker (no action_applied at all, e.g.

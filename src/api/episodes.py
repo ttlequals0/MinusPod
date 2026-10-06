@@ -16,7 +16,7 @@ from api import (
     _resolve_original_audio,
 )
 from config import (
-    is_pending_review, normalize_segment_category, resolve_chapters_in_notes,
+    is_keep_like, is_pending_review, normalize_segment_category, resolve_chapters_in_notes,
     title_matches_skip_patterns,
     resolve_processing_mode, DEFAULT_SEGMENT_ACTION,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
@@ -106,11 +106,11 @@ def _overlaps_any(marker, spans) -> bool:
 def _marker_wants_cut(marker, action, false_positives, confirmed) -> bool:
     """Whether the recorded decisions ask for this marker to leave the audio.
 
-    Conservative: anything not plainly kept, rejected, or awaiting review
-    counts as wanted, so an unclear marker costs a recut rather than a
-    silently dropped decision.
+    Conservative: anything not plainly kept/marked, rejected, or awaiting
+    review counts as wanted, so an unclear marker costs a recut rather than
+    a silently dropped decision.
     """
-    if action == 'keep':
+    if is_keep_like(action):
         return False
     if _overlaps_any(marker, false_positives):
         return False
@@ -157,9 +157,9 @@ def chapters_only_decisions(markers, applied_cuts, original_duration,
         if m.get('start') is not None and m.get('end') is not None
     ]
     resolved = [(m, DEFAULT_SEGMENT_ACTION
-                 if action == 'keep' and keep_override and keep_override(m) else action)
+                 if is_keep_like(action) and keep_override and keep_override(m) else action)
                 for m, action in resolved]
-    protected = [*(m for m, action in resolved if action == 'keep'),
+    protected = [*(m for m, action in resolved if is_keep_like(action)),
                  *user_trimmed_keep_ranges(list(confirmed))]
     wanted = AudioProcessor().compute_applied_cuts(
         [dict(m, beep=(action == 'beep')) for m, action in resolved
@@ -687,9 +687,11 @@ def get_episode(slug, episode_id):
 
     # Parse ad markers if present, separating into four buckets:
     #   pendingReviewMarkers: held_for_review=True and not was_cut (checked FIRST)
-    #   keptMarkers:          action_applied == 'keep' and not held (deliberate
-    #                         per-category keep; keep resolution clears holds
-    #                         upstream, so this never overlaps pendingReviewMarkers)
+    #   keptMarkers:          action_applied keep-like and not held (deliberate
+    #                         per-category keep/mark; that resolution clears
+    #                         holds upstream, so this never overlaps
+    #                         pendingReviewMarkers; actionApplied on each
+    #                         marker tells keep from mark for the UI label)
     #   rejectedAdMarkers:    REJECT decision or not was_cut (and not held/kept)
     #   adMarkers:            everything else (accepted cuts)
     ad_markers = []
@@ -711,7 +713,7 @@ def get_episode(slug, episode_id):
                 marker['actionApplied'] = marker.get('action_applied')
                 if is_pending_review(marker):
                     pending_review_markers.append(marker)
-                elif marker.get('action_applied') == 'keep':
+                elif is_keep_like(marker.get('action_applied')):
                     kept_markers.append(marker)
                 elif decision == 'REJECT' or not was_cut:
                     rejected_ad_markers.append(marker)

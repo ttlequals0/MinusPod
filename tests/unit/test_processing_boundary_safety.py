@@ -265,6 +265,7 @@ def test_boundary_merge_keeps_estimated_pattern_risk():
 
 KEEP_PROMO_MAP = {'sponsor': 'remove', 'interaction': 'remove', 'cross_promo': 'keep',
                   'self_promo': 'keep', 'intro': 'keep', 'outro': 'keep', 'recap': 'keep'}
+MARK_PROMO_MAP = {**KEEP_PROMO_MAP, 'self_promo': 'mark'}
 REMOVE_PROMO_MAP = {category: 'remove' for category in KEEP_PROMO_MAP}
 PROMO_KEEP = (2588.74, 2617.19)
 PROMO_TEXT_END = 2628.74
@@ -314,6 +315,16 @@ def test_keep_map_leaves_promo_audio_and_cuts_the_read_after_it():
                               (PROMO_TEXT_END, READ_END, 'sponsor')]
     applied = _render(merged, KEEP_PROMO_MAP)
     assert [(c['start'], c['end']) for c in applied] == [(PROMO_TEXT_END, READ_END)]
+
+
+def test_mark_map_leaves_promo_audio_and_cuts_the_read_after_it():
+    """_clip_estimated_keep must clip an estimated mark span exactly like
+    an estimated keep span against a precise remove."""
+    merged = _merge(_promo_members(), MARK_PROMO_MAP)
+
+    assert _spans(merged) == [(*PROMO_KEEP, 'self_promo'),
+                              (2595.7, PROMO_TEXT_END, 'self_promo'),
+                              (PROMO_TEXT_END, READ_END, 'sponsor')]
 
 
 def test_remove_map_merges_promo_and_read_into_one_cut():

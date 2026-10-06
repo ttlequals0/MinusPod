@@ -33,6 +33,7 @@ HELD = {'start': 200.0, 'end': 230.0, 'confidence': 0.6,
 # but no verdict can be recorded against it.
 KEPT = {'start': 300.0, 'end': 330.0, 'confidence': 1.0, 'was_cut': False,
         'category': 'outro', 'action_applied': 'keep'}
+MARKED = {**KEPT, 'start': 400.0, 'end': 430.0, 'action_applied': 'mark'}
 
 
 class TestFlatten:
@@ -218,6 +219,12 @@ class TestFilter:
         refuses a verdict on it, so listing it as needing review would offer
         a decision nobody can make."""
         items = flatten_detections([_row(markers=[REJECTED, KEPT])], [])
+        out = filter_detections(items, status='needs_review')
+        assert [i['start'] for i in out] == [100.0]
+
+    def test_needs_review_excludes_category_marks(self):
+        """A mark marker is just as settled by feed policy as a keep one."""
+        items = flatten_detections([_row(markers=[REJECTED, MARKED])], [])
         out = filter_detections(items, status='needs_review')
         assert [i['start'] for i in out] == [100.0]
 

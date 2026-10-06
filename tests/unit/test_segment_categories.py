@@ -255,6 +255,23 @@ class TestMergeGatedOnResolvedAction:
         assert by_cat['interaction']['start'] == 20.0
         assert by_cat['interaction']['end'] == 30.0
 
+    def test_true_overlap_gives_mark_action_the_contested_audio(self):
+        """Mark must win contested audio exactly like keep (spec 1.2)."""
+        det = self._det()
+        action_map = dict(_all_remove_map(), interaction='mark')
+        sponsor_ad = _ad(0.0, 25.0, 'text_pattern', category='sponsor')
+        interaction_ad = _ad(20.0, 30.0, 'claude', category='interaction')
+
+        out = det._merge_detection_results(
+            [sponsor_ad, interaction_ad], action_map=action_map)
+
+        assert len(out) == 2
+        by_cat = {m['category']: m for m in out}
+        assert by_cat['sponsor']['start'] == 0.0
+        assert by_cat['sponsor']['end'] == 20.0
+        assert by_cat['interaction']['start'] == 20.0
+        assert by_cat['interaction']['end'] == 30.0
+
 
 class TestMergeDuplicateOverlapPrefersKeepCategory:
     """A >=80%-overlap duplicate fold must take the keep-resolving side's
@@ -270,6 +287,22 @@ class TestMergeDuplicateOverlapPrefersKeepCategory:
         # A=[0,100] dur 100, B=[10,100] dur 90: overlap 90/90 = 1.0 (>= 0.8)
         sponsor_ad = _ad(0.0, 100.0, 'text_pattern', confidence=0.7, category='sponsor')
         interaction_ad = _ad(10.0, 100.0, 'claude', confidence=0.9, category='interaction')
+
+        out = det._merge_overlapping_accepted_duplicates(
+            [sponsor_ad, interaction_ad], action_map=action_map)
+
+        assert len(out) == 1
+        assert out[0]['category'] == 'interaction'
+
+    def test_sponsor_remove_vs_interaction_mark_combines_to_interaction(self):
+        """Mark must be preferred as the keep-resolving side exactly like
+        keep, even when (unlike the keep sibling test above) the
+        higher-confidence contributor is the remove side: only an explicit
+        mark check, not the confidence fallback, can get this right."""
+        det = self._det()
+        action_map = dict(_all_remove_map(), interaction='mark')
+        sponsor_ad = _ad(0.0, 100.0, 'text_pattern', confidence=0.9, category='sponsor')
+        interaction_ad = _ad(10.0, 100.0, 'claude', confidence=0.7, category='interaction')
 
         out = det._merge_overlapping_accepted_duplicates(
             [sponsor_ad, interaction_ad], action_map=action_map)
@@ -689,6 +722,25 @@ class TestEffectiveActionMergeGate:
         assert len(merged) == 1
         assert merged[0]['end'] == 160.0
 
+    def test_pattern_defined_mark_passed_raw_still_overrides_to_remove(self):
+        """split_conflicting_action_span's own pattern-override check (not
+        just effective_resolved_action's) must treat mark like keep when a
+        caller hands it an unresolved action string directly."""
+        from ad_detector.boundaries import split_conflicting_action_span
+        mark_ad = {'start': 100.0, 'end': 140.0, 'category': 'intro',
+                   'pattern_defined': True}
+        remove_ad = {'start': 130.0, 'end': 190.0, 'category': 'sponsor'}
+
+        new_last, entries = split_conflicting_action_span(
+            mark_ad, remove_ad, 'mark', 'remove')
+
+        # Both sides resolve to remove-priority once the pattern override
+        # applies, so they split at their shared boundary (130.0); a mark
+        # side wrongly left at keep-priority would instead keep the whole
+        # [100, 140] span and push remove_ad's start to 140.0.
+        assert new_last['end'] == 130.0
+        assert entries[0]['start'] == 130.0
+
 
 class TestNotCurrentWinsDaiClipping:
     """The lower-priority survivor fragment must not keep DAI evidence
@@ -704,6 +756,23 @@ class TestNotCurrentWinsDaiClipping:
             keep_ad, remove_ad, 'keep', 'remove')
 
         assert new_last is keep_ad
+        assert len(entries) == 1
+        assert entries[0]['start'] == 140.0
+        assert entries[0]['dai_core_spans'] == [
+            {'start': 140.0, 'end': 190.0}]
+
+    def test_after_fragment_clips_core_spans_for_mark(self):
+        """Mark must carry the same priority as keep (2) in the split's
+        precedence dict, not fall back to remove's priority (0)."""
+        from ad_detector.boundaries import split_conflicting_action_span
+        mark_ad = {'start': 100.0, 'end': 140.0, 'category': 'intro'}
+        remove_ad = {'start': 130.0, 'end': 190.0, 'category': 'sponsor',
+                     'dai_core_spans': [{'start': 130.0, 'end': 190.0}]}
+
+        new_last, entries = split_conflicting_action_span(
+            mark_ad, remove_ad, 'mark', 'remove')
+
+        assert new_last is mark_ad
         assert len(entries) == 1
         assert entries[0]['start'] == 140.0
         assert entries[0]['dai_core_spans'] == [

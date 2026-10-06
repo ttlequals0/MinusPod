@@ -6,7 +6,7 @@ from itertools import combinations
 
 from config import (
     MIN_AD_DURATION, SEGMENT_CATEGORIES,
-    count_pending_review, is_pending_review, resolve_max_ad_duration_confirmed,
+    count_pending_review, is_keep_like, is_pending_review, resolve_max_ad_duration_confirmed,
     resolve_max_boundary_shift,
     SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
     SNIPPET_EXCLUDED_STAGE_REASONS,
@@ -1588,17 +1588,17 @@ def submit_correction(slug, episode_id):
     except (TypeError, ValueError):
         return error_response('Original ad boundaries must be numbers', 400)
 
-    # A keep-resolved marker is left in on purpose by the feed's category
-    # action, so confirm/reject/adjust would record a decision the cut can
-    # never honor. Recategorizing changes that verdict, so it is exempt. The
-    # match ignores pending-review state: a keep-resolved marker clears its
-    # hold, so a pending-review-scoped lookup would miss it.
+    # A keep- or mark-resolved marker is left in on purpose by the feed's
+    # category action, so confirm/reject/adjust would record a decision the
+    # cut can never honor. Recategorizing changes that verdict, so it is
+    # exempt. The match ignores pending-review state: a keep/mark-resolved
+    # marker clears its hold, so a pending-review-scoped lookup would miss it.
     current_markers = _load_markers(db, slug, episode_id)
     target_marker = find_marker_in_list(
         current_markers, original_start, original_end, 0.5)
     if (correction_type != 'recategorize'
             and target_marker is not None
-            and target_marker.get('action_applied') == 'keep'):
+            and is_keep_like(target_marker.get('action_applied'))):
         return error_response(
             'This segment is kept for this feed. Change its category to correct it.',
             409

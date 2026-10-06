@@ -690,6 +690,16 @@ class TestBuildSegmentHints:
         assert hints[0]['start'] == pytest.approx(372.0)
         assert hints[0]['end'] == pytest.approx(392.0)
 
+    def test_mark_marker_becomes_range(self):
+        """A mark marker is physically identical to a kept one in the
+        processed audio, so it must hint a range exactly like keep."""
+        markers = [{'start': 400.0, 'end': 420.0, 'action_applied': 'mark',
+                    'category': 'self_promo'}]
+        hints = build_segment_hints(markers, _MIXED_CUTS)
+        assert hints[0]['type'] == 'range'
+        assert hints[0]['start'] == pytest.approx(372.0)
+        assert hints[0]['end'] == pytest.approx(392.0)
+
     def test_mixed_remove_and_beep_markers_both_present(self):
         markers = [
             {'start': 100.0, 'end': 130.0, 'action_applied': 'remove', 'category': 'sponsor'},

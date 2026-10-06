@@ -407,12 +407,12 @@ def count_pending_review(markers) -> int:
 def count_not_cut(markers) -> int:
     """Number of markers that stayed in the audio and are not pending review
     (e.g. a rejected correction). Missing was_cut defaults to True (cut),
-    matching is_pending_review's convention. A keep-action marker is
+    matching is_pending_review's convention. A keep/mark-action marker is
     intentionally left in the audio, not a miss, so it's excluded here:
     it must never inflate the notification-facing not-cut/miss count."""
     return sum(1 for m in markers
                if not m.get('was_cut', True) and not is_pending_review(m)
-               and m.get('action_applied') != 'keep')
+               and not is_keep_like(m.get('action_applied')))
 
 
 def title_matches_skip_patterns(title, patterns_json):

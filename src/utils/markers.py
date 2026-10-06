@@ -8,7 +8,7 @@ from itertools import accumulate, pairwise
 
 from config import (CORRECTION_MATCH_MIN_COVERAGE, FINGERPRINT_CHUNK_SIZE,
                     PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS,
-                    is_pending_review, repair_segment_category)
+                    is_keep_like, is_pending_review, repair_segment_category)
 from utils.time import overlap_ratio
 
 
@@ -941,9 +941,10 @@ def _folded_validation(winner: dict, loser: dict) -> dict:
 
 
 def _fold_rank(marker: dict) -> int:
-    """Fold precedence: a keep is a settled decision, a hold an open question a
-    human still owes an answer to, and a reject or plain record neither."""
-    if marker.get('action_applied') == 'keep':
+    """Fold precedence: a keep or mark is a settled decision, a hold an open
+    question a human still owes an answer to, and a reject or plain record
+    neither."""
+    if is_keep_like(marker.get('action_applied')):
         return 2
     if marker.get('held_for_review'):
         return 1

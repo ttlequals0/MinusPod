@@ -27,6 +27,7 @@ CUT_AD = {'start': 300.0, 'end': 360.0, 'confidence': 0.95, 'category': 'sponsor
           'reason': 'sponsor read', 'was_cut': True, 'action_applied': 'remove'}
 KEPT_OUTRO = {'start': 1669.8, 'end': 1726.4, 'confidence': 1.0, 'category': 'outro',
               'reason': 'sign-off', 'was_cut': False, 'action_applied': 'keep'}
+MARKED_OUTRO = {**KEPT_OUTRO, 'action_applied': 'mark'}
 # Uncut for a different reason: the validator rejected it, so no category
 # action is holding it and the keep guard does not apply.
 UNCUT_REJECT = {'start': 800.0, 'end': 830.0, 'confidence': 0.4, 'category': 'sponsor',
@@ -489,6 +490,10 @@ class TestChaptersOnlyDecisions:
         assert chapters_only_decisions([dict(CUT_AD)], self.CUTS, 1800.0,
                                        actions={'sponsor': 'keep'}) is False
 
+    def test_false_when_the_category_action_now_marks_the_marker(self):
+        assert chapters_only_decisions([dict(CUT_AD)], self.CUTS, 1800.0,
+                                       actions={'sponsor': 'mark'}) is False
+
     def test_false_when_an_approved_hold_is_waiting_to_be_cut(self):
         approved = dict(HELD[0], approved=True)
         assert chapters_only_decisions(
@@ -502,6 +507,10 @@ class TestChaptersOnlyDecisions:
         assert chapters_only_decisions(
             [dict(CUT_AD), dict(KEPT_OUTRO)], self.CUTS, 1800.0) is True
 
+    def test_true_when_a_marked_marker_is_left_in_the_audio(self):
+        assert chapters_only_decisions(
+            [dict(CUT_AD), dict(MARKED_OUTRO)], self.CUTS, 1800.0) is True
+
     def test_true_when_a_user_trim_already_clipped_the_cut(self):
         trimmed = [{'start': 300.0, 'end': 360.0, 'correction_type': 'confirm',
                     'confirmed_span': {'start': 300.0, 'end': 340.0}}]
@@ -513,6 +522,12 @@ class TestChaptersOnlyDecisions:
         pattern_ad = dict(CUT_AD, pattern_defined=True)
         assert chapters_only_decisions(
             [pattern_ad], self.CUTS, 1800.0, actions={'sponsor': 'keep'},
+            keep_override=lambda m: bool(m.get('pattern_defined'))) is True
+
+    def test_true_when_a_mark_override_still_cuts_the_marker(self):
+        pattern_ad = dict(CUT_AD, pattern_defined=True)
+        assert chapters_only_decisions(
+            [pattern_ad], self.CUTS, 1800.0, actions={'sponsor': 'mark'},
             keep_override=lambda m: bool(m.get('pattern_defined'))) is True
 
     def test_false_when_boundaries_moved(self):

@@ -5,7 +5,7 @@ import re
 
 from config import (
     ModelNotConfiguredError,
-    normalize_segment_category, resolve_chapter_geometry,
+    is_keep_like, normalize_segment_category, resolve_chapter_geometry,
     resolve_stage_tunables,
 )
 from database import Database, DEFAULT_CHAPTER_PROMPT
@@ -86,7 +86,7 @@ def build_segment_hints(markers: list[dict] | None, cuts: list[dict] | None,
     positions stay in lockstep with the transcript's own mapping).
 
     A 'remove' marker becomes a single seam position (where the
-    surrounding content now joins); 'keep'/'beep' markers become a
+    surrounding content now joins); 'keep'/'mark'/'beep' markers become a
     start/end range, since that time still exists in the processed audio.
     Any other action, including markers still pending review, is skipped.
     Returns [] when there are no markers, so callers can skip the hints
@@ -98,7 +98,7 @@ def build_segment_hints(markers: list[dict] | None, cuts: list[dict] | None,
     hints: list[dict] = []
     for marker in markers:
         action = marker.get('action_applied')
-        if action not in ('remove', 'beep', 'keep'):
+        if action != 'remove' and action != 'beep' and not is_keep_like(action):
             continue
         start = marker.get('start')
         end = marker.get('end')

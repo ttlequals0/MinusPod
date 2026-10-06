@@ -293,6 +293,29 @@ def test_fold_verdict_precedence_is_keep_then_hold_then_plain():
         assert ('hold_reason' in target) is (winner == 'hold')
 
 
+def test_fold_verdict_precedence_treats_mark_like_keep():
+    """_fold_rank must rank a mark marker as the same settled-decision
+    precedence as keep, not fall through to the plain/reject rank."""
+    def _record(kind, start=500.0, end=520.0):
+        marker = {'start': start, 'end': end, 'was_cut': False}
+        if kind == 'mark':
+            marker['action_applied'] = 'mark'
+        elif kind == 'hold':
+            marker.update(held_for_review=True, hold_reason=f'{kind}_reason')
+        else:
+            marker['validation'] = {'decision': 'REJECT'}
+        return marker
+
+    expected = {
+        ('mark', 'mark'): 'mark', ('mark', 'hold'): 'mark', ('mark', 'reject'): 'mark',
+        ('hold', 'mark'): 'mark', ('reject', 'mark'): 'mark',
+    }
+    for (target_kind, other_kind), winner in expected.items():
+        target = _record(target_kind)
+        fold_marker_pair(target, _record(other_kind, 500.2, 519.8))
+        assert (target.get('action_applied') == 'mark') is (winner == 'mark')
+
+
 def test_an_explicit_null_was_cut_is_read_as_cut():
     """None is not a decision, so it defaults the same way a missing key does."""
     null_cut = {'start': 500.0, 'end': 520.0, 'was_cut': None}

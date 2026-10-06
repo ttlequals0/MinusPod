@@ -98,6 +98,15 @@ class TestFireSiteCounting:
         ]
         assert count_not_cut(markers) == 1
 
+    def test_mark_action_marker_excluded_from_not_cut(self):
+        """A mark marker is just as deliberately left in the audio as keep."""
+        markers = [
+            {'was_cut': False, 'action_applied': 'mark'},   # marked on purpose
+            {'held_for_review': False, 'was_cut': False},   # rejected, a real miss
+            {'was_cut': True},
+        ]
+        assert count_not_cut(markers) == 1
+
 
 class TestKeepExcludedThroughNotificationPipeline:
     """The count_not_cut fix must hold end-to-end through the webhook

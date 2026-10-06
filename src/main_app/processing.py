@@ -5673,8 +5673,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         podcast_row = podcast_row or db.get_podcast_by_slug(slug)
         recut_podcast_id = ((episode_data or {}).get('podcast_id')
                             or (podcast_row or {}).get('id'))
-        # Resolved once and reused below so a category now resolving 'keep'
-        # comes back out of ads_to_remove, beating an older approval.
+        # Resolved once and reused below so a category now resolving
+        # keep-like comes back out of ads_to_remove, beating an older approval.
         segment_actions = db.resolve_segment_actions(slug, podcast=podcast_row)
         _log_segment_action_map(slug, episode_id, segment_actions, podcast_row)
         corrections = _load_user_corrections(slug, episode_id, db)
@@ -6864,8 +6864,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
                 all_ads = first_pass_ads.copy()
 
-                # Keep-action bypass: pull 'keep' markers out before the
-                # validator/reviewer see them, so the resurrection pool
+                # Keep/mark-action bypass: pull keep-like markers out before
+                # the validator/reviewer see them, so the resurrection pool
                 # (which iterates all_ads_with_validation) never resurrects
                 # one. Merged back into the saved marker list below.
                 keep_override = _make_keep_differential_override(dai_differential)

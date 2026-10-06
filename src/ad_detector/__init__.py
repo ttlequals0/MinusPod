@@ -67,6 +67,7 @@ from config import (
     HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
     DEFAULT_SEGMENT_ACTION,
     normalize_segment_category,
+    is_keep_like,
     SEGMENT_CATEGORIES,
     is_cue_backed,
     is_template_cue,
@@ -2845,10 +2846,10 @@ class AdDetector:
         Filters: was_cut, detection_stage == 'claude', confidence floor,
         and stricter confidence for long (>90s) detections.
         """
-        # Learn from removed ads, or a keep-action marker: it still names a
-        # real ad read the feed chose to leave in, so it's worth learning
-        # even though was_cut is False for it.
-        if not ad.get('was_cut', False) and ad.get('action_applied') != 'keep':
+        # Learn from removed ads, or a keep/mark-action marker: it still
+        # names a real ad read the feed chose to leave in, so it's worth
+        # learning even though was_cut is False for it.
+        if not ad.get('was_cut', False) and not is_keep_like(ad.get('action_applied')):
             logger.debug(f"Skipping pattern for uncut ad: {ad['start']:.1f}s-{ad['end']:.1f}s")
             return False
 
@@ -3502,13 +3503,14 @@ class AdDetector:
                         a_action = effective_resolved_action(a, action_map)
                         b_action = effective_resolved_action(b, action_map)
                         if a_action != b_action:
-                            if a_action == 'keep':
+                            if is_keep_like(a_action):
                                 category_source = a
-                            elif b_action == 'keep':
+                            elif is_keep_like(b_action):
                                 category_source = b
-                            # Neither side resolves to 'keep' (e.g. remove vs
-                            # beep): no side is more "correct" to preserve,
-                            # fall back to the higher-confidence contributor.
+                            # Neither side resolves to keep-like (e.g. remove
+                            # vs beep): no side is more "correct" to
+                            # preserve, fall back to the higher-confidence
+                            # contributor.
                     source_category = category_source.get('category')
                     if source_category in SEGMENT_CATEGORIES:
                         combined['category'] = source_category
