@@ -21,6 +21,7 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- A stale pre-fix published date could make an upstream GUID change look like a new episode, duplicating it in the feed. Matching now tolerates that drift, a one-time cleanup removes existing duplicates, and the renderer drops any repeat too.
 - Episode run details show which targets ran on failover, and the episode API returns it as `failover` in run stats.
 - The Failover card shows Provider B as off, with no action, while Provider B is disabled; `GET /failover` reports `enabled` per target.
 - Failover triggered and cancelled events are no longer suppressed by the 5-minute alert dedup; every state change sends its event.
