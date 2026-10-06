@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import fcntl
-import hashlib
 import json
 import logging
 import re
@@ -21,6 +20,7 @@ from llm_route import (
     LiveRoute, apply_failover, client_for_route, live_route_from, live_route_params,
     resolve_route,
 )
+from pattern_cleanup_hash import INVALID_MARKER, review_hash
 from pattern_variants import derive_intro_outro
 from processing_queue import ProcessingQueue
 from sponsor_normalize import get_or_create_known_sponsor, sanitize_sponsor_name
@@ -54,7 +54,6 @@ HIGH_FP_MIN = 2
 # Patterns whose review is unusable this many times are parked until a forced run.
 INVALID_LIMIT = 3
 INVALID_PREFIX = 'invalid:'
-INVALID_MARKER = 'invalid'
 # This many failed calls in a row means the route itself is broken, so the run stops.
 MAX_CONSECUTIVE_CALL_ERRORS = 3
 MAX_TOKENS = 4096
@@ -100,13 +99,6 @@ class SuggestionNotFoundError(LookupError):
 
 class SuggestionStateError(Exception):
     """The suggestion's status or its pattern does not allow the action."""
-
-
-def review_hash(text: str | None, sponsor: str | None) -> str:
-    """Hash of normalized text plus sponsor; a match means already reviewed."""
-    norm = ' '.join((text or '').lower().split())
-    raw = f"{norm}\x1f{(sponsor or '').strip().lower()}"
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
 def _clamped_int(db, key: str, bounds: tuple[int, int]) -> int:

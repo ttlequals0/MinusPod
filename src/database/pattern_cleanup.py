@@ -1,6 +1,7 @@
 """Pattern cleanup mixin: review runs, suggestions, and review stamps on learned patterns."""
 import json
 
+from pattern_cleanup_hash import INVALID_MARKER, review_hash
 from utils.time import utc_now_iso
 
 # Learned patterns are the only ones the cleanup reviews.
@@ -192,7 +193,6 @@ class PatternCleanupMixin:
         """Active learned patterns, never-reviewed first, then oldest review.
         Filters out pending (unless forced) and already-reviewed-unchanged patterns in SQL
         and caps the result to batch_size plus a margin; the caller still rechecks each row."""
-        from pattern_cleanup import INVALID_MARKER, review_hash  # deferred: avoid an import cycle
         conn = self.get_connection()
         conn.create_function('cleanup_review_hash', 2, review_hash)
         pending_filter = '' if force else (
