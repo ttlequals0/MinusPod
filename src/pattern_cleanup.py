@@ -62,6 +62,8 @@ _MODEL_INPUT_FIELDS = (
 _STATS_INPUT_FIELDS = (
     *_MODEL_INPUT_FIELDS, 'created_at', 'last_matched_at',
     'confirmation_count', 'false_positive_count',
+    # Also guards the pre-transaction source_context computed from the scanned snapshot.
+    'podcast_id', 'created_from_episode_id',
 )
 # Patterns whose review is unusable this many times are parked until a forced run.
 INVALID_LIMIT = 3
@@ -158,7 +160,8 @@ def _snapshot_fields(pattern: dict, fields: tuple[str, ...]) -> dict:
         'intro_variants', 'outro_variants') else pattern.get(field) for field in fields}
 
 
-def _suggestion_stale_fields(suggestion: dict, *, approving: bool) -> tuple[str, ...]:
+def _suggestion_stale_fields(suggestion: dict) -> tuple[str, ...]:
+    """Fields that must still match before approving; counters and disabled-state included."""
     fields = ['text_template', 'sponsor_id', 'sponsor']
     kind = suggestion['kind']
     payload = suggestion.get('payload') or {}
@@ -169,9 +172,18 @@ def _suggestion_stale_fields(suggestion: dict, *, approving: bool) -> tuple[str,
     if (kind == 'trim'
             or kind == 'flag' and payload.get('recommended') == 'trim'):
         fields.extend(('intro_variants', 'outro_variants'))
-    elif approving and (kind in ('retire', 'split')
-                        or kind == 'flag' and payload.get('recommended') != 'trim'):
+    elif (kind in ('retire', 'split')
+            or kind == 'flag' and payload.get('recommended') != 'trim'):
         fields.extend(('is_active', 'disabled_at', 'disabled_reason'))
+    return tuple(fields)
+
+
+def _reject_stale_fields(suggestion: dict) -> tuple[str, ...]:
+    """Reject only needs the fields that feed the review stamp; counters may have moved."""
+    fields = ['text_template', 'sponsor_id', 'sponsor']
+    payload = suggestion.get('payload') or {}
+    if suggestion['kind'] == 'trim' or payload.get('recommended') == 'trim':
+        fields.extend(('intro_variants', 'outro_variants'))
     return tuple(fields)
 
 
@@ -606,7 +618,7 @@ def _same_model_input(expected: dict, current: dict) -> bool:
 
 
 def _same_suggestion_content(suggestion: dict, current: dict) -> bool:
-    fields = [field for field in _suggestion_stale_fields(suggestion, approving=True)
+    fields = [field for field in _suggestion_stale_fields(suggestion)
               if field not in ('false_positive_count', 'confirmation_count')]
     return _matches_snapshot(current, suggestion.get('before') or {}, tuple(fields))
 
@@ -723,84 +735,110 @@ def _run_stats_sweep(db, run_id: int, unused_days: int, segments_cache: dict) ->
     """Persist new statistical evidence independently from model-review eligibility."""
     changed = set()
     for scanned in db.get_cleanup_stats_rows():
-        with db.transaction(immediate=True) as conn:
-            current = _pattern_on(conn, scanned['id'])
-            if current is None or not _same_stats_input(scanned, current):
+        try:
+            changed |= _sweep_one_pattern(db, run_id, scanned, unused_days, segments_cache)
+        except Exception:
+            logger.exception("pattern_cleanup: stats sweep failed for pattern %s", scanned.get('id'))
+            db.clear_leaked_transaction(logger, 'pattern cleanup stats sweep')
+    return changed
+
+
+def _stats_proposal_needs_write(kind: str, proposal: dict, pattern: dict,
+                                acknowledgments: dict, pending: dict) -> bool:
+    """Whether a new or updated stats-only suggestion of `kind` should be stored."""
+    fingerprint = _stats_evidence(kind, pattern, proposal['payload'])
+    if fingerprint is None or acknowledgments.get(kind) == fingerprint:
+        return False
+    existing = pending.get(kind)
+    if existing is not None and not _stats_only_suggestion(existing):
+        return False
+    if existing is None:
+        return True
+    return (_stats_evidence(kind, existing.get('before') or {}, existing.get('payload') or {})
+            != fingerprint
+            or not _matches_snapshot(pattern, existing.get('before') or {},
+                                     _suggestion_stale_fields(existing)))
+
+
+def _sweep_one_pattern(db, run_id: int, scanned: dict, unused_days: int,
+                       segments_cache: dict) -> set[tuple[int, str]]:
+    """One pattern's share of the stats sweep; a read-only precheck decides whether a
+    write transaction (and the transcript lookup it would otherwise hold open) is needed."""
+    changed = set()
+    candidates = {item['kind']: item for item in stats_suggestions(db, scanned, unused_days)}
+    conn = db.get_connection()
+    all_pending = _pending_pattern_suggestions(conn, scanned['id'])
+    if not candidates and not all_pending:
+        return changed
+    # Read-only: a not-yet-backfilled cache (None) is treated as "nothing acknowledged",
+    # which can only make this check over-eager about needing context, never under-eager.
+    acknowledgments = db.get_cleanup_stats_reviewed(scanned['id'], conn=conn) or {}
+    pending = {item['kind']: item for item in all_pending if item['kind'] in ('retire', 'flag')}
+    # _same_stats_input is checked again below with the fresh row; computed from `scanned`
+    # here, which is safe because that guard proves text_template/sponsor/source fields match.
+    needs_context = any(_stats_proposal_needs_write(kind, proposal, scanned, acknowledgments, pending)
+                        for kind, proposal in candidates.items())
+    context = source_context(db, scanned, segments_cache) if needs_context else None
+    with db.transaction(immediate=True) as conn:
+        current = _pattern_on(conn, scanned['id'])
+        if current is None or not _same_stats_input(scanned, current):
+            return changed
+        acknowledgments = _stats_acknowledgments(db, conn, current)
+        all_pending = _pending_pattern_suggestions(conn, current['id'])
+        pending = {item['kind']: item for item in all_pending
+                   if item['kind'] in ('retire', 'flag')}
+        for existing in all_pending:
+            if (not _stats_only_suggestion(existing)
+                    and _obsolete_model_version(existing, current)):
+                conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?",
+                             (existing['id'],))
+                pending.pop(existing['kind'], None)
+        for kind, existing in list(pending.items()):
+            proposal = candidates.get(kind)
+            if _stats_only_suggestion(existing) and (
+                    proposal is None or acknowledgments.get(kind) ==
+                    _stats_evidence(kind, current, proposal['payload'])):
+                conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?",
+                             (existing['id'],))
+                pending.pop(kind)
+        model_flag = pending.get('flag')
+        if (model_flag is not None and not _stats_only_suggestion(model_flag)
+                and _same_suggestion_content(model_flag, current)):
+            proposal = candidates.get('flag')
+            payload = dict(model_flag.get('payload') or {})
+            payload.update({
+                'false_positive_count': current.get('false_positive_count') or 0,
+                'confirmation_count': current.get('confirmation_count') or 0,
+            })
+            reasons = [reason for reason in model_flag.get('reasons') or []
+                       if not _is_false_positive_reason(reason)]
+            fingerprint = (_stats_evidence('flag', current, proposal['payload'])
+                           if proposal is not None else None)
+            if (proposal is not None
+                    and acknowledgments.get('flag') != fingerprint):
+                reasons.extend(reason for reason in proposal['reasons']
+                               if reason not in reasons)
+            before = _before_snapshot(
+                current, (model_flag.get('before') or {}).get('source_context'))
+            old_before = model_flag.get('before') or {}
+            stale_fields = _suggestion_stale_fields(model_flag)
+            if (not _matches_snapshot(current, old_before, stale_fields)
+                    or payload != model_flag.get('payload') or reasons != model_flag.get('reasons')):
+                db.upsert_cleanup_suggestion(
+                    run_id, current['id'], 'flag',
+                    max(model_flag.get('confidence') or 0,
+                        proposal['confidence'] if proposal else 0),
+                    reasons, payload, before, conn=conn)
+                model_flag.update(before=before, payload=payload, reasons=reasons)
+                changed.add((current['id'], 'flag'))
+        for kind, proposal in candidates.items():
+            if not _stats_proposal_needs_write(kind, proposal, current, acknowledgments, pending):
                 continue
-            candidates = {item['kind']: item for item in stats_suggestions(db, current, unused_days)}
-            acknowledgments = _stats_acknowledgments(db, conn, current)
-            all_pending = _pending_pattern_suggestions(conn, current['id'])
-            pending = {item['kind']: item for item in all_pending
-                       if item['kind'] in ('retire', 'flag')}
-            for existing in all_pending:
-                if (not _stats_only_suggestion(existing)
-                        and _obsolete_model_version(existing, current)):
-                    conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?",
-                                 (existing['id'],))
-                    pending.pop(existing['kind'], None)
-            for kind, existing in list(pending.items()):
-                proposal = candidates.get(kind)
-                if _stats_only_suggestion(existing) and (
-                        proposal is None or acknowledgments.get(kind) ==
-                        _stats_evidence(kind, current, proposal['payload'])):
-                    conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?",
-                                 (existing['id'],))
-                    pending.pop(kind)
-            model_flag = pending.get('flag')
-            if (model_flag is not None and not _stats_only_suggestion(model_flag)
-                    and _same_suggestion_content(model_flag, current)):
-                proposal = candidates.get('flag')
-                payload = dict(model_flag.get('payload') or {})
-                payload.update({
-                    'false_positive_count': current.get('false_positive_count') or 0,
-                    'confirmation_count': current.get('confirmation_count') or 0,
-                })
-                reasons = [reason for reason in model_flag.get('reasons') or []
-                           if not _is_false_positive_reason(reason)]
-                fingerprint = (_stats_evidence('flag', current, proposal['payload'])
-                               if proposal is not None else None)
-                if (proposal is not None
-                        and acknowledgments.get('flag') != fingerprint):
-                    reasons.extend(reason for reason in proposal['reasons']
-                                   if reason not in reasons)
-                before = _before_snapshot(
-                    current, (model_flag.get('before') or {}).get('source_context'))
-                old_before = model_flag.get('before') or {}
-                stale_fields = _suggestion_stale_fields(model_flag, approving=True)
-                if (not _matches_snapshot(current, old_before, stale_fields)
-                        or payload != model_flag.get('payload') or reasons != model_flag.get('reasons')):
-                    db.upsert_cleanup_suggestion(
-                        run_id, current['id'], 'flag',
-                        max(model_flag.get('confidence') or 0,
-                            proposal['confidence'] if proposal else 0),
-                        reasons, payload, before, conn=conn)
-                    model_flag.update(before=before, payload=payload, reasons=reasons)
-                    changed.add((current['id'], 'flag'))
-            for kind, proposal in candidates.items():
-                fingerprint = _stats_evidence(kind, current, proposal['payload'])
-                if fingerprint is None or acknowledgments.get(kind) == fingerprint:
-                    continue
-                existing = pending.get(kind)
-                if existing is not None and not _stats_only_suggestion(existing):
-                    continue
-                if existing is None:
-                    context = source_context(db, current, segments_cache)
-                    before = _before_snapshot(current, context)
-                    db.upsert_cleanup_suggestion(
-                        run_id, current['id'], kind, proposal['confidence'], proposal['reasons'],
-                        proposal['payload'], before, conn=conn)
-                    changed.add((current['id'], kind))
-                elif (_stats_evidence(kind, existing.get('before') or {},
-                                      existing.get('payload') or {}) != fingerprint
-                      or not _matches_snapshot(
-                          current, existing.get('before') or {},
-                          _suggestion_stale_fields(existing, approving=True))):
-                    context = source_context(db, current, segments_cache)
-                    before = _before_snapshot(current, context)
-                    db.upsert_cleanup_suggestion(
-                        run_id, current['id'], kind, proposal['confidence'], proposal['reasons'],
-                        proposal['payload'], before, conn=conn)
-                    changed.add((current['id'], kind))
+            before = _before_snapshot(current, context)
+            db.upsert_cleanup_suggestion(
+                run_id, current['id'], kind, proposal['confidence'], proposal['reasons'],
+                proposal['payload'], before, conn=conn)
+            changed.add((current['id'], kind))
     return changed
 
 
@@ -1158,7 +1196,9 @@ def _apply_kind(db, conn, kind: str, pattern: dict, payload: dict) -> dict:
         return _apply_disable(db, conn, pattern,
                               f"Cleanup: no matches in {payload.get('unused_days')} days")
     if kind == 'flag':
-        if payload.get('recommended') == 'trim' and payload.get('trim_text'):
+        if payload.get('recommended') == 'trim':
+            if not payload.get('trim_text'):
+                raise SuggestionStateError('flag recommends a trim but has no trim text')
             return _apply_trim(db, conn, pattern, payload['trim_text'], payload.get('sponsor'))
         reason = ('Cleanup: contaminated' if payload.get('contaminated')
                   else 'Cleanup: false positives')
@@ -1176,7 +1216,7 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
         if not pattern['is_active']:
             raise SuggestionStateError('the pattern is disabled')
         before = suggestion['before'] or {}
-        check_fields = _suggestion_stale_fields(suggestion, approving=True)
+        check_fields = _suggestion_stale_fields(suggestion)
         if not _matches_snapshot(pattern, before, check_fields):
             raise SuggestionStateError('the pattern changed after this suggestion was made')
         applied = _apply_kind(db, conn, suggestion['kind'], pattern, suggestion['payload'] or {})
@@ -1199,7 +1239,7 @@ def reject_suggestion(db, suggestion_id: int) -> dict:
         pattern = _pattern_on(conn, suggestion['pattern_id'])
         if pattern is not None:
             before = suggestion['before'] or {}
-            check_fields = _suggestion_stale_fields(suggestion, approving=False)
+            check_fields = _reject_stale_fields(suggestion)
             if not _matches_snapshot(pattern, before, check_fields):
                 raise SuggestionStateError('the pattern changed after this suggestion was made')
             _acknowledge_stats_decision(db, conn, suggestion, pattern)

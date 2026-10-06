@@ -796,6 +796,74 @@ def test_statistics_proposal_persists_when_route_setup_fails(temp_db):
     assert flag['before']['source_context'] == 'retained statistical context'
 
 
+def test_stats_sweep_computes_context_before_opening_the_transaction(temp_db):
+    p = _pattern(temp_db, false_positive_count=3, confirmation_count=0)
+    state = {'tx_open': False, 'context_calls': 0, 'violated': False}
+    real_transaction = temp_db.transaction
+
+    class _Tracking:
+        def __init__(self, cm):
+            self._cm = cm
+
+        def __enter__(self):
+            state['tx_open'] = True
+            return self._cm.__enter__()
+
+        def __exit__(self, *exc):
+            state['tx_open'] = False
+            return self._cm.__exit__(*exc)
+
+    def tracking_transaction(immediate=False):
+        return _Tracking(real_transaction(immediate=immediate))
+
+    def fake_context(db, pattern, cache=None):
+        state['context_calls'] += 1
+        state['violated'] = state['violated'] or state['tx_open']
+        return None
+
+    with patch.object(temp_db, 'transaction', side_effect=tracking_transaction), \
+            patch.object(pattern_cleanup, 'source_context', side_effect=fake_context):
+        pattern_cleanup._run_stats_sweep(temp_db, None, 90, {})
+
+    assert state['context_calls'] == 1
+    assert not state['violated']
+    assert temp_db.get_cleanup_suggestions(status='pending')[0]['pattern_id'] == p['id']
+
+
+def test_stats_sweep_skips_the_transaction_when_nothing_is_due(temp_db):
+    _pattern(temp_db)
+    calls = {'n': 0}
+    real_transaction = temp_db.transaction
+
+    def counting(immediate=False):
+        calls['n'] += 1
+        return real_transaction(immediate=immediate)
+
+    with patch.object(temp_db, 'transaction', side_effect=counting):
+        pattern_cleanup._run_stats_sweep(temp_db, None, 90, {})
+    assert calls['n'] == 0
+
+
+def test_stats_sweep_one_bad_pattern_does_not_stop_the_sweep(temp_db):
+    bad = _pattern(temp_db, false_positive_count=3, confirmation_count=0)
+    good = _pattern(temp_db, text=AD2, sponsor='Widgetco',
+                    false_positive_count=3, confirmation_count=0)
+    real_context = pattern_cleanup.source_context
+
+    def flaky(db, pattern, cache=None):
+        if pattern['id'] == bad['id']:
+            raise RuntimeError('boom')
+        return real_context(db, pattern, cache)
+
+    with patch.object(pattern_cleanup, 'source_context', side_effect=flaky):
+        changed = pattern_cleanup._run_stats_sweep(temp_db, None, 90, {})
+
+    assert (good['id'], 'flag') in changed
+    assert not any(pid == bad['id'] for pid, _ in changed)
+    pending = temp_db.get_cleanup_suggestions(status='pending')
+    assert [s['pattern_id'] for s in pending] == [good['id']]
+
+
 def test_stale_model_result_does_not_stamp_changed_pattern(temp_db, live_route):
     pattern = _pattern(temp_db)
 
@@ -1290,6 +1358,17 @@ def test_apply_flag_disable_and_flag_trim(temp_db):
         'Cleanup: contaminated')
 
 
+def test_apply_flag_trim_without_trim_text_refuses_instead_of_disabling(temp_db):
+    p = _pattern(temp_db, false_positive_count=3)
+    sid = _suggest(temp_db, p, 'flag', {'false_positive_count': 3, 'confirmation_count': 0,
+                                        'contaminated': False, 'contamination_reason': None,
+                                        'recommended': 'trim', 'trim_text': None})
+    with pytest.raises(SuggestionStateError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_ad_pattern_by_id(p['id'])['is_active'] == 1
+
+
 def test_apply_retire_refuses_when_matched_again_since_the_suggestion(temp_db):
     p = _pattern(temp_db)
     sid = _suggest(temp_db, p, 'retire', {'unused_days': 90, 'last_matched_at': None,
@@ -1424,6 +1503,25 @@ def test_reject_stale_trim_with_variant_edit_leaves_suggestion_pending(temp_db):
     with pytest.raises(SuggestionStateError):
         reject_suggestion(temp_db, sid)
     assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+
+
+def test_reject_flag_after_confirmation_count_changed_succeeds(temp_db):
+    p = _pattern(temp_db, false_positive_count=3, confirmation_count=0)
+    sid = _suggest(temp_db, p, 'flag', {'false_positive_count': 3, 'confirmation_count': 0,
+                                        'contaminated': False, 'contamination_reason': None,
+                                        'recommended': 'disable'})
+    temp_db.update_ad_pattern(p['id'], confirmation_count=1)
+    result = reject_suggestion(temp_db, sid)
+    assert result['status'] == 'rejected'
+
+
+def test_reject_retire_after_new_match_succeeds(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'retire', {'unused_days': 90, 'last_matched_at': None,
+                                          'confirmation_count': 0})
+    temp_db.update_ad_pattern(p['id'], last_matched_at=_iso(utc_now()))
+    result = reject_suggestion(temp_db, sid)
+    assert result['status'] == 'rejected'
 
 
 def test_undo_requires_approved(temp_db):
