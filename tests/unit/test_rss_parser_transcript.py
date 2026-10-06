@@ -1,8 +1,4 @@
-"""Upstream podcast:transcript capture (2.98.0 transcript differential).
-
-feedparser keeps only one transcript tag per item, so picking the best of
-several requires a raw-XML pass, mirroring test_upstream_chapters.py.
-"""
+"""Preserve multiple transcript tags through a raw XML pass because feedparser keeps one."""
 from rss_parser import RSSParser
 
 

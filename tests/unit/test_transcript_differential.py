@@ -343,11 +343,7 @@ def _content(n: int, seed: int = 7) -> list[str]:
 def _build(content: list[str], inserts: dict[int, list[str]] | None = None, *,
            insert_word_s: float = WORD_S, upstream_keeps_ad_time: bool = False,
            timed: bool = True, drop: set[int] | None = None):
-    """Whisper segments (content plus inserted blocks) and an upstream transcript of the content.
-
-    inserts maps a content index to words heard before it; drop removes content
-    indices from the upstream side only.
-    """
+    """Build transcript pairs; inserts precede content indices, drop omits them upstream."""
     inserts = inserts or {}
     drop = drop or set()
     words = []

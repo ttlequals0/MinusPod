@@ -2512,12 +2512,8 @@ class Transcriber:
             batch_size = None
             current_model = None
             retry_count = 0
-            # Admission guard (module-level, see GPU_TRANSCRIBE_MAX_CONCURRENT):
-            # taken for the whole call so preprocessing and every retry attempt
-            # for this episode hold the device before another local transcription
-            # can start. Released in the finally below on every exit path.
-            # Bound before the call itself in case resolve_whisper_device() or
-            # the acquire raises, so the finally below never sees it unbound.
+            # Hold the device across preprocessing and retries; initialize the flag
+            # before acquisition so finally can handle failed device resolution.
             gpu_admission_acquired = False
             activity.enter_context(_local_decode_activity())
             gpu_admission_acquired = _gpu_admission_acquire(resolve_whisper_device())

@@ -595,7 +595,7 @@ def test_patch_rejects_unknown_chapters_in_notes_value(app_client, seeded_feed):
     assert resp.status_code == 400
 
 
-# -- transcriptDifferential (2.98.0) --
+# transcriptDifferential (2.98.0)
 
 def test_the_api_exposes_transcript_differential_as_a_nullable_bool():
     from api.feeds import _NULLABLE_BOOL_FIELDS

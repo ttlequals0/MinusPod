@@ -1,7 +1,4 @@
-"""Shared provider connection probes (#806), used by api/providers.py and
-failover.py. Importable without Flask so failover.py's background tick can
-use it directly.
-"""
+"""Provider connection probes shared by API handlers and background failover checks."""
 from urllib.parse import urlparse
 
 import llm_client

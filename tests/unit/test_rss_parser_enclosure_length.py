@@ -1,10 +1,4 @@
-"""Enclosure length attribute (RSS spec, validator warning fix).
-
-Processed items get the stored processed file size; unprocessed items
-(served through our proxy URL but not yet cut) pass through the upstream
-length when present and omit the attribute otherwise. Never a guessed or
-zero value.
-"""
+"""Serve the processed file size or upstream enclosure length without inventing values."""
 from rss_parser import RSSParser
 
 

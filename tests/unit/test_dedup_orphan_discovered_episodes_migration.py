@@ -1,7 +1,4 @@
-"""Tests for the _dedup_orphan_discovered_episodes migration: it removes a
-'discovered' duplicate row left behind by a stale pre-fix published_at that
-missed the exact title+date GUID-change match (see episodes.py's fuzzy
-match), without ever deleting a row that carries real processing state."""
+"""Deduplicate discovered episodes without deleting rows that carry processing state."""
 import os
 import sys
 
@@ -143,10 +140,7 @@ def test_a_non_quarter_hour_drift_is_not_collapsed(temp_db):
 
 
 def test_cluster_compares_to_first_member_not_the_running_last(temp_db):
-    """Three same-title rows at +0h/+10h/+20h: each adjacent pair is within
-    the drift window, but the first and last are 20h apart - not real
-    drift. Clustering must anchor to the first member, or the last row
-    gets swept into the first row's cluster and wrongly deleted too."""
+    """Anchor drift clusters to the first row so adjacent matches cannot chain across 20 hours."""
     slug = _seed_podcast(temp_db)
     temp_db.upsert_episode(
         slug, 'chainA0000001', title='Chain Episode', published_at='2026-01-01T00:00:00Z',

@@ -1,8 +1,4 @@
-"""Tests for the upstream podcast:transcript storage. Mirrors
-test_upstream_chapters.py's RSS-capture style and the dai_differential_json
-detail-JSON precedent. Unlike upstream_chapters_url, the transcript URL/type
-columns are not sticky: a newer non-null value replaces the stored one.
-"""
+"""Store upstream transcripts and replace URL/type metadata when newer values arrive."""
 
 
 class TestSchemaColumnsExist:

@@ -89,6 +89,7 @@ release notes.
 - Updated source-map-js to 1.2.2 to fix a high-severity denial of service in frontend build tooling.
 
 ### Changed
+- Shortened comments and docstrings added by this release.
 - Updated failover documentation and API responses for live routing, recovery checks, and manual control failures.
 - The two LLM provider slots are now labelled Provider A and Provider B. The API accepts `providerB*` payload keys and `a`/`b` slot values; the `secondary*` keys and `primary`/`secondary` values keep working, and `GET` responses still emit both spellings.
 - Updated Python dependencies and frontend test tools from dependency PRs #811 through #820. The TypeScript ESLint packages now share one version.

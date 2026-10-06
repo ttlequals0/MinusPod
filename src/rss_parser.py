@@ -722,13 +722,9 @@ class RSSParser:
 
     @staticmethod
     def _parse_upstream_transcript_tags(channel):
-        """Per-item raw podcast:transcript (url, type) tags, since feedparser
-        keeps only one per item. Returns (positional, by_key): positional is
-        one (transcripts, guid, enclosure_url) tuple per <item> in document
-        order, for index-matching against feedparser's entries; by_key is a
-        guid/enclosure-URL fallback that drops any key shared by more than
-        one item as ambiguous.
-        """
+        """Preserve all transcript tags, indexed by item position and unambiguous GUID/URL.
+
+        Returns (positional, by_key); positional holds (transcripts, guid, enclosure_url) tuples."""
         positional: list = []
         by_key: dict = {}
         ambiguous_keys: set = set()
@@ -767,9 +763,7 @@ class RSSParser:
 
     @staticmethod
     def _positional_alignment_holds(positional, entries) -> bool:
-        """False at the first index where the raw item's guid or enclosure URL
-        disagrees with feedparser's entry -- a coincidental item-count match
-        that does not mean the two lists are in the same order."""
+        """Check raw-item GUIDs and enclosure URLs against feedparser order, not just item count."""
         for (_, guid_text, enclosure_url), entry in zip(positional, entries, strict=True):
             entry_guid = entry.get('id') or ''
             entry_enclosure = ''

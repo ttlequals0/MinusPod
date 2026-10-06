@@ -1132,10 +1132,7 @@ class Storage:
 
     def _download_artwork_uncached(self, slug: str, artwork_url: str,
                                    force: bool) -> tuple[bool, str | None]:
-        """Fetch and validate artwork against the size limit and raster file signatures.
-
-        Return (success, status): status is 'not_found' for definitive 4xx
-        responses, 'error' for other failures, and None on success."""
+        """Validate artwork; return (success, status), mapping non-retryable 4xx responses to not_found."""
         try:
             # Check if we already have this artwork on disk. Callers that
             # already wrote the new URL to the row pass force, since the

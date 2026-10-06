@@ -1149,10 +1149,7 @@ def _reusable_transcript_diff(stored, url):
 
 def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, podcast=None,
                          segments_reused=False):
-    """Pipeline stage: diff Whisper against the publisher's transcript. Never raises.
-
-    A stored result is reused only with ``segments_reused``: fresh segments move the gap times.
-    """
+    """Diff the publisher transcript; reuse results only when transcript segments were reused."""
     url = (episode_row or {}).get('upstream_transcript_url')
     payload = {'status': 'none', 'source_url': url, 'mime': None, 'timed': None,
                'coverage': None, 'spans': [], 'fetched_at': None, 'error': None}

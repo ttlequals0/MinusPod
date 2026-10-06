@@ -1,12 +1,4 @@
-"""Upstream podcast:transcript fetch, parse and alignment against Whisper.
-
-Publishers that ship an ad-free transcript let us locate dynamically inserted
-ads as runs of Whisper words the upstream text lacks. Pure functions, no DB.
-
-Bounds: 5 MB timed bodies, 1M-char untimed bodies, MAX_CUES cues and
-MAX_LINE_CHARS regex input; align() refuses more than MAX_UPSTREAM_TOKENS, so
-memory stays linear in the token counts.
-"""
+"""Bounded publisher-transcript fetching, parsing, and alignment against Whisper."""
 import difflib
 import html
 import json
