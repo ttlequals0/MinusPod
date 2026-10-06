@@ -55,7 +55,15 @@ def list_detections():
 
     rows = db.get_detection_rows()
     corrections = db.get_review_corrections()
-    items = flatten_detections(rows, corrections)
+    # Not persisted: a Keep<->Mark switch since a row's markers were stamped
+    # shows up in actionApplied here without a recut.
+    actions_by_feed = {}
+    for row in rows:
+        slug = row['feed_slug']
+        if slug not in actions_by_feed:
+            actions_by_feed[slug] = db.resolve_segment_actions(
+                slug, {'segment_category_actions': row.get('segment_category_actions')})
+    items = flatten_detections(rows, corrections, actions_by_feed=actions_by_feed)
     counts = summarize_detections(items)
     items = filter_detections(items, status=status, feed=feed)
     # Follows the feed and status filters only; q, reviewer, holdReason and category apply after.

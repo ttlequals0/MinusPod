@@ -30,6 +30,17 @@ class TestGetDetectionRows:
         assert row['published_at'] == '2026-07-01T00:00:00Z'
         assert json.loads(row['ad_markers_json']) == markers
 
+    def test_row_carries_the_feed_segment_category_actions_override(
+            self, temp_db, mock_podcast):
+        """The /detections endpoint re-resolves a keep-like marker's action
+        against the feed's CURRENT override, so the row must carry it."""
+        markers = [{'start': 10.0, 'end': 40.0, 'confidence': 0.9}]
+        _seed_episode_with_markers(temp_db, mock_podcast['slug'], 'ep-override', markers)
+        temp_db.update_podcast(mock_podcast['slug'],
+                              segment_category_actions=json.dumps({'sponsor': 'keep'}))
+        row = temp_db.get_detection_rows()[0]
+        assert json.loads(row['segment_category_actions']) == {'sponsor': 'keep'}
+
     def test_skips_episodes_without_markers(self, temp_db, mock_podcast):
         temp_db.upsert_episode(mock_podcast['slug'], 'ep-none',
                                original_url='https://example.com/x.mp3',

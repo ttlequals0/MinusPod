@@ -217,6 +217,52 @@ def test_mark_action_marker_lands_in_kept_bucket_via_the_real_endpoint(app_clien
     assert body['pendingReviewMarkers'] == []
 
 
+def test_stale_mark_marker_reads_as_keep_once_the_feed_switches_to_keep(app_client):
+    """A marker stamped 'mark' on an earlier run shows actionApplied 'keep'
+    once the feed's current sponsor action is Keep, without a recut."""
+    slug = 'split-refresh-mark-to-keep'
+    eid = _seed(slug)
+    db.update_podcast(slug, segment_category_actions=json.dumps({'sponsor': 'keep'}))
+    db.save_episode_details(slug, eid, ad_markers=[
+        {'start': 10.0, 'end': 40.0, 'was_cut': False, 'action_applied': 'mark',
+         'category': 'sponsor', 'validation': {'decision': 'ACCEPT', 'confidence': 0.9}},
+    ])
+    body = app_client.get(f'/api/v1/feeds/{slug}/episodes/{eid}').get_json()
+    assert [m['actionApplied'] for m in body['keptMarkers']] == ['keep']
+
+
+def test_stale_keep_marker_reads_as_mark_once_the_feed_switches_to_mark(app_client):
+    """A marker stamped 'keep' on an earlier run shows actionApplied 'mark'
+    once the feed's current sponsor action is Mark, without a recut."""
+    slug = 'split-refresh-keep-to-mark'
+    eid = _seed(slug)
+    db.update_podcast(slug, segment_category_actions=json.dumps({'sponsor': 'mark'}))
+    db.save_episode_details(slug, eid, ad_markers=[
+        {'start': 10.0, 'end': 40.0, 'was_cut': False, 'action_applied': 'keep',
+         'category': 'sponsor', 'validation': {'decision': 'ACCEPT', 'confidence': 0.9}},
+    ])
+    body = app_client.get(f'/api/v1/feeds/{slug}/episodes/{eid}').get_json()
+    assert [m['actionApplied'] for m in body['keptMarkers']] == ['mark']
+
+
+def test_held_marker_actionapplied_is_unaffected_by_a_feed_action_switch(app_client):
+    """A marker still awaiting review is not re-stamped by the keep/mark
+    refresh; it stays in pendingReviewMarkers regardless of the feed's
+    current category action."""
+    slug = 'split-refresh-held-unaffected'
+    eid = _seed(slug)
+    db.update_podcast(slug, segment_category_actions=json.dumps({'sponsor': 'mark'}))
+    db.save_episode_details(slug, eid, ad_markers=[
+        {'start': 10.0, 'end': 40.0, 'was_cut': False, 'held_for_review': True,
+         'hold_reason': 'max_duration', 'category': 'sponsor',
+         'validation': {'decision': 'REVIEW', 'confidence': 0.5}},
+    ])
+    body = app_client.get(f'/api/v1/feeds/{slug}/episodes/{eid}').get_json()
+    assert len(body['pendingReviewMarkers']) == 1
+    assert body['pendingReviewMarkers'][0]['actionApplied'] is None
+    assert body['keptMarkers'] == []
+
+
 def test_not_cut_without_keep_still_goes_to_rejected():
     """A was_cut=False marker without a keep action is a rejected
     detection, not a kept segment; the keptMarkers bucket must not

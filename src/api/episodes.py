@@ -698,6 +698,10 @@ def get_episode(slug, episode_id):
     if episode.get('ad_markers_json'):
         try:
             all_markers = parse_ad_markers(episode['ad_markers_json']) or []
+            # Not persisted: a Keep<->Mark switch since these markers were
+            # stamped shows up in actionApplied/the bucket here without a recut.
+            all_markers = refresh_keep_like_markers(
+                all_markers, db.resolve_segment_actions(slug, podcast))
             for marker in all_markers:
                 decision = marker.get('validation', {}).get('decision', 'ACCEPT')
                 # Markers persisted by a failed run were never cut.

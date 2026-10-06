@@ -49,7 +49,25 @@ def _reviewer_moved_from_marker(marker: dict) -> bool:
             and marker.get('reviewer_original_end') is not None)
 
 
-def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
+def _refreshed_action(marker: dict, actions: dict[str, str] | None) -> str | None:
+    """A keep-like marker's action re-resolved against the feed's CURRENT
+    per-category action (mirrors ad_chapters.refresh_keep_like_markers, kept
+    separate here so this module stays free of its database import). A held
+    marker, or no actions map for the feed, keeps the stored action as-is.
+    Never resolves into a cut (remove/beep): that still needs a recut.
+    """
+    action = marker.get('action_applied')
+    category = marker.get('category')
+    if (actions is not None and is_keep_like(action) and not is_pending_review(marker)
+            and category in SEGMENT_CATEGORIES):
+        resolved = actions.get(category, action)
+        if is_keep_like(resolved):
+            return resolved
+    return action
+
+
+def flatten_detections(rows: list[dict], corrections: list[dict],
+                       actions_by_feed: dict[str, dict[str, str]] | None = None) -> list[dict]:
     by_episode: dict[tuple[object, str], list[dict]] = {}
     for c in corrections:
         if c.get('podcast_id') is not None:
@@ -61,6 +79,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
         if markers is None:
             continue
         episode_corrections = by_episode.get((row.get('podcast_id'), row['episode_id']), [])
+        feed_actions = (actions_by_feed or {}).get(row['feed_slug'])
         for marker in markers:
             if not isinstance(marker, dict):
                 continue
@@ -88,7 +107,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
                 'patternId': marker.get('pattern_id'),
                 'detectionStage': marker.get('detection_stage'),
                 'category': marker.get('category'),
-                'actionApplied': marker.get('action_applied'),
+                'actionApplied': _refreshed_action(marker, feed_actions),
                 'reviewerVerdict': marker.get('reviewer_verdict'),
                 'reviewerOriginalStart': marker.get('reviewer_original_start'),
                 'reviewerOriginalEnd': marker.get('reviewer_original_end'),

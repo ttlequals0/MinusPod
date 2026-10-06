@@ -145,6 +145,31 @@ class TestFlatten:
         by_start = {i['start']: i['actionApplied'] for i in items}
         assert by_start == {100.0: None, 300.0: 'keep'}
 
+    def test_actions_by_feed_refreshes_a_stale_keep_into_mark(self):
+        items = flatten_detections([_row(markers=[KEPT])], [],
+                                   actions_by_feed={'feed-a': {'outro': 'mark'}})
+        assert [i['actionApplied'] for i in items] == ['mark']
+
+    def test_actions_by_feed_refreshes_a_stale_mark_into_keep(self):
+        items = flatten_detections([_row(markers=[MARKED])], [],
+                                   actions_by_feed={'feed-a': {'outro': 'keep'}})
+        assert [i['actionApplied'] for i in items] == ['keep']
+
+    def test_actions_by_feed_never_turns_a_keep_like_marker_into_a_cut(self):
+        items = flatten_detections([_row(markers=[MARKED])], [],
+                                   actions_by_feed={'feed-a': {'outro': 'remove'}})
+        assert [i['actionApplied'] for i in items] == ['mark']
+
+    def test_actions_by_feed_leaves_a_held_marker_alone(self):
+        pending_keep = {**KEPT, 'held_for_review': True}
+        items = flatten_detections([_row(markers=[pending_keep])], [],
+                                   actions_by_feed={'feed-a': {'outro': 'mark'}})
+        assert [i['actionApplied'] for i in items] == ['keep']
+
+    def test_no_actions_by_feed_keeps_the_stored_action(self):
+        items = flatten_detections([_row(markers=[KEPT])], [])
+        assert [i['actionApplied'] for i in items] == ['keep']
+
     def test_a_cut_or_legacy_marker_over_a_keep_span_is_not_read_as_kept(self):
         """Neither one folds into the keep marker, so neither may borrow its
         verdict: a cut span is not a span the feed policy left in the audio."""

@@ -284,3 +284,30 @@ def test_detections_carry_the_episode_duration(app_client, seeded_detections):
     body = app_client.get('/api/v1/detections?status=all').get_json()
     assert body['detections']
     assert all(d['episodeDuration'] == 3600.0 for d in body['detections'])
+
+
+def test_action_applied_refreshes_against_the_feed_s_current_override(app_client):
+    """A marker stamped 'mark' on an earlier run reports actionApplied
+    'keep' once the feed's current sponsor action is Keep, without a
+    recut; a held marker is not touched by the same switch."""
+    _csrf(app_client)
+    db = get_database()
+    slug = 'detections-refresh-feed'
+    db.create_podcast(slug, 'https://example.com/refresh.xml',
+                      title='Detections Refresh Feed')
+    try:
+        db.update_podcast(slug, segment_category_actions='{"sponsor": "keep"}')
+        db.upsert_episode(slug, 'det-refresh-1',
+                          original_url='https://example.com/r1.mp3',
+                          title='Refresh Episode', status='processed')
+        db.save_episode_details(slug, 'det-refresh-1', ad_markers=[
+            {'start': 10.0, 'end': 40.0, 'confidence': 0.9, 'was_cut': False,
+             'action_applied': 'mark', 'category': 'sponsor'},
+            {'start': 100.0, 'end': 130.0, 'confidence': 0.5, 'was_cut': False,
+             'held_for_review': True, 'category': 'sponsor'},
+        ])
+        body = app_client.get(f'/api/v1/detections?status=all&feed={slug}').get_json()
+        by_start = {d['start']: d['actionApplied'] for d in body['detections']}
+        assert by_start == {10.0: 'keep', 100.0: None}
+    finally:
+        db.delete_podcast(slug)

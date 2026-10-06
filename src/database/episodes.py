@@ -1052,6 +1052,7 @@ class EpisodeMixin:
         cursor = conn.execute('''
             SELECT e.podcast_id AS podcast_id,
                    p.slug AS feed_slug, p.title AS feed_title,
+                   p.segment_category_actions AS segment_category_actions,
                    e.episode_id, e.title AS episode_title,
                    e.published_at, e.created_at, e.original_file,
                    e.processed_version, e.original_duration,
