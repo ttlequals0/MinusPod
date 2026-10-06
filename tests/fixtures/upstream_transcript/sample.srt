@@ -1,0 +1,12 @@
+1
+00:00:01,000 --> 00:00:04,500
+Leo: Welcome back to the show,
+everyone.
+
+2
+00:00:04,500 --> 00:00:08,000
+<i>Today we talk about compilers.</i>
+
+3
+01:00:00,000 --> 01:00:02,000
+SPEAKER 2: Goodbye.

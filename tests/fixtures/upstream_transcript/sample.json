@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "segments": [
+    {"speaker": "Leo", "startTime": 1.0, "endTime": 4.5, "body": "Welcome back to the show, everyone."},
+    {"speaker": "Leo", "startTime": 4.5, "endTime": 8.0, "body": "Today we talk about compilers."},
+    {"startTime": 8.0, "endTime": 9.0, "body": ""}
+  ]
+}

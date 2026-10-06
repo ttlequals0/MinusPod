@@ -1,0 +1,4 @@
+Leo: Welcome back to the show, everyone.
+
+Ann: Today we talk about compilers.
+00:01:23 And timestamps get dropped.
