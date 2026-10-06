@@ -543,6 +543,11 @@ function EpisodeDetail() {
     correctionMutation.mutate(correction);
   };
 
+  // Same mutation, awaited: a multi-span create submits several runs in
+  // sequence and needs to know each one's outcome before starting the next.
+  const handleCorrectionAsync = (correction: AdCorrection): Promise<void> =>
+    correctionMutation.mutateAsync(correction).then(() => undefined);
+
   // Per-row, per-action save status for the Held-for-Review and
   // Detections-Not-Cut rows. Match on the full row identity plus which
   // action (confirm / confirm-trimmed / reject) submitted the in-flight
@@ -1117,6 +1122,7 @@ function EpisodeDetail() {
               detectedAds={[]}
               audioDuration={episode.originalDuration ?? 0}
               onCorrection={handleCorrection}
+              onCorrectionAsync={handleCorrectionAsync}
               onClose={() => {
                 setShowEditor(false);
                 setCreateModeRequested(false);
@@ -1214,6 +1220,7 @@ function EpisodeDetail() {
                 hasOriginal={!!episode.hasOriginalAudio}
                 onAudioModeChange={setReviewMode}
                 onCorrection={handleCorrection}
+                onCorrectionAsync={handleCorrectionAsync}
                 onClose={() => {
                   setShowEditor(false);
                   setCreateModeRequested(false);
