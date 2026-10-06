@@ -56,6 +56,7 @@ from config import (
 # settings back. Keep it that way: a top-level dependency the other way would
 # break boot (api/__init__ imports settings before podcast_search).
 from api.podcast_search import resolve_search_provider, search_provider_ready
+from api.pattern_cleanup import cleanup_settings_view
 from ad_detector import AdDetector
 from artwork_watermark import BADGE_POSITIONS
 from audio_processor import NORMALIZE_PRESETS
@@ -88,6 +89,7 @@ from llm_route import (
     SLOT_FAILOVER, SLOT_PRIMARY, SLOT_SECONDARY, resolved_stage_slot,
 )
 import failover
+from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
 from tools.reviewer_calibration import (
     calibration_revision, trigger_reviewer_calibration,
 )
@@ -4507,16 +4509,7 @@ def update_db_backup_settings():
 @api.route('/settings/pattern-cleanup', methods=['PUT'])
 @log_request
 def update_pattern_cleanup_settings():
-    """Update pattern cleanup (Experiments) settings.
-
-    Body: {enabled?, cron?, batchSize?, unusedDays?, provider?, model?}.
-    provider accepts a slot ('primary'/'secondary', the 'a'/'b' aliases, or
-    'same_as_detection'); blank clears the override so detection's slot is
-    inherited, matching chaptersProvider/verificationProvider.
-    """
-    from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
-    from api.pattern_cleanup import cleanup_settings_view
-
+    """Update pattern cleanup settings; a blank provider inherits detection's slot."""
     db = get_database()
     data = request.get_json()
     if not data:
@@ -4527,10 +4520,9 @@ def update_pattern_cleanup_settings():
         enabling = bool(data['enabled'])
         staged['pattern_cleanup_enabled'] = 'true' if enabling else 'false'
         was_enabled = db.get_setting_bool('pattern_cleanup_enabled', default=False)
-        if enabling and not was_enabled and not db.get_setting('pattern_cleanup_last_run'):
-            # Enabling must not run immediately: stamp now so the schedule
-            # waits for the next cron slot instead of treating "never run" as due.
-            staged['pattern_cleanup_last_run'] = utc_now_iso()
+        if enabling and not was_enabled:
+            # Turning the schedule on waits for the next cron slot, even after a stale run.
+            staged['pattern_cleanup_schedule_anchor'] = utc_now_iso()
     if 'cron' in data:
         cron = (data['cron'] or '').strip()
         if not is_valid_expression(cron):

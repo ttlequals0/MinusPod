@@ -4356,7 +4356,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '409':
-          description: 'Only an approved suggestion can be undone (error: invalid_transition)'
+          description: >-
+            Refused when the suggestion is not approved, a later approval on
+            the same pattern has not been undone, or the field it changed was
+            edited since (error: invalid_transition)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -11781,13 +11784,18 @@ components:
             lastRun:
               type: string
               nullable: true
-              description: ISO 8601 UTC timestamp the last run started.
+              description: >-
+                ISO 8601 UTC start of the newest run row, including one still
+                running. Enabling the schedule does not change it.
             lastError:
               type: string
               nullable: true
+              description: Error of the newest finished run, if it failed.
             lastSummary:
-              $ref: '#/components/schemas/PatternCleanupRunSummary'
+              allOf:
+                - $ref: '#/components/schemas/PatternCleanupRun'
               nullable: true
+              description: The newest finished run (completed or failed).
             pending:
               type: object
               properties:
@@ -11839,51 +11847,6 @@ components:
           nullable: true
           description: Set only when the whole run failed (e.g. rate limited).
 
-    PatternCleanupRunSummary:
-      type: object
-      description: >-
-        A run's outcome, stored verbatim as pattern_cleanup_last_summary and
-        returned as GET /patterns/cleanup's lastSummary. Field names differ
-        from PatternCleanupRun (no Count suffix; adds durationMs) because
-        this is the raw summary the service builds, not a run row view.
-      properties:
-        runId:
-          type: integer
-        status:
-          type: string
-          enum: [running, completed, failed]
-        trigger:
-          type: string
-          enum: [schedule, manual]
-        forced:
-          type: boolean
-        reviewed:
-          type: integer
-        suggested:
-          type: integer
-        skipped:
-          type: integer
-        errors:
-          type: integer
-        model:
-          type: string
-          nullable: true
-        provider:
-          type: string
-          nullable: true
-        credentialSlot:
-          type: string
-          nullable: true
-        startedAt:
-          type: string
-        finishedAt:
-          type: string
-        durationMs:
-          type: integer
-        error:
-          type: string
-          nullable: true
-
     PatternCleanupSuggestion:
       type: object
       properties:
@@ -11921,7 +11884,9 @@ components:
         applied:
           type: object
           nullable: true
-          description: Set once approved (new_pattern_ids, disabled_pattern_id, applied_at).
+          description: >-
+            Set once approved: newPatternIds, disabledPatternId, appliedAt,
+            appliedSeq, plus text (trim) or sponsorId (rename).
         createdAt:
           type: string
         reviewedAt:

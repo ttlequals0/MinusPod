@@ -8,6 +8,7 @@ import logging
 import re
 import threading
 import time
+from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
 
@@ -23,8 +24,9 @@ from llm_route import (
 from pattern_variants import derive_intro_outro
 from processing_queue import ProcessingQueue
 from sponsor_normalize import get_or_create_known_sponsor, sanitize_sponsor_name
+from sponsor_service import SponsorService
 from text_pattern_matcher import MIN_TEXT_LENGTH
-from utils.constants import sanitize_sponsor_label
+from utils.constants import names_the_show, sanitize_sponsor_label
 from utils.cron import is_due, is_valid_expression
 from utils.llm_call import call_llm, schema_format_for
 from utils.llm_response import extract_json_object
@@ -36,6 +38,8 @@ logger = logging.getLogger('podcast.pattern_cleanup')
 
 PHASE = 'pattern_cleanup'
 LOCK_FILENAME = '.pattern_cleanup.lock'
+# Held briefly around every lock attempt so a status probe never makes a real start fail.
+GATE_FILENAME = '.pattern_cleanup.gate.lock'
 BATCH_SIZE_RANGE = (1, 200)
 UNUSED_DAYS_RANGE = (7, 3650)
 CONTEXT_SECONDS = 45.0
@@ -51,6 +55,8 @@ HIGH_FP_MIN = 2
 INVALID_LIMIT = 3
 INVALID_PREFIX = 'invalid:'
 INVALID_MARKER = 'invalid'
+# This many failed calls in a row means the route itself is broken, so the run stops.
+MAX_CONSECUTIVE_CALL_ERRORS = 3
 MAX_TOKENS = 4096
 MAX_REASONS = 5
 MAX_REASON_CHARS = 200
@@ -184,16 +190,23 @@ def stats_suggestions(db, pattern: dict, unused_days: int, now=None) -> list[dic
 
 # Transcript context
 
-def source_context(db, pattern: dict) -> str | None:
-    """Transcript around the pattern in its source episode, span marked [[ ]]; None when unavailable."""
+def source_context(db, pattern: dict, cache: dict | None = None) -> str | None:
+    """Transcript around the pattern in its source episode, span marked [[ ]]; None when unavailable.
+    `cache` keeps decoded segments by (slug, episode_id) across one run."""
     slug, episode_id = pattern.get('podcast_id'), pattern.get('created_from_episode_id')
     template = (pattern.get('text_template') or '').strip()
     if not slug or not episode_id or not template:
         return None
-    try:
-        segments = db.get_original_segments(slug, episode_id)
-    except (TypeError, ValueError):
-        return None
+    key = (slug, episode_id)
+    if cache is not None and key in cache:
+        segments = cache[key]
+    else:
+        try:
+            segments = db.get_original_segments(slug, episode_id)
+        except (TypeError, ValueError):
+            segments = None
+        if cache is not None:
+            cache[key] = segments
     if not segments:
         return None
 
@@ -290,8 +303,11 @@ def _short(value) -> str | None:
 
 
 def _clean_sponsor(raw, pattern: dict) -> str | None:
-    label = sanitize_sponsor_label(raw, show_name=pattern.get('podcast_id'))
-    return sanitize_sponsor_name(label) if label else None
+    slug = pattern.get('podcast_id')
+    label = sanitize_sponsor_label(raw, show_name=pattern.get('podcast_title') or slug)
+    if not label or names_the_show(label, slug):
+        return None
+    return sanitize_sponsor_name(label)
 
 
 def _keeps_sponsor(pattern: dict, original: str, texts: list[str]) -> bool:
@@ -300,6 +316,15 @@ def _keeps_sponsor(pattern: dict, original: str, texts: list[str]) -> bool:
     if not _has_phrase(sponsor, original):
         return True
     return any(_has_phrase(sponsor, t) for t in texts)
+
+
+def _trim_keeps_sponsor(pattern: dict, original: str, kept: str, sponsors) -> bool:
+    """A trim keeps the recorded sponsor, or some known sponsor when the text does not name it."""
+    if _has_phrase(pattern.get('sponsor'), original):
+        return _has_phrase(pattern.get('sponsor'), kept)
+    if sponsors is None:
+        sponsors = SponsorService(Database())
+    return sponsors.find_sponsor_in_text(kept) is not None
 
 
 def _validate_pieces(pieces, original: str, pattern: dict | None = None) -> list[dict] | None:
@@ -325,7 +350,7 @@ def _validate_pieces(pieces, original: str, pattern: dict | None = None) -> list
     return [item[2] for item in located]
 
 
-def validate_review(pattern: dict, raw: dict) -> dict | None:
+def validate_review(pattern: dict, raw: dict, sponsors=None) -> dict | None:
     """Gate the model's answer; None means no suggestion. Stored text is always an exact original window."""
     original = pattern.get('text_template') or ''
     pid = pattern.get('id')
@@ -351,7 +376,8 @@ def validate_review(pattern: dict, raw: dict) -> dict | None:
         return verdict
     if action == 'trim':
         loc = _locate(raw.get('text'), original)
-        if loc is None or len(loc[2]) < MIN_TEXT_LENGTH or not _keeps_sponsor(pattern, original, [loc[2]]):
+        if (loc is None or len(loc[2]) < MIN_TEXT_LENGTH
+                or not _trim_keeps_sponsor(pattern, original, loc[2], sponsors)):
             logger.warning("pattern_cleanup: pattern %s trim failed validation", pid)
             return None
         total = len(original.split())
@@ -389,7 +415,7 @@ def _user_prompt(pattern: dict, context: str | None) -> str:
 
 
 def review_pattern(pattern: dict, context: str | None, *, live: LiveRoute,
-                   system_prompt: str | None = None) -> dict | None:
+                   system_prompt: str | None = None, sponsors=None) -> dict | None:
     """One LLM review of a pattern, validated; None when the answer is unusable."""
     if system_prompt is None:
         system_prompt = _system_prompt(Database())
@@ -420,7 +446,7 @@ def review_pattern(pattern: dict, context: str | None, *, live: LiveRoute,
     if not isinstance(parsed, dict):
         logger.warning("pattern_cleanup: pattern %s review was not a JSON object", pattern.get('id'))
         return None
-    return validate_review(pattern, parsed)
+    return validate_review(pattern, parsed, sponsors)
 
 
 # Run
@@ -474,15 +500,26 @@ def _record_invalid(db, pattern: dict, conn) -> None:
     db.stamp_pattern_cleanup_reviewed(pattern['id'], marker, conn=conn)
 
 
+def _record_failure(db, pattern: dict) -> None:
+    """Count a failed review like an unusable one so the pattern rotates back and parks."""
+    try:
+        with db.transaction(immediate=True) as conn:
+            _record_invalid(db, pattern, conn)
+    except Exception as e:
+        logger.warning("pattern_cleanup: pattern %s failure not recorded: %s", pattern['id'], e)
+        db.clear_leaked_transaction(logger, 'pattern cleanup')
+
+
 def _process_pattern(db, run_id: int, pattern: dict, unused_days: int, live: LiveRoute,
-                     system_prompt: str, force: bool = False) -> tuple[int, bool]:
+                     system_prompt: str, force: bool = False, sponsors=None,
+                     segments_cache: dict | None = None) -> tuple[int, bool]:
     """(suggestions stored, LLM review skipped) for one pattern."""
     stats = stats_suggestions(db, pattern, unused_days)
     skip_llm = any(s['kind'] == 'retire' for s in stats)
     verdict = None
     if not skip_llm:
-        verdict = review_pattern(pattern, source_context(db, pattern), live=live,
-                                 system_prompt=system_prompt)
+        verdict = review_pattern(pattern, source_context(db, pattern, segments_cache), live=live,
+                                 system_prompt=system_prompt, sponsors=sponsors)
     suggestions = _suggestions_for(pattern, stats, verdict)
     before = _before_snapshot(pattern)
     with db.transaction(immediate=True) as conn:
@@ -501,28 +538,44 @@ def _process_pattern(db, run_id: int, pattern: dict, unused_days: int, live: Liv
     return len(suggestions), skip_llm
 
 
-def is_cleanup_running(db) -> bool:
-    with open(Path(db.data_dir) / LOCK_FILENAME, 'w') as fd:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return True
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        return False
+@contextmanager
+def _lock_gate(db):
+    with open(Path(db.data_dir) / GATE_FILENAME, 'w') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        yield
 
 
-def _begin_run(db, force: bool, trigger: str):
-    """(lock fd, run id, started_at) with the lock held, or None when another run holds it."""
+def _try_run_lock(db):
+    """The run lock's fd when it was free, else None; call inside _lock_gate."""
     fd = open(Path(db.data_dir) / LOCK_FILENAME, 'w')
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         fd.close()
         return None
+    return fd
+
+
+def is_cleanup_running(db) -> bool:
+    with _lock_gate(db):
+        fd = _try_run_lock(db)
+        if fd is None:
+            return True
+        fd.close()
+        return False
+
+
+def _begin_run(db, force: bool, trigger: str):
+    """(lock fd, run id, started_at) with the lock held, or None when another run holds it."""
+    with _lock_gate(db):
+        fd = _try_run_lock(db)
+    if fd is None:
+        return None
     try:
+        # The lock is ours, so any row still marked running died with its process.
+        db.fail_running_cleanup_runs('interrupted')
         started_at = utc_now_iso()
-        db.set_setting('pattern_cleanup_last_run', started_at)
-        run_id = db.create_cleanup_run(forced=force, trigger=trigger)
+        run_id = db.create_cleanup_run(forced=force, trigger=trigger, started_at=started_at)
     except Exception:
         fd.close()
         raise
@@ -538,8 +591,6 @@ def _finish(db, run_id: int, summary: dict, live: LiveRoute | None) -> None:
             model=live.model if live else None, provider=live.provider if live else None,
             credential_slot=live.credential_slot if live else None,
             error_count=summary['errors'])
-        db.set_setting('pattern_cleanup_last_error', summary['error'] or '')
-        db.set_setting('pattern_cleanup_last_summary', json.dumps(summary))
     except Exception as e:
         logger.warning("pattern_cleanup: run %s status write failed: %s", run_id, e)
         db.clear_leaked_transaction(logger, 'pattern cleanup')
@@ -563,17 +614,27 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str)
         batch_size = _clamped_int(db, 'pattern_cleanup_batch_size', BATCH_SIZE_RANGE)
         unused_days = _clamped_int(db, 'pattern_cleanup_unused_days', UNUSED_DAYS_RANGE)
         system_prompt = _system_prompt(db)
+        sponsors = SponsorService(db)
+        segments_cache: dict = {}
+        call_errors = 0
         for pattern in select_candidates(db, force=force, batch_size=batch_size):
             try:
-                stored, skipped = _process_pattern(db, run_id, pattern, unused_days, live,
-                                                   system_prompt, force=force)
+                stored, skipped = _process_pattern(
+                    db, run_id, pattern, unused_days, live, system_prompt, force=force,
+                    sponsors=sponsors, segments_cache=segments_cache)
             except ProviderRateLimitedError:
                 raise
             except Exception as e:
                 counts['errors'] += 1
                 logger.warning("pattern_cleanup: pattern %s review failed: %s", pattern['id'], e)
                 db.clear_leaked_transaction(logger, 'pattern cleanup')
+                _record_failure(db, pattern)
+                call_errors = call_errors + 1 if isinstance(e, PatternCleanupCallError) else 0
+                if call_errors >= MAX_CONSECUTIVE_CALL_ERRORS:
+                    raise PatternCleanupCallError(
+                        f'{call_errors} review calls failed in a row: {e}') from e
                 continue
+            call_errors = 0
             counts['reviewed'] += 1
             counts['suggested'] += stored
             counts['skipped'] += int(skipped)
@@ -635,6 +696,15 @@ def _busy_slots() -> int:
     return ProcessingQueue().slot_count()
 
 
+def _schedule_reference(db):
+    """The later of the last run's start and the moment scheduling was last enabled."""
+    runs = db.get_cleanup_runs(limit=1)
+    points = [parse_iso_utc(runs[0]['started_at']) if runs else None,
+              parse_iso_utc(db.get_setting('pattern_cleanup_schedule_anchor'))]
+    points = [p for p in points if p is not None]
+    return max(points) if points else None
+
+
 def pattern_cleanup_tick(db) -> int | None:
     """Start a background run when enabled, due by cron, and no episode is processing."""
     if not db.get_setting_bool('pattern_cleanup_enabled', default=False):
@@ -643,8 +713,8 @@ def pattern_cleanup_tick(db) -> int | None:
     if not is_valid_expression(cron):
         logger.warning("pattern_cleanup: invalid cron %r, using the default", cron)
         cron = registry_default('pattern_cleanup_cron')
-    last_run = parse_iso_utc(db.get_setting('pattern_cleanup_last_run'))
-    if last_run is not None and not is_due(cron, last_run, utc_now()):
+    reference = _schedule_reference(db)
+    if reference is not None and not is_due(cron, reference, utc_now()):
         return None
     if _busy_slots() > 0:
         logger.debug("pattern_cleanup: deferred, an episode is processing")
@@ -765,7 +835,8 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
         if not pattern['is_active']:
             raise SuggestionStateError('the pattern is disabled')
         before = suggestion['before'] or {}
-        if pattern['text_template'] != before.get('text_template', pattern['text_template']):
+        if any(pattern[field] != before.get(field, pattern[field])
+               for field in ('text_template', 'sponsor_id')):
             raise SuggestionStateError('the pattern changed after this suggestion was made')
         applied = _apply_kind(db, conn, suggestion['kind'], pattern, suggestion['payload'] or {})
         applied['applied_at'] = utc_now_iso()
@@ -796,6 +867,12 @@ def _has_later_approval(db, conn, suggestion: dict) -> bool:
         for other in db.get_approved_cleanup_suggestions(suggestion['pattern_id'], conn=conn))
 
 
+def _restore_disabled_fields(db, conn, pattern_id: int, before: dict) -> None:
+    db._update_ad_pattern_conn(conn, pattern_id, is_active=before.get('is_active', 1),
+                               disabled_at=before.get('disabled_at'),
+                               disabled_reason=before.get('disabled_reason'))
+
+
 def _undo_split(db, conn, pattern: dict, before: dict, applied: dict) -> None:
     new_ids = applied.get('new_pattern_ids') or []
     for new_id in new_ids:
@@ -803,9 +880,7 @@ def _undo_split(db, conn, pattern: dict, before: dict, applied: dict) -> None:
         if (piece is None or not piece['is_active']
                 or db.get_approved_cleanup_suggestions(new_id, conn=conn)):
             raise SuggestionStateError('a split piece changed after the split')
-    db._update_ad_pattern_conn(conn, pattern['id'], is_active=before.get('is_active', 1),
-                               disabled_at=before.get('disabled_at'),
-                               disabled_reason=before.get('disabled_reason'))
+    _restore_disabled_fields(db, conn, pattern['id'], before)
     for new_id in new_ids:
         db._update_ad_pattern_conn(conn, new_id, is_active=0, disabled_reason='Cleanup undo')
 
@@ -837,9 +912,7 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
         else:
             if pattern['is_active']:
                 raise SuggestionStateError('the pattern was re-enabled after this suggestion')
-            db._update_ad_pattern_conn(conn, pattern['id'], is_active=before.get('is_active', 1),
-                                       disabled_at=before.get('disabled_at'),
-                                       disabled_reason=before.get('disabled_reason'))
+            _restore_disabled_fields(db, conn, pattern['id'], before)
         restored = _pattern_on(conn, pattern['id'])
         db.stamp_pattern_cleanup_reviewed(
             pattern['id'], review_hash(restored.get('text_template'), restored.get('sponsor')),

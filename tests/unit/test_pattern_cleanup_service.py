@@ -357,11 +357,10 @@ def test_run_cleanup_counts_and_summary(temp_db, live_route):
     assert sugg[0]['before']['text_template'] == trim_p['text_template']
     assert temp_db.get_ad_pattern_by_id(keep_p['id'])['cleanup_reviewed_hash'] == review_hash(AD2, 'Widgetco')
     assert temp_db.get_ad_pattern_by_id(trim_p['id'])['cleanup_reviewed_hash'] is None
-    assert json.loads(temp_db.get_setting('pattern_cleanup_last_summary'))['runId'] == summary['runId']
-    assert temp_db.get_setting('pattern_cleanup_last_run')
-    assert temp_db.get_setting('pattern_cleanup_last_error') == ''
     run = temp_db.get_cleanup_runs(limit=1)[0]
+    assert run['id'] == summary['runId'] and run['started_at'] == summary['startedAt']
     assert run['status'] == 'completed' and run['trigger'] == 'manual' and run['model'] == 'test-model'
+    assert run['error'] is None and run['finished_at']
 
 
 def test_run_skips_llm_when_retire_suggested(temp_db, live_route):
@@ -418,8 +417,8 @@ def test_fatal_error_marks_run_failed(temp_db):
     with patch.object(pattern_cleanup, '_live_route', side_effect=RuntimeError('no model')):
         summary = run_cleanup(temp_db)
     assert summary['status'] == 'failed'
-    assert 'no model' in temp_db.get_setting('pattern_cleanup_last_error')
-    assert temp_db.get_cleanup_runs(limit=1)[0]['status'] == 'failed'
+    run = temp_db.get_cleanup_runs(limit=1)[0]
+    assert run['status'] == 'failed' and 'no model' in run['error']
 
 
 def test_rate_limit_aborts_run(temp_db, live_route):
@@ -430,6 +429,81 @@ def test_rate_limit_aborts_run(temp_db, live_route):
         summary = run_cleanup(temp_db)
     assert len(calls) == 1
     assert summary['status'] == 'failed'
+
+
+def test_failing_call_rotates_the_pattern_back_and_parks_it(temp_db, live_route):
+    bad = _pattern(temp_db)
+    good = _pattern(temp_db, text=AD2, sponsor='Widgetco')
+    calls = []
+
+    def fake(**kw):
+        calls.append(kw['prompt'])
+        if LEAD.strip()[:20] in kw['prompt']:
+            return None, RuntimeError('context too long')
+        return _reply(), None
+    temp_db.set_setting('pattern_cleanup_batch_size', '1')
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+        assert temp_db.get_ad_pattern_by_id(bad['id'])['cleanup_reviewed_hash'] == 'invalid:1'
+        run_cleanup(temp_db)
+        assert AD2 in calls[-1]
+        assert temp_db.get_ad_pattern_by_id(good['id'])['cleanup_reviewed_hash'] == review_hash(AD2, 'Widgetco')
+        run_cleanup(temp_db)
+        run_cleanup(temp_db)
+    assert temp_db.get_ad_pattern_by_id(bad['id'])['cleanup_reviewed_hash'] == 'invalid'
+    assert select_candidates(temp_db, force=False, batch_size=10) == []
+
+
+def test_three_consecutive_call_errors_abort_the_run(temp_db, live_route):
+    for i in range(5):
+        _pattern(temp_db, text=f'variant {i} ' + AD)
+    fake, calls = _fake_llm(RuntimeError('bad api key'))
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        summary = run_cleanup(temp_db)
+    assert len(calls) == 3
+    assert summary['status'] == 'failed' and 'in a row' in summary['error']
+    assert temp_db.get_cleanup_runs(limit=1)[0]['status'] == 'failed'
+
+
+def test_begin_run_marks_interrupted_rows_failed(temp_db, live_route):
+    stale = temp_db.create_cleanup_run(forced=False, trigger='schedule')
+    with patch.object(pattern_cleanup, 'select_candidates', return_value=[]):
+        summary = run_cleanup(temp_db)
+    row = next(r for r in temp_db.get_cleanup_runs() if r['id'] == stale)
+    assert row['status'] == 'failed' and row['error'] == 'interrupted' and row['finished_at']
+    assert temp_db.get_cleanup_runs(limit=1)[0]['id'] == summary['runId']
+
+
+def test_status_probe_during_begin_does_not_refuse_the_start(temp_db):
+    real = pattern_cleanup._try_run_lock
+    holding = threading.Event()
+
+    def slow(db):
+        fd = real(db)
+        if threading.current_thread().name == 'probe':
+            holding.set()
+            time.sleep(0.3)
+        return fd
+    probe = threading.Thread(target=pattern_cleanup.is_cleanup_running, args=(temp_db,), name='probe')
+    with patch.object(pattern_cleanup, '_try_run_lock', side_effect=slow), \
+            patch.object(pattern_cleanup, '_execute_run', return_value={}):
+        probe.start()
+        assert holding.wait(5)
+        run_id = pattern_cleanup.start_cleanup_run(temp_db)
+        probe.join(5)
+    assert isinstance(run_id, int)
+
+
+def test_segments_decoded_once_per_episode_per_run(temp_db, live_route):
+    _seed_episode(temp_db, _segments())
+    _pattern(temp_db, text=AD)
+    _pattern(temp_db, text='filler sentence number 15 ' + AD)
+    fake, calls = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake), \
+            patch.object(temp_db, 'get_original_segments', wraps=temp_db.get_original_segments) as seg:
+        run_cleanup(temp_db)
+    assert len(calls) == 2 and seg.call_count == 1
+    assert all('[[' in kw['prompt'] for kw in calls)
 
 
 def test_run_refuses_when_lock_held(temp_db):
@@ -455,7 +529,8 @@ def test_tick_disabled(temp_db):
 def test_tick_not_due(temp_db):
     temp_db.set_setting('pattern_cleanup_enabled', 'true')
     temp_db.set_setting('pattern_cleanup_cron', '0 4 * * 0')
-    temp_db.set_setting('pattern_cleanup_last_run', _iso(utc_now() - timedelta(minutes=1)))
+    temp_db.create_cleanup_run(forced=False, trigger='manual',
+                               started_at=_iso(utc_now() - timedelta(minutes=1)))
     with patch.object(pattern_cleanup, 'run_cleanup') as run, \
             patch.object(pattern_cleanup, '_busy_slots', return_value=0):
         assert pattern_cleanup_tick(temp_db) is None
@@ -472,7 +547,9 @@ def test_tick_defers_while_processing(temp_db):
 
 def test_tick_runs_when_due_and_idle(temp_db):
     temp_db.set_setting('pattern_cleanup_enabled', 'true')
-    temp_db.set_setting('pattern_cleanup_last_run', _iso(utc_now() - timedelta(days=8)))
+    temp_db.create_cleanup_run(forced=False, trigger='manual',
+                               started_at=_iso(utc_now() - timedelta(days=8)))
+    temp_db.set_setting('pattern_cleanup_schedule_anchor', _iso(utc_now() - timedelta(days=9)))
     with patch.object(pattern_cleanup, 'start_cleanup_run', return_value=7) as start, \
             patch.object(pattern_cleanup, '_busy_slots', return_value=0):
         assert pattern_cleanup_tick(temp_db) == 7
@@ -545,6 +622,15 @@ def test_apply_refuses_when_pattern_changed(temp_db):
     p = _pattern(temp_db)
     sid = _suggest(temp_db, p, 'trim', {'text': AD})
     temp_db.update_ad_pattern(p['id'], text_template='edited by hand ' + AD)
+    with pytest.raises(SuggestionStateError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+
+
+def test_apply_refuses_when_sponsor_changed(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    temp_db.update_ad_pattern(p['id'], sponsor_id=temp_db.create_known_sponsor(name='Globex'))
     with pytest.raises(SuggestionStateError):
         apply_suggestion(temp_db, sid)
     assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
@@ -708,6 +794,30 @@ def test_split_that_drops_the_current_sponsor_rejected(temp_db):
     assert result is None
 
 
+def test_trim_without_named_sponsor_must_keep_a_known_sponsor(temp_db):
+    p = _pattern(temp_db, sponsor=None)
+    temp_db.create_known_sponsor(name='Acme')
+    ok, _ = _review(p, _reply(action='trim', text=AD))
+    assert ok['action'] == 'trim' and ok['text'] == AD
+    bad, _ = _review(p, _reply(action='trim', text=LEAD.strip()))
+    assert bad is None
+
+
+def test_trim_when_sponsor_not_in_text_must_keep_a_known_sponsor(temp_db):
+    p = _pattern(temp_db, text=LEAD + TAIL.strip() + ' and more chat about the coast', sponsor='Globex')
+    bad, _ = _review(p, _reply(action='trim', text=LEAD.strip()))
+    assert bad is None
+
+
+def test_rename_rejects_the_podcast_title(temp_db):
+    _seed_episode(temp_db, _segments())
+    _pattern(temp_db, text=AD + ' you are listening to The Daily Tech Show', sponsor='Acme Inc')
+    p = select_candidates(temp_db, force=False, batch_size=1)[0]
+    assert p['podcast_title'] == 'The Daily Tech Show'
+    result, _ = _review(p, _reply(action='rename', sponsor='The Daily Tech Show'))
+    assert result is None
+
+
 def test_rename_sponsor_rejects_show_name(temp_db):
     p = _pattern(temp_db, text=AD + ' thanks to show-a listeners', podcast_id='show-a')
     result, _ = _review(p, _reply(action='rename', sponsor='show-a'))
@@ -736,10 +846,10 @@ def test_three_invalid_reviews_park_the_pattern_until_force(temp_db, live_route)
 def test_rename_then_flag_then_undo_rename_refused_until_flag_undone(temp_db):
     p = _pattern(temp_db, text=AD, sponsor='Acme Inc')
     rename = _suggest(temp_db, p, 'rename', {'sponsor': 'Acme'})
+    apply_suggestion(temp_db, rename)
     flag = _suggest(temp_db, p, 'flag', {'false_positive_count': 3, 'confirmation_count': 0,
                                          'contaminated': False, 'contamination_reason': None,
                                          'recommended': 'disable'})
-    apply_suggestion(temp_db, rename)
     apply_suggestion(temp_db, flag)
     with pytest.raises(SuggestionStateError):
         undo_suggestion(temp_db, rename)
@@ -802,15 +912,17 @@ def test_split_with_invalid_piece_sponsor_refused(temp_db):
 
 def test_status_write_failure_marks_run_failed(temp_db, live_route):
     _pattern(temp_db, text=AD2, sponsor='Widgetco')
-    real_set = temp_db.set_setting
+    real_finish = temp_db.finish_cleanup_run
+    attempts = []
 
-    def flaky(key, value, *a, **kw):
-        if key == 'pattern_cleanup_last_summary':
+    def flaky(run_id, **kw):
+        attempts.append(kw['status'])
+        if len(attempts) == 1:
             raise RuntimeError('disk full')
-        return real_set(key, value, *a, **kw)
+        return real_finish(run_id, **kw)
     fake, _ = _fake_llm(_reply())
     with patch.object(pattern_cleanup, 'call_llm', fake), \
-            patch.object(temp_db, 'set_setting', side_effect=flaky):
+            patch.object(temp_db, 'finish_cleanup_run', side_effect=flaky):
         summary = run_cleanup(temp_db)
     assert summary['status'] == 'failed'
     run = temp_db.get_cleanup_runs(limit=1)[0]

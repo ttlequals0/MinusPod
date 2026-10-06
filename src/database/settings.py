@@ -355,10 +355,8 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='90', payload_key='patternCleanupUnusedDays', payload_kind='int'),
     'pattern_cleanup_provider': SettingSpec(default=None, payload_key='patternCleanupProvider'),
     'pattern_cleanup_model': SettingSpec(default=None, payload_key='patternCleanupModel'),
-    # Status written by the service.
-    'pattern_cleanup_last_run': SettingSpec(resettable=False),
-    'pattern_cleanup_last_error': SettingSpec(resettable=False),
-    'pattern_cleanup_last_summary': SettingSpec(resettable=False),
+    # Set when scheduling turns on so the next run waits for a cron slot after it.
+    'pattern_cleanup_schedule_anchor': SettingSpec(resettable=False),
     'failover_whisper_enabled': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='failoverWhisperEnabled', payload_kind='bool'),

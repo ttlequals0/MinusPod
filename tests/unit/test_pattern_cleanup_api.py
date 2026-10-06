@@ -1,9 +1,9 @@
 """Pattern cleanup HTTP surface: status, run-now, runs, suggestions, bulk, settings."""
 import fcntl
-import json
 import os
 import sys
 import tempfile
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -14,7 +14,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='pattern-cleanup-api-test-'))
 
 import api  # noqa: E402
+import api.settings as api_settings  # noqa: E402
 import pattern_cleanup  # noqa: E402
+from utils.time import ISO_FORMAT, utc_now  # noqa: E402
 
 
 @pytest.fixture
@@ -87,20 +89,24 @@ def test_status_reflects_lock_and_pending(app_client, podcast):
     assert body['pending'] == {'total': 1, 'byKind': {'trim': 1}}
 
 
-def test_status_surfaces_last_summary(app_client, podcast):
-    summary = {'runId': 7, 'status': 'completed'}
-    podcast.set_setting('pattern_cleanup_last_run', '2026-01-01T00:00:00Z')
-    podcast.set_setting('pattern_cleanup_last_error', '')
-    podcast.set_setting('pattern_cleanup_last_summary', json.dumps(summary))
+def test_status_derives_last_run_from_the_run_table(app_client, podcast):
+    done = podcast.create_cleanup_run(forced=False, trigger='manual', started_at='2026-01-01T00:00:00Z')
+    podcast.finish_cleanup_run(done, status='failed', reviewed=3, suggested=1, skipped=0,
+                               error='provider down', error_count=2)
+    running = podcast.create_cleanup_run(forced=False, trigger='schedule',
+                                         started_at='2026-01-02T00:00:00Z')
     try:
         body = app_client.get('/api/v1/patterns/cleanup').get_json()
-        assert body['lastRun'] == '2026-01-01T00:00:00Z'
-        assert body['lastError'] is None
-        assert body['lastSummary'] == summary
+        assert body['lastRun'] == '2026-01-02T00:00:00Z'
+        assert body['lastError'] == 'provider down'
+        summary = body['lastSummary']
+        assert summary['id'] == done and summary['status'] == 'failed'
+        assert summary['startedAt'] == '2026-01-01T00:00:00Z' and summary['finishedAt']
+        assert (summary['reviewedCount'], summary['suggestedCount'], summary['errorCount']) == (3, 1, 2)
     finally:
-        podcast.clear_setting('pattern_cleanup_last_run')
-        podcast.clear_setting('pattern_cleanup_last_error')
-        podcast.clear_setting('pattern_cleanup_last_summary')
+        podcast.get_connection().execute(
+            "DELETE FROM pattern_cleanup_runs WHERE id IN (?, ?)", (done, running))
+        podcast.get_connection().commit()
 
 
 # Run now (daemon thread + 409/202)
@@ -236,7 +242,8 @@ def test_approve_returns_updated_suggestion(app_client, podcast):
     r = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{sid}/approve')
     assert r.status_code == 200
     body = r.get_json()
-    assert body['status'] == 'approved' and body['applied']['applied_at']
+    assert body['status'] == 'approved' and body['applied']['appliedAt']
+    assert body['applied']['newPatternIds'] == [] and 'applied_at' not in body['applied']
 
 
 def test_approve_missing_suggestion_is_404(app_client, podcast):
@@ -334,7 +341,7 @@ def reset_cleanup_settings():
     db = api.get_database()
     for key in ('pattern_cleanup_enabled', 'pattern_cleanup_cron', 'pattern_cleanup_batch_size',
                'pattern_cleanup_unused_days', 'pattern_cleanup_provider', 'pattern_cleanup_model',
-               'pattern_cleanup_last_run'):
+               'pattern_cleanup_schedule_anchor'):
         db.clear_setting(key)
 
 
@@ -392,18 +399,50 @@ def test_put_settings_requires_csrf(app_client, csrf_required):
     assert r.status_code == 403
 
 
-def test_enabling_with_no_prior_run_stamps_last_run_so_it_waits(app_client, podcast, reset_cleanup_settings):
+def _clock(dt):
+    """Pin 'now' for the settings handler, the service and the run table."""
+    def iso():
+        return dt.strftime(ISO_FORMAT)
+    return (patch.object(pattern_cleanup, 'utc_now', return_value=dt),
+            patch.object(pattern_cleanup, 'utc_now_iso', iso),
+            patch.object(api_settings, 'utc_now_iso', iso),
+            patch('database.pattern_cleanup.utc_now_iso', iso))
+
+
+def _tick_fires(db) -> bool:
+    with patch.object(pattern_cleanup, 'start_cleanup_run', return_value=99) as start, \
+            patch.object(pattern_cleanup, '_busy_slots', return_value=0):
+        pattern_cleanup.pattern_cleanup_tick(db)
+    return start.called
+
+
+def test_enabling_with_no_prior_run_waits_for_the_next_slot(app_client, podcast, reset_cleanup_settings):
     db = api.get_database()
-    assert not db.get_setting('pattern_cleanup_last_run')
     r = app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': True})
     assert r.status_code == 200
-    assert db.get_setting('pattern_cleanup_last_run')
-    assert pattern_cleanup.pattern_cleanup_tick(db) is None
+    assert db.get_setting('pattern_cleanup_schedule_anchor')
+    assert _tick_fires(db) is False
 
 
-def test_enabling_again_does_not_reset_an_existing_last_run(app_client, podcast, reset_cleanup_settings):
+def test_enabling_days_after_a_manual_run_waits_for_the_next_slot(app_client, podcast,
+                                                                  reset_cleanup_settings):
     db = api.get_database()
-    db.set_setting('pattern_cleanup_last_run', '2020-01-01T00:00:00+00:00')
-    app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': False})
+    with patch.object(pattern_cleanup, '_live_route', return_value=None), \
+            patch.object(pattern_cleanup, 'select_candidates', return_value=[]):
+        summary = pattern_cleanup.run_cleanup(db, trigger='manual')
+    later = utc_now() + timedelta(days=10)
+    a, b, c, d = _clock(later)
+    with a, b, c, d:
+        app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': True})
+        assert _tick_fires(db) is False
+        assert app_client.get('/api/v1/patterns/cleanup').get_json()['lastRun'] == summary['startedAt']
+
+
+def test_disable_then_reenable_waits_for_the_next_slot(app_client, podcast, reset_cleanup_settings):
+    db = api.get_database()
     app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': True})
-    assert db.get_setting('pattern_cleanup_last_run') == '2020-01-01T00:00:00+00:00'
+    a, b, c, d = _clock(utc_now() + timedelta(days=10))
+    with a, b, c, d:
+        app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': False})
+        app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': True})
+        assert _tick_fires(db) is False

@@ -21,13 +21,23 @@ def _decode_suggestion(row) -> dict:
 
 
 class PatternCleanupMixin:
-    def create_cleanup_run(self, *, forced: bool, trigger: str) -> int:
+    def create_cleanup_run(self, *, forced: bool, trigger: str, started_at: str | None = None) -> int:
         conn = self.get_connection()
         cursor = conn.execute(
             "INSERT INTO pattern_cleanup_runs (forced, trigger, started_at) VALUES (?, ?, ?)",
-            (1 if forced else 0, trigger, utc_now_iso()))
+            (1 if forced else 0, trigger, started_at or utc_now_iso()))
         conn.commit()
         return cursor.lastrowid
+
+    def fail_running_cleanup_runs(self, error: str) -> int:
+        """Mark every row still `running` as failed; call only while holding the run lock."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "UPDATE pattern_cleanup_runs SET status = 'failed', finished_at = ?, error = ? "
+            "WHERE status = 'running'",
+            (utc_now_iso(), error))
+        conn.commit()
+        return cursor.rowcount
 
     def finish_cleanup_run(self, run_id: int, *, status: str, reviewed: int, suggested: int,
                            skipped: int, error: str | None = None, model: str | None = None,
@@ -47,6 +57,12 @@ class PatternCleanupMixin:
         cursor = self.get_connection().execute(
             "SELECT * FROM pattern_cleanup_runs ORDER BY id DESC LIMIT ?", (int(limit),))
         return [dict(row) for row in cursor.fetchall()]
+
+    def get_latest_finished_cleanup_run(self) -> dict | None:
+        row = self.get_connection().execute(
+            "SELECT * FROM pattern_cleanup_runs WHERE status != 'running' "
+            "ORDER BY id DESC LIMIT 1").fetchone()
+        return dict(row) if row else None
 
     def upsert_cleanup_suggestion(self, run_id: int | None, pattern_id: int, kind: str,
                                   confidence: float | None, reasons: list, payload: dict,
@@ -173,11 +189,12 @@ class PatternCleanupMixin:
     def get_cleanup_candidate_rows(self) -> list[dict]:
         """Active learned patterns, never-reviewed first, then oldest review."""
         cursor = self.get_connection().execute(
-            f"""SELECT ap.*, ks.name AS sponsor,
+            f"""SELECT ap.*, ks.name AS sponsor, pc.title AS podcast_title,
                        EXISTS(SELECT 1 FROM pattern_cleanup_suggestions s
                               WHERE s.pattern_id = ap.id AND s.status = 'pending') AS has_pending
                 FROM ad_patterns ap
                 LEFT JOIN known_sponsors ks ON ks.id = ap.sponsor_id
+                LEFT JOIN podcasts pc ON pc.slug = ap.podcast_id
                 WHERE {LEARNED_PATTERN_WHERE}
                 ORDER BY ap.cleanup_reviewed_at IS NOT NULL, ap.cleanup_reviewed_at, ap.id""")  # noqa: S608
         return [dict(row) for row in cursor.fetchall()]

@@ -243,8 +243,7 @@ NON_RESETTABLE_KEYS = (
     'system_prompt_override', 'verification_prompt_override',
     'review_prompt_override', 'resurrect_prompt_override',
     'chapter_prompt_override',
-    'pattern_cleanup_last_run', 'pattern_cleanup_last_error',
-    'pattern_cleanup_last_summary',
+    'pattern_cleanup_schedule_anchor',
     'transition_threshold_db', 'volume_threshold_db',
     'nonexistent_key_xyz',
 )

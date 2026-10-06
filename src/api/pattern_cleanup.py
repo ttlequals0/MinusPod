@@ -1,5 +1,4 @@
 """Pattern cleanup routes; see pattern_cleanup.py for the service. CSRF for POST/PUT is enforced globally (api/__init__.py), not per-route here."""
-import json
 import logging
 
 from flask import request
@@ -69,7 +68,7 @@ def _suggestion_view(s: dict) -> dict:
         'reasons': s.get('reasons') or [],
         'payload': _camelize(s.get('payload') or {}),
         'before': _camelize(s.get('before')),
-        'applied': s.get('applied'),
+        'applied': _camelize(s.get('applied')),
         'createdAt': s.get('created_at'),
         'reviewedAt': s.get('reviewed_at'),
     }
@@ -101,13 +100,14 @@ def _run_view(r: dict) -> dict:
 @log_request
 def get_pattern_cleanup_status():
     db = get_database()
-    last_summary = db.get_setting('pattern_cleanup_last_summary')
+    latest = db.get_cleanup_runs(limit=1)
+    finished = db.get_latest_finished_cleanup_run()
     view = cleanup_settings_view(db)
     view.update({
         'inProgress': pattern_cleanup.is_cleanup_running(db),
-        'lastRun': db.get_setting('pattern_cleanup_last_run') or None,
-        'lastError': db.get_setting('pattern_cleanup_last_error') or None,
-        'lastSummary': json.loads(last_summary) if last_summary else None,
+        'lastRun': latest[0]['started_at'] if latest else None,
+        'lastError': (finished or {}).get('error') or None,
+        'lastSummary': _run_view(finished) if finished else None,
         'pending': db.get_cleanup_pending_counts(),
     })
     return json_response(view)
