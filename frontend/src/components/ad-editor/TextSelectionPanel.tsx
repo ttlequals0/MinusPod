@@ -95,10 +95,8 @@ function TextSelectionPanel({
 }: Props) {
   const [frozenRuns, setFrozenRuns] = useState<TextRun[]>([]);
   const [currentText, setCurrentText] = useState('');
-  // commitSelection fires through a mouseup listener bound once per
-  // [flatWords] change (see below), so it can't close over frozenRuns or
-  // onRunsChange directly -- that would freeze them at whatever they were
-  // when the listener was last (re)bound. Refs keep the read live.
+  // The mouseup listener is bound once per flatWords change, so it reads
+  // frozenRuns and onRunsChange through refs to avoid stale closures.
   const frozenRunsRef = useRef(frozenRuns);
   useEffect(() => {
     frozenRunsRef.current = frozenRuns;
