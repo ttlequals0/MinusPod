@@ -213,3 +213,22 @@ def test_update_podcast_metadata_retags_owned_network_templates_on_network_chang
     svc.update_podcast_metadata(podcast_id=slug, feed_url='http://x/retag.xml')
 
     assert db.get_cue_template(tid)['network_id'] == 'new-network'
+
+
+def test_update_podcast_metadata_rolls_back_if_retag_fails(db, monkeypatch):
+    # The podcast update and the template retag share one transaction, so a
+    # failed retag must not leave the podcast's network_id changed.
+    slug = 'retag-rollback-feed'
+    db.create_podcast(slug, 'http://x/rollback.xml', 'Retag Rollback Feed')
+    db.update_podcast(slug, network_id='old-network')
+    svc = PatternService(db)
+    monkeypatch.setattr(svc, 'detect_dai_platform', lambda *a, **k: None)
+    monkeypatch.setattr(svc, 'detect_network', lambda *a, **k: 'new-network')
+
+    def _boom(*a, **k):
+        raise RuntimeError('boom')
+    monkeypatch.setattr(db, 'retag_network_cue_templates', _boom)
+
+    svc.update_podcast_metadata(podcast_id=slug, feed_url='http://x/rollback.xml')
+
+    assert db.get_podcast_by_slug(slug)['network_id'] == 'old-network'

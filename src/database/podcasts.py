@@ -335,12 +335,15 @@ class PodcastMixin:
         conn.commit()
         return cursor.lastrowid
 
-    def update_podcast(self, slug: str, **kwargs) -> bool:
-        """Update podcast fields."""
+    def update_podcast(self, slug: str, conn=None, **kwargs) -> bool:
+        """Update podcast fields. Pass conn to join an existing transaction
+        (caller owns commit/rollback); omit it to commit here as before."""
         if not kwargs:
             return False
 
-        conn = self.get_connection()
+        own_conn = conn is None
+        if own_conn:
+            conn = self.get_connection()
 
         # Build update query
         fields = []
@@ -392,7 +395,8 @@ class PodcastMixin:
             f"UPDATE podcasts SET {', '.join(fields)} WHERE slug = ?",  # noqa: S608
             values
         )
-        conn.commit()
+        if own_conn:
+            conn.commit()
         return True
 
     def clear_refresh_failure_state(self, slug: str):

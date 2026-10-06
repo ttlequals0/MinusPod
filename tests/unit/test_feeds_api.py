@@ -167,6 +167,26 @@ def test_patch_clearing_network_id_override_demotes_network_templates(app_client
     assert row['network_id'] is None
 
 
+def test_patch_network_id_override_rolls_back_if_retag_fails(app_client, seeded_feed, monkeypatch):
+    """The podcast update and the template retag share one transaction, so a
+    failed retag must not leave the feed's network changed."""
+    slug = seeded_feed['slug']
+    db = seeded_feed['db']
+    db.update_podcast(slug, network_id_override='old-network')
+
+    def _boom(*a, **k):
+        raise RuntimeError('boom')
+    monkeypatch.setattr(db, 'retag_network_cue_templates', _boom)
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'networkIdOverride': 'new-network'}, headers=headers)
+
+    assert resp.status_code == 500
+    assert db.get_podcast_by_slug(slug)['network_id_override'] == 'old-network'
+
+
 # -- ownEpisodeGuids (#598) --
 
 @pytest.fixture

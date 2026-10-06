@@ -2041,7 +2041,18 @@ def update_feed(slug):
         return error_response('No valid fields to update', 400)
 
     try:
-        db.update_podcast(slug, **updates)
+        if 'network_id_override' in updates or 'network_id' in updates:
+            # Same transaction: a failed retag must not leave the feed on
+            # the new network with stranded templates.
+            with db.transaction(immediate=True) as conn:
+                db.update_podcast(slug, conn=conn, **updates)
+                fresh = db.get_podcast_by_slug(slug)
+                effective_network = (
+                    (fresh.get('network_id_override') or '').strip()
+                    or fresh.get('network_id') or None)
+                db.retag_network_cue_templates(fresh['id'], effective_network, conn=conn)
+        else:
+            db.update_podcast(slug, **updates)
         logger.info(f"Updated feed {slug}: {updates}")
 
         # A priority change re-stamps still-pending queue rows so it takes
@@ -2056,15 +2067,6 @@ def update_feed(slug):
 
         # Return updated feed data
         podcast = db.get_podcast_by_slug(slug)
-
-        # Keep this feed's own network-scope cue templates following its
-        # effective network when either it or the override changes, so a
-        # promoted template does not keep matching the network it left.
-        if 'network_id_override' in updates or 'network_id' in updates:
-            effective_network = (
-                (podcast.get('network_id_override') or '').strip()
-                or podcast.get('network_id') or None)
-            db.retag_network_cue_templates(podcast['id'], effective_network)
 
         # Settings changes that alter the served RSS body must regenerate it.
         # Clearing etag/last_modified first ensures that if the force-refresh

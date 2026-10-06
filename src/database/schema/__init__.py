@@ -2125,10 +2125,8 @@ class SchemaMixin:
             conn.rollback()
             logger.warning(f"Migration failed for review_prompt PARTIAL SPAN refresh: {e}")
 
-        # One-time heal for network cue templates stranded on a stale network
-        # id (2.98.0): before this release, a feed's network_id_override or
-        # auto-detected network_id could change without its own network-scope
-        # templates following along.
+        # One-time heal for network cue templates stranded on a stale
+        # network id (2.98.0).
         try:
             self._run_retag_network_cue_templates(conn)
         except Exception as e:
@@ -2137,10 +2135,7 @@ class SchemaMixin:
 
     def _run_retag_network_cue_templates(self, conn):
         """Re-tag network-scope cue templates to their owning feed's current
-        effective network, healing templates stranded by the staleness fixed
-        in 2.98.0. An empty effective network demotes the template to podcast
-        scope instead of leaving it pointed at a network it no longer matches.
-        """
+        effective network; an empty effective network demotes to podcast scope."""
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'retag_network_cue_templates_2980'"
         ).fetchone()
