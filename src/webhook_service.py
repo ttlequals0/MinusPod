@@ -426,7 +426,7 @@ _ALERT_DEDUP_SECS = 300  # 5 minutes
 _ALERT_BURST_SECS = 60   # Cross-key cap when dedup_key is used
 
 
-def _fire_alert_event(event, context, log_detail, dedup_key=None):
+def _fire_alert_event(event, context, log_detail, dedup_key=None, dedup=True):
     """Dispatch an operator alert to webhooks and email with a 5-minute
     dedup, keyed per event (or per `dedup_key` when alerts for the same
     event must not suppress each other, e.g. per-feed failures). Keyed
@@ -437,14 +437,15 @@ def _fire_alert_event(event, context, log_detail, dedup_key=None):
 
     Returns True when the alert was dispatched, False when suppressed --
     callers that alert on a one-shot state transition use this to retry
-    later instead of losing the alert."""
+    later instead of losing the alert. ``dedup=False`` sends every call, for
+    events that are already one per state transition."""
     key = dedup_key or event
     now = time.time()
     with _alert_lock:
-        if now - _last_alert_time.get(key, 0.0) < _ALERT_DEDUP_SECS:
+        if dedup and now - _last_alert_time.get(key, 0.0) < _ALERT_DEDUP_SECS:
             logger.debug("%s alert suppressed (dedup window)", event)
             return False
-        if dedup_key is not None and \
+        if dedup and dedup_key is not None and \
                 now - _last_alert_time.get(event, 0.0) < _ALERT_BURST_SECS:
             logger.debug("%s alert suppressed (burst cap)", event)
             return False
@@ -584,7 +585,7 @@ def fire_failover_event(action: str, target: str, source: str, reason: str | Non
         'target': api_name,
         'source': source,
         'reason': reason or '',
-    }, f"target={api_name}, source={source}", dedup_key=f"{event}:{target}")
+    }, f"target={api_name}, source={source}", dedup_key=f"{event}:{target}", dedup=False)
 
 
 def fire_update_available_event(version, channel, release_date, url):

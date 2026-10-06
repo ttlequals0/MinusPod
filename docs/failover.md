@@ -158,7 +158,7 @@ Every numeric field above must be a JSON integer, or `null`/omitted where blank 
 | `Failover Triggered` | A target switched to its failover configuration, automatically or by hand |
 | `Failover Cancelled` | A target switched back to its own configuration |
 
-Both carry `target` (`llm-a`, `llm-b`, or `transcriber`), `source` (`auto`, `probe`, or `manual`), and `reason` (free text, empty on a manual cancel), and share the same 5-minute per-target dedup as the other alert events. See [API & Webhooks > Events](api-and-webhooks.md#events) for the full payload shape.
+Both carry `target` (`llm-a`, `llm-b`, or `transcriber`), `source` (`auto`, `probe`, or `manual`), and `reason` (free text, empty on a manual cancel), and are never deduplicated: each state change sends exactly one event, because failover transitions are rare and a repeated action does not record a new one. See [API & Webhooks > Events](api-and-webhooks.md#events) for the full payload shape.
 
 ## Per-provider timeouts and retries
 

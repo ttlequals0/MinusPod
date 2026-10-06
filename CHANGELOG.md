@@ -21,6 +21,7 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- Failover triggered and cancelled events are no longer suppressed by the 5-minute alert dedup; every state change sends its event.
 - A transcriber switch logs which failover backend and endpoint took over, matching the LLM switch line in the run log.
 - Logged endpoint URLs keep their port, so endpoints that differ only by port are distinguishable. Credentials and query strings are still removed.
 - A run that started on the standby provider requeues if the standby account is replaced mid-run, instead of finishing on a different account.

@@ -733,6 +733,24 @@ class TestQueueAndServiceAlerts:
     @patch('webhook_service.email_service.send_event_email')
     @patch('webhook_service._prepare_and_dispatch')
     @patch('webhook_service.load_webhooks')
+    @patch('webhook_service.time.time')
+    def test_failover_transitions_are_never_deduplicated(
+            self, mock_time, mock_load, mock_dispatch, _mock_email):
+        mock_load.return_value = [{'url': 'https://example.com/h', 'enabled': True,
+                                   'events': ['Failover Triggered', 'Failover Cancelled']}]
+        mock_time.side_effect = [1000.0, 1010.0, 1020.0, 1025.0]
+        assert webhook_service.fire_failover_event('trigger', 'llm:primary', 'auto', 'HTTP 503')
+        assert webhook_service.fire_failover_event('cancel', 'llm:primary', 'auto', None)
+        assert webhook_service.fire_failover_event('trigger', 'llm:primary', 'auto', 'HTTP 503')
+        assert webhook_service.fire_failover_event('trigger', 'whisper', 'auto', 'down')
+        events = [c[0][1]['event'] for c in mock_dispatch.call_args_list]
+        assert events == ['Failover Triggered', 'Failover Cancelled',
+                          'Failover Triggered', 'Failover Triggered']
+
+    @patch('webhook_service.threading.Thread', SyncThread)
+    @patch('webhook_service.email_service.send_event_email')
+    @patch('webhook_service._prepare_and_dispatch')
+    @patch('webhook_service.load_webhooks')
     def test_resumed_and_reachable_contexts(self, mock_load, mock_dispatch, _mock_email):
         mock_load.return_value = [{'url': 'https://example.com/h', 'enabled': True,
                                    'events': ['Queue Resumed', 'Service Reachable']}]
