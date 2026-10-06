@@ -28,7 +28,7 @@ def safe_url_for_log(url, keep_path: bool = False,
                      keep_query: bool = False) -> str:
     """Return a safe-for-logs URL string.
 
-    Default: ``scheme://host`` only. Query strings and paths often carry
+    Default: ``scheme://host[:port]`` only; userinfo is always dropped. Query strings and paths often carry
     credentials or identifiers and are dropped. Set ``keep_path=True``
     to include the path (useful for LLM endpoint logs where the operator
     wants to see ``/v1/chat/completions`` etc.).
@@ -47,7 +47,13 @@ def safe_url_for_log(url, keep_path: bool = False,
         scheme = parts.scheme or 'http'
         if not host:
             return '<url>'
-        out = f"{scheme}://{host}"
+        if ':' in host:
+            host = f"[{host}]"
+        try:
+            port = parts.port
+        except ValueError:
+            port = None
+        out = f"{scheme}://{host}" + (f":{port}" if port is not None else "")
         if (keep_path or keep_query) and parts.path:
             out += parts.path
         if keep_query and parts.query:

@@ -1,4 +1,6 @@
 """Transcriber failover (#806)."""
+import json
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,6 +11,7 @@ bootstrap('transcriber_failover_test_')
 import failover
 import transcriber
 import run_context
+from run_log import RunLogRecorder
 from transcriber import ServiceUnavailableError, Transcriber
 from utils.errors import LocalTranscriptionUnavailableError, TranscriptionRejectedError
 
@@ -363,3 +366,31 @@ def test_active_but_disabled_or_unconfigured_standby_uses_primary():
             patch.object(transcriber, '_get_failover_whisper_settings') as standby:
         assert transcriber.active_whisper_settings() is ACTIVE
     standby.assert_not_called()
+
+
+def test_whisper_switch_writes_run_log_line(t, tmp_path):
+    recorder = RunLogRecorder('example-podcast', 'a1b2c3d4e5f6', logging.INFO, tmp_path)
+    ctx = run_context.begin('example-podcast', 'a1b2c3d4e5f6', run_id='switch-run')
+    recorder.attach()
+    def api(path, settings, **kwargs):
+        if not settings.get('is_failover'):
+            raise ServiceUnavailableError('whisper', '503 after retries')
+        return _seg(0, 1)
+    try:
+        with patch.object(failover, 'is_active', return_value=False), \
+                patch.object(failover, 'is_configured', return_value=True), \
+                patch.object(failover, 'trigger', return_value=True), \
+                patch.object(transcriber, '_get_failover_whisper_settings', return_value=FAILOVER), \
+                patch.object(transcriber, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
+                patch.object(transcriber, 'extract_audio_chunk', return_value='/tmp/chunk.wav'), \
+                patch.object(transcriber, '_unlink_quiet'), \
+                patch.object(t, '_transcribe_via_api', side_effect=api), \
+                patch.object(t, 'filter_hallucinations', side_effect=lambda segments: segments):
+            assert t._transcribe_chunked_parallel_api('/tmp/audio.wav', 100.0, ACTIVE)
+    finally:
+        recorder.detach()
+        run_context.end(ctx)
+    messages = [json.loads(line)['msg'] for line in recorder.temp_path.read_text().splitlines()]
+    recorder.discard()
+    assert any('switching to failover transcriber openai-api http://b.example.com' in m
+               for m in messages)

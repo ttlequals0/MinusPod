@@ -823,6 +823,18 @@ def _trigger_whisper_failover(original: Exception) -> None:
         raise original
 
 
+def _switch_to_failover_whisper(original: Exception) -> dict:
+    """Trigger whisper failover and return the standby settings, logging the switch to the run log."""
+    _trigger_whisper_failover(original)
+    fo = _get_failover_whisper_settings()
+    ctx = run_context.current()
+    tag = f"[{ctx.key}] " if ctx is not None else ''
+    target = (safe_url_for_log(fo['api_base_url']) if fo['backend'] == WHISPER_BACKEND_API
+              else f"model {fo.get('local_model') or 'inherited'}")
+    logger.warning(f"{tag}Transcription switching to failover transcriber {fo['backend']} {target}")
+    return fo
+
+
 def _note_whisper_settings(whisper_settings: dict) -> None:
     """Mark the current run as having used the failover transcriber."""
     if whisper_settings.get('is_failover'):
@@ -2897,8 +2909,7 @@ class Transcriber:
             except (ServiceUnavailableError, TranscriptionRejectedError) as e:
                 if not can_switch_on_outage:
                     raise
-                _trigger_whisper_failover(e)
-                fo = _get_failover_whisper_settings()
+                fo = _switch_to_failover_whisper(e)
                 if fo['backend'] != whisper_settings['backend']:
                     return self._transcribe_chunked_local(audio_path, duration, fo, language_override)
                 return self.transcribe(audio_path, language_override=language_override,
@@ -2936,8 +2947,7 @@ class Transcriber:
         )
 
         if isinstance(outage, int):
-            _trigger_whisper_failover(connectivity_errors[0])
-            fo = _get_failover_whisper_settings()
+            fo = _switch_to_failover_whisper(connectivity_errors[0])
             if fo['backend'] != whisper_settings['backend']:
                 # Different backend type: discard the partial chunk results
                 # and rerun the whole episode on the failover backend.
@@ -3042,10 +3052,9 @@ class Transcriber:
         except Exception as e:
             if not whisper_settings.get('is_failover') and is_whisper_failover_trigger(e):
                 if failover.is_configured(failover.TARGET_WHISPER):
-                    _trigger_whisper_failover(e)
                     return self.transcribe_chunked(
                         audio_path, language_override,
-                        whisper_settings=_get_failover_whisper_settings())
+                        whisper_settings=_switch_to_failover_whisper(e))
             raise
         finally:
             if override_token is not None:

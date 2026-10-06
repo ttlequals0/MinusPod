@@ -21,6 +21,8 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- A transcriber switch logs which failover backend and endpoint took over, matching the LLM switch line in the run log.
+- Logged endpoint URLs keep their port, so endpoints that differ only by port are distinguishable. Credentials and query strings are still removed.
 - A run that started on the standby provider requeues if the standby account is replaced mid-run, instead of finishing on a different account.
 - An LLM max-retries setting of 0 now sends one request before failing over; the two per-window retries no longer run on top of it.
 - When saving failover state fails, the call logs that the standby was skipped instead of failing silently.

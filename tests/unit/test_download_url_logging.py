@@ -36,6 +36,15 @@ class TestSafeUrlForLog:
         assert safe_url_for_log('https://h/a.mp3?q=1#frag', keep_query=True) == \
             'https://h/a.mp3?q=1'
 
+    @pytest.mark.parametrize("url,expected", [
+        ('http://user:pass@127.0.0.1:9101/v1?key=x', 'http://127.0.0.1:9101'),
+        ('http://127.0.0.1:9102/v1', 'http://127.0.0.1:9102'),
+        ('http://[::1]:8000/v1', 'http://[::1]:8000'),
+        ('http://example.com:notaport/v1', 'http://example.com'),
+    ])
+    def test_port_is_kept_and_credentials_dropped(self, url, expected):
+        assert safe_url_for_log(url) == expected
+
     @pytest.mark.parametrize("bad", [None, '', 'not a url', 12345])
     def test_unparseable_input_reduces_to_a_sentinel(self, bad):
         assert safe_url_for_log(bad, keep_query=True) == '<url>'
