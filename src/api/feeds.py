@@ -2057,6 +2057,15 @@ def update_feed(slug):
         # Return updated feed data
         podcast = db.get_podcast_by_slug(slug)
 
+        # Keep this feed's own network-scope cue templates following its
+        # effective network when either it or the override changes, so a
+        # promoted template does not keep matching the network it left.
+        if 'network_id_override' in updates or 'network_id' in updates:
+            effective_network = (
+                (podcast.get('network_id_override') or '').strip()
+                or podcast.get('network_id') or None)
+            db.retag_network_cue_templates(podcast['id'], effective_network)
+
         # Settings changes that alter the served RSS body must regenerate it.
         # Clearing etag/last_modified first ensures that if the force-refresh
         # below throws, the next scheduled refresh cannot 304 and will fully

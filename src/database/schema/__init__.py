@@ -2125,6 +2125,59 @@ class SchemaMixin:
             conn.rollback()
             logger.warning(f"Migration failed for review_prompt PARTIAL SPAN refresh: {e}")
 
+        # One-time heal for network cue templates stranded on a stale network
+        # id (2.98.0): before this release, a feed's network_id_override or
+        # auto-detected network_id could change without its own network-scope
+        # templates following along.
+        try:
+            self._run_retag_network_cue_templates(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"network cue template retag migration failed: {e}")
+
+    def _run_retag_network_cue_templates(self, conn):
+        """Re-tag network-scope cue templates to their owning feed's current
+        effective network, healing templates stranded by the staleness fixed
+        in 2.98.0. An empty effective network demotes the template to podcast
+        scope instead of leaving it pointed at a network it no longer matches.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'retag_network_cue_templates_2980'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        rows = conn.execute(
+            """SELECT t.id, t.network_id,
+                      COALESCE(NULLIF(p.network_id_override, ''), p.network_id) AS effective
+               FROM audio_cue_templates t
+               JOIN podcasts p ON p.id = t.podcast_id
+               WHERE t.scope = 'network'"""
+        ).fetchall()
+        moved = demoted = 0
+        for row in rows:
+            effective = row['effective']
+            if effective == row['network_id']:
+                continue
+            if effective:
+                conn.execute(
+                    "UPDATE audio_cue_templates SET network_id = ? WHERE id = ?",
+                    (effective, row['id']))
+                moved += 1
+            else:
+                conn.execute(
+                    "UPDATE audio_cue_templates SET scope = 'podcast', network_id = NULL "
+                    "WHERE id = ?", (row['id'],))
+                demoted += 1
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('retag_network_cue_templates_2980')")
+        conn.commit()
+        if moved or demoted:
+            logger.info(
+                "Migration: re-tagged %d and demoted %d network cue template(s) "
+                "to match their owning feed's current network", moved, demoted)
+
     def _run_correct_opus48_token_cost(self, conn):
         """One-time correction of recorded Opus 4.8 (`claudeopus48`) token cost.
 

@@ -225,6 +225,33 @@ class CueTemplateMixin:
         conn.commit()
         return cursor.rowcount > 0
 
+    def retag_network_cue_templates(self, podcast_id: int, network_id: str | None) -> int:
+        """Re-tag a feed's own network-scope templates to its new effective network.
+
+        Called whenever a feed's effective network changes (network_id_override
+        edited, or an auto-detected network_id update), so a template promoted
+        to network scope keeps following its owning feed instead of staying
+        pinned to the network it was promoted under. An empty network_id
+        demotes those templates to podcast scope rather than leaving them
+        pointed at a network the feed no longer belongs to. Returns the number
+        of rows changed.
+        """
+        conn = self.get_connection()
+        if network_id:
+            cursor = conn.execute(
+                """UPDATE audio_cue_templates SET network_id = ?
+                   WHERE scope = 'network' AND podcast_id = ? AND network_id != ?""",
+                (network_id, podcast_id, network_id),
+            )
+        else:
+            cursor = conn.execute(
+                """UPDATE audio_cue_templates SET scope = 'podcast', network_id = NULL
+                   WHERE scope = 'network' AND podcast_id = ?""",
+                (podcast_id,),
+            )
+        conn.commit()
+        return cursor.rowcount
+
     def promote_cue_template(
         self, template_id: int, scope: str, network_id: str | None = None,
     ) -> bool:

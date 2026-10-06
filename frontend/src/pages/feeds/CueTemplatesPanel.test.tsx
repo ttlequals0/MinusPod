@@ -714,3 +714,41 @@ describe('Optimize window result panel', () => {
     });
   });
 });
+
+// ---- Network mismatch (owning feed's network changed after promotion) ----
+
+describe('Network-scope template whose network no longer matches the feed', () => {
+  beforeEach(() => {
+    mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed', networkId: 'net-new' });
+    mockListCueTemplates.mockResolvedValue([
+      makeTemplate({ scope: 'network', networkId: 'net-old' }),
+    ]);
+  });
+
+  it('shows a warning naming both networks', async () => {
+    renderPanel();
+    await waitFor(() => {
+      expect(screen.getByText('Shared on network "net-old", this feed is on "net-new"')).toBeDefined();
+    });
+  });
+
+  it('relabels the action to move the template, and moving sends the feed\'s current network', async () => {
+    mockUpdateCueTemplate.mockResolvedValue(makeTemplate({ scope: 'network', networkId: 'net-new' }));
+    renderPanel();
+    const btn = await screen.findByRole('button', { name: /Move to network net-new/i });
+
+    await userEvent.click(btn);
+
+    await waitFor(() => {
+      expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { scope: 'network', networkId: 'net-new' });
+    });
+  });
+
+  it('shows no warning and the plain demote label when the networks match', async () => {
+    mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed', networkId: 'net-old' });
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
+    expect(screen.queryByText(/Shared on network/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Make podcast-only' })).toBeDefined();
+  });
+});

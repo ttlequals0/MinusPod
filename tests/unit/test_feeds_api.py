@@ -119,6 +119,54 @@ def test_a_reject_override_under_the_ceiling_is_accepted(app_client, seeded_feed
         'maxAdDurationRejectOverride'] == 600
 
 
+def _create_network_template(db, podcast_id, network_id):
+    return db.create_cue_template(
+        podcast_id=podcast_id, cue_type='ad_break_boundary',
+        source_episode_id='ep-1', source_offset_s=1.0, duration_s=0.5,
+        sample_rate=16000, n_coeffs=13, mfcc_blob=b'',
+        scope='network', network_id=network_id,
+    )
+
+
+def test_patch_network_id_override_retags_owned_network_templates(app_client, seeded_feed):
+    """Changing networkIdOverride must move this feed's own network-scope
+    templates to the new network, so siblings there inherit them too."""
+    slug = seeded_feed['slug']
+    db = seeded_feed['db']
+    podcast_id = db.get_podcast_by_slug(slug)['id']
+    tid = _create_network_template(db, podcast_id, 'old-network')
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'networkIdOverride': 'new-network'}, headers=headers)
+
+    assert resp.status_code == 200
+    row = db.get_cue_template(tid)
+    assert row['scope'] == 'network'
+    assert row['network_id'] == 'new-network'
+
+
+def test_patch_clearing_network_id_override_demotes_network_templates(app_client, seeded_feed):
+    """Clearing the override with no auto-detected network leaves the
+    template with nowhere to point, so it demotes to podcast scope."""
+    slug = seeded_feed['slug']
+    db = seeded_feed['db']
+    podcast_id = db.get_podcast_by_slug(slug)['id']
+    db.update_podcast(slug, network_id_override='old-network')
+    tid = _create_network_template(db, podcast_id, 'old-network')
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'networkIdOverride': None}, headers=headers)
+
+    assert resp.status_code == 200
+    row = db.get_cue_template(tid)
+    assert row['scope'] == 'podcast'
+    assert row['network_id'] is None
+
+
 # -- ownEpisodeGuids (#598) --
 
 @pytest.fixture

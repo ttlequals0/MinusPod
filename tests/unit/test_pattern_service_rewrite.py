@@ -192,3 +192,24 @@ def test_import_community_pattern_respects_protected(db):
     row = db.get_ad_pattern_by_id(pid)
     assert row['version'] == 1
     assert 'version one' in row['text_template']
+
+
+def test_update_podcast_metadata_retags_owned_network_templates_on_network_change(db, monkeypatch):
+    # Auto-detected network_id changing must move this feed's own
+    # network-scope cue templates along with it, same as a manual override.
+    slug = 'retag-feed'
+    db.create_podcast(slug, 'http://x/retag.xml', 'Retag Feed')
+    podcast_id = db.get_podcast_by_slug(slug)['id']
+    tid = db.create_cue_template(
+        podcast_id=podcast_id, cue_type='ad_break_boundary',
+        source_episode_id='ep-1', source_offset_s=1.0, duration_s=0.5,
+        sample_rate=16000, n_coeffs=13, mfcc_blob=b'',
+        scope='network', network_id='old-network',
+    )
+    svc = PatternService(db)
+    monkeypatch.setattr(svc, 'detect_dai_platform', lambda *a, **k: None)
+    monkeypatch.setattr(svc, 'detect_network', lambda *a, **k: 'new-network')
+
+    svc.update_podcast_metadata(podcast_id=slug, feed_url='http://x/retag.xml')
+
+    assert db.get_cue_template(tid)['network_id'] == 'new-network'

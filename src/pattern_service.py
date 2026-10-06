@@ -692,6 +692,15 @@ class PatternService:
                     dai_platform=dai_platform,
                     network_id=network_id
                 )
+                # Keep this feed's own network-scope cue templates following
+                # its effective network (override wins when set) now that the
+                # auto-detected network_id may have changed.
+                row = self.db.get_podcast_by_slug(podcast_id)
+                if row:
+                    effective_network = (
+                        (row.get('network_id_override') or '').strip()
+                        or row.get('network_id') or None)
+                    self.db.retag_network_cue_templates(row['id'], effective_network)
                 logger.debug(
                     f"Updated podcast {podcast_id}: "
                     f"platform={dai_platform}, network={network_id}"

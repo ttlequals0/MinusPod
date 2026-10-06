@@ -172,7 +172,10 @@ as cue matches. Export downloads a cue as a portable file (a lossless audio
 clip plus a manifest) to share with another install; Import loads one back. On a
 feed that belongs to a network, Promote to network applies a cue to every show on
 that network. Saving a non-ad cue type (intro, outro, or content transition)
-asks for confirmation, since those types never cut.
+asks for confirmation, since those types never cut. A promoted template follows
+the owning feed's network setting: if that feed's network changes later, the
+template moves with it, and if the feed leaves every network it demotes back
+to podcast-only instead of staying pinned to a network it no longer belongs to.
 
 ### Optimizing the cue window
 

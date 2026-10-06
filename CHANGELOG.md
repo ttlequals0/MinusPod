@@ -74,6 +74,7 @@ release notes.
 - `POST /failover/probe` now re-drives deferred episodes right away when a probe records a recovery, instead of waiting for the next maintenance tick.
 - A transcriber switch now stops in-flight primary chunks before they extract or upload, instead of wasting the work on a result that gets discarded.
 - The chunked transcription plan no longer produces a sub-second trailing chunk; a tail shorter than one second folds into the previous chunk.
+- A network-scope audio cue template kept the network id it was promoted under, so it stopped reaching sibling feeds after the owning feed's network setting changed. It now follows the owning feed's network, or demotes to podcast-only when the feed leaves every network; an upgrade migration heals templates already affected.
 
 ### Security
 - Updated fsspec to 2026.6.0 and Werkzeug to 3.1.9 to fix CVE-2026-104851 and CVE-2026-102598.

@@ -169,6 +169,63 @@ def test_active_resolution_blank_override_falls_back_to_network_id(temp_db):
     assert [r['network_id'] for r in rows] == ['net-9']
 
 
+def test_retag_network_cue_templates_moves_to_new_network(temp_db):
+    # Feed's effective network changes; its own network-scope template must
+    # follow it so siblings on the NEW network inherit it.
+    pid = temp_db.create_podcast('show-retag', 'http://x/retag.xml', 'Show Retag')
+    tid = _create(temp_db, pid, scope='network', network_id='net-old')
+    other_own = _create(temp_db, pid, cue_type='ad_break_start',
+                         scope='podcast', seed=1)
+
+    changed = temp_db.retag_network_cue_templates(pid, 'net-new')
+    assert changed == 1
+    row = temp_db.get_cue_template(tid)
+    assert row['scope'] == 'network'
+    assert row['network_id'] == 'net-new'
+    # A podcast-scope template on the same feed is untouched.
+    assert temp_db.get_cue_template(other_own)['scope'] == 'podcast'
+
+
+def test_retag_network_cue_templates_demotes_when_network_cleared(temp_db):
+    pid = temp_db.create_podcast('show-retag-2', 'http://x/retag2.xml', 'Show Retag 2')
+    tid = _create(temp_db, pid, scope='network', network_id='net-old')
+
+    changed = temp_db.retag_network_cue_templates(pid, None)
+    assert changed == 1
+    row = temp_db.get_cue_template(tid)
+    assert row['scope'] == 'podcast'
+    assert row['network_id'] is None
+
+
+def test_migration_heals_network_templates_stranded_on_a_stale_network(temp_db):
+    # Simulates upgrading a pre-2.98.0 database: a network template whose
+    # network_id drifted from its owning feed's current effective network
+    # must be healed once, on upgrade.
+    pid_a = temp_db.create_podcast('migrate-a', 'http://x/migrate-a.xml', 'Migrate A')
+    temp_db.update_podcast('migrate-a', network_id_override='new-net')
+    tid_move = _create(temp_db, pid_a, scope='network', network_id='old-net')
+
+    pid_b = temp_db.create_podcast('migrate-b', 'http://x/migrate-b.xml', 'Migrate B')
+    tid_demote = _create(temp_db, pid_b, cue_type='ad_break_start',
+                          scope='network', network_id='stale-net', seed=1)
+
+    conn = temp_db.get_connection()
+    conn.execute(
+        "DELETE FROM schema_migrations WHERE name = 'retag_network_cue_templates_2980'")
+    conn.commit()
+    temp_db._run_retag_network_cue_templates(conn)
+
+    assert temp_db.get_cue_template(tid_move)['network_id'] == 'new-net'
+    demoted = temp_db.get_cue_template(tid_demote)
+    assert demoted['scope'] == 'podcast'
+    assert demoted['network_id'] is None
+
+    # One-shot: a later mismatch introduced after the gate is set is left alone.
+    temp_db.promote_cue_template(tid_move, 'network', 'old-net')
+    temp_db._run_retag_network_cue_templates(conn)
+    assert temp_db.get_cue_template(tid_move)['network_id'] == 'old-net'
+
+
 def test_active_resolution_excludes_disabled_and_other_networks(temp_db):
     pid = temp_db.create_podcast('show-i', 'http://x/i.xml', 'Show I')
     temp_db.update_podcast('show-i', network_id='net-2')
