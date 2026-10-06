@@ -90,6 +90,15 @@ function formatList(items: string[]): string {
   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
 }
 
+// Heading for the kept-markers section: reflects whether the bucket is all
+// keep, all mark, or a mix of both.
+function keptSectionTitle(markers: AdSegment[]): string {
+  const markedCount = markers.filter((m) => m.actionApplied === 'mark').length;
+  if (markedCount === 0) return `Kept segments (${markers.length})`;
+  if (markedCount === markers.length) return `Marked segments (${markers.length})`;
+  return `Kept and marked segments (${markers.length})`;
+}
+
 function btnClass(status: string, idleClass: string): string {
   if (status === 'success') return 'bg-success/20 text-success-on-tint';
   if (status === 'error') return 'bg-destructive/20 text-destructive-on-tint';
@@ -1700,7 +1709,7 @@ function EpisodeDetail() {
       {episode.keptMarkers && episode.keptMarkers.length > 0 && (
         <div className="mb-6" data-testid="kept-segments-section">
           <CollapsibleSection
-            title={`Kept segments (${episode.keptMarkers.length})`}
+            title={keptSectionTitle(episode.keptMarkers)}
             subtitle="Detected, and left in the audio by your category actions"
             defaultOpen={false}
             storageKey="episode-kept-segments"

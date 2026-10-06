@@ -381,6 +381,14 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
     mockUpdateFeed.mockResolvedValue(makeFeed());
   });
 
+  it('describes what Mark does alongside Remove, Beep, and Keep', async () => {
+    renderPanel(makeFeed());
+    expect(await screen.findByText(
+      'Mark leaves it in and adds a chapter a player can skip.',
+      { exact: false },
+    )).toBeDefined();
+  });
+
   it('shows Inherit and the resolved global value for an unoverridden category', async () => {
     renderPanel(makeFeed());
     await waitFor(() => {

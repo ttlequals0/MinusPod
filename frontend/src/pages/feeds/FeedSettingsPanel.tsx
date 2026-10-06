@@ -1306,7 +1306,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           >
             <div className="flex flex-col gap-3 pt-1">
               <p className="text-sm text-muted-foreground">
-                Choose what happens to each kind of detected segment. Remove cuts it out, Beep replaces it with a tone, Keep leaves it in.
+                Choose what happens to each kind of detected segment. Remove cuts it out, Beep replaces it with a tone, Keep leaves it in. Mark leaves it in and adds a chapter a player can skip.
               </p>
               <div className="space-y-2">
                 {SEGMENT_CATEGORIES.map((category) => {

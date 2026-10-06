@@ -273,6 +273,21 @@ describe('DetectedAdsTab', () => {
     renderTab();
     expect(await screen.findAllByText('Beeped')).not.toHaveLength(0);
   });
+
+  it('shows a marked marker as marked, left in by its category', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({ actionApplied: 'mark' })],
+      total: 1, page: 1, totalPages: 1, limit: 20,
+      counts: {
+        total: 1, needsReview: 0, pending: 0, rejected: 0,
+        accepted: 1, confirmed: 0, dismissed: 0,
+      },
+      cutSummary: SUMMARY,
+    });
+    renderTab();
+    expect(await screen.findAllByText('Marked')).not.toHaveLength(0);
+    expect(screen.getAllByText('Left in by its category').length).toBeGreaterThan(0);
+  });
 });
 
 describe('DetectedAdsTab loading placeholder', () => {

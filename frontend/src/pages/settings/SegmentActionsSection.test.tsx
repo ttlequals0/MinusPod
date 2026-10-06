@@ -31,6 +31,14 @@ function SegmentActionsHarness({ onCommit }: {
 }
 
 describe('SegmentActionsSection: category matrix', () => {
+  it('describes what Mark does alongside Remove, Beep, and Keep', () => {
+    render(<SegmentActionsHarness onCommit={() => {}} />);
+    expect(screen.getByText(
+      'Mark leaves it in and adds a chapter a player can skip.',
+      { exact: false },
+    )).toBeDefined();
+  });
+
   it('renders all seven category rows with Remove selected by default', () => {
     render(<SegmentActionsHarness onCommit={() => {}} />);
     for (const label of ['Sponsor', 'Cross-promo', 'Self-promo', 'Interaction', 'Intro', 'Outro', 'Recap']) {

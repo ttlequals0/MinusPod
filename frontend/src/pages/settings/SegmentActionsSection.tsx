@@ -28,7 +28,7 @@ function SegmentActionsSection({
       <div className="space-y-6">
         <div>
           <p className="text-sm text-muted-foreground">
-            Choose what happens to each kind of detected segment. Remove cuts it out, Beep replaces it with a tone, Keep leaves it in.
+            Choose what happens to each kind of detected segment. Remove cuts it out, Beep replaces it with a tone, Keep leaves it in. Mark leaves it in and adds a chapter a player can skip.
           </p>
           <div className="mt-3 space-y-2">
             {SEGMENT_CATEGORIES.map((category) => (

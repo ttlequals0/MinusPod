@@ -1464,7 +1464,7 @@ function AdReviewModal({
                   </option>
                 ))}
               </select>
-              <span>Decides whether this span is cut, beeped, or left in.</span>
+              <span>Decides whether this span is cut, beeped, kept, or marked as a chapter.</span>
             </label>
           </div>
         )}

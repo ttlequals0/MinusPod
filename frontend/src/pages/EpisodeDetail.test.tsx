@@ -1437,6 +1437,28 @@ describe('Kept segments section (2.78.3)', () => {
     expect(screen.queryByText('Kept')).toBeNull();
   });
 
+  it('titles the section "Marked segments (N)" when every marker is mark', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      keptMarkers: [
+        { start: 127.8, end: 140.2, confidence: 0.9, category: 'sponsor', actionApplied: 'mark' },
+        { start: 300.0, end: 330.0, confidence: 0.8, category: 'self_promo', actionApplied: 'mark' },
+      ],
+    }));
+    expect(await screen.findByText('Marked segments (2)')).not.toBeNull();
+  });
+
+  it('titles the section "Kept and marked segments (N)" for a mix of both', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      keptMarkers: [
+        { start: 127.8, end: 140.2, confidence: 0.9, category: 'intro', actionApplied: 'keep' },
+        { start: 300.0, end: 330.0, confidence: 0.8, category: 'sponsor', actionApplied: 'mark' },
+      ],
+    }));
+    expect(await screen.findByText('Kept and marked segments (2)')).not.toBeNull();
+  });
+
   it('offers a play button per row when the original audio is retained', async () => {
     renderDetail(makeEpisode({
       pendingReviewMarkers: [],

@@ -7,7 +7,7 @@ import { cardActionBtn, tableActionBtn } from '../../components/rowActionStyles'
 import { StageBadge } from '../../components/StageBadge';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
 import {
-  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
+  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, isKeepLike, type SegmentCategory,
 } from '../../utils/segmentCategory';
 import { formatTimestamp, formatDate } from '../../utils/format';
 import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
@@ -31,11 +31,12 @@ export const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, st
   dismissed: ['Not an ad', tint.secondary],
 };
 
-// Only beep and keep get a badge. remove is what a cut ad normally is, so
-// labelling it would put a chip on nearly every row and say nothing.
+// Only beep, keep, and mark get a badge. remove is what a cut ad normally
+// is, so labelling it would put a chip on nearly every row and say nothing.
 const ACTION_BADGE: Record<string, [string, string]> = {
   beep: ['Beeped', tint.blue],
   keep: ['Kept', tint.neutral],
+  mark: ['Marked', tint.neutral],
 };
 
 // Same audition key for the desktop row and its mobile card twin, so the
@@ -169,10 +170,10 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   // pathologically zoomed label from forcing page scroll.
   const btn = isCard ? cardActionBtn : tableActionBtn;
   const undecided = d.resolution === 'unresolved';
-  // Its category resolves to keep, so confirm/reject would record a verdict
-  // the cut can never honor (the endpoint 409s them). Edit is the way
-  // through: the modal's category picker changes this span's fate.
-  if (d.actionApplied === 'keep') {
+  // Its category resolves to keep or mark, so confirm/reject would record a
+  // verdict the cut can never honor (the endpoint 409s them). Edit is the
+  // way through: the modal's category picker changes this span's fate.
+  if (isKeepLike(d.actionApplied)) {
     const kept = (
       <>
         {d.hasOriginalAudio && (
