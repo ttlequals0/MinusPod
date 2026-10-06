@@ -42,14 +42,16 @@ def stage():
          patch.object(processing.db, 'get_episode_upstream_transcript',
                       return_value=None) as get_stored, \
          patch.object(processing.db, 'save_episode_upstream_transcript') as save, \
-         patch.object(processing.db, 'get_setting_bool', return_value=True):
+         patch.object(processing.db, 'get_setting_bool', return_value=True), \
+         patch('main_app.processing._publish_status') as publish:
         def run(episode=EPISODE, podcast=FEED, segments=SEGMENTS, segments_reused=True):
             run_stats = {}
             payload = processing._run_transcript_diff(
                 'feed', 'ep1', episode, segments, run_stats, podcast=podcast,
                 segments_reused=segments_reused)
             return payload, run_stats
-        yield MagicMock(run=run, fetch=fetch, align=align, get_stored=get_stored, save=save)
+        yield MagicMock(run=run, fetch=fetch, align=align, get_stored=get_stored, save=save,
+                        publish=publish)
 
 
 def test_ok_run_persists_spans_and_stats(stage, caplog):
@@ -67,6 +69,8 @@ def test_ok_run_persists_spans_and_stats(stage, caplog):
     assert run_stats['transcript_diff'] == {'status': 'ok', 'coverage': 0.93, 'spans': 1}
     assert ('Transcript diff: status=ok coverage=0.93 spans=1 source=cdn.example.com'
             in caplog.text)
+    stage.publish.assert_called_once_with('update_job_stage', 'feed', 'ep1',
+                                          'pass1:transcript_diff', 21)
 
 
 def test_fetch_exception_becomes_error_status(stage):
@@ -133,6 +137,16 @@ def test_local_feed_without_url_skips(stage):
     stage.fetch.assert_not_called()
     assert run_stats['transcript_diff']['status'] == 'none'
     stage.save.assert_not_called()
+    stage.publish.assert_not_called()
+
+
+def test_no_url_failed_read_leaves_stored_payload(stage):
+    stage.get_stored.side_effect = RuntimeError('db locked')
+    with patch.object(processing.db, 'clear_leaked_transaction'):
+        payload, run_stats = stage.run(episode={'upstream_transcript_url': None})
+    stage.save.assert_not_called()
+    assert payload['status'] == 'none'
+    assert run_stats['transcript_diff']['status'] == 'none'
 
 
 @pytest.mark.parametrize('stored,saved', [

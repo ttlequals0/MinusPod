@@ -1159,6 +1159,12 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
     reused = False
     persist = True
     host = 'unknown'
+
+    def fail(error):
+        payload.update(status='error', error=error, spans=[])
+
+    if url:
+        _publish_status('update_job_stage', slug, episode_id, "pass1:transcript_diff", 21)
     try:
         if url:
             host = urlparse(url).hostname or host
@@ -1176,7 +1182,7 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
                         transcript = fetch_upstream_transcript(
                             url, episode_row.get('upstream_transcript_type'))
                         if transcript is None:
-                            payload.update(status='error', error='fetch or parse failed')
+                            fail('fetch or parse failed')
                         else:
                             result = align(segments, transcript)
                             payload.update(status=result['status'], mime=transcript.mime,
@@ -1184,7 +1190,7 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
                                            coverage=result['coverage'],
                                            spans=result['spans'])
                     except Exception as e:
-                        payload.update(status='error', error=str(e), spans=[])
+                        fail(str(e))
         elif not url:
             # Nothing to record unless an earlier result would otherwise go stale.
             stored = db.get_episode_upstream_transcript(slug, episode_id)
@@ -1192,7 +1198,11 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
     except Exception as e:
         audio_logger.warning(f"[{slug}:{episode_id}] Transcript diff stage failed: {e}")
         db.clear_leaked_transaction(audio_logger, 'transcript diff stage')
-        payload.update(status='error', error=str(e), spans=[])
+        if url:
+            fail(str(e))
+        else:
+            # Without a URL a failed read must not overwrite the stored payload.
+            persist = False
     if persist and not reused:
         try:
             db.save_episode_upstream_transcript(slug, episode_id, payload)
@@ -6597,7 +6607,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # Stage 1a: upstream transcript differential (best effort, bounded fetch).
         transcript_spans = []
         if not skip_detection:
-            _publish_status('update_job_stage', slug, episode_id, "pass1:transcript_diff", 21)
             transcript_diff = _run_transcript_diff(
                 slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings,
                 segments_reused=transcribe_outcome.get('segments_reused', False))
