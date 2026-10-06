@@ -12,7 +12,7 @@ release notes.
 ## [2.98.0] - Unreleased
 
 ### Added
-- Standby transcription has its own upload-attempt limit, including when the active transcriber runs locally. Leaving it blank preserves inheritance.
+- The failover transcriber has its own upload-attempt limit, including when the active transcriber runs locally. Leaving it blank preserves inheritance.
 - Visiting the server root redirects to the web UI. (#808)
 - Export selected feeds as OPML from the Feeds page. (#810)
 - Choose Podcasts or Episodes from an icon menu in the mobile dashboard toolbar.
@@ -26,34 +26,32 @@ release notes.
 - Failover triggered and cancelled events are no longer suppressed by the 5-minute alert dedup; every state change sends its event.
 - A transcriber switch logs which failover backend and endpoint took over, matching the LLM switch line in the run log.
 - Logged endpoint URLs keep their port, so endpoints that differ only by port are distinguishable. Credentials and query strings are still removed.
-- A run that started on the standby provider requeues if the standby account is replaced mid-run, instead of finishing on a different account.
+- A run that started on the failover provider requeues if the failover account is replaced mid-run, instead of finishing on a different account.
 - An LLM max-retries setting of 0 now sends one request before failing over; the two per-window retries no longer run on top of it.
-- When saving failover state fails, the call logs that the standby was skipped instead of failing silently.
+- When saving failover state fails, the call logs that the failover provider was skipped instead of skipping it silently.
 - **Probe now** no longer loads a local Whisper model in a web worker; the background worker runs the diagnostic decode and the card shows the last result until then.
-- Local recovery no longer stalls under load: busy probes leave recovery progress unchanged, and standby-model decodes no longer discard a probe of the original model. Local probes normalize device and compute type the way the transcriber does.
+- Local recovery no longer stalls under load: busy probes leave recovery progress unchanged, and failover-model decodes no longer discard a probe of the original model. Local probes normalize device and compute type the way the transcriber does.
 - Transcription probes count HTTP 405 from `/models` as reachable, like 404.
 - Anthropic and OpenRouter probes with no API key report Not configured instead of recording a failed request.
-- Deferred episodes resume through healthy providers required by their current routes, including standby providers. Health results are refreshed after configuration, failover state, or local outcome changes.
-- Failover startup avoids circular imports through audio and subprocess helpers.
+- Deferred episodes resume through healthy providers required by their current routes, including failover providers. Health results are refreshed after configuration, failover state, or local outcome changes.
 - Health checks share ownership across workers and probe only stale endpoints required by each run.
-- Local transcription recovers only after an idle diagnostic decode of the original model; disabled standby configurations no longer receive work.
-- Failover modules load consistently across import orders, including installations without the local transcription stack.
-- Exhausted transcription timeouts and provider throttling can switch to the standby transcriber.
-- Processing tests preserve dependency filesystem checks, preventing a partial native-library import and shutdown crash.
-- LLM rate limits and exhausted daily quotas never trigger failover; the rate-limit hold waits out the provider reset. A rate limit on the standby holds only the standby account. Transcription 429s that outlast their retry deadline still switch to the standby transcriber.
+- Local transcription recovers only after an idle diagnostic decode of the original model; disabled failover configurations no longer receive work.
+- Failover modules load consistently across import orders without circular imports, including installations without the local transcription stack.
+- Exhausted transcription timeouts and throttling switch to the failover transcriber.
+- LLM rate limits and exhausted daily quotas never trigger failover; the rate-limit hold waits out the provider reset. A rate limit on the failover provider holds only the failover account. Transcription 429s that outlast their retry deadline still switch to the failover transcriber. Installs without a failover provider see no change in daily-quota handling.
 - Fixed-provider probes validate response bodies, and transcription probes no longer count timeout or rate-limit responses as healthy.
-- Processing history marks runs that actually dispatched to the standby, and retains that usage after recovery. Deferred, held, cancelled, and requeued runs no longer add failed history rows.
+- Processing history marks runs that actually dispatched to the failover provider, and retains that usage after recovery. Deferred, held, cancelled, and requeued runs no longer add failed history rows.
 - Manual failover changes take effect on subsequent calls across workers without waiting for the settings cache.
-- Running episodes return to their original LLM routes after standby recovery or cancellation; legacy standby snapshots requeue safely.
+- Running episodes return to their original LLM routes after recovery or cancellation; legacy failover snapshots requeue safely.
 - LLM recovery requires a valid successful endpoint response; malformed responses and rate limits no longer mark a provider healthy.
-- Failover forms and actions have 44 px mobile tap targets; switches keep their compact track inside a larger clickable area.
+- Failover forms, actions, and model-entry toggles have 44 px mobile tap targets; switches keep their compact track inside a larger clickable area.
 - Health probes use a captured provider configuration and discard results after configuration or failover state changes.
-- When the standby request also fails, the original provider error decides deferral and retry, unless the standby rejected the request shape (400 or 422) or returned a hold, cancellation, or account change.
+- When the failover request also fails, the original provider error decides deferral and retry, unless the failover provider rejected the request shape (400 or 422) or returned a hold, cancellation, or account change.
 - Manual failover controls reject invalid request bodies and report persistence failures instead of returning success.
-- Standby model catalogs load only when the Failover card is visible. Settings searches pause hidden-card queries and resume matched cards.
-- LLM HTTP 408 responses now retry and trigger failover like connection timeouts.
+- Failover model catalogs load only when the Failover card is visible. Settings searches pause hidden-card queries and resume matched cards.
+- LLM HTTP 408 responses now retry and trigger failover like connection timeouts, and defer to the offline queue like other connectivity errors.
+- The OpenRouter health probe and Test Connection now call `/api/v1/key` instead of `/api/v1/auth/key`.
 - Failover state changes and events are saved atomically, preserving manual overrides during concurrent recovery and outage actions.
-- Failover actions and model-entry toggles have 44 px mobile tap targets.
 - The OPML picker shows feed-loading errors with retry and keeps selected feeds in sync after a refresh.
 - OPML exports and the feed picker use custom feed names.
 - Large feed selections use a POST request so exports do not exceed the server URL limit.
@@ -78,11 +76,7 @@ release notes.
 - Updated fast-uri to 3.1.8 to fix a moderate vulnerability in frontend build tooling.
 
 ### Changed
-- Upload security tests now send escaped filenames correctly and preserve path-separator rejection coverage.
 - Updated failover documentation and API responses for live routing, recovery checks, and manual control failures.
-- Regression tests cover live failover admission and daily quotas without leaking database patches or provider assumptions across tests.
-- Failover regression tests declare their dependencies at module scope.
-- Shortened provider and artwork documentation while preserving their behavior contracts.
 - The two LLM provider slots are now labelled Provider A and Provider B. The API accepts `providerB*` payload keys and `a`/`b` slot values; the `secondary*` keys and `primary`/`secondary` values keep working, and `GET` responses still emit both spellings.
 - Updated Python dependencies and frontend test tools from dependency PRs #811 through #820. The TypeScript ESLint packages now share one version.
 

@@ -6343,7 +6343,7 @@ paths:
                   nullable: true
                   minimum: 1
                   maximum: 10
-                  description: Upload attempts for the standby transcriber, including the first upload. Null or blank inherits whisperMaxAttempts; omit to leave unchanged.
+                  description: Upload attempts for the failover transcriber, including the first upload. Null or blank inherits whisperMaxAttempts; omit to leave unchanged.
                 failoverWhisperLanguage:
                   type: string
                   description: Language for the transcriber failover. Empty means same as the active transcriber; otherwise 'auto' or a 2-3 letter code.
@@ -15036,7 +15036,7 @@ components:
               type: boolean
         failoverWhisperMaxAttempts:
           type: object
-          description: Standby upload attempts; null inherits whisperMaxAttempts.
+          description: Failover transcriber upload attempts; null inherits whisperMaxAttempts.
           properties:
             value:
               type: integer
