@@ -48,6 +48,35 @@ export function formatStatsDuration(seconds: number): string {
   return `${(seconds / 3600).toFixed(1)}h`;
 }
 
+// Episode-list duration: `Xh Ym` at or above one hour, else `Xm`. '' for a
+// falsy value (0, null, undefined).
+export function formatDurationHoursMinutes(seconds?: number): string {
+  if (!seconds) return '';
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+// Processing-history duration: sub-minute shown to one decimal (`X.Xs`),
+// else rounded to the nearest second as `Xm Ys`. '-' for null/undefined.
+export function formatDurationPrecise(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return '-';
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const roundedSeconds = Math.round(seconds);
+  const mins = Math.floor(roundedSeconds / 60);
+  const secs = roundedSeconds % 60;
+  return `${mins}m ${secs}s`;
+}
+
+// Job-progress duration: floored whole seconds, `Xs` under a minute else
+// `Xm Ys`. '0s' for a non-finite or negative value.
+export function formatDurationWhole(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0s';
+  if (seconds < 60) return `${Math.floor(seconds)}s`;
+  return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
+}
+
 // LLM cost with sub-cent precision.
 export function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`;

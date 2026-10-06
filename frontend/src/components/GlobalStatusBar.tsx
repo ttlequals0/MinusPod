@@ -8,9 +8,10 @@ import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
 import { apiRequest } from '../api/client';
 import { tint } from './badgeStyles';
-import ProcessingJobProgress, { formatJobDuration } from './ProcessingJobProgress';
+import ProcessingJobProgress from './ProcessingJobProgress';
 import { failoverSourceLabel, failoverTargetLabel } from '../api/failover';
 import type { ProcessingStatus } from '../api/status';
+import { formatDurationWhole } from '../utils/format';
 
 interface ProcessingJob {
   slug: string;
@@ -315,7 +316,7 @@ function GlobalStatusBar() {
 
             {/* Elapsed time */}
             <span className="text-xs text-muted-foreground shrink-0 w-14 text-right tabular-nums">
-              {formatJobDuration(jobElapsed(currentJob, now, receivedAt))}
+              {formatDurationWhole(jobElapsed(currentJob, now, receivedAt))}
             </span>
           </>
         ) : (

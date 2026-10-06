@@ -10,7 +10,7 @@ import {
 } from '../api/history';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
-import { formatDateTime } from '../utils/format';
+import { formatDateTime, formatDurationPrecise } from '../utils/format';
 import { ProcessingHistoryEntry } from '../api/types';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
@@ -80,19 +80,6 @@ function HistoryPage() {
     } finally {
       setExporting(null);
     }
-  };
-
-  const formatDuration = (seconds: number | null) => {
-    if (seconds === null || seconds === undefined) {
-      return '-';
-    }
-    if (seconds < 60) {
-      return `${seconds.toFixed(1)}s`;
-    }
-    const roundedSeconds = Math.round(seconds);
-    const mins = Math.floor(roundedSeconds / 60);
-    const secs = roundedSeconds % 60;
-    return `${mins}m ${secs}s`;
   };
 
   if (isLoading) {
@@ -208,7 +195,7 @@ function HistoryPage() {
         </div>
         {stats && (
           <div className="text-sm text-muted-foreground self-center">
-            Avg processing time: {formatDuration(stats.avgProcessingTimeSeconds)}
+            Avg processing time: {formatDurationPrecise(stats.avgProcessingTimeSeconds)}
           </div>
         )}
       </div>
@@ -262,10 +249,10 @@ function HistoryPage() {
               </div>
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span>{formatDateTime(entry.processedAt)}</span>
-                <span>{formatDuration(entry.processingDurationSeconds)}</span>
+                <span>{formatDurationPrecise(entry.processingDurationSeconds)}</span>
                 {entry.downloadedDuration != null && (
                   <span title="Length of the downloaded copy this run processed">
-                    Audio: {formatDuration(entry.downloadedDuration)}
+                    Audio: {formatDurationPrecise(entry.downloadedDuration)}
                   </span>
                 )}
                 <span>Ads: {entry.adsDetected}</span>
@@ -346,11 +333,11 @@ function HistoryPage() {
                       {formatDateTime(entry.processedAt)}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
-                      {formatDuration(entry.processingDurationSeconds)}
+                      {formatDurationPrecise(entry.processingDurationSeconds)}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                       {entry.downloadedDuration != null
-                        ? formatDuration(entry.downloadedDuration)
+                        ? formatDurationPrecise(entry.downloadedDuration)
                         : '-'}
                     </td>
                     <td className="px-4 py-3 text-sm text-foreground">

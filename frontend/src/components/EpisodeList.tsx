@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { Episode } from '../api/types';
 import { displayStatusColor, displayStatusLabel, isFailedStatus } from '../utils/episodeStatus';
 import { stripHtml } from '../utils/stripHtml';
-import { formatDate } from '../utils/format';
+import { formatDate, formatDurationHoursMinutes } from '../utils/format';
 import Artwork from './Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
 import Checkbox from './Checkbox';
@@ -78,15 +78,6 @@ function EpisodeRow({
 }) {
   // Rows of the recents feed belong to another feed; link there.
   const rowSlug = episode.feedSlug ?? feedSlug;
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
 
   const canSelect = !isActionBlocked(episode.jobState, false);
   const failureReason =
@@ -131,7 +122,7 @@ function EpisodeRow({
           </p>
           <div className="flex gap-x-3 mt-2 text-sm text-muted-foreground truncate">
             <span className="whitespace-nowrap">{formatDate(episode.published)}</span>
-            {episode.duration && <span className="whitespace-nowrap">{formatDuration(episode.duration)}</span>}
+            {episode.duration && <span className="whitespace-nowrap">{formatDurationHoursMinutes(episode.duration)}</span>}
             {episode.ad_count !== undefined && episode.ad_count > 0 && (
               <span className="whitespace-nowrap">{episode.ad_count} ads detected</span>
             )}

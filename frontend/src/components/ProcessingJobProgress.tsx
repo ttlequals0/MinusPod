@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { getStageLabel } from '../utils/processingStage';
 import { focusRing } from './fieldStyles';
+import { formatDurationWhole } from '../utils/format';
 
 export interface ProcessingJobProgressData {
   slug: string;
@@ -14,12 +15,6 @@ export interface ProcessingJobProgressData {
 
 function clampProgress(progress: number): number {
   return Math.max(0, Math.min(100, Number.isFinite(progress) ? progress : 0));
-}
-
-export function formatJobDuration(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return '0s';
-  if (seconds < 60) return `${Math.floor(seconds)}s`;
-  return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
 }
 
 export default function ProcessingJobProgress({
@@ -59,7 +54,7 @@ export default function ProcessingJobProgress({
         <div className="text-right shrink-0">
           <p className="text-sm font-medium text-primary">{stageLabel}</p>
           <p className="text-xs text-muted-foreground tabular-nums">
-            {Math.round(progress)}% - {formatJobDuration(elapsed)}
+            {Math.round(progress)}% - {formatDurationWhole(elapsed)}
           </p>
         </div>
       </div>
