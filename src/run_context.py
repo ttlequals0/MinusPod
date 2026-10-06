@@ -15,6 +15,24 @@ from utils.url import url_has_userinfo
 
 _lock = threading.Lock()
 _by_thread: dict[int, 'RunContext'] = {}
+_background_thread_flag = threading.local()
+
+
+def mark_background_thread() -> None:
+    """Flag the calling thread as the background queue processor loop (R2)."""
+    _background_thread_flag.active = True
+
+
+def clear_background_thread() -> None:
+    """Undo mark_background_thread when the loop actually returns (tests
+    call background_queue_processor synchronously on a reused thread)."""
+    _background_thread_flag.active = False
+
+
+def in_background_thread() -> bool:
+    """True only inside the leader's background_queue_processor thread,
+    never in a web request thread, even on the leader process."""
+    return getattr(_background_thread_flag, 'active', False)
 
 
 class TokenAccumulator:

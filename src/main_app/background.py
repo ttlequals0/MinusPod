@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 import failover
+import run_context
 import run_log
 from config import (
     DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER,
@@ -542,157 +543,161 @@ def background_queue_processor():
     from rate_limit_hold import (
         active_held_pairs, get_active_hold, probe_rate_limit, rate_limit_hold_tick,
     )
-    refresh_logger.info("Auto-process queue processor started")
-    registry = ProcessingQueue()
-    running: set[threading.Thread] = set()
-    # Backdated so the very first pass always runs the maintenance block.
-    last_maintenance = time.monotonic() - MAINTENANCE_INTERVAL_SECONDS
-    last_probe = time.monotonic() - 3600
-    backoff = 30  # Initial backoff for a bounced claim
-    rate_limit_pause_logged = False
-    processing_pause_logged = False
-    while not shutdown_event.is_set():
-        # Guard point for issue #566 (see Database.rollback_open_transaction).
-        db.clear_leaked_transaction(refresh_logger, 'queue processor')
-        try:
-            # Orphan/failed-item sweep, stuck-row reset, offline-queue drive:
-            # every 5 minutes of wall-clock time (the first pass runs it too).
-            if time.monotonic() - last_maintenance >= MAINTENANCE_INTERVAL_SECONDS:
-                last_maintenance = time.monotonic()
-                # A live slot means the run is still going, whatever the row's
-                # age says: updated_at is only written at a stage change.
-                reset_count, failed_count = db.reset_orphaned_queue_items(
-                    stuck_minutes=65, exclude_running=registry.get_current())
-                if reset_count > 0 or failed_count > 0:
-                    refresh_logger.info(f"Reset {reset_count} orphaned queue items, {failed_count} exceeded max attempts")
+    run_context.mark_background_thread()
+    try:
+        refresh_logger.info("Auto-process queue processor started")
+        registry = ProcessingQueue()
+        running: set[threading.Thread] = set()
+        # Backdated so the very first pass always runs the maintenance block.
+        last_maintenance = time.monotonic() - MAINTENANCE_INTERVAL_SECONDS
+        last_probe = time.monotonic() - 3600
+        backoff = 30  # Initial backoff for a bounced claim
+        rate_limit_pause_logged = False
+        processing_pause_logged = False
+        while not shutdown_event.is_set():
+            # Guard point for issue #566 (see Database.rollback_open_transaction).
+            db.clear_leaked_transaction(refresh_logger, 'queue processor')
+            try:
+                # Orphan/failed-item sweep, stuck-row reset, offline-queue drive:
+                # every 5 minutes of wall-clock time (the first pass runs it too).
+                if time.monotonic() - last_maintenance >= MAINTENANCE_INTERVAL_SECONDS:
+                    last_maintenance = time.monotonic()
+                    # A live slot means the run is still going, whatever the row's
+                    # age says: updated_at is only written at a stage change.
+                    reset_count, failed_count = db.reset_orphaned_queue_items(
+                        stuck_minutes=65, exclude_running=registry.get_current())
+                    if reset_count > 0 or failed_count > 0:
+                        refresh_logger.info(f"Reset {reset_count} orphaned queue items, {failed_count} exceeded max attempts")
 
-                retry_count = db.reset_failed_queue_items(max_retries=MAX_EPISODE_RETRIES)
-                if retry_count > 0:
-                    refresh_logger.info(f"Reset {retry_count} failed queue items for automatic retry")
+                    retry_count = db.reset_failed_queue_items(max_retries=MAX_EPISODE_RETRIES)
+                    if retry_count > 0:
+                        refresh_logger.info(f"Reset {retry_count} failed queue items for automatic retry")
 
-                # Episode rows orphaned in 'processing' by a killed worker.
-                # This ran at startup only, so a row could sit unprocessable
-                # until the next restart.
-                reset_stuck_processing_episodes()
+                    # Episode rows orphaned in 'processing' by a killed worker.
+                    # This ran at startup only, so a row could sit unprocessable
+                    # until the next restart.
+                    reset_stuck_processing_episodes()
 
-                # Offline queue (#482): expire deferred episodes past their
-                # TTL and re-queue the rest once their service is reachable.
-                _run_tick(
-                    lambda settings_db: offline_queue_tick(
-                        settings_db, _offline_queue_target_resolver),
-                    'offline_queue_tick')
+                    # Offline queue (#482): expire deferred episodes past their
+                    # TTL and re-queue the rest once their service is reachable.
+                    _run_tick(
+                        lambda settings_db: offline_queue_tick(
+                            settings_db, _offline_queue_target_resolver),
+                        'offline_queue_tick')
 
-                db.clear_completed_queue_items(older_than_hours=24)
+                    db.clear_completed_queue_items(older_than_hours=24)
 
-            # Provider health probe (#806): own interval, independent of the
-            # maintenance cadence above.
-            if time.monotonic() - last_probe >= failover.probe_interval_seconds():
-                last_probe = time.monotonic()
-                _run_tick(failover.take_requested_probes, 'failover_probe_requests')
-                _run_tick(failover.probe_tick, 'failover_probe_tick')
-            else:
-                requested = _run_tick(failover.take_requested_probes, 'failover_probe_requests')
-                if requested:
-                    _run_tick(lambda tick_db: failover.probe_tick(tick_db, requested),
-                              'failover_probe_tick')
+                # Provider health probe (#806): own interval, independent of the
+                # maintenance cadence above.
+                if time.monotonic() - last_probe >= failover.probe_interval_seconds():
+                    last_probe = time.monotonic()
+                    _run_tick(failover.take_requested_probes, 'failover_probe_requests')
+                    _run_tick(failover.probe_tick, 'failover_probe_tick')
+                else:
+                    requested = _run_tick(failover.take_requested_probes, 'failover_probe_requests')
+                    if requested:
+                        _run_tick(lambda tick_db: failover.probe_tick(tick_db, requested),
+                                  'failover_probe_tick')
 
-            for waiter in list(running):
-                if not waiter.is_alive():
-                    running.discard(waiter)
+                for waiter in list(running):
+                    if not waiter.is_alive():
+                        running.discard(waiter)
 
-            # Runs every pass, not only while held: the tick reaps expired
-            # markers and fires the resume event, so the last hold to expire
-            # still gets cleaned up (#696).
-            _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
-            # Holds defer only entries whose required account is held; the
-            # unscoped legacy marker blocks every account, so under it only
-            # work that needs no LLM account gets through.
-            legacy_until, _ = get_active_hold(db)
-            held_pairs = active_held_pairs(db)
-            blocked_episodes: set = set()
-            if legacy_until or held_pairs:
-                if _run_tick(probe_rate_limit, 'rate_limit_probe'):
-                    # The probe cleared a hold; re-read it all on a fresh pass.
-                    rate_limit_pause_logged = False
-                    continue
+                # Runs every pass, not only while held: the tick reaps expired
+                # markers and fires the resume event, so the last hold to expire
+                # still gets cleaned up (#696).
+                _run_tick(rate_limit_hold_tick, 'rate_limit_hold_tick')
+                # Holds defer only entries whose required account is held; the
+                # unscoped legacy marker blocks every account, so under it only
+                # work that needs no LLM account gets through.
                 legacy_until, _ = get_active_hold(db)
                 held_pairs = active_held_pairs(db)
-            if legacy_until:
-                if not rate_limit_pause_logged:
-                    refresh_logger.info(
-                        "Queue paused: LLM provider rate limit; only work needing "
-                        "no LLM account dispatches until reset")
-                    rate_limit_pause_logged = True
-            else:
-                rate_limit_pause_logged = False
-            if legacy_until or held_pairs:
-                blocked_episodes = _blocked_queue_entries(
-                    db, held_pairs, legacy_hold=bool(legacy_until))
-
-            # Idle-wait while paused instead of claiming and bouncing, which
-            # would ramp the backoff to its 5-minute ceiling and stall resume;
-            # this bounds resume latency to one IDLE_WAIT_SECONDS pass.
-            if is_processing_paused(db):
-                if not processing_pause_logged:
-                    refresh_logger.info(
-                        "New processing paused by operator; queue holds until resumed")
-                    processing_pause_logged = True
-                shutdown_event.wait(timeout=IDLE_WAIT_SECONDS)
-                continue
-            processing_pause_logged = False
-
-            # Refreshed every pass (cheap: the settings reader has its own
-            # TTL) so an operator raising max_episodes takes effect without
-            # a restart.
-            pool = get_pool()
-            pool.refresh()
-            limit = pool.max_episodes
-            claimed_any = False
-            bounced = False
-            nothing_to_claim = False
-            # The registry, not `running`: it also sees runs a Play or
-            # Reprocess started on this leader outside the dispatcher.
-            while registry.slot_count() < limit and not shutdown_event.is_set():
-                queued = db.claim_next_queued_episode(exclude_episodes=blocked_episodes)
-                if not queued:
-                    nothing_to_claim = True
-                    break
-                claimed_any = True
-                result = _run_claimed_episode(queued, running)
-                if result == 'started':
-                    backoff = 30
-                elif result == 'bounced':
-                    bounced = True
-                    break
-                # 'skipped': row already closed, neither resets backoff nor bounces
-
-            if bounced:
-                # A claim bounced (busy elsewhere, rate-limited); back off
-                # instead of reclaiming the same row at full speed.
-                shutdown_event.wait(timeout=backoff)
-                backoff = min(backoff * 2, 300)  # Max 5 minutes
-            elif not claimed_any:
-                # An empty queue with no active run must not keep Whisper on the GPU.
-                if (nothing_to_claim and registry.slot_count() == 0
-                        and unload_whisper_if_idle()):
-                    refresh_logger.info("Processing queue idle; unloaded the Whisper model")
-                # No queued episodes, wait before checking again. Under a hold
-                # an empty claim means the scan just scored every pending row,
-                # so wait longer than the idle tick before repeating it.
-                if nothing_to_claim and (legacy_until or held_pairs):
-                    shutdown_event.wait(timeout=HELD_IDLE_WAIT_SECONDS)
+                blocked_episodes: set = set()
+                if legacy_until or held_pairs:
+                    if _run_tick(probe_rate_limit, 'rate_limit_probe'):
+                        # The probe cleared a hold; re-read it all on a fresh pass.
+                        rate_limit_pause_logged = False
+                        continue
+                    legacy_until, _ = get_active_hold(db)
+                    held_pairs = active_held_pairs(db)
+                if legacy_until:
+                    if not rate_limit_pause_logged:
+                        refresh_logger.info(
+                            "Queue paused: LLM provider rate limit; only work needing "
+                            "no LLM account dispatches until reset")
+                        rate_limit_pause_logged = True
                 else:
-                    shutdown_event.wait(timeout=IDLE_WAIT_SECONDS if pool.active else 30)
-            elif limit == 1 and running:
-                # Inactive pool with a run in flight: wait for it as before.
-                # A gate-skipped claim adds nothing to `running`, so there is
-                # nothing to join; the next pass claims again immediately.
-                next(iter(running)).join()
+                    rate_limit_pause_logged = False
+                if legacy_until or held_pairs:
+                    blocked_episodes = _blocked_queue_entries(
+                        db, held_pairs, legacy_hold=bool(legacy_until))
 
-        except Exception as e:
-            refresh_logger.error(f"Queue processor error: {e}")
-            db.clear_leaked_transaction(refresh_logger, 'queue processor error path')
-            shutdown_event.wait(timeout=60)  # Wait before retrying on error
+                # Idle-wait while paused instead of claiming and bouncing, which
+                # would ramp the backoff to its 5-minute ceiling and stall resume;
+                # this bounds resume latency to one IDLE_WAIT_SECONDS pass.
+                if is_processing_paused(db):
+                    if not processing_pause_logged:
+                        refresh_logger.info(
+                            "New processing paused by operator; queue holds until resumed")
+                        processing_pause_logged = True
+                    shutdown_event.wait(timeout=IDLE_WAIT_SECONDS)
+                    continue
+                processing_pause_logged = False
+
+                # Refreshed every pass (cheap: the settings reader has its own
+                # TTL) so an operator raising max_episodes takes effect without
+                # a restart.
+                pool = get_pool()
+                pool.refresh()
+                limit = pool.max_episodes
+                claimed_any = False
+                bounced = False
+                nothing_to_claim = False
+                # The registry, not `running`: it also sees runs a Play or
+                # Reprocess started on this leader outside the dispatcher.
+                while registry.slot_count() < limit and not shutdown_event.is_set():
+                    queued = db.claim_next_queued_episode(exclude_episodes=blocked_episodes)
+                    if not queued:
+                        nothing_to_claim = True
+                        break
+                    claimed_any = True
+                    result = _run_claimed_episode(queued, running)
+                    if result == 'started':
+                        backoff = 30
+                    elif result == 'bounced':
+                        bounced = True
+                        break
+                    # 'skipped': row already closed, neither resets backoff nor bounces
+
+                if bounced:
+                    # A claim bounced (busy elsewhere, rate-limited); back off
+                    # instead of reclaiming the same row at full speed.
+                    shutdown_event.wait(timeout=backoff)
+                    backoff = min(backoff * 2, 300)  # Max 5 minutes
+                elif not claimed_any:
+                    # An empty queue with no active run must not keep Whisper on the GPU.
+                    if (nothing_to_claim and registry.slot_count() == 0
+                            and unload_whisper_if_idle()):
+                        refresh_logger.info("Processing queue idle; unloaded the Whisper model")
+                    # No queued episodes, wait before checking again. Under a hold
+                    # an empty claim means the scan just scored every pending row,
+                    # so wait longer than the idle tick before repeating it.
+                    if nothing_to_claim and (legacy_until or held_pairs):
+                        shutdown_event.wait(timeout=HELD_IDLE_WAIT_SECONDS)
+                    else:
+                        shutdown_event.wait(timeout=IDLE_WAIT_SECONDS if pool.active else 30)
+                elif limit == 1 and running:
+                    # Inactive pool with a run in flight: wait for it as before.
+                    # A gate-skipped claim adds nothing to `running`, so there is
+                    # nothing to join; the next pass claims again immediately.
+                    next(iter(running)).join()
+
+            except Exception as e:
+                refresh_logger.error(f"Queue processor error: {e}")
+                db.clear_leaked_transaction(refresh_logger, 'queue processor error path')
+                shutdown_event.wait(timeout=60)  # Wait before retrying on error
+    finally:
+        run_context.clear_background_thread()
 
 
 def reset_stuck_processing_episodes():

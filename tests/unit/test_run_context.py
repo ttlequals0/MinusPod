@@ -5,6 +5,25 @@ from concurrent.futures import ThreadPoolExecutor
 import run_context
 
 
+def test_background_thread_marker_is_per_thread_not_global():
+    """R2: marking one thread as background must not leak to another thread,
+    unlike the old per-process is_background_leader() flag."""
+    other_saw = {}
+
+    def other_thread():
+        other_saw['in_background'] = run_context.in_background_thread()
+
+    try:
+        assert run_context.in_background_thread() is False
+        run_context.mark_background_thread()
+        assert run_context.in_background_thread() is True
+        worker = threading.Thread(target=other_thread)
+        worker.start(); worker.join()
+        assert other_saw['in_background'] is False
+    finally:
+        run_context._background_thread_flag.active = False
+
+
 def test_begin_binds_current_thread():
     ctx = run_context.begin('feed', 'ep1')
     try:

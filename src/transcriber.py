@@ -44,7 +44,7 @@ from utils.rate_limit import parse_retry_after
 import utils.subprocess_registry
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.ttl_cache import TTLCache
-from whisper_pool import get_pool, is_background_leader
+from whisper_pool import get_pool
 from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
@@ -319,8 +319,9 @@ def probe_local_transcription(request_config: dict) -> dict:
               and outcome.get('model') in (None, load_config['model']))
     if not request_config.get('recover_runtime') and not failed:
         return {'reachable': True, 'status': None, 'detail': 'Local stack available'}
-    # Only the leader owns the model; a web worker loading one would hold VRAM it never frees.
-    if not is_background_leader():
+    # Only the background queue thread owns the model; a web request thread
+    # loading one would hold VRAM it never frees, even on the leader process.
+    if not run_context.in_background_thread():
         return {'reachable': None, 'status': None, 'deferred': True,
                 'detail': 'Diagnostic decode runs in the background worker'}
     with _idle_local_probe() as free:
