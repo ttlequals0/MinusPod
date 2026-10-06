@@ -270,11 +270,6 @@ def _podcast_localname(elem) -> str:
 
 _ENCLOSURE_PREFIX_RE = re.compile(r'<enclosure url="([^"]+)/episodes/')
 RSS_RENDER_VERSION = 2
-
-# Matches FUZZY_MATCH_WINDOW_HOURS in database/episodes.py: the widest
-# plausible drift from a stale pre-fix named-zone published_at. A render-time
-# guard against a discovery-layer duplicate that slipped past that match.
-DB_DUPLICATE_MATCH_WINDOW_HOURS = 24
 _RENDER_VERSION_RE = re.compile(r'<!-- minuspod-rss-render-version:(\d+) -->')
 _ENCLOSURE_KEY_RE = re.compile(
     r'<enclosure url="[^"]+/episodes/[^"]*\?key=([0-9a-f]{64})"')
@@ -1096,16 +1091,23 @@ class RSSParser:
             for ep in (extra_episodes or [])
             if ep.get('episode_id')
         }
-        # Discovery-layer dedup can still miss (stale pre-fix published_at,
-        # an upstream GUID rotation): catch a leftover duplicate here too, by
-        # title and date, so the DB item is never served alongside the
-        # upstream one for the same episode.
-        db_title_dates = [
-            (normalize_title_for_match(ep.get('title')), pub_dt)
-            for ep in (extra_episodes or [])
-            if (pub_dt := parse_iso_utc(ep.get('published_at')))
-            and normalize_title_for_match(ep.get('title'))
-        ]
+        # Catch a leftover discovery-layer duplicate by title and date, but
+        # not an extra_episode already matched to an upstream entry by id.
+        upstream_episode_ids = set()
+        for entry in entries:
+            for enclosure in entry.get('enclosures', []):
+                if 'audio' in enclosure.get('type', ''):
+                    upstream_episode_ids.add(
+                        self.generate_episode_id(enclosure.get('href', ''), entry.get('id')))
+                    break
+        db_title_dates: dict[str, list] = {}
+        for ep in (extra_episodes or []):
+            if ep.get('episode_id') in upstream_episode_ids:
+                continue
+            pub_dt = parse_iso_utc(ep.get('published_at'))
+            title_key = normalize_title_for_match(ep.get('title'))
+            if pub_dt and title_key:
+                db_title_dates.setdefault(title_key, []).append(pub_dt)
         suppressed_upstream_duplicates = 0
         for entry in entries:
             episode_url = None
@@ -1230,9 +1232,9 @@ class RSSParser:
     @staticmethod
     def _matches_db_duplicate(entry, db_title_dates) -> bool:
         """True when `entry` shares a normalized title and a published date
-        within DB_DUPLICATE_MATCH_WINDOW_HOURS with a DB-appended episode."""
-        title_key = normalize_title_for_match(entry.get('title', ''))
-        if not title_key:
+        within 24h of a DB-appended episode."""
+        candidates = db_title_dates.get(normalize_title_for_match(entry.get('title', '')))
+        if not candidates:
             return False
         try:
             entry_dt = parsedate_to_datetime(entry.get('published', ''))
@@ -1240,12 +1242,7 @@ class RSSParser:
             return False
         if entry_dt.tzinfo is None:
             entry_dt = entry_dt.replace(tzinfo=timezone.utc)
-        for db_title_key, db_dt in db_title_dates:
-            if db_title_key != title_key:
-                continue
-            if abs((entry_dt - db_dt).total_seconds()) / 3600 <= DB_DUPLICATE_MATCH_WINDOW_HOURS:
-                return True
-        return False
+        return any(abs((entry_dt - db_dt).total_seconds()) / 3600 <= 24 for db_dt in candidates)
 
     def _append_podcasting2_tags(self, lines: list, slug: str, episode_id: str,
                                  storage, feed_auth_key=None,

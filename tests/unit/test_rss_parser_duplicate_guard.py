@@ -1,9 +1,7 @@
-"""Render-time duplicate guard in modify_feed: an upstream GUID rotation can
-leave a discovery-layer duplicate in the DB (see episodes.py's fuzzy match
-and the orphan cleanup migration). As a last line of defense, modify_feed
-must never serve both the upstream item and the DB-appended item for the
-same episode by title and date; the processed DB item wins.
-"""
+"""modify_feed's render-time guard against a leftover discovery-layer
+duplicate: an upstream item must never be served alongside its own
+DB-appended item for the same episode."""
+import logging
 import os
 import sys
 
@@ -80,3 +78,53 @@ def test_a_genuinely_different_episode_is_not_suppressed():
     output = _serve(feed_xml=far_feed)
 
     assert output.count('<item>') == 2
+
+
+_TWO_ITEM_FEED = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="{ITUNES_NS}"
+     xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <channel>
+    <title>Source Show</title>
+    <link>https://example.com</link>
+    <description>D</description>
+    <language>en</language>
+    <item>
+      <title>Episode One</title>
+      <enclosure url="https://example.com/ep1-new.mp3" type="audio/mpeg"/>
+      <guid>same-episode-guid</guid>
+      <pubDate>Tue, 30 Jun 2026 20:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Episode Two</title>
+      <enclosure url="https://example.com/ep2.mp3" type="audio/mpeg"/>
+      <guid>ep2-guid</guid>
+      <pubDate>Tue, 07 Jul 2026 20:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>"""
+
+
+def test_processed_episode_matching_its_own_upstream_guid_keeps_its_position(caplog):
+    """extra_episodes includes processed episodes still listed upstream
+    under their own GUID; those must render inline, not get suppressed as
+    a self-duplicate and re-appended at the end."""
+    parser = RSSParser(base_url='https://minuspod.example')
+    episode_id = parser.generate_episode_id(
+        'https://example.com/ep1-new.mp3', 'same-episode-guid')
+    extra = [{
+        'episode_id': episode_id,
+        'title': 'Episode One',
+        'description': 'Already processed',
+        'published_at': '2026-06-30T20:00:00Z',
+        'new_duration': 500,
+        'episode_number': 1,
+        'processed_version': 2,
+    }]
+
+    with caplog.at_level(logging.WARNING, logger='rss_parser'):
+        output = parser.modify_feed(
+            _TWO_ITEM_FEED, 'dup-guard-feed', storage=FakeStorage(), extra_episodes=extra)
+
+    assert output.count('<item>') == 2
+    assert output.index('Episode One') < output.index('Episode Two')
+    assert not any('Suppressed' in r.message for r in caplog.records)
