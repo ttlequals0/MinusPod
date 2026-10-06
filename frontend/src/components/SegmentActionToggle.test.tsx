@@ -35,11 +35,11 @@ describe('SegmentActionToggle', () => {
     expect(screen.getByRole('radio', { name: 'Remove' }).className).toContain('bg-muted');
   });
 
-  // Review focus 4: the fourth label (Mark) must render in full, never
-  // ellipsized or truncated, at the 390px width the Segment actions and
-  // per-feed cards support. There is no width assertion available in jsdom,
-  // so this pins the contract at the class level: four full-text options,
-  // none carrying a truncating class.
+  // The fourth label (Mark) must render in full, never ellipsized or
+  // truncated, at the 390px width the Segment actions and per-feed cards
+  // support. There is no width assertion available in jsdom, so this pins
+  // the contract at the class level: four full-text options, none carrying
+  // a truncating class.
   it('renders all four options full-text, with no truncating class', () => {
     render(
       <SegmentActionToggle value="remove" onChange={vi.fn()} ariaLabel="Sponsor action" />,

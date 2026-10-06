@@ -1280,7 +1280,7 @@ function EpisodeDetail() {
                       : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
                   </span>
                   <SegmentCategoryBadge category={segment.category} />
-                  {isKeepLike(segment.actionApplied) && <KeptBadge action={segment.actionApplied as 'keep' | 'mark'} />}
+                  {isKeepLike(segment.actionApplied) && <KeptBadge actionApplied={segment.actionApplied} />}
                   {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
                     <StageBadge stage={segment.detection_stage} />
                   )}
@@ -1568,7 +1568,7 @@ function EpisodeDetail() {
                         {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                       </span>
                       <SegmentCategoryBadge category={segment.category} />
-                      {isKeepLike(segment.actionApplied) && <KeptBadge action={segment.actionApplied as 'keep' | 'mark'} />}
+                      {isKeepLike(segment.actionApplied) && <KeptBadge actionApplied={segment.actionApplied} />}
                       {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
                         <StageBadge stage={segment.detection_stage} />
                       )}
@@ -1745,7 +1745,7 @@ function EpisodeDetail() {
                       {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                     </span>
                     <SegmentCategoryBadge category={segment.category} />
-                    <KeptBadge action={segment.actionApplied === 'mark' ? 'mark' : 'keep'} />
+                    <KeptBadge actionApplied={segment.actionApplied} />
                   </div>
                 </div>
               ))}
@@ -1801,7 +1801,7 @@ function EpisodeDetail() {
                             {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                           </span>
                           <SegmentCategoryBadge category={segment.category} />
-                          {isKeepLike(segment.actionApplied) && <KeptBadge action={segment.actionApplied as 'keep' | 'mark'} />}
+                          {isKeepLike(segment.actionApplied) && <KeptBadge actionApplied={segment.actionApplied} />}
                           <span className={`${badgeBase} font-medium ${tint.destructive}`}>
                             Not cut
                           </span>

@@ -12,11 +12,9 @@ interface SpeedMenuProps {
   className?: string;
 }
 
-// Compact h-8 ghost button + popover, not a native <select>: iOS Safari sizes
-// native selects with its own width/height that Tailwind cannot fully
-// override, so this renders identically (and at the same compact height)
-// everywhere. Shared by the waveform editor's TransportBar and the by-text
-// editor's TextSelectionPanel so both playback bars match.
+// Compact h-8 ghost button + popover, not a native <select> (iOS Safari sizes
+// those with its own metrics Tailwind can't override). Shared by TransportBar
+// and TextSelectionPanel so both playback bars match.
 function SpeedMenu({ playbackRate, onChange, rates = PLAYBACK_RATES, className = '' }: SpeedMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

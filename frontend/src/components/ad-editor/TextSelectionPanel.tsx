@@ -346,6 +346,19 @@ function TextSelectionPanel({
 
   const removeRun = (index: number) => {
     const next = frozenRunsRef.current.filter((_, i) => i !== index);
+    // Removing down to exactly one frozen run with no active selection is a
+    // dead end otherwise: the single-run form below is zeroed (cleared by the
+    // last freeze), so Save stays disabled at "0 / 50" even though that one
+    // run is a perfectly valid span. Promote it back to the current
+    // selection so the single-run path can save it.
+    if (next.length === 1 && !hasSelection) {
+      const [restored] = next;
+      setFrozenRunsSynced([]);
+      setCurrentText(restored.text);
+      onSelectionChange(restored.start, restored.end, restored.text);
+      onRunsChange([restored]);
+      return;
+    }
     setFrozenRunsSynced(next);
     const current = hasSelection ? [{ start: adStart, end: adEnd, text: currentText }] : [];
     onRunsChange([...next, ...current]);

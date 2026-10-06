@@ -201,10 +201,9 @@ function AdEditor({
     advanceOrClose();
   };
 
-  // Exits create mode once a submission (single run, or the whole multi-span
-  // batch) has gone through. Shared by the single-run path below (called
-  // synchronously, matching the old behavior exactly) and onCreateDone,
-  // which the modal calls once after every run in a multi-span submit saves.
+  // Exits create mode after a submission. Called synchronously from the
+  // single-run path below, and from onCreateDone once a multi-span batch's
+  // last run saves.
   const finishCreate = () => {
     setInternalCreateMode(false);
     if (detectedAds.length === 0) onClose?.();
@@ -221,10 +220,8 @@ function AdEditor({
       reason: s.reason,
       category: s.category,
     };
-    // Single-run (not part of a multi-span batch) keeps the original
-    // fire-and-forget onCorrection/mutate path unchanged. Only a multi-span
-    // run (meta.silent) needs the awaitable path, to confirm or fail each
-    // run before submitting the next.
+    // Single-run keeps the original fire-and-forget onCorrection/mutate path;
+    // only a multi-span run (meta.silent) needs the awaitable path.
     if (!meta?.silent) {
       onCorrection(correction);
       finishCreate();

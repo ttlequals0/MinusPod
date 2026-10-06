@@ -214,6 +214,17 @@ describe('AdReviewModal kept-by-category hotkeys', () => {
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: /Not an ad/ })).toBeNull();
   });
+
+  it('mutes C and R on a mark marker the same way as keep', async () => {
+    const { onSubmit } = renderModal({
+      item: { ...ITEM, category: 'outro', actionApplied: 'mark' },
+    });
+    const user = userEvent.setup();
+    await user.keyboard('r');
+    await user.keyboard('c');
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Not an ad/ })).toBeNull();
+  });
 });
 
 describe('AdReviewModal set-edge-at-playhead buttons', () => {

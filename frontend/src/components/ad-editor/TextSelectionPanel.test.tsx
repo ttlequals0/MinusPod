@@ -149,8 +149,8 @@ describe('TextSelectionPanel run list', () => {
       .toBe(true);
   });
 
-  it('removes a run and reports the remaining list', async () => {
-    const { container, onRunsChange } = renderPanel();
+  it('removes a run and restores the sole survivor as the current selection', async () => {
+    const { container, onRunsChange, onSelectionChange } = renderPanel();
     await waitForTranscript(container);
     const user = userEvent.setup();
 
@@ -166,11 +166,17 @@ describe('TextSelectionPanel run list', () => {
 
     await user.click(screen.getByRole('button', { name: 'Remove span 0:00.0 to 0:02.9' }));
 
+    // Dropping to one frozen run with no active selection used to be a dead
+    // end: the form was zeroed by the last freeze, so nothing could save the
+    // survivor. It is promoted back to the current selection instead, not
+    // left as an unreachable chip.
     expect(onRunsChange).toHaveBeenLastCalledWith([
       { start: 10, end: 12.9, text: 'golf hotel india' },
     ]);
+    expect(onSelectionChange).toHaveBeenLastCalledWith(10, 12.9, 'golf hotel india');
     expect(screen.queryByText('0:00.0 - 0:02.9')).toBeNull();
-    expect(screen.getByText('0:10.0 - 0:12.9')).toBeTruthy();
+    expect(screen.queryByText('0:10.0 - 0:12.9')).toBeNull();
+    expect(screen.getByText('Selection: 0:10.0 - 0:12.9 (2.9s)')).toBeTruthy();
   });
 
   it('merges runs that sit within 1s of each other on freeze', async () => {

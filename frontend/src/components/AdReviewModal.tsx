@@ -31,6 +31,7 @@ import {
   SEGMENT_CATEGORIES,
   SEGMENT_CATEGORY_DESCRIPTIONS,
   SEGMENT_CATEGORY_LABELS,
+  isKeepLike,
   type SegmentCategory,
 } from '../utils/segmentCategory';
 import { badgeBase, tint } from './badgeStyles';
@@ -104,14 +105,11 @@ interface Props {
   // editable sponsor + text_template fields, and a different submit
   // signature via onCreate.
   mode?: 'review' | 'create';
-  // `meta.silent` is set for every call in a multi-span submit except that
-  // the host should not run its "submission finished" side effects (closing
-  // the editor, switching out of create mode) until onCreateDone fires once
-  // the whole batch has succeeded.
+  // `meta.silent` marks a multi-span run: the host defers its closing side
+  // effects until onCreateDone fires once every run has saved.
   onCreate?: (s: AdCreateSubmit, meta?: { silent?: boolean }) => Promise<void> | void;
-  // Called once after every run in a multi-span submit has saved. Single-run
-  // create does not use this; its onCreate call keeps its own unchanged
-  // closing behavior.
+  // Fires once after a multi-span submit's last run saves. Single-run create
+  // closes from its own onCreate call instead.
   onCreateDone?: () => void;
   // Optional: surface a "+ Add new ad" entry inside the modal so the
   // user can switch into create mode without closing the modal first.
@@ -295,10 +293,8 @@ function AdReviewModal({
   // audio-mode transcript-span fetch from clobbering the user's chosen text
   // when they toggle back to audio for fine-tuning.
   const textTemplateFromSelectionRef = useRef(false);
-  // Multi-span: frozen runs plus the current one, reported by
-  // TextSelectionPanel. Length <= 1 keeps the single-run path below
-  // unchanged. Dropped when leaving text mode, since multi-span only
-  // applies there.
+  // Multi-span: frozen runs plus the current one, from TextSelectionPanel.
+  // Length <= 1 keeps the single-run path below unchanged.
   const [runs, setRuns] = useState<TextRun[]>([]);
   const [runStatuses, setRunStatuses] = useState<RunStatus[]>([]);
   const [multiSubmitting, setMultiSubmitting] = useState(false);
@@ -323,10 +319,9 @@ function AdReviewModal({
     ? orderedRuns.find((r) => r.text.trim().length < 50)
     : undefined;
 
-  // One `create` correction per run, in time order, sequentially. Stops on
-  // the first failure so later runs are never attempted; already-saved runs
-  // are left alone (they are real markers now, not re-submitted) and the
-  // modal stays open with each run's outcome visible.
+  // One `create` correction per run, in time order. Stops on the first
+  // failure; already-saved runs are not re-submitted, and the modal stays
+  // open with each run's outcome visible.
   const submitRuns = async () => {
     if (!onCreate) return;
     setMultiSubmitting(true);
@@ -846,10 +841,10 @@ function AdReviewModal({
   // With Confirm hidden (Detected Ads), an unmoved-boundary save would emit
   // a plain confirm the host discards, so the button and C shortcut go inert.
   const confirmInert = hideConfirm && !boundariesMoved;
-  // A keep marker's fate is decided by its category, and the corrections
-  // endpoint refuses a verdict on one. Offering Save and Not an ad here only
-  // produced a 409, so the category picker is the action instead.
-  const keptByCategory = item.actionApplied === 'keep';
+  // A keep or mark marker's fate is decided by its category, and the
+  // corrections endpoint refuses a verdict on one. Offering Save and Not an
+  // ad here only produced a 409, so the category picker is the action instead.
+  const keptByCategory = isKeepLike(item.actionApplied);
 
   const handleConfirm = () => {
     // Guards the C shortcut too; the buttons are hidden but the key is not.
