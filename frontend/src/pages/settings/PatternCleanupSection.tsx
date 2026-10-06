@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { SkeletonRows } from '../../components/Skeleton';
 import ToggleSwitch from '../../components/ToggleSwitch';
@@ -250,7 +251,9 @@ function PatternCleanupSection({
             {data.pending.total > 0 && (
               <div>
                 <span className="font-medium text-foreground">Waiting for review:</span>{' '}
-                {data.pending.total} {data.pending.total === 1 ? 'suggestion' : 'suggestions'}
+                <Link to="/patterns?tab=cleanup" className={`text-primary hover:underline ${focusRing}`}>
+                  {data.pending.total} {data.pending.total === 1 ? 'suggestion' : 'suggestions'}
+                </Link>
               </div>
             )}
             {data.lastError && (

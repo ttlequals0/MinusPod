@@ -333,7 +333,8 @@ def reset_cleanup_settings():
     yield
     db = api.get_database()
     for key in ('pattern_cleanup_enabled', 'pattern_cleanup_cron', 'pattern_cleanup_batch_size',
-               'pattern_cleanup_unused_days', 'pattern_cleanup_provider', 'pattern_cleanup_model'):
+               'pattern_cleanup_unused_days', 'pattern_cleanup_provider', 'pattern_cleanup_model',
+               'pattern_cleanup_last_run'):
         db.clear_setting(key)
 
 
@@ -389,3 +390,20 @@ def test_put_settings_model_too_long_is_400(app_client, podcast, reset_cleanup_s
 def test_put_settings_requires_csrf(app_client, csrf_required):
     r = app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': True})
     assert r.status_code == 403
+
+
+def test_enabling_with_no_prior_run_stamps_last_run_so_it_waits(app_client, podcast, reset_cleanup_settings):
+    db = api.get_database()
+    assert not db.get_setting('pattern_cleanup_last_run')
+    r = app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': True})
+    assert r.status_code == 200
+    assert db.get_setting('pattern_cleanup_last_run')
+    assert pattern_cleanup.pattern_cleanup_tick(db) is None
+
+
+def test_enabling_again_does_not_reset_an_existing_last_run(app_client, podcast, reset_cleanup_settings):
+    db = api.get_database()
+    db.set_setting('pattern_cleanup_last_run', '2020-01-01T00:00:00+00:00')
+    app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': False})
+    app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': True})
+    assert db.get_setting('pattern_cleanup_last_run') == '2020-01-01T00:00:00+00:00'

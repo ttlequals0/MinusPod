@@ -4524,7 +4524,13 @@ def update_pattern_cleanup_settings():
 
     staged = {}
     if 'enabled' in data:
-        staged['pattern_cleanup_enabled'] = 'true' if bool(data['enabled']) else 'false'
+        enabling = bool(data['enabled'])
+        staged['pattern_cleanup_enabled'] = 'true' if enabling else 'false'
+        was_enabled = db.get_setting_bool('pattern_cleanup_enabled', default=False)
+        if enabling and not was_enabled and not db.get_setting('pattern_cleanup_last_run'):
+            # Enabling must not run immediately: stamp now so the schedule
+            # waits for the next cron slot instead of treating "never run" as due.
+            staged['pattern_cleanup_last_run'] = utc_now_iso()
     if 'cron' in data:
         cron = (data['cron'] or '').strip()
         if not is_valid_expression(cron):

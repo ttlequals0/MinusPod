@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import PatternCleanupSection from './PatternCleanupSection';
 import { ApiError } from '../../api/client';
 import type { PatternCleanupStatus } from '../../api/patternCleanup';
@@ -50,15 +51,17 @@ function renderSection(props: Partial<React.ComponentProps<typeof PatternCleanup
     defaultOptions: { queries: { retry: false, staleTime: 0 }, mutations: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={client}>
-      <PatternCleanupSection
-        primaryProvider="anthropic"
-        secondaryProvider="openrouter"
-        secondaryEnabled
-        detectionSlot="secondary"
-        {...props}
-      />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <PatternCleanupSection
+          primaryProvider="anthropic"
+          secondaryProvider="openrouter"
+          secondaryEnabled
+          detectionSlot="secondary"
+          {...props}
+        />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -194,7 +197,8 @@ describe('PatternCleanupSection', () => {
     renderSection();
     expect(await screen.findByText(/12 reviewed, 4 suggested, 2 skipped/)).toBeDefined();
     expect(screen.getByText('provider unreachable')).toBeDefined();
-    expect(screen.getByText(/4 suggestions/)).toBeDefined();
+    const link = screen.getByRole('link', { name: /4 suggestions/ });
+    expect(link.getAttribute('href')).toBe('/patterns?tab=cleanup');
   });
 
   it('shows never when there is no last run', async () => {
