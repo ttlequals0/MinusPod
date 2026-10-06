@@ -544,8 +544,7 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
             spans.append([c_start, c_end, [probe]])
 
     for start, end, probes in spans:
-        if any(overlap_ratio(fp_start, fp_end, start, end) > 0.5
-               for fp_start, fp_end in fp_pairs):
+        if _fp_excludes(start, end, fp_pairs):
             continue
 
         stage_overlap = any(ranges_overlap(cs, ce, start, end)
@@ -588,13 +587,18 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
     return ads
 
 
+def _fp_excludes(start, end, fp_pairs) -> bool:
+    """A confirmed false positive covers more than half of [start, end)."""
+    return any(overlap_ratio(fp_start, fp_end, start, end) > 0.5
+               for fp_start, fp_end in fp_pairs or ())
+
+
 def transcript_differential_ads(spans, fp_pairs=None):
     """Held markers for upstream transcript gaps; only _merge_detection_results releases one."""
     ads = []
     for span in spans or []:
         start, end = float(span['start']), float(span['end'])
-        if any(overlap_ratio(fp_start, fp_end, start, end) > 0.5
-               for fp_start, fp_end in fp_pairs or []):
+        if _fp_excludes(start, end, fp_pairs):
             continue
         offset_confirmed = bool(span.get('offset_confirmed'))
         ad = {
@@ -616,18 +620,55 @@ def transcript_differential_ads(spans, fp_pairs=None):
     return ads
 
 
-_TRANSCRIPT_RELEASE_STAGES = frozenset({'fingerprint', 'text_pattern', 'claude'})
+@dataclass(frozen=True)
+class _HoldRelease:
+    hold_reason: str
+    stages: frozenset            # release outright
+    coverage_stages: frozenset   # release only with Whisper coverage of the held span
+    gap_overlap: bool            # the releasing member must cover half of the held gap
 
 
-def _releases_transcript_hold(held: dict, other: dict) -> bool:
-    """An independent detection covering half of the held transcript gap."""
-    span = held.get(TRANSCRIPT_SPAN) or held
-    if not spans_overlapping([span], other['start'], other['end'], min_fraction_of='span'):
+DIFFERENTIAL_FLAG = 'differential_uncorroborated'
+TRANSCRIPT_DIFF_FLAG = 'transcript_differential_uncorroborated'
+_HOLD_RELEASES = {
+    DIFFERENTIAL_FLAG: _HoldRelease(
+        HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+        frozenset({'fingerprint', 'text_pattern'}), frozenset({'claude'}), False),
+    TRANSCRIPT_DIFF_FLAG: _HoldRelease(
+        HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
+        frozenset({'fingerprint', 'text_pattern', 'claude'}), frozenset(), True),
+}
+
+
+def _hold_released(flag: str, held: dict, other: dict, stages: set, segments=None) -> bool:
+    """Whether other, contributing stages, corroborates the evidence-only held marker."""
+    rule = _HOLD_RELEASES[flag]
+    if rule.gap_overlap and not spans_overlapping(
+            [held.get(TRANSCRIPT_SPAN) or held], other['start'], other['end'],
+            min_fraction_of='span'):
         return False
-    stages = set(other.get(_MEMBER_STAGES) or [])
-    if not (other.get('detection_stage') == 'text_pattern' and other.get('span_estimated')):
-        stages.add(other.get('detection_stage'))
-    return bool(stages & _TRANSCRIPT_RELEASE_STAGES) or is_cue_backed(other)
+    if stages & rule.stages or is_cue_backed(other):
+        return True
+    return bool(stages & rule.coverage_stages) and (
+        _span_transcript_coverage(segments, held['start'], held['end'])
+        >= DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE)
+
+
+def _set_hold(marker: dict, flag: str, held: bool) -> None:
+    if held:
+        marker.update({flag: True, 'held_for_review': True, 'was_cut': False,
+                       'hold_reason': _HOLD_RELEASES[flag].hold_reason})
+    else:
+        for key in (flag, 'held_for_review', 'hold_reason', 'was_cut'):
+            marker.pop(key, None)
+
+
+def _corroborating_stages(ad: dict) -> set:
+    """Stages an ad contributes; an estimated text_pattern span is advisory."""
+    stages = set(ad.get(_MEMBER_STAGES) or [])
+    if not (ad.get('detection_stage') == 'text_pattern' and ad.get('span_estimated')):
+        stages.add(ad.get('detection_stage'))
+    return stages
 
 
 # Roles eligible to corroborate a differential candidate's edge. Fusion
@@ -3243,20 +3284,19 @@ class AdDetector:
                     and last.get('span_estimated') else last_stage_before_merge)
                 # Adjacency is not corroboration (#541): a held differential
                 # only merges with a non-differential marker on true overlap.
-                if (bool(last.get('differential_uncorroborated'))
-                        != bool(current.get('differential_uncorroborated'))
+                if (bool(last.get(DIFFERENTIAL_FLAG)) != bool(current.get(DIFFERENTIAL_FLAG))
                         and current['start'] >= last['end']):
                     merged.append(_with_category_span(current.copy()))
                     continue
                 # A held transcript gap folds only into a detection that releases it.
-                td_last = bool(last.get('transcript_differential_uncorroborated'))
-                td_cur = bool(current.get('transcript_differential_uncorroborated'))
-                release_transcript = td_last != td_cur
-                if release_transcript and not (
-                        _releases_transcript_hold(last, current) if td_last
-                        else _releases_transcript_hold(current, last)):
-                    merged.append(_with_category_span(current.copy()))
-                    continue
+                td_last = bool(last.get(TRANSCRIPT_DIFF_FLAG))
+                release_transcript = td_last != bool(current.get(TRANSCRIPT_DIFF_FLAG))
+                if release_transcript:
+                    held, other = (last, current) if td_last else (current, last)
+                    if not _hold_released(TRANSCRIPT_DIFF_FLAG, held, other,
+                                          _corroborating_stages(other)):
+                        merged.append(_with_category_span(current.copy()))
+                        continue
                 note_fold(last, current)
                 # The label goes to the member classifying the most audio,
                 # ties to the incumbent. A member naming nothing, or naming
@@ -3356,36 +3396,18 @@ class AdDetector:
                 # transcript coverage (claude saw the region as a prompt
                 # hint, so on an untranscribed span it can only echo it).
                 # Handles the flag on either side of the fold.
-                diff_is_last = bool(last.get('differential_uncorroborated'))
-                diff_is_cur = bool(current.get('differential_uncorroborated'))
-                if diff_is_last != diff_is_cur:
+                diff_is_last = bool(last.get(DIFFERENTIAL_FLAG))
+                if diff_is_last != bool(current.get(DIFFERENTIAL_FLAG)):
                     diff_side = last if diff_is_last else current
                     other = current if diff_is_last else last
                     other_stage = (cur_stage
                                    if diff_is_last else last_corroborating_stage)
                     stages_seen = set(last.get(_MEMBER_STAGES) or []) | {other_stage}
-                    independent = (
-                        bool(stages_seen & {'fingerprint', 'text_pattern'})
-                        or is_cue_backed(other))
-                    claude_verified = (
-                        'claude' in stages_seen
-                        and _span_transcript_coverage(
-                            segments, diff_side['start'], diff_side['end'])
-                        >= DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE)
-                    if independent or claude_verified:
-                        for key in ('differential_uncorroborated',
-                                    'held_for_review', 'hold_reason', 'was_cut'):
-                            last.pop(key, None)
-                    else:
-                        last['differential_uncorroborated'] = True
-                        last['held_for_review'] = True
-                        last['hold_reason'] = HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
-                        last['was_cut'] = False
+                    _set_hold(last, DIFFERENTIAL_FLAG, not _hold_released(
+                        DIFFERENTIAL_FLAG, diff_side, other, stages_seen, segments))
                 if release_transcript:
                     if td_last:
-                        for key in ('transcript_differential_uncorroborated',
-                                    'held_for_review', 'hold_reason', 'was_cut'):
-                            last.pop(key, None)
+                        _set_hold(last, TRANSCRIPT_DIFF_FLAG, False)
                     else:
                         last.setdefault(TRANSCRIPT_SPAN, current.get(TRANSCRIPT_SPAN))
             else:

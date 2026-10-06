@@ -296,6 +296,15 @@ class AdValidator:
         if p != 'thanks to' and 'brought to you by' not in p and 'sponsored by' not in p)
     # Transcript-detected stages whose long cuts need audio evidence.
     VETO_STAGES = ('claude', 'text_pattern')
+    # Evidence-only stages: (hold reason, still uncorroborated). The merge clears a released region's
+    # flag, and a released transcript gap takes the releasing stage, so one still on it holds.
+    NEVER_SOLO_CUT_STAGES: ClassVar[dict] = {
+        'dai_differential': (
+            HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+            lambda ad: ad.get('differential_uncorroborated')
+            and not ad.get('transcript_corroborated')),
+        'transcript_differential': (HOLD_REASON_TRANSCRIPT_DIFFERENTIAL, lambda ad: True),
+    }
 
     VAGUE_REASONS: ClassVar[list[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
@@ -1075,8 +1084,8 @@ class AdValidator:
         confidence = self._check_reason_quality(ad, confidence, flags)
 
         # Transcript verification - adjust confidence
-        confidence = self._verify_in_transcript(ad, confidence, flags)
         transcript_hits = self._transcript_hits(ad)
+        confidence = self._verify_in_transcript(ad, confidence, flags, transcript_hits)
         if transcript_hits:
             ad['transcript_corroborated'] = True
             ad.setdefault('corroborated_by', 'transcript_differential')
@@ -1184,7 +1193,7 @@ class AdValidator:
         return confidence
 
     def _verify_in_transcript(self, ad: dict, confidence: float,
-                               flags: list[str]) -> float:
+                               flags: list[str], transcript_hits: list[dict] | None = None) -> float:
         """Verify ad content appears in transcript.
 
         For ``detection_stage == 'vad_gap'`` markers without sponsor or
@@ -1204,7 +1213,7 @@ class AdValidator:
             # audio can never show transcript signals (catch-22).
             if ad.get('detection_stage') == 'vad_gap':
                 source = (self._audio_corroboration_source(ad)
-                          or self._transcript_corroboration(ad))
+                          or self._transcript_corroboration(ad, transcript_hits))
                 if source is not None:
                     ad['corroborated_by'] = source
                     flags.append(f"INFO: Audio corroboration ({source})")
@@ -1238,7 +1247,7 @@ class AdValidator:
         # patterns don't match. Set corroborated_by if source found, else clamp.
         if ad.get('detection_stage') == 'vad_gap':
             source = (self._audio_corroboration_source(ad)
-                      or self._transcript_corroboration(ad))
+                      or self._transcript_corroboration(ad, transcript_hits))
             if source is not None:
                 ad['corroborated_by'] = source
                 flags.append(f"INFO: Audio corroboration ({source})")
@@ -1351,9 +1360,11 @@ class AdValidator:
         return spans_overlapping(self.transcript_spans, ad['start'], ad['end'],
                                  min_fraction_of='query')
 
-    def _transcript_corroboration(self, ad: dict) -> str | None:
+    def _transcript_corroboration(self, ad: dict, hits: list[dict] | None = None) -> str | None:
         """'transcript_differential' when an upstream gap corroborates the ad."""
-        return 'transcript_differential' if self._transcript_hits(ad) else None
+        if hits is None:
+            hits = self._transcript_hits(ad)
+        return 'transcript_differential' if hits else None
 
     def _get_text_in_range(self, start: float, end: float) -> str:
         """Get transcript text within time range.
@@ -1436,21 +1447,11 @@ class AdValidator:
                 self._mark_held(ad, flags, HOLD_REASON_MAX_DURATION)
                 return Decision.REVIEW
 
-        # Rule 5: uncorroborated cross-fetch differential (#541) -> held for
-        # review, never solo-cut. Ordered before the cue gate so the hold
-        # carries its specific reason. Corroborated regions had the flag
-        # cleared in _merge_detection_results and cut normally.
-        if (decision != Decision.REJECT
-                and ad.get('detection_stage') == 'dai_differential'
-                and ad.get('differential_uncorroborated')
-                and not ad.get('transcript_corroborated')):
-            self._mark_held(ad, flags, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED)
-            return Decision.REVIEW
-
-        # An upstream transcript gap is never solo-cut; a released one carries the releasing stage.
-        if (decision != Decision.REJECT
-                and ad.get('detection_stage') == 'transcript_differential'):
-            self._mark_held(ad, flags, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL)
+        # Rule 5: evidence-only stages are held, never solo-cut (#541). Ordered before the cue
+        # gate so the hold carries its specific reason.
+        never_solo = self.NEVER_SOLO_CUT_STAGES.get(ad.get('detection_stage'))
+        if decision != Decision.REJECT and never_solo and never_solo[1](ad):
+            self._mark_held(ad, flags, never_solo[0])
             return Decision.REVIEW
 
         # Rule 7: an uncategorised or audio-only LLM span needs ad language in its transcript; skipped
