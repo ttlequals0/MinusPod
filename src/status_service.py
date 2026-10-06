@@ -120,8 +120,6 @@ class StatusService:
     def _init(self):
         """Initialize instance state."""
         self._file_lock = threading.Lock()
-        self._subscribers_lock = threading.Lock()
-        self._subscribers: list[callable] = []
         self._lock_warned = False
         self.status_file = _status_file_path()
         # Ensure status file directory exists
@@ -303,7 +301,6 @@ class StatusService:
             ]
             status['last_updated'] = time.time()
             self._write_status_file(status)
-        self._notify_subscribers()
 
     def update_job_stage(self, slug: str, episode_id: str, stage: str,
                          progress: float = None, run_id: str = None):
@@ -317,7 +314,6 @@ class StatusService:
                     job['progress'] = progress
                 status['last_updated'] = time.time()
                 self._write_status_file(status)
-        self._notify_subscribers()
 
     def _clear_job(self, slug: str, episode_id: str, run_id: str = None):
         """Remove one job from status tracking."""
@@ -330,7 +326,6 @@ class StatusService:
             jobs.pop(self._key(slug, episode_id), None)
             status['last_updated'] = time.time()
             self._write_status_file(status)
-        self._notify_subscribers()
 
     def complete_job(self, slug: str, episode_id: str, run_id: str = None):
         """Mark a job as complete."""
@@ -358,7 +353,6 @@ class StatusService:
                 return False
             status['last_updated'] = time.time()
             self._write_status_file(status)
-        self._notify_subscribers()
         return True
 
     def queue_episode(self, slug: str, episode_id: str, title: str, podcast_name: str):
@@ -380,7 +374,6 @@ class StatusService:
             status['queued_episodes'] = queued
             status['last_updated'] = time.time()
             self._write_status_file(status)
-        self._notify_subscribers()
 
     def remove_queued_episode(self, slug: str, episode_id: str) -> bool:
         """Drop an episode from the display queue. Returns True if it was present."""
@@ -396,7 +389,6 @@ class StatusService:
             status['queued_episodes'] = remaining
             status['last_updated'] = time.time()
             self._write_status_file(status)
-        self._notify_subscribers()
         return True
 
     def remove_feed_from_queue(self, slug: str) -> int:
@@ -410,8 +402,6 @@ class StatusService:
                 status['queued_episodes'] = remaining
                 status['last_updated'] = time.time()
                 self._write_status_file(status)
-        if removed:
-            self._notify_subscribers()
         return removed
 
     def get_queue_position(self, slug: str, episode_id: str) -> int:
@@ -438,7 +428,6 @@ class StatusService:
             status['feed_refreshes'] = refreshes
             status['last_updated'] = time.time()
             self._write_status_file(status)
-        self._notify_subscribers()
 
     def complete_feed_refresh(self, slug: str, new_episodes: int = 0):
         """Mark a feed refresh as complete."""
@@ -454,7 +443,6 @@ class StatusService:
                 status['feed_refreshes'] = refreshes
                 status['last_updated'] = time.time()
                 self._write_status_file(status)
-        self._notify_subscribers()
 
     def remove_feed_refresh(self, slug: str):
         """Remove a feed refresh status."""
@@ -466,7 +454,6 @@ class StatusService:
                 status['feed_refreshes'] = refreshes
                 status['last_updated'] = time.time()
                 self._write_status_file(status)
-        self._notify_subscribers()
 
     def get_status(self) -> SystemStatus:
         """Get current system status snapshot."""
@@ -505,35 +492,10 @@ class StatusService:
                 revision=int(status.get('revision', 0)),
             )
 
-    def _notify_subscribers(self):
-        """Notify all subscribers of status change."""
-        status = self.get_status()
-        # Snapshot under the lock, then call callbacks outside it so a slow or
-        # re-entrant callback can't hold the lock or hit a mutated list.
-        with self._subscribers_lock:
-            subscribers = list(self._subscribers)
-        warned = getattr(self, '_warned_subscribers', None)
-        if warned is None:
-            warned = self._warned_subscribers = set()
-        for callback in subscribers:
-            try:
-                callback(status)
-                warned.discard(callback)
-            except Exception as e:
-                # A subscriber error must not break the broadcast loop. Surface
-                # the first failure at warning so it isn't silently dropped, then
-                # drop to debug so a persistently broken listener can't spam a
-                # warning on every status update.
-                if callback in warned:
-                    logger.debug(f"Status subscriber callback still failing: {e}")
-                else:
-                    warned.add(callback)
-                    logger.warning(f"Status subscriber callback failed: {e}")
-
     def to_dict(self, status: SystemStatus | None = None) -> dict:
         """Convert status to a JSON-serializable dict.
 
-        Subscribers are handed a snapshot; passing it back avoids a second
+        Callers may pass an already-loaded snapshot to avoid a second
         cross-process lock acquisition per open SSE stream, per update.
         """
         status = status if status is not None else self.get_status()
