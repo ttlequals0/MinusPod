@@ -638,6 +638,26 @@ def test_apply_refuses_when_sponsor_changed(temp_db):
     assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
 
 
+@pytest.mark.parametrize('action', [apply_suggestion, reject_suggestion])
+def test_sponsor_rename_invalidates_pending_suggestion(temp_db, action):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    temp_db.update_known_sponsor(p['sponsor_id'], name='Acme Corporation')
+    with pytest.raises(SuggestionStateError):
+        action(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] is None
+
+
+def test_apply_trim_refuses_when_variants_changed(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    temp_db.update_ad_pattern(p['id'], intro_variants=['manual intro'])
+    with pytest.raises(SuggestionStateError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+
+
 def test_apply_twice_refused(temp_db):
     p = _pattern(temp_db)
     sid = _suggest(temp_db, p, 'trim', {'text': AD})
@@ -647,7 +667,8 @@ def test_apply_twice_refused(temp_db):
 
 
 def test_apply_split_disables_original_and_undo(temp_db):
-    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    p = _pattern(temp_db, text=AD + ' ' + AD2, sponsor='Acme Inc')
+    possessive_id = temp_db.create_known_sponsor(name="Acme's")
     sid = _suggest(temp_db, p, 'split', {'pieces': [
         {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Widgetco'}]})
     result = apply_suggestion(temp_db, sid)
@@ -657,12 +678,14 @@ def test_apply_split_disables_original_and_undo(temp_db):
     assert original['is_active'] == 0
     assert original['disabled_reason'] == f'Cleanup split into patterns: {new_ids}'
     pieces = [temp_db.get_ad_pattern_by_id(i) for i in new_ids]
-    assert [x['sponsor'] for x in pieces] == ['Acme', 'Widgetco']
+    assert [x['sponsor'] for x in pieces] == ["Acme's", 'Widgetco']
     for piece in pieces:
         assert piece['scope'] == 'podcast' and piece['podcast_id'] == 'show-a'
         assert piece['created_from_episode_id'] == 'ep1'
         assert piece['created_by'] == 'auto' and piece['is_active'] == 1
         assert piece['cleanup_reviewed_hash']
+    assert pieces[0]['sponsor_id'] == possessive_id
+    assert pieces[0]['cleanup_reviewed_hash'] == review_hash(AD, "Acme's")
 
     undo_suggestion(temp_db, sid)
     assert temp_db.get_ad_pattern_by_id(p['id'])['is_active'] == 1
@@ -678,6 +701,28 @@ def test_apply_rename_and_undo(temp_db):
     assert temp_db.get_ad_pattern_by_id(p['id'])['sponsor'] == 'Acme'
     undo_suggestion(temp_db, sid)
     assert temp_db.get_ad_pattern_by_id(p['id'])['sponsor'] == 'Acme Inc'
+
+
+def test_undo_trim_refuses_when_variants_changed(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    apply_suggestion(temp_db, sid)
+    temp_db.update_ad_pattern(p['id'], outro_variants=['manual outro'])
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'approved'
+    assert temp_db.get_ad_pattern_by_id(p['id'])['text_template'] == AD
+
+
+def test_undo_trim_preserves_unrelated_pattern_edits(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    apply_suggestion(temp_db, sid)
+    temp_db.update_ad_pattern(p['id'], false_positive_count=4)
+    undo_suggestion(temp_db, sid)
+    restored = temp_db.get_ad_pattern_by_id(p['id'])
+    assert restored['text_template'] == p['text_template']
+    assert restored['false_positive_count'] == 4
 
 
 def test_apply_retire_and_undo(temp_db):
@@ -718,6 +763,16 @@ def test_apply_retire_refuses_when_matched_again_since_the_suggestion(temp_db):
     sid = _suggest(temp_db, p, 'retire', {'unused_days': 90, 'last_matched_at': None,
                                           'confirmation_count': 0})
     temp_db.update_ad_pattern(p['id'], last_matched_at=_iso(utc_now()))
+    with pytest.raises(SuggestionStateError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+
+
+def test_apply_retire_refuses_when_disabled_reason_changed(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'retire', {'unused_days': 90, 'last_matched_at': None,
+                                          'confirmation_count': 0})
+    temp_db.update_ad_pattern(p['id'], disabled_reason='manual note')
     with pytest.raises(SuggestionStateError):
         apply_suggestion(temp_db, sid)
     assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
@@ -816,6 +871,27 @@ def test_reject_stamps_pattern(temp_db):
         p['text_template'], 'Acme')
     with pytest.raises(SuggestionStateError):
         reject_suggestion(temp_db, sid)
+
+
+def test_reject_stale_trim_leaves_status_and_review_stamp_unchanged(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    temp_db.update_ad_pattern(p['id'], text_template='manual edit ' + p['text_template'])
+    current = temp_db.get_ad_pattern_by_id(p['id'])
+    with pytest.raises(SuggestionStateError):
+        reject_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] == current[
+        'cleanup_reviewed_hash']
+
+
+def test_reject_stale_trim_with_variant_edit_leaves_suggestion_pending(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    temp_db.update_ad_pattern(p['id'], intro_variants=['manual intro'])
+    with pytest.raises(SuggestionStateError):
+        reject_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
 
 
 def test_undo_requires_approved(temp_db):
@@ -995,6 +1071,78 @@ def test_split_undo_refused_when_a_piece_changed(temp_db):
     apply_suggestion(temp_db, rename)
     with pytest.raises(SuggestionStateError):
         undo_suggestion(temp_db, sid)
+
+
+def test_split_undo_refused_when_original_disabled_state_changed(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    sid = _suggest(temp_db, p, 'split', {'pieces': [
+        {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Widgetco'}]})
+    apply_suggestion(temp_db, sid)
+    temp_db.update_ad_pattern(p['id'], disabled_reason='manual change')
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'approved'
+
+
+def test_split_undo_refused_when_child_variants_changed(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    sid = _suggest(temp_db, p, 'split', {'pieces': [
+        {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Widgetco'}]})
+    new_id = apply_suggestion(temp_db, sid)['applied']['new_pattern_ids'][0]
+    temp_db.update_ad_pattern(new_id, intro_variants=['manual child variant'])
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'approved'
+
+
+def test_split_undo_refused_when_child_sponsor_row_changed(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    sid = _suggest(temp_db, p, 'split', {'pieces': [
+        {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Widgetco'}]})
+    new_id = apply_suggestion(temp_db, sid)['applied']['new_pattern_ids'][0]
+    child = temp_db.get_ad_pattern_by_id(new_id)
+    temp_db.update_known_sponsor(child['sponsor_id'], name='Acme Corporation')
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+
+
+def test_split_undo_refused_when_child_disabled_reason_changed(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    sid = _suggest(temp_db, p, 'split', {'pieces': [
+        {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Widgetco'}]})
+    new_id = apply_suggestion(temp_db, sid)['applied']['new_pattern_ids'][0]
+    temp_db.update_ad_pattern(new_id, disabled_reason='manual note')
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+
+
+@pytest.mark.parametrize('kind,payload', [
+    ('trim', {'text': AD}),
+    ('rename', {'sponsor': 'Acme'}),
+    ('retire', {'unused_days': 90, 'last_matched_at': None, 'confirmation_count': 0}),
+])
+def test_undo_refuses_legacy_applied_snapshot(temp_db, kind, payload):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, kind, payload)
+    applied = apply_suggestion(temp_db, sid)['applied'].copy()
+    applied.pop('after')
+    temp_db.set_cleanup_suggestion_status(sid, 'approved', applied=applied)
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'approved'
+
+
+def test_split_undo_refuses_legacy_applied_snapshot(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    sid = _suggest(temp_db, p, 'split', {'pieces': [
+        {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Widgetco'}]})
+    applied = apply_suggestion(temp_db, sid)['applied'].copy()
+    applied.pop('after')
+    applied.pop('new_pattern_states')
+    temp_db.set_cleanup_suggestion_status(sid, 'approved', applied=applied)
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'approved'
 
 
 def test_split_with_invalid_piece_sponsor_refused(temp_db):

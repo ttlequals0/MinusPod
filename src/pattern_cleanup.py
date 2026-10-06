@@ -37,6 +37,11 @@ from utils.time import parse_iso_utc, utc_now, utc_now_iso
 logger = logging.getLogger('podcast.pattern_cleanup')
 
 PHASE = 'pattern_cleanup'
+_SPLIT_CHILD_FIELDS = (
+    'scope', 'text_template', 'sponsor_id', 'sponsor', 'podcast_id', 'network_id',
+    'dai_platform', 'intro_variants', 'outro_variants', 'source_language', 'category',
+    'created_by', 'protected_from_sync', 'is_active', 'disabled_at', 'disabled_reason',
+)
 LOCK_FILENAME = '.pattern_cleanup.lock'
 # Held briefly around every lock attempt so a status probe never makes a real start fail.
 GATE_FILENAME = '.pattern_cleanup.gate.lock'
@@ -134,6 +139,44 @@ def _before_snapshot(pattern: dict) -> dict:
         'last_matched_at': pattern.get('last_matched_at'),
         'confirmation_count': pattern.get('confirmation_count'),
     }
+
+
+def _snapshot_fields(pattern: dict, fields: tuple[str, ...]) -> dict:
+    return {field: _decode_list(pattern.get(field)) if field in (
+        'intro_variants', 'outro_variants') else pattern.get(field) for field in fields}
+
+
+def _suggestion_stale_fields(suggestion: dict, *, approving: bool) -> tuple[str, ...]:
+    fields = ['text_template', 'sponsor_id', 'sponsor']
+    kind = suggestion['kind']
+    payload = suggestion.get('payload') or {}
+    if kind in ('retire', 'flag'):
+        fields.extend(('last_matched_at', 'confirmation_count'))
+    if (kind == 'trim'
+            or kind == 'flag' and payload.get('recommended') == 'trim'):
+        fields.extend(('intro_variants', 'outro_variants'))
+    elif approving and (kind in ('retire', 'split')
+                        or kind == 'flag' and payload.get('recommended') != 'trim'):
+        fields.extend(('is_active', 'disabled_at', 'disabled_reason'))
+    return tuple(fields)
+
+
+def _matches_snapshot(pattern: dict, snapshot: dict, fields: tuple[str, ...]) -> bool:
+    if not isinstance(snapshot, dict):
+        return False
+    current = _snapshot_fields(pattern, fields)
+    return all(field in snapshot and current[field] == snapshot[field] for field in fields)
+
+
+def _suggestion_after_fields(suggestion: dict) -> tuple[str, ...]:
+    kind = suggestion['kind']
+    payload = suggestion.get('payload') or {}
+    if kind == 'rename':
+        return ('sponsor_id', 'sponsor')
+    if kind in ('retire', 'split') or (
+            kind == 'flag' and payload.get('recommended') != 'trim'):
+        return ('is_active', 'disabled_at', 'disabled_reason')
+    return ('text_template', 'intro_variants', 'outro_variants')
 
 
 # Selection and stats
@@ -780,6 +823,7 @@ def _apply_rename(db, conn, pattern: dict, name: str) -> dict:
 
 def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
     new_ids = []
+    new_states = []
     for piece in pieces:
         sponsor_id = get_or_create_known_sponsor(db, piece['sponsor'], conn=conn)
         if sponsor_id is None:
@@ -803,13 +847,22 @@ def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
         )
         if not new_id:
             raise RuntimeError('split did not create every pattern')
-        db.stamp_pattern_cleanup_reviewed(new_id, review_hash(piece['text'], piece['sponsor']), conn=conn)
+        child = _pattern_on(conn, new_id)
+        db.stamp_pattern_cleanup_reviewed(
+            new_id, review_hash(piece['text'], child['sponsor']), conn=conn)
         new_ids.append(new_id)
-    db._update_ad_pattern_conn(conn, pattern['id'], is_active=0, disabled_at=utc_now_iso(),
-                               disabled_reason=f'Cleanup split into patterns: {new_ids}')
+        new_states.append({'id': new_id, 'fields': _snapshot_fields(child, _SPLIT_CHILD_FIELDS)})
+    disabled_at = utc_now_iso()
+    disabled_reason = f'Cleanup split into patterns: {new_ids}'
+    db._update_ad_pattern_conn(conn, pattern['id'], is_active=0, disabled_at=disabled_at,
+                               disabled_reason=disabled_reason)
     db.stamp_pattern_cleanup_reviewed(
         pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor')), conn=conn)
-    return {'new_pattern_ids': new_ids, 'disabled_pattern_id': pattern['id']}
+    return {
+        'new_pattern_ids': new_ids, 'new_pattern_states': new_states,
+        'disabled_pattern_id': pattern['id'], 'disabled_at': disabled_at,
+        'disabled_reason': disabled_reason,
+    }
 
 
 def _apply_kind(db, conn, kind: str, pattern: dict, payload: dict) -> dict:
@@ -842,14 +895,12 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
         if not pattern['is_active']:
             raise SuggestionStateError('the pattern is disabled')
         before = suggestion['before'] or {}
-        check_fields = ('text_template', 'sponsor_id')
-        if suggestion['kind'] in ('retire', 'flag'):
-            # A retire/flag verdict is based on counters that keep moving; a stale
-            # approval (matched again, or confirmed again) must be refused.
-            check_fields += ('last_matched_at', 'confirmation_count')
-        if any(pattern[field] != before.get(field, pattern[field]) for field in check_fields):
+        check_fields = _suggestion_stale_fields(suggestion, approving=True)
+        if not _matches_snapshot(pattern, before, check_fields):
             raise SuggestionStateError('the pattern changed after this suggestion was made')
         applied = _apply_kind(db, conn, suggestion['kind'], pattern, suggestion['payload'] or {})
+        applied['after'] = _snapshot_fields(
+            _pattern_on(conn, pattern['id']), _suggestion_after_fields(suggestion))
         applied['applied_at'] = utc_now_iso()
         # Orders approvals on one pattern so undo can refuse out of order.
         applied['applied_seq'] = time.time_ns()
@@ -865,8 +916,13 @@ def reject_suggestion(db, suggestion_id: int) -> dict:
     """Reject: leave the pattern alone and mark it reviewed."""
     with db.transaction(immediate=True) as conn:
         suggestion = _load(db, conn, suggestion_id, 'pending')
-        db.set_cleanup_suggestion_status(suggestion_id, 'rejected', conn=conn)
         pattern = _pattern_on(conn, suggestion['pattern_id'])
+        if pattern is not None:
+            before = suggestion['before'] or {}
+            check_fields = _suggestion_stale_fields(suggestion, approving=False)
+            if not _matches_snapshot(pattern, before, check_fields):
+                raise SuggestionStateError('the pattern changed after this suggestion was made')
+        db.set_cleanup_suggestion_status(suggestion_id, 'rejected', conn=conn)
         if pattern is not None:
             db.stamp_pattern_cleanup_reviewed(
                 pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor')),
@@ -889,13 +945,24 @@ def _restore_disabled_fields(db, conn, pattern_id: int, before: dict) -> None:
 
 def _undo_split(db, conn, pattern: dict, before: dict, applied: dict) -> None:
     new_ids = applied.get('new_pattern_ids') or []
+    after = applied.get('after')
+    child_states = {item['id']: item['fields']
+                    for item in applied.get('new_pattern_states', [])}
+    if after is None or len(child_states) != len(new_ids):
+        raise SuggestionStateError('the split predates safe undo snapshots')
+    if not _matches_snapshot(pattern, after, ('is_active', 'disabled_at', 'disabled_reason')):
+        raise SuggestionStateError('the split pattern changed after the split')
     for new_id in new_ids:
         piece = _pattern_on(conn, new_id)
         if (piece is None or not piece['is_active']
                 or db.get_approved_cleanup_suggestions(new_id, conn=conn)):
             raise SuggestionStateError('a split piece changed after the split')
+        expected = child_states.get(new_id)
+        if not _matches_snapshot(piece, expected, _SPLIT_CHILD_FIELDS):
+            raise SuggestionStateError('a split piece changed after the split')
     _restore_disabled_fields(db, conn, pattern['id'], before)
     for new_id in new_ids:
+        db.supersede_pending(new_id, conn=conn)
         db._update_ad_pattern_conn(conn, new_id, is_active=0, disabled_reason='Cleanup undo')
 
 
@@ -913,18 +980,23 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
         if suggestion['kind'] == 'split':
             _undo_split(db, conn, pattern, before, applied)
         elif applied.get('text') is not None:
-            if pattern['text_template'] != applied['text']:
+            expected = applied.get('after')
+            fields = _suggestion_after_fields(suggestion)
+            if not _matches_snapshot(pattern, expected, fields):
                 raise SuggestionStateError('the pattern changed after this suggestion was applied')
             db._update_ad_pattern_conn(
                 conn, pattern['id'], text_template=before.get('text_template'),
                 intro_variants=before.get('intro_variants') or [],
                 outro_variants=before.get('outro_variants') or [])
         elif suggestion['kind'] == 'rename':
-            if pattern['sponsor_id'] != applied.get('sponsor_id'):
+            expected = applied.get('after')
+            if not _matches_snapshot(pattern, expected, ('sponsor_id', 'sponsor')):
                 raise SuggestionStateError('the sponsor changed after this suggestion was applied')
             db._update_ad_pattern_conn(conn, pattern['id'], sponsor_id=before.get('sponsor_id'))
         else:
-            if pattern['is_active']:
+            expected = applied.get('after')
+            if not _matches_snapshot(
+                    pattern, expected, ('is_active', 'disabled_at', 'disabled_reason')):
                 raise SuggestionStateError('the pattern was re-enabled after this suggestion')
             _restore_disabled_fields(db, conn, pattern['id'], before)
         restored = _pattern_on(conn, pattern['id'])
