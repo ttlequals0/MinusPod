@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Search, ChevronUp, ChevronDown } from 'lucide-react';
 import {
   getOriginalSegments,
@@ -95,11 +95,15 @@ function TextSelectionPanel({
   const [frozenRuns, setFrozenRuns] = useState<TextRun[]>([]);
   const [currentText, setCurrentText] = useState('');
   // The mouseup listener is bound once per flatWords change, so it reads
-  // frozenRuns and onRunsChange through refs to avoid stale closures.
+  // frozenRuns and onRunsChange through refs to avoid stale closures. The
+  // frozenRuns ref is kept in lockstep with the state by every setter below,
+  // not by a useEffect keyed on frozenRuns: an effect only runs after the
+  // next commit, which can land after a mouseup's setTimeout(0) fires.
   const frozenRunsRef = useRef(frozenRuns);
-  useEffect(() => {
-    frozenRunsRef.current = frozenRuns;
-  }, [frozenRuns]);
+  const setFrozenRunsSynced = (next: TextRun[]) => {
+    frozenRunsRef.current = next;
+    setFrozenRuns(next);
+  };
   const onRunsChangeRef = useRef(onRunsChange);
   useEffect(() => {
     onRunsChangeRef.current = onRunsChange;
@@ -125,6 +129,13 @@ function TextSelectionPanel({
   const [isPlaying, setIsPlaying] = useState(false);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
+  // The mouseup listener's effect is keyed on [flatWords] and only rebinds
+  // once, when the fetch resolves and flatWords turns from [] into the real
+  // list; a mouseup that lands between that DOM update and the listener
+  // actually rebinding would otherwise read an empty flatWords from a stale
+  // closure and silently no-op. Set synchronously alongside the fetch so
+  // every commitSelection, old listener or new, reads the real list.
+  const flatWordsRef = useRef<FlatWord[]>([]);
 
   // Fetch once. The episode's words live in episode_details.original_segments_json
   // and never change after transcription, so no refetch on selection edits.
@@ -134,6 +145,7 @@ function TextSelectionPanel({
       .then((res) => {
         if (cancelled) return;
         const hasWords = res.segments.some((s) => s.words && s.words.length > 0);
+        flatWordsRef.current = hasWords ? flatten(res.segments) : [];
         setFetchState({
           segments: res.segments,
           error: hasWords
@@ -234,10 +246,11 @@ function TextSelectionPanel({
   const commitSelection = () => {
     const resolved = resolveSelection();
     if (!resolved) return;
-    const first = flatWords[resolved.startIdx];
-    const last = flatWords[resolved.endIdx];
+    const words = flatWordsRef.current;
+    const first = words[resolved.startIdx];
+    const last = words[resolved.endIdx];
     if (!first || !last) return;
-    const text = flatWords
+    const text = words
       .slice(resolved.startIdx, resolved.endIdx + 1)
       .map((w) => w.word.trim())
       .filter(Boolean)
@@ -252,8 +265,13 @@ function TextSelectionPanel({
 
   // Commit on mouseup/touchend so drag doesn't thrash parent state. Listener
   // is scoped to the transcript root, not document, so unrelated mouseups in
-  // the modal (sponsor input, etc.) don't fire commitSelection.
-  useEffect(() => {
+  // the modal (sponsor input, etc.) don't fire commitSelection. useLayoutEffect,
+  // not useEffect: the transcript div (and transcriptRef) only exists once
+  // segments load, so this binds on the same render as flatWords turning
+  // non-empty. A deferred passive effect leaves a window, between that
+  // render committing and the effect actually running, where a mouseup has
+  // no listener to catch it at all.
+  useLayoutEffect(() => {
     const root = transcriptRef.current;
     if (!root) return;
     const handler = () => {
@@ -317,18 +335,18 @@ function TextSelectionPanel({
   const freezeCurrentRun = () => {
     if (!hasSelection) return;
     const merged = mergeRuns(
-      [...frozenRuns, { start: adStart, end: adEnd, text: currentText }],
+      [...frozenRunsRef.current, { start: adStart, end: adEnd, text: currentText }],
       flatWords,
     );
-    setFrozenRuns(merged);
+    setFrozenRunsSynced(merged);
     setCurrentText('');
     onSelectionChange(0, 0, '');
     onRunsChange(merged);
   };
 
   const removeRun = (index: number) => {
-    const next = frozenRuns.filter((_, i) => i !== index);
-    setFrozenRuns(next);
+    const next = frozenRunsRef.current.filter((_, i) => i !== index);
+    setFrozenRunsSynced(next);
     const current = hasSelection ? [{ start: adStart, end: adEnd, text: currentText }] : [];
     onRunsChange([...next, ...current]);
   };

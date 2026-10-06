@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatTime } from '../../utils/adReviewHelpers';
 import TextSelectionPanel, { type TextRun } from './TextSelectionPanel';
 
 // vi.mock factories are hoisted above the file's top-level consts, so the
@@ -84,6 +85,12 @@ async function waitForTranscript(container: HTMLElement) {
   });
 }
 
+// One spy for the whole file, reconfigured per call and restored in
+// afterEach below, instead of a fresh vi.spyOn per call that never gets
+// torn down (window.getSelection would otherwise stay mocked for every
+// later test in this file, including ones that never select anything).
+let getSelectionSpy: ReturnType<typeof vi.spyOn>;
+
 // Simulates dragging a selection across words [startIdx, endIdx] and the
 // mouseup that commits it, through the component's real resolveSelection
 // (word-snap via [data-widx]) rather than calling an internal helper.
@@ -91,23 +98,37 @@ async function selectWords(container: HTMLElement, startIdx: number, endIdx: num
   const root = container.querySelector('.select-text') as HTMLElement;
   const startEl = container.querySelector(`[data-widx="${startIdx}"]`) as HTMLElement;
   const endEl = container.querySelector(`[data-widx="${endIdx}"]`) as HTMLElement;
+  const expectedStart = formatTime(Number(startEl.dataset.start));
+  const expectedEnd = formatTime(Number(endEl.dataset.end));
   const range = document.createRange();
   range.setStart(startEl, 0);
   range.setEnd(endEl, 0);
-  vi.spyOn(window, 'getSelection').mockReturnValue({
+  getSelectionSpy.mockReturnValue({
     isCollapsed: false,
     rangeCount: 1,
     getRangeAt: () => range,
   } as unknown as Selection);
   fireEvent.mouseUp(root);
-  // commitSelection runs on a deferred tick (setTimeout 0) after mouseup.
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+  // commitSelection runs on a deferred tick (setTimeout 0) after mouseup, so
+  // wait for its observable effect: specifically the readout showing THIS
+  // selection's own start/end, not just "some selection is active". A prior
+  // call in the same test can leave a selection already active, so a generic
+  // not-disabled (or a bare setTimeout(resolve, 0)) check can pass before
+  // this call's own deferred commitSelection has actually run.
+  await waitFor(() => {
+    expect(screen.getByText(
+      (content) => content.includes(expectedStart) && content.includes(expectedEnd),
+    )).toBeTruthy();
   });
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  getSelectionSpy = vi.spyOn(window, 'getSelection');
+});
+
+afterEach(() => {
+  getSelectionSpy.mockRestore();
 });
 
 describe('TextSelectionPanel run list', () => {
