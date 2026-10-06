@@ -45,6 +45,7 @@ Customize ad detection in Settings:
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
 - **System Prompts** - Customizable prompts for first pass and verification detection
 - **Ad break filler gap threshold** - ads in the same break separated by less than this many seconds of speech are merged into one cut. Default 12 seconds. Set to 0 to disable. Merges that would exceed 5 minutes total are skipped. See [Nearby-Ad Merge](how-it-works.md#nearby-ad-merge)
+- **Compare with the publisher transcript** - diffs the Whisper transcript against the feed's `podcast:transcript` tag, when one exists, and uses missing speech as ad evidence. On by default; each feed can override it (Feed Settings > Advanced > Transcript diff). See [Upstream Transcript Differential](transcript-differential.md)
 - **LLM Tunables** - See below
 
 Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under AI & Processing) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.

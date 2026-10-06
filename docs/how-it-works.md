@@ -29,6 +29,7 @@ Processing happens on-demand when you play an episode, or automatically when new
 | **Keep Content Only** | Inverted detection: the model marks show content and the rest is removed, guarded by safety gates | Feed page > Feed Settings > Processing mode |
 | **Skip Ad Detection** | Transcripts and chapters only; no detection LLM calls, nothing cut | Feed page > Feed Settings > Processing mode |
 | **Skip Verification Pass** | First pass still detects and cuts; the post-cut second sweep does not run | Feed page > Feed Settings > Advanced |
+| **Transcript Diff** | Diffs the Whisper transcript against the publisher's ad-free transcript; gaps corroborate or hold, never auto-cut | Automatic, per-feed opt-out |
 
 See detailed sections below for configuration and usage.
 
@@ -123,6 +124,7 @@ A fourth outcome is **held for review**. An ad is held when one of these rules b
 - **Standalone verification-pass miss** - global tunable (Settings > Ad Detection, default 0.60 confidence). A pass-2 detection overlapping no pass-1 marker clears the verification-miss hold floor but not the (off-by-default) autocut floor. Shown with a "Verification catch" chip. See [Verification Pass](#verification-pass).
 - **No splice evidence** - global rule with a per-feed override. A cut of 60 seconds or more from the detector or a learned pattern is held unless the audio shows an edit point near one of its edges. That can be a DAI transition pair, an ad-break cue template, a volume step of 12 dB or more, a splice event, or an overlapping differential region. Intro and outro cues never count, since they mark the show rather than a break. The rule applies only once the feed's splice calibration says `calibrated`, which takes five episodes of stored history. What matters is whether the ad was joined into the audio, not who reads it. An ad recorded separately and edited in leaves an edit point; one spoken straight through in a single take does not, so a feed whose ads are never joined in has every long cut held. Turn the check off for that feed on its settings page. See [Outbound splice check](configuration.md#splice-check).
 - **Uncorroborated cross-fetch differential region** - global tunable. The two fetches measurably differ, but no other stage, overlap, or matched audio cue backs the region as an ad. See [Cross-Fetch Differential](#cross-fetch-differential).
+- **Uncorroborated transcript differential gap** - global tunable, per-feed override. A block of speech is missing from the publisher's transcript, but no other stage backs the region as an ad. See [Transcript Differential](#transcript-differential).
 - **Reviewer boundary conflict** - a reviewer proposed moving inside protected evidence from a merged candidate. The original span stays in the audio and the proposed boundaries appear for manual review.
 
 Held ads stay in the audio. The episode publishes with them intact. The episode page shows held ads in an amber "Held for Review (N)" section with Approve & Recut and Dismiss buttons. Approve & Recut stores a confirm correction and immediately re-cuts via the Recut Audio mode (no LLM re-run) if the original audio is still retained; without it, the button reads Approve and the cut applies on the next reprocess. Dismiss records a rejection and leaves the audio unchanged. The episode list shows an "N held" chip on any episode with held ads.
@@ -244,6 +246,18 @@ The global setting (Settings > Global Defaults > Cross-fetch diff) has three pos
 Each detection found this way is tagged with the cross-fetch stage in the ad list, and the episode header shows a "Cross-fetch: N inserted" badge when the comparison found differing regions.
 
 Rejecting a differential detection as not an ad, held or not, still blocks that same episode-region from re-surfacing, but no longer seeds cross-episode false-positive text: it was only ever a candidate, never a confirmed false positive from a real detector, so it does not suppress future matching on other episodes of the feed.
+
+### Transcript Differential
+
+When a feed's `podcast:transcript` tag points at a transcript made before the
+ads were spliced in, MinusPod diffs its own Whisper transcript against it:
+any block of speech the publisher's copy omits is a candidate ad, with no
+audio refetch required. A found gap corroborates another stage's detection
+(raising its confidence and clearing its own hold) when the two overlap by
+at least half the gap, or holds for review on its own, tagged "Upstream
+transcript omits this span", when nothing else backs it. It never cuts by
+itself. See [Upstream Transcript Differential](transcript-differential.md)
+for the full mechanism, thresholds, and settings.
 
 ### Keep Content Only
 

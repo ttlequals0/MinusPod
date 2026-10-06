@@ -824,6 +824,7 @@ describe('Differential status and corroboration badges', () => {
     'Transcript diff: 2 gaps'],
     [{ status: 'ok', coverage: 0.97, sourceType: 'text/vtt', spans: [] }, 'Transcript diff: no gaps'],
     [{ status: 'unreliable', coverage: 0.3, sourceType: 'text/vtt', spans: [] }, 'Transcript diff: unreliable'],
+    [{ status: 'empty', coverage: null, sourceType: 'text/vtt', spans: [] }, 'Transcript diff: empty'],
     [{ status: 'error', coverage: null, sourceType: null, spans: [] }, 'Transcript diff: failed'],
   ] as const)('shows the transcript diff header badge for %o', async (upstreamTranscript, label) => {
     renderDetail(makeEpisode({
