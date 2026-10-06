@@ -212,7 +212,6 @@ function Settings() {
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(false);
   const [chaptersEnabled, setChaptersEnabled] = useState(false);
   const [chaptersInNotes, setChaptersInNotes] = useState(false);
-  const [adChaptersEnabled, setAdChaptersEnabled] = useState(false);
   const [adChaptersIncludeHeld, setAdChaptersIncludeHeld] = useState(false);
   const [adChapterTitleFormat, setAdChapterTitleFormat] = useState('Ad: {label}');
   const [adChapterHeldTitleFormat, setAdChapterHeldTitleFormat] = useState('Possible ad: {label}');
@@ -544,10 +543,11 @@ function Settings() {
 
   // Auto-expand and scroll to section when navigated via hash link
   useEffect(() => {
-    if (location.hash === '#podcast-index') {
-      localStorage.setItem('settings-section-podcast-index', 'true');
+    const id = location.hash.slice(1);
+    if (id === 'podcast-index' || id === 'segment-actions') {
+      localStorage.setItem(`settings-section-${id}`, 'true');
       setTimeout(() => {
-        document.getElementById('podcast-index')?.scrollIntoView({ behavior: 'smooth' });
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     }
   }, [location.hash]);
@@ -713,7 +713,6 @@ function Settings() {
     { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
     { key: 'chaptersEnabled', kind: 'val', useDefault: true, value: chaptersEnabled, set: setChaptersEnabled },
     { key: 'chaptersInNotes', kind: 'val', useDefault: true, value: chaptersInNotes, set: setChaptersInNotes },
-    { key: 'adChaptersEnabled', kind: 'val', useDefault: true, value: adChaptersEnabled, set: setAdChaptersEnabled },
     { key: 'adChaptersIncludeHeld', kind: 'val', useDefault: true, value: adChaptersIncludeHeld, set: setAdChaptersIncludeHeld },
     { key: 'adChapterTitleFormat', kind: 'str', useDefault: true, value: adChapterTitleFormat, set: setAdChapterTitleFormat },
     { key: 'adChapterHeldTitleFormat', kind: 'str', useDefault: true, value: adChapterHeldTitleFormat, set: setAdChapterHeldTitleFormat },
@@ -1142,13 +1141,15 @@ function Settings() {
         onDifferentialFetchModeChange={(v) => tunableMutation.mutate({ differentialFetchMode: v })}
       />
 
-      <SegmentActionsSection
-        segmentCategoryActions={settings?.segmentCategoryActions?.value ?? settings?.defaults?.segmentCategoryActions ?? {}}
-        onSegmentCategoryActionChange={(category, action) =>
-          tunableMutation.mutate({ segmentCategoryActions: { [category]: action } })}
-        detectShowSegments={settings?.detectShowSegments?.value ?? settings?.defaults?.detectShowSegments ?? false}
-        onDetectShowSegmentsChange={(v) => tunableMutation.mutate({ detectShowSegments: v })}
-      />
+      <div id="segment-actions">
+        <SegmentActionsSection
+          segmentCategoryActions={settings?.segmentCategoryActions?.value ?? settings?.defaults?.segmentCategoryActions ?? {}}
+          onSegmentCategoryActionChange={(category, action) =>
+            tunableMutation.mutate({ segmentCategoryActions: { [category]: action } })}
+          detectShowSegments={settings?.detectShowSegments?.value ?? settings?.defaults?.detectShowSegments ?? false}
+          onDetectShowSegmentsChange={(v) => tunableMutation.mutate({ detectShowSegments: v })}
+        />
+      </div>
 
       <LLMProviderSection
         llmProvider={llmProvider}
@@ -1479,17 +1480,11 @@ function Settings() {
         onChaptersModeChange={(v) => tunableMutation.mutate({ chaptersMode: v })}
         adChapters={{
           chaptersEnabled,
-          enabled: adChaptersEnabled,
-          categories: settings?.adChapterCategories?.value
-            ?? settings?.defaults?.adChapterCategories ?? {},
           includeHeld: adChaptersIncludeHeld,
           titleFormat: adChapterTitleFormat,
           heldTitleFormat: adChapterHeldTitleFormat,
           resumeTitle: adChapterResumeTitle,
           minConfidence: adChapterMinConfidence,
-          onEnabledChange: setAdChaptersEnabled,
-          onCategoryChange: (category, checked) =>
-            tunableMutation.mutate({ adChapterCategories: { [category]: checked } }),
           onIncludeHeldChange: setAdChaptersIncludeHeld,
           onTitleFormatChange: setAdChapterTitleFormat,
           onHeldTitleFormatChange: setAdChapterHeldTitleFormat,

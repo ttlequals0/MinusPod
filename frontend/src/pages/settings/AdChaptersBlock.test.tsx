@@ -4,24 +4,18 @@
 import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import AdChaptersBlock, { type AdChaptersBlockProps } from './AdChaptersBlock';
 
 function props(over: Partial<AdChaptersBlockProps> = {}): AdChaptersBlockProps {
   return {
     chaptersEnabled: true,
-    enabled: true,
-    categories: {
-      sponsor: true, cross_promo: true, self_promo: false, interaction: false,
-      intro: false, outro: false, recap: false,
-    },
     includeHeld: false,
     titleFormat: '[mp:{category}]',
     heldTitleFormat: '[mp:{category}?]',
     resumeTitle: 'Show',
     minConfidence: 0.9,
-    onEnabledChange: vi.fn(),
-    onCategoryChange: vi.fn(),
     onIncludeHeldChange: vi.fn(),
     onTitleFormatChange: vi.fn(),
     onHeldTitleFormatChange: vi.fn(),
@@ -29,6 +23,10 @@ function props(over: Partial<AdChaptersBlockProps> = {}): AdChaptersBlockProps {
     onMinConfidenceChange: vi.fn(),
     ...over,
   };
+}
+
+function renderBlock(p: AdChaptersBlockProps) {
+  return render(<MemoryRouter><AdChaptersBlock {...p} /></MemoryRouter>);
 }
 
 // The inputs are controlled by the parent, so an edit test needs a parent that
@@ -48,29 +46,33 @@ function Stateful(p: AdChaptersBlockProps) {
 }
 
 describe('AdChaptersBlock', () => {
-  it('hides the detail fields until ad chapters are on', () => {
-    render(<AdChaptersBlock {...props({ enabled: false })} />);
-    expect(screen.getByLabelText('Ad chapters')).toBeDefined();
-    expect(screen.queryByLabelText('Chapter title')).toBeNull();
+  it('has no enable toggle or category checkbox matrix', () => {
+    renderBlock(props());
+    expect(screen.queryByLabelText('Ad chapters')).toBeNull();
+    expect(screen.queryByText('Chapter these categories')).toBeNull();
+    expect(screen.queryByLabelText('Sponsor')).toBeNull();
+    expect(screen.queryByLabelText('Recap')).toBeNull();
   });
 
-  it('shows every category with the current checks', () => {
-    render(<AdChaptersBlock {...props()} />);
-    expect((screen.getByLabelText('Sponsor') as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText('Recap') as HTMLInputElement).checked).toBe(false);
+  it('shows the helper line linking to Segment actions', () => {
+    renderBlock(props());
+    expect(screen.getByText(/Set a category's action to Mark in/)).toBeDefined();
+    const link = screen.getByRole('link', { name: 'Segment actions' });
+    expect(link.getAttribute('href')).toBe('/#segment-actions');
   });
 
-  it('reports a category toggle', async () => {
-    const p = props();
-    render(<AdChaptersBlock {...p} />);
-    await userEvent.setup().click(screen.getByLabelText('Recap'));
-    expect(p.onCategoryChange).toHaveBeenCalledWith('recap', true);
+  it('shows title formats, resume title, and minimum confidence', () => {
+    renderBlock(props());
+    expect(screen.getByLabelText('Chapter title')).toBeDefined();
+    expect(screen.getByLabelText('Title while waiting for review')).toBeDefined();
+    expect(screen.getByLabelText('Resume title')).toBeDefined();
+    expect(screen.getByLabelText('Minimum confidence')).toBeDefined();
   });
 
   it('reports text and number edits', async () => {
     const p = props();
     const user = userEvent.setup();
-    render(<Stateful {...p} />);
+    render(<MemoryRouter><Stateful {...p} /></MemoryRouter>);
     await user.clear(screen.getByLabelText('Resume title'));
     await user.type(screen.getByLabelText('Resume title'), 'Back');
     expect(p.onResumeTitleChange).toHaveBeenLastCalledWith('Back');
@@ -80,12 +82,8 @@ describe('AdChaptersBlock', () => {
   });
 
   it('is disabled with a hint when chapter generation is off', () => {
-    render(<AdChaptersBlock {...props({ chaptersEnabled: false })} />);
+    renderBlock(props({ chaptersEnabled: false }));
     expect(screen.getByText('Turn on Generate Chapters to use ad chapters.')).toBeDefined();
-    // ToggleSwitch is a div with role=switch, so it carries the disabled
-    // styling rather than the disabled property.
-    expect(screen.getByLabelText('Ad chapters').className).toContain('cursor-not-allowed');
-    expect((screen.getByLabelText('Sponsor') as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByLabelText('Chapter title') as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByLabelText('Minimum confidence') as HTMLInputElement).disabled).toBe(true);
   });

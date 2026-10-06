@@ -19,6 +19,7 @@ import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
 import { isActionBlocked } from '../utils/processingStage';
+import { isKeepLike } from '../utils/segmentCategory';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
@@ -87,6 +88,15 @@ function formatList(items: string[]): string {
   if (items.length < 2) return items[0] ?? '';
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
+
+// Heading for the kept-markers section: reflects whether the bucket is all
+// keep, all mark, or a mix of both.
+function keptSectionTitle(markers: AdSegment[]): string {
+  const markedCount = markers.filter((m) => m.actionApplied === 'mark').length;
+  if (markedCount === 0) return `Kept segments (${markers.length})`;
+  if (markedCount === markers.length) return `Marked segments (${markers.length})`;
+  return `Kept and marked segments (${markers.length})`;
 }
 
 function btnClass(status: string, idleClass: string): string {
@@ -1270,7 +1280,7 @@ function EpisodeDetail() {
                       : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
                   </span>
                   <SegmentCategoryBadge category={segment.category} />
-                  {segment.actionApplied === 'keep' && <KeptBadge />}
+                  {isKeepLike(segment.actionApplied) && <KeptBadge action={segment.actionApplied as 'keep' | 'mark'} />}
                   {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
                     <StageBadge stage={segment.detection_stage} />
                   )}
@@ -1558,7 +1568,7 @@ function EpisodeDetail() {
                         {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                       </span>
                       <SegmentCategoryBadge category={segment.category} />
-                      {segment.actionApplied === 'keep' && <KeptBadge />}
+                      {isKeepLike(segment.actionApplied) && <KeptBadge action={segment.actionApplied as 'keep' | 'mark'} />}
                       {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
                         <StageBadge stage={segment.detection_stage} />
                       )}
@@ -1706,7 +1716,7 @@ function EpisodeDetail() {
       {episode.keptMarkers && episode.keptMarkers.length > 0 && (
         <div className="mb-6" data-testid="kept-segments-section">
           <CollapsibleSection
-            title={`Kept segments (${episode.keptMarkers.length})`}
+            title={keptSectionTitle(episode.keptMarkers)}
             subtitle="Detected, and left in the audio by your category actions"
             defaultOpen={false}
             storageKey="episode-kept-segments"
@@ -1735,7 +1745,7 @@ function EpisodeDetail() {
                       {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                     </span>
                     <SegmentCategoryBadge category={segment.category} />
-                    <KeptBadge />
+                    <KeptBadge action={segment.actionApplied === 'mark' ? 'mark' : 'keep'} />
                   </div>
                 </div>
               ))}
@@ -1791,7 +1801,7 @@ function EpisodeDetail() {
                             {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                           </span>
                           <SegmentCategoryBadge category={segment.category} />
-                          {segment.actionApplied === 'keep' && <KeptBadge />}
+                          {isKeepLike(segment.actionApplied) && <KeptBadge action={segment.actionApplied as 'keep' | 'mark'} />}
                           <span className={`${badgeBase} font-medium ${tint.destructive}`}>
                             Not cut
                           </span>

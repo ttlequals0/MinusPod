@@ -109,6 +109,13 @@ beforeEach(() => {
   mockReprocess.mockResolvedValue({});
 });
 
+describe('AdReviewModal category hint', () => {
+  it('mentions mark alongside cut, beeped, and kept', () => {
+    renderModal();
+    expect(screen.getByText('Decides whether this span is cut, beeped, kept, or marked as a chapter.')).toBeDefined();
+  });
+});
+
 describe('AdReviewModal split entry', () => {
   it('opens the split editor on the detected bounds', async () => {
     renderModal();

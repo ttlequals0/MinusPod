@@ -83,11 +83,6 @@ export interface Feed {
   differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;
   // Chapter list in served descriptions (#720): null follows the global setting.
   chaptersInNotes?: 'on' | 'off' | null;
-  // Ad chapters: null follows the global setting.
-  adChaptersEnabled?: 'on' | 'off' | null;
-  // Null follows the global category map; a partial map overrides only the
-  // categories it names.
-  adChapterCategories?: Partial<Record<SegmentCategory, boolean>> | null;
   // Per-feed auto-process queue priority (#625). Server always resolves to
   // one of the three values; null/absent reads as 'normal'.
   queuePriority?: 'high' | 'normal' | 'low' | null;
@@ -881,8 +876,6 @@ export interface Settings {
   skipSecondPass: SettingValueBoolean;
   transcriptDifferentialEnabled: SettingValueBoolean;
   differentialFetchMode: SettingValue;
-  adChaptersEnabled: SettingValueBoolean;
-  adChapterCategories: { value: Record<SegmentCategory, boolean>; isDefault: boolean };
   adChaptersIncludeHeld: SettingValueBoolean;
   adChapterTitleFormat: SettingValue;
   adChapterHeldTitleFormat: SettingValue;
@@ -988,11 +981,9 @@ export interface Settings {
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
     chaptersMode: string;
-    adChaptersEnabled: boolean;
     skipSecondPass: boolean;
     transcriptDifferentialEnabled: boolean;
     differentialFetchMode: string;
-    adChapterCategories: Record<SegmentCategory, boolean>;
     adChaptersIncludeHeld: boolean;
     adChapterTitleFormat: string;
     adChapterHeldTitleFormat: string;
@@ -1196,9 +1187,6 @@ export interface UpdateSettingsPayload {
   skipSecondPass?: boolean;
   transcriptDifferentialEnabled?: boolean;
   differentialFetchMode?: 'auto' | 'on' | 'off';
-  adChaptersEnabled?: boolean;
-  // Partial map, merged over the stored global map by the backend.
-  adChapterCategories?: Partial<Record<SegmentCategory, boolean>>;
   adChaptersIncludeHeld?: boolean;
   adChapterTitleFormat?: string;
   adChapterHeldTitleFormat?: string;
