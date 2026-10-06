@@ -707,16 +707,6 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
             )
         probe_result = {key: value for key, value in result.items()
                         if key != 'local_outcome'}
-        if target in ('llm:primary', 'llm:secondary') and result['reachable'] is True:
-            # A healthy probe means requests would go through again; reset
-            # the breaker so a recovered provider is not still rejected by
-            # one opened while it was down (regression from e85eaccd).
-            try:
-                llm_client._get_circuit_breaker_for_provider(
-                    request_config.get('provider') or '', target.split(':', 1)[1],
-                    request_config.get('base_url')).reset()
-            except Exception:
-                logger.debug(f"Circuit breaker reset failed for {target}", exc_info=True)
         if result['reachable'] is None:
             # Busy or unconfigured: no evidence either way.
             streaks = {'healthy_streak': healthy_streak, 'failed_streak': failed_streak}
@@ -750,6 +740,16 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
                 changed = _apply_transition_in_transaction(conn, origin, 'cancel', 'auto', None)
                 if changed:
                     action = 'cancel'
+    if target in ('llm:primary', 'llm:secondary') and result['reachable'] is True:
+        # A healthy probe means requests would go through again; reset
+        # the breaker so a recovered provider is not still rejected by
+        # one opened while it was down (regression from e85eaccd).
+        try:
+            llm_client._get_circuit_breaker_for_provider(
+                request_config.get('provider') or '', target.split(':', 1)[1],
+                request_config.get('base_url')).reset()
+        except Exception:
+            logger.debug(f"Circuit breaker reset failed for {target}", exc_info=True)
     invalidate_cache()
     if action:
         try:

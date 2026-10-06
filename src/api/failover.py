@@ -101,6 +101,7 @@ def probe_failover():
         for target in after
     )
     if recovered and db.get_deferred_episodes():
+        # Deferred import here to avoid circular import at app start (main_app imports api before main_app.background).
         from main_app.background import _offline_queue_target_resolver
         from offline_queue import offline_queue_tick
         offline_queue_tick(db, _offline_queue_target_resolver)
