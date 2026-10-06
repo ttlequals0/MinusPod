@@ -9,7 +9,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from utils.text import normalize_title_for_match
+from utils.text import is_timezone_drift, normalize_title_for_match
 from utils.time import parse_iso_utc
 
 logger = logging.getLogger(__name__)
@@ -351,26 +351,14 @@ class SchemaMixin:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
 
     def _dedup_orphan_discovered_episodes(self, conn) -> None:
-        """One-shot cleanup for stale-published_at duplicates: a row stored
-        before the published_at timezone fix can be off by a dropped
-        named-zone offset, which made an upstream GUID rotation miss the
-        exact title+date match and insert a second 'discovered' row for an
-        episode that already existed (database/episodes.py's fuzzy match
-        now prevents new occurrences; this clears out the ones already
-        created).
-
-        An orphan is a 'discovered' row with no processing state (no
-        processed file, no episode_details row) that shares a podcast, a
-        normalized title, and a published_at within FUZZY_MATCH_WINDOW_HOURS
-        with another row. The row with state is kept; when neither row in a
-        pair has state, the older (lower id) row is kept.
-        """
+        """One-shot cleanup: removes the state-free orphan of a discovered
+        duplicate pair left by a stale pre-fix published_at (see
+        episodes.py's fuzzy GUID-change match)."""
         gate = 'dedup_orphan_discovered_episodes_v1'
         if not self._table_exists(conn, 'episodes') or conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)
         ).fetchone():
             return
-        from database.episodes import FUZZY_MATCH_WINDOW_HOURS
 
         rows = conn.execute(
             """SELECT e.id, e.podcast_id, e.title, e.published_at, e.status,
@@ -399,10 +387,9 @@ class SchemaMixin:
             group_rows.sort(key=lambda r: r['published_at'])
             clusters = [[group_rows[0]]]
             for row in group_rows[1:]:
-                prev_dt = parse_iso_utc(clusters[-1][-1]['published_at'])
+                anchor_dt = parse_iso_utc(clusters[-1][0]['published_at'])
                 this_dt = parse_iso_utc(row['published_at'])
-                if (prev_dt and this_dt and abs((this_dt - prev_dt).total_seconds())
-                        / 3600 <= FUZZY_MATCH_WINDOW_HOURS):
+                if anchor_dt and this_dt and is_timezone_drift(anchor_dt, this_dt):
                     clusters[-1].append(row)
                 else:
                     clusters.append([row])

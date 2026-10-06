@@ -108,3 +108,58 @@ def test_the_migration_runs_once(temp_db):
     temp_db._dedup_orphan_discovered_episodes(conn)
 
     assert temp_db.get_episode(slug, 'orphan0000003') is not None
+
+
+def test_a_daily_same_title_pair_24h_apart_is_not_collapsed(temp_db):
+    """A daily show's same-titled episodes 24h apart are not a dropped
+    timezone offset; they must stay distinct rows."""
+    slug = _seed_podcast(temp_db)
+    temp_db.upsert_episode(
+        slug, 'dailyA0000001', title='Daily Show', published_at='2026-01-01T08:00:00Z',
+        original_url='https://example.com/day1.mp3', status='discovered')
+    temp_db.upsert_episode(
+        slug, 'dailyB0000001', title='Daily Show', published_at='2026-01-02T08:00:00Z',
+        original_url='https://example.com/day2.mp3', status='discovered')
+
+    _run(temp_db)
+
+    assert temp_db.get_episode(slug, 'dailyA0000001') is not None
+    assert temp_db.get_episode(slug, 'dailyB0000001') is not None
+
+
+def test_a_non_quarter_hour_drift_is_not_collapsed(temp_db):
+    slug = _seed_podcast(temp_db)
+    temp_db.upsert_episode(
+        slug, 'offstep0000001', title='Off Step Episode', published_at='2026-01-01T00:00:00Z',
+        original_url='https://example.com/a.mp3', status='discovered')
+    temp_db.upsert_episode(
+        slug, 'offstep0000002', title='Off Step Episode', published_at='2026-01-01T07:05:00Z',
+        original_url='https://example.com/b.mp3', status='discovered')
+
+    _run(temp_db)
+
+    assert temp_db.get_episode(slug, 'offstep0000001') is not None
+    assert temp_db.get_episode(slug, 'offstep0000002') is not None
+
+
+def test_cluster_compares_to_first_member_not_the_running_last(temp_db):
+    """Three same-title rows at +0h/+10h/+20h: each adjacent pair is within
+    the drift window, but the first and last are 20h apart - not real
+    drift. Clustering must anchor to the first member, or the last row
+    gets swept into the first row's cluster and wrongly deleted too."""
+    slug = _seed_podcast(temp_db)
+    temp_db.upsert_episode(
+        slug, 'chainA0000001', title='Chain Episode', published_at='2026-01-01T00:00:00Z',
+        original_url='https://example.com/a.mp3', status='discovered')
+    temp_db.upsert_episode(
+        slug, 'chainB0000001', title='Chain Episode', published_at='2026-01-01T10:00:00Z',
+        original_url='https://example.com/b.mp3', status='discovered')
+    temp_db.upsert_episode(
+        slug, 'chainC0000001', title='Chain Episode', published_at='2026-01-01T20:00:00Z',
+        original_url='https://example.com/c.mp3', status='discovered')
+
+    _run(temp_db)
+
+    assert temp_db.get_episode(slug, 'chainA0000001') is not None
+    assert temp_db.get_episode(slug, 'chainB0000001') is None
+    assert temp_db.get_episode(slug, 'chainC0000001') is not None

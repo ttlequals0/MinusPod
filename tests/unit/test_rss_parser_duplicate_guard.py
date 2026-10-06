@@ -80,6 +80,32 @@ def test_a_genuinely_different_episode_is_not_suppressed():
     assert output.count('<item>') == 2
 
 
+def test_a_7_hour_drift_still_matches():
+    output = _serve(
+        feed_xml=_feed_xml(pub_date='Wed, 01 Jul 2026 03:00:00 GMT'),
+        extra=_extra_episode(published_at='2026-06-30T20:00:00Z'))
+
+    assert output.count('<item>') == 1
+
+
+def test_a_24_hour_gap_is_not_suppressed():
+    """A daily show's same-titled episode 24h later is not a dropped
+    timezone offset and must render as its own item."""
+    output = _serve(
+        feed_xml=_feed_xml(pub_date='Wed, 01 Jul 2026 20:00:00 GMT'),
+        extra=_extra_episode(published_at='2026-06-30T20:00:00Z'))
+
+    assert output.count('<item>') == 2
+
+
+def test_a_non_quarter_hour_drift_is_not_suppressed():
+    output = _serve(
+        feed_xml=_feed_xml(pub_date='Wed, 01 Jul 2026 03:05:00 GMT'),
+        extra=_extra_episode(published_at='2026-06-30T20:00:00Z'))
+
+    assert output.count('<item>') == 2
+
+
 _TWO_ITEM_FEED = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:itunes="{ITUNES_NS}"
      xmlns:podcast="https://podcastindex.org/namespace/1.0">

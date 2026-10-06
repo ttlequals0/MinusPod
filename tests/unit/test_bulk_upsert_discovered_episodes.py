@@ -224,7 +224,7 @@ def test_fuzzy_match_prefers_completed_row_over_closer_discovered_row():
     discovered_id = _eid()
     completed_id = _eid()
     db.upsert_episode(
-        slug, discovered_id, title='Priority Episode', published_at='2026-01-01T00:50:00Z',
+        slug, discovered_id, title='Priority Episode', published_at='2026-01-01T00:45:00Z',
         original_url='https://example.com/discovered.mp3', status='discovered')
     db.upsert_episode(
         slug, completed_id, title='Priority Episode', published_at='2026-01-01T03:00:00Z',
@@ -240,3 +240,41 @@ def test_fuzzy_match_prefers_completed_row_over_closer_discovered_row():
     completed_row = db.get_episode(slug, completed_id)
     assert discovered_row['episode_number'] is None
     assert completed_row['episode_number'] == 42
+
+
+def test_fuzzy_match_rejects_an_exact_24_hour_gap():
+    """A daily show releases a same-titled episode 24h apart; that gap is
+    not the shape of a dropped timezone offset and must stay distinct."""
+    slug = _feed('upsert-fuzzy-daily')
+    old_id = _eid()
+    db.upsert_episode(
+        slug, old_id, title='Daily Show', published_at='2026-01-01T08:00:00Z',
+        original_url='https://example.com/day1.mp3', status='discovered')
+
+    new_id = _eid()
+    inserted = db.bulk_upsert_discovered_episodes(slug, [
+        _episode(new_id, title='Daily Show', published='2026-01-02T08:00:00Z'),
+    ])
+
+    assert inserted == 1
+    assert db.get_episode(slug, old_id) is not None
+    assert db.get_episode(slug, new_id) is not None
+
+
+def test_fuzzy_match_rejects_a_non_quarter_hour_drift():
+    """A 7h5min gap is not a whole 15-minute step, so it is not the shape
+    of a dropped named-zone offset and must not relink."""
+    slug = _feed('upsert-fuzzy-off-step')
+    old_id = _eid()
+    db.upsert_episode(
+        slug, old_id, title='Off Step Episode', published_at='2026-01-01T00:00:00Z',
+        original_url='https://example.com/old.mp3', status='discovered')
+
+    new_id = _eid()
+    inserted = db.bulk_upsert_discovered_episodes(slug, [
+        _episode(new_id, title='Off Step Episode', published='2026-01-01T07:05:00Z'),
+    ])
+
+    assert inserted == 1
+    assert db.get_episode(slug, old_id) is not None
+    assert db.get_episode(slug, new_id) is not None

@@ -9,7 +9,7 @@ from typing import ClassVar
 # Shared with the stats mixin so both agree on what counts as processed.
 from database.stats import _PROCESSED_EPISODE_EXISTS_SQL
 from utils.constants import EpisodeStatus
-from utils.text import normalize_title_for_match
+from utils.text import is_timezone_drift, normalize_title_for_match
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -20,12 +20,6 @@ logger = logging.getLogger(__name__)
 # archive feed held the single write lock long enough for every other writer to
 # exceed its 30s busy_timeout and fail with "database is locked".
 DISCOVERY_UPSERT_CHUNK = 50
-
-# Widest plausible drift from a stale pre-fix named-zone published_at
-# (src/database/episodes.py normalize_published_at); the largest named zone
-# offset is 14h, so 24h gives headroom without crossing into a different
-# episode released on a nearby day.
-FUZZY_MATCH_WINDOW_HOURS = 24
 
 # Preference order when several existing rows fall inside the fuzzy match
 # window: a row with real processing state wins over a bare discovered one.
@@ -1419,14 +1413,8 @@ class EpisodeMixin:
 
     @staticmethod
     def _find_fuzzy_duplicate(title, iso_published, exclude_id, existing_by_id):
-        """Find an existing row for the same episode under a different GUID
-        when the exact title+date lookup misses.
-
-        Matches on normalized title plus a published_at within
-        FUZZY_MATCH_WINDOW_HOURS, which catches a stale pre-fix timezone
-        offset. Among several matches, prefers the one with the most
-        processing state, then the closest published_at.
-        """
+        """Find a same-episode row under a different GUID via a dropped
+        timezone offset, when the exact title+date lookup misses."""
         target_dt = parse_iso_utc(iso_published)
         target_title = normalize_title_for_match(title)
         if not target_dt or not target_title:
@@ -1438,12 +1426,10 @@ class EpisodeMixin:
             if normalize_title_for_match(row.get('title')) != target_title:
                 continue
             candidate_dt = parse_iso_utc(row.get('published_at'))
-            if not candidate_dt:
+            if not candidate_dt or not is_timezone_drift(candidate_dt, target_dt):
                 continue
-            delta_hours = abs((candidate_dt - target_dt).total_seconds()) / 3600
-            if delta_hours > FUZZY_MATCH_WINDOW_HOURS:
-                continue
-            key = (-_STATUS_MATCH_PRIORITY.get(row.get('status'), 0), delta_hours)
+            delta_seconds = abs((candidate_dt - target_dt).total_seconds())
+            key = (-_STATUS_MATCH_PRIORITY.get(row.get('status'), 0), delta_seconds)
             if best is None or key < best_key:
                 best, best_key = row, key
         return best

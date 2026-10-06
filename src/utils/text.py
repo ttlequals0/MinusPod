@@ -5,8 +5,13 @@ Provides shared transcript text extraction functions.
 
 import math
 import re
+from datetime import datetime
 
 from utils.time import parse_timestamp
+
+# A dropped named-zone offset is under 15h and a whole 15-minute step.
+_TIMEZONE_DRIFT_MAX_SECONDS = 15 * 3600
+_TIMEZONE_DRIFT_STEP_SECONDS = 15 * 60
 
 # Edge-proximity tolerance for cut/trim boundaries. Used by the
 # pattern-rewrite anchor gate (a large trimmed boundary must land within
@@ -21,6 +26,13 @@ def normalize_title_for_match(title: str | None) -> str:
     if not title:
         return ''
     return re.sub(r'\s+', ' ', title).strip().lower()
+
+
+def is_timezone_drift(a: datetime, b: datetime) -> bool:
+    """True when two UTC timestamps differ by the shape of a dropped named
+    timezone offset: under 15h and an exact multiple of 15 minutes."""
+    delta = abs((a - b).total_seconds())
+    return delta < _TIMEZONE_DRIFT_MAX_SECONDS and delta % _TIMEZONE_DRIFT_STEP_SECONDS == 0
 
 
 def word_boundary_re(terms) -> re.Pattern | None:

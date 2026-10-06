@@ -25,7 +25,7 @@ from defusedxml.ElementTree import fromstring as defused_fromstring
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.episode_paths import episode_public_url
 from utils.feed_guid import compute_feed_guid
-from utils.text import normalize_title_for_match
+from utils.text import is_timezone_drift, normalize_title_for_match
 from utils.time import parse_iso_datetime, parse_iso_utc, parse_timestamp
 from utils.url import SSRFError
 from user_agent import feed_user_agent
@@ -1231,8 +1231,8 @@ class RSSParser:
 
     @staticmethod
     def _matches_db_duplicate(entry, db_title_dates) -> bool:
-        """True when `entry` shares a normalized title and a published date
-        within 24h of a DB-appended episode."""
+        """True when `entry` shares a normalized title and a timezone-drift
+        published date with a DB-appended episode."""
         candidates = db_title_dates.get(normalize_title_for_match(entry.get('title', '')))
         if not candidates:
             return False
@@ -1242,7 +1242,7 @@ class RSSParser:
             return False
         if entry_dt.tzinfo is None:
             entry_dt = entry_dt.replace(tzinfo=timezone.utc)
-        return any(abs((entry_dt - db_dt).total_seconds()) / 3600 <= 24 for db_dt in candidates)
+        return any(is_timezone_drift(entry_dt, db_dt) for db_dt in candidates)
 
     def _append_podcasting2_tags(self, lines: list, slug: str, episode_id: str,
                                  storage, feed_auth_key=None,
