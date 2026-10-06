@@ -21,6 +21,7 @@ MAX_HINT_SPANS = 12
 SNIPPET_CHARS = 160
 
 _WORD_RE = re.compile(r'[a-z0-9]+')
+WORD_RE = _WORD_RE
 
 
 def _tokenize(segments):

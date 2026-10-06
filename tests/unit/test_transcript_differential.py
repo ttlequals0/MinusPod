@@ -85,6 +85,22 @@ class TestParsers:
         for absent in ('Leo', 'Ann', 'not words', 'color', 'Transcript', '<'):
             assert absent not in joined
 
+    def test_srt_with_crlf_line_endings(self):
+        body = (b'1\r\n00:00:01,000 --> 00:00:02,000\r\nLeo: Hello there,\r\nfriends.\r\n\r\n'
+                b'2\r\n00:00:02,000 --> 00:00:03,500\r\nSecond cue.\r\n')
+        t = parse_transcript(body, None, URL)
+        assert t.mime == 'application/srt'
+        assert t.cues == [{'start': 1.0, 'end': 2.0, 'text': 'Hello there, friends.'},
+                          {'start': 2.0, 'end': 3.5, 'text': 'Second cue.'}]
+
+    def test_json_accepts_start_end_text_keys(self):
+        body = (b'{"segments": [{"start": 1.5, "end": 3.0, "text": "Hello there."},'
+                b' {"start": 3.0, "end": 4.0, "text": "Ann: Next."}]}')
+        t = parse_transcript(body, None, URL)
+        assert t.mime == 'application/json'
+        assert t.cues == [{'start': 1.5, 'end': 3.0, 'text': 'Hello there.'},
+                          {'start': 3.0, 'end': 4.0, 'text': 'Next.'}]
+
     def test_mime_with_charset_parameter(self):
         t = parse_transcript(_fixture('sample.vtt'), 'text/vtt; charset=utf-8', URL)
         assert t.mime == 'text/vtt'
@@ -371,6 +387,50 @@ class TestAlign:
         assert result['spans'][0]['start'] == pytest.approx(1500 * WORD_S)
         assert result['spans'][0]['offset_confirmed'] is False
 
+    def test_repeated_tagline_does_not_shift_bounds(self):
+        tagline = 'this episode is brought to you by acme widgets the best widgets'.split()
+        content = _content(1000) + tagline + _content(1000, seed=8) + tagline + _content(1000, seed=9)
+        ad_at = 1000 + len(tagline)
+        segs, tr = _build(content, {ad_at: _ad(112)})
+        spans = align(segs, tr)['spans']
+        assert len(spans) == 1
+        assert spans[0]['start'] == pytest.approx(ad_at * WORD_S)
+        assert spans[0]['end'] == pytest.approx((ad_at + 112) * WORD_S)
+        assert spans[0]['words'] == 112
+
+    def test_trailing_gap_found_but_not_offset_confirmed(self):
+        content = _content(3000)
+        segs, tr = _build(content, {3000: _ad(150)})
+        spans = align(segs, tr)['spans']
+        assert len(spans) == 1
+        assert spans[0]['start'] == pytest.approx(3000 * WORD_S)
+        assert spans[0]['end'] == pytest.approx(3150 * WORD_S)
+        assert spans[0]['words'] == 150
+        assert spans[0]['offset_confirmed'] is False
+
+    def test_leading_and_trailing_gaps_in_one_call(self):
+        content = _content(3000)
+        segs, tr = _build(content, {0: _ad(150, 'x'), 3000: _ad(150, 'y')})
+        spans = align(segs, tr)['spans']
+        assert [(s['start'], s['words'], s['offset_confirmed']) for s in spans] == [
+            (0.0, 150, True), (pytest.approx(3150 * WORD_S), 150, False)]
+        assert spans[1]['end'] == pytest.approx(3300 * WORD_S)
+
+    def test_gap_boundary_segments_without_words_interpolate(self):
+        content = _content(3000)
+        # Insert mid-segment so both boundary segments mix content and ad words.
+        segs, tr = _build(content, {1505: _ad(112)})
+        boundary = [s for s in segs if s['start'] <= 1505 * WORD_S < s['end']
+                    or s['start'] < (1505 + 112) * WORD_S <= s['end']]
+        assert len(boundary) == 2
+        for seg in boundary:
+            del seg['words']
+        spans = align(segs, tr)['spans']
+        assert len(spans) == 1
+        assert spans[0]['start'] == pytest.approx(1505 * WORD_S)
+        assert spans[0]['end'] == pytest.approx((1505 + 112) * WORD_S)
+        assert spans[0]['words'] == 112
+
     def test_upstream_only_text_does_not_create_spans(self):
         content = _content(3000)
         segs, tr = _build(content, drop=set(range(1000, 1200)))
@@ -428,3 +488,26 @@ class TestSpansOverlapping:
 
     def test_window_covering_several_spans(self):
         assert spans_overlapping(self.SPANS, 0.0, 400.0) == self.SPANS
+
+    def test_fraction_of_query(self):
+        # Query 150-450 overlaps span 0 by 50 s and span 1 by 40 s: 50/300 and 40/300.
+        assert spans_overlapping(self.SPANS, 150.0, 450.0, min_fraction_of='query') == []
+        # Query 180-240 is covered for 20 of 60 s by span 0.
+        assert spans_overlapping(self.SPANS, 180.0, 240.0, 0.3, min_fraction_of='query') == [
+            self.SPANS[0]]
+        assert spans_overlapping(self.SPANS, 180.0, 240.0, 0.5, min_fraction_of='query') == []
+
+    def test_fraction_of_span(self):
+        # Query 140-160 covers 20 of span 0's 100 s even though the query is fully inside.
+        assert spans_overlapping(self.SPANS, 140.0, 160.0, min_fraction_of='span') == []
+        assert spans_overlapping(self.SPANS, 0.0, 400.0, min_fraction_of='span') == self.SPANS
+        assert spans_overlapping(self.SPANS, 150.0, 310.0, min_fraction_of='span') == [
+            self.SPANS[0]]
+
+    def test_fraction_of_shorter_is_the_default(self):
+        assert spans_overlapping(self.SPANS, 140.0, 160.0, min_fraction_of='shorter') == \
+            spans_overlapping(self.SPANS, 140.0, 160.0) == [self.SPANS[0]]
+
+    def test_unknown_denominator_raises(self):
+        with pytest.raises(ValueError):
+            spans_overlapping(self.SPANS, 0.0, 10.0, min_fraction_of='longer')

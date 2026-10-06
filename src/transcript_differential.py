@@ -12,7 +12,7 @@ from bisect import bisect_left
 from dataclasses import dataclass
 
 from config import HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_API
-from text_recurrence import _WORD_RE, SHINGLE_SIZE
+from text_recurrence import SHINGLE_SIZE, WORD_RE
 from user_agent import download_user_agent
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, read_response_capped, safe_get
@@ -116,7 +116,7 @@ def parse_transcript(body: bytes, mime: str | None, source_url: str) -> Upstream
         cues = _parse_lines(_html_to_text(text))
     else:
         cues = _parse_lines(text)
-    cues = [c for c in cues if _WORD_RE.search(c['text'].lower())]
+    cues = [c for c in cues if WORD_RE.search(c['text'].lower())]
     if not cues:
         return None
     timed = all(c['start'] is not None for c in cues)
@@ -195,9 +195,14 @@ def _parse_json(text: str) -> list[dict]:
         return []
     cues = []
     for seg in payload['segments']:
-        if isinstance(seg, dict) and isinstance(seg.get('body'), str):
-            cues.append({'start': _num(seg.get('startTime')), 'end': _num(seg.get('endTime')),
-                         'text': _clean_cue_text(seg['body'])})
+        if not isinstance(seg, dict):
+            continue
+        # Some hosts emit start/end/text instead of the namespace's startTime/endTime/body.
+        body = seg.get('body', seg.get('text'))
+        if isinstance(body, str):
+            cues.append({'start': _num(seg.get('startTime', seg.get('start'))),
+                         'end': _num(seg.get('endTime', seg.get('end'))),
+                         'text': _clean_cue_text(body)})
     return cues
 
 
@@ -227,9 +232,9 @@ def whisper_tokens(segments: list[dict]) -> list[tuple[str, float, float]]:
                          for w in words):
             for w in words:
                 start, end = float(w['start']), float(w['end'])
-                tokens.extend((t, start, end) for t in _WORD_RE.findall(str(w.get('word', '')).lower()))
+                tokens.extend((t, start, end) for t in WORD_RE.findall(str(w.get('word', '')).lower()))
         else:
-            tokens.extend(_spread(_WORD_RE.findall(seg.get('text', '').lower()),
+            tokens.extend(_spread(WORD_RE.findall(seg.get('text', '').lower()),
                                   float(seg['start']), float(seg['end'])))
     return tokens
 
@@ -238,7 +243,7 @@ def upstream_tokens(transcript: UpstreamTranscript) -> list[tuple[str, float | N
     """(token, time) per word; time interpolated inside a timed cue, None when untimed."""
     tokens = []
     for cue in transcript.cues:
-        words = _WORD_RE.findall(cue['text'].lower())
+        words = WORD_RE.findall(cue['text'].lower())
         start, end = cue.get('start'), cue.get('end')
         if start is None:
             tokens.extend((w, None) for w in words)
@@ -369,6 +374,7 @@ def align(segments: list[dict], transcript: UpstreamTranscript, *, min_gap_words
     if coverage < min_coverage:
         return {'status': 'unreliable', 'coverage': coverage, 'timed': timed, 'spans': []}
 
+    # Merge before filtering on purpose: sub-threshold runs split by noise can form one ad.
     merged: list[list] = []
     for first, last, count in _gap_runs(match):
         if merged and a[first][1] - merged[-1][3] <= merge_within_seconds:
@@ -395,14 +401,24 @@ def align(segments: list[dict], transcript: UpstreamTranscript, *, min_gap_words
 
 
 def spans_overlapping(spans: list[dict], start: float, end: float,
-                      min_fraction: float = 0.5) -> list[dict]:
-    """Spans whose overlap with [start, end) is at least min_fraction of the shorter interval."""
+                      min_fraction: float = 0.5, min_fraction_of: str = 'shorter') -> list[dict]:
+    """Spans overlapping [start, end) by at least min_fraction of the query, the span, or the shorter."""
+    if min_fraction_of not in ('query', 'span', 'shorter'):
+        raise ValueError(f'unknown min_fraction_of: {min_fraction_of!r}')
     if end <= start:
         return []
     hits = []
     for span in spans:
         s, e = float(span['start']), float(span['end'])
         overlap = min(e, end) - max(s, start)
-        if e > s and overlap > 0 and overlap / min(e - s, end - start) >= min_fraction:
+        if e <= s or overlap <= 0:
+            continue
+        if min_fraction_of == 'query':
+            denom = end - start
+        elif min_fraction_of == 'span':
+            denom = e - s
+        else:
+            denom = min(e - s, end - start)
+        if overlap / denom >= min_fraction:
             hits.append(span)
     return hits
