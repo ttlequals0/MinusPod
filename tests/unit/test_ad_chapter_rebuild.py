@@ -56,6 +56,60 @@ def test_rejected_held_marker_drops_its_chapter(monkeypatch):
     assert refreshed == ['a1b2c3d4e5f6']
 
 
+def test_mark_marker_loses_its_chapter_once_feed_now_keeps_the_category(monkeypatch):
+    """A marker stamped 'mark' on an earlier run drops its chapter once the
+    feed's current action for that category is Keep, without a re-render."""
+    stored = {'version': '1.2.0', 'chapters': [
+        {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
+        {'startTime': 960, 'title': 'Show', 'kind': 'resume'}]}
+    saved, embedded, refreshed = _wire(monkeypatch, stored)
+    cfg = AdChapterConfig(**{**CFG.__dict__, 'actions': {'sponsor': 'keep'}})
+    monkeypatch.setattr(processing, 'resolve_ad_chapter_config', lambda db, row: cfg)
+    markers = [{'start': 900.0, 'end': 960.0, 'action_applied': 'mark',
+                'was_cut': False, 'category': 'sponsor', 'confidence': 0.95}]
+    assert processing.rebuild_ad_chapters('example-podcast', 'a1b2c3d4e5f6', markers) is True
+    assert saved[0]['chapters'] == []
+
+
+def test_keep_marker_gains_a_chapter_once_feed_now_marks_the_category(monkeypatch):
+    """A marker stamped 'keep' on an earlier run gets a chapter once the
+    feed's current action for that category is Mark, without a re-render."""
+    stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+    saved, embedded, refreshed = _wire(monkeypatch, stored)  # CFG: sponsor -> mark
+    markers = [{'start': 900.0, 'end': 960.0, 'action_applied': 'keep',
+                'was_cut': False, 'category': 'sponsor', 'confidence': 0.95}]
+    assert processing.rebuild_ad_chapters('example-podcast', 'a1b2c3d4e5f6', markers) is True
+    assert [c['startTime'] for c in saved[0]['chapters']] == [1, 900, 960]
+
+
+def test_remove_marker_is_untouched_by_a_feed_action_change(monkeypatch):
+    """A marker that was actually cut never gets a chapter, regardless of
+    what the feed's category action now resolves to."""
+    stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+    saved, embedded, refreshed = _wire(monkeypatch, stored)  # CFG: sponsor -> mark
+    markers = [{'start': 900.0, 'end': 960.0, 'action_applied': 'remove',
+                'was_cut': True, 'category': 'sponsor', 'confidence': 0.95}]
+    assert processing.rebuild_ad_chapters('example-podcast', 'a1b2c3d4e5f6', markers) is False
+    assert not saved
+
+
+def test_held_marker_is_unaffected_by_the_keep_mark_refresh(monkeypatch):
+    """A marker still awaiting review keeps going through held_status's own
+    resolution; the keep/mark refresh must not short-circuit it."""
+    stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+    saved, embedded, refreshed = _wire(monkeypatch, stored)
+    cfg = AdChapterConfig(**{**CFG.__dict__, 'include_held': True,
+                            'actions': {'sponsor': 'mark'}})
+    monkeypatch.setattr(processing, 'resolve_ad_chapter_config', lambda db, row: cfg)
+    markers = [{'start': 900.0, 'end': 960.0, 'action_applied': 'keep',
+                'held_for_review': True, 'was_cut': False, 'category': 'sponsor',
+                'confidence': 0.5}]
+    assert processing.rebuild_ad_chapters('example-podcast', 'a1b2c3d4e5f6', markers) is True
+    ad_entry = next(c for c in saved[0]['chapters'] if c.get('kind') == 'ad')
+    assert ad_entry['held'] is True
+    assert ad_entry['title'] == '[mp:sponsor?]'
+
+
 def test_no_change_means_no_write(monkeypatch):
     stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
     saved, embedded, refreshed = _wire(monkeypatch, stored)

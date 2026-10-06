@@ -7,7 +7,7 @@ bootstrap('ad_chapters_test_')
 
 from ad_chapters import (  # noqa: E402
     AdChapterConfig, format_ad_chapter_title, merge_ad_chapters, public_chapters,
-    resolve_ad_chapter_config, strip_ad_chapters,
+    refresh_keep_like_markers, resolve_ad_chapter_config, strip_ad_chapters,
 )
 
 DURATION = 3600.0
@@ -246,3 +246,50 @@ def test_label_placeholder_renders_the_category_name():
     cfg = AdChapterConfig(**{**CFG.__dict__, 'title_format': 'Ad: {label}'})
     result = merge_ad_chapters(topics(), [marked(900.0, 960.0)], [], DURATION, 0.0, cfg)
     assert [c['title'] for c in ads(result)] == ['Ad: Sponsor']
+
+
+def test_refresh_turns_stale_keep_into_mark_when_feed_now_marks_it():
+    keep = marked(900.0, 960.0, action_applied='keep')
+    refreshed = refresh_keep_like_markers([keep], {'sponsor': 'mark'})
+    assert refreshed[0]['action_applied'] == 'mark'
+    assert refreshed[0] is not keep  # original left untouched
+
+
+def test_refresh_turns_stale_mark_into_keep_when_feed_now_keeps_it():
+    mark = marked(900.0, 960.0, action_applied='mark')
+    refreshed = refresh_keep_like_markers([mark], {'sponsor': 'keep'})
+    assert refreshed[0]['action_applied'] == 'keep'
+
+
+def test_refresh_never_turns_a_keep_like_marker_into_a_cut():
+    mark = marked(900.0, 960.0, action_applied='mark')
+    refreshed = refresh_keep_like_markers([mark], {'sponsor': 'remove'})
+    assert refreshed[0]['action_applied'] == 'mark'
+
+
+def test_refresh_leaves_non_keep_like_markers_alone():
+    removed = marked(900.0, 960.0, action_applied='remove')
+    refreshed = refresh_keep_like_markers([removed], {'sponsor': 'mark'})
+    assert refreshed[0] is removed
+
+
+def test_refresh_leaves_held_markers_alone():
+    pending = marked(900.0, 960.0, action_applied='keep', held_for_review=True, was_cut=False)
+    refreshed = refresh_keep_like_markers([pending], {'sponsor': 'mark'})
+    assert refreshed[0] is pending
+
+
+def test_refresh_end_to_end_keep_marker_gets_a_chapter_once_feed_marks_it():
+    keep = marked(900.0, 960.0, action_applied='keep')
+    cfg = AdChapterConfig(**{**CFG.__dict__, 'actions': {**CFG.actions, 'sponsor': 'mark'}})
+    refreshed = refresh_keep_like_markers([keep], cfg.actions)
+    result = merge_ad_chapters(topics(), refreshed, [], DURATION, 0.0, cfg)
+    assert {'startTime': 900, 'title': '[mp:sponsor]', 'kind': 'ad',
+            'category': 'sponsor'} in result
+
+
+def test_refresh_end_to_end_mark_marker_loses_its_chapter_once_feed_keeps_it():
+    mark = marked(900.0, 960.0, action_applied='mark')
+    cfg = AdChapterConfig(**{**CFG.__dict__, 'actions': {**CFG.actions, 'sponsor': 'keep'}})
+    refreshed = refresh_keep_like_markers([mark], cfg.actions)
+    assert merge_ad_chapters(topics(), refreshed, [], DURATION, 0.0, cfg) == topics()

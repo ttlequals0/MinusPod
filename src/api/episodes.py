@@ -22,7 +22,7 @@ from config import (
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
 from ad_chapters import (
-    merge_ad_chapters, public_chapters, resolve_ad_chapter_config,
+    merge_ad_chapters, public_chapters, refresh_keep_like_markers, resolve_ad_chapter_config,
 )
 from ad_validator import user_trimmed_keep_ranges
 from ad_yield import latest_completed_run, low_ad_yield
@@ -1401,7 +1401,11 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
         else:
             ad_config = resolve_ad_chapter_config(db, podcast)
             topic = (chapters or {}).get('chapters') or []
-            merged = merge_ad_chapters(topic, current_markers, current_cuts,
+            # Not persisted: a Keep<->Mark switch since this marker was stamped
+            # takes effect in this rebuild's chapters only, not in ad_markers_json.
+            refreshed_markers = (refresh_keep_like_markers(current_markers, ad_config.actions)
+                                 if ad_config else current_markers)
+            merged = merge_ad_chapters(topic, refreshed_markers, current_cuts,
                                        segments[-1].get('end') if segments else None,
                                        get_replacement_duration(), ad_config)
             if merged:

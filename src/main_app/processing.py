@@ -17,8 +17,8 @@ import requests
 import requests.exceptions
 
 from ad_chapters import (
-    merge_ad_chapters, public_chapters, resolve_ad_chapter_config,
-    strip_ad_chapters,
+    merge_ad_chapters, public_chapters, refresh_keep_like_markers,
+    resolve_ad_chapter_config, strip_ad_chapters,
 )
 from ad_detector import (
     refine_ad_boundaries, snap_early_ads_to_zero, merge_same_sponsor_ads,
@@ -4571,8 +4571,9 @@ def rebuild_ad_chapters(slug, episode_id, markers, episode=None) -> bool:
                          or {'version': '1.2.0', 'chapters': []})
         current = chapters_json.get('chapters') or []
         has_ad_entries = len(strip_ad_chapters(current)) != len(current)
-        # Only 'mark' (not 'keep') can ever produce a chapter entry.
-        could_add = any(m.get('action_applied') == 'mark' or is_pending_review(m)
+        # A keep marker could refresh to mark below if the feed's action for
+        # its category changed since this marker was stamped.
+        could_add = any(is_keep_like(m.get('action_applied')) or is_pending_review(m)
                         for m in markers or [])
         # Nothing stored to clear and no marker that could produce an entry:
         # skip the podcast row and settings reads entirely.
@@ -4582,6 +4583,9 @@ def rebuild_ad_chapters(slug, episode_id, markers, episode=None) -> bool:
         # Disabled with nothing to strip: no file probe, no write.
         if ad_config is None and not has_ad_entries:
             return False
+        # Not persisted: refreshed only for this rebuild's chapters, not
+        # written back to ad_markers_json.
+        markers = refresh_keep_like_markers(markers, ad_config.actions) if ad_config else markers
         cuts = storage.get_applied_cuts(slug, episode_id)
         if cuts is None:
             # Unknown cut list, not an empty one: ad spans would be placed at
