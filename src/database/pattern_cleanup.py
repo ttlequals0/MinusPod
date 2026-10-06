@@ -5,6 +5,8 @@ from utils.time import utc_now_iso
 
 # Learned patterns are the only ones the cleanup reviews.
 LEARNED_PATTERN_WHERE = "ap.created_by = 'auto' AND ap.source = 'local' AND ap.is_active = 1"
+# Extra rows fetched past batch_size so the caller's safety-net recheck can still fill a batch.
+CANDIDATE_ROW_MARGIN = 25
 
 _JSON_FIELDS = ('reasons', 'payload', 'before', 'applied')
 _PATTERN_SUMMARY_FIELDS = (
@@ -186,9 +188,17 @@ class PatternCleanupMixin:
         conn.commit()
         return cursor.rowcount
 
-    def get_cleanup_candidate_rows(self) -> list[dict]:
-        """Active learned patterns, never-reviewed first, then oldest review."""
-        cursor = self.get_connection().execute(
+    def get_cleanup_candidate_rows(self, *, force: bool = False, batch_size: int = 25) -> list[dict]:
+        """Active learned patterns, never-reviewed first, then oldest review.
+        Filters out pending (unless forced) and already-reviewed-unchanged patterns in SQL
+        and caps the result to batch_size plus a margin; the caller still rechecks each row."""
+        from pattern_cleanup import INVALID_MARKER, review_hash  # deferred: avoid an import cycle
+        conn = self.get_connection()
+        conn.create_function('cleanup_review_hash', 2, review_hash)
+        pending_filter = '' if force else (
+            " AND NOT EXISTS (SELECT 1 FROM pattern_cleanup_suggestions s "
+            "WHERE s.pattern_id = ap.id AND s.status = 'pending')")
+        cursor = conn.execute(
             f"""SELECT ap.*, ks.name AS sponsor, pc.title AS podcast_title,
                        EXISTS(SELECT 1 FROM pattern_cleanup_suggestions s
                               WHERE s.pattern_id = ap.id AND s.status = 'pending') AS has_pending
@@ -196,5 +206,11 @@ class PatternCleanupMixin:
                 LEFT JOIN known_sponsors ks ON ks.id = ap.sponsor_id
                 LEFT JOIN podcasts pc ON pc.slug = ap.podcast_id
                 WHERE {LEARNED_PATTERN_WHERE}
-                ORDER BY ap.cleanup_reviewed_at IS NOT NULL, ap.cleanup_reviewed_at, ap.id""")  # noqa: S608
+                  AND (ap.cleanup_reviewed_hash IS NULL
+                       OR (ap.cleanup_reviewed_hash != ?
+                           AND ap.cleanup_reviewed_hash != cleanup_review_hash(ap.text_template, ks.name)))
+                  {pending_filter}
+                ORDER BY ap.cleanup_reviewed_at IS NOT NULL, ap.cleanup_reviewed_at, ap.id
+                LIMIT ?""",  # noqa: S608
+            (INVALID_MARKER, batch_size + CANDIDATE_ROW_MARGIN))
         return [dict(row) for row in cursor.fetchall()]

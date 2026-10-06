@@ -150,6 +150,26 @@ describe('PatternsPage cleanup tab', () => {
     expect(tab.getAttribute('aria-label')).toBe('Cleanup, 3 pending');
   });
 
+  it('does not refetch the cleanup badge status on every visit to the page', async () => {
+    mockCleanupStatus.mockClear();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const mount = () => render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/patterns']}>
+          <PatternsPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const first = mount();
+    await screen.findByRole('tab', { name: 'Patterns' });
+    expect(mockCleanupStatus).toHaveBeenCalledTimes(1);
+    first.unmount();
+
+    mount();
+    await screen.findByRole('tab', { name: 'Patterns' });
+    expect(mockCleanupStatus).toHaveBeenCalledTimes(1);
+  });
+
   it('opens the cleanup tab from the url and loads suggestions', async () => {
     renderPage('/patterns?tab=cleanup');
     const tab = await screen.findByRole('tab', { name: /Cleanup/ });

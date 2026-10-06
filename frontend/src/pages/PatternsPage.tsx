@@ -121,9 +121,11 @@ function PatternsPage() {
     }
   }
 
+  // Only the pending count feeds the tab badge here; a minute-old count is fine.
   const { data: cleanupStatus } = useQuery({
     queryKey: patternCleanupQueryKey,
     queryFn: getPatternCleanupStatus,
+    staleTime: 60_000,
   });
   const cleanupPending = cleanupStatus?.pending.total ?? 0;
 

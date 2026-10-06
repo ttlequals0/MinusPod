@@ -475,6 +475,7 @@ def test_begin_run_marks_interrupted_rows_failed(temp_db, live_route):
 
 
 def test_status_probe_during_begin_does_not_refuse_the_start(temp_db):
+    temp_db.create_cleanup_run(forced=False, trigger='manual')
     real = pattern_cleanup._try_run_lock
     holding = threading.Event()
 
@@ -507,6 +508,7 @@ def test_segments_decoded_once_per_episode_per_run(temp_db, live_route):
 
 
 def test_run_refuses_when_lock_held(temp_db):
+    temp_db.create_cleanup_run(forced=False, trigger='schedule')
     fd = open(os.path.join(str(temp_db.data_dir), LOCK_FILENAME), 'w')
     fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     try:
@@ -711,6 +713,99 @@ def test_apply_flag_disable_and_flag_trim(temp_db):
     assert row['text_template'] == AD and row['is_active'] == 1
 
 
+def test_apply_retire_refuses_when_matched_again_since_the_suggestion(temp_db):
+    p = _pattern(temp_db)
+    sid = _suggest(temp_db, p, 'retire', {'unused_days': 90, 'last_matched_at': None,
+                                          'confirmation_count': 0})
+    temp_db.update_ad_pattern(p['id'], last_matched_at=_iso(utc_now()))
+    with pytest.raises(SuggestionStateError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+
+
+def test_apply_flag_refuses_when_confirmation_count_changed(temp_db):
+    p = _pattern(temp_db, false_positive_count=3, confirmation_count=0)
+    sid = _suggest(temp_db, p, 'flag', {'false_positive_count': 3, 'confirmation_count': 0,
+                                        'contaminated': False, 'contamination_reason': None,
+                                        'recommended': 'disable'})
+    temp_db.update_ad_pattern(p['id'], confirmation_count=1)
+    with pytest.raises(SuggestionStateError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+
+
+def test_apply_split_supersedes_other_pending_suggestions(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    split = _suggest(temp_db, p, 'split', {'pieces': [
+        {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Widgetco'}]})
+    rename = temp_db.upsert_cleanup_suggestion(
+        None, p['id'], 'rename', 0.9, [], {'sponsor': 'Acme'},
+        pattern_cleanup._before_snapshot(p))
+    apply_suggestion(temp_db, split)
+    assert temp_db.get_cleanup_suggestion(rename) is None
+
+
+def test_apply_retire_supersedes_other_pending_suggestions(temp_db):
+    p = _pattern(temp_db)
+    retire = _suggest(temp_db, p, 'retire', {'unused_days': 90, 'last_matched_at': None,
+                                             'confirmation_count': 0})
+    rename = temp_db.upsert_cleanup_suggestion(
+        None, p['id'], 'rename', 0.9, [], {'sponsor': 'Acme'},
+        pattern_cleanup._before_snapshot(p))
+    apply_suggestion(temp_db, retire)
+    assert temp_db.get_cleanup_suggestion(rename) is None
+
+
+def test_apply_flag_trim_does_not_supersede_other_pending_suggestions(temp_db):
+    p = _pattern(temp_db, false_positive_count=3)
+    flag = _suggest(temp_db, p, 'flag', {'false_positive_count': 3, 'confirmation_count': 0,
+                                         'contaminated': False, 'contamination_reason': None,
+                                         'recommended': 'trim', 'trim_text': AD})
+    rename = temp_db.upsert_cleanup_suggestion(
+        None, p['id'], 'rename', 0.9, [], {'sponsor': 'Acme'},
+        pattern_cleanup._before_snapshot(p))
+    apply_suggestion(temp_db, flag)
+    assert temp_db.get_cleanup_suggestion(rename)['status'] == 'pending'
+
+
+def test_contaminated_trim_on_flagged_pattern_keeps_the_flag_disabled(temp_db, live_route):
+    _pattern(temp_db, false_positive_count=3, confirmation_count=1)
+    fake, _ = _fake_llm(_reply(action='trim', text=AD, contaminated=True,
+                               contamination_reason='mixes show content'))
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    sugg = temp_db.get_cleanup_suggestions()
+    assert [s['kind'] for s in sugg] == ['flag']
+    assert sugg[0]['payload']['recommended'] == 'disable'
+    assert sugg[0]['payload']['contaminated'] is True
+    assert 'trim_text' not in sugg[0]['payload']
+
+
+def test_is_cleanup_running_skips_the_lock_probe_when_no_running_row(temp_db):
+    with patch.object(pattern_cleanup, '_try_run_lock') as probe:
+        assert pattern_cleanup.is_cleanup_running(temp_db) is False
+    probe.assert_not_called()
+
+
+def test_is_cleanup_running_ignores_a_stale_running_row(temp_db):
+    temp_db.create_cleanup_run(forced=False, trigger='schedule',
+                               started_at=_iso(utc_now() - timedelta(hours=7)))
+    with patch.object(pattern_cleanup, '_try_run_lock') as probe:
+        assert pattern_cleanup.is_cleanup_running(temp_db) is False
+    probe.assert_not_called()
+
+
+def test_is_cleanup_running_probes_the_lock_when_a_running_row_is_fresh(temp_db):
+    temp_db.create_cleanup_run(forced=False, trigger='schedule')
+    fd = open(os.path.join(str(temp_db.data_dir), LOCK_FILENAME), 'w')
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        assert pattern_cleanup.is_cleanup_running(temp_db) is True
+    finally:
+        fd.close()
+    assert pattern_cleanup.is_cleanup_running(temp_db) is False
+
+
 def test_reject_stamps_pattern(temp_db):
     p = _pattern(temp_db)
     sid = _suggest(temp_db, p, 'trim', {'text': AD})
@@ -881,7 +976,8 @@ def test_flag_then_split_refused_on_disabled_pattern(temp_db):
     split = _suggest(temp_db, p, 'split', {'pieces': [
         {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Widgetco'}]})
     apply_suggestion(temp_db, flag)
-    with pytest.raises(SuggestionStateError):
+    # The disable superseded (deleted) the still-pending split suggestion.
+    with pytest.raises(pattern_cleanup.SuggestionNotFoundError):
         apply_suggestion(temp_db, split)
 
 

@@ -129,6 +129,14 @@ def test_candidate_rows_scope_and_order(temp_db):
     assert ids == [b, a]
 
 
+def test_candidate_rows_capped_to_batch_size_plus_margin(temp_db):
+    from database.pattern_cleanup import CANDIDATE_ROW_MARGIN
+    for i in range(500):
+        _pattern(temp_db, text=f'pattern number {i} unique ad copy here today')
+    rows = temp_db.get_cleanup_candidate_rows(force=False, batch_size=25)
+    assert len(rows) <= 25 + CANDIDATE_ROW_MARGIN
+
+
 def test_suggestions_cascade_with_pattern_delete(temp_db):
     pid = _pattern(temp_db)
     sid = temp_db.upsert_cleanup_suggestion(None, pid, 'trim', 0.9, [], {'text': 'x'}, {})

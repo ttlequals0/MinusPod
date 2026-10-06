@@ -60,6 +60,8 @@ MAX_CONSECUTIVE_CALL_ERRORS = 3
 MAX_TOKENS = 4096
 MAX_REASONS = 5
 MAX_REASON_CHARS = 200
+# A running row older than this is treated as dead rather than probed via the lock.
+RUNNING_ROW_MAX_AGE = timedelta(hours=6)
 
 REVIEW_SCHEMA = {
     "type": "object",
@@ -136,6 +138,9 @@ def _before_snapshot(pattern: dict) -> dict:
         'is_active': pattern.get('is_active'),
         'disabled_at': pattern.get('disabled_at'),
         'disabled_reason': pattern.get('disabled_reason'),
+        # Lets a stale retire/flag approval be refused if the counters moved since.
+        'last_matched_at': pattern.get('last_matched_at'),
+        'confirmation_count': pattern.get('confirmation_count'),
     }
 
 
@@ -146,7 +151,7 @@ def select_candidates(db, *, force: bool, batch_size: int) -> list[dict]:
     if force:
         db.clear_cleanup_reviewed()
     out = []
-    for row in db.get_cleanup_candidate_rows():
+    for row in db.get_cleanup_candidate_rows(force=force, batch_size=batch_size):
         # A pattern awaiting the user's decision is not re-reviewed unless forced.
         if row.pop('has_pending') and not force:
             continue
@@ -468,13 +473,15 @@ def _suggestions_for(pattern: dict, stats: list[dict], verdict: dict | None) -> 
     if verdict['contaminated'] and verdict['contamination_reason']:
         reasons.append(verdict['contamination_reason'])
     if flag is not None and verdict['contaminated']:
-        flag['payload'].update(contaminated=True,
+        flag['payload'].update(contaminated=True, recommended='disable',
                                contamination_reason=verdict['contamination_reason'])
         flag['reasons'] += reasons
     action = verdict['action']
     if action == 'trim' and flag is not None:
-        flag['payload'].update(recommended='trim', trim_text=verdict['text'])
-        flag['reasons'] += [r for r in reasons if r not in flag['reasons']]
+        # Contaminated wins: the flag stays 'disable' and the trim is dropped.
+        if not verdict['contaminated']:
+            flag['payload'].update(recommended='trim', trim_text=verdict['text'])
+            flag['reasons'] += [r for r in reasons if r not in flag['reasons']]
     elif action == 'trim':
         out.append(_suggestion('trim', verdict['confidence'], reasons, {'text': verdict['text']}))
     elif action == 'split':
@@ -557,6 +564,14 @@ def _try_run_lock(db):
 
 
 def is_cleanup_running(db) -> bool:
+    """Cheap by default: the run table alone answers the common idle case;
+    the lock is only flocked to confirm a running row that still looks live."""
+    runs = db.get_cleanup_runs(limit=1)
+    if not runs or runs[0]['status'] != 'running':
+        return False
+    started = parse_iso_utc(runs[0]['started_at'])
+    if started is not None and utc_now() - started > RUNNING_ROW_MAX_AGE:
+        return False
     with _lock_gate(db):
         fd = _try_run_lock(db)
         if fd is None:
@@ -835,14 +850,21 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
         if not pattern['is_active']:
             raise SuggestionStateError('the pattern is disabled')
         before = suggestion['before'] or {}
-        if any(pattern[field] != before.get(field, pattern[field])
-               for field in ('text_template', 'sponsor_id')):
+        check_fields = ('text_template', 'sponsor_id')
+        if suggestion['kind'] in ('retire', 'flag'):
+            # A retire/flag verdict is based on counters that keep moving; a stale
+            # approval (matched again, or confirmed again) must be refused.
+            check_fields += ('last_matched_at', 'confirmation_count')
+        if any(pattern[field] != before.get(field, pattern[field]) for field in check_fields):
             raise SuggestionStateError('the pattern changed after this suggestion was made')
         applied = _apply_kind(db, conn, suggestion['kind'], pattern, suggestion['payload'] or {})
         applied['applied_at'] = utc_now_iso()
         # Orders approvals on one pattern so undo can refuse out of order.
         applied['applied_seq'] = time.time_ns()
         db.set_cleanup_suggestion_status(suggestion_id, 'approved', applied=applied, conn=conn)
+        if applied.get('disabled_pattern_id') is not None:
+            # Split or disable: the pattern's other pending suggestions no longer apply.
+            db.supersede_pending(pattern['id'], conn=conn)
     invalidate_pattern_catalog_scope()
     return db.get_cleanup_suggestion(suggestion_id)
 

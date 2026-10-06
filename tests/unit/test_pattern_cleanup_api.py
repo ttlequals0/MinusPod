@@ -77,16 +77,22 @@ def test_status_shape_with_defaults(app_client, podcast):
 def test_status_reflects_lock_and_pending(app_client, podcast):
     p = _pattern(podcast)
     _suggest(podcast, p, kind='trim')
-    fd = open(os.path.join(str(podcast.data_dir), pattern_cleanup.LOCK_FILENAME), 'w')
-    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    # A running row is required: is_cleanup_running only probes the lock when one exists.
+    run_id = podcast.create_cleanup_run(forced=False, trigger='schedule')
     try:
+        fd = open(os.path.join(str(podcast.data_dir), pattern_cleanup.LOCK_FILENAME), 'w')
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            body = app_client.get('/api/v1/patterns/cleanup').get_json()
+            assert body['inProgress'] is True
+        finally:
+            fd.close()
+        assert app_client.get('/api/v1/patterns/cleanup').get_json()['inProgress'] is False
         body = app_client.get('/api/v1/patterns/cleanup').get_json()
-        assert body['inProgress'] is True
+        assert body['pending'] == {'total': 1, 'byKind': {'trim': 1}}
     finally:
-        fd.close()
-    assert app_client.get('/api/v1/patterns/cleanup').get_json()['inProgress'] is False
-    body = app_client.get('/api/v1/patterns/cleanup').get_json()
-    assert body['pending'] == {'total': 1, 'byKind': {'trim': 1}}
+        podcast.get_connection().execute("DELETE FROM pattern_cleanup_runs WHERE id = ?", (run_id,))
+        podcast.get_connection().commit()
 
 
 def test_status_derives_last_run_from_the_run_table(app_client, podcast):
