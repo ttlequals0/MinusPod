@@ -5551,6 +5551,9 @@ paths:
                 chapterPromptOverride:
                   type: string
                   description: Optional override appended to the chapter topic-detection prompt (empty by default)
+                patternCleanupPrompt:
+                  type: string
+                  description: System prompt for the pattern cleanup review. Blank resets it to the default.
                 claudeModel:
                   type: string
                   description: AI model ID to use for first pass ad detection. No model ships by default; unset until configured.
@@ -6651,7 +6654,7 @@ paths:
       tags:
         - Settings
       summary: Reset a single prompt
-      description: Reset one prompt (system, verification, review, resurrect, or chapter) and its override to defaults
+      description: Reset one prompt (system, verification, review, resurrect, chapter, or pattern_cleanup) and its override, when it has one, to defaults
       operationId: resetSinglePrompt
       parameters:
         - name: name
@@ -6660,7 +6663,7 @@ paths:
           description: Prompt to reset
           schema:
             type: string
-            enum: [system, verification, review, resurrect, chapter]
+            enum: [system, verification, review, resurrect, chapter, pattern_cleanup]
       responses:
         '200':
           description: Prompt reset to default
@@ -13748,6 +13751,14 @@ components:
               type: string
             isDefault:
               type: boolean
+        patternCleanupPrompt:
+          type: object
+          description: System prompt for the pattern cleanup review of learned patterns.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
         systemPromptOverride:
           type: object
           description: |
@@ -13843,6 +13854,56 @@ components:
           properties:
             value:
               type: string
+            isDefault:
+              type: boolean
+        patternCleanupEnabled:
+          type: object
+          description: Whether the scheduled pattern cleanup review runs (Experiments).
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        patternCleanupCron:
+          type: object
+          description: Five-field cron expression (UTC) for the pattern cleanup schedule. Default `0 4 * * 0`.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        patternCleanupBatchSize:
+          type: object
+          description: Learned patterns reviewed per cleanup run, 1 to 200. Default 25.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        patternCleanupUnusedDays:
+          type: object
+          description: Days without a match before cleanup suggests retiring a pattern, 7 to 3650. Default 90.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        patternCleanupProvider:
+          type: object
+          description: 'Routing slot for pattern cleanup, one of `primary`, `secondary`, or `same_as_detection`. Null when unset, which inherits detectionProvider.'
+          properties:
+            value:
+              type: string
+              nullable: true
+            isDefault:
+              type: boolean
+        patternCleanupModel:
+          type: object
+          description: Model for pattern cleanup. Null when unset, which inherits the detection model.
+          properties:
+            value:
+              type: string
+              nullable: true
             isDefault:
               type: boolean
         whisperModel:
@@ -15211,6 +15272,8 @@ components:
             verificationPrompt:
               type: string
             chapterPrompt:
+              type: string
+            patternCleanupPrompt:
               type: string
             systemPromptOverride:
               type: string

@@ -28,7 +28,7 @@ import run_context
 
 logger = logging.getLogger(__name__)
 
-PHASES = ('detection', 'review', 'verification', 'chapters')
+PHASES = ('detection', 'review', 'verification', 'chapters', 'pattern_cleanup')
 
 SAME_AS_PASS = 'same_as_pass'
 SAME_AS_DETECTION = 'same_as_detection'
@@ -356,7 +356,7 @@ def resolved_stage_slot(db, stage: str) -> str:
     """
     if stage == 'detection':
         slot = _detection_slot(db)
-    elif stage in ('verification', 'chapters'):
+    elif stage in ('verification', 'chapters', 'pattern_cleanup'):
         slot = _inherited_slot(db, f'{stage}_provider', _detection_slot(db))
     elif stage == 'review':
         configured = db.get_setting('review_provider') or SAME_AS_PASS
@@ -391,6 +391,11 @@ def _verification_model(db) -> str:
 
 def _chapters_model(db) -> str:
     model = db.get_setting('chapters_model')
+    return model if model else _detection_model(db)
+
+
+def _pattern_cleanup_model(db) -> str:
+    model = db.get_setting('pattern_cleanup_model')
     return model if model else _detection_model(db)
 
 
@@ -484,6 +489,10 @@ def resolve_route(phase: str, *, pass_model: str | None = None,
         configured_slot = _inherited_slot(db, 'chapters_provider', _detection_slot(db))
         provider, base_url, credential_slot = _resolve_slot_config(db, configured_slot)
         model = _chapters_model(db)
+    elif phase == 'pattern_cleanup':
+        configured_slot = _inherited_slot(db, 'pattern_cleanup_provider', _detection_slot(db))
+        provider, base_url, credential_slot = _resolve_slot_config(db, configured_slot)
+        model = _pattern_cleanup_model(db)
     else:  # review
         return resolve_review_route(
             review_provider_setting=db.get_setting('review_provider'),

@@ -201,7 +201,7 @@ def _build_settings_payload():
     from database import (
         DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT,
         DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT,
-        DEFAULT_CHAPTER_PROMPT,
+        DEFAULT_CHAPTER_PROMPT, DEFAULT_PATTERN_CLEANUP_PROMPT,
     )
     from config import (
         AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
@@ -613,6 +613,8 @@ def _build_settings_payload():
     review_prompt = _setting_value(settings, 'review_prompt', DEFAULT_REVIEW_PROMPT) or DEFAULT_REVIEW_PROMPT
     resurrect_prompt = _setting_value(settings, 'resurrect_prompt', DEFAULT_RESURRECT_PROMPT) or DEFAULT_RESURRECT_PROMPT
     chapter_prompt = _setting_value(settings, 'chapter_prompt', DEFAULT_CHAPTER_PROMPT) or DEFAULT_CHAPTER_PROMPT
+    pattern_cleanup_prompt = (_setting_value(settings, 'pattern_cleanup_prompt')
+                              or DEFAULT_PATTERN_CLEANUP_PROMPT)
 
     # Audio cue detection experiment (#350)
     audio_cue_enabled = str(_setting_value(
@@ -685,6 +687,7 @@ def _build_settings_payload():
         'reviewPrompt': _sv('review_prompt', review_prompt),
         'resurrectPrompt': _sv('resurrect_prompt', resurrect_prompt),
         'chapterPrompt': _sv('chapter_prompt', chapter_prompt),
+        'patternCleanupPrompt': _sv('pattern_cleanup_prompt', pattern_cleanup_prompt),
         'systemPromptOverride': _sv('system_prompt_override', _setting_value(settings, 'system_prompt_override', '') or ''),
         'verificationPromptOverride': _sv('verification_prompt_override', _setting_value(settings, 'verification_prompt_override', '') or ''),
         'reviewPromptOverride': _sv('review_prompt_override', _setting_value(settings, 'review_prompt_override', '') or ''),
@@ -760,6 +763,15 @@ def _build_settings_payload():
         'adChapterMinConfidence': _sv('ad_chapter_min_confidence', ad_chapter_min_confidence),
         'chaptersModel': _sv('chapters_model', chapters_model),
         'chaptersProvider': _sv('chapters_provider', chapters_provider),
+        'patternCleanupEnabled': _sv(
+            'pattern_cleanup_enabled', coerce_bool_setting(_str_setting('pattern_cleanup_enabled'))),
+        'patternCleanupCron': _sv('pattern_cleanup_cron', _str_setting('pattern_cleanup_cron')),
+        'patternCleanupBatchSize': _sv(
+            'pattern_cleanup_batch_size', _int_setting('pattern_cleanup_batch_size')),
+        'patternCleanupUnusedDays': _sv(
+            'pattern_cleanup_unused_days', _int_setting('pattern_cleanup_unused_days')),
+        'patternCleanupProvider': _sv('pattern_cleanup_provider'),
+        'patternCleanupModel': _sv('pattern_cleanup_model'),
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
         'omitTemperature': _sv('omit_temperature', omit_temperature),
@@ -1179,6 +1191,7 @@ def _apply_prompt_fields(db, data):
         ('reviewPrompt', 'review_prompt', 'review prompt'),
         ('resurrectPrompt', 'resurrect_prompt', 'resurrect prompt'),
         ('chapterPrompt', 'chapter_prompt', 'chapter prompt'),
+        ('patternCleanupPrompt', 'pattern_cleanup_prompt', 'pattern cleanup prompt'),
     ):
         if payload_key in data:
             if not str(data[payload_key] or '').strip():
@@ -3232,6 +3245,7 @@ def reset_prompts_only():
     db.reset_setting('review_prompt')
     db.reset_setting('resurrect_prompt')
     db.reset_setting('chapter_prompt')
+    db.reset_setting('pattern_cleanup_prompt')
 
     # Clear per-pass overrides too (empty is the no-override default state).
     for key in ('system_prompt_override', 'verification_prompt_override',
@@ -3250,7 +3264,7 @@ def reset_single_prompt(name):
     from database import (
         DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT,
         DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT,
-        DEFAULT_CHAPTER_PROMPT,
+        DEFAULT_CHAPTER_PROMPT, DEFAULT_PATTERN_CLEANUP_PROMPT,
     )
     defaults = {
         'system': DEFAULT_SYSTEM_PROMPT,
@@ -3258,6 +3272,7 @@ def reset_single_prompt(name):
         'review': DEFAULT_REVIEW_PROMPT,
         'resurrect': DEFAULT_RESURRECT_PROMPT,
         'chapter': DEFAULT_CHAPTER_PROMPT,
+        'pattern_cleanup': DEFAULT_PATTERN_CLEANUP_PROMPT,
     }
     if name not in defaults:
         return error_response('unknown prompt name', 404)
@@ -3265,7 +3280,8 @@ def reset_single_prompt(name):
     db = get_database()
     prompt_key = f'{name}_prompt'
     db.reset_setting(prompt_key)
-    db.set_setting(f'{name}_prompt_override', '', is_default=True)
+    if f'{name}_prompt_override' in SETTINGS_REGISTRY:
+        db.set_setting(f'{name}_prompt_override', '', is_default=True)
     logger.info(f"Reset {prompt_key} to default")
 
     settings = _settings_view(db.get_all_settings())

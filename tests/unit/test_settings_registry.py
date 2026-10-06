@@ -51,6 +51,7 @@ SEED_SNAPSHOT = {
     '_review_prompt_migrated': 'true',
     'audio_bitrate': '128k',
     'chapter_prompt': ('sha256', 'ba78ae10ed245f1b215407d2980358cdf6aff6b5f64dfc1662c6f6848cb418b4'),
+    'pattern_cleanup_prompt': ('sha256', 'c05051eb7ebe5b5beda7203b309a69d0a8b34db2c1f3f893675a2562575496ff'),
     'audio_normalize_enabled': 'false',
     'audio_normalize_intensity': 'normal',
     'auto_process_enabled': 'true',
@@ -242,6 +243,8 @@ NON_RESETTABLE_KEYS = (
     'system_prompt_override', 'verification_prompt_override',
     'review_prompt_override', 'resurrect_prompt_override',
     'chapter_prompt_override',
+    'pattern_cleanup_last_run', 'pattern_cleanup_last_error',
+    'pattern_cleanup_last_summary',
     'transition_threshold_db', 'volume_threshold_db',
     'nonexistent_key_xyz',
 )
@@ -517,11 +520,12 @@ class TestGetDefaults:
         # adDetectionExcludeStartSeconds added after that (127 -> 128).
         # Failover and per-slot overrides add the latest settings.
         # transcriptDifferentialEnabled added after that (156 -> 157).
+        # Six patternCleanup* settings plus patternCleanupPrompt (157 -> 164).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 157
+        assert len(payload_keys) == 164
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
@@ -585,7 +589,8 @@ class TestShippedPromptsTrackTheDefault:
     def test_the_prompts_are_marked_refreshable(self):
         from database.settings import SETTINGS_REGISTRY
         for key in ('system_prompt', 'verification_prompt',
-                    'review_prompt', 'resurrect_prompt', 'chapter_prompt'):
+                    'review_prompt', 'resurrect_prompt', 'chapter_prompt',
+                    'pattern_cleanup_prompt'):
             assert SETTINGS_REGISTRY[key].refresh_default, key
 
     def test_nothing_else_is_refreshable(self):
@@ -594,7 +599,7 @@ class TestShippedPromptsTrackTheDefault:
         refreshable = {k for k, s in SETTINGS_REGISTRY.items() if s.refresh_default}
         assert refreshable == {'system_prompt', 'verification_prompt',
                                'review_prompt', 'resurrect_prompt',
-                               'chapter_prompt'}
+                               'chapter_prompt', 'pattern_cleanup_prompt'}
 
     def test_refreshable_defaults_report_current_text(self):
         from database.settings import iter_refreshable_defaults

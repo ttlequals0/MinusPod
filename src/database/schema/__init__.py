@@ -35,7 +35,7 @@ _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
-from database.schema.tables import SCHEMA_SQL, TABLE_DDL
+from database.schema.tables import PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL
 from database.search import (
     SEARCH_CHANGE_JOURNAL_DDL,
     SEARCH_CHANGE_TRIGGERS_SQL,
@@ -182,6 +182,8 @@ class SchemaMixin:
         'feed_subscriber_keys',
         'provider_spend_reservations',
         'failover_events',
+        'pattern_cleanup_runs',
+        'pattern_cleanup_suggestions',
     )
 
     def _create_new_tables_only(self, conn):
@@ -239,6 +241,8 @@ class SchemaMixin:
             "CREATE INDEX IF NOT EXISTS idx_failover_events_created "
             "ON failover_events(created_at DESC)"
         )
+        for statement in PATTERN_CLEANUP_INDEXES:
+            conn.execute(statement)
         conn.execute("DROP INDEX IF EXISTS idx_upload_reservations_active_target")
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_upload_reservations_active_target "
@@ -2216,6 +2220,16 @@ class SchemaMixin:
             except Exception as e:
                 conn.rollback()
                 logger.warning(f"{_scan_table}.claim_epoch migration: {e}")
+
+        # Pattern cleanup review stamps. After the sponsor FK table rebuild,
+        # which copies only the columns it knows.
+        try:
+            ap_cols = self._get_table_columns(conn, 'ad_patterns')
+            self._add_column_if_missing(conn, 'ad_patterns', 'cleanup_reviewed_at', 'TEXT', ap_cols)
+            self._add_column_if_missing(conn, 'ad_patterns', 'cleanup_reviewed_hash', 'TEXT', ap_cols)
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"ad_patterns cleanup review columns migration: {e}")
 
         # Refresh the default review prompt with the PARTIAL SPAN contract:
         # when the reviewer concludes part of the span is not ad content, it

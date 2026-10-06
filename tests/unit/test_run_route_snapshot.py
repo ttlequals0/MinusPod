@@ -247,3 +247,14 @@ def test_cancellation_writes_no_history_row(temp_db, monkeypatch, dispatched):
     assert temp_db.get_connection().execute(
         'SELECT COUNT(*) FROM processing_history').fetchone()[0] == 0
     assert temp_db.get_episode('cancel-usage', 'episode')['status'] == 'pending'
+
+
+def test_route_snapshot_holds_only_episode_phases():
+    from llm_route import Route
+
+    def fake_resolve(phase, **_):
+        return Route(phase=phase, provider_key='anthropic', model_id='m', base_url=None,
+                     slot='primary', credential_slot='primary', account_id='a')
+    with patch.object(processing, 'resolve_route', side_effect=fake_resolve):
+        snapshot = processing._resolve_route_snapshot()
+    assert set(snapshot) == {'detection', 'review', 'verification', 'chapters'}

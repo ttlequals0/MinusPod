@@ -151,6 +151,11 @@ def _default_chapter_prompt() -> str:
     return DEFAULT_CHAPTER_PROMPT
 
 
+def _default_pattern_cleanup_prompt() -> str:
+    from database import DEFAULT_PATTERN_CLEANUP_PROMPT
+    return DEFAULT_PATTERN_CLEANUP_PROMPT
+
+
 def _seed_env_openai_model() -> str | None:
     """OPENAI_MODEL when the operator has set it; no shipped fallback."""
     return os.environ.get('OPENAI_MODEL')
@@ -265,6 +270,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'chapter_prompt': SettingSpec(
         factory=_default_chapter_prompt, seeded=True, refresh_default=True,
         payload_key='chapterPrompt'),
+    'pattern_cleanup_prompt': SettingSpec(
+        factory=_default_pattern_cleanup_prompt, seeded=True, refresh_default=True,
+        payload_key='patternCleanupPrompt'),
     # Per-pass prompt overrides: intentionally NOT resettable via
     # reset_setting (reset_prompts_only clears them explicitly; empty string
     # is the no-override default state, not a registry default).
@@ -336,6 +344,21 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='', seeded=True, payload_key='failoverLlmVerificationModel'),
     'failover_llm_chapters_model': SettingSpec(
         default='', seeded=True, payload_key='failoverLlmChaptersModel'),
+    # Pattern cleanup (Experiments): DB-only. Blank provider/model inherit detection.
+    'pattern_cleanup_enabled': SettingSpec(
+        default='false', payload_key='patternCleanupEnabled', payload_kind='bool'),
+    'pattern_cleanup_cron': SettingSpec(
+        default='0 4 * * 0', payload_key='patternCleanupCron'),
+    'pattern_cleanup_batch_size': SettingSpec(
+        default='25', payload_key='patternCleanupBatchSize', payload_kind='int'),
+    'pattern_cleanup_unused_days': SettingSpec(
+        default='90', payload_key='patternCleanupUnusedDays', payload_kind='int'),
+    'pattern_cleanup_provider': SettingSpec(default=None, payload_key='patternCleanupProvider'),
+    'pattern_cleanup_model': SettingSpec(default=None, payload_key='patternCleanupModel'),
+    # Status written by the service.
+    'pattern_cleanup_last_run': SettingSpec(resettable=False),
+    'pattern_cleanup_last_error': SettingSpec(resettable=False),
+    'pattern_cleanup_last_summary': SettingSpec(resettable=False),
     'failover_whisper_enabled': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='failoverWhisperEnabled', payload_kind='bool'),

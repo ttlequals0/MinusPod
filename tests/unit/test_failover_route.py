@@ -206,3 +206,13 @@ def test_standby_account_change_mid_run_is_refused():
                 raise AssertionError('standby account change was not refused')
     finally:
         run_context.end(ctx)
+
+
+def test_pattern_cleanup_failover_uses_failover_detection_model():
+    cleanup = Route(**{**PRIMARY.__dict__, 'phase': 'pattern_cleanup'})
+    with _active({'llm:primary'}), _configured(), \
+            patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
+        route = apply_failover(cleanup)
+    assert route.credential_slot == 'failover'
+    assert route.model_id == 'qwen3:8b'
+    assert route.phase == 'pattern_cleanup'

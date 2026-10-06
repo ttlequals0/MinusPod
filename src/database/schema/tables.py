@@ -278,7 +278,9 @@ TABLE_DDL['ad_patterns'] = """CREATE TABLE IF NOT EXISTS ad_patterns (
     source_language TEXT,
     content_hash TEXT,
     category TEXT,
-    community_last_confirmed_at TEXT
+    community_last_confirmed_at TEXT,
+    cleanup_reviewed_at TEXT,
+    cleanup_reviewed_hash TEXT
 )"""
 
 TABLE_DDL['pattern_corrections'] = """CREATE TABLE IF NOT EXISTS pattern_corrections (
@@ -367,6 +369,47 @@ TABLE_DDL['failover_events'] = """CREATE TABLE IF NOT EXISTS failover_events (
     reason TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 )"""
+
+TABLE_DDL['pattern_cleanup_runs'] = """CREATE TABLE IF NOT EXISTS pattern_cleanup_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    finished_at TEXT,
+    status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'completed', 'failed')),
+    forced INTEGER NOT NULL DEFAULT 0,
+    trigger TEXT,
+    model TEXT,
+    provider TEXT,
+    credential_slot TEXT,
+    reviewed_count INTEGER NOT NULL DEFAULT 0,
+    suggested_count INTEGER NOT NULL DEFAULT 0,
+    skipped_count INTEGER NOT NULL DEFAULT 0,
+    error TEXT
+)"""
+
+TABLE_DDL['pattern_cleanup_suggestions'] = """CREATE TABLE IF NOT EXISTS pattern_cleanup_suggestions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER REFERENCES pattern_cleanup_runs(id) ON DELETE SET NULL,
+    pattern_id INTEGER NOT NULL REFERENCES ad_patterns(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK(kind IN ('trim', 'split', 'rename', 'retire', 'flag')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'undone')),
+    confidence REAL,
+    reasons TEXT NOT NULL DEFAULT '[]',
+    payload TEXT NOT NULL DEFAULT '{}',
+    before TEXT,
+    applied TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    reviewed_at TEXT
+)"""
+
+# One pending suggestion per (pattern, kind); a later run replaces it.
+PATTERN_CLEANUP_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS idx_cleanup_suggestions_pattern "
+    "ON pattern_cleanup_suggestions(pattern_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cleanup_suggestions_status "
+    "ON pattern_cleanup_suggestions(status, created_at)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_cleanup_suggestions_pending "
+    "ON pattern_cleanup_suggestions(pattern_id, kind) WHERE status = 'pending'",
+)
 
 TABLE_DDL['audio_fingerprints'] = """CREATE TABLE IF NOT EXISTS audio_fingerprints (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -722,6 +765,11 @@ CREATE INDEX IF NOT EXISTS idx_provider_spend_run
 """ + TABLE_DDL['failover_events'] + """;
 CREATE INDEX IF NOT EXISTS idx_failover_events_created
     ON failover_events(created_at DESC);
+
+-- pattern cleanup: LLM review runs and their suggestions for learned patterns
+""" + TABLE_DDL['pattern_cleanup_runs'] + """;
+""" + TABLE_DDL['pattern_cleanup_suggestions'] + """;
+""" + ';\n'.join(PATTERN_CLEANUP_INDEXES) + """;
 
 -- audio_fingerprints table (Chromaprint hashes for DAI-inserted ads)
 """ + TABLE_DDL['audio_fingerprints'] + """;

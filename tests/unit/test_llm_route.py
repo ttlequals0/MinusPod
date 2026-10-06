@@ -497,3 +497,36 @@ class TestClientForRoutePrecedence:
                 patch.object(llm_route.llm_client, 'get_client_for_provider') as get_client:
             assert llm_route.client_for_route('detection') is None
         get_client.assert_not_called()
+
+
+def test_pattern_cleanup_inherits_detection_slot_and_model_by_default():
+    settings = {
+        'claude_model': 'claude-sonnet-5',
+        'detection_provider': 'secondary',
+        'secondary_provider_enabled': 'true',
+        'secondary_provider': 'openrouter',
+    }
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
+        route = resolve_route('pattern_cleanup')
+    assert route.phase == 'pattern_cleanup'
+    assert route.provider_key == 'openrouter' and route.credential_slot == 'secondary'
+    assert route.model_id == 'claude-sonnet-5'
+
+
+def test_pattern_cleanup_uses_its_own_slot_and_model():
+    settings = {
+        'claude_model': 'claude-sonnet-5',
+        'detection_provider': 'secondary',
+        'secondary_provider_enabled': 'true',
+        'secondary_provider': 'openrouter',
+        'pattern_cleanup_provider': 'primary',
+        'pattern_cleanup_model': 'claude-opus-4-8',
+    }
+    db = _db(settings)
+    with patch.object(llm_route.database, 'Database', return_value=db), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
+        route = resolve_route('pattern_cleanup')
+        assert llm_route.resolved_stage_slot(db, 'pattern_cleanup') == 'primary'
+    assert route.provider_key == 'anthropic' and route.credential_slot == 'primary'
+    assert route.model_id == 'claude-opus-4-8'

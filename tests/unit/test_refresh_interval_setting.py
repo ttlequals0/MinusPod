@@ -185,3 +185,22 @@ class TestBackgroundRefreshLoop:
         # Tick wait is fixed; the clamped interval (1440 min) drives due sizing.
         assert fake_event.wait_calls == [background_module.REFRESH_TICK_SECONDS]
         assert due.call_args.args[1] == 1440 * 60
+
+    def test_maintenance_runs_pattern_cleanup_tick(self, monkeypatch):
+        import main_app.feeds as feeds_mod
+        import pattern_cleanup
+        import pricing_fetcher
+        import update_checker
+
+        monkeypatch.setattr(feeds_mod, 'refresh_due_feeds',
+                            MagicMock(return_value={'outage': {'detected': False}}))
+        monkeypatch.setattr(background_module, 'run_cleanup', MagicMock())
+        monkeypatch.setattr(pricing_fetcher, 'refresh_pricing_if_stale', MagicMock())
+        monkeypatch.setattr(update_checker, 'update_check_tick', MagicMock())
+        tick = MagicMock(return_value=None)
+        monkeypatch.setattr(pattern_cleanup, 'pattern_cleanup_tick', tick)
+        monkeypatch.setattr(background_module, 'shutdown_event', _FakeShutdownEvent())
+
+        background_module.background_rss_refresh()
+
+        tick.assert_called_once_with(main_db)

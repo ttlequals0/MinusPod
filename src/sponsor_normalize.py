@@ -97,6 +97,24 @@ def _possessive_base(name):
     return bases[0] if bases else None
 
 
+def sanitize_sponsor_name(name):
+    """The cleaned sponsor name get_or_create_known_sponsor would store, or None if rejected."""
+    if not isinstance(name, str):
+        return None
+    s = name.strip(_STRIP_CHARS)
+    if any(
+        (ord(c) < 0x20 and c not in '\t\n\r') or ord(c) == 0x7F
+        for c in s
+    ):
+        return None
+    s = ' '.join(s.split())
+    if not s or len(s) > _MAX_LENGTH:
+        return None
+    if is_non_brand_name(s) or is_hosting_platform_name(s):
+        return None
+    return s
+
+
 def get_or_create_known_sponsor(db, name, conn=None):
     """Resolve a free-text sponsor name to a `known_sponsors.id`.
 
@@ -113,20 +131,8 @@ def get_or_create_known_sponsor(db, name, conn=None):
       Existing row id on case-insensitive match, or a new row id if
       inserted, or `None` for any rejected input.
     """
-    if not isinstance(name, str):
-        return None
-    s = name.strip(_STRIP_CHARS)
-    if any(
-        (ord(c) < 0x20 and c not in '\t\n\r') or ord(c) == 0x7F
-        for c in s
-    ):
-        return None
-    s = ' '.join(s.split())
-    if not s:
-        return None
-    if len(s) > _MAX_LENGTH:
-        return None
-    if is_non_brand_name(s) or is_hosting_platform_name(s):
+    s = sanitize_sponsor_name(name)
+    if s is None:
         return None
     existing = db.get_known_sponsor_by_name(s, conn=conn)
     if existing:

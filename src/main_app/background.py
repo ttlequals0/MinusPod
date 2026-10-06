@@ -259,6 +259,7 @@ def background_rss_refresh():
     from pricing_fetcher import refresh_pricing_if_stale
     from community_sync import community_pattern_sync_tick
     from db_backup_service import db_backup_tick
+    from pattern_cleanup import pattern_cleanup_tick
     from update_checker import update_check_tick
     outage_passes = 0
     last_maintenance = 0.0
@@ -278,6 +279,7 @@ def background_rss_refresh():
             # safe to call on the maintenance cadence.
             _run_tick(community_pattern_sync_tick, 'community_pattern_sync_tick')
             _run_tick(db_backup_tick, 'db_backup_tick')
+            _run_tick(pattern_cleanup_tick, 'pattern_cleanup_tick')
             _run_tick(update_check_tick, 'update_check_tick')
         # Guard point for issue #566: a tick that swallowed a write failure
         # may have left a transaction open. Clear it before the wait so it

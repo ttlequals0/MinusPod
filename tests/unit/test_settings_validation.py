@@ -302,6 +302,28 @@ class TestChapterPromptSettings:
         assert data['chapterPromptOverride']['value'] == ''
 
 
+class TestPatternCleanupPromptSettings:
+    """The pattern cleanup prompt is editable like the other prompts but has no override."""
+
+    def test_get_put_and_single_reset(self, client):
+        data = json.loads(client.get('/api/v1/settings').data)
+        assert data['patternCleanupPrompt']['value'] == database.DEFAULT_PATTERN_CLEANUP_PROMPT
+        assert data['patternCleanupEnabled']['value'] is False
+        assert data['patternCleanupBatchSize']['value'] == 25
+
+        response = client.put('/api/v1/settings/ad-detection',
+                              data=json.dumps({'patternCleanupPrompt': 'custom cleanup'}),
+                              content_type='application/json')
+        assert response.status_code == 200, response.data
+        data = json.loads(client.get('/api/v1/settings').data)
+        assert data['patternCleanupPrompt']['value'] == 'custom cleanup'
+
+        response = client.post('/api/v1/settings/prompts/pattern_cleanup/reset')
+        assert response.status_code == 200, response.data
+        assert json.loads(response.data)['value'] == database.DEFAULT_PATTERN_CLEANUP_PROMPT
+        assert database.Database().get_setting('pattern_cleanup_prompt_override') is None
+
+
 class TestSinglePromptReset:
     """#626: per-prompt reset lets one prompt be restored without clobbering
     the others (the bulk /settings/prompts/reset resets all five)."""
