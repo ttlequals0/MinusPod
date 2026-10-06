@@ -34,6 +34,20 @@ def cleanup_settings_view(db) -> dict:
     }
 
 
+def _camel_key(key: str) -> str:
+    head, *rest = key.split('_')
+    return head + ''.join(word.capitalize() for word in rest)
+
+
+def _camelize(value):
+    """Recursively camelCase dict keys; the API is camelCase everywhere, DB storage is not."""
+    if isinstance(value, dict):
+        return {_camel_key(k): _camelize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_camelize(v) for v in value]
+    return value
+
+
 def _pattern_summary_view(pattern: dict) -> dict:
     return {
         'id': pattern.get('id'),
@@ -56,8 +70,8 @@ def _suggestion_view(s: dict) -> dict:
         'status': s['status'],
         'confidence': s.get('confidence'),
         'reasons': s.get('reasons') or [],
-        'payload': s.get('payload') or {},
-        'before': s.get('before'),
+        'payload': _camelize(s.get('payload') or {}),
+        'before': _camelize(s.get('before')),
         'applied': s.get('applied'),
         'createdAt': s.get('created_at'),
         'reviewedAt': s.get('reviewed_at'),

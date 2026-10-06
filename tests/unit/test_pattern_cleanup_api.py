@@ -183,7 +183,7 @@ def test_suggestions_list_shape_and_pattern_join(app_client, podcast):
     s = body['suggestions'][0]
     assert s['kind'] == 'trim' and s['status'] == 'pending'
     assert s['payload'] == {'text': 'Acme'}
-    assert s['before']['text_template'] == p['text_template']
+    assert s['before']['textTemplate'] == p['text_template']
     assert s['reasons'] == ['looks like show content']
     pat = s['pattern']
     assert pat['id'] == p['id'] and pat['sponsor'] == 'Acme' and pat['scope'] == 'podcast'
@@ -203,6 +203,28 @@ def test_suggestions_list_filters_by_kind(app_client, podcast):
 def test_suggestions_list_rejects_unknown_status_and_kind(app_client, podcast):
     assert app_client.get('/api/v1/patterns/cleanup/suggestions?status=bogus').status_code == 400
     assert app_client.get('/api/v1/patterns/cleanup/suggestions?kind=bogus').status_code == 400
+
+
+def test_retire_and_flag_payloads_are_camelcase(app_client, podcast):
+    r_pattern = _pattern(podcast, text='retire me ' + 'Acme ad copy', sponsor='Acme')
+    _suggest(podcast, r_pattern, kind='retire', payload={
+        'unused_days': 90, 'last_matched_at': None, 'confirmation_count': 0})
+    f_pattern = _pattern(podcast, text='flag me ' + 'Widgetco ad copy', sponsor='Widgetco')
+    _suggest(podcast, f_pattern, kind='flag', payload={
+        'false_positive_count': 3, 'confirmation_count': 1, 'contaminated': True,
+        'contamination_reason': 'mixes show content', 'recommended': 'trim', 'trim_text': 'Widgetco ad copy'})
+
+    body = app_client.get('/api/v1/patterns/cleanup/suggestions').get_json()
+    by_kind = {s['kind']: s['payload'] for s in body['suggestions']}
+
+    assert by_kind['retire'] == {'unusedDays': 90, 'lastMatchedAt': None, 'confirmationCount': 0}
+    assert by_kind['flag'] == {
+        'falsePositiveCount': 3, 'confirmationCount': 1, 'contaminated': True,
+        'contaminationReason': 'mixes show content', 'recommended': 'trim',
+        'trimText': 'Widgetco ad copy',
+    }
+    for payload in by_kind.values():
+        assert not any('_' in key for key in payload)
 
 
 # Approve / reject / undo
@@ -251,6 +273,20 @@ def test_approve_requires_csrf(app_client, csrf_required):
     p = _pattern(csrf_required)
     sid = _suggest(csrf_required, p, kind='trim', payload={'text': 'Acme'})
     r = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{sid}/approve')
+    assert r.status_code == 403
+
+
+def test_reject_requires_csrf(app_client, csrf_required):
+    p = _pattern(csrf_required)
+    sid = _suggest(csrf_required, p, kind='trim', payload={'text': 'Acme'})
+    r = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{sid}/reject')
+    assert r.status_code == 403
+
+
+def test_undo_requires_csrf(app_client, csrf_required):
+    p = _pattern(csrf_required)
+    sid = _suggest(csrf_required, p, kind='trim', payload={'text': 'Acme'})
+    r = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{sid}/undo')
     assert r.status_code == 403
 
 

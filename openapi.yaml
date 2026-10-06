@@ -11786,9 +11786,8 @@ components:
               type: string
               nullable: true
             lastSummary:
-              type: object
+              $ref: '#/components/schemas/PatternCleanupRunSummary'
               nullable: true
-              description: The last run's summary (see PatternCleanupRun fields plus durationMs).
             pending:
               type: object
               properties:
@@ -11839,6 +11838,51 @@ components:
           type: string
           nullable: true
           description: Set only when the whole run failed (e.g. rate limited).
+
+    PatternCleanupRunSummary:
+      type: object
+      description: >-
+        A run's outcome, stored verbatim as pattern_cleanup_last_summary and
+        returned as GET /patterns/cleanup's lastSummary. Field names differ
+        from PatternCleanupRun (no Count suffix; adds durationMs) because
+        this is the raw summary the service builds, not a run row view.
+      properties:
+        runId:
+          type: integer
+        status:
+          type: string
+          enum: [running, completed, failed]
+        trigger:
+          type: string
+          enum: [schedule, manual]
+        forced:
+          type: boolean
+        reviewed:
+          type: integer
+        suggested:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: integer
+        model:
+          type: string
+          nullable: true
+        provider:
+          type: string
+          nullable: true
+        credentialSlot:
+          type: string
+          nullable: true
+        startedAt:
+          type: string
+        finishedAt:
+          type: string
+        durationMs:
+          type: integer
+        error:
+          type: string
+          nullable: true
 
     PatternCleanupSuggestion:
       type: object
