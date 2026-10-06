@@ -224,3 +224,23 @@ def test_deleted_duplicate_rows_disappear_from_the_search_index(temp_db):
         ('indexkept000001',)).fetchone()['c']
     assert orphan_count == 0
     assert kept_count == 1
+
+
+def test_runs_on_a_db_without_search_index_yet(temp_db):
+    """search_index is created later in _run_schema_migrations; the cleanup
+    must not crash startup on an old DB that has not reached that step."""
+    slug = _seed_podcast(temp_db)
+    temp_db.upsert_episode(
+        slug, 'nosearchkept01', title='No Search Index', published_at='2026-01-01T00:00:00Z',
+        original_url='https://example.com/old.mp3', status='processed')
+    temp_db.upsert_episode(
+        slug, 'nosearchorphan1', title='No Search Index', published_at='2026-01-01T07:00:00Z',
+        original_url='https://example.com/new.mp3', status='discovered')
+    conn = temp_db.get_connection()
+    conn.execute("DROP TABLE search_index")
+    conn.commit()
+
+    _run(temp_db)
+
+    assert temp_db.get_episode(slug, 'nosearchkept01') is not None
+    assert temp_db.get_episode(slug, 'nosearchorphan1') is None

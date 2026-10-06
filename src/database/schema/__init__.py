@@ -439,9 +439,12 @@ class SchemaMixin:
             conn.execute(
                 f"DELETE FROM episodes WHERE id IN ({placeholders})",  # noqa: S608
                 ids)
-            pairs = [(r['episode_id'], r['slug']) for r in to_delete]
-            for start in range(0, len(pairs), _COLLAPSE_BATCH_ROWS):
-                self._delete_indexed_episodes(conn, pairs[start:start + _COLLAPSE_BATCH_ROWS])
+            if self._table_exists(conn, 'search_index'):
+                # Skipped on an old DB that hasn't reached the search_index
+                # creation step yet; the index is rebuilt from episodes anyway.
+                pairs = [(r['episode_id'], r['slug']) for r in to_delete]
+                for start in range(0, len(pairs), _COLLAPSE_BATCH_ROWS):
+                    self._delete_indexed_episodes(conn, pairs[start:start + _COLLAPSE_BATCH_ROWS])
             logger.info(
                 f"Migration: removed {len(to_delete)} orphan discovered-episode "
                 "duplicate(s) left by a stale pre-fix published_at"
