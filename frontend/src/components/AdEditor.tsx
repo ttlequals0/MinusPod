@@ -39,6 +39,9 @@ interface AdEditorProps {
   audioDuration: number;
   audioUrl?: string;
   onCorrection: (correction: AdCorrection) => void;
+  // Awaitable submission path, used only for a multi-span create so the
+  // panel can confirm or fail each run's save before moving to the next.
+  onCorrectionAsync?: (correction: AdCorrection) => Promise<void>;
   onClose?: () => void;
   selectedAdIndex?: number;
   onSelectedAdIndexChange?: (index: number) => void;
@@ -65,6 +68,7 @@ export function AdEditor({
   audioDuration,
   audioUrl,
   onCorrection,
+  onCorrectionAsync,
   onClose,
   selectedAdIndex: externalSelectedAdIndex,
   onSelectedAdIndexChange,
@@ -197,8 +201,17 @@ export function AdEditor({
     advanceOrClose();
   };
 
-  const handleCreateSubmit = (s: AdCreateSubmit) => {
-    onCorrection({
+  // Exits create mode once a submission (single run, or the whole multi-span
+  // batch) has gone through. Shared by the single-run path below (called
+  // synchronously, matching the old behavior exactly) and onCreateDone,
+  // which the modal calls once after every run in a multi-span submit saves.
+  const finishCreate = () => {
+    setInternalCreateMode(false);
+    if (detectedAds.length === 0) onClose?.();
+  };
+
+  const handleCreateSubmit = (s: AdCreateSubmit, meta?: { silent?: boolean }): Promise<void> => {
+    const correction: AdCorrection = {
       type: 'create',
       start: s.start,
       end: s.end,
@@ -207,9 +220,12 @@ export function AdEditor({
       scope: s.scope,
       reason: s.reason,
       category: s.category,
-    });
-    setInternalCreateMode(false);
-    if (detectedAds.length === 0) onClose?.();
+    };
+    const result = onCorrectionAsync
+      ? onCorrectionAsync(correction)
+      : Promise.resolve(onCorrection(correction));
+    if (!meta?.silent) finishCreate();
+    return result;
   };
 
   const handleSkip = advanceOrClose;
@@ -242,6 +258,7 @@ export function AdEditor({
       onClose={handleClose}
       onSubmit={handleReviewSubmit}
       onCreate={handleCreateSubmit}
+      onCreateDone={finishCreate}
       onSkip={handleSkip}
       hasNext={safeIndex < detectedAds.length - 1}
       onAddNew={detectedAds.length > 0 && !internalCreateMode

@@ -12,7 +12,7 @@ import { Pin } from './ad-editor/Pin';
 import { usePeaks } from './ad-editor/usePeaks';
 import { usePeakSlice } from './ad-editor/usePeakSlice';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
-import TextSelectionPanel from './ad-editor/TextSelectionPanel';
+import TextSelectionPanel, { type TextRun } from './ad-editor/TextSelectionPanel';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
 import { edgeBtn, ghostBtn, primaryBtn } from './ad-editor/controlStyles';
@@ -77,6 +77,8 @@ export interface AdCreateSubmit {
   category: SegmentCategory | null;
 }
 
+type RunStatus = 'pending' | 'saved' | 'failed';
+
 interface Props {
   item: AdReviewItem;
   onClose: () => void;
@@ -102,7 +104,15 @@ interface Props {
   // editable sponsor + text_template fields, and a different submit
   // signature via onCreate.
   mode?: 'review' | 'create';
-  onCreate?: (s: AdCreateSubmit) => void;
+  // `meta.silent` is set for every call in a multi-span submit except that
+  // the host should not run its "submission finished" side effects (closing
+  // the editor, switching out of create mode) until onCreateDone fires once
+  // the whole batch has succeeded.
+  onCreate?: (s: AdCreateSubmit, meta?: { silent?: boolean }) => Promise<void> | void;
+  // Called once after every run in a multi-span submit has saved. Single-run
+  // create does not use this; its onCreate call keeps its own unchanged
+  // closing behavior.
+  onCreateDone?: () => void;
   // Optional: surface a "+ Add new ad" entry inside the modal so the
   // user can switch into create mode without closing the modal first.
   onAddNew?: () => void;
@@ -145,7 +155,7 @@ function AdReviewModal({
   item, onClose, onSubmit, onSkip, hasNext = false,
   audioMode = 'original', onAudioModeChange, hasOriginal = true,
   processedAudioUrl, episodeDuration,
-  mode = 'review', onCreate, onAddNew, boundsWindow,
+  mode = 'review', onCreate, onCreateDone, onAddNew, boundsWindow,
   hideConfirm = false, onSplitSaved,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);   // waveform host
@@ -285,6 +295,71 @@ function AdReviewModal({
   // audio-mode transcript-span fetch from clobbering the user's chosen text
   // when they toggle back to audio for fine-tuning.
   const textTemplateFromSelectionRef = useRef(false);
+  // Multi-span: frozen runs plus the current one, reported by
+  // TextSelectionPanel. Length <= 1 keeps the single-run path below
+  // unchanged. Dropped when leaving text mode, since multi-span only
+  // applies there.
+  const [runs, setRuns] = useState<TextRun[]>([]);
+  const [runStatuses, setRunStatuses] = useState<RunStatus[]>([]);
+  const [multiSubmitting, setMultiSubmitting] = useState(false);
+  // React-recommended "adjust state when a prop changes without an effect"
+  // (see matchSearchKey/currentMatch in TextSelectionPanel): reset during
+  // render instead of in a useEffect, which would cascade an extra render.
+  const [wasTextModeActive, setWasTextModeActive] = useState(textModeActive);
+  if (wasTextModeActive !== textModeActive) {
+    setWasTextModeActive(textModeActive);
+    if (!textModeActive) setRuns([]);
+  }
+  // Stale once the run list itself changes (add/remove/edit); a fresh
+  // submit attempt should not show the previous attempt's statuses.
+  const [runsForStatusReset, setRunsForStatusReset] = useState(runs);
+  if (runsForStatusReset !== runs) {
+    setRunsForStatusReset(runs);
+    setRunStatuses([]);
+  }
+  const orderedRuns = useMemo(() => [...runs].sort((a, b) => a.start - b.start), [runs]);
+  const isMultiSpan = orderedRuns.length > 1;
+  const shortRun = isMultiSpan
+    ? orderedRuns.find((r) => r.text.trim().length < 50)
+    : undefined;
+
+  // One `create` correction per run, in time order, sequentially. Stops on
+  // the first failure so later runs are never attempted; already-saved runs
+  // are left alone (they are real markers now, not re-submitted) and the
+  // modal stays open with each run's outcome visible.
+  const submitRuns = async () => {
+    if (!onCreate) return;
+    setMultiSubmitting(true);
+    const statuses: RunStatus[] = orderedRuns.map(
+      (_, i) => (runStatuses[i] === 'saved' ? 'saved' : 'pending'),
+    );
+    setRunStatuses(statuses);
+    for (let i = 0; i < orderedRuns.length; i++) {
+      if (statuses[i] === 'saved') continue;
+      const run = orderedRuns[i];
+      try {
+        await onCreate({
+          kind: 'create',
+          start: run.start,
+          end: run.end,
+          sponsor: sponsorInput.trim(),
+          textTemplate: run.text.trim(),
+          scope: scopeInput,
+          reason: reasonInput,
+          category: categoryInput === '' ? null : categoryInput,
+        }, { silent: true });
+        statuses[i] = 'saved';
+        setRunStatuses([...statuses]);
+      } catch {
+        statuses[i] = 'failed';
+        setRunStatuses([...statuses]);
+        setMultiSubmitting(false);
+        return;
+      }
+    }
+    setMultiSubmitting(false);
+    onCreateDone?.();
+  };
 
   // Create mode is always against original audio (you can't mark a new ad
   // on already-cut audio). Review mode honors the parent's audioMode.
@@ -1066,6 +1141,7 @@ function AdReviewModal({
               setTextTemplateInput(text);
               textTemplateFromSelectionRef.current = true;
             }}
+            onRunsChange={setRuns}
             playbackRate={playbackRate}
             setPlaybackRate={setPlaybackRate}
           />
@@ -1411,6 +1487,26 @@ function AdReviewModal({
               label="Apply across all podcasts (global pattern)"
               labelClassName="text-sm"
             />
+            {isMultiSpan && shortRun && (
+              <p className="text-xs text-destructive">
+                The {formatTime(shortRun.start)} - {formatTime(shortRun.end)} span is only{' '}
+                {shortRun.text.trim().length} characters; each span needs at least 50.
+              </p>
+            )}
+            {runStatuses.length > 0 && (
+              <ul className="space-y-0.5 text-xs text-muted-foreground">
+                {orderedRuns.map((run, i) => (
+                  <li key={`${run.start.toFixed(3)}-${run.end.toFixed(3)}`}>
+                    {formatTime(run.start)} - {formatTime(run.end)}:{' '}
+                    {runStatuses[i] === 'saved'
+                      ? 'Saved'
+                      : runStatuses[i] === 'failed'
+                        ? 'Failed to save'
+                        : 'Not submitted'}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         ) : showSponsorPrompt ? (
           <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-secondary/30">
@@ -1485,24 +1581,33 @@ function AdReviewModal({
                   type="button"
                   disabled={
                     !sponsorInput.trim() ||
-                    textTemplateInput.trim().length < 50 ||
-                    boundaryError !== null
+                    multiSubmitting ||
+                    (isMultiSpan
+                      ? shortRun !== undefined
+                      : textTemplateInput.trim().length < 50 || boundaryError !== null)
                   }
                   onClick={() => {
                     if (!onCreate) return;
-                    onCreate({
-                      kind: 'create',
-                      start: adStart,
-                      end: adEnd,
-                      sponsor: sponsorInput.trim(),
-                      textTemplate: textTemplateInput.trim(),
-                      scope: scopeInput,
-                      reason: reasonInput,
-                      category: categoryInput === '' ? null : categoryInput,
-                    });
+                    if (!isMultiSpan) {
+                      const result = onCreate({
+                        kind: 'create',
+                        start: adStart,
+                        end: adEnd,
+                        sponsor: sponsorInput.trim(),
+                        textTemplate: textTemplateInput.trim(),
+                        scope: scopeInput,
+                        reason: reasonInput,
+                        category: categoryInput === '' ? null : categoryInput,
+                      });
+                      if (result && typeof (result as Promise<void>).catch === 'function') {
+                        (result as Promise<void>).catch(() => {});
+                      }
+                      return;
+                    }
+                    void submitRuns();
                   }}
                   className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm ${focusRing}`}>
-                  Save
+                  {isMultiSpan ? `Mark ad (${orderedRuns.length} spans)` : 'Save'}
                 </button>
               </div>
             </>

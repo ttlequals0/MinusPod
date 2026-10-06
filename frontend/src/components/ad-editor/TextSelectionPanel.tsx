@@ -6,9 +6,16 @@ import {
   type TranscriptWord,
 } from '../../api/feeds';
 import { formatTime } from '../../utils/adReviewHelpers';
-import { btnGhost } from '../buttonStyles';
+import { btnGhost, touchTarget } from '../buttonStyles';
+import { badgeBase } from '../badgeStyles';
 import { selectBase } from '../../components/fieldStyles';
 import { focusRing } from '../../components/fieldStyles';
+
+export interface TextRun {
+  start: number;
+  end: number;
+  text: string;
+}
 
 interface Props {
   slug: string;
@@ -20,6 +27,9 @@ interface Props {
   adStart: number;
   adEnd: number;
   onSelectionChange: (start: number, end: number, text: string) => void;
+  // Frozen runs plus the current (unfrozen) one, in whatever order they were
+  // committed. The host sorts and counts; this panel only tracks the list.
+  onRunsChange: (runs: TextRun[]) => void;
   // Playback rate is owned by the parent (same audio element drives both modes).
   playbackRate: number;
   setPlaybackRate: (r: number) => void;
@@ -30,6 +40,34 @@ interface FlatWord extends TranscriptWord {
 }
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
+// Runs this close in time collapse into one on freeze.
+const MERGE_GAP_SECONDS = 1;
+const chipClass = `${badgeBase} inline-flex items-center gap-1.5 border border-border bg-background text-foreground`;
+
+function textForRange(words: FlatWord[], start: number, end: number): string {
+  return words
+    .filter((w) => w.start >= start - 0.001 && w.end <= end + 0.001)
+    .map((w) => w.word.trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+// Re-derives merged text from the transcript rather than concatenating the
+// source runs, so an overlap doesn't duplicate words.
+function mergeRuns(runs: TextRun[], words: FlatWord[]): TextRun[] {
+  const sorted = [...runs].sort((a, b) => a.start - b.start);
+  const merged: TextRun[] = [];
+  for (const run of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && run.start <= last.end + MERGE_GAP_SECONDS) {
+      last.end = Math.max(last.end, run.end);
+      last.text = textForRange(words, last.start, last.end);
+    } else {
+      merged.push({ ...run });
+    }
+  }
+  return merged;
+}
 
 function flatten(segments: OriginalSegment[]): FlatWord[] {
   const out: FlatWord[] = [];
@@ -51,9 +89,24 @@ function TextSelectionPanel({
   adStart,
   adEnd,
   onSelectionChange,
+  onRunsChange,
   playbackRate,
   setPlaybackRate,
 }: Props) {
+  const [frozenRuns, setFrozenRuns] = useState<TextRun[]>([]);
+  const [currentText, setCurrentText] = useState('');
+  // commitSelection fires through a mouseup listener bound once per
+  // [flatWords] change (see below), so it can't close over frozenRuns or
+  // onRunsChange directly -- that would freeze them at whatever they were
+  // when the listener was last (re)bound. Refs keep the read live.
+  const frozenRunsRef = useRef(frozenRuns);
+  useEffect(() => {
+    frozenRunsRef.current = frozenRuns;
+  }, [frozenRuns]);
+  const onRunsChangeRef = useRef(onRunsChange);
+  useEffect(() => {
+    onRunsChangeRef.current = onRunsChange;
+  }, [onRunsChange]);
   // Fetch state collapsed into a single object so each useEffect outcome is
   // one setState call, not a setLoadError(null) at the top of the effect plus
   // setSegments later (the latter shape triggers react-hooks/set-state-in-effect).
@@ -192,7 +245,12 @@ function TextSelectionPanel({
       .map((w) => w.word.trim())
       .filter(Boolean)
       .join(' ');
+    setCurrentText(text);
     onSelectionChange(first.start, last.end, text);
+    onRunsChangeRef.current([
+      ...frozenRunsRef.current,
+      { start: first.start, end: last.end, text },
+    ]);
   };
 
   // Commit on mouseup/touchend so drag doesn't thrash parent state. Listener
@@ -255,6 +313,28 @@ function TextSelectionPanel({
 
   const selectionDuration = Math.max(0, adEnd - adStart);
   const hasSelection = selectionDuration > 0.001;
+
+  // Freezes the current (unfrozen) run into the list and clears the
+  // selection so the next drag starts a fresh one. Runs within
+  // MERGE_GAP_SECONDS of each other collapse into one at this point.
+  const freezeCurrentRun = () => {
+    if (!hasSelection) return;
+    const merged = mergeRuns(
+      [...frozenRuns, { start: adStart, end: adEnd, text: currentText }],
+      flatWords,
+    );
+    setFrozenRuns(merged);
+    setCurrentText('');
+    onSelectionChange(0, 0, '');
+    onRunsChange(merged);
+  };
+
+  const removeRun = (index: number) => {
+    const next = frozenRuns.filter((_, i) => i !== index);
+    setFrozenRuns(next);
+    const current = hasSelection ? [{ start: adStart, end: adEnd, text: currentText }] : [];
+    onRunsChange([...next, ...current]);
+  };
 
   if (loadError) {
     return (
@@ -329,6 +409,33 @@ function TextSelectionPanel({
             ? `Selection: ${formatTime(adStart)} - ${formatTime(adEnd)} (${selectionDuration.toFixed(1)}s)`
             : 'No selection yet'}
         </span>
+      </div>
+
+      {/* Spans: each frozen run is a chip with its time range and a remove
+          control; "Add another span" freezes the current selection and
+          starts a new one. */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {frozenRuns.map((run, i) => (
+          <span key={`${run.start.toFixed(3)}-${run.end.toFixed(3)}`} className={chipClass}>
+            {formatTime(run.start)} - {formatTime(run.end)}
+            <button
+              type="button"
+              onClick={() => removeRun(i)}
+              aria-label={`Remove span ${formatTime(run.start)} to ${formatTime(run.end)}`}
+              className={`${touchTarget} max-sm:-mx-2.5 max-sm:-my-2.5 rounded text-muted-foreground hover:text-destructive ${focusRing}`}
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+        <button
+          type="button"
+          onClick={freezeCurrentRun}
+          disabled={!hasSelection}
+          className={`px-2 py-1 rounded text-xs ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing}`}
+        >
+          Add another span
+        </button>
       </div>
 
       {/* Transcript. selection:bg-primary/40 keeps the active drag visible

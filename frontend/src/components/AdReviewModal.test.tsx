@@ -26,6 +26,36 @@ vi.mock('../api/feeds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/feeds')>()),
   reprocessEpisode: (...a: unknown[]) => mockReprocess(...a),
 }));
+type MockRun = { start: number; end: number; text: string };
+
+// Real transcript selection is covered by TextSelectionPanel.test.tsx; here
+// the double just needs to call onRunsChange with whatever the test wants,
+// so these tests stay focused on AdReviewModal's own submit/label logic.
+vi.mock('./ad-editor/TextSelectionPanel', () => ({
+  default: ({ onRunsChange }: { onRunsChange: (runs: MockRun[]) => void }) => (
+    <div data-testid="text-selection-panel">
+      <button
+        type="button"
+        onClick={() => onRunsChange([
+          { start: 30, end: 40, text: 'a'.repeat(60) },
+          { start: 10, end: 20, text: 'b'.repeat(60) },
+        ])}
+      >
+        set two valid runs
+      </button>
+      <button
+        type="button"
+        onClick={() => onRunsChange([
+          { start: 10, end: 20, text: 'a'.repeat(60) },
+          { start: 30, end: 40, text: 'short' },
+        ])}
+      >
+        set two runs one short
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock('./SplitMarkerModal', () => ({
   default: ({ target, onClose, onSplit }: {
     target: { start: number; end: number };
@@ -220,5 +250,79 @@ describe('AdReviewModal waveform wheel zoom', () => {
       deltaX: 100, deltaY: 1, clientX: 100, cancelable: true,
     });
     expect(waveform.dispatchEvent(horizontal)).toBe(true);
+  });
+});
+
+describe('AdReviewModal multi-span create', () => {
+  async function enterTextModeWithSponsor(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'By text' }));
+    const sponsor = screen.getByLabelText(/Sponsor name/);
+    await user.clear(sponsor);
+    await user.type(sponsor, 'Morning Brew');
+  }
+
+  it('labels the save button with the span count once more than one run exists', async () => {
+    renderModal({ mode: 'create', onCreate: vi.fn() });
+    const user = userEvent.setup();
+    await enterTextModeWithSponsor(user);
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+
+    expect(screen.getByRole('button', { name: 'Mark ad (2 spans)' })).toBeTruthy();
+  });
+
+  it('blocks submit and names the short run\'s time range', async () => {
+    const onCreate = vi.fn();
+    renderModal({ mode: 'create', onCreate });
+    const user = userEvent.setup();
+    await enterTextModeWithSponsor(user);
+
+    await user.click(screen.getByRole('button', { name: 'set two runs one short' }));
+
+    const save = screen.getByRole('button', { name: 'Mark ad (2 spans)' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    expect(screen.getByText(/0:30\.0 - 0:40\.0 span is only 5 characters/)).toBeTruthy();
+
+    await user.click(save);
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it('submits one create correction per run in time order', async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const onCreateDone = vi.fn();
+    renderModal({ mode: 'create', onCreate, onCreateDone });
+    const user = userEvent.setup();
+    await enterTextModeWithSponsor(user);
+
+    // The double reports the later-starting run first; Save must still
+    // submit in time order (10-20 before 30-40).
+    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+    await user.click(screen.getByRole('button', { name: 'Mark ad (2 spans)' }));
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2));
+    expect(onCreate.mock.calls[0][0]).toMatchObject({ start: 10, end: 20, sponsor: 'Morning Brew' });
+    expect(onCreate.mock.calls[0][1]).toEqual({ silent: true });
+    expect(onCreate.mock.calls[1][0]).toMatchObject({ start: 30, end: 40, sponsor: 'Morning Brew' });
+    await waitFor(() => expect(onCreateDone).toHaveBeenCalledTimes(1));
+  });
+
+  it('on partial failure, stops, keeps the modal open, and reports saved vs failed runs', async () => {
+    const onCreate = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('save failed'));
+    const onCreateDone = vi.fn();
+    const { onClose } = renderModal({ mode: 'create', onCreate, onCreateDone });
+    const user = userEvent.setup();
+    await enterTextModeWithSponsor(user);
+
+    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+    await user.click(screen.getByRole('button', { name: 'Mark ad (2 spans)' }));
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('0:10.0 - 0:20.0: Saved')).toBeTruthy();
+    expect(screen.getByText(/0:30\.0 - 0:40\.0: Failed to save/)).toBeTruthy();
+    expect(onCreateDone).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
