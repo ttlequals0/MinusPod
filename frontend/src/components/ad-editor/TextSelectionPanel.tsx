@@ -8,8 +8,8 @@ import {
 import { formatTime } from '../../utils/adReviewHelpers';
 import { btnGhost, touchTarget } from '../buttonStyles';
 import { badgeBase } from '../badgeStyles';
-import { selectBase } from '../../components/fieldStyles';
 import { focusRing } from '../../components/fieldStyles';
+import SpeedMenu from './SpeedMenu';
 
 export interface TextRun {
   start: number;
@@ -39,7 +39,6 @@ interface FlatWord extends TranscriptWord {
   globalIndex: number; // position across all segments, for selection math
 }
 
-const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 // Runs this close in time collapse into one on freeze.
 const MERGE_GAP_SECONDS = 1;
 const chipClass = `${badgeBase} inline-flex items-center gap-1.5 border border-border bg-background text-foreground`;
@@ -507,18 +506,7 @@ function TextSelectionPanel({
         >
           <SkipForward className="w-4 h-4" />
         </button>
-        <select
-          value={playbackRate}
-          onChange={(e) => setPlaybackRate(Number(e.target.value))}
-          className={`appearance-none ${selectBase}`}
-          aria-label="Playback speed"
-        >
-          {PLAYBACK_RATES.map((r) => (
-            <option key={r} value={r}>
-              {r}x
-            </option>
-          ))}
-        </select>
+        <SpeedMenu playbackRate={playbackRate} onChange={setPlaybackRate} />
         <span className="text-xs text-muted-foreground">
           Plays the selected span only. Selection snaps to word boundaries.
         </span>
