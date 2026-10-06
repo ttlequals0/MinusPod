@@ -1,6 +1,5 @@
-"""Tests for config.resolve_transcript_differential (2.98.0 transcript
-differential, Task 1). Mirrors TestResolveSkipSecondPass in
-test_skip_second_pass.py.
+"""Tests for config.resolve_transcript_differential. Mirrors
+TestResolveSkipSecondPass in test_skip_second_pass.py.
 """
 from types import SimpleNamespace
 

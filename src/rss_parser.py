@@ -722,20 +722,11 @@ class RSSParser:
 
     @staticmethod
     def _parse_upstream_transcript_tags(feed_content):
-        """Per-item raw podcast:transcript (url, type) tags.
-
-        feedparser flattens multiple podcast:transcript tags on one item
-        down to a single dict, so picking the best of several requires this
-        raw-XML pass. Returns (positional, by_key):
-
-        - positional: one list per <item>, in document order (empty when
-          the item carries no tag). extract_episodes matches this by index
-          against feedparser's entries, since feedparser preserves item
-          order; this is immune to duplicate guids, unlike a keyed lookup.
-        - by_key: guid text / enclosure URL -> the same list, used only as
-          a fallback when the raw item count does not match feedparser's
-          entry count. A key seen on more than one item is ambiguous (two
-          items cannot be told apart by it) and is excluded here too.
+        """Per-item raw podcast:transcript (url, type) tags, since feedparser
+        keeps only one per item. Returns (positional, by_key): positional is
+        one list per <item> in document order, for index-matching against
+        feedparser's entries; by_key is a guid/enclosure-URL fallback that
+        drops any key shared by more than one item as ambiguous.
         """
         positional: list = []
         by_key: dict = {}
@@ -1821,9 +1812,8 @@ class RSSParser:
 
         transcript_positional, transcript_tags_by_key = \
             self._parse_upstream_transcript_tags(feed_content)
-        # feedparser preserves item order, so position is the primary match
-        # (immune to duplicate guids); the keyed fallback only applies when
-        # the raw item count disagrees with feedparser's entry count.
+        # Position is the primary match (immune to duplicate guids); the keyed
+        # fallback only applies when the raw item count disagrees with feedparser's.
         transcripts_by_position = (
             len(transcript_positional) == len(feed.entries))
 
@@ -1870,9 +1860,7 @@ class RSSParser:
                         upstream_chapters_url = candidate
 
                 # Upstream podcast:transcript (2.98.0 transcript differential):
-                # several tags may exist per item, so pick the best type from
-                # a raw-XML pass matched to this entry by position (falling
-                # back to guid/enclosure only if the counts disagree).
+                # best type among this entry's raw-XML tags.
                 upstream_transcript_url = None
                 upstream_transcript_type = None
                 if transcripts_by_position:

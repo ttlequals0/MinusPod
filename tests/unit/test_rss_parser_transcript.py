@@ -1,9 +1,7 @@
 """Upstream podcast:transcript capture (2.98.0 transcript differential).
 
-feedparser flattens multiple podcast:transcript tags on one item down to a
-single dict, so picking the best of several requires a raw-XML pass over
-the item (matched by guid or enclosure URL), mirroring the upstream
-podcast:chapters precedent in test_upstream_chapters.py.
+feedparser keeps only one transcript tag per item, so picking the best of
+several requires a raw-XML pass, mirroring test_upstream_chapters.py.
 """
 from rss_parser import RSSParser
 
@@ -98,10 +96,8 @@ class TestExtractEpisodesCapturesUpstreamTranscript:
             'https://upstream.example.com/ep1.vtt'
 
     def test_duplicate_guid_does_not_cross_contaminate(self):
-        """Two items sharing a guid, only one carrying a tag: a keyed
-        lookup cannot tell them apart, so the other item must not inherit
-        the first item's URL. Positional matching (by raw-XML item order,
-        same order feedparser preserves) is immune to this."""
+        """A keyed lookup can't tell apart two items sharing a guid; positional
+        matching must, so the second item must not inherit the first's URL."""
         feed = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
      xmlns:podcast="https://podcastindex.org/namespace/1.0">

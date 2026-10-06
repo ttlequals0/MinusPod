@@ -1,8 +1,7 @@
-"""Tests for the upstream podcast:transcript storage (2.98.0 transcript
-differential, Task 1). Mirrors test_upstream_chapters.py's RSS-capture
-style and the dai_differential_json detail-JSON precedent. Unlike
-upstream_chapters_url, the transcript URL/type columns are not sticky:
-a newer non-null value replaces the stored one (publishers move hosts).
+"""Tests for the upstream podcast:transcript storage. Mirrors
+test_upstream_chapters.py's RSS-capture style and the dai_differential_json
+detail-JSON precedent. Unlike upstream_chapters_url, the transcript URL/type
+columns are not sticky: a newer non-null value replaces the stored one.
 """
 
 
@@ -100,9 +99,7 @@ class TestDiscoveryUpsert:
         assert episode['upstream_transcript_type'] == 'text/vtt'
 
     def test_a_newer_non_null_value_replaces_the_stored_one(self, temp_db, mock_podcast):
-        """Unlike upstream_chapters_url (sticky once set), a transcript URL
-        follows the publisher: a refresh with a different non-null URL/type
-        replaces the stored value, since publishers move hosts."""
+        """A refresh with a different non-null URL/type replaces the stored value."""
         slug = mock_podcast['slug']
         temp_db.bulk_upsert_discovered_episodes(slug, [{
             'id': 'ep-1', 'url': 'https://example.com/ep1.mp3', 'title': 'Ep 1',
