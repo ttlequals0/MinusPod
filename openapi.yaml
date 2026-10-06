@@ -802,21 +802,15 @@ paths:
                     - null
                   description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
                 adChaptersEnabled:
-                  type:
-                    - string
-                    - 'null'
-                  enum:
-                    - 'on'
-                    - 'off'
-                    - null
-                  description: Per-feed override for publishing kept ad segments as skippable chapters. null follows the global adChaptersEnabled setting.
+                  type: boolean
+                  deprecated: true
+                  description: Deprecated. Translates into segmentCategoryActions; false demotes every mark to keep, true is accepted and ignored.
                 adChapterCategories:
-                  type:
-                    - object
-                    - 'null'
+                  type: object
                   additionalProperties:
                     type: boolean
-                  description: Per-feed override mapping each segment category to whether it gets an ad chapter. null follows the global adChapterCategories setting.
+                  deprecated: true
+                  description: Deprecated. Translates into segmentCategoryActions; true marks the category, false demotes it from mark to keep.
                 queuePriority:
                   type:
                     - string
@@ -1047,7 +1041,7 @@ paths:
                     - 'null'
                   additionalProperties:
                     type: string
-                    enum: [remove, beep, keep]
+                    enum: [remove, beep, keep, mark]
                   description: Per-feed segment-category action overrides (issue #565). A partial map; only the listed categories override the resolved global default, unlisted categories still inherit. The stored map is replaced outright by each PATCH, not merged, so send the full set of overrides you want kept. Null clears every override back to inherit.
                 detectShowSegments:
                   type:
@@ -6220,7 +6214,7 @@ paths:
                   type: object
                   additionalProperties:
                     type: string
-                    enum: [remove, beep, keep]
+                    enum: [remove, beep, keep, mark]
                   description: Partial global segment-category action map (issue #565). Merged over the stored global map; a category omitted here keeps its current global action. Every category defaults to remove, so an install upgrades with byte-identical behavior until an action is changed.
                   example: {sponsor: remove, cross_promo: keep, self_promo: beep}
                 communitySyncCategories:
@@ -6322,13 +6316,15 @@ paths:
                   example: false
                 adChaptersEnabled:
                   type: boolean
-                  description: Publish kept or held ad segments as skippable chapters in the generated chapter list.
+                  deprecated: true
+                  description: Deprecated. Translates into segmentCategoryActions; false demotes every mark to keep, true is accepted and ignored.
                   example: false
                 adChapterCategories:
                   type: object
                   additionalProperties:
                     type: boolean
-                  description: Partial map of segment category to whether it gets an ad chapter, merged over the stored map.
+                  deprecated: true
+                  description: Deprecated. Translates into segmentCategoryActions; true marks the category, false demotes it from mark to keep.
                   example: {sponsor: true, cross_promo: true}
                 adChaptersIncludeHeld:
                   type: boolean
@@ -12357,21 +12353,15 @@ components:
             - null
           description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
         adChaptersEnabled:
-          type:
-            - string
-            - 'null'
-          enum:
-            - 'on'
-            - 'off'
-            - null
-          description: Per-feed override for publishing kept ad segments as skippable chapters. null follows the global adChaptersEnabled setting.
+          type: boolean
+          deprecated: true
+          description: Deprecated. Derived from the feed's resolved segment actions; true when any category resolves to mark.
         adChapterCategories:
-          type:
-            - object
-            - 'null'
+          type: object
           additionalProperties:
             type: boolean
-          description: Per-feed override mapping each segment category to whether it gets an ad chapter. null follows the global adChapterCategories setting.
+          deprecated: true
+          description: Deprecated. Derived from the feed's resolved segment actions; true for each category that resolves to mark.
         queuePriority:
           type: string
           enum:
@@ -12596,7 +12586,7 @@ components:
             - 'null'
           additionalProperties:
             type: string
-            enum: [remove, beep, keep]
+            enum: [remove, beep, keep, mark]
           description: Per-feed segment-category action overrides (issue #565). Only the overridden categories are present; a category absent here inherits the global default. Null when the feed has no overrides.
         detectShowSegments:
           type:
@@ -13914,7 +13904,7 @@ components:
         actionApplied:
           type: string
           nullable: true
-          enum: [remove, beep, keep, null]
+          enum: [remove, beep, keep, mark, null]
           description: The action resolved for this marker's category at cut time (per-feed override, else global default, else remove). Null for a marker that has not gone through action resolution.
           example: remove
         approved:
@@ -14087,7 +14077,7 @@ components:
           type: string
           nullable: true
           description: Action the category resolved to for this marker
-          enum: [remove, beep, keep, null]
+          enum: [remove, beep, keep, mark, null]
         reviewerVerdict:
           type: string
           nullable: true
@@ -15109,7 +15099,7 @@ components:
               type: object
               additionalProperties:
                 type: string
-                enum: [remove, beep, keep]
+                enum: [remove, beep, keep, mark]
             isDefault:
               type: boolean
         communitySyncCategories:
@@ -15299,7 +15289,8 @@ components:
               type: boolean
         adChaptersEnabled:
           type: object
-          description: Publish kept or held ad segments as skippable chapters in the generated chapter list.
+          deprecated: true
+          description: Deprecated. Derived from segmentCategoryActions; true when any category resolves to mark.
           properties:
             value:
               type: boolean
@@ -15307,7 +15298,8 @@ components:
               type: boolean
         adChapterCategories:
           type: object
-          description: Map of segment category to whether it gets an ad chapter.
+          deprecated: true
+          description: Deprecated. Derived from segmentCategoryActions; true for each category that resolves to mark.
           properties:
             value:
               type: object
@@ -15998,7 +15990,7 @@ components:
               type: object
               additionalProperties:
                 type: string
-                enum: [remove, beep, keep]
+                enum: [remove, beep, keep, mark]
             communitySyncCategories:
               type: array
               items:

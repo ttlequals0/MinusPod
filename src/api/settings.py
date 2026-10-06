@@ -46,9 +46,7 @@ from config import (
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
-    resolve_ad_chapter_categories_map,
     valid_ad_chapter_title_format,
-    validate_ad_chapter_categories,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
 )
@@ -632,9 +630,13 @@ def _build_settings_payload():
     splice_veto_enabled = coerce_bool_setting(_setting_value(
         settings, 'splice_veto_enabled', registry_default('splice_veto_enabled')))
 
-    ad_chapters_enabled = coerce_bool_setting(_str_setting('ad_chapters_enabled'))
-    ad_chapter_categories = resolve_ad_chapter_categories_map(
-        _str_setting('ad_chapter_categories'))
+    # Compatibility fields (spec 1.4): derived from segment_category_actions,
+    # not their own retired settings. adChaptersEnabled is true when any
+    # category resolves to mark; adChapterCategories mirrors that per category.
+    ad_chapters_enabled = any(
+        segment_category_actions.get(cat) == 'mark' for cat in SEGMENT_CATEGORIES)
+    ad_chapter_categories = {
+        cat: segment_category_actions.get(cat) == 'mark' for cat in SEGMENT_CATEGORIES}
     ad_chapters_include_held = coerce_bool_setting(
         _str_setting('ad_chapters_include_held'))
     ad_chapter_title_format = _str_setting('ad_chapter_title_format')
@@ -755,8 +757,8 @@ def _build_settings_payload():
             'transcript_differential_enabled', transcript_differential_enabled),
         'differentialFetchMode': _sv(
             'differential_fetch_mode', differential_fetch_mode),
-        'adChaptersEnabled': _sv('ad_chapters_enabled', ad_chapters_enabled),
-        'adChapterCategories': _sv('ad_chapter_categories', ad_chapter_categories),
+        'adChaptersEnabled': _sv('segment_category_actions', ad_chapters_enabled),
+        'adChapterCategories': _sv('segment_category_actions', ad_chapter_categories),
         'adChaptersIncludeHeld': _sv('ad_chapters_include_held', ad_chapters_include_held),
         'adChapterTitleFormat': _sv('ad_chapter_title_format', ad_chapter_title_format),
         'adChapterHeldTitleFormat': _sv(
@@ -1723,18 +1725,55 @@ def _apply_segment_category_actions(db, data):
     return None
 
 
-def _apply_ad_chapter_fields(db, data):
-    """Persist the ad chapter settings; the category map merges over the stored map.
+def _translate_ad_chapter_compat(db, data):
+    """Translate the retired adChaptersEnabled/adChapterCategories fields into
+    the global segment_category_actions map (spec 1.4): true marks a keep
+    category, false demotes a marked one back to keep, adChaptersEnabled:
+    false demotes every mark, true is accepted and ignored.
 
-    An empty title string resets that field to its default, matching the
-    contract _apply_user_agent_fields uses for the other free-text settings.
+    Returns (new_map_or_None, error). None means neither compat field was
+    present, so the caller writes nothing.
+    """
+    if 'adChaptersEnabled' not in data and 'adChapterCategories' not in data:
+        return None, None
+
+    merged = resolve_segment_category_actions_map(db.get_setting('segment_category_actions'))
+
+    if 'adChapterCategories' in data:
+        value = data['adChapterCategories']
+        if not isinstance(value, dict):
+            return None, 'adChapterCategories must be an object'
+        for cat, flag in value.items():
+            if cat not in SEGMENT_CATEGORIES or not isinstance(flag, bool):
+                return None, (f"adChapterCategories: '{cat}' must be a known "
+                               "category with true or false")
+        for cat, flag in value.items():
+            if flag and merged.get(cat) == 'keep':
+                merged[cat] = 'mark'
+            elif not flag and merged.get(cat) == 'mark':
+                merged[cat] = 'keep'
+
+    if 'adChaptersEnabled' in data and not coerce_bool_setting(data['adChaptersEnabled']):
+        for cat in SEGMENT_CATEGORIES:
+            if merged.get(cat) == 'mark':
+                merged[cat] = 'keep'
+
+    return merged, None
+
+
+def _apply_ad_chapter_fields(db, data):
+    """Persist the ad chapter settings.
+
+    adChaptersEnabled/adChapterCategories no longer have their own settings;
+    they translate into segment_category_actions (spec 1.4). An empty title
+    string resets that field to its default, matching the contract
+    _apply_user_agent_fields uses for the other free-text settings.
     """
     # Validate every field first so a bad value leaves nothing half-written.
     writes = []
-    for key, setting in (('adChaptersEnabled', 'ad_chapters_enabled'),
-                         ('adChaptersIncludeHeld', 'ad_chapters_include_held')):
-        if key in data:
-            writes.append((setting, 'true' if coerce_bool_setting(data[key]) else 'false'))
+    if 'adChaptersIncludeHeld' in data:
+        writes.append(('ad_chapters_include_held',
+                       'true' if coerce_bool_setting(data['adChaptersIncludeHeld']) else 'false'))
 
     for key, setting in (('adChapterTitleFormat', 'ad_chapter_title_format'),
                          ('adChapterHeldTitleFormat', 'ad_chapter_held_title_format'),
@@ -1759,15 +1798,11 @@ def _apply_ad_chapter_fields(db, data):
             return error_response('adChapterMinConfidence must be between 0 and 1', 400)
         writes.append(('ad_chapter_min_confidence', str(float(value))))
 
-    merged = None
-    if 'adChapterCategories' in data:
-        value = data['adChapterCategories']
-        error = validate_ad_chapter_categories(value)
-        if error:
-            return error_response(error, 400)
-        merged = resolve_ad_chapter_categories_map(db.get_setting('ad_chapter_categories'))
-        merged.update(value)
-        writes.append(('ad_chapter_categories', json.dumps(merged)))
+    actions, error = _translate_ad_chapter_compat(db, data)
+    if error:
+        return error_response(error, 400)
+    if actions is not None:
+        writes.append(('segment_category_actions', json.dumps(actions)))
 
     for setting, value in writes:
         # Only the title fields can be blank here, and blank means reset.
@@ -1776,8 +1811,8 @@ def _apply_ad_chapter_fields(db, data):
             logger.info(f"Reset {setting} to the default")
         else:
             db.set_setting(setting, value, is_default=False)
-    if merged is not None:
-        logger.info(f"Updated ad chapter categories: {merged}")
+    if actions is not None:
+        logger.info(f"Updated segment category actions via ad chapter compatibility fields: {actions}")
     return None
 
 

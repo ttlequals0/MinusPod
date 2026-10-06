@@ -238,30 +238,6 @@ AD_CHAPTER_SNAP_SECONDS = 2.0
 AD_CHAPTER_KINDS = frozenset({'ad', 'resume'})
 
 
-def resolve_ad_chapter_categories_map(raw_json, baseline=None) -> dict[str, bool]:
-    """Full category -> bool map; unknown keys and non-bool values are ignored.
-
-    The global/per-feed ad_chapters_enabled and ad_chapter_categories settings
-    this resolves are retired in favor of the 'mark' segment action (2.98.0,
-    mark_action_from_ad_chapters_v1); this stays only as a compatibility shim
-    for the adChaptersEnabled/adChapterCategories API fields in src/api.
-    """
-    merged = dict(baseline) if baseline is not None else {
-        cat: cat in ('sponsor', 'cross_promo') for cat in SEGMENT_CATEGORIES}
-    if not raw_json:
-        return merged
-    try:
-        parsed = json.loads(raw_json)
-    except (TypeError, ValueError):
-        return merged
-    if not isinstance(parsed, dict):
-        return merged
-    for cat, flag in parsed.items():
-        if cat in SEGMENT_CATEGORIES and isinstance(flag, bool):
-            merged[cat] = flag
-    return merged
-
-
 def valid_ad_chapter_title_format(value) -> bool:
     """A title template must be non-empty and use only bare {category} or {label}
     fields; parsed rather than formatted so {category.foo} and friends are rejected."""
@@ -273,20 +249,6 @@ def valid_ad_chapter_title_format(value) -> bool:
         return False
     return all(name is None or (name in ('category', 'label') and not spec and not conv)
                for _, name, spec, conv in fields)
-
-
-def validate_ad_chapter_categories(value) -> str | None:
-    """Error message for an adChapterCategories map, or None when it is valid.
-
-    Compatibility shim for src/api's PATCH translation (Task 3 removes this
-    with the retired adChapterCategories field)."""
-    if not isinstance(value, dict):
-        return 'adChapterCategories must be an object'
-    for cat, flag in value.items():
-        if cat not in SEGMENT_CATEGORIES or not isinstance(flag, bool):
-            return (f"adChapterCategories: '{cat}' must be a known category "
-                    "with true or false")
-    return None
 
 
 # Hold reasons pass-2 auto-approval may release when the verification pass

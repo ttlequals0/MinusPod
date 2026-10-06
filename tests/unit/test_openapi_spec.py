@@ -235,6 +235,54 @@ def test_patterns_list_params_match_handler():
     assert active_only_schema['default'] is False
 
 
+def test_segment_action_enums_all_include_mark():
+    """Every segment-action enum in the spec gains 'mark' (spec 1.4):
+    the five writable segmentCategoryActions locations plus the two
+    read-only marker actionApplied enums."""
+    with SPEC_PATH.open() as f:
+        doc = yaml.safe_load(f)
+    schemas = doc['components']['schemas']
+    paths = doc['paths']
+
+    writable_holders = [
+        (paths['/feeds/{slug}']['patch']['requestBody']['content']
+         ['application/json']['schema']),
+        (paths['/settings/ad-detection']['put']['requestBody']['content']
+         ['application/json']['schema']),
+        schemas['Feed'],
+    ]
+    for holder in writable_holders:
+        enum = holder['properties']['segmentCategoryActions']['additionalProperties']['enum']
+        assert enum == ['remove', 'beep', 'keep', 'mark']
+
+    settings_value = schemas['Settings']['properties']['segmentCategoryActions']['properties']['value']
+    assert settings_value['additionalProperties']['enum'] == ['remove', 'beep', 'keep', 'mark']
+
+    for holder in (schemas['AdMarker'], schemas['ReviewDetection']):
+        assert 'mark' in holder['properties']['actionApplied']['enum']
+
+
+def test_ad_chapter_compat_fields_are_deprecated():
+    """The four retired adChaptersEnabled/adChapterCategories fields stay
+    only as deprecated compatibility translations (spec 1.4)."""
+    with SPEC_PATH.open() as f:
+        doc = yaml.safe_load(f)
+    schemas = doc['components']['schemas']
+    paths = doc['paths']
+
+    holders = [
+        (paths['/feeds/{slug}']['patch']['requestBody']['content']
+         ['application/json']['schema']),
+        schemas['Feed'],
+        (paths['/settings/ad-detection']['put']['requestBody']['content']
+         ['application/json']['schema']),
+        schemas['Settings'],
+    ]
+    for holder in holders:
+        for field in ('adChaptersEnabled', 'adChapterCategories'):
+            assert holder['properties'][field]['deprecated'] is True, field
+
+
 def test_every_stage_tunable_is_documented():
     with SPEC_PATH.open() as f:
         doc = yaml.safe_load(f)

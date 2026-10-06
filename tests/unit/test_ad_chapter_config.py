@@ -25,12 +25,10 @@ def test_registry_defaults_for_remaining_ad_chapter_settings():
                 'ad_chapter_min_confidence'):
         assert SETTINGS_REGISTRY[key].in_ad_reset
         assert SETTINGS_REGISTRY[key].seeded
-    # Bare compat-only entries (src/api still reads these by key); neither
-    # seeds, resets in bulk, nor appears in the GET /settings defaults block.
-    for key in ('ad_chapters_enabled', 'ad_chapter_categories'):
-        assert not SETTINGS_REGISTRY[key].seeded
-        assert not SETTINGS_REGISTRY[key].in_ad_reset
-        assert SETTINGS_REGISTRY[key].payload_key is None
+    # ad_chapters_enabled / ad_chapter_categories have no registry entry at
+    # all: src/api derives their API fields from segment_category_actions.
+    assert 'ad_chapters_enabled' not in SETTINGS_REGISTRY
+    assert 'ad_chapter_categories' not in SETTINGS_REGISTRY
 
 
 def test_title_format_validator():

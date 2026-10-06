@@ -574,13 +574,10 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         validator=_one_of('auto', 'on', 'off')),
     # Ad chapters: publish marked segments as skippable chapters. The enable
     # toggle and category list are retired in favor of the 'mark' segment
-    # action (2.98.0, mark_action_from_ad_chapters_v1). Not seeded, not in
-    # the bulk ad-reset list, no payload_key (absent from the GET /settings
-    # 'defaults' block): these bare entries exist only so registry_default()
-    # does not KeyError under src/api's adChaptersEnabled/adChapterCategories
-    # compatibility reads; Task 3 removes both along with those reads.
-    'ad_chapters_enabled': SettingSpec(default='false', resettable=False),
-    'ad_chapter_categories': SettingSpec(default='{}', resettable=False),
+    # action (2.98.0, mark_action_from_ad_chapters_v1); their rows stay in
+    # the DB, unread, for the one-shot migration's upgrade path, but the
+    # registry entries are gone since src/api now derives the compatibility
+    # fields from segment_category_actions instead of reading them.
     'ad_chapters_include_held': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='adChaptersIncludeHeld', payload_kind='bool'),

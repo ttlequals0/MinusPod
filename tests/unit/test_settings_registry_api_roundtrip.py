@@ -81,10 +81,13 @@ def test_review_provider_round_trips(client):
 def test_ad_chapter_settings_round_trip(client):
     before = client.get(BASE).get_json()
     assert before['adChaptersEnabled']['value'] is False
-    assert before['adChapterCategories']['value']['sponsor'] is True
+    assert before['adChapterCategories']['value']['sponsor'] is False
     assert before['adChapterMinConfidence']['value'] == 0.9
 
+    # recap starts at keep so the adChapterCategories translation (true:
+    # keep -> mark) has something to promote (spec 1.4).
     r = client.put(f'{BASE}/ad-detection', data=json.dumps({
+        'segmentCategoryActions': {'recap': 'keep'},
         'adChaptersEnabled': True,
         'adChapterCategories': {'recap': True},
         'adChaptersIncludeHeld': True,
@@ -98,12 +101,47 @@ def test_ad_chapter_settings_round_trip(client):
     after = client.get(BASE).get_json()
     assert after['adChaptersEnabled']['value'] is True
     assert after['adChapterCategories']['value']['recap'] is True
-    assert after['adChapterCategories']['value']['sponsor'] is True
+    assert after['adChapterCategories']['value']['sponsor'] is False
     assert after['adChaptersIncludeHeld']['value'] is True
     assert after['adChapterTitleFormat']['value'] == 'Ad: {category}'
     assert after['adChapterHeldTitleFormat']['value'] == 'Maybe {category}'
     assert after['adChapterResumeTitle']['value'] == 'Back'
     assert after['adChapterMinConfidence']['value'] == 0.5
+
+
+def test_ad_chapter_categories_false_demotes_mark_leaves_other_actions(client):
+    """Review focus 3: {sponsor: false} demotes mark to keep and leaves a
+    remove category alone."""
+    r = client.put(f'{BASE}/ad-detection', data=json.dumps({
+        'segmentCategoryActions': {'sponsor': 'mark', 'cross_promo': 'remove'},
+    }), content_type='application/json')
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    r = client.put(f'{BASE}/ad-detection', data=json.dumps({
+        'adChapterCategories': {'sponsor': False},
+    }), content_type='application/json')
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    after = client.get(BASE).get_json()
+    assert after['segmentCategoryActions']['value']['sponsor'] == 'keep'
+    assert after['segmentCategoryActions']['value']['cross_promo'] == 'remove'
+
+
+def test_ad_chapters_enabled_false_demotes_every_mark(client):
+    r = client.put(f'{BASE}/ad-detection', data=json.dumps({
+        'segmentCategoryActions': {'sponsor': 'mark', 'recap': 'mark'},
+    }), content_type='application/json')
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    r = client.put(f'{BASE}/ad-detection', data=json.dumps({
+        'adChaptersEnabled': False,
+    }), content_type='application/json')
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    after = client.get(BASE).get_json()
+    assert after['adChaptersEnabled']['value'] is False
+    assert after['segmentCategoryActions']['value']['sponsor'] == 'keep'
+    assert after['segmentCategoryActions']['value']['recap'] == 'keep'
 
 
 @pytest.mark.parametrize('payload', [
