@@ -1807,6 +1807,11 @@ def _slot_int_setting(key: str) -> int | None:
         return None
 
 
+def llm_retries_disabled(credential_slot: str = 'primary') -> bool:
+    """True when the slot's max retries is explicitly 0 (fail fast, no per-window rungs)."""
+    return _slot_int_setting(_RETRY_KEYS.get(credential_slot, 'llm_max_retries')) == 0
+
+
 def get_llm_timeout(provider_key: str | None = None, credential_slot: str = 'primary') -> float:
     """Per-slot request timeout; blank falls back to the provider-type default."""
     configured = _slot_int_setting(_TIMEOUT_KEYS.get(credential_slot, 'llm_timeout_seconds'))

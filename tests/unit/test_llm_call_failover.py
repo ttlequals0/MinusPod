@@ -16,6 +16,7 @@ import llm_route
 from cancel import ProcessingCancelled
 from llm_client import (ProviderAccountChangedError, ProviderRateLimitedError,
                         StructuralRateLimitError, ProviderRequestRejectedError, is_failover_trigger_error)
+import llm_client
 from utils import llm_call
 
 FAILOVER_ROUTE = llm_route.Route(
@@ -334,3 +335,36 @@ def test_exhausted_provider_daily_quota_never_triggers_failover(no_sleep):
 
 def test_normalized_provider429_is_not_a_trigger():
     assert not is_failover_trigger_error(ProviderRateLimitedError('provider reset', 300))
+
+
+@pytest.mark.parametrize('configured,primary_calls', [('0', 1), ('', 3)])
+def test_zero_max_retries_fails_over_after_one_dispatch(no_sleep, configured, primary_calls):
+    primary = MagicMock(); primary.create_message.side_effect = _server_error()
+    standby = MagicMock(); standby.create_message.return_value = {'content': 'ok'}
+    settings = {'llm_max_retries': configured}
+    with patch.object(llm_client, '_get_cached_setting', side_effect=settings.get), \
+            patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(llm_call, '_failover_route', return_value=FAILOVER_ROUTE), \
+            patch.object(llm_call, 'client_for_route', return_value=standby), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, error = _call(primary)
+    assert response == {'content': 'ok'} and error is None
+    assert primary.create_message.call_count == primary_calls
+    standby.create_message.assert_called_once()
+
+
+def test_unsaved_failover_state_skips_standby(no_sleep, caplog):
+    primary_error = _outage()
+    primary = MagicMock(); primary.create_message.side_effect = primary_error
+    standby = MagicMock()
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger',
+                         side_effect=failover.FailoverTransitionError('db locked')) as trigger, \
+            patch.object(llm_call, 'client_for_route', return_value=standby), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, error = _call(primary)
+    assert response is None and error is primary_error
+    assert trigger.call_args.kwargs['raise_on_error'] is True
+    standby.create_message.assert_not_called()
+    assert 'standby skipped: state not saved' in caplog.text

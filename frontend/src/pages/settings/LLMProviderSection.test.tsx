@@ -88,6 +88,7 @@ describe('LLMProviderSection: Provider A / Provider B labeling', () => {
     expect((screen.getByLabelText('Provider A max retries') as HTMLInputElement).placeholder).toBe('3');
     expect((screen.getByLabelText('Provider B request timeout (seconds)') as HTMLInputElement).placeholder).toBe('600');
     expect((screen.getByLabelText('Provider B max retries') as HTMLInputElement).placeholder).toBe('2');
+    expect(screen.getAllByText('Blank uses the provider default. 0 sends one request with no retries.')).toHaveLength(2);
   });
 });
 

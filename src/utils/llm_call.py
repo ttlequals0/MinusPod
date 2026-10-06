@@ -19,6 +19,7 @@ from llm_client import (
     is_failover_trigger_error,
     get_llm_timeout,
     get_llm_max_retries,
+    llm_retries_disabled,
     extract_retry_after,
     get_effective_provider,
     StructuralRateLimitError,
@@ -598,9 +599,10 @@ def _dispatch_on_failover(run_ladder, llm_kwargs, last_error, *, target, phase, 
                          credential_slot, model, slug, episode_id, call_label):
     """Retry on standby and return its effective response or error."""
     try:
-        failover.trigger(target, f"{call_label}: {type(last_error).__name__}: {str(last_error)[:200]}")
+        failover.trigger(target, f"{call_label}: {type(last_error).__name__}: {str(last_error)[:200]}",
+                         raise_on_error=True)
     except Exception as error:
-        logger.warning(f"[{slug}:{episode_id}] {call_label} failover trigger errored: {error}")
+        logger.warning(f"[{slug}:{episode_id}] {call_label} standby skipped: state not saved: {error}")
         return None, last_error
     route = _failover_route(phase, provider_key, credential_slot, model)
     if route is None:
@@ -759,7 +761,8 @@ def call_llm(
                 break
 
         if (response is None and last_error is not None and _is_retryable(last_error)
-                and not isinstance(last_error, ReasoningExhaustedError)):
+                and not isinstance(last_error, ReasoningExhaustedError)
+                and not (max_retries == 0 and llm_retries_disabled(credential_slot))):
             # A CircuitBreakerOpen on the last fixed rung earns one more rung once
             # its cooldown clears, appended here rather than pre-planned: no other
             # error qualifies for it.

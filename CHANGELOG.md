@@ -21,6 +21,8 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- An LLM max-retries setting of 0 now sends one request before failing over; the two per-window retries no longer run on top of it.
+- When saving failover state fails, the call logs that the standby was skipped instead of failing silently.
 - **Probe now** no longer loads a local Whisper model in a web worker; the background worker runs the diagnostic decode and the card shows the last result until then.
 - Local recovery no longer stalls under load: busy probes leave recovery progress unchanged, and standby-model decodes no longer discard a probe of the original model. Local probes normalize device and compute type the way the transcriber does.
 - Transcription probes count HTTP 405 from `/models` as reachable, like 404.

@@ -219,7 +219,7 @@ Each of Provider A, Provider B, and the LLM failover provider has its own reques
 | `failoverLlmTimeoutSeconds` | `failover_llm_timeout_seconds` | 10-3600 seconds, or blank |
 | `failoverLlmMaxRetries` | `failover_llm_max_retries` | 0-10, or blank |
 
-Every value here must be a JSON integer or `null`/omitted; a numeric string (`"30"`) is rejected with a 400 rather than coerced. `null` or an empty string clears the override back to the provider-type default. These were previously read only from Provider A's values regardless of which slot a stage used; each slot now reads its own override. See [Failover](failover.md#per-provider-timeouts-and-retries) for how the failover provider's timeout and retries are used mid-run.
+Every value here must be a JSON integer or `null`/omitted; a numeric string (`"30"`) is rejected with a 400 rather than coerced. `null` or an empty string clears the override back to the provider-type default. A max-retries value of 0 sends exactly one request and also skips the two per-window retries, so a failing call reaches the failover provider without delay. These were previously read only from Provider A's values regardless of which slot a stage used; each slot now reads its own override. See [Failover](failover.md#per-provider-timeouts-and-retries) for how the failover provider's timeout and retries are used mid-run.
 
 Transcription uses `whisperMaxAttempts` for upload attempts per chunk, including the first upload. `failoverWhisperMaxAttempts` independently sets standby upload attempts from 1 to 10. Null or blank inherits the current `whisperMaxAttempts`; omitting it leaves the override unchanged. Configure it under Settings > Failover, including when the active transcriber runs locally.
 

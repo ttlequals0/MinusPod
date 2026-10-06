@@ -164,6 +164,9 @@ export function ProviderFields({
             onChange={onMaxRetriesChange}
             className={`w-full ${inputBase} placeholder:text-muted-foreground`}
           />
+          <p className="mt-1 text-sm text-muted-foreground">
+            Blank uses the provider default. 0 sends one request with no retries.
+          </p>
         </div>
       </div>
 
