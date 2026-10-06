@@ -741,6 +741,10 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     """
     feed_cap = db.get_max_episodes_for_podcast(slug, podcast=podcast)
     extra_episodes = db.get_processed_episodes_for_feed(podcast['id'])
+    # Backfill the enclosure length for rows finalized before the
+    # processed_size_bytes column existed; a one-time stat per episode.
+    for ep in extra_episodes:
+        rss_parser.backfill_processed_size(db, storage, slug, ep)
 
     # When the resolved value is True, hide upstream entries that have not
     # finished processing so auto-downloading clients don't hit 503.

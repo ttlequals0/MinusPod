@@ -143,6 +143,10 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     processed_file TEXT,
     original_file TEXT,
     processed_at TEXT,
+    -- Served enclosure length (RSS spec): byte size of processed_file,
+    -- stamped on finalize/recut. NULL for a pre-existing row backfilled
+    -- lazily on render.
+    processed_size_bytes INTEGER,
     processed_version INTEGER DEFAULT 0,
     original_duration REAL,
     new_duration REAL,

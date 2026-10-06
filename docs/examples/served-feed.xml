@@ -42,7 +42,7 @@
   <description><![CDATA[<p>A sample episode description used to illustrate a MinusPod-served feed item.</p>
 
 <p>Chapters</p><p>00:01 Introduction<br>12:30 Topic Overview<br>31:05 Discussion<br>58:40 Wrap-Up</p>]]></description>
-  <enclosure url="http://your-server:8000/episodes/example-podcast/a1b2c3d4e5f6.mp3" type="audio/mpeg" />
+  <enclosure url="http://your-server:8000/episodes/example-podcast/a1b2c3d4e5f6.mp3" type="audio/mpeg" length="57680000" />
   <guid isPermaLink="false">a1b2c3d4e5f6</guid>
   <pubDate>Wed, 30 Sep 2026 01:55:39 +0000</pubDate>
   <itunes:duration>3605</itunes:duration>
@@ -55,7 +55,7 @@
   <description><![CDATA[<p>A sample episode description used to illustrate a MinusPod-served feed item.</p>
 
 <p>Chapters</p><p>00:01 Introduction<br>10:12 Topic Overview<br>35:48 Discussion<br>60:15 Wrap-Up</p>]]></description>
-  <enclosure url="http://your-server:8000/episodes/example-podcast/b2c3d4e5f6a1.mp3" type="audio/mpeg" />
+  <enclosure url="http://your-server:8000/episodes/example-podcast/b2c3d4e5f6a1.mp3" type="audio/mpeg" length="59520000" />
   <guid isPermaLink="false">b2c3d4e5f6a1</guid>
   <pubDate>Wed, 23 Sep 2026 02:57:24 +0000</pubDate>
   <itunes:duration>3720</itunes:duration>
@@ -68,7 +68,7 @@
   <description><![CDATA[<p>A sample episode description used to illustrate a MinusPod-served feed item.</p>
 
 <p>Chapters</p><p>00:01 Introduction<br>14:02 Topic Overview<br>29:50 Discussion<br>56:31 Wrap-Up</p>]]></description>
-  <enclosure url="http://your-server:8000/episodes/example-podcast/c3d4e5f6a1b2.mp3" type="audio/mpeg" />
+  <enclosure url="http://your-server:8000/episodes/example-podcast/c3d4e5f6a1b2.mp3" type="audio/mpeg" length="56176000" />
   <guid isPermaLink="false">c3d4e5f6a1b2</guid>
   <pubDate>Wed, 16 Sep 2026 02:57:34 +0000</pubDate>
   <itunes:duration>3511</itunes:duration>

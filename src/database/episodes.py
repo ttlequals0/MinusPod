@@ -321,7 +321,8 @@ class EpisodeMixin:
                                'deferred_at', 'deferred_service', 'detection_degraded',
                                'low_yield_rerun_at', 'reprocess_source',
                                'season_number', 'p20_item_json',
-                               'pending_recut_at', 'chapters_regen_error'):
+                               'pending_recut_at', 'chapters_regen_error',
+                               'processed_size_bytes'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':
@@ -1032,7 +1033,8 @@ class EpisodeMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT episode_id, title, description, published_at,
-                      new_duration, episode_number, original_url
+                      new_duration, episode_number, original_url,
+                      processed_version, processed_size_bytes
                FROM episodes
                WHERE podcast_id = ? AND status = 'processed'
                      AND processed_file IS NOT NULL

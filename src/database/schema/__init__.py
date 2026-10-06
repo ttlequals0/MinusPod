@@ -341,6 +341,8 @@ class SchemaMixin:
             ('chapters_regen_error', 'TEXT'),
             # Per-episode pass-through override, issue #746.
             ('passthrough_enabled', 'INTEGER'),
+            # Served enclosure length (RSS spec): byte size of processed_file.
+            ('processed_size_bytes', 'INTEGER'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)

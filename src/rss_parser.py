@@ -1085,8 +1085,8 @@ class RSSParser:
 
         # Process each episode from RSS
         included_episode_ids = set()
-        processed_durations = {
-            ep.get('episode_id'): ep.get('new_duration')
+        processed_meta = {
+            ep.get('episode_id'): ep
             for ep in (extra_episodes or [])
             if ep.get('episode_id')
         }
@@ -1126,11 +1126,20 @@ class RSSParser:
                 lines.append(f'  <guid>{self._escape_xml(entry.get("id", episode_url))}</guid>')
             lines.append(f'  <pubDate>{self._escape_xml(entry.get("published", ""))}</pubDate>')
 
-            # Modified enclosure URL
-            lines.append(f'  <enclosure url="{modified_url}" type="audio/mpeg" />')
+            # Modified enclosure URL. A processed episode's length is the cut
+            # file's stored byte count; an unprocessed one passes through
+            # whatever usable length upstream declared, never a guess.
+            processed_ep = processed_meta.get(episode_id)
+            processed_size = (processed_ep or {}).get('processed_size_bytes')
+            if processed_size:
+                length_attr = f' length="{int(processed_size)}"'
+            else:
+                upstream_length = self._upstream_enclosure_length(enclosure)
+                length_attr = f' length="{upstream_length}"' if upstream_length else ''
+            lines.append(f'  <enclosure url="{modified_url}" type="audio/mpeg"{length_attr} />')
 
             # Processed enclosures need the duration of the served file.
-            processed_duration = processed_durations.get(episode_id)
+            processed_duration = (processed_ep or {}).get('new_duration')
             try:
                 processed_duration = float(processed_duration)
             except (TypeError, ValueError):
@@ -1213,6 +1222,36 @@ class RSSParser:
             chapters_url = f"{base_url}/episodes/{slug}/{episode_id}/chapters.json{key_suffix}"
             lines.append(f'  <podcast:chapters url="{chapters_url}" type="application/json+chapters" />')
 
+    @staticmethod
+    def _upstream_enclosure_length(enclosure: dict) -> int | None:
+        """Upstream's declared enclosure length, when it is a usable
+        positive byte count. None for missing, zero, or non-numeric values:
+        the RSS spec requires a real size, never a guess."""
+        try:
+            value = int(enclosure.get('length'))
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    def backfill_processed_size(self, db, storage, slug: str, ep: dict) -> int | None:
+        """Resolve a processed episode's enclosure length, statting and
+        persisting it once for a row left over from before the
+        processed_size_bytes column existed. Mutates ``ep`` in place so the
+        caller's own render uses the resolved value. Returns None, without
+        touching the DB, when the file is missing."""
+        size = ep.get('processed_size_bytes')
+        if size:
+            return int(size)
+        try:
+            path = storage.get_episode_path(slug, ep['episode_id'],
+                                            version=ep.get('processed_version'))
+            size = path.stat().st_size
+        except OSError:
+            return None
+        ep['processed_size_bytes'] = size
+        db.upsert_episode(slug, ep['episode_id'], processed_size_bytes=size)
+        return size
+
     def _append_db_episode_item(self, lines: list, slug: str, ep: dict, storage,
                                 feed_auth_key=None, chapter_notes=None) -> None:
         """Append a single <item> for a processed episode from the database."""
@@ -1225,7 +1264,9 @@ class RSSParser:
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
         if description:
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
-        lines.append(f'  <enclosure url="{modified_url}" type="audio/mpeg" />')
+        size = ep.get('processed_size_bytes')
+        length_attr = f' length="{int(size)}"' if size else ''
+        lines.append(f'  <enclosure url="{modified_url}" type="audio/mpeg"{length_attr} />')
         lines.append(f'  <guid isPermaLink="false">{ep_id}</guid>')
         if ep.get('published_at'):
             lines.append(f'  <pubDate>{self._format_rfc2822(ep["published_at"])}</pubDate>')

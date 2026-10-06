@@ -103,6 +103,7 @@ returns 503 with a JIT-triggered processing job behind it.
 | [`podcast:transcript`](https://podcasting2.org/docs/podcast-namespace/tags/transcript) | MinusPod generates a transcript aligned to the processed audio. An upstream transcript would be offset by the length of every removed ad, and would also point subscribers at the publisher's CDN. |
 | [`podcast:chapters`](https://podcasting2.org/docs/podcast-namespace/tags/chapters) | MinusPod serves its own chapters JSON because upstream timestamps point into the original, uncut audio. Its contents depend on the effective chapter mode; see "Chapter modes" below. |
 | `itunes:duration` | Recomputed from the processed file's actual length. |
+| `enclosure length` | The processed file's byte size. An unprocessed episode passes through upstream's `length` when declared, omitting the attribute otherwise. |
 
 ### Chapter modes
 

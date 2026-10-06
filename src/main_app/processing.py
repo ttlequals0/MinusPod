@@ -4747,10 +4747,16 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
     original_final = storage.get_original_path(slug, episode_id)
     original_file_rel = f"episodes/{episode_id}-original.mp3" if original_final.exists() else None
     processed_file_rel = episode_relative_path(episode_id, processed_version)
+    try:
+        processed_size_bytes = storage.get_episode_path(
+            slug, episode_id, version=processed_version).stat().st_size
+    except OSError:
+        processed_size_bytes = None
     db.upsert_episode(slug, episode_id,
         status=EpisodeStatus.PROCESSED.value,
         processed_at=utc_now_iso(),
         processed_file=processed_file_rel,
+        processed_size_bytes=processed_size_bytes,
         processed_version=processed_version or 0,
         original_file=original_file_rel,
         original_duration=original_duration,
