@@ -3,7 +3,7 @@
 Retired in favor of the 'mark' segment action (2.98.0,
 mark_action_from_ad_chapters_v1): GET derives them from the feed's resolved
 segment actions, PATCH translates them into the feed's segmentCategoryActions
-override. See spec 1.4 and review focus 3.
+override. See spec 1.4.
 """
 import pytest
 
@@ -63,7 +63,7 @@ def test_patch_ad_chapter_categories_true_marks_a_keep_category(app_client, seed
 
 
 def test_patch_ad_chapter_categories_false_demotes_mark_to_keep(app_client, seeded_feed):
-    """Review focus 3: false demotes mark to keep and leaves other actions alone."""
+    """false demotes mark to keep and leaves other actions alone."""
     slug = seeded_feed['slug']
     _authed(app_client)
     headers = _csrf_headers(app_client)
@@ -180,6 +180,23 @@ def test_patch_ad_chapters_enabled_null_is_a_no_op(app_client, seeded_feed):
 
     r = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers, json={
         'adChaptersEnabled': None})
+    assert r.status_code == 200, r.get_data(as_text=True)
+    assert app_client.get(
+        f'/api/v1/feeds/{slug}').get_json()['adChapterCategories']['sponsor'] is True
+
+
+def test_patch_ad_chapter_categories_null_is_a_no_op(app_client, seeded_feed):
+    """adChapterCategories: null must be tolerated like adChaptersEnabled: null."""
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    r = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers, json={
+        'segmentCategoryActions': {'sponsor': 'mark'}})
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    r = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers, json={
+        'adChapterCategories': None})
     assert r.status_code == 200, r.get_data(as_text=True)
     assert app_client.get(
         f'/api/v1/feeds/{slug}').get_json()['adChapterCategories']['sponsor'] is True

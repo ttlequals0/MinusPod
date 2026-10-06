@@ -66,7 +66,7 @@ def test_global_off_leaves_keep(temp_db):
 
 
 def test_feed_override_on_with_global_off_marks_only_that_feed(temp_db):
-    """Review focus 2: ad chapters globally off, one feed override on."""
+    """Ad chapters globally off, one feed override on."""
     temp_db.set_setting('ad_chapters_enabled', 'false', is_default=False)
     temp_db.set_setting('segment_category_actions',
                         json.dumps({'sponsor': 'keep', 'cross_promo': 'beep'}), is_default=False)

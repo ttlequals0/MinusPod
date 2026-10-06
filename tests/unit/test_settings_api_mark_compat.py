@@ -3,7 +3,7 @@
 Retired in favor of the 'mark' segment action (2.98.0,
 mark_action_from_ad_chapters_v1): GET /settings derives them from
 segment_category_actions; PUT/PATCH /settings/ad-detection translates them
-back into it. See spec 1.4 and review focus 3.
+back into it. See spec 1.4.
 """
 import json
 
@@ -57,9 +57,8 @@ def test_adchaptercategories_true_marks_a_keep_category(client):
     assert body['adChaptersEnabled']['value'] is True
 
 
-def test_adchaptercategories_false_demotes_mark_to_keep_review_focus_3(client):
-    """Review focus 3: {sponsor: false} demotes mark to keep and leaves a
-    remove category alone."""
+def test_adchaptercategories_false_demotes_mark_to_keep(client):
+    """{sponsor: false} demotes mark to keep and leaves a remove category alone."""
     assert _put(client, {'segmentCategoryActions': {
         'sponsor': 'mark', 'cross_promo': 'remove'}}).status_code == 200
     assert _put(client, {'adChapterCategories': {'sponsor': False}}).status_code == 200

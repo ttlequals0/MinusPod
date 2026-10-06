@@ -110,8 +110,7 @@ def test_ad_chapter_settings_round_trip(client):
 
 
 def test_ad_chapter_categories_false_demotes_mark_leaves_other_actions(client):
-    """Review focus 3: {sponsor: false} demotes mark to keep and leaves a
-    remove category alone."""
+    """{sponsor: false} demotes mark to keep and leaves a remove category alone."""
     r = client.put(f'{BASE}/ad-detection', data=json.dumps({
         'segmentCategoryActions': {'sponsor': 'mark', 'cross_promo': 'remove'},
     }), content_type='application/json')

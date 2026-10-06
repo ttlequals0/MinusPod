@@ -94,8 +94,8 @@ def test_held_markers_only_when_included_and_use_held_title():
 
 
 def test_held_marker_not_eligible_when_feed_override_says_keep():
-    """Review focus 1: a Mark category held on a feed whose current override
-    is Keep must not get a held chapter."""
+    """A Mark category held on a feed whose current override is Keep must
+    not get a held chapter."""
     cfg = AdChapterConfig(**{**CFG.__dict__, 'include_held': True,
                             'actions': {**CFG.actions, 'sponsor': 'keep'}})
     assert merge_ad_chapters(topics(), [held(900.0, 960.0)], [], DURATION, 0.0, cfg) == topics()

@@ -802,15 +802,21 @@ paths:
                     - null
                   description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
                 adChaptersEnabled:
-                  type: boolean
+                  type:
+                    - boolean
+                    - string
+                    - 'null'
+                  enum: [true, false, 'on', 'off', null]
                   deprecated: true
-                  description: Deprecated. Translates into segmentCategoryActions; false demotes every mark to keep, true is accepted and ignored.
+                  description: Deprecated. Translates into segmentCategoryActions; false (or 'off') demotes every mark to keep. true, 'on', and null are accepted and ignored (null is a no-op, matching the old per-feed override contract).
                 adChapterCategories:
-                  type: object
+                  type:
+                    - object
+                    - 'null'
                   additionalProperties:
                     type: boolean
                   deprecated: true
-                  description: Deprecated. Translates into segmentCategoryActions; true marks the category, false demotes it from mark to keep.
+                  description: Deprecated. Translates into segmentCategoryActions; true marks the category, false demotes it from mark to keep. null is a no-op.
                 queuePriority:
                   type:
                     - string
