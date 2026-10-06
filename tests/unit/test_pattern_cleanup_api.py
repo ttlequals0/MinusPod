@@ -181,6 +181,15 @@ def test_run_requires_csrf(app_client, csrf_required):
     assert r.status_code == 403
 
 
+def test_run_400_does_not_consume_the_rate_limit(app_client, podcast):
+    for _ in range(6):
+        r = app_client.post('/api/v1/patterns/cleanup/run', json=[1, 2])
+        assert r.status_code == 400
+    with patch.object(pattern_cleanup, 'start_cleanup_run', return_value=99):
+        r = app_client.post('/api/v1/patterns/cleanup/run', json={})
+    assert r.status_code == 202
+
+
 # Runs list
 
 def test_runs_list_shape(app_client, podcast):
@@ -280,7 +289,6 @@ def test_approve_returns_updated_suggestion(app_client, podcast):
     body = r.get_json()
     assert body['status'] == 'approved' and body['applied']['appliedAt']
     assert body['applied']['newPatternIds'] == [] and 'applied_at' not in body['applied']
-
 
 
 def test_retire_response_uses_boolean_snapshot_states(app_client, podcast):

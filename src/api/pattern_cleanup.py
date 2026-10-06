@@ -115,7 +115,8 @@ def get_pattern_cleanup_status():
 
 
 @api.route('/patterns/cleanup/run', methods=['POST'])
-@limiter.limit('6/hour')
+# A validation 400 does not consume the budget; only a started run or an in-progress conflict does.
+@limiter.limit('6/hour', deduct_when=lambda response: response.status_code != 400)
 @log_request
 def run_pattern_cleanup():
     data = request.get_json(silent=True) if request.get_data() else {}
