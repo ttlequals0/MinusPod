@@ -49,7 +49,7 @@ The transcriber side uses the same shape: connection errors and 5xx-equivalent b
 
 **LLM calls.** A call that exhausts its normal retry ladder on a trigger error is retried once on the standby provider. That retry runs the standby provider's full retry ladder, with its own model for the pipeline phase, its own timeout, and its own retry count. Later calls in the same run follow immediately, because failover state is checked live, not just at run start. If the standby attempt also fails, the original provider error determines deferral or retry. The standby error is reported instead only when the standby rejected the request itself (HTTP 400 or 422 that is not a credit or quota rejection) or returned a rate-limit hold, cancellation, or account change.
 
-The run retains its original per-phase Provider A/B routes. Cancelling failover or recovering the original provider restores those routes for subsequent calls. Processing history records actual standby dispatches, including failed, deferred, and cancelled attempts, even if recovery happens before the run ends.
+The run retains its original per-phase Provider A/B routes. Cancelling failover or recovering the original provider restores those routes for subsequent calls. Processing history marks a completed or failed run that actually dispatched to the standby, even if recovery happens before the run ends. Deferred, held, cancelled, and requeued runs write no history row; their standby requests stay in the per-run usage ledger.
 
 **Transcription.** The behavior differs by whether the standby transcriber is the same kind of backend as the active one:
 

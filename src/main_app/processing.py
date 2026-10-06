@@ -511,8 +511,6 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
                             slug, episode_id, status=EpisodeStatus.PENDING.value,
                             error_message=CANCELED_ERROR_MESSAGE)
                     status_service.complete_job(slug, episode_id, run_id=run_id)
-                    _record_standby_partial_history(
-                        slug, episode_id, title, podcast_name, CANCELED_ERROR_MESSAGE, start_time)
             except Exception as db_err:
                 audio_logger.warning(f"[{slug}:{episode_id}] Failed to reset status after cancel: {db_err}")
     except ProcessingOwnershipLost as exc:
@@ -5060,24 +5058,8 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
         processing_stats=stats or None,
         run_id=run_id_for_history,
     )
-    if usage:
-        ctx.failover_history_recorded = True
     _finalize_run_log(db, history_id, slug, episode_id)
     return True
-
-
-def _record_standby_partial_history(slug, episode_id, title, podcast_name, error,
-                                    start_time, run_stats=None):
-    ctx = run_context.current()
-    if ctx is None or ctx.failover_history_recorded or not ctx.failover_usage():
-        return
-    try:
-        _record_history_row(
-            db, slug, episode_id, title, podcast_name, status='failed',
-            processing_time=time.time() - start_time, ads_detected=0,
-            token_totals=get_episode_token_totals(), error_message=str(error), run_stats=run_stats)
-    except Exception as exc:
-        audio_logger.warning(f"[{slug}:{episode_id}] Failed to record standby attempt: {exc}")
 
 
 def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
@@ -5781,8 +5763,6 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         audio_logger.warning(
             f"[{slug}:{episode_id}] Provider account changed mid-run; requeued "
             f"to re-resolve routes")
-        _record_standby_partial_history(
-            slug, episode_id, episode_title, podcast_name, error, start_time, run_stats)
         return
 
     # Rate-limit hold (#696): a 429 with a reset sends the episode back to
@@ -5803,8 +5783,6 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         if hold_until:
             _requeue_episode_after_hold(
                 db, slug, episode_id, episode_title, episode_data, hold_until, error)
-            _record_standby_partial_history(
-                slug, episode_id, episode_title, podcast_name, error, start_time, run_stats)
             return
 
     # Offline queue (#482): endpoint-down failures defer instead of failing.
@@ -5837,8 +5815,6 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         fire_service_offline_event(
             service=service, error_message=error, slug=slug,
             episode_id=episode_id, podcast_name=podcast_name)
-        _record_standby_partial_history(
-            slug, episode_id, episode_title, podcast_name, error, start_time, run_stats)
         return
 
     transient = is_transient_error(error)

@@ -30,7 +30,7 @@ release notes.
 - Processing tests preserve dependency filesystem checks, preventing a partial native-library import and shutdown crash.
 - LLM rate limits and exhausted daily quotas never trigger failover; the rate-limit hold waits out the provider reset. A rate limit on the standby holds only the standby account. Transcription 429s that outlast their retry deadline still switch to the standby transcriber.
 - Fixed-provider probes validate response bodies, and transcription probes no longer count timeout or rate-limit responses as healthy.
-- Processing history records actual standby requests, including failed, deferred and cancelled attempts, and retains usage after recovery.
+- Processing history marks runs that actually dispatched to the standby, and retains that usage after recovery. Deferred, held, cancelled, and requeued runs no longer add failed history rows.
 - Manual failover changes take effect on subsequent calls across workers without waiting for the settings cache.
 - Running episodes return to their original LLM routes after standby recovery or cancellation; legacy standby snapshots requeue safely.
 - LLM recovery requires a valid successful endpoint response; malformed responses and rate limits no longer mark a provider healthy.

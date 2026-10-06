@@ -193,7 +193,7 @@ def test_legacy_standby_snapshot_requeues_without_spending_retry_budget(monkeypa
 
 
 @pytest.mark.parametrize('failure', ['offline', 'hold', 'account'])
-def test_early_deferral_persists_actual_standby_usage(temp_db, monkeypatch, failure):
+def test_deferred_held_or_requeued_standby_run_writes_no_failed_history(temp_db, monkeypatch, failure):
     temp_db.create_podcast('usage-history', 'https://example.com/feed.xml', 'Route Test')
     temp_db.upsert_episode('usage-history', 'episode', status='processing', retry_count=2,
                            original_url='https://example.com/episode.mp3')
@@ -216,20 +216,15 @@ def test_early_deferral_persists_actual_standby_usage(temp_db, monkeypatch, fail
         processing._handle_processing_failure(
             'usage-history', 'episode', 'Episode', 'Route Test',
             temp_db.get_episode('usage-history', 'episode'), errors[failure], 0.0)
-        rows = temp_db.get_connection().execute('SELECT * FROM processing_history').fetchall()
-        assert len(rows) == 1
-        assert json.loads(rows[0]['processing_stats_json'])['failover'] == {
-            'llm': ['primary'], 'whisper': False}
+        assert temp_db.get_connection().execute(
+            'SELECT COUNT(*) FROM processing_history').fetchone()[0] == 0
         assert temp_db.get_episode('usage-history', 'episode')['retry_count'] == 2
-        processing._record_standby_partial_history(
-            'usage-history', 'episode', 'Episode', 'Route Test', errors[failure], 0.0)
-        assert temp_db.get_connection().execute('SELECT COUNT(*) FROM processing_history').fetchone()[0] == 1
     finally:
         run_context.end(ctx)
 
 
 @pytest.mark.parametrize('dispatched', [False, True])
-def test_cancellation_records_history_only_after_actual_standby(temp_db, monkeypatch, dispatched):
+def test_cancellation_writes_no_history_row(temp_db, monkeypatch, dispatched):
     temp_db.create_podcast('cancel-usage', 'https://example.com/feed.xml', 'Route Test')
     temp_db.upsert_episode('cancel-usage', 'episode', status='processing', retry_count=2)
     monkeypatch.setattr(processing, 'db', temp_db)
@@ -249,9 +244,6 @@ def test_cancellation_records_history_only_after_actual_standby(temp_db, monkeyp
     processing._process_episode_background(
         'cancel-usage', 'episode', 'https://example.com/episode.mp3',
         'Episode', 'Route Test', '', None, run_id='cancel-usage-run')
-    rows = temp_db.get_connection().execute('SELECT * FROM processing_history').fetchall()
-    assert len(rows) == int(dispatched)
-    if dispatched:
-        assert rows[0]['error_message'] == processing.CANCELED_ERROR_MESSAGE
-        assert json.loads(rows[0]['processing_stats_json'])['failover']['llm'] == ['primary']
+    assert temp_db.get_connection().execute(
+        'SELECT COUNT(*) FROM processing_history').fetchone()[0] == 0
     assert temp_db.get_episode('cancel-usage', 'episode')['status'] == 'pending'

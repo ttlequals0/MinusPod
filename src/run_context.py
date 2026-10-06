@@ -145,7 +145,6 @@ class RunContext:
         self.whisper_failover_used = False
         self._llm_failover_used = set()
         self._failover_usage_lock = threading.Lock()
-        self.failover_history_recorded = False
         self._thinking_notices = {}
         self._thinking_notice_lock = threading.Lock()
 
