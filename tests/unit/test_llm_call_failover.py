@@ -79,8 +79,8 @@ def test_no_redispatch_when_already_on_failover(no_sleep):
 
 
 @pytest.mark.parametrize('held', [False, True])
-def test_provider_rate_limit_uses_independent_standby(no_sleep, held):
-    resp = httpx.Response(429, headers={'retry-after': '300'},
+def test_provider_rate_limit_never_triggers_failover(no_sleep, held):
+    resp = httpx.Response(429, headers={'retry-after': '900'},
                           request=httpx.Request('POST', 'http://example.com'))
     client = MagicMock(); client.create_message.side_effect = openai.RateLimitError('x', response=resp, body=None)
     standby = MagicMock(); standby.create_message.return_value = {'content': 'ok'}
@@ -91,9 +91,10 @@ def test_provider_rate_limit_uses_independent_standby(no_sleep, held):
             patch.object(llm_call, 'client_for_route', return_value=standby), \
             patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
         response, error = _call(client)
-    assert response == {'content': 'ok'} and error is None
-    trig.assert_called_once()
-    standby.create_message.assert_called_once()
+    assert response is None
+    assert isinstance(error, ProviderRateLimitedError) == held
+    trig.assert_not_called()
+    standby.create_message.assert_not_called()
 
 
 @pytest.mark.parametrize('error', [
@@ -141,7 +142,7 @@ def test_standby_rejection_replaces_primary_connectivity_error(no_sleep):
     assert fo_client.create_message.call_count >= 1
 
 
-def test_standby_outage_replaces_primary_not_found_error(no_sleep):
+def test_standby_outage_keeps_primary_not_found_error(no_sleep):
     primary_error = _not_found()
     primary = MagicMock(); primary.create_message.side_effect = primary_error
     standby_error = _outage()
@@ -153,9 +154,44 @@ def test_standby_outage_replaces_primary_not_found_error(no_sleep):
             patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
         response, err = _call(primary)
     assert response is None
-    assert err is standby_error
-    assert err.__context__ is primary_error
+    assert err is primary_error
     assert fo_client.create_message.call_count >= 1
+
+
+def _server_error(status=503):
+    resp = httpx.Response(status, request=httpx.Request('POST', 'http://example.com'))
+    return openai.InternalServerError('unavailable', response=resp, body=None)
+
+
+def _unauthorized():
+    resp = httpx.Response(401, request=httpx.Request('POST', 'http://example.com'))
+    return openai.AuthenticationError('rejected', response=resp, body=None)
+
+
+def _timeout():
+    return openai.APITimeoutError(request=httpx.Request('POST', 'http://example.com'))
+
+
+@pytest.mark.parametrize('make_primary,make_standby,expect', [
+    (_server_error, _unauthorized, 'primary'),
+    (_server_error, _bad_request, 'standby'),
+    (_timeout, _timeout, 'primary'),
+])
+def test_failed_standby_reports_original_unless_request_rejected(
+        no_sleep, make_primary, make_standby, expect):
+    primary_error, standby_error = make_primary(), make_standby()
+    primary = MagicMock(); primary.create_message.side_effect = primary_error
+    standby = MagicMock(); standby.create_message.side_effect = standby_error
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(llm_call, '_failover_route', return_value=FAILOVER_ROUTE), \
+            patch.object(llm_call, 'client_for_route', return_value=standby), \
+            patch.object(llm_call, '_fire_auth_failure_webhook'), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, error = _call(primary)
+    assert response is None
+    assert error is (primary_error if expect == 'primary' else standby_error)
+    standby.create_message.assert_called()
 
 
 def test_failover_ledger_rows_use_failover_slot(no_sleep):
@@ -192,12 +228,10 @@ def test_trigger_raising_returns_original_error(no_sleep):
 
 @pytest.mark.parametrize('standby_error', [
     ProviderRateLimitedError('standby hold', 60, provider_key='openai-compatible', credential_slot='failover'),
-    openai.AuthenticationError('rejected', response=httpx.Response(
-        401, request=httpx.Request('POST', 'http://example.com')), body=None),
     ProcessingCancelled('cancelled'),
     ProviderAccountChangedError('account changed', credential_slot='failover'),
 ])
-def test_standby_terminal_error_retains_type_and_primary_context(no_sleep, standby_error):
+def test_standby_run_control_error_retains_type_and_primary_context(no_sleep, standby_error):
     primary_error = _not_found()
     primary = MagicMock(); primary.create_message.side_effect = primary_error
     standby = MagicMock(); standby.create_message.side_effect = standby_error
@@ -277,7 +311,7 @@ def test_detector_switches_model_and_slot_mid_pass():
         'qwen3:8b', 'failover', 'openai-compatible')
 
 
-def test_exhausted_provider_daily_quota_uses_standby(no_sleep):
+def test_exhausted_provider_daily_quota_never_triggers_failover(no_sleep):
     body = {'error': {'code': 429, 'status': 'RESOURCE_EXHAUSTED', 'details': [{
         '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
         'violations': [{'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier',
@@ -292,11 +326,11 @@ def test_exhausted_provider_daily_quota_uses_standby(no_sleep):
             patch.object(llm_call, 'client_for_route', return_value=standby), \
             patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
         result, error = _call(primary)
-    assert result == {'content': 'ok'} and error is None
+    assert result is None and isinstance(error, StructuralRateLimitError)
     primary.create_message.assert_called_once()
-    standby.create_message.assert_called_once()
-    trigger.assert_called_once()
+    standby.create_message.assert_not_called()
+    trigger.assert_not_called()
 
 
-def test_normalized_provider429_can_use_standby():
-    assert is_failover_trigger_error(ProviderRateLimitedError('provider reset', 300))
+def test_normalized_provider429_is_not_a_trigger():
+    assert not is_failover_trigger_error(ProviderRateLimitedError('provider reset', 300))

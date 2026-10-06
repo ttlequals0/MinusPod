@@ -25,6 +25,7 @@ from llm_client import (
     is_auth_error,
     is_retryable_error,
     LimitExceededError,
+    StructuralRateLimitError,
 )
 from utils import llm_call
 from webhook_service import VALID_EVENTS, EVENT_LIMIT_EXCEEDED
@@ -255,7 +256,7 @@ class TestRetryLoopRouting:
         assert n == 1
         assert fired == {"limit": 0, "auth": 1}
 
-    def test_gemini_daily_quota_routes_exhausted_usage(self, monkeypatch):
+    def test_gemini_daily_quota_still_routes_structural(self, monkeypatch):
         body = {
             "error": {
                 "message": "You exceeded your current quota (429 rate limit)",
@@ -273,8 +274,7 @@ class TestRetryLoopRouting:
         err = FakeProviderError("429 rate limit", status_code=429, body=body)
         response, last_error, n, fired = self._run([err], monkeypatch)
         assert response is None
-        assert isinstance(last_error, LimitExceededError)
-        assert last_error.__context__ is err
+        assert isinstance(last_error, StructuralRateLimitError)
         assert n == 1
         assert fired == {"limit": 0, "auth": 0}
 

@@ -36,18 +36,18 @@ Failover is different from the Provider A / Provider B slot a stage is configure
 | 401 or 403, invalid/expired key or a spend/quota limit | Yes | |
 | 402, or a 400 the provider marks as a credit/quota exhaustion | Yes | |
 | 404 (model or resource not found) | Yes | |
-| Provider 429 (rate limit) or exhausted daily quota | Yes | The standby provider has independent capacity. |
+| 429 (rate limit) or an exhausted daily quota | No | The [Rate-Limit Hold](configuration.md#rate-limit-hold) waits out the provider's reset instead. |
 | Operator-configured RPM/RPD/TPM cap | No | Manual caps remain enforced. |
 | 400 or 422 that is not a quota rejection (bad request, bad parameters) | No | Handled by retrying with fallback parameters, not by switching providers. |
 | A token request exceeds the provider's per-request or per-minute cap | No | Reduce the window size or requested output budget. |
 
-Real provider throttling and exhausted provider quotas can use the configured standby. Manual caps and structurally oversized requests cannot. If the standby also reports a rate limit, the existing [Rate-Limit Hold](configuration.md#rate-limit-hold) behavior applies to that account.
+A rate limit or daily quota never moves LLM work to the standby, with or without a standby configured. If the standby itself returns a rate limit while it is in use, the [Rate-Limit Hold](configuration.md#rate-limit-hold) pauses only the standby account.
 
-The transcriber side uses the same shape: connection errors and 5xx-equivalent backend outages trigger failover, and so do 401/402/403/404 and exhausted 429 retries from an API backend (`TranscriptionRejectedError`), exhausted HTTP 408 timeout retries, and a local backend's model-load failure. Other 4xx responses from an API backend are left alone, same as before this feature.
+The transcriber side uses the same shape: connection errors and 5xx-equivalent backend outages trigger failover, and so do 401/402/403/404 and exhausted 429 retries from an API backend (`TranscriptionRejectedError`), exhausted HTTP 408 timeout retries, and a local backend's model-load failure. Other 4xx responses from an API backend are left alone, same as before this feature. Unlike the LLM side, a transcription 429 that outlasts its retry deadline does switch to the standby transcriber, because transcription has no rate-limit hold to wait it out.
 
 ## What happens mid-run
 
-**LLM calls.** A call that exhausts its normal retry ladder on a trigger error is retried once on the standby provider. That retry runs the standby provider's full retry ladder, with its own model for the pipeline phase, its own timeout, and its own retry count. Later calls in the same run follow immediately, because failover state is checked live, not just at run start. If the standby attempt also fails, its error determines deferral or retry. The original provider error is retained as context for diagnostics.
+**LLM calls.** A call that exhausts its normal retry ladder on a trigger error is retried once on the standby provider. That retry runs the standby provider's full retry ladder, with its own model for the pipeline phase, its own timeout, and its own retry count. Later calls in the same run follow immediately, because failover state is checked live, not just at run start. If the standby attempt also fails, the original provider error determines deferral or retry. The standby error is reported instead only when the standby rejected the request itself (HTTP 400 or 422 that is not a credit or quota rejection) or returned a rate-limit hold, cancellation, or account change.
 
 The run retains its original per-phase Provider A/B routes. Cancelling failover or recovering the original provider restores those routes for subsequent calls. Processing history records actual standby dispatches, including failed, deferred, and cancelled attempts, even if recovery happens before the run ends.
 

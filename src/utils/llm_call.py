@@ -22,7 +22,7 @@ from llm_client import (
     extract_retry_after,
     get_effective_provider,
     StructuralRateLimitError,
-    LimitExceededError,
+    ProviderAccountChangedError,
     ProviderRateLimitedError,
     supports_json_schema_for_calls,
 )
@@ -483,9 +483,7 @@ def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None
         logger.warning(
             f"[{slug}:{episode_id}] {call_label} daily quota exhausted: {actionable}"
         )
-        quota_error = LimitExceededError(actionable)
-        quota_error.__context__ = error
-        return quota_error
+        return StructuralRateLimitError(actionable)
 
     structural = classify_structural_rate_limit(error)
     if structural is not None:
@@ -578,6 +576,24 @@ def _failover_route(phase: str, provider_key: str, credential_slot: str, model: 
     return route if route.credential_slot == SLOT_FAILOVER else None
 
 
+def _failover_result_error(fo_error, original_error):
+    """Keep the original error unless the standby rejected the request shape (400/422)
+    or returned a run-control outcome (hold, cancel, account change)."""
+    from cancel import ProcessingCancelled
+    if fo_error is None or fo_error is original_error:
+        return original_error
+    if isinstance(fo_error, (ProviderRateLimitedError, ProviderAccountChangedError,
+                             ProcessingCancelled)):
+        wins = True
+    else:
+        wins = (getattr(fo_error, 'status_code', None) in (400, 422)
+                and not is_limit_exceeded_error(fo_error))
+    if wins:
+        fo_error.__context__ = original_error
+        return fo_error
+    return original_error
+
+
 def _dispatch_on_failover(run_ladder, llm_kwargs, last_error, *, target, phase, provider_key,
                          credential_slot, model, slug, episode_id, call_label):
     """Retry on standby and return its effective response or error."""
@@ -601,11 +617,10 @@ def _dispatch_on_failover(run_ladder, llm_kwargs, last_error, *, target, phase, 
         get_llm_max_retries(route.provider_key, SLOT_FAILOVER),
         SLOT_FAILOVER, route.provider_key)
     if response is None:
-        if fo_error is not None and fo_error is not last_error:
-            fo_error.__context__ = last_error
         logger.warning(f"[{slug}:{episode_id}] {call_label} failover attempt on "
                        f"{route.provider_key} {route.model_id} also failed: {fo_error}")
-    return response, fo_error
+        return None, _failover_result_error(fo_error, last_error)
+    return response, None
 
 
 def call_llm(
@@ -820,9 +835,7 @@ def call_llm(
                 slug=slug, episode_id=episode_id, call_label=call_label)
         except Exception as e:
             logger.warning(f"[{slug}:{episode_id}] {call_label} failover dispatch errored: {e}")
-            if e is not last_error:
-                e.__context__ = last_error
-            last_error = e
+            last_error = _failover_result_error(e, last_error)
             response = None
         if response is not None:
             return response, None

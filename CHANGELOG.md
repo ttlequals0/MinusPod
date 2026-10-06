@@ -28,7 +28,7 @@ release notes.
 - Failover modules load consistently across import orders, including installations without the local transcription stack.
 - Exhausted transcription timeouts and provider throttling can switch to the standby transcriber.
 - Processing tests preserve dependency filesystem checks, preventing a partial native-library import and shutdown crash.
-- Provider throttling and exhausted daily quotas can use independent standby capacity; manual caps and oversized requests remain enforced.
+- LLM rate limits and exhausted daily quotas never trigger failover; the rate-limit hold waits out the provider reset. A rate limit on the standby holds only the standby account. Transcription 429s that outlast their retry deadline still switch to the standby transcriber.
 - Fixed-provider probes validate response bodies, and transcription probes no longer count timeout or rate-limit responses as healthy.
 - Processing history records actual standby requests, including failed, deferred and cancelled attempts, and retains usage after recovery.
 - Manual failover changes take effect on subsequent calls across workers without waiting for the settings cache.
@@ -36,7 +36,7 @@ release notes.
 - LLM recovery requires a valid successful endpoint response; malformed responses and rate limits no longer mark a provider healthy.
 - Failover forms and actions have 44 px mobile tap targets; switches keep their compact track inside a larger clickable area.
 - Health probes use a captured provider configuration and discard results after configuration or failover state changes.
-- A failed standby request determines episode deferral and retry handling, preserving the original provider error for diagnostics.
+- When the standby request also fails, the original provider error decides deferral and retry, unless the standby rejected the request shape (400 or 422) or returned a hold, cancellation, or account change.
 - Manual failover controls reject invalid request bodies and report persistence failures instead of returning success.
 - Standby model catalogs load only when the Failover card is visible. Settings searches pause hidden-card queries and resume matched cards.
 - LLM HTTP 408 responses now retry and trigger failover like connection timeouts.
