@@ -15,7 +15,10 @@ from ad_reviewer import (
 )
 from ad_validator import Decision
 from audio_processor import get_replacement_duration
-from config import is_pending_review
+from config import (
+    HOLD_REASON_TRANSCRIPT_DIFFERENTIAL, PASS2_AUTOAPPROVE_HOLD_REASONS,
+    PASS2_REVIEWED_RELEASE_HOLD_REASONS, is_pending_review,
+)
 from main_app import processing
 from utils.markers import EDGE_TOLERANCE, is_reviewer_rejected, reviewer_hold_stands
 from main_app.verification_reconciliation import (
@@ -814,3 +817,8 @@ def test_outside_pieces_of_two_holds_become_one_candidate():
     assert run.reviewer['cut'] == [(1100.0, 1120.0)]
     assert _spans(run.output[1]) == [(1100.0, 1120.0)]
     assert run.stats['pass2_outcomes'] == {'covered:pass1_hold': 2, 'cut': 1}
+
+
+def test_transcript_differential_hold_is_reviewed_release_only():
+    assert HOLD_REASON_TRANSCRIPT_DIFFERENTIAL in PASS2_REVIEWED_RELEASE_HOLD_REASONS
+    assert HOLD_REASON_TRANSCRIPT_DIFFERENTIAL not in PASS2_AUTOAPPROVE_HOLD_REASONS

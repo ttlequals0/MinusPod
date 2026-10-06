@@ -286,11 +286,12 @@ PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_ESTIMATED_PATTERN,
 })
 
-# Holds a reviewed pass-2 subspan may release: the auto-approve set plus the
-# reviewer abstentions, where a review of the narrower span is the missing second look.
+# Holds a reviewed pass-2 subspan may release: the auto-approve set plus the reviewer
+# abstentions and transcript gaps, where a review of the narrower span is the missing second look.
 PASS2_REVIEWED_RELEASE_HOLD_REASONS = PASS2_AUTOAPPROVE_HOLD_REASONS | frozenset({
     HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
     HOLD_REASON_REVIEWER_FAILED,
+    HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
 })
 
 # Of those, the reasons a pass-2 ad may only corroborate by covering the held

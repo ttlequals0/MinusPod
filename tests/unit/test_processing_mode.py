@@ -310,6 +310,26 @@ class TestProcessEpisodeModePlumbing:
         assert m['detect'].call_args.kwargs['keep_content'] is None
         assert m['verify'].call_args.kwargs['skip_verification'] is False
 
+    def test_transcript_spans_reach_detection_and_validation(self):
+        span = {'start': 10.0, 'end': 40.0, 'words': 80, 'offset_confirmed': False}
+        with patch.object(processing, '_run_transcript_diff',
+                          return_value={'status': 'ok', 'spans': [span]}) as stage:
+            m = _run_pipeline(_row())
+        stage.assert_called_once()
+        assert m['detect'].call_args.kwargs['transcript_spans'] == [span]
+        assert m['refine'].call_args.kwargs['transcript_spans'] == [span]
+
+    def test_unreliable_transcript_diff_passes_no_spans(self):
+        with patch.object(processing, '_run_transcript_diff',
+                          return_value={'status': 'unreliable', 'spans': []}):
+            m = _run_pipeline(_row())
+        assert m['detect'].call_args.kwargs['transcript_spans'] == []
+
+    def test_skip_detection_skips_transcript_diff(self):
+        with patch.object(processing, '_run_transcript_diff') as stage:
+            _run_pipeline(_row(skip=1))
+        stage.assert_not_called()
+
     def test_pre_run_probe_selection_uses_effective_enabled_routes(self):
         phases = {
             'detection': {'credential_slot': 'secondary'},

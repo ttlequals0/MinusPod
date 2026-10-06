@@ -11,6 +11,7 @@ import time
 from concurrent.futures import Future, TimeoutError as FuturesTimeoutError
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
+from urllib.parse import urlparse
 
 import requests
 import requests.exceptions
@@ -68,7 +69,7 @@ from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, carve_fragment
 from utils.pattern_catalog import pattern_catalog_scope
 from utils.time import (
     adjust_timestamp, epoch_to_iso, merge_cut_spans, overlap_ratio, overlap_seconds,
-    ranges_overlap, span_inside_any_cut, utc_now_iso,
+    parse_iso_utc, ranges_overlap, span_inside_any_cut, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from whisper_pool import get_pool, is_background_leader
@@ -106,6 +107,7 @@ from config import (
     resolve_segment_category_actions_map,
     resolve_skip_second_pass,
     resolve_skip_transcription,
+    resolve_transcript_differential,
     resolve_cue_only_safety,
     cue_only_missing_roles,
     resolve_chapters_mode,
@@ -158,6 +160,7 @@ from rate_limit_hold import (
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
 from text_recurrence import find_recurring_spans
+from transcript_differential import align, fetch_upstream_transcript
 import failover
 import run_context
 import run_log
@@ -1126,6 +1129,73 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
         return None
 
 
+TRANSCRIPT_DIFF_REUSE_SECONDS = 24 * 3600
+
+
+def _reusable_transcript_diff(stored, url):
+    """A stored ok result for the same URL fetched within the reuse window, else None."""
+    if not stored or stored.get('status') != 'ok' or stored.get('source_url') != url:
+        return None
+    fetched = parse_iso_utc(stored.get('fetched_at'))
+    if fetched is None or time.time() - fetched.timestamp() > TRANSCRIPT_DIFF_REUSE_SECONDS:
+        return None
+    return stored
+
+
+def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, podcast=None):
+    """Pipeline stage: diff Whisper against the publisher's transcript. Never raises."""
+    url = (episode_row or {}).get('upstream_transcript_url')
+    payload = {'status': 'none', 'source_url': url, 'mime': None, 'timed': None,
+               'coverage': None, 'spans': [], 'fetched_at': None, 'error': None}
+    reused = False
+    host = 'unknown'
+    try:
+        if url:
+            host = urlparse(url).hostname or host
+        if url and segments and resolve_transcript_differential(podcast, db):
+            stored = _reusable_transcript_diff(
+                db.get_episode_upstream_transcript(slug, episode_id), url)
+            if stored is not None:
+                payload.update(stored)
+                reused = True
+            else:
+                payload['fetched_at'] = utc_now_iso()
+                with _measure_run_stage('transcript_diff'):
+                    try:
+                        transcript = fetch_upstream_transcript(
+                            url, episode_row.get('upstream_transcript_type'))
+                        if transcript is None:
+                            payload.update(status='error', error='fetch or parse failed')
+                        else:
+                            result = align(segments, transcript)
+                            payload.update(status=result['status'], mime=transcript.mime,
+                                           timed=result['timed'],
+                                           coverage=result['coverage'],
+                                           spans=result['spans'])
+                    except Exception as e:
+                        payload.update(status='error', error=str(e), spans=[])
+    except Exception as e:
+        audio_logger.warning(f"[{slug}:{episode_id}] Transcript diff stage failed: {e}")
+        db.clear_leaked_transaction(audio_logger, 'transcript diff stage')
+        payload.update(status='error', error=str(e), spans=[])
+    if not reused:
+        try:
+            db.save_episode_upstream_transcript(slug, episode_id, payload)
+        except Exception as e:
+            audio_logger.warning(f"[{slug}:{episode_id}] Transcript diff store failed: {e}")
+            db.clear_leaked_transaction(audio_logger, 'transcript diff store')
+    coverage = payload.get('coverage')
+    run_stats['transcript_diff'] = {'status': payload['status'], 'coverage': coverage,
+                                    'spans': len(payload.get('spans') or [])}
+    if url:
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Transcript diff: status={payload['status']} "
+            f"coverage={'n/a' if coverage is None else f'{coverage:.2f}'} "
+            f"spans={run_stats['transcript_diff']['spans']} "
+            f"source={host}{' (reused)' if reused else ''}")
+    return payload
+
+
 def _exclude_opening_ads(ads, seconds):
     """Drop markers that begin inside the configured opening window."""
     return [ad for ad in ads if float(ad.get('start', 0)) >= seconds] if seconds > 0 else ads
@@ -1139,7 +1209,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                             force_create_from_pairs=False,
                             strict_pair_roles=False, episode_duration=0.0,
                             run_stats=None, recurrence_spans=None,
-                            action_map=None):
+                            action_map=None, transcript_spans=None):
     """Pipeline stage: Run first-pass Claude ad detection.
 
     ``keep_content``: None lets the detector resolve the per-feed mode from
@@ -1154,6 +1224,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     ``recurrence_spans``: optional cross-episode text-recurrence spans
     (hushpod adoption); rendered per-window, pass-1 only.
     ``action_map``: the run's resolved category actions, shared with detection.
+    ``transcript_spans``: upstream transcript gaps for detector stage 2.6.
 
     Returns (first_pass_ads, first_pass_count, ad_result).
     """
@@ -1176,6 +1247,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         keep_content=keep_content,
         skip_llm=skip_llm,
         action_map=action_map,
+        transcript_spans=transcript_spans,
     )
     storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
@@ -1595,7 +1667,8 @@ def _build_validator(episode_duration, segments, episode_description, *,
                      max_ad_duration_override, cue_gate_enabled,
                      confirmed_corrections=None, positional_prior=None,
                      splice_veto=True, podcast_id=None, podcast_name=None,
-                     cue_only_safety=None, cue_unproven_template_ids=None):
+                     cue_only_safety=None, cue_unproven_template_ids=None,
+                     transcript_spans=None):
     """Single construction point for AdValidator; owns the splice-veto
     settings reads. Per-site differences are stated by the callers:
 
@@ -1635,6 +1708,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
         cue_only_safety=cue_only_safety,
         cue_unproven_template_ids=cue_unproven_template_ids,
         podcast_name=podcast_name,
+        transcript_spans=transcript_spans,
         **splice_kwargs,
     )
 
@@ -2088,7 +2162,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           audio_analysis=None, podcast_id=None, keep_ads=None,
                           cue_only_safety=None, cue_unproven_template_ids=None,
                           apply_heuristic_rolls=True, segment_actions=None, *,
-                          corrections):
+                          corrections, transcript_spans=None):
     """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
 
     ``keep_ads`` are the keep-partitioned markers, passed so boundary
@@ -2134,6 +2208,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         podcast_name=podcast_name,
         cue_only_safety=cue_only_safety,
         cue_unproven_template_ids=cue_unproven_template_ids,
+        transcript_spans=transcript_spans,
     )
     validation_result = validator.validate(
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)
@@ -5304,6 +5379,8 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         if audio_analysis is None:
             audio_analysis = {}
         audio_analysis['dai_differential'] = dd_parsed
+    # Recut re-validates on the original timeline, so stored transcript gaps still corroborate.
+    stored_transcript_diff = db.get_episode_upstream_transcript(slug, episode_id) or {}
 
     validator = _build_validator(
         episode_duration, segments, episode_description,
@@ -5314,6 +5391,8 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         cue_gate_enabled=cue_gate_enabled,
         podcast_id=podcast_id,
         podcast_name=episode.get('podcast_title'),
+        transcript_spans=(stored_transcript_diff.get('spans')
+                          if stored_transcript_diff.get('status') == 'ok' else None),
     )
     validation_result = validator.validate(
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)
@@ -6498,6 +6577,16 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 run_stats['transcription'] = dict(transcription_stats)
         _check_cancel(cancel_event, slug, episode_id)
 
+        # Stage 1a: upstream transcript differential (best effort, bounded fetch).
+        transcript_spans = []
+        if not skip_detection:
+            _publish_status('update_job_stage', slug, episode_id, "pass1:transcript_diff", 21)
+            transcript_diff = _run_transcript_diff(
+                slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings)
+            if transcript_diff['status'] == 'ok':
+                transcript_spans = transcript_diff['spans']
+            _check_cancel(cancel_event, slug, episode_id)
+
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).
         # Started after transcription so the natural delay separates the two
         # fetches, but run on a worker thread so audio analysis (stage 2)
@@ -6696,6 +6785,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         episode_duration=episode_duration,
                         run_stats=run_stats,
                         action_map=segment_actions,
+                        transcript_spans=transcript_spans,
                     )
                 _check_cancel(cancel_event, slug, episode_id)
 
@@ -6728,6 +6818,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     'fingerprint': _detection_stats.get('fingerprint_matches', 0),
                     'text_pattern': _detection_stats.get('text_pattern_matches', 0),
                     'differential': _detection_stats.get('dai_differential_matches', 0),
+                    'transcript_differential': _detection_stats.get(
+                        'transcript_differential_matches', 0),
                     'llm': _detection_stats.get('claude_matches', 0),
                 }
                 run_stats['detected'] = first_pass_count
@@ -6775,6 +6867,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         apply_heuristic_rolls=not cue_only,
                         segment_actions=segment_actions,
                         corrections=user_corrections,
+                        transcript_spans=transcript_spans,
                     )
 
                 # Late keep partition: _refine_and_validate's heuristic

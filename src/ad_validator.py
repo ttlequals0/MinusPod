@@ -19,6 +19,7 @@ from config import (
     HOLD_REASON_NO_SPLICE, VETO_MIN_CUT_SECONDS, SPLICE_VETO_IDENTICAL_MIN_COVERAGE,
     HOLD_REASON_UNCORROBORATED_TAIL,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
     HOLD_REASON_ESTIMATED_PATTERN,
     SPLICE_CORROBORATION_WINDOW_SECONDS,
     CORRECTION_MATCH_MIN_COVERAGE,
@@ -31,6 +32,7 @@ from config import (
     MAX_ADJACENT_AUTO_EXTENSION_SECONDS, MERGE_GAP_SECONDS, is_pending_review,
     REVIEWER_REJECT_PRESERVED_FLAG,
 )
+from transcript_differential import spans_overlapping
 from utils.markers import (
     carve_fragment,
     ensure_hold_id,
@@ -342,7 +344,8 @@ class AdValidator:
                  sponsor_service=None,
                  max_ad_duration: float = MAX_AD_DURATION,
                  max_ad_duration_confirmed: float = MAX_AD_DURATION_CONFIRMED,
-                 podcast_name: str = None):
+                 podcast_name: str = None,
+                 transcript_spans: list[dict] = None):
         """Initialize validator.
 
         Args:
@@ -373,6 +376,7 @@ class AdValidator:
                 sponsor. Resolved per feed by the caller.
             max_ad_duration_confirmed: Length above which even a confirmed
                 sponsor does not help.
+            transcript_spans: Upstream transcript gaps (original timeline).
         """
         self.podcast_name = podcast_name
         self._show_key = squash_brand(podcast_name or '')
@@ -392,6 +396,7 @@ class AdValidator:
         self.veto_min_cut_seconds = veto_min_cut_seconds
         self.differential_corr_max = differential_corr_max
         self.sponsor_service = sponsor_service
+        self.transcript_spans = transcript_spans or []
         # A per-feed override or a pair stored before the API cross-check
         # existed can invert the two; confirming a sponsor must never lower
         # an ad's ceiling.
@@ -897,6 +902,7 @@ class AdValidator:
         ad.pop('held_for_review', None)
         ad.pop('hold_reason', None)
         ad.pop('corroborated_by', None)
+        ad.pop('transcript_corroborated', None)
 
         duration, position = self._measured_extent(ad)
 
@@ -1070,6 +1076,10 @@ class AdValidator:
 
         # Transcript verification - adjust confidence
         confidence = self._verify_in_transcript(ad, confidence, flags)
+        if self._transcript_corroboration(ad):
+            ad['transcript_corroborated'] = True
+            ad.setdefault('corroborated_by', 'transcript_differential')
+            flags.append("INFO: Upstream transcript omits this span")
 
         # Make decision based on adjusted confidence and flags
         decision = self._make_decision(confidence, flags, duration)
@@ -1190,7 +1200,8 @@ class AdValidator:
             # No segments: check vad_gap corroboration early. Untranscribed
             # audio can never show transcript signals (catch-22).
             if ad.get('detection_stage') == 'vad_gap':
-                source = self._audio_corroboration_source(ad)
+                source = (self._audio_corroboration_source(ad)
+                          or self._transcript_corroboration(ad))
                 if source is not None:
                     ad['corroborated_by'] = source
                     flags.append(f"INFO: Audio corroboration ({source})")
@@ -1223,7 +1234,8 @@ class AdValidator:
         # vad_gap markers: check audio corroboration when text exists but
         # patterns don't match. Set corroborated_by if source found, else clamp.
         if ad.get('detection_stage') == 'vad_gap':
-            source = self._audio_corroboration_source(ad)
+            source = (self._audio_corroboration_source(ad)
+                      or self._transcript_corroboration(ad))
             if source is not None:
                 ad['corroborated_by'] = source
                 flags.append(f"INFO: Audio corroboration ({source})")
@@ -1329,6 +1341,14 @@ class AdValidator:
             return 'dai_differential'
         return None
 
+    def _transcript_corroboration(self, ad: dict) -> str | None:
+        """'transcript_differential' when an upstream gap covers half the ad; a gap's own marker never counts."""
+        if (self.transcript_spans and ad.get('detection_stage') != 'transcript_differential'
+                and spans_overlapping(self.transcript_spans, ad['start'], ad['end'],
+                                      min_fraction_of='query')):
+            return 'transcript_differential'
+        return None
+
     def _get_text_in_range(self, start: float, end: float) -> str:
         """Get transcript text within time range.
 
@@ -1416,8 +1436,16 @@ class AdValidator:
         # cleared in _merge_detection_results and cut normally.
         if (decision != Decision.REJECT
                 and ad.get('detection_stage') == 'dai_differential'
-                and ad.get('differential_uncorroborated')):
+                and ad.get('differential_uncorroborated')
+                and not ad.get('transcript_corroborated')):
             self._mark_held(ad, flags, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED)
+            return Decision.REVIEW
+
+        # A lone upstream transcript gap is held for review, never solo-cut; the merge clears the flag on overlap.
+        if (decision != Decision.REJECT
+                and ad.get('detection_stage') == 'transcript_differential'
+                and ad.get('transcript_differential_uncorroborated')):
+            self._mark_held(ad, flags, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL)
             return Decision.REVIEW
 
         # Rule 7: an uncategorised or audio-only LLM span needs ad language in its transcript; skipped
@@ -1495,7 +1523,8 @@ class AdValidator:
                 and ad.get('detection_stage') == 'vad_gap'
                 and self.episode_duration > 0
                 and self.episode_duration - ad['end'] <= self.TAIL_EOF_WINDOW_S
-                and self._audio_corroboration_source(ad) is None):
+                and self._audio_corroboration_source(ad) is None
+                and not ad.get('transcript_corroborated')):
             self._mark_held(ad, flags, HOLD_REASON_UNCORROBORATED_TAIL)
             return Decision.REVIEW
 
@@ -1534,12 +1563,12 @@ class AdValidator:
         return False
 
     def _evidence_gate_exempt(self, ad: dict) -> bool:
-        """Measured audio that stands in for transcript evidence: DAI core, a measured member, a differential."""
+        """Measured evidence that stands in for ad language: DAI core, a measured member, a differential, a transcript gap."""
         start, end = ad['start'], ad['end']
         covered = _covered_seconds(dai_core_spans(ad), start, end)
         if end > start and covered / (end - start) >= EVIDENCE_GATE_DAI_CORE_MIN_COVERAGE:
             return True
-        if measured_evidence(ad):
+        if measured_evidence(ad) or ad.get('transcript_corroborated'):
             return True
         return bool(differential_region_overlapping(
             (self._audio_analysis or {}).get('dai_differential'), start, end,
@@ -1956,6 +1985,8 @@ class AdValidator:
                     or current.get('vad_gap_requires_review')
                     or bool(last.get('differential_uncorroborated'))
                     != bool(current.get('differential_uncorroborated'))
+                    or bool(last.get('transcript_differential_uncorroborated'))
+                    != bool(current.get('transcript_differential_uncorroborated'))
                     or last.get('_pre_dai_restore_confirmed_correction') is not None
                     or current.get('_pre_dai_restore_confirmed_correction') is not None
                     or bool(last.get('_matches_false_positive_correction'))

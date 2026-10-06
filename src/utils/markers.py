@@ -17,6 +17,8 @@ from utils.time import overlap_ratio
 # Read both only through dai_core_spans/dai_core_bounds and dai_probe_spans.
 DAI_CORE_SPANS = 'dai_core_spans'
 DAI_PROBE_SPANS = 'dai_probe_spans'
+# Upstream transcript gap a transcript_differential marker came from.
+TRANSCRIPT_SPAN = 'transcript_span'
 # Silence cut with an accepted measured ad; not part of its measured extent.
 SILENT_ABSORBED_SPANS = 'silent_absorbed_spans'
 # Probe geometry shared with differential_fetcher._probe_block.

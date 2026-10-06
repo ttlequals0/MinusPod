@@ -3473,3 +3473,110 @@ def test_fresh_detections_never_stamped():
 
     assert all('_reviewer_rejected' not in a for a in ads)
     assert all('reviewer_reject_preserved' not in a['validation']['flags'] for a in ads)
+
+
+class TestTranscriptDifferentialEvidence:
+    """Upstream transcript gaps corroborate overlapping ads; a lone gap marker stays held."""
+
+    CHAT = "and that's how we ended up moving the studio across town last spring"
+    ECHO = 'DAI transition pair and volume anomaly indicate ad boundary'
+
+    def _span(self, start=1250.0, end=1300.0, offset_confirmed=False):
+        return {'start': start, 'end': end, 'words': 120,
+                'offset_confirmed': offset_confirmed, 'text_preview': ''}
+
+    def _validate(self, ad, spans, segments=None, analysis=None, duration=3600.0):
+        segments = segments if segments is not None else [
+            {'start': 1250.0, 'end': 1300.0, 'text': self.CHAT}]
+        validator = AdValidator(duration, segments, episode_description='',
+                                transcript_spans=spans)
+        return validator.validate([ad], audio_analysis=analysis).ads[0]
+
+    def _llm_ad(self, start=1250.0, end=1300.0):
+        return {'start': start, 'end': end, 'confidence': 0.95, 'reason': self.ECHO,
+                'detection_stage': 'claude'}
+
+    def _stage_marker(self, start=1250.0, end=1300.0):
+        from config import HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
+        return {'start': start, 'end': end, 'confidence': 0.75, 'sponsor': None,
+                'reason': 'Upstream transcript omits this span',
+                'detection_stage': 'transcript_differential', 'category': 'ad',
+                'held_for_review': True, 'was_cut': False,
+                'hold_reason': HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
+                'transcript_differential_uncorroborated': True,
+                'transcript_span': {'start': start, 'end': end}}
+
+    def test_llm_ad_without_span_is_held_by_rule_7(self):
+        ad = self._validate(self._llm_ad(), [])
+        assert ad.get('hold_reason') == 'no_transcript_evidence'
+        assert 'corroborated_by' not in ad
+
+    @pytest.mark.parametrize('offset_confirmed', [False, True])
+    def test_llm_ad_overlapping_span_is_corroborated_and_passes_rule_7(self, offset_confirmed):
+        ad = self._validate(self._llm_ad(),
+                            [self._span(1255.0, 1300.0, offset_confirmed=offset_confirmed)])
+        assert ad['corroborated_by'] == 'transcript_differential'
+        assert ad['transcript_corroborated'] is True
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert not ad.get('held_for_review')
+
+    def test_span_covering_under_half_the_ad_does_not_corroborate(self):
+        ad = self._validate(self._llm_ad(), [self._span(1280.0, 1300.0)])
+        assert 'corroborated_by' not in ad
+        assert ad.get('hold_reason') == 'no_transcript_evidence'
+
+    @pytest.mark.parametrize('offset_confirmed', [False, True])
+    def test_uncorroborated_stage_marker_stays_held(self, offset_confirmed):
+        from config import HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
+        ad = self._validate(self._stage_marker(),
+                            [self._span(offset_confirmed=offset_confirmed)])
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['held_for_review'] is True
+        assert ad['hold_reason'] == HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
+        assert 'corroborated_by' not in ad
+
+    def test_released_stage_marker_validates_normally(self):
+        marker = self._stage_marker()
+        for key in ('held_for_review', 'was_cut', 'hold_reason',
+                    'transcript_differential_uncorroborated'):
+            marker.pop(key)
+        ad = self._validate(marker, [self._span()])
+        assert ad.get('hold_reason') is None
+
+    def test_span_releases_rule_5_differential_hold(self):
+        diff = {'start': 1250.0, 'end': 1300.0, 'confidence': 0.95,
+                'reason': 'Audio differs across fetches; no other ad signal',
+                'detection_stage': 'dai_differential', 'held_for_review': True,
+                'was_cut': False, 'hold_reason': 'differential_uncorroborated',
+                'differential_uncorroborated': True}
+        held = self._validate(dict(diff), [])
+        assert held['hold_reason'] == 'differential_uncorroborated'
+        released = self._validate(dict(diff), [self._span()])
+        assert not released.get('held_for_review')
+        assert released['corroborated_by'] == 'transcript_differential'
+
+    def test_span_releases_rule_4_tail_hold(self):
+        segments = [{'start': 10520.0, 'end': 10557.6,
+                     'text': 'So that is our show for this week everybody.'}]
+        tail = {'start': 10557.6, 'end': 10600.0, 'confidence': 0.75,
+                'reason': 'VAD gap at episode tail', 'detection_stage': 'vad_gap',
+                'sponsor': None}
+        held = self._validate(dict(tail), [], segments=segments, duration=10600.0)
+        assert held['hold_reason'] == HOLD_REASON_UNCORROBORATED_TAIL
+        released = self._validate(dict(tail), [self._span(10560.0, 10600.0)],
+                                  segments=segments, duration=10600.0)
+        assert not released.get('held_for_review')
+        assert released['corroborated_by'] == 'transcript_differential'
+
+    def test_existing_vad_gap_corroboration_is_kept(self):
+        segments = [{'start': 10520.0, 'end': 10557.6,
+                     'text': 'So that is our show for this week everybody.'}]
+        tail = {'start': 10557.6, 'end': 10600.0, 'confidence': 0.75,
+                'reason': 'VAD gap at episode tail', 'detection_stage': 'vad_gap',
+                'sponsor': None}
+        analysis = {'signals': [{'start': 10557.4, 'end': 10599.6,
+                                 'signal_type': 'dai_transition_pair'}]}
+        ad = self._validate(tail, [self._span(10560.0, 10600.0)], segments=segments,
+                            analysis=analysis, duration=10600.0)
+        assert ad['corroborated_by'] == 'transition_pair'
+        assert ad['transcript_corroborated'] is True
