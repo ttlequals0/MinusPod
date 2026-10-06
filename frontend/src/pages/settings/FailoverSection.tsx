@@ -137,7 +137,8 @@ function TargetRow({
   onCancel: (t: FailoverTargetName) => void;
 }) {
   const label = FAILOVER_TARGET_LABELS[name];
-  const badge = targetBadge(state, probe);
+  const off = !state.enabled && !state.active;
+  const badge = off ? { label: 'Off', tone: tint.neutral } : targetBadge(state, probe);
   const verb = state.active ? 'Cancel' : 'Trigger';
   return (
     <li className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 ${state.active ? 'bg-warning/5' : ''}`}>
@@ -146,9 +147,11 @@ function TargetRow({
           <span className="text-sm font-medium text-foreground">{label}</span>
           <span className={`${badgeBase} shrink-0 font-medium ${badge.tone}`}>{badge.label}</span>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground break-words">{targetMeta(state, probe)}</p>
+        <p className="mt-1 text-xs text-muted-foreground break-words">
+          {off ? `${label} is off` : targetMeta(state, probe)}
+        </p>
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {!off && <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {!state.configured && (
           <span className="text-xs text-muted-foreground">Failover not configured</span>
         )}
@@ -161,7 +164,7 @@ function TargetRow({
         >
           {verb} failover
         </button>
-      </div>
+      </div>}
     </li>
   );
 }

@@ -113,6 +113,16 @@ describe('FailoverSection status rows', () => {
     expect(screen.getByText('Failover not configured')).toBeDefined();
   });
 
+  it('shows a disabled Provider B as off with no action', async () => {
+    renderSection({ overview: makeOverview({
+      targets: { 'llm-a': idle, 'llm-b': makeFailoverTarget({ enabled: false }), transcriber: idle } }) });
+    await openSection();
+    expect(screen.getByText('Provider B is off')).toBeDefined();
+    expect(screen.getByText('Off')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Trigger failover for Provider B' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Trigger failover for Provider A' })).toBeDefined();
+  });
+
   it('badges a probed target by reachability', async () => {
     renderSection({ overview: makeOverview({
       probes: {

@@ -1,7 +1,7 @@
 import type { FailoverProbe, FailoverTargetState } from '../api/failover';
 
 export function makeFailoverTarget(overrides: Partial<FailoverTargetState> = {}): FailoverTargetState {
-  return { active: false, source: null, since: null, reason: null, configured: true, ...overrides };
+  return { active: false, source: null, since: null, reason: null, configured: true, enabled: true, ...overrides };
 }
 
 export function makeFailoverProbe(overrides: Partial<FailoverProbe> = {}): FailoverProbe {

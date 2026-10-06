@@ -239,6 +239,14 @@ describe('ProcessingRunsTable', () => {
     expect(table.getByText('(no transcript)')).toBeTruthy();
   });
 
+  it('notes which targets ran on failover', () => {
+    const table = renderTable([{
+      ...statsRun,
+      stats: { ...statsRun.stats, failover: { llm: ['llm-a'], whisper: true } },
+    }]);
+    expect(table.getByText('(ran on failover: Provider A, transcriber)')).toBeTruthy();
+  });
+
   it('notes a large gap between downloaded and declared duration', () => {
     render(<ProcessingRunsTable runs={[statsRun]} rssDuration={2784} />);
     expect(screen.getByText(/longer\s+than the duration the feed declares/)).toBeTruthy();

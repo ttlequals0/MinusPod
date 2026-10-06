@@ -75,7 +75,7 @@ Before processing, MinusPod checks the effective endpoints needed for the run wh
 
 ## Manual control
 
-The Failover card (Settings > AI & Processing > Failover) shows a status row per target: badge (**Healthy**, **Failed over**, **Unprobed**, or **Not configured**), last probe time, and, while active, the source (automatic, probe, or manual) and reason, plus a **Trigger** or **Cancel** button. A **Probe now** button in the header requests checks for every enabled target, sharing checks already in progress, and a collapsed **Recent events** list shows the last 20 trigger/cancel events.
+The Failover card (Settings > AI & Processing > Failover) shows a status row per target: badge (**Healthy**, **Failed over**, **Unprobed**, **Not configured**, or **Off** for Provider B while it is switched off, with no action button), last probe time, and, while active, the source (automatic, probe, or manual) and reason, plus a **Trigger** or **Cancel** button. A **Probe now** button in the header requests checks for every enabled target, sharing checks already in progress, and a collapsed **Recent events** list shows the last 20 trigger/cancel events.
 
 The same actions are available over the API. All writes require the `X-CSRF-Token` header; see [API & Webhooks](api-and-webhooks.md#api).
 

@@ -96,6 +96,14 @@ def is_configured(target: str, cfg: dict | None = None) -> bool:
     return False
 
 
+def target_enabled(target: str) -> bool:
+    """Whether the original target is in use: Provider B only while enabled with a type."""
+    if target == TARGET_LLM_SECONDARY:
+        return (coerce_bool_setting(_setting('secondary_provider_enabled'))
+                and bool(_setting('secondary_provider')))
+    return True
+
+
 class FailoverTransitionError(RuntimeError):
     """A failover state change could not be persisted."""
 

@@ -432,6 +432,8 @@ export interface ProcessingRunStats {
   // Present only when this run retried a rejected thinking setting with
   // pass defaults. The backend deliberately excludes the provider error.
   thinkingNotices?: ThinkingCompatibilityNotice[];
+  // Present only when the run actually sent requests to a failover configuration.
+  failover?: { llm: ('llm-a' | 'llm-b')[]; whisper: boolean };
 }
 
 export interface ProcessingRunTimings {

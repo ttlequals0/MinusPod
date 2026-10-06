@@ -11029,6 +11029,9 @@ components:
         configured:
           type: boolean
           description: Whether this target has a failover configuration to switch to.
+        enabled:
+          type: boolean
+          description: Whether the original target is in use. Always true for llm-a and transcriber; llm-b is true only while Provider B is enabled with a provider type.
     FailoverProbe:
       type: object
       description: Most recent health probe of one failover-related endpoint (#806).
@@ -13060,6 +13063,25 @@ components:
                 is never stored.
               items:
                 $ref: '#/components/schemas/ThinkingCompatibilityNotice'
+            failover:
+              type: object
+              description: >-
+                Present only when this run actually sent requests to a failover
+                configuration. llm lists the original targets whose calls ran on
+                the failover LLM provider; whisper is true when transcription ran
+                on the failover transcriber.
+              required: [llm, whisper]
+              properties:
+                llm:
+                  type: array
+                  items:
+                    type: string
+                    enum: [llm-a, llm-b]
+                whisper:
+                  type: boolean
+              example:
+                llm: [llm-a]
+                whisper: false
 
     ThinkingCompatibilityNotice:
       type: object

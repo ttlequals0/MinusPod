@@ -11,6 +11,8 @@ export interface FailoverTargetState {
   since: string | null;
   reason: string | null;
   configured: boolean;
+  // False for Provider B while it is switched off; always true for llm-a and transcriber.
+  enabled: boolean;
 }
 
 export interface FailoverProbe {

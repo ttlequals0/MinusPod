@@ -12,7 +12,8 @@ _TARGET_API_NAME = {v: k for k, v in failover.API_TARGET_NAMES.items()}
 
 
 def _target_view(target: str) -> dict:
-    return {**failover.state(target), 'configured': failover.is_configured(target)}
+    return {**failover.state(target), 'configured': failover.is_configured(target),
+            'enabled': failover.target_enabled(target)}
 
 
 def _probe_view(data: dict) -> dict:

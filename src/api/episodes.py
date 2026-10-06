@@ -509,6 +509,14 @@ def _run_stats_to_api(stats):
                     notice.get('fallback') or {}).get('reasoning_effort'),
             },
         } for notice in notices]
+    failover_usage = stats.get('failover')
+    if isinstance(failover_usage, dict):
+        slot_names = {'primary': 'llm-a', 'secondary': 'llm-b'}
+        result['failover'] = {
+            'llm': [slot_names[slot] for slot in failover_usage.get('llm') or ()
+                    if slot in slot_names],
+            'whisper': bool(failover_usage.get('whisper')),
+        }
     return result
 
 

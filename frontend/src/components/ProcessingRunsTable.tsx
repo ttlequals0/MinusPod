@@ -123,6 +123,16 @@ function TimingBreakdown({ run }: { run: EpisodeProcessingRun }) {
   );
 }
 
+const FAILOVER_SLOT_LABELS = { 'llm-a': 'Provider A', 'llm-b': 'Provider B' } as const;
+
+function failoverNote(run: EpisodeProcessingRun): string | null {
+  const used = run.stats?.failover;
+  if (!used) return null;
+  const parts: string[] = used.llm.map((slot) => FAILOVER_SLOT_LABELS[slot]);
+  if (used.whisper) parts.push('transcriber');
+  return parts.length ? `ran on failover: ${parts.join(', ')}` : null;
+}
+
 const HEADER_CLASS = 'py-2 pr-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
 
 interface Column {
@@ -148,6 +158,7 @@ const COLUMNS: Column[] = [
         s?.verificationSkipped ? 'no verification' : null,
         s?.cueOnly ? 'cue-only' : null,
         s?.transcriptionSkipped ? 'no transcript' : null,
+        failoverNote(run),
       ].filter(Boolean);
       return (
         <>

@@ -13,6 +13,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='failover-api
 
 import api
 import failover
+from api.episodes import _run_stats_to_api
 
 
 @pytest.fixture
@@ -174,3 +175,28 @@ def test_failover_whisper_test_connection(app_client, hdr):
         r = app_client.post('/api/v1/settings/providers/failover-whisper/test-connection',
                             json={'baseUrl': 'http://127.0.0.1:8001/v1', 'model': 'whisper-1'}, headers=hdr)
     assert r.status_code == 200 and r.get_json()['ok'] is True
+
+
+def test_targets_report_whether_the_original_is_enabled(app_client, hdr, configured):
+    configured.set_setting('secondary_provider_enabled', 'false', is_default=False)
+    failover.invalidate_cache()
+    targets = app_client.get('/api/v1/failover').get_json()['targets']
+    assert targets['llm-a']['enabled'] is True
+    assert targets['transcriber']['enabled'] is True
+    assert targets['llm-b']['enabled'] is False
+    configured.set_setting('secondary_provider_enabled', 'true', is_default=False)
+    configured.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+    failover.invalidate_cache()
+    try:
+        assert app_client.get('/api/v1/failover').get_json()['targets']['llm-b']['enabled'] is True
+    finally:
+        configured.set_setting('secondary_provider_enabled', 'false', is_default=False)
+        configured.clear_setting('secondary_provider')
+        failover.invalidate_cache()
+
+
+def test_run_stats_expose_failover_usage():
+    out = _run_stats_to_api({'mode': 'auto', 'failover': {'llm': ['primary', 'secondary'],
+                                                          'whisper': True}})
+    assert out['failover'] == {'llm': ['llm-a', 'llm-b'], 'whisper': True}
+    assert 'failover' not in _run_stats_to_api({'mode': 'auto'})
