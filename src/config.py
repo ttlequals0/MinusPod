@@ -102,8 +102,14 @@ ALL_HOLD_REASONS = frozenset(v for k, v in globals().items() if k.startswith('HO
 # resolution defaults (see normalize_segment_category).
 SEGMENT_CATEGORIES = ('sponsor', 'cross_promo', 'self_promo', 'interaction',
                       'intro', 'outro', 'recap')
-SEGMENT_ACTIONS = ('remove', 'beep', 'keep')
+SEGMENT_ACTIONS = ('remove', 'beep', 'keep', 'mark')
 DEFAULT_SEGMENT_ACTION = 'remove'
+
+
+def is_keep_like(action: str | None) -> bool:
+    """True for 'keep' or 'mark': both leave the audio in place."""
+    return action in ('keep', 'mark')
+
 
 # Display names for the categories. Mirrors SEGMENT_CATEGORY_LABELS in
 # frontend/src/utils/segmentCategory.ts; keep the two in sync.

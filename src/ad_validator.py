@@ -30,7 +30,7 @@ from config import (
     HOLD_REASON_LARGE_VAD_GAP, HOLD_REASON_NO_TRANSCRIPT_EVIDENCE,
     EVIDENCE_GATE_DAI_CORE_MIN_COVERAGE, measured_evidence, repair_segment_category,
     MAX_ADJACENT_AUTO_EXTENSION_SECONDS, MERGE_GAP_SECONDS, is_pending_review,
-    REVIEWER_REJECT_PRESERVED_FLAG,
+    REVIEWER_REJECT_PRESERVED_FLAG, is_keep_like,
 )
 from transcript_differential import spans_overlapping
 from utils.markers import (
@@ -137,7 +137,7 @@ def restore_uncovered_confirmed_spans(ads_to_remove, all_ads, confirmed, false_p
     fp_spans = [(fp['start'], fp['end']) for fp in false_positives or []]
     barriers = ([(r['start'], r['end']) for r in trim_ranges or []] + fp_spans
                 + [(m['start'], m['end']) for m in all_ads
-                   if m.get('action_applied') == 'keep'])
+                   if is_keep_like(m.get('action_applied'))])
     restored = []
     for corr in confirmed or []:
         # Restoring is a user-authority action; pass-2 auto-approvals do not qualify.

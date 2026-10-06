@@ -1400,7 +1400,7 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
             logger.info(f"[{slug}:{episode_id}] No authoritative applied cuts "
                         f"persisted; skipping ad chapters")
         else:
-            ad_config = resolve_ad_chapter_config(db, podcast, slug=slug)
+            ad_config = resolve_ad_chapter_config(db, podcast)
             topic = (chapters or {}).get('chapters') or []
             merged = merge_ad_chapters(topic, current_markers, current_cuts,
                                        segments[-1].get('end') if segments else None,

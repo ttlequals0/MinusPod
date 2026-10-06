@@ -268,7 +268,7 @@ def test_generate_assets_recut_no_persisted_cuts_leaves_topic_chapters_untouched
     # entries in play nothing is written at all.
     counters = {}
     _stub_assets_io(monkeypatch, counters)
-    _use_config(monkeypatch, AdChapterConfig.disabled())
+    _use_config(monkeypatch, None)
     stored = {'version': '1.2.0', 'chapters': [{'startTime': 10, 'title': 'Intro'}]}
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
     new_cuts = [{'start': 100.0, 'end': 200.0}, {'start': 500.0, 'end': 600.0}]
@@ -296,7 +296,7 @@ def test_remap_none_previous_cuts_still_rebuilds_the_ad_entries(monkeypatch):
         {'startTime': 300, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
         {'startTime': 360, 'title': 'Show', 'kind': 'resume'}]}
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
-    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'keep',
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     processing._remap_stored_chapters(
         'slug', 'ep', all_cuts=[], replacement_duration=BEEP,
@@ -323,7 +323,7 @@ def test_remap_none_previous_cuts_writes_nothing_when_unchanged(monkeypatch):
         {'startTime': 500, 'title': '[mp:sponsor]', 'kind': 'ad', 'category': 'sponsor'},
         {'startTime': 530, 'title': 'Show', 'kind': 'resume'}]}
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
-    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'keep',
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     processing._remap_stored_chapters(
         'slug', 'ep', all_cuts=[], replacement_duration=BEEP,
@@ -389,14 +389,14 @@ def test_generate_assets_recut_duration_none_uses_probed_value(monkeypatch):
 # ---------- ad chapters on the recut path ----------
 
 AD_CFG = AdChapterConfig(
-    enabled=True, categories={'sponsor': True}, include_held=False,
+    actions={'sponsor': 'mark'}, include_held=False,
     title_format='[mp:{category}]', held_title_format='[mp:{category}?]',
     resume_title='Show', min_confidence=0.9)
 
 
 def _use_config(monkeypatch, cfg):
     monkeypatch.setattr(processing, 'resolve_ad_chapter_config',
-                        lambda db, row, slug=None: cfg)
+                        lambda db, row: cfg)
 
 
 def test_remap_strips_stale_ad_chapters_and_rebuilds_from_markers(monkeypatch):
@@ -411,7 +411,7 @@ def test_remap_strips_stale_ad_chapters_and_rebuilds_from_markers(monkeypatch):
     monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
                         lambda s, e, cj, cuts: saved.update(cj))
     monkeypatch.setattr(processing, 'embed_chapters', lambda *a, **k: True)
-    markers = [{'start': 2000.0, 'end': 2060.0, 'action_applied': 'keep',
+    markers = [{'start': 2000.0, 'end': 2060.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     processing._remap_stored_chapters(
         'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
@@ -432,7 +432,7 @@ def test_remap_with_only_ad_chapters_stored_still_rebuilds(monkeypatch):
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
     monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
                         lambda s, e, cj, cuts: saved.update(cj))
-    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'keep',
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     processing._remap_stored_chapters(
         'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
@@ -442,7 +442,7 @@ def test_remap_with_only_ad_chapters_stored_still_rebuilds(monkeypatch):
 
 
 def test_remap_without_ad_chapters_keeps_previous_behavior(monkeypatch):
-    _use_config(monkeypatch, AdChapterConfig.disabled())
+    _use_config(monkeypatch, None)
     calls = []
     stored = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
@@ -456,7 +456,7 @@ def test_remap_without_ad_chapters_keeps_previous_behavior(monkeypatch):
 
 def test_remap_disabled_ad_config_strips_stale_ad_chapters(monkeypatch):
     """Turning the feature off must clean up entries a previous run wrote."""
-    _use_config(monkeypatch, AdChapterConfig.disabled())
+    _use_config(monkeypatch, None)
     saved = {}
     stored = {'version': '1.2.0', 'chapters': [
         {'startTime': 1, 'title': 'Intro'},
@@ -465,7 +465,7 @@ def test_remap_disabled_ad_config_strips_stale_ad_chapters(monkeypatch):
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
     monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
                         lambda s, e, cj, cuts: saved.update(cj))
-    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'keep',
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     processing._remap_stored_chapters(
         'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
@@ -476,7 +476,7 @@ def test_remap_disabled_ad_config_strips_stale_ad_chapters(monkeypatch):
 
 def test_remap_ad_only_stored_list_with_no_replacement_writes_empty_set(monkeypatch):
     """Stale ad entries must leave the JSON and ID3 even with nothing to add."""
-    _use_config(monkeypatch, AdChapterConfig.disabled())
+    _use_config(monkeypatch, None)
     saved = {}
     embedded = {}
     stored = {'version': '1.2.0', 'chapters': [
@@ -488,7 +488,7 @@ def test_remap_ad_only_stored_list_with_no_replacement_writes_empty_set(monkeypa
     monkeypatch.setattr(processing, 'embed_chapters',
                         lambda p, ch, duration=None: embedded.update(
                             {'path': p, 'chapters': ch}) or True)
-    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'keep',
+    markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     processing._remap_stored_chapters(
         'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,

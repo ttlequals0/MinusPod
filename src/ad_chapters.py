@@ -5,8 +5,7 @@ from dataclasses import dataclass, field
 from config import (
     SEGMENT_CATEGORY_LABELS,
     AD_CHAPTER_KINDS, AD_CHAPTER_SNAP_SECONDS, CHAPTERS_MODE_OFF,
-    DEFAULT_AD_CHAPTER_CATEGORIES, SEGMENT_CATEGORIES, is_pending_review,
-    resolve_ad_chapters_enabled, resolve_chapters_mode,
+    SEGMENT_CATEGORIES, is_pending_review, resolve_chapters_mode,
 )
 from database.settings import registry_current_value, registry_default
 from utils.time import adjust_timestamp
@@ -17,49 +16,46 @@ INTERNAL_CHAPTER_KEYS = ('kind', 'category', 'held', 'hidden')
 
 @dataclass(frozen=True)
 class AdChapterConfig:
-    enabled: bool = False
-    categories: dict = field(
-        default_factory=lambda: dict(DEFAULT_AD_CHAPTER_CATEGORIES))
+    actions: dict = field(default_factory=dict)
     include_held: bool = False
     title_format: str = registry_default('ad_chapter_title_format')
     held_title_format: str = registry_default('ad_chapter_held_title_format')
     resume_title: str = registry_default('ad_chapter_resume_title')
     min_confidence: float = float(registry_default('ad_chapter_min_confidence'))
 
-    @classmethod
-    def disabled(cls) -> 'AdChapterConfig':
-        return cls(enabled=False)
-
     def held_status(self, marker) -> bool | None:
         """None when the marker gets no chapter, else True if it is a held one."""
-        # A keep marker is eligible on its own, even if it also carries a hold.
-        is_keep = marker.get('action_applied') == 'keep'
-        held = not is_keep and is_pending_review(marker)
-        if not is_keep and not held:
+        # A mark marker is eligible on its own, even if it also carries a hold.
+        is_mark = marker.get('action_applied') == 'mark'
+        held = not is_mark and is_pending_review(marker)
+        if not is_mark and not held:
             return None
         if held and not self.include_held:
             return None
         # Raw category: an unset or unknown one is not a sponsor read, so it
         # gets no chapter at all.
         category = marker.get('category')
-        if category not in SEGMENT_CATEGORIES or not self.categories.get(category):
+        if category not in SEGMENT_CATEGORIES:
+            return None
+        # A held marker has no action_applied yet, so its chapter eligibility
+        # is the feed's CURRENT resolved action for the category, not the
+        # marker; a confirmed mark marker already carries that decision.
+        if held and self.actions.get(category) != 'mark':
             return None
         if not held and _marker_confidence(marker) < self.min_confidence:
             return None
         return held
 
 
-def resolve_ad_chapter_config(db, podcast_row, slug=None) -> AdChapterConfig:
-    """Effective config for one feed; disabled when the feed writes no chapters."""
+def resolve_ad_chapter_config(db, podcast_row) -> 'AdChapterConfig | None':
+    """Effective config for one feed, or None when the feed writes no chapters."""
     if resolve_chapters_mode(podcast_row, db=db) == CHAPTERS_MODE_OFF:
-        return AdChapterConfig.disabled()
+        return None
     if not db.get_setting_bool('chapters_enabled', True):
-        return AdChapterConfig.disabled()
-    if not resolve_ad_chapters_enabled(db, podcast_row):
-        return AdChapterConfig.disabled()
+        return None
+    slug = (podcast_row or {}).get('slug')
     return AdChapterConfig(
-        enabled=True,
-        categories=db.resolve_ad_chapter_categories(slug, podcast_row),
+        actions=db.resolve_segment_actions(slug, podcast_row),
         include_held=db.get_setting_bool('ad_chapters_include_held', False),
         title_format=registry_current_value(db, 'ad_chapter_title_format'),
         held_title_format=registry_current_value(db, 'ad_chapter_held_title_format'),
@@ -132,7 +128,7 @@ def merge_ad_chapters(chapters, markers, cuts, episode_duration,
     displaced topic chapter is hidden rather than deleted so a later rebuild
     can restore it."""
     topics = strip_ad_chapters(chapters)
-    if config is None or not config.enabled or not markers:
+    if config is None or not markers:
         return topics
     spans = _eligible_spans(markers, cuts or [], replacement_duration, config)
     if not spans:

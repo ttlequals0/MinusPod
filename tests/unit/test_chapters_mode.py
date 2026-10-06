@@ -26,7 +26,7 @@ import rate_limit_hold
 from rate_limit_hold import hold_message
 from utils.time import utc_now_iso
 
-KEPT_SPONSOR = [{'start': 900.0, 'end': 960.0, 'action_applied': 'keep',
+MARKED_SPONSOR = [{'start': 900.0, 'end': 960.0, 'action_applied': 'mark',
                  'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
 
 
@@ -196,7 +196,7 @@ def test_provider_rate_limit_holds_the_queue_and_still_publishes(monkeypatch):
     run_stats = {}
     with patch.object(rate_limit_hold, 'fire_queue_held_event') as fire:
         storage_mock, _, _, _, _ = _run(monkeypatch, db, [], run_stats=run_stats,
-                                        markers=KEPT_SPONSOR,
+                                        markers=MARKED_SPONSOR,
                                         generator_error=RATE_LIMIT_ERROR)
 
     # A fresh pause alerts once, the same rule the failure handler follows.
@@ -227,7 +227,7 @@ def test_provider_rate_limit_under_an_active_hold_does_not_alert_again(monkeypat
 
     run_stats = {}
     with patch.object(rate_limit_hold, 'fire_queue_held_event') as fire:
-        _run(monkeypatch, db, [], run_stats=run_stats, markers=KEPT_SPONSOR,
+        _run(monkeypatch, db, [], run_stats=run_stats, markers=MARKED_SPONSOR,
              generator_error=RATE_LIMIT_ERROR)
 
     fire.assert_not_called()

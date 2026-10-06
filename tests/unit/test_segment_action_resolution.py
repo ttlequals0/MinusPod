@@ -115,6 +115,15 @@ class TestPutGlobalValidation:
         assert stored['intro'] == 'keep'
         assert stored['outro'] == 'beep'
 
+    def test_put_accepts_mark(self, client, db):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'segmentCategoryActions': {'sponsor': 'mark'}}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+        assert json.loads(db.get_setting('segment_category_actions'))['sponsor'] == 'mark'
+
     def test_put_rejects_unknown_category(self, client):
         resp = client.put(
             '/api/v1/settings/ad-detection',
@@ -181,6 +190,14 @@ class TestPatchPerFeed:
         assert resp.status_code == 200
         assert resp.get_json()['segmentCategoryActions'] is None
         assert db.get_podcast_by_slug(feed_slug)['segment_category_actions'] is None
+
+    def test_patch_accepts_mark(self, client, feed_slug, db):
+        resp = client.patch(
+            f'/api/v1/feeds/{feed_slug}',
+            json={'segmentCategoryActions': {'sponsor': 'mark'}},
+        )
+        assert resp.status_code == 200, resp.data
+        assert resp.get_json()['segmentCategoryActions'] == {'sponsor': 'mark'}
 
     def test_patch_unknown_category_rejected(self, client, feed_slug, db):
         resp = client.patch(

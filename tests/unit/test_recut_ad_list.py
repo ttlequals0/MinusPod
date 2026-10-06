@@ -13,7 +13,6 @@ from tests.app_bootstrap import bootstrap
 # bootstrap seeds OPENAI_MODEL so an app DB first created here has a model.
 _test_data_dir = bootstrap('recut_test_')
 
-from ad_chapters import AdChapterConfig
 from config import PASS2_REVIEWED_RELEASE_HOLD_REASONS
 from main_app import processing
 from utils.markers import explicit_override
@@ -1279,7 +1278,7 @@ def test_recut_episode_keeps_rejects_out_of_saved_markers_and_applied_cuts(tmp_p
         p(processing, 'get_min_cut_confidence', return_value=0.80)
         p(processing, 'embed_chapters', return_value=True)
         p(processing, 'get_replacement_duration', return_value=1.0)
-        p(processing, 'resolve_ad_chapter_config', return_value=AdChapterConfig.disabled())
+        p(processing, 'resolve_ad_chapter_config', return_value=None)
         db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                        'ad_markers_json': json.dumps(ads)}
         db.get_podcast_by_slug.return_value = {'id': 1}
@@ -1397,7 +1396,7 @@ def test_manual_approve_reject_and_adjust_recut_twice_is_identical(tmp_path, ret
             p(processing, 'get_min_cut_confidence', return_value=0.80)
             p(processing, 'embed_chapters', return_value=True)
             p(processing, 'get_replacement_duration', return_value=1.0)
-            p(processing, 'resolve_ad_chapter_config', return_value=AdChapterConfig.disabled())
+            p(processing, 'resolve_ad_chapter_config', return_value=None)
             db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                            'ad_markers_json': json.dumps(markers)}
             db.get_podcast_by_slug.return_value = {'id': 1}
@@ -1571,7 +1570,7 @@ def test_approval_fold_recut_keeps_reviewer_reject_conflict_hold(tmp_path, retai
         p(processing, 'get_min_cut_confidence', return_value=0.80)
         p(processing, 'embed_chapters', return_value=True)
         p(processing, 'get_replacement_duration', return_value=1.0)
-        p(processing, 'resolve_ad_chapter_config', return_value=AdChapterConfig.disabled())
+        p(processing, 'resolve_ad_chapter_config', return_value=None)
         db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                        'ad_markers_json': json.dumps(ads)}
         db.get_podcast_by_slug.return_value = {'id': 1}

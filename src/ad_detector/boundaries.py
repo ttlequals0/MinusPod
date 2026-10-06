@@ -42,7 +42,7 @@ from config import (
     AD_CONTENT_PHONE_PATTERNS, AD_COPY_PHRASES, AD_OFFER_PHRASES,
     MIN_KEYWORD_LENGTH, MIN_UNCOVERED_TAIL_DURATION,
     TERMINAL_SNAP_EOF_TOLERANCE_SECONDS,
-    DEFAULT_SEGMENT_ACTION, normalize_segment_category,
+    DEFAULT_SEGMENT_ACTION, normalize_segment_category, is_keep_like,
     MIN_AD_DURATION_FOR_REMOVAL,
     PATTERN_TIGHTEN_MIN_EXCESS_SECONDS, PATTERN_TIGHTEN_MIN_CONFIDENCE,
 )
@@ -1689,7 +1689,7 @@ def effective_resolved_action(marker: dict,
     if action_map is None:
         return None
     action = resolve_category_action(marker.get('category'), action_map)
-    if action == 'keep' and marker.get('pattern_defined'):
+    if is_keep_like(action) and marker.get('pattern_defined'):
         return 'remove'
     return action
 

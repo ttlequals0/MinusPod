@@ -100,7 +100,7 @@ from config import (
     MIN_PRESERVED_CHAPTERS,
     UNREVIEWABLE_GAP_SECONDS,
     count_not_cut, is_cue_backed, is_pending_review, is_template_cue,
-    normalize_segment_category,
+    normalize_segment_category, is_keep_like,
     SEGMENT_CATEGORIES,
     DEFAULT_SEGMENT_ACTION,
     resolve_processing_mode,
@@ -1824,30 +1824,32 @@ def _make_keep_differential_override(dai_differential):
 def _partition_keep_ads(all_ads, actions_map, differential_override=None):
     """Split first-pass markers by resolved segment-category action.
 
-    A marker resolving to 'keep' bypasses the validator, reviewer, and cut:
-    stamped was_cut=False, action_applied='keep', and pulled out of the
-    list. It also overrides any existing hold, since a kept marker can
-    never be force-cut via a stale hold: held_for_review is cleared and the
-    original reason kept as hold_cleared_reason.
+    A marker resolving to 'keep' or 'mark' bypasses the validator, reviewer,
+    and cut: stamped was_cut=False, action_applied set to the resolved
+    action, and pulled out of the list. It also overrides any existing hold,
+    since a kept marker can never be force-cut via a stale hold:
+    held_for_review is cleared and the original reason kept as
+    hold_cleared_reason.
     Exception: a marker from a defined pattern, or one overlapping a
-    measured differential region, bypasses keep and lands in the remove
+    measured differential region, bypasses keep/mark and lands in the remove
     list stamped with which override caught it.
 
     Returns (keep_ads, remove_ads); remove_ads is all_ads unchanged when no
-    category resolves to 'keep'.
+    category resolves to keep-like.
     """
-    if not any(action == 'keep' for action in actions_map.values()):
+    if not any(is_keep_like(action) for action in actions_map.values()):
         return [], all_ads
     keep_ads = []
     remove_ads = []
     for ad in all_ads:
         category = normalize_segment_category(ad.get('category'))
-        if actions_map.get(category) == 'keep':
+        action = actions_map.get(category)
+        if is_keep_like(action):
             if _keep_overridden(ad, differential_override):
                 remove_ads.append(ad)
                 continue
             ad['was_cut'] = False
-            ad['action_applied'] = 'keep'
+            ad['action_applied'] = action
             if _clear_hold_for_keep(ad):
                 audio_logger.debug(
                     f"Keep resolution clears hold on marker "
@@ -1863,7 +1865,7 @@ def _partition_keep_ads(all_ads, actions_map, differential_override=None):
 def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_map,
                                 differential_override=None):
     """Backstop right before the pass-1 cut list reaches the audio
-    processor: drops any marker whose resolved action is still 'keep'.
+    processor: drops any marker whose resolved action is still keep-like.
 
     A keep-resolving marker synthesized inside _refine_and_validate is
     normally already caught by process_episode's late partition call before
@@ -1872,39 +1874,41 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
     letting it reach _partition_cut_actions would fall back to
     DEFAULT_SEGMENT_ACTION and still cut it.
 
-    Stamps was_cut=False/action_applied='keep' on a caught marker (and its
-    all_ads_with_validation master), clears any hold the same way the keep
-    partition does, and removes it from the returned cut list.
+    Stamps was_cut=False/action_applied on a caught marker (and its
+    all_ads_with_validation master) with the resolved action, clears any
+    hold the same way the keep partition does, and removes it from the
+    returned cut list.
     Exception: a marker from a defined pattern, or one overlapping a
     measured differential region, stays in the cut list, never kept by
     keep maps.
-    Returns ads_to_remove unchanged when no category resolves to 'keep'.
+    Returns ads_to_remove unchanged when no category resolves to keep-like.
     """
-    if not any(action == 'keep' for action in actions_map.values()):
+    if not any(is_keep_like(action) for action in actions_map.values()):
         return ads_to_remove
     caught, remove = [], []
     for ad in ads_to_remove:
         category = normalize_segment_category(ad.get('category'))
-        if actions_map.get(category) == 'keep':
-            caught.append((ad, category))
+        action = actions_map.get(category)
+        if is_keep_like(action):
+            caught.append((ad, category, action))
         else:
             remove.append(ad)
-    for ad, category in caught:
+    for ad, category, action in caught:
         if _keep_overridden(ad, differential_override):
             remove.append(ad)
         else:
             ad['was_cut'] = False
-            ad['action_applied'] = 'keep'
+            ad['action_applied'] = action
             _clear_hold_for_keep(ad)
             master = _find_master(all_ads_with_validation, ad)
             if master is not None:
                 master['was_cut'] = False
-                master['action_applied'] = 'keep'
+                master['action_applied'] = action
                 _clear_hold_for_keep(master)
             audio_logger.debug(
                 f"Late keep safety net: dropping synthesized marker "
                 f"{ad['start']:.1f}s-{ad['end']:.1f}s (category={category!r}) "
-                f"from the cut list; its resolved action is 'keep'"
+                f"from the cut list; its resolved action is {action!r}"
             )
     return remove
 
@@ -1928,12 +1932,12 @@ def _restore_confirmed_spans(ads_to_remove, all_ads_with_validation, corrections
 def _partition_cut_actions(ads_to_remove, actions_map):
     """Stamp each cut-list marker with its resolved remove/beep action.
 
-    'keep' is already handled by _partition_keep_ads and
+    'keep'/'mark' are already handled by _partition_keep_ads and
     _apply_late_keep_safety_net; this only distinguishes remove from beep.
     A marker with no category key (pass-2 verification ads) normalizes to
-    'sponsor'. A 'keep' resolution reaching here (unreachable for a pass-1
-    marker) falls back to DEFAULT_SEGMENT_ACTION rather than being pulled
-    from the list this late, so the segment still cuts.
+    'sponsor'. A keep-like resolution reaching here (unreachable for a
+    pass-1 marker) falls back to DEFAULT_SEGMENT_ACTION rather than being
+    pulled from the list this late, so the segment still cuts.
 
     Mutates ad['action_applied'] in place; returns ads_to_remove for chaining.
     """
@@ -2092,18 +2096,18 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map,
         pattern_defined = bool(
             processed.get('pattern_defined') or original.get('pattern_defined'))
         differential_cut = bool(
-            action == 'keep' and not pattern_defined and differential_override
+            is_keep_like(action) and not pattern_defined and differential_override
             and differential_override.applies_to(original))
-        if action == 'keep' and not pattern_defined and not differential_cut:
+        if is_keep_like(action) and not pattern_defined and not differential_cut:
             for marker in (processed, original):
                 marker['was_cut'] = False
-                marker['action_applied'] = 'keep'
+                marker['action_applied'] = action
                 _clear_hold_for_keep(marker)
             kept_processed.append(processed)
             kept_original.append(original)
             continue
 
-        if action == 'keep':
+        if is_keep_like(action):
             stamp = ('keep_overridden_by_differential' if differential_cut
                      else 'keep_overridden_by_pattern')
             processed[stamp] = True
@@ -3937,7 +3941,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     stamps the marker dict pass2_corroborated in place so the run files the
     approval before it finalizes.
 
-    ``pass1_kept_markers`` are pass-1 markers with action_applied == 'keep';
+    ``pass1_kept_markers`` are pass-1 markers with a keep-like action_applied;
     a verification finding overlapping one is dropped before it can be cut,
     held, or logged as a miss (see _exclude_kept_spans_from_verification).
 
@@ -4445,8 +4449,8 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
         if nothing_stored and not markers:
             return
         ad_config = resolve_ad_chapter_config(
-            db, podcast_row or db.get_podcast_by_slug(slug), slug=slug)
-        if nothing_stored and not ad_config.enabled:
+            db, podcast_row or db.get_podcast_by_slug(slug))
+        if nothing_stored and ad_config is None:
             return
         # One resolved duration for BOTH the JSON sliver filter and the ID3
         # embed, so the served and embedded chapter sets trim against the same
@@ -4567,16 +4571,16 @@ def rebuild_ad_chapters(slug, episode_id, markers, episode=None) -> bool:
                          or {'version': '1.2.0', 'chapters': []})
         current = chapters_json.get('chapters') or []
         has_ad_entries = len(strip_ad_chapters(current)) != len(current)
-        could_add = any(m.get('action_applied') == 'keep' or is_pending_review(m)
+        # Only 'mark' (not 'keep') can ever produce a chapter entry.
+        could_add = any(m.get('action_applied') == 'mark' or is_pending_review(m)
                         for m in markers or [])
         # Nothing stored to clear and no marker that could produce an entry:
         # skip the podcast row and settings reads entirely.
         if not has_ad_entries and not could_add:
             return False
-        ad_config = resolve_ad_chapter_config(
-            db, db.get_podcast_by_slug(slug), slug=slug)
+        ad_config = resolve_ad_chapter_config(db, db.get_podcast_by_slug(slug))
         # Disabled with nothing to strip: no file probe, no write.
-        if not ad_config.enabled and not has_ad_entries:
+        if ad_config is None and not has_ad_entries:
             return False
         cuts = storage.get_applied_cuts(slug, episode_id)
         if cuts is None:
@@ -4699,7 +4703,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
             if chapters_mode == CHAPTERS_MODE_OFF:
                 audio_logger.info(f"[{slug}:{episode_id}] Chapters mode 'off'; skipping chapter step")
                 return
-            ad_config = resolve_ad_chapter_config(db, podcast_row, slug=slug)
+            ad_config = resolve_ad_chapter_config(db, podcast_row)
             # 'auto' probes the PROCESSED file: the ffmpeg cut step already
             # remapped publisher ID3 CHAP frames onto the cut timeline
             # (audio_processor.py), so a probe here gives the remapped list
@@ -7047,7 +7051,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # overlapping one must never be cut, held, or logged as a miss.
             pass1_kept_markers = [
                 m for m in all_ads_with_validation
-                if m.get('action_applied') == 'keep'
+                if is_keep_like(m.get('action_applied'))
             ]
             verification_skipped = skip_detection or skip_second_pass or cue_only
             if skip_second_pass and not skip_detection:

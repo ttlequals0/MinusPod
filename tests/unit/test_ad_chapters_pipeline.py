@@ -26,12 +26,12 @@ from rate_limit_hold import hold_message
 from utils.time import utc_now_iso
 
 AD_CFG = AdChapterConfig(
-    enabled=True, categories={'sponsor': True}, include_held=False,
+    actions={'sponsor': 'mark'}, include_held=False,
     title_format='[mp:{category}]', held_title_format='[mp:{category}?]',
     resume_title='Show', min_confidence=0.9)
 
-KEPT_SPONSOR = [{'start': 900.0, 'end': 960.0, 'action_applied': 'keep',
-                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
+MARKED_SPONSOR = [{'start': 900.0, 'end': 960.0, 'action_applied': 'mark',
+                   'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
 
 # Chapters route a regeneration resolves to; a 429 there pauses this account.
 CHAPTERS_ROUTE = {'provider_key': 'ollama', 'configured_model': 'm-chapters',
@@ -86,7 +86,7 @@ def _run(monkeypatch, db, publisher_chapters, generator_chapters=None,
                         MagicMock(return_value=fetch_return))
     monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 2.0)
     monkeypatch.setattr(processing, 'resolve_ad_chapter_config',
-                        lambda db, row, slug=None: ad_config)
+                        lambda db, row: ad_config)
     monkeypatch.setattr('transcript_generator.TranscriptGenerator', transcript_gen_class)
     monkeypatch.setattr(chapters_generator, 'ChaptersGenerator', generator_class)
 
@@ -115,7 +115,7 @@ def _assert_embedded(embed_mock, merged):
 def test_generate_path_appends_ad_chapters_and_embeds(monkeypatch):
     storage_mock, embed_mock, generator_class = _run(
         monkeypatch, _db(chapters_mode='generate'), publisher_chapters=[],
-        markers=KEPT_SPONSOR)
+        markers=MARKED_SPONSOR)
 
     generator_class.return_value.generate_chapters.assert_called_once()
     merged = _saved_chapters(storage_mock)
@@ -129,7 +129,7 @@ def test_generate_path_with_empty_generation_still_saves_ad_only_list(monkeypatc
     storage_mock, embed_mock, generator_class = _run(
         monkeypatch, _db(chapters_mode='generate'), publisher_chapters=[],
         generator_chapters={'version': '1.2.0', 'chapters': []},
-        markers=KEPT_SPONSOR)
+        markers=MARKED_SPONSOR)
 
     merged = _saved_chapters(storage_mock)
     assert merged == [AD_ENTRY, RESUME_ENTRY]
@@ -148,7 +148,7 @@ def test_generate_path_without_ads_saves_topics_only(monkeypatch):
 def test_generate_path_disabled_config_saves_topics_only(monkeypatch):
     storage_mock, embed_mock, generator_class = _run(
         monkeypatch, _db(chapters_mode='generate'), publisher_chapters=[],
-        markers=KEPT_SPONSOR, ad_config=AdChapterConfig.disabled())
+        markers=MARKED_SPONSOR, ad_config=None)
 
     assert _saved_chapters(storage_mock) == [{'startTime': 1, 'title': 'Intro'}]
 
@@ -163,7 +163,7 @@ PUBLISHER = [{'start': 0.0, 'end': 300.0, 'title': 'Intro'},
 def test_publisher_preserve_path_merges_and_embeds_when_ads_added(monkeypatch):
     storage_mock, embed_mock, generator_class = _run(
         monkeypatch, _db(chapters_mode='auto'), publisher_chapters=PUBLISHER,
-        markers=KEPT_SPONSOR)
+        markers=MARKED_SPONSOR)
 
     generator_class.return_value.generate_chapters.assert_not_called()
     merged = _saved_chapters(storage_mock)
@@ -190,7 +190,7 @@ def test_publisher_preserve_path_unchanged_when_no_ads(monkeypatch):
 def test_chapters_mode_off_writes_nothing_even_with_ads(monkeypatch):
     storage_mock, embed_mock, generator_class = _run(
         monkeypatch, _db(chapters_mode='off'), publisher_chapters=PUBLISHER,
-        markers=KEPT_SPONSOR)
+        markers=MARKED_SPONSOR)
 
     storage_mock.save_chapters_and_applied_cuts.assert_not_called()
     embed_mock.assert_not_called()
@@ -208,7 +208,7 @@ def test_upstream_json_path_merges_and_embeds(monkeypatch):
         monkeypatch,
         _db(chapters_mode='auto',
             upstream_chapters_url='https://pub.example.com/ch.json'),
-        publisher_chapters=[], markers=KEPT_SPONSOR, fetch_return=UPSTREAM,
+        publisher_chapters=[], markers=MARKED_SPONSOR, fetch_return=UPSTREAM,
         original_duration=3600.0)
 
     generator_class.return_value.generate_chapters.assert_not_called()
@@ -240,7 +240,7 @@ def seeded(app_client):
     db.upsert_episode(slug=SLUG, episode_id=EPISODE_ID,
                       original_url='https://example.com/ep.mp3',
                       title='Ep', description='Notes', status='processed')
-    db.save_episode_details(SLUG, EPISODE_ID, ad_markers=KEPT_SPONSOR)
+    db.save_episode_details(SLUG, EPISODE_ID, ad_markers=MARKED_SPONSOR)
     get_storage().save_transcript_vtt(SLUG, EPISODE_ID, VTT)
     yield db
     db.delete_podcast(SLUG)
@@ -254,13 +254,19 @@ def _authed(client):
     return {'X-CSRF-Token': cookie.value} if cookie else {}
 
 
-def _post_regenerate(app_client, generated, ad_config=None):
+# Sentinel: callers pass ad_config=None to mean "disabled", so the default
+# must be distinct from None (which plain falsy-or would mistake for unset).
+_UNSET = object()
+
+
+def _post_regenerate(app_client, generated, ad_config=_UNSET):
+    resolved = AD_CFG if ad_config is _UNSET else ad_config
     headers = _authed(app_client)
     with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
          patch('api.episodes.ChaptersGenerator') as generator, \
          patch('api.episodes.embed_chapters', return_value=False), \
          patch('api.episodes.resolve_ad_chapter_config',
-               lambda db, row, slug=None: ad_config or AD_CFG), \
+               lambda db, row: resolved), \
          patch('main_app.processing._refresh_rss_for_slug'):
         if callable(generated):
             generator.return_value.generate_chapters.side_effect = generated
@@ -324,7 +330,7 @@ def test_served_chapters_json_carries_no_internal_keys(app_client, monkeypatch):
 def test_regenerate_endpoint_without_ad_config_is_unchanged(app_client, seeded):
     resp = _post_regenerate(app_client, {
         'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]},
-        ad_config=AdChapterConfig.disabled())
+        ad_config=None)
 
     assert resp.status_code == 202, resp.data
     stored = json.loads(seeded.get_episode(SLUG, EPISODE_ID)['chapters_json'])
@@ -466,7 +472,7 @@ def test_stale_regen_stamp_is_taken_over(app_client, seeded):
 
     resp = _post_regenerate(app_client, {
         'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]},
-        ad_config=AdChapterConfig.disabled())
+        ad_config=None)
     assert resp.status_code == 202, resp.data
     assert seeded.get_episode(SLUG, EPISODE_ID)['chapters_regen_started_at'] is None
 
@@ -529,7 +535,7 @@ def test_regenerate_aborts_when_the_episode_moves_underneath_it(app_client, seed
             'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
 
     resp = _post_regenerate(
-        app_client, move_episode, ad_config=AdChapterConfig.disabled())
+        app_client, move_episode, ad_config=None)
 
     assert resp.status_code == 202, resp.data
     row = seeded.get_episode(SLUG, EPISODE_ID)
@@ -550,7 +556,7 @@ def test_regenerate_merges_the_markers_as_of_the_save(app_client, seeded):
          patch('api.episodes.ChaptersGenerator') as generator, \
          patch('api.episodes.embed_chapters', return_value=False), \
          patch('api.episodes.resolve_ad_chapter_config',
-               lambda db, row, slug=None: AD_CFG), \
+               lambda db, row: AD_CFG), \
          patch('main_app.processing._refresh_rss_for_slug'):
         generator.return_value.generate_chapters.side_effect = reject_the_marker
         resp = app_client.post(
@@ -627,7 +633,7 @@ def test_chapter_step_publishes_ad_chapters_when_the_hold_write_fails(monkeypatc
                         MagicMock(side_effect=RuntimeError('settings write failed')))
     storage_mock, embed_mock, _ = _run(
         monkeypatch, _db(chapters_mode='generate'), publisher_chapters=[],
-        markers=KEPT_SPONSOR,
+        markers=MARKED_SPONSOR,
         generator_error=ProviderRateLimitedError('resets in 900s',
                                                  retry_after_seconds=900.0))
 
