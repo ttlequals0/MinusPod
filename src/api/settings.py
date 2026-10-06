@@ -1723,10 +1723,8 @@ def _apply_segment_category_actions(db, data):
 
 
 def _translate_ad_chapter_compat(db, data):
-    """Translate the retired adChaptersEnabled/adChapterCategories fields
-    into segment_category_actions (spec 1.4). Returns (new_map_or_None,
-    error); None means neither field was present, so nothing is written.
-    """
+    """Translate adChaptersEnabled/adChapterCategories into segment_category_actions
+    (spec 1.4). (new_map_or_None, error); None means neither field was present."""
     if 'adChaptersEnabled' not in data and 'adChapterCategories' not in data:
         return None, None
 

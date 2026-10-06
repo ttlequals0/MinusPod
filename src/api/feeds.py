@@ -434,13 +434,9 @@ def _deserialize_json_map(raw):
 
 
 def _translate_ad_chapter_compat_for_feed(db, pending_override_raw, data):
-    """Translate the retired adChaptersEnabled/adChapterCategories fields
-    into the feed's segment_category_actions override (spec 1.4). Returns
-    (new_override_json_or_None, error); None means neither field was
-    present, so the caller leaves segment_category_actions alone. null for
-    either field is a no-op, matching the old per-feed override contract
-    where clearing it meant "no instruction, inherit".
-    """
+    """Translate adChaptersEnabled/adChapterCategories into the feed's
+    segment_category_actions override (spec 1.4). (json_or_None, error);
+    null for either field is a no-op, matching the old per-feed contract."""
     if 'adChaptersEnabled' not in data and 'adChapterCategories' not in data:
         return None, None
 

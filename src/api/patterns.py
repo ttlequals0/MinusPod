@@ -1588,11 +1588,9 @@ def submit_correction(slug, episode_id):
     except (TypeError, ValueError):
         return error_response('Original ad boundaries must be numbers', 400)
 
-    # A keep- or mark-resolved marker is left in on purpose by the feed's
-    # category action, so confirm/reject/adjust would record a decision the
-    # cut can never honor. Recategorizing changes that verdict, so it is
-    # exempt. The match ignores pending-review state: a keep/mark-resolved
-    # marker clears its hold, so a pending-review-scoped lookup would miss it.
+    # A keep/mark marker is left in on purpose, so confirm/reject/adjust would
+    # record a decision the cut can never honor (recategorize is exempt).
+    # Unscoped by pending-review: a keep/mark marker clears its hold.
     current_markers = _load_markers(db, slug, episode_id)
     target_marker = find_marker_in_list(
         current_markers, original_start, original_end, 0.5)

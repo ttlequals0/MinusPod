@@ -3507,10 +3507,8 @@ class AdDetector:
                                 category_source = a
                             elif is_keep_like(b_action):
                                 category_source = b
-                            # Neither side resolves to keep-like (e.g. remove
-                            # vs beep): no side is more "correct" to
-                            # preserve, fall back to the higher-confidence
-                            # contributor.
+                            # Neither side is keep-like: fall back to the
+                            # higher-confidence contributor (category_source default).
                     source_category = category_source.get('category')
                     if source_category in SEGMENT_CATEGORIES:
                         combined['category'] = source_category
