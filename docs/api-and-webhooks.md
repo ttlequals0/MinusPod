@@ -62,6 +62,15 @@ Key endpoints:
 - `GET /api/v1/detections` - List ad detections across all feeds with status filter (`needs_review`, `pending`, `rejected`, `accepted`, `all`; default `needs_review`), optional podcast slug (`feed`), free-text search (`q`), sort (`date`, `confidence`, `podcast`), order (`asc`, `desc`), and pagination (`page`, `limit` 1-100, default 20). Powers the Patterns > Ad Review tab.
 - `GET /api/v1/patterns` - List ad patterns (filter by scope)
 - `GET /api/v1/patterns/stats` - Pattern database statistics
+- `GET /api/v1/patterns/cleanup` - Pattern cleanup settings plus live state: `inProgress`, `lastRun`, `lastError`, `lastSummary`, pending suggestion counts by kind (Experiments). See [Pattern Cleanup](pattern-cleanup.md#api)
+- `PUT /api/v1/settings/pattern-cleanup` - Update pattern cleanup settings (`enabled`, `cron`, `batchSize`, `unusedDays`, `provider`, `model`)
+- `POST /api/v1/patterns/cleanup/run` - Start a pattern cleanup run (body `{"force": true}` reviews every learned pattern again); 202 with `{"runId"}`, 409 if one is already running, rate limited to 6/hour
+- `GET /api/v1/patterns/cleanup/runs` - Recent pattern cleanup runs, newest first
+- `GET /api/v1/patterns/cleanup/suggestions` - List pattern cleanup suggestions, filterable by `status` and `kind`
+- `POST /api/v1/patterns/cleanup/suggestions/{id}/approve` - Approve one suggestion, applying it to the pattern in place
+- `POST /api/v1/patterns/cleanup/suggestions/{id}/reject` - Reject one suggestion
+- `POST /api/v1/patterns/cleanup/suggestions/{id}/undo` - Undo an approved suggestion, restoring the pattern's prior state
+- `POST /api/v1/patterns/cleanup/suggestions/bulk` - Approve or reject several suggestion ids at once
 - `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)
 - `GET /api/v1/search?q=query` - Full-text search across all content, grouped into shows, episodes, transcripts, patterns and sponsors. Optional `groups` (comma-separated subset of those five, default all) limits which are computed; an unrequested group is returned empty rather than omitted. Names are case-sensitive, empty tokens from a stray comma are ignored, and duplicates are tolerated. A query shorter than two characters returns every group empty. The old `type` parameter was removed; a request that still sends it gets a 400
 - `GET /api/v1/episodes/processing` - List episodes currently processing

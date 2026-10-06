@@ -20,6 +20,7 @@ release notes.
 - Per-provider LLM request timeout and max retries for Provider A, Provider B, and the failover provider, and a max upload attempts setting for the transcription API.
 - Webhook and email events for failover triggered and cancelled.
 - Upstream transcript differential: when a feed's `podcast:transcript` tag points at a transcript made before the ad reads were spliced in, MinusPod diffs its own Whisper transcript against it. A gap releases its own hold when another stage's detection covers at least half of it. It also raises the confidence of a detection it covers for at least half of that detection's length. Otherwise it holds for review on its own and never cuts by itself. An oversized or malformed publisher transcript is skipped without stalling the run. On by default, with a global toggle and a per-feed override. See [docs/transcript-differential.md](docs/transcript-differential.md).
+- Pattern Cleanup (Experiments): a scheduled LLM review of learned ad patterns that suggests trims, splits, sponsor renames, and retirements, reviewed and approved on the Patterns page before anything changes. Off by default. See [Pattern Cleanup](docs/pattern-cleanup.md).
 
 ### Fixed
 - A stale pre-fix published date could make an upstream GUID change look like a new episode, duplicating it in the feed. Matching now tolerates that drift, a one-time cleanup removes existing duplicates, and the renderer drops any repeat too.

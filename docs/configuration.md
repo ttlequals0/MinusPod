@@ -425,6 +425,15 @@ Audio cue detection snaps ad cuts to a show's recurring chime or stinger, and is
 off by default. Setup, cue types, the find-audio-cues scan, and every tuning
 control are documented in [Audio Cue Detection](audio-cues.md).
 
+### Pattern Cleanup
+
+Pattern Cleanup runs an LLM review of your learned ad patterns on a schedule,
+suggesting trims, splits, sponsor renames, and retirements for patterns that
+carry extra show content or have stopped matching. Off by default, and
+nothing it suggests changes a pattern until you approve it on the Patterns
+page. Full documentation, including the settings, the five suggestion
+kinds, and the API: [Pattern Cleanup](pattern-cleanup.md).
+
 ## Reprocessing
 
 Reprocessing an episode re-runs detection without re-fetching it from the source feed. The episode menu offers four modes; the bulk feed actions offer the same set apart from Recut Audio:

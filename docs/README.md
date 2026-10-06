@@ -14,6 +14,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Environment Variables](environment-variables.md) - every env var, grouped by how often you touch it
 - [LLM Providers](llm-providers.md) - Claude Code wrapper, Ollama (local/cloud), OpenRouter, recommended models, pricing
 - [Failover](failover.md) - standby LLM provider and transcriber, triggers, health probes, recovery, manual control, API
+- [Pattern Cleanup](pattern-cleanup.md) - scheduled LLM review of learned patterns (Experiments): trims, splits, renames, retirements, approve/reject/undo, API
 - [Whisper / Transcription](transcription.md) - GPU compute types, whisper.cpp, Groq, OpenAI Whisper, language, timeouts
 - [Intel GPU Transcription (OpenVINO)](transcription-openvino.md) - offload Whisper to an Intel GPU via OpenVINO Model Server
 - [Finding Feeds & Usage](feeds-and-usage.md) - podcast search, finding RSS feeds, Audiobookshelf

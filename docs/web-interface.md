@@ -15,6 +15,7 @@
 - [Waveform Ad Editor](#waveform-ad-editor)
 - [Adding a New Ad](#adding-a-new-ad)
 - [Ad Review tab](#ad-review-tab)
+- [Cleanup tab](#cleanup-tab)
 - [Audio Cue Templates](#audio-cue-templates)
 - [Held for Review](#held-for-review)
 - [Partial Detection](#partial-detection)
@@ -65,6 +66,7 @@ The server includes a web-based management UI at `/ui/`:
 - Queue page: active jobs show progress and cancellation controls. The full waiting list is paginated, and each row has links and -/+ buttons that can raise or lower its priority. A row the scheduler will not admit yet says why, naming the blocked phase, the account slot, the reason, and when the block lifts
 - Provider account switch (Settings > LLM Provider): changing a slot's endpoint or provider type lists the runs still bound to the current account before you save, and asks whether to requeue them on the new account (the default) or cancel them, so in-flight work is never moved silently
 - Failover (Settings > AI & Processing): a standby LLM provider and transcriber that take over when Provider A, Provider B, or the active transcriber goes unreachable; status strip per target, health-probe policy, and manual Trigger/Cancel/Probe now controls. See [Failover](failover.md)
+- Pattern Cleanup (Settings > Experiments): scheduled LLM review of learned patterns, suggesting trims, splits, sponsor renames, and retirements; reviewed on the Patterns page's Cleanup tab. Experimental, off by default. See [Pattern Cleanup](pattern-cleanup.md)
 - Status bar showing processing progress across all pages through 2-second polling, with failure backoff up to 30 seconds. It also appears when the queue holds work with nothing running, including while any target is on failover. The message names the provider reset time for a rate-limit pause, the unavailable service for an offline wait, or the targets currently on failover
 - System health panel: a Failover row turns warning while any target is on its failover configuration, alongside the existing Transcriber, Podping, and Feed refresh rows
 - Outbound Requests (Settings > Data & Security): the User-Agent MinusPod sends when it fetches feeds, audio, and artwork, editable per string with a Reset back to the default, plus a toggle for whether download logs include URL query strings
@@ -212,6 +214,12 @@ Each row has up to five actions:
 Confirm ad and Not an ad only appear for a detection still awaiting a decision, and never on one left in by its category. Recording a decision does not re-cut the episode on the spot: it marks the episode, and an Apply recuts button above the list rebuilds every waiting episode once. An episode you edit five times is rebuilt once rather than five times. The same button appears on a feed page, where it covers only that feed's episodes.
 
 Corrections go through the same per-episode corrections endpoint used on the episode page, so approve and dismiss decisions feed pattern learning the same way.
+
+### Cleanup tab
+
+The Patterns page's third tab, Cleanup, lists suggestions from the Pattern Cleanup experiment (Settings > Experiments > Pattern Cleanup). A badge on the tab shows the pending count. Filter chips narrow the list by kind (Trim, Split, Rename, Retire, Flag) and a status select switches between Pending, Approved, Rejected, and Undone.
+
+Each card shows the pattern's sponsor, scope, and podcast, plus the model's confidence and reasons. The proposed change itself renders per kind: a trim strikes through the removed text next to the kept copy, a split shows each new piece in its own box, a rename shows old sponsor to new, and retire or flag shows the stats behind the suggestion. Approve and Reject buttons appear on a pending row, Undo on an already-approved one. Select-all plus bulk Approve/Reject act on every checked pending row at once. An empty list links back to Settings > Experiments to start a run. See [Pattern Cleanup](pattern-cleanup.md) for what each kind does and how approve, reject, and undo work.
 
 ### Audio Cue Templates
 
