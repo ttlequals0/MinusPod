@@ -1,5 +1,7 @@
 """A bare visit to the server root lands on the web UI instead of a 404."""
 
+from pathlib import Path
+
 import pytest
 
 from tests.app_bootstrap import bootstrap
@@ -39,12 +41,15 @@ def test_ui_root_still_revalidates(client):
 
 
 def test_ui_asset_stays_immutable(client):
-    from pathlib import Path
-
     assets_dir = Path(__file__).parents[2] / 'static' / 'ui' / 'assets'
     asset_name = next(assets_dir.iterdir()).name
     response = client.get(f'/ui/assets/{asset_name}')
     assert response.headers['Cache-Control'] == 'public, max-age=31536000, immutable'
+
+
+def test_ui_manifest_revalidates(client):
+    response = client.get('/ui/manifest.webmanifest')
+    assert response.headers['Cache-Control'] == 'no-cache, must-revalidate'
 
 
 def test_ui_other_file_keeps_hourly_cache(client):

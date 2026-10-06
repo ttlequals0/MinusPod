@@ -42,6 +42,20 @@ def _feed_actions(temp_db, slug):
     return json.loads(raw) if raw else {}
 
 
+def _set_legacy_override(temp_db, slug, ad_chapters_enabled_override=None,
+                         ad_chapter_categories_override=None):
+    """Seed the retired ad_chapters_enabled_override/ad_chapter_categories_override
+    columns directly: update_podcast's allowlist no longer carries them."""
+    conn = temp_db.get_connection()
+    conn.execute(
+        "UPDATE podcasts SET "
+        "ad_chapters_enabled_override = coalesce(?, ad_chapters_enabled_override), "
+        "ad_chapter_categories_override = coalesce(?, ad_chapter_categories_override) "
+        "WHERE slug = ?",
+        (ad_chapters_enabled_override, ad_chapter_categories_override, slug))
+    conn.commit()
+
+
 def test_global_on_with_sponsor_keep_and_ticked_becomes_mark(temp_db):
     temp_db.set_setting('ad_chapters_enabled', 'true', is_default=False)
     temp_db.set_setting('ad_chapter_categories', json.dumps({'sponsor': True}), is_default=False)
@@ -71,7 +85,7 @@ def test_feed_override_on_with_global_off_marks_only_that_feed(temp_db):
     temp_db.set_setting('segment_category_actions',
                         json.dumps({'sponsor': 'keep', 'cross_promo': 'beep'}), is_default=False)
     temp_db.create_podcast('feed-override-on', 'https://example.com/a.xml', 'Feed Override On')
-    temp_db.update_podcast('feed-override-on', ad_chapters_enabled_override='on')
+    _set_legacy_override(temp_db, 'feed-override-on', ad_chapters_enabled_override='on')
     temp_db.create_podcast('feed-plain', 'https://example.com/b.xml', 'Feed Plain')
 
     _run(temp_db)
@@ -86,7 +100,7 @@ def test_feed_with_chapters_off_while_global_on_gets_explicit_keep_override(temp
     temp_db.set_setting('segment_category_actions',
                         json.dumps({'sponsor': 'keep', 'cross_promo': 'beep'}), is_default=False)
     temp_db.create_podcast('feed-chapters-off', 'https://example.com/c.xml', 'Feed Chapters Off')
-    temp_db.update_podcast('feed-chapters-off', ad_chapters_enabled_override='off')
+    _set_legacy_override(temp_db, 'feed-chapters-off', ad_chapters_enabled_override='off')
 
     _run(temp_db)
 
@@ -127,8 +141,8 @@ def test_feed_category_override_off_while_global_promotes_gets_explicit_keep(tem
     temp_db.set_setting('ad_chapters_enabled', 'true', is_default=False)
     temp_db.set_setting('segment_category_actions', json.dumps({'sponsor': 'keep'}), is_default=False)
     temp_db.create_podcast('feed-cat-off', 'https://example.com/g.xml', 'Feed Cat Off')
-    temp_db.update_podcast('feed-cat-off',
-                           ad_chapter_categories_override=json.dumps({'sponsor': False}))
+    _set_legacy_override(temp_db, 'feed-cat-off',
+                         ad_chapter_categories_override=json.dumps({'sponsor': False}))
 
     _run(temp_db)
 
@@ -139,8 +153,9 @@ def test_malformed_global_segment_category_actions_does_not_block_other_feeds(te
     temp_db.set_setting('ad_chapters_enabled', 'true', is_default=False)
     temp_db.set_setting('segment_category_actions', 'not valid json {{{', is_default=False)
     temp_db.create_podcast('feed-survives-a', 'https://example.com/h.xml', 'Feed Survives A')
-    temp_db.update_podcast('feed-survives-a', ad_chapters_enabled_override='on',
+    temp_db.update_podcast('feed-survives-a',
                            segment_category_actions=json.dumps({'sponsor': 'keep'}))
+    _set_legacy_override(temp_db, 'feed-survives-a', ad_chapters_enabled_override='on')
 
     _run(temp_db)
 
@@ -169,8 +184,9 @@ def test_malformed_feed_segment_category_actions_replaced_only_when_an_override_
     temp_db.set_setting('ad_chapters_enabled', 'true', is_default=False)
     temp_db.set_setting('segment_category_actions', json.dumps({'sponsor': 'keep'}), is_default=False)
     temp_db.create_podcast('feed-needs-override', 'https://example.com/j.xml', 'Feed Needs Override')
-    temp_db.update_podcast('feed-needs-override', ad_chapters_enabled_override='off',
+    temp_db.update_podcast('feed-needs-override',
                            segment_category_actions='{garbage not json')
+    _set_legacy_override(temp_db, 'feed-needs-override', ad_chapters_enabled_override='off')
     temp_db.create_podcast('feed-no-override-needed', 'https://example.com/k.xml', 'Feed No Override')
     temp_db.update_podcast('feed-no-override-needed', segment_category_actions='also garbage')
 
@@ -225,7 +241,7 @@ def test_counts_are_logged(temp_db, caplog):
     temp_db.set_setting('ad_chapters_enabled', 'true', is_default=False)
     temp_db.set_setting('segment_category_actions', json.dumps({'sponsor': 'keep'}), is_default=False)
     temp_db.create_podcast('feed-logged', 'https://example.com/e.xml', 'Feed Logged')
-    temp_db.update_podcast('feed-logged', ad_chapters_enabled_override='off')
+    _set_legacy_override(temp_db, 'feed-logged', ad_chapters_enabled_override='off')
 
     with caplog.at_level(logging.INFO):
         _run(temp_db)

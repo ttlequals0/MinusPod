@@ -396,7 +396,8 @@ def register_routes(app):
             return response
 
         response = send_from_directory(STATIC_DIR, path)
-        # sw.js and index.html must always revalidate, or a cached copy delays update detection.
+        # sw.js, index.html, and manifest.webmanifest must always revalidate,
+        # or a cached copy delays update detection.
         no_cache = path in ('sw.js', 'index.html', 'manifest.webmanifest')
         response.headers['Cache-Control'] = 'no-cache, must-revalidate' if no_cache else 'public, max-age=3600'
         return response

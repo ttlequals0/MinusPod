@@ -90,7 +90,7 @@ release notes.
 - A network-scope audio cue template kept the network id it was promoted under, so it stopped reaching sibling feeds after the owning feed's network setting changed. It now follows the owning feed's network, or demotes to podcast-only when the feed leaves every network; an upgrade migration heals templates already affected.
 - Subscribed feeds now carry the enclosure `length` attribute the RSS spec requires: the processed file's byte size for a cut episode, or upstream's own `length` while it is still unprocessed. Fixes the podcast validator's "Missing item enclosure length attribute" warning.
 - The background refresh loop's first maintenance pass (pattern cleanup, DB backup, community sync, update check) no longer waits for host uptime to reach the refresh interval before running.
-- Requesting `/ui/index.html` by its exact path now revalidates instead of caching for an hour, matching `/ui/` itself.
+- Requesting `/ui/index.html` or `/ui/manifest.webmanifest` by its exact path now revalidates instead of caching for an hour, matching `/ui/` itself.
 
 ### Security
 - Updated fsspec to 2026.6.0 and Werkzeug to 3.1.9 to fix CVE-2026-104851 and CVE-2026-102598.
@@ -103,6 +103,8 @@ release notes.
 - Updated Python dependencies and frontend test tools from dependency PRs #811 through #820. The TypeScript ESLint packages now share one version.
 - The global ad chapters toggle and the per-category chapter checklist are retired; set a category's segment action to Mark instead. A one-shot migration converts existing Keep-plus-chapter categories to Mark on upgrade. `adChaptersEnabled` and `adChapterCategories` are still accepted on the settings and feed APIs, deprecated, and translated against the segment action map.
 - Keep no longer publishes a chapter. A category that was chaptered through Keep needs its action set to Mark to keep chaptering.
+- The by-text ad editor's playback speed control now uses the same compact popover as the waveform editor, with 44 px tap targets on phones.
+- Removed unused frontend and Python dead code found during the 2.98.0 review sweep.
 
 ## [2.97.45] - 2026-10-01
 

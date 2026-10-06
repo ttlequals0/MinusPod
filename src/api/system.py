@@ -49,9 +49,8 @@ def _server_start_time() -> float:
     return shared if shared is not None else _start_time
 
 
-# Repo root (same file layout as main_app.routes.ROOT_DIR): parents[2]
-# resolves /app from /app/src/api/system.py on the shipped image, and
-# the equivalent checkout root in dev.
+# Repo root: parents[2] resolves /app from /app/src/api/system.py on the
+# shipped image, and the equivalent checkout root in dev.
 _ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
