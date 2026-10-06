@@ -126,12 +126,17 @@ def parse_transcript(body: bytes, mime: str | None, source_url: str) -> Upstream
     if not body:
         return None
     text = body.decode('utf-8-sig', errors='replace').replace('\r\n', '\n').replace('\r', '\n')
-    kind = _strong_sniff(text) or _MIME_KIND.get(_base_mime(mime)) or _weak_sniff(text)
+    kind, sniffed_json = _strong_sniff(text)
+    if kind is None:
+        kind = _MIME_KIND.get(_base_mime(mime)) or _weak_sniff(text)
     try:
         if kind in ('vtt', 'srt'):
             cues = _parse_timed_blocks(text)
         elif kind == 'json':
-            cues = _parse_json(text)
+            # Reuse the payload _strong_sniff already parsed when it classified
+            # this as json; only a mime-fallback classification parses here.
+            cues = (_cues_from_json_payload(sniffed_json) if sniffed_json is not None
+                   else _parse_json(text))
         else:
             if len(text) > MAX_UNTIMED_TRANSCRIPT_CHARS:
                 raise _TooLarge(f'{len(text)} chars exceeds {MAX_UNTIMED_TRANSCRIPT_CHARS}')
@@ -150,20 +155,22 @@ def _base_mime(mime: str | None) -> str:
     return (mime or '').split(';', 1)[0].strip().lower()
 
 
-def _strong_sniff(text: str) -> str | None:
+def _strong_sniff(text: str) -> tuple[str | None, dict | None]:
+    """Returns (kind, parsed_json_payload); payload is set only for a json match,
+    so the json branch above can reuse it instead of parsing the body again."""
     head = text.lstrip()
     if head.startswith('WEBVTT'):
-        return 'vtt'
+        return 'vtt', None
     if _SRT_SNIFF_RE.match(head):
-        return 'srt'
+        return 'srt', None
     if head.startswith('{'):
         try:
             payload = json.loads(head)
         except ValueError:
-            return None
+            return None, None
         if isinstance(payload, dict) and isinstance(payload.get('segments'), list):
-            return 'json'
-    return None
+            return 'json', payload
+    return None, None
 
 
 def _weak_sniff(text: str) -> str:
@@ -241,6 +248,10 @@ def _parse_json(text: str) -> list[dict]:
         payload = json.loads(text)
     except ValueError:
         return []
+    return _cues_from_json_payload(payload)
+
+
+def _cues_from_json_payload(payload) -> list[dict]:
     if not isinstance(payload, dict) or not isinstance(payload.get('segments'), list):
         return []
     cues = []
@@ -304,8 +315,11 @@ def whisper_tokens(segments: list[dict]) -> list[tuple[str, float, float]]:
                 start, end = float(w['start']), float(w['end'])
                 tokens.extend((t, start, end) for t in WORD_RE.findall(str(w.get('word', '')).lower()))
         else:
+            seg_start, seg_end = _num(seg.get('start')), _num(seg.get('end'))
+            if seg_start is None or seg_end is None:
+                continue
             tokens.extend(_spread(WORD_RE.findall(seg.get('text', '').lower()),
-                                  float(seg['start']), float(seg['end'])))
+                                  seg_start, seg_end))
     return tokens
 
 

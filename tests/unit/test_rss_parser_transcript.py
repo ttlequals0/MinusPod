@@ -134,6 +134,45 @@ ATOM_FEED = """<?xml version="1.0" encoding="utf-8"?>
 </feed>"""
 
 
+class TestPositionalAlignment:
+    def test_coincidental_count_match_with_different_order_falls_back_to_keyed(self):
+        """Finding 4: a reordered entries list that happens to have the same
+        length as the raw items must not be trusted by index; the guid/
+        enclosure mismatch must trigger the keyed fallback instead."""
+        feed = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <channel>
+    <title>Transcript Show</title>
+    <item>
+      <title>Ep A</title>
+      <guid>guid-a</guid>
+      <enclosure url="https://example.com/a.mp3" type="audio/mpeg"/>
+      <podcast:transcript url="https://upstream.example.com/epA.vtt" type="text/vtt"/>
+    </item>
+    <item>
+      <title>Ep B</title>
+      <guid>guid-b</guid>
+      <enclosure url="https://example.com/b.mp3" type="audio/mpeg"/>
+      <podcast:transcript url="https://upstream.example.com/epB.vtt" type="text/vtt"/>
+    </item>
+  </channel>
+</rss>"""
+        parser = RSSParser()
+        real_feed = parser.parse_feed(feed)
+        assert [e.get('id') for e in real_feed.entries] == ['guid-a', 'guid-b']
+
+        class _ReorderedFeed:
+            entries = [real_feed.entries[1], real_feed.entries[0]]
+
+        episodes = parser.extract_episodes(feed, parsed_feed=_ReorderedFeed())
+        by_url = {e['url']: e for e in episodes}
+        assert by_url['https://example.com/a.mp3']['upstream_transcript_url'] == \
+            'https://upstream.example.com/epA.vtt'
+        assert by_url['https://example.com/b.mp3']['upstream_transcript_url'] == \
+            'https://upstream.example.com/epB.vtt'
+
+
 class TestFeedWithoutChannel:
     def test_atom_feed_parses_episodes_without_transcript_fields(self):
         parser = RSSParser()

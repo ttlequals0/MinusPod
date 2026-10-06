@@ -1,8 +1,10 @@
 """Tests for the upstream transcript fetch, parsers and aligner."""
+import json
 import random
 import time
 import tracemalloc
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import requests
@@ -95,6 +97,15 @@ class TestParsers:
         assert t.mime == 'application/srt'
         assert t.cues == [{'start': 1.0, 'end': 2.0, 'text': 'Hello there, friends.'},
                           {'start': 2.0, 'end': 3.5, 'text': 'Second cue.'}]
+
+    def test_json_body_is_parsed_only_once(self):
+        """Finding 3: _strong_sniff must not fully json.loads the body only
+        for _parse_json to parse it again."""
+        body = _fixture('sample.json')
+        with patch.object(td, 'json', wraps=json) as spy:
+            t = parse_transcript(body, 'application/json', URL)
+        assert spy.loads.call_count == 1
+        assert t.timed is True
 
     def test_json_accepts_start_end_text_keys(self):
         body = (b'{"segments": [{"start": 1.5, "end": 3.0, "text": "Hello there."},'
@@ -302,6 +313,14 @@ class TestTokens:
         segs = [{'start': 0.0, 'end': 2.0, 'text': 'a b',
                  'words': [{'word': 'a'}, {'word': 'b'}]}]
         assert whisper_tokens(segs) == [('a', 0.0, 1.0), ('b', 1.0, 2.0)]
+
+    def test_whisper_tokens_skips_segment_missing_start_or_end(self):
+        """Finding 5: a segment with no words must not raise when the
+        interpolation fallback's own 'start'/'end' keys are also missing."""
+        segs = [{'end': 2.0, 'text': 'no start'},
+                {'start': 2.0, 'text': 'no end'},
+                {'start': 2.0, 'end': 3.0, 'text': 'fine'}]
+        assert whisper_tokens(segs) == [('fine', 2.0, 3.0)]
 
     def test_upstream_tokens_interpolate_inside_timed_cues(self):
         t = UpstreamTranscript(cues=[{'start': 10.0, 'end': 12.0, 'text': 'Hello there'}],

@@ -724,9 +724,10 @@ class RSSParser:
     def _parse_upstream_transcript_tags(channel):
         """Per-item raw podcast:transcript (url, type) tags, since feedparser
         keeps only one per item. Returns (positional, by_key): positional is
-        one list per <item> in document order, for index-matching against
-        feedparser's entries; by_key is a guid/enclosure-URL fallback that
-        drops any key shared by more than one item as ambiguous.
+        one (transcripts, guid, enclosure_url) tuple per <item> in document
+        order, for index-matching against feedparser's entries; by_key is a
+        guid/enclosure-URL fallback that drops any key shared by more than
+        one item as ambiguous.
         """
         positional: list = []
         by_key: dict = {}
@@ -751,7 +752,7 @@ class RSSParser:
                     url = elem.get('url')
                     if url:
                         transcripts.append((url, elem.get('type') or ''))
-            positional.append(transcripts)
+            positional.append((transcripts, guid_text, enclosure_url))
             for key in (guid_text, enclosure_url):
                 if not key:
                     continue
@@ -763,6 +764,24 @@ class RSSParser:
                 else:
                     by_key[key] = transcripts
         return positional, by_key
+
+    @staticmethod
+    def _positional_alignment_holds(positional, entries) -> bool:
+        """False at the first index where the raw item's guid or enclosure URL
+        disagrees with feedparser's entry -- a coincidental item-count match
+        that does not mean the two lists are in the same order."""
+        for (_, guid_text, enclosure_url), entry in zip(positional, entries, strict=True):
+            entry_guid = entry.get('id') or ''
+            entry_enclosure = ''
+            for enclosure in entry.get('enclosures', []):
+                if 'audio' in enclosure.get('type', ''):
+                    entry_enclosure = enclosure.get('href', '')
+                    break
+            if guid_text and entry_guid and guid_text != entry_guid:
+                return False
+            if enclosure_url and entry_enclosure and enclosure_url != entry_enclosure:
+                return False
+        return True
 
     @staticmethod
     def find_channel_element(feed_content):
@@ -1801,9 +1820,11 @@ class RSSParser:
         transcript_positional, transcript_tags_by_key = \
             self._parse_upstream_transcript_tags(channel)
         # Position is the primary match (immune to duplicate guids); the keyed
-        # fallback only applies when the raw item count disagrees with feedparser's.
+        # fallback applies when the raw item count disagrees with feedparser's,
+        # or a count match turns out coincidental (guid/enclosure disagree).
         transcripts_by_position = (
-            len(transcript_positional) == len(feed.entries))
+            len(transcript_positional) == len(feed.entries)
+            and self._positional_alignment_holds(transcript_positional, feed.entries))
 
         episodes = []
         for entry_index, entry in enumerate(feed.entries):
@@ -1852,7 +1873,7 @@ class RSSParser:
                 upstream_transcript_url = None
                 upstream_transcript_type = None
                 if transcripts_by_position:
-                    transcript_tags = transcript_positional[entry_index]
+                    transcript_tags = transcript_positional[entry_index][0]
                 else:
                     transcript_tags = (transcript_tags_by_key.get(entry.get('id', ''))
                                         or transcript_tags_by_key.get(episode_url))

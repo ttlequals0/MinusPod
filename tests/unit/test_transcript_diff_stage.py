@@ -129,6 +129,23 @@ def test_global_toggle_off_skips(stage):
     stage.fetch.assert_not_called()
 
 
+def test_toggle_off_does_not_clobber_stored_ok_result(stage):
+    stage.get_stored.return_value = {'status': 'ok', 'source_url': URL, 'spans': [SPAN],
+                                     'fetched_at': _iso(1)}
+    payload, run_stats = stage.run(podcast={'id': 7, 'transcript_differential': 0})
+    assert payload['status'] == 'none'
+    assert run_stats['transcript_diff']['status'] == 'none'
+    stage.save.assert_not_called()
+
+
+def test_no_segments_does_not_clobber_stored_ok_result(stage):
+    stage.get_stored.return_value = {'status': 'ok', 'source_url': URL, 'spans': [SPAN],
+                                     'fetched_at': _iso(1)}
+    payload, _ = stage.run(segments=[])
+    assert payload['status'] == 'none'
+    stage.save.assert_not_called()
+
+
 def test_local_feed_without_url_skips(stage):
     payload, run_stats = stage.run(
         episode={'upstream_transcript_url': None},

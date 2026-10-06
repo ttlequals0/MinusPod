@@ -668,7 +668,7 @@ def test_recut_after_inconclusive_hold_review_keeps_the_hold_pending(monkeypatch
     db.get_episode_dai_differential.return_value = None
     db.resolve_segment_actions.return_value = {}
     db.get_setting.return_value = None
-    db.get_setting_bool.side_effect = lambda k, **kw: kw.get('default', False)
+    db.get_setting_bool.side_effect = lambda k, default=False, **kw: default
     db.get_setting_float.side_effect = lambda k, default=None: default
     monkeypatch.setattr(processing, 'db', db)
 

@@ -1191,7 +1191,10 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
                                            spans=result['spans'])
                     except Exception as e:
                         fail(str(e))
-        elif not url:
+        elif url:
+            # Toggle off or no segments this run: never clobber a stored result.
+            persist = False
+        else:
             # Nothing to record unless an earlier result would otherwise go stale.
             stored = db.get_episode_upstream_transcript(slug, episode_id)
             persist = bool(stored) and stored.get('status') != 'none'
@@ -5337,14 +5340,15 @@ def _split_recut_counts(total_cut, verification_count):
 def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
                           episode_description, min_cut_confidence,
                           podcast_id=None, segment_actions=None, *, corrections,
-                          episode_row=None):
+                          episode_row=None, podcast_row=None):
     """Build the cut list for a recut from the stored detections plus the user's
     edits, with no re-detection. Manual adds already live in ad_markers_json;
     boundary adjustments are applied here; rejects/confirms and confidence
     gating run through the same AdValidator path a full reprocess uses.
     segment_actions is loaded when not passed.
     Returns (ads_to_remove, all_ads_with_validation, keep_ads, reviewer_rejects).
-    episode_row is the caller's episode read, loaded when not passed."""
+    episode_row is the caller's episode read, loaded when not passed.
+    podcast_row, when given, is the caller's already-fetched podcasts row."""
     from ad_validator import Decision
 
     episode = (episode_row if episode_row is not None
@@ -5359,8 +5363,10 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
 
     # Resolve per-feed hold settings. If podcast_id was not passed, look it up.
     if podcast_id is None:
-        podcast_row = db.get_podcast_by_slug(slug)
+        podcast_row = podcast_row or db.get_podcast_by_slug(slug)
         podcast_id = podcast_row.get('id') if podcast_row else None
+    elif podcast_row is None:
+        podcast_row = db.get_podcast_by_slug(slug)
     max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
     cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
     # Resolved here so the merge step below sees current category actions;
@@ -5404,8 +5410,11 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         if audio_analysis is None:
             audio_analysis = {}
         audio_analysis['dai_differential'] = dd_parsed
-    # Recut re-validates on the original timeline, so stored transcript gaps still corroborate.
-    stored_transcript_diff = db.get_episode_upstream_transcript(slug, episode_id) or {}
+    # Recut re-validates on the original timeline, so stored transcript gaps
+    # still corroborate, but only while the toggle that produced them is on.
+    stored_transcript_diff = (
+        db.get_episode_upstream_transcript(slug, episode_id) or {}
+        if resolve_transcript_differential(podcast_row, db) else {})
 
     validator = _build_validator(
         episode_duration, segments, episode_description,
@@ -5674,6 +5683,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             episode_description, min_cut_confidence,
             podcast_id=recut_podcast_id, segment_actions=segment_actions,
             corrections=corrections, episode_row=episode_data,
+            podcast_row=podcast_row,
         )
         # A user confirm cuts its own interval inside a reviewer reject.
         reject_spans = reject_barriers(reviewer_rejects, corrections[1])
