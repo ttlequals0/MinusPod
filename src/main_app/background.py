@@ -262,7 +262,9 @@ def background_rss_refresh():
     from pattern_cleanup import pattern_cleanup_tick
     from update_checker import update_check_tick
     outage_passes = 0
-    last_maintenance = 0.0
+    # None (not 0.0) so the first pass always runs: monotonic() is uptime,
+    # which can be below interval_seconds on a freshly booted host.
+    last_maintenance = None
     while not shutdown_event.is_set():
         interval_seconds = _resolve_refresh_interval_seconds()
         batch = _due_batch_size(interval_seconds, db.count_subscribed_feeds())
@@ -271,7 +273,7 @@ def background_rss_refresh():
         # Maintenance keeps its old once-per-interval cadence rather than
         # running on every short tick; run_cleanup's orphan-directory walk is
         # not internally time-gated.
-        if time.monotonic() - last_maintenance >= interval_seconds:
+        if last_maintenance is None or time.monotonic() - last_maintenance >= interval_seconds:
             last_maintenance = time.monotonic()
             run_cleanup()
             refresh_pricing_if_stale()  # TTL-gated, fetches once per 24h

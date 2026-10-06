@@ -204,3 +204,29 @@ class TestBackgroundRefreshLoop:
         background_module.background_rss_refresh()
 
         tick.assert_called_once_with(main_db)
+
+    def test_maintenance_runs_on_first_pass_with_low_uptime(self, monkeypatch):
+        # Host uptime (time.monotonic()) below interval_seconds must not
+        # skip the first maintenance pass.
+        import main_app.feeds as feeds_mod
+        import db_backup_service
+        import pattern_cleanup
+        import pricing_fetcher
+        import update_checker
+
+        monkeypatch.setattr(feeds_mod, 'refresh_due_feeds',
+                            MagicMock(return_value={'outage': {'detected': False}}))
+        monkeypatch.setattr(background_module, 'run_cleanup', MagicMock())
+        monkeypatch.setattr(pricing_fetcher, 'refresh_pricing_if_stale', MagicMock())
+        monkeypatch.setattr(update_checker, 'update_check_tick', MagicMock())
+        monkeypatch.setattr(background_module.time, 'monotonic', lambda: 30.0)
+        pattern_tick = MagicMock(return_value=None)
+        backup_tick = MagicMock(return_value=None)
+        monkeypatch.setattr(pattern_cleanup, 'pattern_cleanup_tick', pattern_tick)
+        monkeypatch.setattr(db_backup_service, 'db_backup_tick', backup_tick)
+        monkeypatch.setattr(background_module, 'shutdown_event', _FakeShutdownEvent())
+
+        background_module.background_rss_refresh()
+
+        pattern_tick.assert_called_once_with(main_db)
+        backup_tick.assert_called_once_with(main_db)
