@@ -14,8 +14,9 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import pattern_cleanup  # noqa: E402
+import failover  # noqa: E402
 from llm_client import ProviderRateLimitedError  # noqa: E402
-from llm_route import LiveRoute  # noqa: E402
+from llm_route import LiveRoute, Route  # noqa: E402
 from pattern_cleanup import (  # noqa: E402
     LOCK_FILENAME,
     CleanupInProgressError,
@@ -44,6 +45,9 @@ AD2 = ("This episode is also sponsored by Widgetco. Widgetco has amazing deals "
 
 LIVE = LiveRoute(route=None, provider='anthropic', credential_slot='primary',
                  model='test-model', timeout=30.0, max_retries=0)
+ORIGINAL_ROUTE = Route(phase='pattern_cleanup', provider_key='anthropic',
+                       model_id='test-model', base_url=None, slot='primary',
+                       credential_slot='primary', account_id=None)
 
 
 def _iso(dt):
@@ -272,6 +276,62 @@ def test_low_confidence_is_dropped(temp_db):
     assert result is None
 
 
+@pytest.mark.parametrize('confidence', [True, '0.9', float('nan'), float('inf'), -0.1, 1.1])
+def test_invalid_confidence_is_rejected(temp_db, confidence):
+    p = _pattern(temp_db)
+    result, _ = _review(p, _reply(contaminated=True, action='keep', confidence=confidence))
+    assert result is None
+
+
+@pytest.mark.parametrize('edit', [
+    {'action': 'trim', 'text': 'unrelated invented sponsor copy'},
+    {'action': 'split', 'pieces': []},
+    {'action': 'rename', 'sponsor': 'Globex'},
+    {'action': 'unknown'},
+])
+def test_contamination_survives_invalid_requested_edit(temp_db, edit):
+    p = _pattern(temp_db)
+    result, _ = _review(p, _reply(**edit, contaminated=True,
+                                 contamination_reason='show commentary contaminates the pattern'))
+    assert result['action'] == 'keep'
+    assert result['contaminated'] is True
+    suggestions = pattern_cleanup._suggestions_for(p, [], result)
+    assert [item['kind'] for item in suggestions] == ['flag']
+    assert suggestions[0]['payload']['recommended'] == 'disable'
+    assert suggestions[0]['payload']['contamination_reason'] == (
+        'show commentary contaminates the pattern')
+
+
+def test_contamination_suppresses_sponsor_rename_alternative(temp_db):
+    p = _pattern(temp_db, text=AD, sponsor='Acme Inc')
+    result, _ = _review(p, _reply(action='rename', sponsor='Acme', contaminated=True,
+                                 contamination_reason='show commentary contaminates the pattern'))
+    suggestions = pattern_cleanup._suggestions_for(p, [], result)
+    assert [item['kind'] for item in suggestions] == ['flag']
+    assert suggestions[0]['payload']['contamination_reason'] == (
+        'show commentary contaminates the pattern')
+
+
+def test_contamination_takes_precedence_over_valid_trim(temp_db):
+    p = _pattern(temp_db)
+    result, _ = _review(p, _reply(action='trim', text=AD, contaminated=True,
+                                 contamination_reason='show content remains'))
+    suggestions = pattern_cleanup._suggestions_for(p, [], result)
+    assert [item['kind'] for item in suggestions] == ['flag']
+    assert suggestions[0]['payload']['recommended'] == 'disable'
+
+
+def test_contamination_keeps_valid_split_as_an_alternative(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    result, _ = _review(p, _reply(
+        action='split', pieces=[{'text': AD, 'sponsor': 'Acme'},
+                                {'text': AD2, 'sponsor': 'Widgetco'}],
+        contaminated=True, contamination_reason='show content remains'))
+    suggestions = pattern_cleanup._suggestions_for(p, [], result)
+    assert [item['kind'] for item in suggestions] == ['flag', 'split']
+    assert suggestions[0]['payload']['contamination_reason'] == 'show content remains'
+
+
 def test_valid_split(temp_db):
     p = _pattern(temp_db, text=AD + ' ' + AD2)
     result, _ = _review(p, _reply(action='split', pieces=[
@@ -311,6 +371,27 @@ def test_rename_requires_sponsor_in_text(temp_db):
     assert bad is None
 
 
+def test_trim_can_correct_sponsor_when_old_name_is_trimmed_away(temp_db):
+    text = 'Acme sponsors the beginning. ' + AD2
+    p = _pattern(temp_db, text=text, sponsor='Acme')
+    result, _ = _review(p, _reply(action='trim', text=AD2, sponsor='Widgetco'))
+    assert result['action'] == 'trim'
+    assert result['text'] == AD2 and result['sponsor'] == 'Widgetco'
+
+
+def test_trim_with_sponsor_absent_from_kept_text_is_rejected(temp_db):
+    p = _pattern(temp_db, text='Acme sponsors the beginning. ' + AD2, sponsor='Acme')
+    result, _ = _review(p, _reply(action='trim', text=AD2, sponsor='Globex'))
+    assert result is None
+
+
+def test_negligible_trim_with_sponsor_correction_becomes_rename(temp_db):
+    p = _pattern(temp_db, text=AD, sponsor='Acme Inc')
+    result, _ = _review(p, _reply(action='trim', text=AD.removesuffix(' today.'), sponsor='Acme'))
+    assert result['action'] == 'rename'
+    assert result['sponsor'] == 'Acme'
+
+
 def test_rename_to_invalid_sponsor_name_rejected(temp_db):
     p = _pattern(temp_db, text=AD + ' this show is hosted on Megaphone')
     bad, _ = _review(p, _reply(action='rename', sponsor='Megaphone'))
@@ -335,7 +416,8 @@ def test_failed_call_raises(temp_db):
 
 @pytest.fixture
 def live_route():
-    with patch.object(pattern_cleanup, '_live_route', return_value=LIVE):
+    with patch.object(pattern_cleanup, 'resolve_route', return_value=ORIGINAL_ROUTE), \
+            patch.object(pattern_cleanup, '_live_route', return_value=LIVE):
         yield
 
 
@@ -361,6 +443,54 @@ def test_run_cleanup_counts_and_summary(temp_db, live_route):
     assert run['id'] == summary['runId'] and run['started_at'] == summary['startedAt']
     assert run['status'] == 'completed' and run['trigger'] == 'manual' and run['model'] == 'test-model'
     assert run['error'] is None and run['finished_at']
+
+
+def test_run_refreshes_failover_from_frozen_original_route(temp_db):
+    _pattern(temp_db)
+    _pattern(temp_db, text=AD2, sponsor='Widgetco')
+    _pattern(temp_db, text='third ' + AD)
+    original = Route(phase='pattern_cleanup', provider_key='anthropic',
+                     model_id='configured-model', base_url=None, slot='primary',
+                     credential_slot='primary', account_id=None)
+    changed = Route(phase='pattern_cleanup', provider_key='openai-compatible',
+                    model_id='changed-config-model', base_url='https://changed.example/v1',
+                    slot='primary', credential_slot='primary', account_id=None)
+    configured_route = [original]
+    failover_active = [False]
+    calls = []
+
+    def fake(**kwargs):
+        calls.append((kwargs['provider'], kwargs['credential_slot'], kwargs['model']))
+        if len(calls) == 1:
+            configured_route[0] = changed
+            failover_active[0] = True
+        elif len(calls) == 2:
+            failover_active[0] = False
+        return _reply(), None
+
+    failover_config = {
+        'provider': 'openai-compatible', 'base_url': 'https://standby.example/v1',
+        'timeout': None, 'max_retries': None,
+        'models': {'detection': 'standby-model', 'pattern_cleanup': 'standby-model'},
+    }
+    with patch.object(pattern_cleanup, 'resolve_route',
+                      side_effect=lambda phase: configured_route[0]) as resolve, \
+            patch.object(failover, 'is_active', side_effect=lambda target: failover_active[0]), \
+            patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'failover_llm_config', return_value=failover_config), \
+            patch.object(pattern_cleanup, 'client_for_route', return_value=None), \
+            patch.object(pattern_cleanup, 'call_llm', fake):
+        summary = run_cleanup(temp_db)
+
+    assert resolve.call_count == 1
+    assert calls == [
+        ('anthropic', 'primary', 'configured-model'),
+        ('openai-compatible', 'failover', 'standby-model'),
+        ('anthropic', 'primary', 'configured-model'),
+    ]
+    assert summary['provider'] == 'anthropic'
+    assert summary['model'] == 'configured-model'
+    assert summary['credentialSlot'] == 'primary'
 
 
 def test_run_skips_llm_when_retire_suggested(temp_db, live_route):
@@ -414,7 +544,8 @@ def test_per_pattern_error_continues(temp_db, live_route):
 
 def test_fatal_error_marks_run_failed(temp_db):
     _pattern(temp_db)
-    with patch.object(pattern_cleanup, '_live_route', side_effect=RuntimeError('no model')):
+    with patch.object(pattern_cleanup, 'resolve_route', return_value=ORIGINAL_ROUTE), \
+            patch.object(pattern_cleanup, '_live_route', side_effect=RuntimeError('no model')):
         summary = run_cleanup(temp_db)
     assert summary['status'] == 'failed'
     run = temp_db.get_cleanup_runs(limit=1)[0]
@@ -620,6 +751,61 @@ def test_apply_trim_in_place_and_undo(temp_db):
     assert json.loads(restored['intro_variants']) == ['old intro']
 
 
+@pytest.mark.parametrize('kind,payload', [
+    ('trim', {'text': AD2, 'sponsor': 'Widgetco'}),
+    ('flag', {'recommended': 'trim', 'trim_text': AD2, 'sponsor': 'Widgetco',
+              'false_positive_count': 3, 'confirmation_count': 1,
+              'contaminated': False, 'contamination_reason': None}),
+])
+def test_combined_trim_and_sponsor_correction_applies_and_undoes_atomically(
+        temp_db, kind, payload):
+    p = _pattern(temp_db, text='Acme sponsors the beginning. ' + AD2, sponsor='Acme')
+    sid = _suggest(temp_db, p, kind, payload)
+    approved = apply_suggestion(temp_db, sid)
+    updated = temp_db.get_ad_pattern_by_id(p['id'])
+    assert updated['text_template'] == AD2
+    assert updated['sponsor'] == 'Widgetco'
+    assert approved['applied']['after']['sponsor_id'] == updated['sponsor_id']
+    assert updated['cleanup_reviewed_hash'] == review_hash(AD2, 'Widgetco')
+
+    undo_suggestion(temp_db, sid)
+    restored = temp_db.get_ad_pattern_by_id(p['id'])
+    assert restored['text_template'] == p['text_template']
+    assert restored['sponsor_id'] == p['sponsor_id']
+    assert restored['cleanup_reviewed_hash'] == review_hash(p['text_template'], 'Acme')
+
+
+def test_combined_trim_and_sponsor_approval_rolls_back_together(temp_db):
+    p = _pattern(temp_db, text='Acme sponsors the beginning. ' + AD2, sponsor='Acme')
+    sid = _suggest(temp_db, p, 'trim', {'text': AD2, 'sponsor': 'Widgetco'})
+    update = temp_db._update_ad_pattern_conn
+
+    def update_then_fail(conn, pattern_id, **fields):
+        update(conn, pattern_id, **fields)
+        raise RuntimeError('simulated write failure')
+
+    with patch.object(temp_db, '_update_ad_pattern_conn', side_effect=update_then_fail):
+        with pytest.raises(RuntimeError, match='simulated write failure'):
+            apply_suggestion(temp_db, sid)
+    current = temp_db.get_ad_pattern_by_id(p['id'])
+    assert current['text_template'] == p['text_template']
+    assert current['sponsor_id'] == p['sponsor_id']
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+
+
+@pytest.mark.parametrize('field', ['sponsor_id', 'intro_variants'])
+def test_combined_trim_undo_refuses_manual_owned_field_edit(temp_db, field):
+    p = _pattern(temp_db, text='Acme sponsors the beginning. ' + AD2, sponsor='Acme')
+    sid = _suggest(temp_db, p, 'trim', {'text': AD2, 'sponsor': 'Widgetco'})
+    apply_suggestion(temp_db, sid)
+    value = (temp_db.create_known_sponsor(name='Globex') if field == 'sponsor_id'
+             else ['manual variant'])
+    temp_db.update_ad_pattern(p['id'], **{field: value})
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'approved'
+
+
 def test_apply_refuses_when_pattern_changed(temp_db):
     p = _pattern(temp_db)
     sid = _suggest(temp_db, p, 'trim', {'text': AD})
@@ -757,6 +943,14 @@ def test_apply_flag_disable_and_flag_trim(temp_db):
     row = temp_db.get_ad_pattern_by_id(q['id'])
     assert row['text_template'] == AD and row['is_active'] == 1
 
+    contaminated = _pattern(temp_db, text=AD2, sponsor='Widgetco', false_positive_count=5)
+    sid3 = _suggest(temp_db, contaminated, 'flag', {
+        'false_positive_count': 5, 'confirmation_count': 10, 'contaminated': True,
+        'contamination_reason': 'show content', 'recommended': 'disable'})
+    apply_suggestion(temp_db, sid3)
+    assert temp_db.get_ad_pattern_by_id(contaminated['id'])['disabled_reason'] == (
+        'Cleanup: contaminated')
+
 
 def test_apply_retire_refuses_when_matched_again_since_the_suggestion(temp_db):
     p = _pattern(temp_db)
@@ -811,7 +1005,7 @@ def test_apply_retire_supersedes_other_pending_suggestions(temp_db):
     assert temp_db.get_cleanup_suggestion(rename) is None
 
 
-def test_apply_flag_trim_does_not_supersede_other_pending_suggestions(temp_db):
+def test_trim_approval_supersedes_stale_sibling_suggestions(temp_db):
     p = _pattern(temp_db, false_positive_count=3)
     flag = _suggest(temp_db, p, 'flag', {'false_positive_count': 3, 'confirmation_count': 0,
                                          'contaminated': False, 'contamination_reason': None,
@@ -820,7 +1014,7 @@ def test_apply_flag_trim_does_not_supersede_other_pending_suggestions(temp_db):
         None, p['id'], 'rename', 0.9, [], {'sponsor': 'Acme'},
         pattern_cleanup._before_snapshot(p))
     apply_suggestion(temp_db, flag)
-    assert temp_db.get_cleanup_suggestion(rename)['status'] == 'pending'
+    assert temp_db.get_cleanup_suggestion(rename) is None
 
 
 def test_contaminated_trim_on_flagged_pattern_keeps_the_flag_disabled(temp_db, live_route):

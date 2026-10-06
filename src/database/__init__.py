@@ -460,7 +460,7 @@ DEFAULT_PATTERN_CLEANUP_PROMPT = """You review one learned podcast ad pattern. T
 Your job: return only the exact sponsor copy.
 - Drop host banter, show content, and transitions into or out of the break.
 - If two or more sponsors are read back to back, return each read as a separate piece.
-- Name the sponsor as it is spoken in the read.
+- Name the sponsor as it is spoken in the read. For a trim, also return sponsor when the recorded sponsor is wrong and the corrected name appears in the kept text.
 - Do not invent, reword, or reorder words. Every text you return must be copied from the pattern text.
 - If the pattern is already clean, return action "keep".
 - Set contaminated to true when the pattern holds show content that a trim cannot fix, and say why in contamination_reason.
@@ -468,7 +468,7 @@ Your job: return only the exact sponsor copy.
 Transcript context, when given, shows the audio around the pattern with the pattern marked between [[ and ]]. Use it only to judge where the ad starts and ends; never copy words from outside the pattern text.
 
 Return one JSON object:
-{"action": "keep" | "trim" | "split" | "rename", "text": string or null (trim only), "sponsor": string or null (rename only), "pieces": [{"text": string, "sponsor": string}] (split only), "contaminated": boolean, "contamination_reason": string or null, "confidence": number from 0 to 1, "reasons": [short strings]}"""
+{"action": "keep" | "trim" | "split" | "rename", "text": string or null (trim only), "sponsor": string or null (rename, or optional with trim), "pieces": [{"text": string, "sponsor": string}] (split only), "contaminated": boolean, "contamination_reason": string or null, "confidence": number from 0 to 1, "reasons": [short strings]}"""
 
 
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,

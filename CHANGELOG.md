@@ -23,6 +23,7 @@ release notes.
 - Pattern Cleanup (Experiments): a scheduled LLM review of learned ad patterns that suggests trims, splits, sponsor renames, and retirements. It also flags patterns with many false positives or copy mixed with show content. Suggestions are reviewed on the Patterns page and change nothing until approved, and an approved change can be undone. Off by default. See [Pattern Cleanup](docs/pattern-cleanup.md).
 
 ### Fixed
+- Cleanup reviews follow live failover changes, reject invalid confidence values, preserve contamination warnings, and apply text and sponsor corrections together.
 - Pattern cleanup now shows original text and source context, displays combined text and sponsor edits, loads older decisions for undo, fits narrow screens, and requires saving changes before running.
 - Pattern cleanup decisions preserve later manual edits, reject stale reviews, and keep approved split patterns marked reviewed after sponsor normalization.
 - Pattern cleanup rejects malformed requests and invalid setting types before starting a run or saving changes.

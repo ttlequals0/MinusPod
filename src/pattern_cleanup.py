@@ -1,9 +1,10 @@
-"""Scheduled LLM review of learned patterns; stores trim/split/rename/retire/flag suggestions that only apply once approved, and keep a snapshot for undo."""
+"""Scheduled review of learned patterns with approval and undo."""
 from __future__ import annotations
 
 import fcntl
 import json
 import logging
+import math
 import re
 import threading
 import time
@@ -17,8 +18,7 @@ from database import Database
 from database.settings import registry_default, registry_get_default
 from llm_client import ProviderRateLimitedError
 from llm_route import (
-    LiveRoute, apply_failover, client_for_route, live_route_from, live_route_params,
-    resolve_route,
+    LiveRoute, apply_failover, client_for_route, live_route_from, resolve_route,
 )
 from pattern_cleanup_hash import INVALID_MARKER, review_hash
 from pattern_variants import derive_intro_outro
@@ -176,6 +176,8 @@ def _suggestion_after_fields(suggestion: dict) -> tuple[str, ...]:
     if kind in ('retire', 'split') or (
             kind == 'flag' and payload.get('recommended') != 'trim'):
         return ('is_active', 'disabled_at', 'disabled_reason')
+    if payload.get('sponsor'):
+        return ('text_template', 'intro_variants', 'outro_variants', 'sponsor_id', 'sponsor')
     return ('text_template', 'intro_variants', 'outro_variants')
 
 
@@ -394,10 +396,17 @@ def validate_review(pattern: dict, raw: dict, sponsors=None) -> dict | None:
     """Gate the model's answer; None means no suggestion. Stored text is always an exact original window."""
     original = pattern.get('text_template') or ''
     pid = pattern.get('id')
+    raw_confidence = raw.get('confidence')
+    if isinstance(raw_confidence, bool) or not isinstance(raw_confidence, (int, float)):
+        logger.warning("pattern_cleanup: pattern %s review has invalid confidence", pid)
+        return None
     try:
-        confidence = max(0.0, min(1.0, float(raw.get('confidence'))))
-    except (TypeError, ValueError):
-        logger.warning("pattern_cleanup: pattern %s review has no confidence", pid)
+        confidence = float(raw_confidence)
+    except OverflowError:
+        logger.warning("pattern_cleanup: pattern %s review has invalid confidence", pid)
+        return None
+    if not math.isfinite(confidence) or not 0 <= confidence <= 1:
+        logger.warning("pattern_cleanup: pattern %s review has invalid confidence", pid)
         return None
     if confidence < MIN_CONFIDENCE:
         logger.info("pattern_cleanup: pattern %s review dropped at confidence %.2f", pid, confidence)
@@ -416,34 +425,46 @@ def validate_review(pattern: dict, raw: dict, sponsors=None) -> dict | None:
         return verdict
     if action == 'trim':
         loc = _locate(raw.get('text'), original)
-        if (loc is None or len(loc[2]) < MIN_TEXT_LENGTH
-                or not _trim_keeps_sponsor(pattern, original, loc[2], sponsors)):
+        if loc is None or len(loc[2]) < MIN_TEXT_LENGTH:
             logger.warning("pattern_cleanup: pattern %s trim failed validation", pid)
-            return None
+            return verdict if contaminated else None
+        sponsor = None
+        if raw.get('sponsor') is not None:
+            sponsor = _clean_sponsor(raw.get('sponsor'), pattern)
+            if sponsor is None or not _has_phrase(sponsor, loc[2]):
+                logger.warning("pattern_cleanup: pattern %s trim sponsor failed validation", pid)
+                return verdict if contaminated else None
+            if _norm(sponsor) == _norm(pattern.get('sponsor')):
+                sponsor = None
+        if sponsor is None and not _trim_keeps_sponsor(pattern, original, loc[2], sponsors):
+            logger.warning("pattern_cleanup: pattern %s trim failed sponsor validation", pid)
+            return verdict if contaminated else None
         total = len(original.split())
         removed = total - len(loc[2].split())
         if removed < TRIM_MIN_WORDS and removed < total * TRIM_MIN_FRACTION:
+            if sponsor is not None:
+                verdict.update(action='rename', sponsor=sponsor)
             return verdict
-        verdict.update(action='trim', text=loc[2])
+        verdict.update(action='trim', text=loc[2], sponsor=sponsor)
         return verdict
     if action == 'split':
         pieces = _validate_pieces(raw.get('pieces'), original, pattern)
         if pieces is None:
             logger.warning("pattern_cleanup: pattern %s split pieces failed validation", pid)
-            return None
+            return verdict if contaminated else None
         verdict.update(action='split', pieces=pieces)
         return verdict
     if action == 'rename':
         sponsor = _clean_sponsor(raw.get('sponsor'), pattern)
         if sponsor is None or not _has_phrase(sponsor, original):
             logger.warning("pattern_cleanup: pattern %s rename names a sponsor not in the text", pid)
-            return None
+            return verdict if contaminated else None
         if _norm(sponsor) == _norm(pattern.get('sponsor')):
             return verdict
         verdict.update(action='rename', sponsor=sponsor)
         return verdict
     logger.warning("pattern_cleanup: pattern %s review returned unknown action %r", pid, action)
-    return None
+    return verdict if contaminated else None
 
 
 def _user_prompt(pattern: dict, context: str | None) -> str:
@@ -491,11 +512,8 @@ def review_pattern(pattern: dict, context: str | None, *, live: LiveRoute,
 
 # Run
 
-def _live_route() -> LiveRoute:
-    live = live_route_params(PHASE)
-    if live.route is not None:
-        return live
-    return live_route_from(apply_failover(resolve_route(PHASE)))
+def _live_route(original_route) -> LiveRoute:
+    return live_route_from(apply_failover(original_route))
 
 
 def _suggestions_for(pattern: dict, stats: list[dict], verdict: dict | None) -> list[dict]:
@@ -507,29 +525,39 @@ def _suggestions_for(pattern: dict, stats: list[dict], verdict: dict | None) -> 
     reasons = list(verdict['reasons'])
     if verdict['contaminated'] and verdict['contamination_reason']:
         reasons.append(verdict['contamination_reason'])
-    if flag is not None and verdict['contaminated']:
-        flag['payload'].update(contaminated=True, recommended='disable',
-                               contamination_reason=verdict['contamination_reason'])
-        flag['reasons'] += reasons
+    if verdict['contaminated']:
+        if flag is None:
+            flag = _suggestion('flag', verdict['confidence'], reasons, {
+                'false_positive_count': pattern.get('false_positive_count') or 0,
+                'confirmation_count': pattern.get('confirmation_count') or 0,
+                'contaminated': True,
+                'contamination_reason': verdict['contamination_reason'],
+                'recommended': 'disable',
+            })
+            out.append(flag)
+        else:
+            flag['payload'].update(contaminated=True, recommended='disable',
+                                   contamination_reason=verdict['contamination_reason'])
+            flag['reasons'] += [reason for reason in reasons if reason not in flag['reasons']]
     action = verdict['action']
+    if action == 'trim' and verdict['contaminated']:
+        return out
+    if action == 'rename' and verdict['contaminated']:
+        return out
     if action == 'trim' and flag is not None:
-        # Contaminated wins: the flag stays 'disable' and the trim is dropped.
-        if not verdict['contaminated']:
-            flag['payload'].update(recommended='trim', trim_text=verdict['text'])
-            flag['reasons'] += [r for r in reasons if r not in flag['reasons']]
+        flag['payload'].update(recommended='trim', trim_text=verdict['text'])
+        if verdict.get('sponsor'):
+            flag['payload']['sponsor'] = verdict['sponsor']
+        flag['reasons'] += [r for r in reasons if r not in flag['reasons']]
     elif action == 'trim':
-        out.append(_suggestion('trim', verdict['confidence'], reasons, {'text': verdict['text']}))
+        payload = {'text': verdict['text']}
+        if verdict.get('sponsor'):
+            payload['sponsor'] = verdict['sponsor']
+        out.append(_suggestion('trim', verdict['confidence'], reasons, payload))
     elif action == 'split':
         out.append(_suggestion('split', verdict['confidence'], reasons, {'pieces': verdict['pieces']}))
     elif action == 'rename':
         out.append(_suggestion('rename', verdict['confidence'], reasons, {'sponsor': verdict['sponsor']}))
-    elif verdict['contaminated'] and flag is None:
-        out.append(_suggestion('flag', verdict['confidence'], reasons, {
-            'false_positive_count': pattern.get('false_positive_count') or 0,
-            'confirmation_count': pattern.get('confirmation_count') or 0,
-            'contaminated': True, 'contamination_reason': verdict['contamination_reason'],
-            'recommended': 'disable',
-        }))
     return out
 
 
@@ -657,10 +685,11 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str)
     """Body of a run; the caller holds the lock and created the run row."""
     start = time.monotonic()
     counts = {'reviewed': 0, 'suggested': 0, 'skipped': 0, 'errors': 0}
-    live = None
+    original_live = None
     status, error = 'completed', None
     try:
-        live = _live_route()
+        original_route = resolve_route(PHASE)
+        original_live = live_route_from(original_route)
         batch_size = _clamped_int(db, 'pattern_cleanup_batch_size', BATCH_SIZE_RANGE)
         unused_days = _clamped_int(db, 'pattern_cleanup_unused_days', UNUSED_DAYS_RANGE)
         system_prompt = _system_prompt(db)
@@ -668,6 +697,7 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str)
         segments_cache: dict = {}
         call_errors = 0
         for pattern in select_candidates(db, force=force, batch_size=batch_size):
+            live = _live_route(original_route)
             try:
                 stored, skipped = _process_pattern(
                     db, run_id, pattern, unused_days, live, system_prompt, force=force,
@@ -695,12 +725,13 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str)
 
     summary = {
         'runId': run_id, 'status': status, 'trigger': trigger, 'forced': force, **counts,
-        'model': live.model if live else None, 'provider': live.provider if live else None,
-        'credentialSlot': live.credential_slot if live else None,
+        'model': original_live.model if original_live else None,
+        'provider': original_live.provider if original_live else None,
+        'credentialSlot': original_live.credential_slot if original_live else None,
         'startedAt': started_at, 'finishedAt': utc_now_iso(),
         'durationMs': int((time.monotonic() - start) * 1000), 'error': error,
     }
-    _finish(db, run_id, summary, live)
+    _finish(db, run_id, summary, original_live)
     logger.info("pattern_cleanup: run %s %s: %s", run_id, summary['status'], counts)
     return summary
 
@@ -795,12 +826,27 @@ def _pattern_on(conn, pattern_id: int) -> dict | None:
     return dict(row) if row else None
 
 
-def _apply_trim(db, conn, pattern: dict, text: str) -> dict:
+def _apply_trim(db, conn, pattern: dict, text: str, sponsor_name: str | None = None) -> dict:
     intro, outro = derive_intro_outro(text)
+    sponsor_id = pattern.get('sponsor_id')
+    sponsor = pattern.get('sponsor')
+    if sponsor_name:
+        sponsor_name = _clean_sponsor(sponsor_name, pattern)
+        if sponsor_name is None or not _has_phrase(sponsor_name, text):
+            raise SuggestionStateError('the corrected sponsor is not present in the trimmed text')
+        sponsor_id = get_or_create_known_sponsor(db, sponsor_name, conn=conn)
+        if sponsor_id is None:
+            raise SuggestionStateError(f'sponsor name {sponsor_name!r} is not valid')
+        row = conn.execute("SELECT name FROM known_sponsors WHERE id = ?", (sponsor_id,)).fetchone()
+        sponsor = row['name']
     db._update_ad_pattern_conn(conn, pattern['id'], text_template=text,
-                               intro_variants=intro, outro_variants=outro)
-    db.stamp_pattern_cleanup_reviewed(pattern['id'], review_hash(text, pattern.get('sponsor')), conn=conn)
-    return {'new_pattern_ids': [], 'disabled_pattern_id': None, 'text': text}
+                               intro_variants=intro, outro_variants=outro,
+                               **({'sponsor_id': sponsor_id} if sponsor_name else {}))
+    db.stamp_pattern_cleanup_reviewed(pattern['id'], review_hash(text, sponsor), conn=conn)
+    applied = {'new_pattern_ids': [], 'disabled_pattern_id': None, 'text': text}
+    if sponsor_name:
+        applied['sponsor_id'] = sponsor_id
+    return applied
 
 
 def _apply_disable(db, conn, pattern: dict, reason: str) -> dict:
@@ -867,7 +913,7 @@ def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
 
 def _apply_kind(db, conn, kind: str, pattern: dict, payload: dict) -> dict:
     if kind == 'trim':
-        return _apply_trim(db, conn, pattern, payload['text'])
+        return _apply_trim(db, conn, pattern, payload['text'], payload.get('sponsor'))
     if kind == 'rename':
         return _apply_rename(db, conn, pattern, payload['sponsor'])
     if kind == 'split':
@@ -877,11 +923,10 @@ def _apply_kind(db, conn, kind: str, pattern: dict, payload: dict) -> dict:
                               f"Cleanup: no matches in {payload.get('unused_days')} days")
     if kind == 'flag':
         if payload.get('recommended') == 'trim' and payload.get('trim_text'):
-            return _apply_trim(db, conn, pattern, payload['trim_text'])
-        contaminated_only = (payload.get('contaminated')
-                             and (payload.get('false_positive_count') or 0) < HIGH_FP_MIN)
-        return _apply_disable(db, conn, pattern, 'Cleanup: contaminated' if contaminated_only
-                              else 'Cleanup: false positives')
+            return _apply_trim(db, conn, pattern, payload['trim_text'], payload.get('sponsor'))
+        reason = ('Cleanup: contaminated' if payload.get('contaminated')
+                  else 'Cleanup: false positives')
+        return _apply_disable(db, conn, pattern, reason)
     raise SuggestionStateError(f'unknown suggestion kind {kind!r}')
 
 
@@ -905,9 +950,7 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
         # Orders approvals on one pattern so undo can refuse out of order.
         applied['applied_seq'] = time.time_ns()
         db.set_cleanup_suggestion_status(suggestion_id, 'approved', applied=applied, conn=conn)
-        if applied.get('disabled_pattern_id') is not None:
-            # Split or disable: the pattern's other pending suggestions no longer apply.
-            db.supersede_pending(pattern['id'], conn=conn)
+        db.supersede_pending(pattern['id'], conn=conn)
     invalidate_pattern_catalog_scope()
     return db.get_cleanup_suggestion(suggestion_id)
 
@@ -987,7 +1030,9 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
             db._update_ad_pattern_conn(
                 conn, pattern['id'], text_template=before.get('text_template'),
                 intro_variants=before.get('intro_variants') or [],
-                outro_variants=before.get('outro_variants') or [])
+                outro_variants=before.get('outro_variants') or [],
+                **({'sponsor_id': before.get('sponsor_id')}
+                   if (suggestion.get('payload') or {}).get('sponsor') else {}))
         elif suggestion['kind'] == 'rename':
             expected = applied.get('after')
             if not _matches_snapshot(pattern, expected, ('sponsor_id', 'sponsor')):
