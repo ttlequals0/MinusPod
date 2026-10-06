@@ -70,6 +70,10 @@ release notes.
 - Public episode URLs no longer expose unpublished processed files. Reprocessing advances the file version even for unversioned publications.
 - Local feeds report byte length and duration for the audio actually served.
 - Startup uses an existence query for the search index and runs the historical marker repair once, recording completion only after a successful transaction.
+- Triggering `llm-b` while Provider B is disabled now returns `409 failover_target_disabled`; disabling Provider B also cancels any active Provider B failover.
+- `POST /failover/probe` now re-drives deferred episodes right away when a probe records a recovery, instead of waiting for the next maintenance tick.
+- A transcriber switch now stops in-flight primary chunks before they extract or upload, instead of wasting the work on a result that gets discarded.
+- The chunked transcription plan no longer produces a sub-second trailing chunk; a tail shorter than one second folds into the previous chunk.
 
 ### Security
 - Updated fsspec to 2026.6.0 and Werkzeug to 3.1.9 to fix CVE-2026-104851 and CVE-2026-102598.

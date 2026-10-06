@@ -5079,7 +5079,10 @@ paths:
                     $ref: '#/components/schemas/FailoverTargetState'
         '404': { description: Unknown failover target }
         '503': { description: 'State could not be saved (error: failover_transition_failed)' }
-        '409': { description: 'Target has no failover configuration (error: failover_not_configured)' }
+        '409':
+          description: >-
+            Target has no failover configuration (error: failover_not_configured), or
+            llm-b is disabled (error: failover_target_disabled)
         '400': { description: Invalid JSON body or non-string reason }
   /failover/{target}/cancel:
     post:
@@ -5117,7 +5120,10 @@ paths:
       description: >-
         Probes every currently enabled target (see `enabled_probe_targets`),
         records the result, and applies the same auto-trigger/auto-recovery
-        rules as the background probe tick.
+        rules as the background probe tick. A local Whisper diagnostic decode
+        requested from a web request is never run inline: it is handed to the
+        background worker to run on its next tick, and this response carries
+        that target's last stored verdict instead of a fresh one.
       operationId: probeFailover
       responses:
         '200':
