@@ -31,10 +31,10 @@ class ModelConfig:
 
 
 def _default_max_tokens() -> int:
-    """Default the benchmark's max_tokens to production's AD_DETECTION_MAX_TOKENS."""
+    """Default the benchmark's max_tokens to production's detection_max_tokens tunable."""
     try:
-        from config import AD_DETECTION_MAX_TOKENS  # type: ignore[import-not-found]
-        return int(AD_DETECTION_MAX_TOKENS)
+        from config import get_stage_tunable  # type: ignore[import-not-found]
+        return int(get_stage_tunable('detection_max_tokens'))
     except Exception:
         return 4096
 
