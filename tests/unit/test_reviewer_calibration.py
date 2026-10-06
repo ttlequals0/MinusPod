@@ -85,15 +85,25 @@ class _FakeCalibrationRunner:
 
 @pytest.fixture
 def calibration_runs(monkeypatch):
-    """Fake calibration runner with the module scheduler state reset."""
+    """Fake calibration runner with the module scheduler state reset.
+
+    Also clears review_provider before and after: the Database singleton is
+    shared process-wide with every other settings test module in the same
+    pytest run, and several tests here set review_provider='primary' as
+    setup without resetting it, which would leak into a later module's
+    default-value assertions (#leak).
+    """
     runner = _FakeCalibrationRunner()
     monkeypatch.setattr(calib_mod, 'run_calibration', runner)
     calib_mod._CALIBRATION_STATE.update(revision=None, route=None, running=False)
-    Database().set_setting('reviewer_calibration_on_change', 'true', is_default=False)
+    db = Database()
+    db.clear_setting('review_provider')
+    db.set_setting('reviewer_calibration_on_change', 'true', is_default=False)
     yield runner
     runner.release.set()
     runner.wait_idle()
     calib_mod._CALIBRATION_STATE.update(revision=None, route=None, running=False)
+    db.clear_setting('review_provider')
 
 
 def _save_settings(client, payload):
