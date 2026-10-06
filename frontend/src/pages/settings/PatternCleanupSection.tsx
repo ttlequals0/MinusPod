@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import CollapsibleSection from '../../components/CollapsibleSection';
+import CollapsibleSection, { useCollapsibleOpen, useSectionVisible } from '../../components/CollapsibleSection';
 import { SkeletonRows } from '../../components/Skeleton';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import ExperimentalBadge from '../../components/ExperimentalBadge';
@@ -20,6 +20,7 @@ import { useModelCatalog } from '../../hooks/useModelCatalog';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 import SavedBadge from './SavedBadge';
+import CronScheduleField from './CronScheduleField';
 import ModelSelect from './ModelSelect';
 import StageProviderSelect, { inheritedSlotOptions } from './StageProviderSelect';
 
@@ -31,6 +32,7 @@ interface PatternCleanupSectionProps {
   detectionSlot: ProviderSlot;
 }
 
+const STORAGE_KEY = 'settings-section-pattern-cleanup';
 const fieldInput = 'px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm';
 const actionButton = `px-4 py-2 rounded-lg disabled:opacity-50 text-sm ${focusRing}`;
 
@@ -43,9 +45,13 @@ function PatternCleanupSection({
   primaryProvider, secondaryProvider, secondaryEnabled, detectionSlot,
 }: PatternCleanupSectionProps) {
   const qc = useQueryClient();
-  const { data, isLoading, isError, refetch } = useQuery({
+  // Fetch only while the card is on screen; it sits in the collapsed Experiments group.
+  const [open, setOpen] = useCollapsibleOpen(STORAGE_KEY);
+  const visible = useSectionVisible(STORAGE_KEY, open);
+  const { data, isError, refetch } = useQuery({
     queryKey: patternCleanupQueryKey,
     queryFn: getPatternCleanupStatus,
+    enabled: visible,
     // Poll while a run is going so the last-run line updates when it ends.
     refetchInterval: (query) => (query.state.data?.inProgress ? 3_000 : false),
   });
@@ -69,7 +75,7 @@ function PatternCleanupSection({
     ? (secondaryProvider ? SLOT_SECONDARY : SLOT_PRIMARY)
     : settings.provider === SLOT_PRIMARY ? SLOT_PRIMARY : detectionSlot;
   const catalog = useModelCatalog(
-    slot === SLOT_SECONDARY ? secondaryProvider : primaryProvider, slot, !!data,
+    slot === SLOT_SECONDARY ? secondaryProvider : primaryProvider, slot, visible && !!data,
   );
 
   const save = useMutation({
@@ -97,17 +103,18 @@ function PatternCleanupSection({
     <CollapsibleSection
       title="Pattern Cleanup"
       subtitle="Reviews learned patterns with an LLM and suggests trims, splits, renames and retirements for you to approve. Off by default."
-      storageKey="settings-section-pattern-cleanup"
+      storageKey={STORAGE_KEY}
+      onToggle={setOpen}
     >
-      {isLoading ? (
-        <SkeletonRows count={3} />
-      ) : isError || !data ? (
+      {isError ? (
         <div className="space-y-2">
           <p className="text-sm text-destructive">Could not load pattern cleanup settings.</p>
           <button type="button" onClick={() => refetch()} className={`${actionButton} ${btnSecondary}`}>
             Retry
           </button>
         </div>
+      ) : !data ? (
+        <SkeletonRows count={3} />
       ) : (
         <div className="space-y-4">
           <div>
@@ -128,20 +135,12 @@ function PatternCleanupSection({
           </div>
 
           {settings.enabled && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <label htmlFor="pattern-cleanup-cron" className="text-sm text-muted-foreground whitespace-nowrap">
-                Schedule (cron):
-              </label>
-              <input
-                id="pattern-cleanup-cron"
-                type="text"
-                value={settings.cron}
-                onChange={(e) => update({ cron: e.target.value })}
-                placeholder="0 4 * * 0"
-                className={`w-40 font-mono ${fieldInput} ${focusRing}`}
-              />
-              <span className="text-xs text-muted-foreground">UTC</span>
-            </div>
+            <CronScheduleField
+              id="pattern-cleanup-cron"
+              value={settings.cron}
+              onChange={(v) => update({ cron: v })}
+              placeholder="0 4 * * 0"
+            />
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -237,14 +236,20 @@ function PatternCleanupSection({
           </div>
 
           <div className="text-sm text-muted-foreground pt-2 border-t border-border space-y-0.5">
+            {data.inProgress && data.lastRun && (
+              <div>
+                <span className="font-medium text-foreground">Running since:</span>{' '}
+                {new Date(data.lastRun).toLocaleString()}
+              </div>
+            )}
             <div>
               <span className="font-medium text-foreground">Last run:</span>{' '}
-              {data.lastRun ? new Date(data.lastRun).toLocaleString() : 'never'}
+              {summary?.finishedAt ? new Date(summary.finishedAt).toLocaleString() : 'never'}
               {summary && (
                 <>
                   {': '}
-                  {summary.reviewed} reviewed, {summary.suggested} suggested, {summary.skipped} skipped
-                  {summary.errors > 0 && `, ${summary.errors} failed`}
+                  {summary.reviewedCount} reviewed, {summary.suggestedCount} suggested, {summary.skippedCount} skipped
+                  {summary.errorCount > 0 && `, ${summary.errorCount} failed`}
                 </>
               )}
             </div>

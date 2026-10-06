@@ -15,6 +15,7 @@ import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } fro
 import { btnDestructive, btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 import SavedBadge from './SavedBadge';
+import CronScheduleField from './CronScheduleField';
 
 interface Draft {
   enabled?: boolean;
@@ -118,20 +119,12 @@ function CommunityPatternsSection() {
           </p>
 
           {enabled && (
-            <div className="flex items-center gap-3">
-              <label htmlFor="cron" className="text-sm text-muted-foreground whitespace-nowrap">
-                Schedule (cron):
-              </label>
-              <input
-                id="cron"
-                type="text"
-                value={cron}
-                onChange={(e) => setDraft((d) => ({ ...d, cron: e.target.value }))}
-                placeholder="0 3 * * 0"
-                className="w-40 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground font-mono text-sm"
-              />
-              <span className="text-xs text-muted-foreground">UTC</span>
-            </div>
+            <CronScheduleField
+              id="cron"
+              value={cron}
+              onChange={(v) => setDraft((d) => ({ ...d, cron: v }))}
+              placeholder="0 3 * * 0"
+            />
           )}
 
           {cronError && (

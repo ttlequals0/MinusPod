@@ -35,11 +35,10 @@ function makeStatus(overrides: Partial<PatternCleanupStatus> = {}): PatternClean
     lastRun: '2026-10-04T04:00:00Z',
     lastError: null,
     lastSummary: {
-      runId: 3, status: 'completed', trigger: 'schedule', forced: false,
-      reviewed: 12, suggested: 4, skipped: 2, errors: 0,
+      id: 3, status: 'completed', trigger: 'schedule', forced: false,
+      reviewedCount: 12, suggestedCount: 4, skippedCount: 2, errorCount: 0,
       model: 'm', provider: 'anthropic', credentialSlot: 'primary',
-      startedAt: '2026-10-04T04:00:00Z', finishedAt: '2026-10-04T04:02:00Z',
-      durationMs: 120000, error: null,
+      startedAt: '2026-10-04T04:00:00Z', finishedAt: '2026-10-04T04:02:00Z', error: null,
     },
     pending: { total: 4, byKind: { trim: 3, retire: 1 } },
     ...overrides,
@@ -199,6 +198,30 @@ describe('PatternCleanupSection', () => {
     expect(screen.getByText('provider unreachable')).toBeDefined();
     const link = screen.getByRole('link', { name: /4 suggestions/ });
     expect(link.getAttribute('href')).toBe('/patterns?tab=cleanup');
+  });
+
+  it('dates the last run by when it finished and shows a run in progress', async () => {
+    mockGet.mockResolvedValue(makeStatus({ inProgress: true, lastRun: '2026-10-05T04:00:00Z' }));
+    renderSection();
+    expect(await screen.findByText('Running since:')).toBeDefined();
+    const running = screen.getByText('Running since:').parentElement!;
+    expect(running.textContent).toContain(new Date('2026-10-05T04:00:00Z').toLocaleString());
+    const last = screen.getByText('Last run:').parentElement!;
+    expect(last.textContent).toContain(new Date('2026-10-04T04:02:00Z').toLocaleString());
+  });
+
+  it('hides the running line when idle', async () => {
+    renderSection();
+    await screen.findByText('Last run:');
+    expect(screen.queryByText('Running since:')).toBeNull();
+  });
+
+  it('does not fetch while the card is collapsed', async () => {
+    localStorage.setItem('settings-section-pattern-cleanup', 'false');
+    renderSection();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mockGet).not.toHaveBeenCalled();
+    expect(mockCatalog).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), false);
   });
 
   it('shows never when there is no last run', async () => {

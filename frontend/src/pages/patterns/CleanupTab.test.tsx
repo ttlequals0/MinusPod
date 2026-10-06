@@ -205,6 +205,16 @@ describe('CleanupTab', () => {
       .toBeDefined();
   });
 
+  it('explains a refused undo', async () => {
+    mockList.mockResolvedValue([suggestion(1, 'trim', { text: KEPT }, { status: 'approved' })]);
+    mockUndo.mockRejectedValue(new ApiError('invalid_transition', 409));
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findByTestId('cleanup-suggestion-1');
+    await user.click(within(card(1)).getByRole('button', { name: 'Undo' }));
+    expect(await screen.findByText('Undo the later approved change on this pattern first.')).toBeDefined();
+  });
+
   it('selects all and bulk approves', async () => {
     renderTab();
     const user = userEvent.setup();

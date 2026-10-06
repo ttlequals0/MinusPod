@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
@@ -11,6 +11,7 @@ import {
 import { ApiError, getErrorMessage } from '../../api/client';
 import SegmentedToggle from '../../components/SegmentedToggle';
 import Checkbox from '../../components/Checkbox';
+import { ActiveBadge } from '../../components/ActiveBadge';
 import { ScopeBadge } from '../../components/ScopeBadge';
 import { SkeletonRows } from '../../components/Skeleton';
 import { badgeBase, tint } from '../../components/badgeStyles';
@@ -55,9 +56,11 @@ const STATUS_BADGE: Record<Exclude<CleanupStatus, 'pending'>, [string, string]> 
 // Below sm the two actions share the card width; from sm they size to content.
 const actionBtn = `${rowActionBtn} grow basis-0 sm:grow-0 sm:basis-auto ${focusRing}`;
 
-function actionError(err: unknown): string {
+function actionError(err: unknown, action?: 'approve' | 'reject' | 'undo'): string {
   if (err instanceof ApiError && err.status === 409) {
-    return 'This suggestion cannot be applied: the pattern changed or the suggestion was already handled.';
+    return action === 'undo'
+      ? 'Undo the later approved change on this pattern first.'
+      : 'This suggestion cannot be applied: the pattern changed or the suggestion was already handled.';
   }
   return getErrorMessage(err, 'The action failed.');
 }
@@ -66,12 +69,10 @@ function plural(n: number, word: string) {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
-function ProposedChange({ s }: { s: PatternCleanupSuggestion }) {
-  const original = s.before?.textTemplate ?? '';
-  if (s.kind === 'trim') {
-    return <TrimDiff original={original} kept={(s.payload as TrimPayload).text} />;
-  }
-  if (s.kind === 'split') {
+// One renderer per kind, keyed like KIND_BADGE.
+const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, original: string) => ReactNode> = {
+  trim: (s, original) => <TrimDiff original={original} kept={(s.payload as TrimPayload).text} />,
+  split: (s) => {
     const { pieces } = s.payload as SplitPayload;
     return (
       <div className="grid gap-2 sm:grid-cols-2">
@@ -83,8 +84,8 @@ function ProposedChange({ s }: { s: PatternCleanupSuggestion }) {
         ))}
       </div>
     );
-  }
-  if (s.kind === 'rename') {
+  },
+  rename: (s) => {
     const from = s.before?.sponsor ?? s.pattern?.sponsor ?? '(Unknown)';
     return (
       <p className="flex flex-wrap items-center gap-2 text-sm">
@@ -94,8 +95,8 @@ function ProposedChange({ s }: { s: PatternCleanupSuggestion }) {
         <span className="font-medium text-foreground">{(s.payload as RenamePayload).sponsor}</span>
       </p>
     );
-  }
-  if (s.kind === 'retire') {
+  },
+  retire: (s) => {
     const p = s.payload as RetirePayload;
     return (
       <p className="text-sm text-foreground">
@@ -106,24 +107,26 @@ function ProposedChange({ s }: { s: PatternCleanupSuggestion }) {
         </span>
       </p>
     );
-  }
-  const p = s.payload as FlagPayload;
-  return (
-    <div className="space-y-2 text-sm">
-      <p className="text-foreground">
-        {plural(p.falsePositiveCount, 'false positive')} against {plural(p.confirmationCount, 'confirmation')}.
-      </p>
-      {p.contaminated && p.contaminationReason && (
-        <p className="text-warning">{p.contaminationReason}</p>
-      )}
-      <p className="text-foreground">
-        <span className="text-muted-foreground">Recommended: </span>
-        {p.recommended === 'trim' ? 'Trim to the ad copy.' : 'Disable the pattern.'}
-      </p>
-      {p.recommended === 'trim' && p.trimText && <TrimDiff original={original} kept={p.trimText} />}
-    </div>
-  );
-}
+  },
+  flag: (s, original) => {
+    const p = s.payload as FlagPayload;
+    return (
+      <div className="space-y-2 text-sm">
+        <p className="text-foreground">
+          {plural(p.falsePositiveCount, 'false positive')} against {plural(p.confirmationCount, 'confirmation')}.
+        </p>
+        {p.contaminated && p.contaminationReason && (
+          <p className="text-warning">{p.contaminationReason}</p>
+        )}
+        <p className="text-foreground">
+          <span className="text-muted-foreground">Recommended: </span>
+          {p.recommended === 'trim' ? 'Trim to the ad copy.' : 'Disable the pattern.'}
+        </p>
+        {p.recommended === 'trim' && p.trimText && <TrimDiff original={original} kept={p.trimText} />}
+      </div>
+    );
+  },
+};
 
 function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
   s: PatternCleanupSuggestion;
@@ -166,9 +169,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
                 podcastClassName="truncate max-w-full"
               />
             )}
-            {pattern && !pattern.isActive && (
-              <span className={`${badgeBase} ${tint.destructive}`}>Inactive</span>
-            )}
+            {pattern && !pattern.isActive && <ActiveBadge active={false} />}
             {s.status !== 'pending' && (
               <span className={`${badgeBase} ${STATUS_BADGE[s.status][1]}`}>
                 {STATUS_BADGE[s.status][0]}
@@ -186,7 +187,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
         </div>
       </div>
 
-      <ProposedChange s={s} />
+      {PROPOSED_CHANGE[s.kind](s, s.before?.textTemplate ?? '')}
 
       {s.reasons.length > 0 && (
         <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-0.5">
@@ -258,7 +259,7 @@ export default function CleanupTab() {
     mutationFn: ({ id, action }: { id: number; action: keyof typeof ACTIONS }) => ACTIONS[action](id),
     onMutate: () => setMessage(null),
     onSuccess: refresh,
-    onError: (err) => setMessage(actionError(err)),
+    onError: (err, { action }) => setMessage(actionError(err, action)),
   });
 
   const bulk = useMutation({

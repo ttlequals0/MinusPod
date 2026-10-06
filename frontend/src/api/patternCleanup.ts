@@ -17,29 +17,13 @@ export interface PatternCleanupSettings {
   model: string;
 }
 
-export interface PatternCleanupSummary {
-  runId: number;
-  status: 'completed' | 'failed';
-  trigger: 'schedule' | 'manual';
-  forced: boolean;
-  reviewed: number;
-  suggested: number;
-  skipped: number;
-  errors: number;
-  model: string | null;
-  provider: string | null;
-  credentialSlot: string | null;
-  startedAt: string;
-  finishedAt: string;
-  durationMs: number;
-  error: string | null;
-}
-
 export interface PatternCleanupStatus extends PatternCleanupSettings {
   inProgress: boolean;
+  // Start of the newest run, including one still running.
   lastRun: string | null;
   lastError: string | null;
-  lastSummary: PatternCleanupSummary | null;
+  // The newest finished run.
+  lastSummary: PatternCleanupRun | null;
   pending: { total: number; byKind: Partial<Record<CleanupKind, number>> };
 }
 
