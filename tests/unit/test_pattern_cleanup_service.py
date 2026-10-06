@@ -844,6 +844,30 @@ def test_stats_sweep_skips_the_transaction_when_nothing_is_due(temp_db):
     assert calls['n'] == 0
 
 
+def test_stats_sweep_skips_the_transaction_when_the_only_candidate_is_acknowledged(temp_db):
+    p = _pattern(temp_db)
+    temp_db.get_connection().execute(
+        "UPDATE ad_patterns SET created_at = ? WHERE id = ?",
+        (_iso(utc_now() - timedelta(days=200)), p['id']))
+    temp_db.get_connection().commit()
+    current = temp_db.get_ad_pattern_by_id(p['id'])
+    proposal = stats_suggestions(temp_db, current, 90)[0]
+    assert proposal['kind'] == 'retire'
+    fingerprint = pattern_cleanup._stats_evidence('retire', current, proposal['payload'])
+    temp_db.set_cleanup_stats_reviewed(p['id'], {'retire': fingerprint})
+
+    calls = {'n': 0}
+    real_transaction = temp_db.transaction
+
+    def counting(immediate=False):
+        calls['n'] += 1
+        return real_transaction(immediate=immediate)
+
+    with patch.object(temp_db, 'transaction', side_effect=counting):
+        pattern_cleanup._run_stats_sweep(temp_db, None, 90, {})
+    assert calls['n'] == 0
+
+
 def test_stats_sweep_one_bad_pattern_does_not_stop_the_sweep(temp_db):
     bad = _pattern(temp_db, false_positive_count=3, confirmation_count=0)
     good = _pattern(temp_db, text=AD2, sponsor='Widgetco',
@@ -862,6 +886,25 @@ def test_stats_sweep_one_bad_pattern_does_not_stop_the_sweep(temp_db):
     assert not any(pid == bad['id'] for pid, _ in changed)
     pending = temp_db.get_cleanup_suggestions(status='pending')
     assert [s['pattern_id'] for s in pending] == [good['id']]
+
+
+def test_stats_sweep_computes_context_when_an_obsolete_flag_is_replaced_by_a_stats_flag(temp_db):
+    p = _pattern(temp_db, false_positive_count=3, confirmation_count=0)
+    stale_before = pattern_cleanup._before_snapshot(p)
+    old_flag_id = temp_db.upsert_cleanup_suggestion(
+        None, p['id'], 'flag', 0.9, ['model reason'],
+        {'false_positive_count': 0, 'confirmation_count': 0, 'contaminated': True,
+         'contamination_reason': 'x', 'recommended': 'disable'}, stale_before)
+    temp_db.update_ad_pattern(p['id'], text_template='changed ' + p['text_template'])
+
+    with patch.object(pattern_cleanup, 'source_context', return_value='retained context'):
+        changed = pattern_cleanup._run_stats_sweep(temp_db, None, 90, {})
+
+    assert (p['id'], 'flag') in changed
+    pending = temp_db.get_cleanup_suggestions(status='pending')
+    stats_flag = next(s for s in pending if s['pattern_id'] == p['id'])
+    assert stats_flag['id'] != old_flag_id
+    assert stats_flag['before']['source_context'] == 'retained context'
 
 
 def test_stale_model_result_does_not_stamp_changed_pattern(temp_db, live_route):

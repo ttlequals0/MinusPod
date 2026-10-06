@@ -191,7 +191,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
             checked={selected}
             onChange={onSelect}
             ariaLabel={`Select suggestion ${s.id}`}
-            className="mt-0.5 min-h-11 min-w-11 justify-center"
+            className="mt-0.5 max-sm:min-h-11 max-sm:min-w-11 justify-center"
           />
         )}
         <div className="min-w-0 flex-1 space-y-1">

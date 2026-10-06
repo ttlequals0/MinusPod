@@ -112,8 +112,9 @@ class PatternCleanupMixin:
                                 limit: int = 50, offset: int = 0,
                                 before_id: int | None = None) -> list[dict]:
         """Suggestions newest first, each with a `pattern` summary.
-        `before_id` keyset-pages after `s.id` (ids are inserted in created_at order), and
-        takes precedence over `offset` when both are given."""
+        `before_id` keyset-pages after `s.id`, and takes precedence over `offset` when both
+        are given. Ordered by id alone (not created_at) so the before_id cursor, offset, and
+        sort order all agree."""
         summary_cols = ', '.join(f'ap.{c} AS p_{c}' for c in _PATTERN_SUMMARY_FIELDS)
         query = f"""
             SELECT s.*, {summary_cols}, ks.name AS p_sponsor, pc.title AS p_podcast_title
@@ -132,7 +133,7 @@ class PatternCleanupMixin:
         if before_id is not None:
             query += " AND s.id < ?"
             params.append(int(before_id))
-        query += " ORDER BY s.created_at DESC, s.id DESC LIMIT ?"
+        query += " ORDER BY s.id DESC LIMIT ?"
         params.append(int(limit))
         if before_id is None:
             query += " OFFSET ?"

@@ -173,6 +173,21 @@ def test_before_id_keyset_pages_and_is_unaffected_by_an_earlier_row_leaving(temp
         status='pending', limit=1, before_id=ids[1])] == [ids[0]]
 
 
+def test_suggestions_order_by_id_not_created_at(temp_db):
+    pids = [_pattern(temp_db, text=f'pattern {i} Acme ad copy') for i in range(2)]
+    ids = [temp_db.upsert_cleanup_suggestion(None, pid, 'trim', 0.9, [], {'text': f'x{i}'}, {})
+           for i, pid in enumerate(pids)]
+    # The higher id is given an older created_at than the one before it.
+    temp_db.get_connection().execute(
+        "UPDATE pattern_cleanup_suggestions SET created_at = '2000-01-01T00:00:00Z' WHERE id = ?",
+        (ids[1],))
+    temp_db.get_connection().commit()
+
+    assert [r['id'] for r in temp_db.get_cleanup_suggestions(limit=1)] == [ids[1]]
+    assert [r['id'] for r in temp_db.get_cleanup_suggestions(
+        limit=1, before_id=ids[1])] == [ids[0]]
+
+
 def test_candidate_rows_scope_and_order(temp_db):
     a = _pattern(temp_db, text='alpha')
     b = _pattern(temp_db, text='beta')

@@ -760,6 +760,59 @@ def _stats_proposal_needs_write(kind: str, proposal: dict, pattern: dict,
                                      _suggestion_stale_fields(existing)))
 
 
+def _flag_merge_plan(model_flag: dict | None, candidates: dict, pattern: dict,
+                     acknowledgments: dict) -> dict | None:
+    """None when the model flag's counters already match; else the fields to upsert."""
+    if (model_flag is None or _stats_only_suggestion(model_flag)
+            or not _same_suggestion_content(model_flag, pattern)):
+        return None
+    proposal = candidates.get('flag')
+    payload = dict(model_flag.get('payload') or {})
+    payload.update({
+        'false_positive_count': pattern.get('false_positive_count') or 0,
+        'confirmation_count': pattern.get('confirmation_count') or 0,
+    })
+    reasons = [reason for reason in model_flag.get('reasons') or []
+               if not _is_false_positive_reason(reason)]
+    fingerprint = _stats_evidence('flag', pattern, proposal['payload']) if proposal else None
+    if proposal is not None and acknowledgments.get('flag') != fingerprint:
+        reasons.extend(reason for reason in proposal['reasons'] if reason not in reasons)
+    old_before = model_flag.get('before') or {}
+    stale_fields = _suggestion_stale_fields(model_flag)
+    if (_matches_snapshot(pattern, old_before, stale_fields)
+            and payload == model_flag.get('payload') and reasons == model_flag.get('reasons')):
+        return None
+    return {
+        'payload': payload, 'reasons': reasons,
+        'confidence': max(model_flag.get('confidence') or 0,
+                          proposal['confidence'] if proposal else 0),
+        'source_context': old_before.get('source_context'),
+    }
+
+
+def _plan_stats_sweep(pattern: dict, candidates: dict, all_pending: list[dict],
+                      acknowledgments: dict) -> tuple[set[int], dict | None, dict]:
+    """What the stats sweep would change for `pattern`, without touching the DB: ids to
+    delete, a flag-merge plan (or None), and the kinds that need a new or updated write."""
+    pending = {item['kind']: item for item in all_pending if item['kind'] in ('retire', 'flag')}
+    to_delete = set()
+    for existing in all_pending:
+        if not _stats_only_suggestion(existing) and _obsolete_model_version(existing, pattern):
+            to_delete.add(existing['id'])
+            pending.pop(existing['kind'], None)
+    for kind, existing in list(pending.items()):
+        proposal = candidates.get(kind)
+        if _stats_only_suggestion(existing) and (
+                proposal is None or acknowledgments.get(kind) ==
+                _stats_evidence(kind, pattern, proposal['payload'])):
+            to_delete.add(existing['id'])
+            pending.pop(kind)
+    flag_merge = _flag_merge_plan(pending.get('flag'), candidates, pattern, acknowledgments)
+    to_write = {kind: proposal for kind, proposal in candidates.items()
+               if _stats_proposal_needs_write(kind, proposal, pattern, acknowledgments, pending)}
+    return to_delete, flag_merge, to_write
+
+
 def _sweep_one_pattern(db, run_id: int, scanned: dict, unused_days: int,
                        segments_cache: dict) -> set[tuple[int, str]]:
     """One pattern's share of the stats sweep; a read-only precheck decides whether a
@@ -773,67 +826,28 @@ def _sweep_one_pattern(db, run_id: int, scanned: dict, unused_days: int,
     # Read-only: a not-yet-backfilled cache (None) is treated as "nothing acknowledged",
     # which can only make this check over-eager about needing context, never under-eager.
     acknowledgments = db.get_cleanup_stats_reviewed(scanned['id'], conn=conn) or {}
-    pending = {item['kind']: item for item in all_pending if item['kind'] in ('retire', 'flag')}
     # _same_stats_input is checked again below with the fresh row; computed from `scanned`
     # here, which is safe because that guard proves text_template/sponsor/source fields match.
-    needs_context = any(_stats_proposal_needs_write(kind, proposal, scanned, acknowledgments, pending)
-                        for kind, proposal in candidates.items())
-    context = source_context(db, scanned, segments_cache) if needs_context else None
+    to_delete, flag_merge, to_write = _plan_stats_sweep(scanned, candidates, all_pending, acknowledgments)
+    if not to_delete and flag_merge is None and not to_write:
+        return changed
+    context = source_context(db, scanned, segments_cache) if to_write else None
     with db.transaction(immediate=True) as conn:
         current = _pattern_on(conn, scanned['id'])
         if current is None or not _same_stats_input(scanned, current):
             return changed
         acknowledgments = _stats_acknowledgments(db, conn, current)
         all_pending = _pending_pattern_suggestions(conn, current['id'])
-        pending = {item['kind']: item for item in all_pending
-                   if item['kind'] in ('retire', 'flag')}
-        for existing in all_pending:
-            if (not _stats_only_suggestion(existing)
-                    and _obsolete_model_version(existing, current)):
-                conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?",
-                             (existing['id'],))
-                pending.pop(existing['kind'], None)
-        for kind, existing in list(pending.items()):
-            proposal = candidates.get(kind)
-            if _stats_only_suggestion(existing) and (
-                    proposal is None or acknowledgments.get(kind) ==
-                    _stats_evidence(kind, current, proposal['payload'])):
-                conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?",
-                             (existing['id'],))
-                pending.pop(kind)
-        model_flag = pending.get('flag')
-        if (model_flag is not None and not _stats_only_suggestion(model_flag)
-                and _same_suggestion_content(model_flag, current)):
-            proposal = candidates.get('flag')
-            payload = dict(model_flag.get('payload') or {})
-            payload.update({
-                'false_positive_count': current.get('false_positive_count') or 0,
-                'confirmation_count': current.get('confirmation_count') or 0,
-            })
-            reasons = [reason for reason in model_flag.get('reasons') or []
-                       if not _is_false_positive_reason(reason)]
-            fingerprint = (_stats_evidence('flag', current, proposal['payload'])
-                           if proposal is not None else None)
-            if (proposal is not None
-                    and acknowledgments.get('flag') != fingerprint):
-                reasons.extend(reason for reason in proposal['reasons']
-                               if reason not in reasons)
-            before = _before_snapshot(
-                current, (model_flag.get('before') or {}).get('source_context'))
-            old_before = model_flag.get('before') or {}
-            stale_fields = _suggestion_stale_fields(model_flag)
-            if (not _matches_snapshot(current, old_before, stale_fields)
-                    or payload != model_flag.get('payload') or reasons != model_flag.get('reasons')):
-                db.upsert_cleanup_suggestion(
-                    run_id, current['id'], 'flag',
-                    max(model_flag.get('confidence') or 0,
-                        proposal['confidence'] if proposal else 0),
-                    reasons, payload, before, conn=conn)
-                model_flag.update(before=before, payload=payload, reasons=reasons)
-                changed.add((current['id'], 'flag'))
-        for kind, proposal in candidates.items():
-            if not _stats_proposal_needs_write(kind, proposal, current, acknowledgments, pending):
-                continue
+        to_delete, flag_merge, to_write = _plan_stats_sweep(current, candidates, all_pending, acknowledgments)
+        for suggestion_id in to_delete:
+            conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?", (suggestion_id,))
+        if flag_merge is not None:
+            before = _before_snapshot(current, flag_merge['source_context'])
+            db.upsert_cleanup_suggestion(
+                run_id, current['id'], 'flag', flag_merge['confidence'], flag_merge['reasons'],
+                flag_merge['payload'], before, conn=conn)
+            changed.add((current['id'], 'flag'))
+        for kind, proposal in to_write.items():
             before = _before_snapshot(current, context)
             db.upsert_cleanup_suggestion(
                 run_id, current['id'], kind, proposal['confidence'], proposal['reasons'],

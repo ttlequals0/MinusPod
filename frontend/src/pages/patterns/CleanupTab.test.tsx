@@ -334,6 +334,17 @@ describe('CleanupTab', () => {
     await waitFor(() => expect(mockBulk).toHaveBeenCalledWith([2, 4], 'reject'));
   });
 
+  it('scopes the card checkbox 44px tap target to phones, not desktop', async () => {
+    renderTab();
+    await screen.findByTestId('cleanup-suggestion-1');
+    const checkbox = within(card(2)).getByLabelText('Select suggestion 2');
+    const tokens = checkbox.parentElement!.className.split(' ');
+    expect(tokens).toContain('max-sm:min-h-11');
+    expect(tokens).toContain('max-sm:min-w-11');
+    expect(tokens).not.toContain('min-h-11');
+    expect(tokens).not.toContain('min-w-11');
+  });
+
   it('reports bulk items that could not be applied', async () => {
     mockBulk.mockResolvedValue([
       { id: 1, status: 'approved' }, { id: 2, error: 'invalid_transition' },
