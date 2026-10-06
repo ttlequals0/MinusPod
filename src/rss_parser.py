@@ -25,7 +25,8 @@ from defusedxml.ElementTree import fromstring as defused_fromstring
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.episode_paths import episode_public_url
 from utils.feed_guid import compute_feed_guid
-from utils.time import parse_iso_datetime, parse_timestamp
+from utils.text import normalize_title_for_match
+from utils.time import parse_iso_datetime, parse_iso_utc, parse_timestamp
 from utils.url import SSRFError
 from user_agent import feed_user_agent
 from utils.http import safe_url_for_log
@@ -269,6 +270,11 @@ def _podcast_localname(elem) -> str:
 
 _ENCLOSURE_PREFIX_RE = re.compile(r'<enclosure url="([^"]+)/episodes/')
 RSS_RENDER_VERSION = 2
+
+# Matches FUZZY_MATCH_WINDOW_HOURS in database/episodes.py: the widest
+# plausible drift from a stale pre-fix named-zone published_at. A render-time
+# guard against a discovery-layer duplicate that slipped past that match.
+DB_DUPLICATE_MATCH_WINDOW_HOURS = 24
 _RENDER_VERSION_RE = re.compile(r'<!-- minuspod-rss-render-version:(\d+) -->')
 _ENCLOSURE_KEY_RE = re.compile(
     r'<enclosure url="[^"]+/episodes/[^"]*\?key=([0-9a-f]{64})"')
@@ -1090,6 +1096,17 @@ class RSSParser:
             for ep in (extra_episodes or [])
             if ep.get('episode_id')
         }
+        # Discovery-layer dedup can still miss (stale pre-fix published_at,
+        # an upstream GUID rotation): catch a leftover duplicate here too, by
+        # title and date, so the DB item is never served alongside the
+        # upstream one for the same episode.
+        db_title_dates = [
+            (normalize_title_for_match(ep.get('title')), pub_dt)
+            for ep in (extra_episodes or [])
+            if (pub_dt := parse_iso_utc(ep.get('published_at')))
+            and normalize_title_for_match(ep.get('title'))
+        ]
+        suppressed_upstream_duplicates = 0
         for entry in entries:
             episode_url = None
             # Find audio URL in enclosures
@@ -1107,6 +1124,9 @@ class RSSParser:
             if processed_only and episode_id not in (processed_episode_ids or set()):
                 continue
             if title_matches_skip_patterns(entry.get('title', ''), hide_title_patterns):
+                continue
+            if db_title_dates and self._matches_db_duplicate(entry, db_title_dates):
+                suppressed_upstream_duplicates += 1
                 continue
             included_episode_ids.add(episode_id)
             modified_url = episode_public_url(self._resolved_base_url(), slug,
@@ -1199,7 +1219,33 @@ class RSSParser:
         total_episodes = len(included_episode_ids) + appended_count
         modified_rss = '\n'.join(lines)
         logger.info(f"[{slug}] Modified RSS feed with {total_episodes} episodes ({appended_count} appended from DB)")
+        if suppressed_upstream_duplicates:
+            logger.warning(
+                f"[{slug}] Suppressed {suppressed_upstream_duplicates} upstream "
+                "item(s) duplicating an already-included processed episode by "
+                "title and date"
+            )
         return modified_rss
+
+    @staticmethod
+    def _matches_db_duplicate(entry, db_title_dates) -> bool:
+        """True when `entry` shares a normalized title and a published date
+        within DB_DUPLICATE_MATCH_WINDOW_HOURS with a DB-appended episode."""
+        title_key = normalize_title_for_match(entry.get('title', ''))
+        if not title_key:
+            return False
+        try:
+            entry_dt = parsedate_to_datetime(entry.get('published', ''))
+        except (ValueError, TypeError):
+            return False
+        if entry_dt.tzinfo is None:
+            entry_dt = entry_dt.replace(tzinfo=timezone.utc)
+        for db_title_key, db_dt in db_title_dates:
+            if db_title_key != title_key:
+                continue
+            if abs((entry_dt - db_dt).total_seconds()) / 3600 <= DB_DUPLICATE_MATCH_WINDOW_HOURS:
+                return True
+        return False
 
     def _append_podcasting2_tags(self, lines: list, slug: str, episode_id: str,
                                  storage, feed_auth_key=None,
