@@ -1,9 +1,4 @@
-"""Pattern cleanup routes: scheduled LLM review of learned ad patterns.
-
-See pattern_cleanup.py for the service; this module only shapes requests
-and responses around it. CSRF for POST/PUT is enforced globally for
-mutating methods (api/__init__.py), not per-route here.
-"""
+"""Pattern cleanup routes; see pattern_cleanup.py for the service. CSRF for POST/PUT is enforced globally (api/__init__.py), not per-route here."""
 import json
 import logging
 

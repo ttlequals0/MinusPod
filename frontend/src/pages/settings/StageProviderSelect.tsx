@@ -28,9 +28,8 @@ interface StageProviderSelectProps {
 }
 
 function StageProviderSelect({ id, label, value, options, onChange, secondaryEnabled }: StageProviderSelectProps) {
-  // A stage saved on the secondary slot before the secondary provider was
-  // turned off keeps that stored value; hiding it would read as Primary
-  // while state and the DB still say secondary.
+  // A stage saved on the secondary slot before it was turned off keeps that
+  // value; hiding the option would misrepresent what is actually stored.
   const strandedOnSecondary = value === SLOT_SECONDARY && !secondaryEnabled;
   const shownOptions = strandedOnSecondary
     ? [...options, { value: SLOT_SECONDARY, label: `${SLOT_LABELS.secondary} (off)` }]

@@ -1,9 +1,4 @@
-"""Scheduled LLM review of learned ad patterns (Experiments > Pattern cleanup).
-
-A run reviews a batch of learned patterns and stores suggestions (trim, split,
-rename, retire, flag). Nothing changes a pattern until the user approves a
-suggestion; approval keeps a snapshot so it can be undone.
-"""
+"""Scheduled LLM review of learned patterns; stores trim/split/rename/retire/flag suggestions that only apply once approved, and keep a snapshot for undo."""
 from __future__ import annotations
 
 import fcntl
