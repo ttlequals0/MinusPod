@@ -9,7 +9,8 @@ from typing import ClassVar
 # Shared with the stats mixin so both agree on what counts as processed.
 from database.stats import _PROCESSED_EPISODE_EXISTS_SQL
 from utils.constants import EpisodeStatus
-from utils.time import ISO_FORMAT, utc_now, utc_now_iso
+from utils.text import normalize_title_for_match
+from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,19 @@ logger = logging.getLogger(__name__)
 # archive feed held the single write lock long enough for every other writer to
 # exceed its 30s busy_timeout and fail with "database is locked".
 DISCOVERY_UPSERT_CHUNK = 50
+
+# Widest plausible drift from a stale pre-fix named-zone published_at
+# (src/database/episodes.py normalize_published_at); the largest named zone
+# offset is 14h, so 24h gives headroom without crossing into a different
+# episode released on a nearby day.
+FUZZY_MATCH_WINDOW_HOURS = 24
+
+# Preference order when several existing rows fall inside the fuzzy match
+# window: a row with real processing state wins over a bare discovered one.
+_STATUS_MATCH_PRIORITY = {
+    EpisodeStatus.PROCESSED.value: 2,
+    EpisodeStatus.PROCESSING.value: 1,
+}
 
 # Shared SET clause for requeueing an episode to 'pending' (params: reprocess_mode,
 # reprocess_requested_at). One definition so a new reset column cannot be added to
@@ -1403,6 +1417,37 @@ class EpisodeMixin:
             if row['title'] and row['published_at']:
                 title_date_map[(row['title'], row['published_at'])] = row['episode_id']
 
+    @staticmethod
+    def _find_fuzzy_duplicate(title, iso_published, exclude_id, existing_by_id):
+        """Find an existing row for the same episode under a different GUID
+        when the exact title+date lookup misses.
+
+        Matches on normalized title plus a published_at within
+        FUZZY_MATCH_WINDOW_HOURS, which catches a stale pre-fix timezone
+        offset. Among several matches, prefers the one with the most
+        processing state, then the closest published_at.
+        """
+        target_dt = parse_iso_utc(iso_published)
+        target_title = normalize_title_for_match(title)
+        if not target_dt or not target_title:
+            return None
+        best, best_key = None, None
+        for episode_id, row in existing_by_id.items():
+            if episode_id == exclude_id:
+                continue
+            if normalize_title_for_match(row.get('title')) != target_title:
+                continue
+            candidate_dt = parse_iso_utc(row.get('published_at'))
+            if not candidate_dt:
+                continue
+            delta_hours = abs((candidate_dt - target_dt).total_seconds()) / 3600
+            if delta_hours > FUZZY_MATCH_WINDOW_HOURS:
+                continue
+            key = (-_STATUS_MATCH_PRIORITY.get(row.get('status'), 0), delta_hours)
+            if best is None or key < best_key:
+                best, best_key = row, key
+        return best
+
     def _upsert_one_discovered_episode(
             self, conn, podcast_id, slug, ep, existing_by_id, title_date_map):
         """Upsert one discovered episode. Returns an (inserted, skipped) delta.
@@ -1418,6 +1463,9 @@ class EpisodeMixin:
             if ep.get('title') and iso_published:
                 existing_id = title_date_map.get((ep.get('title'), iso_published))
                 existing = existing_by_id.get(existing_id) if existing_id != ep['id'] else None
+                if existing is None:
+                    existing = self._find_fuzzy_duplicate(
+                        ep.get('title'), iso_published, ep['id'], existing_by_id)
                 if existing is not None:
                     # Update episode_id to match new GUID for discovered episodes
                     # (no cached files yet, safe to update)

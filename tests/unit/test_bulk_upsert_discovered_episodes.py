@@ -176,3 +176,67 @@ def test_guid_rename_rechecks_processing_barrier_under_writer_lock(monkeypatch, 
         conn = db.get_connection()
         conn.execute("DELETE FROM processing_runs WHERE run_id = 'run-guid-barrier'")
         conn.commit()
+
+
+def test_fuzzy_match_relinks_rotated_guid_with_stale_published_at():
+    """A pre-fix row's published_at can be off by a named-zone offset (up to
+    14h); an upstream GUID rotation must relink to it, not insert a dup."""
+    slug = _feed('upsert-fuzzy-relink')
+    old_id = _eid()
+    db.upsert_episode(
+        slug, old_id, title='Fuzzy Relink Episode', published_at='2026-01-01T00:00:00Z',
+        original_url='https://example.com/old.mp3', status='discovered')
+
+    new_id = _eid()
+    inserted = db.bulk_upsert_discovered_episodes(slug, [
+        _episode(new_id, title='Fuzzy Relink Episode', published='2026-01-01T07:00:00Z'),
+    ])
+
+    assert inserted == 0
+    assert db.get_episode(slug, old_id) is None
+    assert db.get_episode(slug, new_id) is not None
+
+
+def test_fuzzy_match_does_not_cross_a_multi_day_gap():
+    """Two genuinely different episodes sharing a title days apart must both
+    stay as separate rows; the fuzzy window must not swallow them."""
+    slug = _feed('upsert-fuzzy-distinct')
+    old_id = _eid()
+    db.upsert_episode(
+        slug, old_id, title='Weekly Recap', published_at='2026-01-01T00:00:00Z',
+        original_url='https://example.com/old.mp3', status='discovered')
+
+    new_id = _eid()
+    inserted = db.bulk_upsert_discovered_episodes(slug, [
+        _episode(new_id, title='Weekly Recap', published='2026-01-04T00:00:00Z'),
+    ])
+
+    assert inserted == 1
+    assert db.get_episode(slug, old_id) is not None
+    assert db.get_episode(slug, new_id) is not None
+
+
+def test_fuzzy_match_prefers_completed_row_over_closer_discovered_row():
+    """When both a completed and a discovered row fall in the fuzzy window,
+    the completed row (the one with real state) must be matched, even when
+    a discovered row sits closer in time."""
+    slug = _feed('upsert-fuzzy-priority')
+    discovered_id = _eid()
+    completed_id = _eid()
+    db.upsert_episode(
+        slug, discovered_id, title='Priority Episode', published_at='2026-01-01T00:50:00Z',
+        original_url='https://example.com/discovered.mp3', status='discovered')
+    db.upsert_episode(
+        slug, completed_id, title='Priority Episode', published_at='2026-01-01T03:00:00Z',
+        original_url='https://example.com/completed.mp3', status='processed')
+
+    new_id = _eid()
+    new_ep = _episode(new_id, title='Priority Episode', published='2026-01-01T01:00:00Z')
+    new_ep['episode_number'] = 42
+    inserted = db.bulk_upsert_discovered_episodes(slug, [new_ep])
+
+    assert inserted == 0
+    discovered_row = db.get_episode(slug, discovered_id)
+    completed_row = db.get_episode(slug, completed_id)
+    assert discovered_row['episode_number'] is None
+    assert completed_row['episode_number'] == 42

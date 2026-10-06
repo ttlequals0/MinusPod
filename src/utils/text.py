@@ -16,6 +16,13 @@ from utils.time import parse_timestamp
 BOUNDARY_SNAP_TOLERANCE_S = 3.0
 
 
+def normalize_title_for_match(title: str | None) -> str:
+    """Lowercase, whitespace-collapsed title for loose duplicate matching."""
+    if not title:
+        return ''
+    return re.sub(r'\s+', ' ', title).strip().lower()
+
+
 def word_boundary_re(terms) -> re.Pattern | None:
     """One case-insensitive alternation matching any of `terms` as whole words,
     or None when nothing is left to match. Longest first so an alternative that
