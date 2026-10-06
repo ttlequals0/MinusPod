@@ -1296,7 +1296,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </CollapsibleSection>
 
-          {/* Segment actions (issue #565): per-feed remove/beep/keep overrides,
+          {/* Segment actions (issue #565): per-feed remove/beep/keep/mark overrides,
               show-segment detection, and the bulk re-render trigger. */}
           <CollapsibleSection
             title="Segment actions"
