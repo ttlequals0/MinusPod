@@ -59,6 +59,7 @@ import ExperimentsSection from './settings/ExperimentsSection';
 import AdReviewerSection from './settings/AdReviewerSection';
 import AudioCueDetectionSection from './settings/AudioCueDetectionSection';
 import PositionalPriorSection from './settings/PositionalPriorSection';
+import PatternCleanupSection from './settings/PatternCleanupSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
 import DatabaseBackupSection from './settings/DatabaseBackupSection';
 import OutboundRequestsSection from './settings/OutboundRequestsSection';
@@ -138,6 +139,7 @@ function Settings() {
   const [systemPromptOverride, setSystemPromptOverride] = useState('');
   const [verificationPromptOverride, setVerificationPromptOverride] = useState('');
   const [chapterPromptOverride, setChapterPromptOverride] = useState('');
+  const [patternCleanupPrompt, setPatternCleanupPrompt] = useState('');
   // Form state holds no hardcoded defaults: every field is hydrated from the
   // loaded settings (or the backend-provided `settings.defaults.*`) before the
   // form renders (the page returns a loader while `settingsLoading`, and the
@@ -613,6 +615,7 @@ function Settings() {
     { key: 'systemPromptOverride', kind: 'str', value: systemPromptOverride, set: setSystemPromptOverride },
     { key: 'verificationPromptOverride', kind: 'str', value: verificationPromptOverride, set: setVerificationPromptOverride },
     { key: 'chapterPromptOverride', kind: 'str', value: chapterPromptOverride, set: setChapterPromptOverride },
+    { key: 'patternCleanupPrompt', kind: 'str', value: patternCleanupPrompt, set: setPatternCleanupPrompt },
     // Ad reviewer (nested `reviewer` state; updatePatterns/minTrimThreshold
     // save via /settings/reviewer and are diffed by reviewerPatternsChanged).
     { key: 'reviewPrompt', kind: 'str', value: reviewer.reviewPrompt, obj: 'reviewer', prop: 'reviewPrompt' },
@@ -1409,20 +1412,24 @@ function Settings() {
         systemPromptOverride={systemPromptOverride}
         verificationPromptOverride={verificationPromptOverride}
         chapterPromptOverride={chapterPromptOverride}
+        patternCleanupPrompt={patternCleanupPrompt}
         onSystemPromptChange={setSystemPrompt}
         onVerificationPromptChange={setVerificationPrompt}
         onChapterPromptChange={setChapterPrompt}
         onSystemPromptOverrideChange={setSystemPromptOverride}
         onVerificationPromptOverrideChange={setVerificationPromptOverride}
         onChapterPromptOverrideChange={setChapterPromptOverride}
+        onPatternCleanupPromptChange={setPatternCleanupPrompt}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
         systemPromptIsDefault={settings?.systemPrompt.isDefault}
         verificationPromptIsDefault={settings?.verificationPrompt.isDefault}
         chapterPromptIsDefault={settings?.chapterPrompt.isDefault}
+        patternCleanupPromptIsDefault={settings?.patternCleanupPrompt?.isDefault}
         onResetSystemPrompt={() => resetPromptMutation.mutate('system')}
         onResetVerificationPrompt={() => resetPromptMutation.mutate('verification')}
         onResetChapterPrompt={() => resetPromptMutation.mutate('chapter')}
+        onResetPatternCleanupPrompt={() => resetPromptMutation.mutate('pattern_cleanup')}
       />
 
       <CommunityPatternsSection />
@@ -1439,6 +1446,13 @@ function Settings() {
       <PositionalPriorSection
         enabled={positionalPriorEnabled}
         onChange={setPositionalPriorEnabled}
+      />
+
+      <PatternCleanupSection
+        primaryProvider={llmProvider}
+        secondaryProvider={secondaryProviderEnabled && secondaryProvider ? secondaryProvider : ''}
+        secondaryEnabled={secondaryProviderEnabled}
+        detectionSlot={detectionSlot}
       />
 
       <SettingsGroupHeader title="Output" />

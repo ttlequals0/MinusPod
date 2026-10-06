@@ -25,7 +25,7 @@ export async function resetPrompts(): Promise<{ message: string }> {
   });
 }
 
-export type PromptName = 'system' | 'verification' | 'review' | 'resurrect' | 'chapter';
+export type PromptName = 'system' | 'verification' | 'review' | 'resurrect' | 'chapter' | 'pattern_cleanup';
 
 export async function resetPrompt(name: PromptName): Promise<{ value: string; isDefault: boolean }> {
   return apiRequest<{ value: string; isDefault: boolean }>(`/settings/prompts/${name}/reset`, {

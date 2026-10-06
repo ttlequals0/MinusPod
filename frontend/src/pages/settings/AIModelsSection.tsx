@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import type { ClaudeModel, ModelPricingOverride, ModelPricingOverrides } from '../../api/types';
-import { SAME_AS_DETECTION, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import CatalogStatus from '../../components/CatalogStatus';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import RefreshModelsButton from './RefreshModelsButton';
 import type { ModelsRefresh } from '../../hooks/useModelsRefresh';
 import ModelSelect from './ModelSelect';
+import StageProviderSelect, { detectionSlotOptions, inheritedSlotOptions } from './StageProviderSelect';
 import { btnSecondary } from '../../components/buttonStyles';
-import { focusRing, selectBase } from '../../components/fieldStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 interface AIModelsSectionProps {
   // Each stage carries its own catalog and its own fetch state. No fallback
@@ -86,61 +86,9 @@ function AIModelsSection({
   ].filter(Boolean)));
 
   // Detection picks primary or secondary directly; verification/chapters
-  // also inherit detection's resolved slot via "Same as detection". Secondary
-  // is listed only while the secondary provider is configured and enabled.
-  const detectionSlotOptions = [
-    { value: SLOT_PRIMARY, label: SLOT_LABELS.primary },
-    ...(secondaryProviderEnabled ? [{ value: SLOT_SECONDARY, label: SLOT_LABELS.secondary }] : []),
-  ];
-  const inheritedSlotOptions = [
-    { value: SAME_AS_DETECTION, label: 'Same as detection' },
-    { value: SLOT_PRIMARY, label: SLOT_LABELS.primary },
-    ...(secondaryProviderEnabled ? [{ value: SLOT_SECONDARY, label: SLOT_LABELS.secondary }] : []),
-  ];
-
-  const renderProviderSelect = ({
-    id,
-    label,
-    value,
-    options,
-    onChange,
-  }: {
-    id: string;
-    label: string;
-    value: string;
-    options: Array<{ value: string; label: string }>;
-    onChange: (provider: string) => void;
-  }) => {
-    // A stage saved on the secondary slot before the secondary provider was
-    // turned off keeps that stored value; hiding it would read as Primary
-    // while state and the DB still say secondary.
-    const strandedOnSecondary = value === SLOT_SECONDARY && !secondaryProviderEnabled;
-    const shownOptions = strandedOnSecondary
-      ? [...options, { value: SLOT_SECONDARY, label: `${SLOT_LABELS.secondary} (off)` }]
-      : options;
-    return (
-      <div>
-        <label htmlFor={id} className="block text-sm font-medium text-foreground mb-2">
-          {label}
-        </label>
-        <select
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={`w-full ${selectBase}`}
-        >
-          {shownOptions.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        {strandedOnSecondary && (
-          <p className="mt-1 text-sm text-warning">
-            {SLOT_LABELS.secondary} is off, so this stage runs on {SLOT_LABELS.primary}.
-          </p>
-        )}
-      </div>
-    );
-  };
+  // also inherit detection's resolved slot via "Same as detection".
+  const detectionOptions = detectionSlotOptions(secondaryProviderEnabled);
+  const inheritedOptions = inheritedSlotOptions(secondaryProviderEnabled);
 
   return (
     <CollapsibleSection
@@ -162,13 +110,14 @@ function AIModelsSection({
         <CatalogStatus refreshError={modelsRefresh.error} />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {renderProviderSelect({
-            id: 'detectionProvider',
-            label: 'Ad Detection Provider',
-            value: detectionProvider,
-            options: detectionSlotOptions,
-            onChange: onDetectionProviderChange,
-          })}
+          <StageProviderSelect
+            id="detectionProvider"
+            label="Ad Detection Provider"
+            value={detectionProvider}
+            options={detectionOptions}
+            onChange={onDetectionProviderChange}
+            secondaryEnabled={secondaryProviderEnabled}
+          />
           <ModelSelect
             id="model"
             label="Ad Detection Model"
@@ -180,13 +129,14 @@ function AIModelsSection({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {renderProviderSelect({
-            id: 'verificationProvider',
-            label: 'Verification Provider',
-            value: verificationProvider,
-            options: inheritedSlotOptions,
-            onChange: onVerificationProviderChange,
-          })}
+          <StageProviderSelect
+            id="verificationProvider"
+            label="Verification Provider"
+            value={verificationProvider}
+            options={inheritedOptions}
+            onChange={onVerificationProviderChange}
+            secondaryEnabled={secondaryProviderEnabled}
+          />
           <ModelSelect
             id="verificationModel"
             label="Verification Model"
@@ -198,13 +148,14 @@ function AIModelsSection({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {renderProviderSelect({
-            id: 'chaptersProvider',
-            label: 'Chapters Provider',
-            value: chaptersProvider,
-            options: inheritedSlotOptions,
-            onChange: onChaptersProviderChange,
-          })}
+          <StageProviderSelect
+            id="chaptersProvider"
+            label="Chapters Provider"
+            value={chaptersProvider}
+            options={inheritedOptions}
+            onChange={onChaptersProviderChange}
+            secondaryEnabled={secondaryProviderEnabled}
+          />
           <ModelSelect
             id="chaptersModel"
             label="Chapters Model"

@@ -63,6 +63,7 @@ vi.mock('./settings/SegmentActionsSection', () => ({ default: () => null }));
 vi.mock('./settings/Podcasting20Section', () => ({ default: () => null }));
 vi.mock('./settings/AudioCueDetectionSection', () => ({ default: () => null }));
 vi.mock('./settings/PositionalPriorSection', () => ({ default: () => null }));
+vi.mock('./settings/PatternCleanupSection', () => ({ default: () => <div data-testid="pattern-cleanup-section" /> }));
 vi.mock('./settings/CommunityPatternsSection', () => ({ default: () => null }));
 vi.mock('./settings/DatabaseBackupSection', () => ({ default: () => null }));
 vi.mock('./settings/QueueControlSection', () => ({ default: () => null }));
@@ -306,6 +307,19 @@ describe('Settings: Ad Reviewer placement', () => {
 
     const experiments = screen.getByRole('heading', { name: 'Experiments' });
     expect(precedes(adReviewer, experiments)).toBe(true);
+  });
+});
+
+describe('Settings: Pattern cleanup placement', () => {
+  it('renders the Pattern cleanup card under Experiments, before Output', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    renderSettings();
+
+    const card = await screen.findByTestId('pattern-cleanup-section');
+    const experiments = screen.getByRole('heading', { name: 'Experiments' });
+    const output = screen.getByRole('heading', { name: 'Output' });
+    expect(Boolean(experiments.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(card.compareDocumentPosition(output) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 });
 

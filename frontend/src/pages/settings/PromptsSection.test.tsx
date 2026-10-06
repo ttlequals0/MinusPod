@@ -4,7 +4,7 @@
  * unaffected.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PromptsSection from './PromptsSection';
 
@@ -16,12 +16,14 @@ function baseProps() {
     systemPromptOverride: '',
     verificationPromptOverride: '',
     chapterPromptOverride: '',
+    patternCleanupPrompt: 'cleanup text',
     onSystemPromptChange: vi.fn(),
     onVerificationPromptChange: vi.fn(),
     onChapterPromptChange: vi.fn(),
     onSystemPromptOverrideChange: vi.fn(),
     onVerificationPromptOverrideChange: vi.fn(),
     onChapterPromptOverrideChange: vi.fn(),
+    onPatternCleanupPromptChange: vi.fn(),
     onResetPrompts: vi.fn(),
     resetIsPending: false,
   };
@@ -93,5 +95,31 @@ describe('PromptsSection: per-prompt reset', () => {
     expect(onResetChapterPrompt).toHaveBeenCalledTimes(1);
     expect(onResetSystemPrompt).not.toHaveBeenCalled();
     expect(onResetVerificationPrompt).not.toHaveBeenCalled();
+  });
+
+  it('edits and resets the pattern cleanup prompt on its own', async () => {
+    const onChange = vi.fn();
+    const onResetCleanup = vi.fn();
+    const onResetChapterPrompt = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PromptsSection
+        {...baseProps()}
+        onPatternCleanupPromptChange={onChange}
+        chapterPromptIsDefault
+        onResetChapterPrompt={onResetChapterPrompt}
+        patternCleanupPromptIsDefault={false}
+        onResetPatternCleanupPrompt={onResetCleanup}
+      />,
+    );
+    const field = screen.getByLabelText('Pattern Cleanup Prompt') as HTMLTextAreaElement;
+    expect(field.value).toBe('cleanup text');
+    fireEvent.change(field, { target: { value: 'edited' } });
+    expect(onChange).toHaveBeenCalledWith('edited');
+    const [, cleanupReset] = screen.getAllByRole('button', { name: 'Reset' });
+    await user.click(cleanupReset);
+    await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
+    expect(onResetCleanup).toHaveBeenCalledTimes(1);
+    expect(onResetChapterPrompt).not.toHaveBeenCalled();
   });
 });

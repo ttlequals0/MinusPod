@@ -771,6 +771,7 @@ export interface Settings {
   reviewPrompt: SettingValue;
   resurrectPrompt: SettingValue;
   chapterPrompt: SettingValue;
+  patternCleanupPrompt: SettingValue;
   systemPromptOverride: SettingValue;
   verificationPromptOverride: SettingValue;
   reviewPromptOverride: SettingValue;
@@ -1090,6 +1091,7 @@ export interface UpdateSettingsPayload {
   reviewPrompt?: string;
   resurrectPrompt?: string;
   chapterPrompt?: string;
+  patternCleanupPrompt?: string;
   systemPromptOverride?: string;
   verificationPromptOverride?: string;
   reviewPromptOverride?: string;

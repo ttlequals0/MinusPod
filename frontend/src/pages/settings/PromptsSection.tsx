@@ -13,12 +13,14 @@ interface PromptsSectionProps {
   systemPromptOverride: string;
   verificationPromptOverride: string;
   chapterPromptOverride: string;
+  patternCleanupPrompt: string;
   onSystemPromptChange: (prompt: string) => void;
   onVerificationPromptChange: (prompt: string) => void;
   onChapterPromptChange: (prompt: string) => void;
   onSystemPromptOverrideChange: (prompt: string) => void;
   onVerificationPromptOverrideChange: (prompt: string) => void;
   onChapterPromptOverrideChange: (prompt: string) => void;
+  onPatternCleanupPromptChange: (prompt: string) => void;
   onResetPrompts: () => void;
   resetIsPending: boolean;
   // Per-prompt reset (issue #626); overrides have no button of their own
@@ -26,9 +28,11 @@ interface PromptsSectionProps {
   systemPromptIsDefault?: boolean;
   verificationPromptIsDefault?: boolean;
   chapterPromptIsDefault?: boolean;
+  patternCleanupPromptIsDefault?: boolean;
   onResetSystemPrompt?: () => void;
   onResetVerificationPrompt?: () => void;
   onResetChapterPrompt?: () => void;
+  onResetPatternCleanupPrompt?: () => void;
 }
 
 function PromptsSection({
@@ -38,20 +42,24 @@ function PromptsSection({
   systemPromptOverride,
   verificationPromptOverride,
   chapterPromptOverride,
+  patternCleanupPrompt,
   onSystemPromptChange,
   onVerificationPromptChange,
   onChapterPromptChange,
   onSystemPromptOverrideChange,
   onVerificationPromptOverrideChange,
   onChapterPromptOverrideChange,
+  onPatternCleanupPromptChange,
   onResetPrompts,
   resetIsPending,
   systemPromptIsDefault,
   verificationPromptIsDefault,
   chapterPromptIsDefault,
+  patternCleanupPromptIsDefault,
   onResetSystemPrompt,
   onResetVerificationPrompt,
   onResetChapterPrompt,
+  onResetPatternCleanupPrompt,
 }: PromptsSectionProps) {
   return (
     <CollapsibleSection title="Prompts">
@@ -110,6 +118,16 @@ function PromptsSection({
           onChange={onChapterPromptOverrideChange}
           rows={3}
           helpText={OVERRIDE_HELP}
+        />
+
+        <PromptField
+          id="patternCleanupPrompt"
+          label="Pattern Cleanup Prompt"
+          value={patternCleanupPrompt}
+          onChange={onPatternCleanupPromptChange}
+          helpText="Instructions for reviewing learned patterns in Experiments > Pattern Cleanup"
+          onReset={onResetPatternCleanupPrompt}
+          isDefault={patternCleanupPromptIsDefault}
         />
 
         <ConfirmResetButton
