@@ -4238,8 +4238,12 @@ paths:
       description: >-
         Each suggestion carries the current pattern summary (sponsor, scope,
         podcast title, counts), the proposed payload, and an immutable before
-        snapshot from review time. Use limit and offset to reach older
-        decisions, including approved suggestions available for undo.
+        snapshot from review time. Prefer before_id (the smallest id already
+        seen) over offset to page to older decisions, including approved
+        suggestions available for undo: a keyset cursor is not disturbed by
+        rows that leave the result set between pages, where offset can skip
+        or repeat rows. before_id takes precedence over offset when both are
+        given.
       operationId: listPatternCleanupSuggestions
       parameters:
         - name: status
@@ -4254,6 +4258,10 @@ paths:
         - name: offset
           in: query
           schema: { type: integer, default: 0, minimum: 0 }
+        - name: before_id
+          in: query
+          description: Keyset cursor; only suggestions with id below this are returned.
+          schema: { type: integer, minimum: 1 }
       responses:
         '200':
           description: Suggestions, newest first

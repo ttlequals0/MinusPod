@@ -109,8 +109,11 @@ class PatternCleanupMixin:
         return _decode_suggestion(row) if row else None
 
     def get_cleanup_suggestions(self, status: str | None = None, kind: str | None = None,
-                                limit: int = 50, offset: int = 0) -> list[dict]:
-        """Suggestions newest first, each with a `pattern` summary."""
+                                limit: int = 50, offset: int = 0,
+                                before_id: int | None = None) -> list[dict]:
+        """Suggestions newest first, each with a `pattern` summary.
+        `before_id` keyset-pages after `s.id` (ids are inserted in created_at order), and
+        takes precedence over `offset` when both are given."""
         summary_cols = ', '.join(f'ap.{c} AS p_{c}' for c in _PATTERN_SUMMARY_FIELDS)
         query = f"""
             SELECT s.*, {summary_cols}, ks.name AS p_sponsor, pc.title AS p_podcast_title
@@ -126,8 +129,14 @@ class PatternCleanupMixin:
         if kind:
             query += " AND s.kind = ?"
             params.append(kind)
-        query += " ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?"
-        params += [int(limit), int(offset)]
+        if before_id is not None:
+            query += " AND s.id < ?"
+            params.append(int(before_id))
+        query += " ORDER BY s.created_at DESC, s.id DESC LIMIT ?"
+        params.append(int(limit))
+        if before_id is None:
+            query += " OFFSET ?"
+            params.append(int(offset))
         out = []
         for row in self.get_connection().execute(query, params).fetchall():
             raw = dict(row)

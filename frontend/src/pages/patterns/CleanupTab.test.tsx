@@ -176,21 +176,21 @@ describe('CleanupTab', () => {
   });
 
   it('loads an older approved suggestion, allows undo, then refetches both pages', async () => {
-    const recent = Array.from({ length: 200 }, (_, i) => suggestion(i + 1, 'retire', {
+    const recent = Array.from({ length: 200 }, (_, i) => suggestion(200 - i, 'retire', {
       unusedDays: 90, lastMatchedAt: null, confirmationCount: 0,
     }, { status: 'approved' }));
-    const older = suggestion(201, 'trim', { text: KEPT }, { status: 'approved' });
+    const older = suggestion(0, 'trim', { text: KEPT }, { status: 'approved' });
     let undone = false;
-    mockList.mockImplementation(({ offset = 0 }: { offset?: number }) =>
-      Promise.resolve(offset === 0 ? recent : undone ? [] : [older]));
+    mockList.mockImplementation(({ beforeId }: { beforeId?: number }) =>
+      Promise.resolve(beforeId === undefined ? recent : undone ? [] : [older]));
     renderTab();
-    await screen.findByTestId('cleanup-suggestion-1');
+    await screen.findByTestId('cleanup-suggestion-200');
     const user = userEvent.setup();
     await user.selectOptions(screen.getByLabelText('Status'), 'approved');
     await user.click(screen.getByRole('button', { name: 'Load older suggestions' }));
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith(
-      expect.objectContaining({ limit: 200, offset: 200 })));
-    const olderCard = await screen.findByTestId('cleanup-suggestion-201');
+      expect.objectContaining({ limit: 200, beforeId: 1 })));
+    const olderCard = await screen.findByTestId('cleanup-suggestion-0');
     expect(within(olderCard).getByRole('button', { name: 'Undo' })).toBeDefined();
     mockList.mockClear();
     mockUndo.mockImplementationOnce(async () => {
@@ -198,10 +198,32 @@ describe('CleanupTab', () => {
       return { ...older, status: 'undone' };
     });
     await user.click(within(olderCard).getByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(mockUndo).toHaveBeenCalledWith(201));
-    await waitFor(() => expect(mockList.mock.calls.some(([params]) => params.offset === 0)).toBe(true));
-    await waitFor(() => expect(mockList.mock.calls.some(([params]) => params.offset === 200)).toBe(true));
-    await waitFor(() => expect(screen.queryByTestId('cleanup-suggestion-201')).toBeNull());
+    await waitFor(() => expect(mockUndo).toHaveBeenCalledWith(0));
+    await waitFor(() => expect(mockList.mock.calls.some(([params]) => params.beforeId === undefined)).toBe(true));
+    await waitFor(() => expect(mockList.mock.calls.some(([params]) => params.beforeId === 1)).toBe(true));
+    await waitFor(() => expect(screen.queryByTestId('cleanup-suggestion-0')).toBeNull());
+  });
+
+  it('pages with a before_id cursor and de-duplicates any row returned twice', async () => {
+    const page1 = Array.from({ length: 200 }, (_, i) => suggestion(400 - i, 'retire', {
+      unusedDays: 90, lastMatchedAt: null, confirmationCount: 0,
+    }));
+    // A stale offset cursor could re-return page 1's last row; the cursor is a real id,
+    // so this is a defensive dedupe, not something the paging itself should produce.
+    const page2 = [page1[199], ...Array.from({ length: 5 }, (_, i) => suggestion(200 - i, 'retire', {
+      unusedDays: 90, lastMatchedAt: null, confirmationCount: 0,
+    }))];
+    mockList.mockImplementation(({ beforeId }: { beforeId?: number }) =>
+      Promise.resolve(beforeId === undefined ? page1 : page2));
+    renderTab();
+    await screen.findByTestId('cleanup-suggestion-400');
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Load older suggestions' }));
+    await waitFor(() => expect(mockList).toHaveBeenLastCalledWith(
+      expect.objectContaining({ beforeId: 201 })));
+    await screen.findByTestId('cleanup-suggestion-196');
+    expect(screen.getAllByTestId('cleanup-suggestion-201')).toHaveLength(1);
   });
 
   it('renders each split piece with its sponsor', async () => {

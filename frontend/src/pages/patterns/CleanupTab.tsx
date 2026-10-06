@@ -305,13 +305,17 @@ export default function CleanupTab() {
   const [message, setMessage] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
+  // Keyset on suggestion id: a decision removing a row from an earlier page cannot shift
+  // later pages' boundaries the way an offset would, so "Load older" never skips or repeats rows.
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: [...patternCleanupQueryKey, 'suggestions', status, kind],
     queryFn: ({ pageParam }) => getPatternCleanupSuggestions({
-      status, kind: kind === 'all' ? undefined : kind, limit: PAGE_SIZE, offset: pageParam,
+      status, kind: kind === 'all' ? undefined : kind, limit: PAGE_SIZE,
+      ...(pageParam != null ? { beforeId: pageParam } : {}),
     }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, pages) => lastPage.length === PAGE_SIZE ? pages.length * PAGE_SIZE : undefined,
+    initialPageParam: null as number | null,
+    getNextPageParam: (lastPage) =>
+      lastPage.length === PAGE_SIZE ? lastPage[lastPage.length - 1].id : undefined,
   });
 
   const refresh = () => {
@@ -349,7 +353,8 @@ export default function CleanupTab() {
     setMessage(null);
   };
 
-  const items = data?.pages.flat() ?? [];
+  // Defensive: a refetch of stale page cursors could still overlap; de-duplicate by id.
+  const items = Array.from(new Map((data?.pages.flat() ?? []).map((s) => [s.id, s])).values());
   const pendingIds = items.filter((s) => s.status === 'pending').map((s) => s.id);
   const chosen = pendingIds.filter((id) => selected.has(id));
   const allChosen = pendingIds.length > 0 && chosen.length === pendingIds.length;

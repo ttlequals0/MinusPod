@@ -150,8 +150,10 @@ def list_cleanup_suggestions():
         return error_response(f'kind must be one of: {", ".join(KNOWN_KINDS)}', 400)
     limit = max(1, min(200, request.args.get('limit', default=50, type=int) or 50))
     offset = max(0, request.args.get('offset', default=0, type=int) or 0)
+    before_id = request.args.get('before_id', default=None, type=int)
     db = get_database()
-    items = db.get_cleanup_suggestions(status=status, kind=kind, limit=limit, offset=offset)
+    items = db.get_cleanup_suggestions(
+        status=status, kind=kind, limit=limit, offset=offset, before_id=before_id)
     return json_response({'suggestions': [_suggestion_view(i) for i in items]})
 
 

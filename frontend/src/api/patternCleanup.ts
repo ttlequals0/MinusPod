@@ -108,6 +108,8 @@ export interface SuggestionQuery {
   kind?: CleanupKind;
   limit?: number;
   offset?: number;
+  // Keyset cursor: only suggestions with id below this are returned.
+  beforeId?: number;
 }
 
 export type BulkResult = { id: number; status: CleanupStatus } | { id: number; error: 'not_found' | 'invalid_transition' };
@@ -140,7 +142,8 @@ export async function getPatternCleanupSuggestions(
 ): Promise<PatternCleanupSuggestion[]> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined) params.set(key, String(value));
+    if (value === undefined) continue;
+    params.set(key === 'beforeId' ? 'before_id' : key, String(value));
   }
   const qs = params.toString();
   const res = await apiRequest<{ suggestions: PatternCleanupSuggestion[] }>(

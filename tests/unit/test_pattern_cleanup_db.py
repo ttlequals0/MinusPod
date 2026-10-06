@@ -156,6 +156,23 @@ def test_list_filters_and_pattern_summary(temp_db):
     assert temp_db.get_cleanup_pending_counts() == {'total': 2, 'byKind': {'trim': 1, 'retire': 1}}
 
 
+def test_before_id_keyset_pages_and_is_unaffected_by_an_earlier_row_leaving(temp_db):
+    pids = [_pattern(temp_db, text=f'pattern {i} Acme ad copy') for i in range(3)]
+    ids = [temp_db.upsert_cleanup_suggestion(None, pid, 'trim', 0.9, [], {'text': f'x{i}'}, {})
+           for i, pid in enumerate(pids)]
+    temp_db.set_cleanup_suggestion_status(ids[2], 'approved')  # leaves the pending result set
+
+    first_page = temp_db.get_cleanup_suggestions(status='pending', limit=1)
+    assert [r['id'] for r in first_page] == [ids[1]]
+    second_page = temp_db.get_cleanup_suggestions(status='pending', limit=1, before_id=ids[1])
+    assert [r['id'] for r in second_page] == [ids[0]]
+
+    # An id-based cursor, unlike offset, is unaffected by ids[2] leaving the pending set.
+    temp_db.set_cleanup_suggestion_status(ids[1], 'rejected')
+    assert [r['id'] for r in temp_db.get_cleanup_suggestions(
+        status='pending', limit=1, before_id=ids[1])] == [ids[0]]
+
+
 def test_candidate_rows_scope_and_order(temp_db):
     a = _pattern(temp_db, text='alpha')
     b = _pattern(temp_db, text='beta')
