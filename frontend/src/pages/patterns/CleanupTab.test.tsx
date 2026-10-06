@@ -132,13 +132,89 @@ describe('CleanupTab', () => {
     expect(within(c).getByText('The Daily Tech Show')).toBeDefined();
   });
 
+  it('makes original pattern text expandable for every suggestion kind', async () => {
+    renderTab();
+    await screen.findByTestId('cleanup-suggestion-1');
+    for (const item of ALL_KINDS) {
+      const disclosure = within(card(item.id)).getByText('Original pattern text');
+      expect(disclosure.closest('details')?.querySelector('p')?.textContent).toBe(ORIGINAL);
+    }
+  });
+
+  it('shows retained source context when the API provides it', async () => {
+    mockList.mockResolvedValue([suggestion(1, 'split', { pieces: [] }, {
+      before: {
+        textTemplate: ORIGINAL, sourceContext: 'Transcript before and after the pattern', sponsor: 'Acme',
+        introVariants: [], outroVariants: [], isActive: true, disabledReason: null,
+      },
+    })]);
+    renderTab();
+    const context = await screen.findByText('Source context');
+    expect(context.closest('details')?.querySelector('p')?.textContent)
+      .toBe('Transcript before and after the pattern');
+  });
+
+  it('renders a combined trim and sponsor rename', async () => {
+    mockList.mockResolvedValue([suggestion(1, 'trim', { text: KEPT, sponsor: 'Acme Group' })]);
+    renderTab();
+    const c = await screen.findByTestId('cleanup-suggestion-1');
+    expect(within(c).getByText('Trim and rename')).toBeDefined();
+    expect(within(c).getByText('Acme Group')).toBeDefined();
+    expect(c.querySelector('[data-diff="kept"]')?.textContent).toBe(KEPT);
+  });
+
+  it('renders sponsor rename on a trim recommendation from a flag', async () => {
+    mockList.mockResolvedValue([suggestion(1, 'flag', {
+      falsePositiveCount: 4, confirmationCount: 1, contaminated: false,
+      contaminationReason: null, recommended: 'trim', trimText: KEPT, sponsor: 'Acme Group',
+    })]);
+    renderTab();
+    const c = await screen.findByTestId('cleanup-suggestion-1');
+    expect(within(c).getByText('Trim and rename')).toBeDefined();
+    expect(within(c).getByText('Acme Group')).toBeDefined();
+    expect(c.querySelector('[data-diff="kept"]')?.textContent).toBe(KEPT);
+  });
+
+  it('loads an older approved suggestion, allows undo, then refetches both pages', async () => {
+    const recent = Array.from({ length: 200 }, (_, i) => suggestion(i + 1, 'retire', {
+      unusedDays: 90, lastMatchedAt: null, confirmationCount: 0,
+    }, { status: 'approved' }));
+    const older = suggestion(201, 'trim', { text: KEPT }, { status: 'approved' });
+    let undone = false;
+    mockList.mockImplementation(({ offset = 0 }: { offset?: number }) =>
+      Promise.resolve(offset === 0 ? recent : undone ? [] : [older]));
+    renderTab();
+    await screen.findByTestId('cleanup-suggestion-1');
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Status'), 'approved');
+    await user.click(screen.getByRole('button', { name: 'Load older suggestions' }));
+    await waitFor(() => expect(mockList).toHaveBeenLastCalledWith(
+      expect.objectContaining({ limit: 200, offset: 200 })));
+    const olderCard = await screen.findByTestId('cleanup-suggestion-201');
+    expect(within(olderCard).getByRole('button', { name: 'Undo' })).toBeDefined();
+    mockList.mockClear();
+    mockUndo.mockImplementationOnce(async () => {
+      undone = true;
+      return { ...older, status: 'undone' };
+    });
+    await user.click(within(olderCard).getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(mockUndo).toHaveBeenCalledWith(201));
+    await waitFor(() => expect(mockList.mock.calls.some(([params]) => params.offset === 0)).toBe(true));
+    await waitFor(() => expect(mockList.mock.calls.some(([params]) => params.offset === 200)).toBe(true));
+    await waitFor(() => expect(screen.queryByTestId('cleanup-suggestion-201')).toBeNull());
+  });
+
   it('renders each split piece with its sponsor', async () => {
     renderTab();
     await screen.findByTestId('cleanup-suggestion-2');
     const pieces = within(card(2)).getAllByTestId('split-piece');
     expect(pieces).toHaveLength(2);
     expect(within(pieces[1]).getByText('Widgetco')).toBeDefined();
-    expect(within(pieces[1]).getByText('Also by Widgetco.')).toBeDefined();
+    expect(within(pieces[1]).getAllByText('Also by Widgetco.')).toHaveLength(2);
+    const user = userEvent.setup();
+    await user.click(within(pieces[0]).getByText('Locate piece in original text'));
+    expect(within(pieces[0]).getByText('Brought to you by Acme.')).toBeDefined();
+    expect(pieces[0].querySelectorAll('del').length).toBeGreaterThan(0);
   });
 
   it('renders rename, retire and flag details', async () => {
@@ -157,7 +233,7 @@ describe('CleanupTab', () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findByTestId('cleanup-suggestion-1');
-    await user.click(screen.getByRole('button', { name: 'Split' }));
+    await user.selectOptions(document.getElementById('cleanup-kind')!, 'split');
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith(
       expect.objectContaining({ kind: 'split', status: 'pending' })));
   });
@@ -212,7 +288,9 @@ describe('CleanupTab', () => {
     const user = userEvent.setup();
     await screen.findByTestId('cleanup-suggestion-1');
     await user.click(within(card(1)).getByRole('button', { name: 'Undo' }));
-    expect(await screen.findByText('Undo the later approved change on this pattern first.')).toBeDefined();
+    expect(await screen.findByText(
+      'Undo is unavailable because the pattern changed, a later approval remains, or the saved state is incomplete.',
+    )).toBeDefined();
   });
 
   it('selects all and bulk approves', async () => {

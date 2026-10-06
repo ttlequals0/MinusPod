@@ -33,8 +33,8 @@ interface PatternCleanupSectionProps {
 }
 
 const STORAGE_KEY = 'settings-section-pattern-cleanup';
-const fieldInput = 'px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm';
-const actionButton = `px-4 py-2 rounded-lg disabled:opacity-50 text-sm ${focusRing}`;
+const fieldInput = 'min-h-11 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm';
+const actionButton = `min-h-11 px-4 py-2 rounded-lg disabled:opacity-50 text-sm ${focusRing}`;
 
 function runErrorMessage(e: unknown): string {
   if (e instanceof ApiError && e.status === 409) return 'A cleanup run is already in progress.';
@@ -68,6 +68,14 @@ function PatternCleanupSection({
     provider: draft.provider ?? (data?.provider || SAME_AS_DETECTION),
     model: draft.model ?? data?.model ?? '',
   };
+  const hasUnsavedChanges = !!data && (
+    settings.enabled !== data.enabled
+    || settings.cron !== data.cron
+    || settings.batchSize !== data.batchSize
+    || settings.unusedDays !== data.unusedDays
+    || settings.provider !== (data.provider || SAME_AS_DETECTION)
+    || settings.model !== data.model
+  );
   const update = (patch: Partial<PatternCleanupSettings>) => setDraft((d) => ({ ...d, ...patch }));
 
   // Mirrors llm_route: an unusable secondary falls back to the primary.
@@ -97,6 +105,7 @@ function PatternCleanupSection({
   });
 
   const running = run.isPending || !!data?.inProgress;
+  const runDisabled = running || save.isPending || hasUnsavedChanges;
   const summary = data?.lastSummary;
 
   return (
@@ -135,15 +144,17 @@ function PatternCleanupSection({
           </div>
 
           {settings.enabled && (
-            <CronScheduleField
-              id="pattern-cleanup-cron"
-              value={settings.cron}
-              onChange={(v) => update({ cron: v })}
-              placeholder="0 4 * * 0"
-            />
+            <div className="[&_input]:min-h-11 [&_select]:min-h-11 [&_button]:min-h-11">
+              <CronScheduleField
+                id="pattern-cleanup-cron"
+                value={settings.cron}
+                onChange={(v) => update({ cron: v })}
+                placeholder="0 4 * * 0"
+              />
+            </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 [&_select]:min-h-11 [&_input]:min-h-11 [&_button]:min-h-11 [&_label]:min-h-11 [&_label]:flex [&_label]:items-center">
             <StageProviderSelect
               id="patternCleanupProvider"
               label="Cleanup Provider"
@@ -205,6 +216,9 @@ function PatternCleanupSection({
           </div>
 
           {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+          {hasUnsavedChanges && (
+            <p className="text-sm text-muted-foreground">Save changes before starting a run.</p>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -218,7 +232,7 @@ function PatternCleanupSection({
             <button
               type="button"
               onClick={() => run.mutate(false)}
-              disabled={running}
+              disabled={runDisabled}
               className={`${actionButton} ${btnSecondary}`}
             >
               {running ? 'Running...' : 'Run now'}
@@ -226,7 +240,7 @@ function PatternCleanupSection({
             <button
               type="button"
               onClick={() => setConfirmForce(true)}
-              disabled={running}
+              disabled={runDisabled}
               className={`${actionButton} ${btnSecondary}`}
             >
               Force recheck all
@@ -272,7 +286,7 @@ function PatternCleanupSection({
 
       {confirmForce && (
         <ConfirmModal
-          title="Recheck every learned pattern?"
+          title="Recheck active learned patterns?"
           confirmLabel="Recheck all"
           busyLabel="Starting..."
           destructive={false}
@@ -281,9 +295,10 @@ function PatternCleanupSection({
           onConfirm={() => run.mutate(true)}
         >
           <p>
-            Every learned pattern will be reviewed again, including ones you already approved or
-            rejected. Runs still take {settings.batchSize} patterns at a time, so a large library
-            takes several runs and uses more LLM calls.
+            Every active learned pattern will be reviewed again, including ones you already
+            approved or rejected. Pending suggestions will be replaced. Later manual or scheduled
+            runs continue through the remaining patterns. Clicking Force recheck all again restarts
+            this process. Each run sends up to {settings.batchSize} patterns to the LLM.
           </p>
         </ConfirmModal>
       )}

@@ -131,6 +131,28 @@ describe('PatternsPage tabs', () => {
     const tab = await screen.findByRole('tab', { name: 'Ad Review' });
     expect(tab.getAttribute('aria-selected')).toBe('true');
   });
+
+  it('scrolls the selected tab into view inside the tab list on a cleanup deep link', async () => {
+    const rect = (left: number, right: number) => ({
+      left, right, top: 0, bottom: 44, width: right - left, height: 44,
+      x: left, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute('role') === 'tablist') return rect(0, 320);
+      if (this.getAttribute('role') === 'tab' && this.getAttribute('aria-selected') === 'true') {
+        return rect(330, 400);
+      }
+      return rect(0, 100);
+    });
+    try {
+      renderPage('/patterns?tab=cleanup');
+      const tablist = screen.getByRole('tablist');
+      await screen.findByRole('tab', { name: 'Cleanup', selected: true });
+      expect(tablist.scrollLeft).toBe(80);
+    } finally {
+      bounds.mockRestore();
+    }
+  });
 });
 
 describe('PatternsPage cleanup tab', () => {

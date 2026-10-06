@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import PatternCleanupSection from './PatternCleanupSection';
 import { ApiError } from '../../api/client';
-import type { PatternCleanupStatus } from '../../api/patternCleanup';
+import type { PatternCleanupSettings, PatternCleanupStatus } from '../../api/patternCleanup';
 
 const mockGet = vi.fn();
 const mockUpdate = vi.fn();
@@ -155,6 +155,32 @@ describe('PatternCleanupSection', () => {
     await waitFor(() => expect(mockGet).toHaveBeenCalledTimes(2));
   });
 
+  it('requires saving changed settings before starting either run', async () => {
+    const user = userEvent.setup();
+    mockUpdate.mockImplementation(async (body: Partial<PatternCleanupSettings>) => {
+      const saved = makeStatus(body);
+      mockGet.mockResolvedValue(saved);
+      return saved;
+    });
+    renderSection();
+    await screen.findByLabelText(/cleanup model/i);
+    await user.selectOptions(screen.getByLabelText(/cleanup model/i), 'small-model');
+    const runNow = screen.getByRole('button', { name: /run now/i }) as HTMLButtonElement;
+    const force = screen.getByRole('button', { name: /force recheck all/i }) as HTMLButtonElement;
+    expect(runNow.disabled).toBe(true);
+    expect(force.disabled).toBe(true);
+    expect(screen.getByText('Save changes before starting a run.')).toBeDefined();
+    await user.click(runNow);
+    expect(mockRun).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ model: 'small-model' })));
+    await waitFor(() => expect((screen.getByRole('button', { name: /run now/i }) as HTMLButtonElement).disabled)
+      .toBe(false));
+    await user.click(screen.getByRole('button', { name: /run now/i }));
+    expect(mockRun).toHaveBeenCalledWith(false);
+  });
+
   it('shows Running... and disables both run buttons while a run is in progress', async () => {
     mockGet.mockResolvedValue(makeStatus({ inProgress: true }));
     renderSection();
@@ -179,7 +205,10 @@ describe('PatternCleanupSection', () => {
 
     await user.click(screen.getByRole('button', { name: /force recheck all/i }));
     let dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText(/every learned pattern will be reviewed again/i)).toBeDefined();
+    expect(within(dialog).getByText(/every active learned pattern will be reviewed again/i)).toBeDefined();
+    expect(within(dialog).getByText(/later manual or scheduled runs continue through the remaining patterns/i)).toBeDefined();
+    expect(within(dialog).getByText(/force recheck all again restarts this process/i)).toBeDefined();
+    expect(within(dialog).getByText(/each run sends up to 25 patterns to the llm/i)).toBeDefined();
     await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(mockRun).not.toHaveBeenCalled();

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import {
@@ -68,6 +68,21 @@ function PatternsPage() {
   const tabParam = searchParams.get('tab');
   const activeTab: PatternsTab =
     tabParam && OTHER_TABS.includes(tabParam) ? (tabParam as PatternsTab) : 'patterns';
+  const tablistRef = useRef<HTMLDivElement>(null);
+  const activeTabRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const tablist = tablistRef.current;
+    const activeButton = activeTabRef.current;
+    if (!tablist || !activeButton) return;
+    const tablistRect = tablist.getBoundingClientRect();
+    const buttonRect = activeButton.getBoundingClientRect();
+    if (buttonRect.left < tablistRect.left) {
+      tablist.scrollLeft -= tablistRect.left - buttonRect.left;
+    } else if (buttonRect.right > tablistRect.right) {
+      tablist.scrollLeft += buttonRect.right - tablistRect.right;
+    }
+  }, [activeTab]);
 
   const switchTab = (tab: PatternsTab) => {
     setSearchParams(tab === 'patterns' ? {} : { tab });
@@ -256,7 +271,7 @@ function PatternsPage() {
       />
 
       {/* Scrolls instead of pushing the page wider on phones under 380px. */}
-      <div role="tablist" className="flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden">
+      <div ref={tablistRef} role="tablist" className="flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden">
         {([
           ['patterns', 'Patterns'],
           ['detected-ads', 'Detected Ads'],
@@ -266,6 +281,7 @@ function PatternsPage() {
           ([key, label]) => (
             <button
               key={key}
+              ref={activeTab === key ? activeTabRef : undefined}
               role="tab"
               aria-selected={activeTab === key}
               aria-label={key === 'cleanup' && cleanupPending > 0

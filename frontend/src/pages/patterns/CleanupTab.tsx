@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
 import {
   approveCleanupSuggestion, bulkCleanupSuggestions, getPatternCleanupSuggestions,
@@ -16,7 +16,7 @@ import { ScopeBadge } from '../../components/ScopeBadge';
 import { SkeletonRows } from '../../components/Skeleton';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { btnOutline, btnPrimary } from '../../components/buttonStyles';
-import { rowActionBtn } from '../../components/rowActionStyles';
+import { cardActionBtn } from '../../components/rowActionStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { formatDate } from '../../utils/format';
 import { TrimDiff } from './TrimDiff';
@@ -53,13 +53,14 @@ const STATUS_BADGE: Record<Exclude<CleanupStatus, 'pending'>, [string, string]> 
   undone: ['Undone', tint.neutral],
 };
 
-// Below sm the two actions share the card width; from sm they size to content.
-const actionBtn = `${rowActionBtn} grow basis-0 sm:grow-0 sm:basis-auto ${focusRing}`;
+const actionBtn = `${cardActionBtn} grow basis-0 sm:grow-0 sm:basis-auto ${focusRing}`;
+const bulkActionBtn = `${cardActionBtn.replace('whitespace-nowrap', 'whitespace-normal')} grow basis-0 sm:grow-0 sm:basis-auto sm:whitespace-nowrap ${focusRing}`;
+const PAGE_SIZE = 200;
 
 function actionError(err: unknown, action?: 'approve' | 'reject' | 'undo'): string {
   if (err instanceof ApiError && err.status === 409) {
     return action === 'undo'
-      ? 'Undo the later approved change on this pattern first.'
+      ? 'Undo is unavailable because the pattern changed, a later approval remains, or the saved state is incomplete.'
       : 'This suggestion cannot be applied: the pattern changed or the suggestion was already handled.';
   }
   return getErrorMessage(err, 'The action failed.');
@@ -69,10 +70,38 @@ function plural(n: number, word: string) {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
+function SponsorRename({ from, to, combined = false }: { from: string; to: string; combined?: boolean }) {
+  return (
+    <div className="space-y-1">
+      {combined && <span className={`${badgeBase} ${tint.blue}`}>Trim and rename</span>}
+      <p className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-muted-foreground line-through">{from}</span>
+        <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        <span className="sr-only">to</span>
+        <span className="font-medium text-foreground">{to}</span>
+      </p>
+    </div>
+  );
+}
+
 // One renderer per kind, keyed like KIND_BADGE.
 const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, original: string) => ReactNode> = {
-  trim: (s, original) => <TrimDiff original={original} kept={(s.payload as TrimPayload).text} />,
-  split: (s) => {
+  trim: (s, original) => {
+    const payload = s.payload as TrimPayload;
+    return (
+      <div className="space-y-2">
+        {payload.sponsor && (
+          <SponsorRename
+            from={s.before?.sponsor ?? s.pattern?.sponsor ?? '(Unknown)'}
+            to={payload.sponsor}
+            combined
+          />
+        )}
+        <TrimDiff original={original} kept={payload.text} />
+      </div>
+    );
+  },
+  split: (s, original) => {
     const { pieces } = s.payload as SplitPayload;
     return (
       <div className="grid gap-2 sm:grid-cols-2">
@@ -80,6 +109,12 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
           <div key={i} data-testid="split-piece" className="rounded border border-border bg-muted/40 p-3 min-w-0">
             <span className={`${badgeBase} ${tint.secondary}`}>{piece.sponsor}</span>
             <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words">{piece.text}</p>
+            <details className="mt-2 border-t border-border pt-2">
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">
+                Locate piece in original text
+              </summary>
+              <TrimDiff original={original} kept={piece.text} />
+            </details>
           </div>
         ))}
       </div>
@@ -87,14 +122,7 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
   },
   rename: (s) => {
     const from = s.before?.sponsor ?? s.pattern?.sponsor ?? '(Unknown)';
-    return (
-      <p className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-muted-foreground line-through">{from}</span>
-        <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-        <span className="sr-only">to</span>
-        <span className="font-medium text-foreground">{(s.payload as RenamePayload).sponsor}</span>
-      </p>
-    );
+    return <SponsorRename from={from} to={(s.payload as RenamePayload).sponsor} />;
   },
   retire: (s) => {
     const p = s.payload as RetirePayload;
@@ -122,7 +150,18 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
           <span className="text-muted-foreground">Recommended: </span>
           {p.recommended === 'trim' ? 'Trim to the ad copy.' : 'Disable the pattern.'}
         </p>
-        {p.recommended === 'trim' && p.trimText && <TrimDiff original={original} kept={p.trimText} />}
+        {p.recommended === 'trim' && p.trimText && (
+          <div className="space-y-2">
+            {p.sponsor && (
+              <SponsorRename
+                from={s.before?.sponsor ?? s.pattern?.sponsor ?? '(Unknown)'}
+                to={p.sponsor}
+                combined
+              />
+            )}
+            <TrimDiff original={original} kept={p.trimText} />
+          </div>
+        )}
       </div>
     );
   },
@@ -150,7 +189,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
             checked={selected}
             onChange={onSelect}
             ariaLabel={`Select suggestion ${s.id}`}
-            className="mt-0.5"
+            className="mt-0.5 min-h-11 min-w-11 justify-center"
           />
         )}
         <div className="min-w-0 flex-1 space-y-1">
@@ -188,6 +227,27 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
       </div>
 
       {PROPOSED_CHANGE[s.kind](s, s.before?.textTemplate ?? '')}
+
+      {s.before?.textTemplate && (
+        <details className="rounded border border-border bg-muted/30 px-3 py-2">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
+            Original pattern text
+          </summary>
+          <p className="max-h-60 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
+            {s.before.textTemplate}
+          </p>
+        </details>
+      )}
+      {s.before?.sourceContext && (
+        <details className="rounded border border-border bg-muted/30 px-3 py-2">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
+            Source context
+          </summary>
+          <p className="max-h-60 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
+            {s.before.sourceContext}
+          </p>
+        </details>
+      )}
 
       {s.reasons.length > 0 && (
         <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-0.5">
@@ -243,11 +303,13 @@ export default function CleanupTab() {
   const [message, setMessage] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: [...patternCleanupQueryKey, 'suggestions', status, kind],
-    queryFn: () => getPatternCleanupSuggestions({
-      status, kind: kind === 'all' ? undefined : kind, limit: 200,
+    queryFn: ({ pageParam }) => getPatternCleanupSuggestions({
+      status, kind: kind === 'all' ? undefined : kind, limit: PAGE_SIZE, offset: pageParam,
     }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => lastPage.length === PAGE_SIZE ? pages.length * PAGE_SIZE : undefined,
   });
 
   const refresh = () => {
@@ -285,7 +347,7 @@ export default function CleanupTab() {
     setMessage(null);
   };
 
-  const items = data ?? [];
+  const items = data?.pages.flat() ?? [];
   const pendingIds = items.filter((s) => s.status === 'pending').map((s) => s.id);
   const chosen = pendingIds.filter((id) => selected.has(id));
   const allChosen = pendingIds.length > 0 && chosen.length === pendingIds.length;
@@ -302,20 +364,33 @@ export default function CleanupTab() {
   return (
     <div>
       <div className="bg-card rounded-lg border border-border p-4 mb-6 flex flex-wrap gap-4 items-center">
-        <SegmentedToggle
-          variant="toolbar"
-          ariaLabel="Kind"
-          options={KIND_OPTIONS}
-          value={kind}
-          onChange={(v) => changeFilter({ kind: v })}
-        />
+        <div className="w-full min-w-0 sm:w-auto">
+          <label htmlFor="cleanup-kind" className="sr-only">Kind</label>
+          <select
+            id="cleanup-kind"
+            value={kind}
+            onChange={(e) => changeFilter({ kind: e.target.value as KindFilter })}
+            className={`min-h-11 w-full sm:hidden ${selectBase}`}
+          >
+            {KIND_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <div className="hidden sm:block">
+            <SegmentedToggle
+              variant="toolbar"
+              ariaLabel="Kind"
+              options={KIND_OPTIONS}
+              value={kind}
+              onChange={(v) => changeFilter({ kind: v })}
+            />
+          </div>
+        </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <label htmlFor="cleanup-status" className="text-sm text-muted-foreground shrink-0">Status</label>
           <select
             id="cleanup-status"
             value={status}
             onChange={(e) => changeFilter({ status: e.target.value as CleanupStatus })}
-            className={`flex-1 sm:flex-none min-w-0 ${selectBase}`}
+            className={`min-h-11 flex-1 sm:flex-none min-w-0 ${selectBase}`}
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
@@ -331,13 +406,14 @@ export default function CleanupTab() {
             onChange={(checked) => setSelected(checked ? new Set(pendingIds) : new Set())}
             label="Select all"
             labelClassName="text-sm text-muted-foreground"
+            className="min-h-11"
           />
           <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
             <button
               type="button"
               disabled={busy || chosen.length === 0}
               onClick={() => bulk.mutate({ ids: chosen, action: 'approve' })}
-              className={`${actionBtn} ${btnPrimary}`}
+              className={`${bulkActionBtn} ${btnPrimary}`}
             >
               Approve selected ({chosen.length})
             </button>
@@ -345,7 +421,7 @@ export default function CleanupTab() {
               type="button"
               disabled={busy || chosen.length === 0}
               onClick={() => bulk.mutate({ ids: chosen, action: 'reject' })}
-              className={`${actionBtn} ${btnOutline}`}
+              className={`${bulkActionBtn} ${btnOutline}`}
             >
               Reject selected ({chosen.length})
             </button>
@@ -381,6 +457,18 @@ export default function CleanupTab() {
               busy={busy}
             />
           ))}
+        </div>
+      )}
+      {hasNextPage && (
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            disabled={isFetchingNextPage}
+            onClick={() => fetchNextPage()}
+            className={`min-h-11 px-4 py-2 rounded-lg text-sm ${focusRing} ${btnOutline}`}
+          >
+            {isFetchingNextPage ? 'Loading...' : 'Load older suggestions'}
+          </button>
         </div>
       )}
     </div>

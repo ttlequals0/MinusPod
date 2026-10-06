@@ -44,7 +44,7 @@ export interface PatternCleanupRun {
   error: string | null;
 }
 
-export interface TrimPayload { text: string }
+export interface TrimPayload { text: string; sponsor?: string }
 export interface SplitPayload { pieces: Array<{ text: string; sponsor: string }> }
 export interface RenamePayload { sponsor: string }
 export interface RetirePayload {
@@ -59,11 +59,13 @@ export interface FlagPayload {
   contaminationReason: string | null;
   recommended: 'disable' | 'trim';
   trimText?: string;
+  sponsor?: string;
 }
 
 // Pattern snapshot taken when the suggestion was made.
 export interface CleanupBefore {
   textTemplate: string | null;
+  sourceContext?: string | null;
   sponsor: string | null;
   introVariants: string[];
   outroVariants: string[];
