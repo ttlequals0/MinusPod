@@ -14,7 +14,7 @@ import threading
 import time
 import wave
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -863,12 +863,20 @@ _ABORT_CHUNK_PLAN = object()
 
 @dataclass(frozen=True)
 class _ChunkPlanContext:
-    """Per-episode inputs shared by every pass of a chunk plan."""
+    """Per-episode inputs shared by every pass of a chunk plan.
+
+    switch_event: set once this pass decides to switch backend or abort, so
+    chunks already in flight stop before extraction or upload instead of
+    wasting work on a result that will be discarded (#806). Scoped to one
+    pass: a caller rerunning remaining chunks on a new backend builds a
+    fresh context rather than reusing this one.
+    """
     audio_path: str
     language_override: str | None
     prefix: str
     max_workers: int
     max_failed_chunks: int
+    switch_event: threading.Event = field(default_factory=threading.Event)
 
 
 _HEALTH_INSTANCE_FIELDS = (
@@ -2765,6 +2773,8 @@ class Transcriber:
         extract_as_flac = not bool(whisper_settings.get('skip_flac_compression', False))
 
         def _process_chunk(chunk_idx: int, c_start: float, c_end: float):
+            if ctx.switch_event.is_set():
+                return chunk_idx, None
             try:
                 chunk_path = extract_audio_chunk(
                     audio_path, c_start, c_end,
@@ -2780,6 +2790,8 @@ class Transcriber:
                 extraction_failures.append(chunk_idx)
                 return chunk_idx, None
             try:
+                if ctx.switch_event.is_set():
+                    return chunk_idx, None
                 segs = self._transcribe_via_api(
                     chunk_path, whisper_settings,
                     language_override=language_override,
@@ -2834,6 +2846,7 @@ class Transcriber:
                 # than waiting on the failure budget below (#806).
                 if (stop_on_connectivity_error and segs is None
                         and len(connectivity_errors) > seen_connectivity):
+                    ctx.switch_event.set()
                     return chunk_idx, connectivity_errors
                 seen_connectivity = len(connectivity_errors)
                 # Short-circuit like the sequential path: once the failure
@@ -2841,6 +2854,7 @@ class Transcriber:
                 # burning a full HTTP timeout on each remaining doomed chunk.
                 # Returning here still runs the finally below (pool shutdown).
                 if failed > max_failed_chunks:
+                    ctx.switch_event.set()
                     logger.error(
                         f"{prefix}Too many failed chunks ({failed} > {max_failed_chunks}); "
                         f"aborting transcription early"
@@ -2922,6 +2936,10 @@ class Transcriber:
         idx = 0
         while chunk_start < duration:
             chunk_end = min(chunk_start + chunk_duration, duration)
+            # A sub-second tail is not worth its own chunk/upload; fold it
+            # into this one instead of leaving a near-empty final chunk.
+            if 0 < duration - chunk_end < 1.0:
+                chunk_end = duration
             chunk_end_with_overlap = (
                 min(chunk_end + overlap, duration)
                 if chunk_end < duration else chunk_end
@@ -2956,8 +2974,11 @@ class Transcriber:
             # Same backend type: rerun only chunks still missing a result,
             # keeping what this pass finished. No further switch, already failover.
             remaining = [(i, s, e) for i, s, e in plan if results[i] is None]
+            # Fresh event for this pass: the first pass's switch_event is
+            # already set, which would make every remaining chunk bail.
+            retry_ctx = replace(plan_ctx, switch_event=threading.Event())
             second, _ = Transcriber._run_chunk_plan(
-                self, plan_ctx, remaining, fo, results, stop_on_connectivity_error=False,
+                self, retry_ctx, remaining, fo, results, stop_on_connectivity_error=False,
             )
             if second is _ABORT_CHUNK_PLAN:
                 return None

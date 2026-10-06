@@ -1004,6 +1004,29 @@ class TestChunkedSinglePass:
         'concurrent_chunks': 1,
     }
 
+    def test_sub_second_tail_folds_into_previous_chunk(self):
+        # 180.036s at 60s chunks would otherwise plan a 4th, 36ms chunk (R7).
+        ffmpeg_cmds = []
+        transcriber = Transcriber()
+        transcriber.preprocess_audio = MagicMock(return_value=None)
+        chunk_settings = {'max_chunk_seconds': 60, 'chunk_overlap_seconds': 5,
+                          'concurrent_chunks': 1}
+
+        with patch('transcriber.utils.subprocess_registry.tracked_run',
+                   side_effect=self._fake_run_factory(ffmpeg_cmds)), \
+             patch('transcriber.safe_post', return_value=self._mock_api_response()), \
+             patch('transcriber._get_chunk_settings', return_value=chunk_settings):
+            result = transcriber._transcribe_chunked_parallel_api(
+                '/tmp/full.mp3', 180.036, self._make_settings()
+            )
+
+        assert result is not None
+        assert len(ffmpeg_cmds) == 3
+        last_cmd = ffmpeg_cmds[-1]
+        start = float(last_cmd[last_cmd.index('-ss') + 1])
+        chunk_duration = float(last_cmd[last_cmd.index('-t') + 1])
+        assert start + chunk_duration == pytest.approx(180.036)
+
     def test_api_chunks_one_ffmpeg_pass_each_with_filters(self):
         ffmpeg_cmds = []
         transcriber = Transcriber()

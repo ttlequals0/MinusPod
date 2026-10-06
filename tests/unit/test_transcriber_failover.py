@@ -1,6 +1,7 @@
 """Transcriber failover (#806)."""
 import json
 import logging
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -104,6 +105,55 @@ def test_same_backend_switch_keeps_already_finished_chunk_results(t):
     assert segs
     assert [c for c in calls if c[0] == _chunk_path_for(0.0)] == [
         (_chunk_path_for(0.0), 'http://a.example.com/v1')]
+
+
+def test_in_flight_chunk_skips_upload_after_switch_event_set(t):
+    """R6: a chunk already past extraction when another chunk's connectivity
+    error triggers the switch must not waste an upload on a discarded pass."""
+    chunk1_extraction_started = threading.Event()
+    release_chunk1_extraction = threading.Event()
+    chunk1_done = threading.Event()
+    via_api_calls = []
+
+    def fake_extract(path, start, end, **kw):
+        if start == 100.0:
+            chunk1_extraction_started.set()
+            assert release_chunk1_extraction.wait(5)
+        return _chunk_path_for(start)
+
+    def fake_via_api(path, settings, **kw):
+        via_api_calls.append(path)
+        if path == _chunk_path_for(0.0):
+            # Do not fail chunk 0 until chunk 1 is already inside extraction,
+            # so the race is deterministic: chunk 1 must pass the first
+            # checkpoint before switch_event exists to be set.
+            assert chunk1_extraction_started.wait(5)
+            raise ServiceUnavailableError('whisper', 'down')
+        return _seg(0, 1)
+
+    def fake_unlink(path):
+        if path == _chunk_path_for(100.0):
+            chunk1_done.set()
+
+    ctx = transcriber._ChunkPlanContext('/tmp/a.mp3', None, '', 2, 1)
+    results = [None, None]
+    with patch.object(transcriber, 'extract_audio_chunk', side_effect=fake_extract), \
+            patch.object(transcriber, '_unlink_quiet', side_effect=fake_unlink), \
+            patch.object(t, '_transcribe_via_api', side_effect=fake_via_api):
+        worker = threading.Thread(
+            target=Transcriber._run_chunk_plan,
+            args=(t, ctx, [(0, 0.0, 100.0), (1, 100.0, 200.0)], ACTIVE, results),
+            kwargs={'stop_on_connectivity_error': True})
+        worker.start()
+        assert chunk1_extraction_started.wait(5)
+        assert ctx.switch_event.wait(5)
+        worker.join(5)
+        assert not worker.is_alive()
+        release_chunk1_extraction.set()
+        assert chunk1_done.wait(5)
+
+    assert _chunk_path_for(100.0) not in via_api_calls
+    assert results[1] is None
 
 
 def test_outage_without_failover_configured_propagates(t):
