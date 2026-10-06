@@ -5,7 +5,6 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from http.cookiejar import Cookie, CookieJar
 from pathlib import Path
 
 import httpx

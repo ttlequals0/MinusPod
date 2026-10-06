@@ -99,6 +99,7 @@ release notes.
 - Updated source-map-js to 1.2.2 to fix a high-severity denial of service in frontend build tooling.
 
 ### Changed
+- Removed unused benchmark imports and report arguments, and corrected benchmark CLI exception chaining and type annotations.
 - Shortened new comments and docstrings without changing behavior.
 - Updated failover documentation and API responses for live routing, recovery checks, and manual control failures.
 - The two LLM provider slots are now labelled Provider A and Provider B. The API accepts `providerB*` payload keys and `a`/`b` slot values; the `secondary*` keys and `primary`/`secondary` values keep working, and `GET` responses still emit both spellings.

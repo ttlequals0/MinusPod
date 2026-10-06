@@ -6,7 +6,6 @@ import logging
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 import typer
 from dotenv import load_dotenv
@@ -52,19 +51,19 @@ def _load(config_path: Path) -> BenchmarkConfig:
         return load_config(config_path)
     except Exception as e:
         typer.echo(f"error loading {config_path}: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def _root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _resolve_prompt(snapshot: Optional[Path]) -> tuple[str, str]:
+def _resolve_prompt(snapshot: Path | None) -> tuple[str, str]:
     try:
         return parsing.resolve_system_prompt(snapshot)
     except (FileNotFoundError, ValueError) as e:
         typer.echo(f"error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @app.command()
@@ -123,7 +122,7 @@ def regenerate_windows_cmd(
 
 @app.command("list-episodes")
 def list_episodes_cmd(
-    podcast_slug: Optional[str] = typer.Option(None, "--podcast-slug"),
+    podcast_slug: str | None = typer.Option(None, "--podcast-slug"),
     config_path: Path = typer.Option(Path("benchmark.toml"), "--config"),
 ) -> None:
     """List corpus episodes."""
@@ -177,7 +176,7 @@ def run(
     force: bool = typer.Option(False, "--force"),
     dry_run: bool = typer.Option(False, "--dry-run"),
     no_report_on_failure: bool = typer.Option(False, "--no-report-on-failure"),
-    snapshot: Optional[Path] = typer.Option(
+    snapshot: Path | None = typer.Option(
         None, "--snapshot",
         help="Frozen system-prompt file to use instead of the live prompt (decouples the corpus from SEED_SPONSORS edits).",
     ),
@@ -235,7 +234,6 @@ def run(
         cfg=cfg,
         episodes=episodes,
         calls_path=paths.calls_jsonl,
-        episode_results_path=paths.episode_results_jsonl,
         pricing_snapshot=snap,
         output_path=output,
         assets_dir=assets,
@@ -248,7 +246,7 @@ def run(
 @app.command()
 def report(
     config_path: Path = typer.Option(Path("benchmark.toml"), "--config"),
-    snapshot: Optional[Path] = typer.Option(
+    snapshot: Path | None = typer.Option(
         None, "--snapshot",
         help="Label the report with this prompt file; pass the same snapshot used for `run` so the footer matches the stored calls.",
     ),
@@ -273,7 +271,6 @@ def report(
         cfg=cfg,
         episodes=episodes,
         calls_path=paths.calls_jsonl,
-        episode_results_path=paths.episode_results_jsonl,
         pricing_snapshot=snap,
         output_path=output,
         assets_dir=assets,
@@ -332,11 +329,11 @@ def _find_call_or_exit(paths: runner_mod.RunPaths, call_id: str) -> dict:
 def show_prompt_cmd(
     call_id: str = typer.Argument(..., help="call_id from calls.jsonl"),
     config_path: Path = typer.Option(Path("benchmark.toml"), "--config"),
-    snapshot: Optional[Path] = typer.Option(
+    snapshot: Path | None = typer.Option(
         None, "--snapshot",
         help="System-prompt file the run used; needed for prompt_hash verification when the run was not on the live prompt.",
     ),
-    addressing_mode: Optional[str] = typer.Option(
+    addressing_mode: str | None = typer.Option(
         None, "--addressing-mode",
         help="Must match the call record's stored addressing_mode if given; omit to trust "
         "the record (records without the field are 'timestamps').",
@@ -365,7 +362,7 @@ def show_prompt_cmd(
         user_prompt = runner_mod.reconstruct_user_prompt(rec, corpus_dir=cfg.corpus.path)
     except Exception as e:
         typer.echo(f"error reconstructing prompt: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     system_prompt, prompt_source = _resolve_prompt(snapshot)
     system_prompt = _with_id_mode_section(system_prompt, record_mode)
     recomputed = hash_prompt(

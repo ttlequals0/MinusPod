@@ -201,7 +201,7 @@ def test_report_isolates_addressing_modes(tmp_path, minimal_cfg, pricing_snapsho
 
     out_ts = tmp_path / "report_ts.md"
     report_mod.render(
-        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path, episode_results_path=tmp_path / "ep.jsonl",
+        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path,
         pricing_snapshot=pricing_snapshot, output_path=out_ts, assets_dir=tmp_path / "assets_ts",
     )
     text_ts = out_ts.read_text()
@@ -211,7 +211,7 @@ def test_report_isolates_addressing_modes(tmp_path, minimal_cfg, pricing_snapsho
 
     out_id = tmp_path / "report_id.md"
     report_mod.render(
-        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path, episode_results_path=tmp_path / "ep.jsonl",
+        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path,
         pricing_snapshot=pricing_snapshot, output_path=out_id, assets_dir=tmp_path / "assets_id",
         addressing_mode="segment_ids",
     )
@@ -232,14 +232,14 @@ def test_report_historical_record_without_field_counts_as_timestamps(tmp_path, m
 
     out_default = tmp_path / "report.md"
     report_mod.render(
-        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path, episode_results_path=tmp_path / "ep.jsonl",
+        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path,
         pricing_snapshot=pricing_snapshot, output_path=out_default, assets_dir=tmp_path / "assets",
     )
     assert "`m1`" in out_default.read_text()
 
     out_id = tmp_path / "report_id.md"
     report_mod.render(
-        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path, episode_results_path=tmp_path / "ep.jsonl",
+        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path,
         pricing_snapshot=pricing_snapshot, output_path=out_id, assets_dir=tmp_path / "assets_id",
         addressing_mode="segment_ids",
     )
@@ -257,7 +257,7 @@ def test_id_contract_miss_surfaced_in_per_model_detail(tmp_path, minimal_cfg, pr
     })
     out = tmp_path / "report.md"
     report_mod.render(
-        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path, episode_results_path=tmp_path / "ep.jsonl",
+        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path,
         pricing_snapshot=pricing_snapshot, output_path=out, assets_dir=tmp_path / "assets",
         addressing_mode="segment_ids",
     )

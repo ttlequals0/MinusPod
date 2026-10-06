@@ -1,4 +1,4 @@
-"""Render Markdown report from calls.jsonl + episode_results.jsonl + corpus."""
+"""Render Markdown reports from calls.jsonl and the benchmark corpus."""
 from __future__ import annotations
 
 import logging
@@ -65,7 +65,6 @@ def render(
     cfg,
     episodes: list[Episode],
     calls_path: Path,
-    episode_results_path: Path,
     pricing_snapshot: pricing.PricingSnapshot,
     output_path: Path,
     assets_dir: Path,

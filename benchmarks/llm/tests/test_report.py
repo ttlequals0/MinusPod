@@ -36,7 +36,7 @@ def test_render_with_no_data(tmp_path, minimal_cfg, make_episode, pricing_snapsh
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[make_episode()],
-        calls_path=calls, episode_results_path=tmp_path / "ep.jsonl",
+        calls_path=calls,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -50,7 +50,7 @@ def test_render_with_one_call(tmp_path, minimal_cfg, make_episode, pricing_snaps
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls, episode_results_path=tmp_path / "ep.jsonl",
+        calls_path=calls,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -84,7 +84,7 @@ def test_per_model_detail_reports_verbosity_and_truncation(tmp_path, minimal_cfg
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls, episode_results_path=tmp_path / "ep.jsonl",
+        calls_path=calls,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -130,7 +130,7 @@ def test_tldr_table_columns_and_json_mode_telemetry(tmp_path, minimal_cfg, make_
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls, episode_results_path=tmp_path / "ep.jsonl",
+        calls_path=calls,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -165,7 +165,7 @@ def test_render_handles_no_ad_episode(tmp_path, minimal_cfg, make_episode, prici
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls, episode_results_path=tmp_path / "ep.jsonl",
+        calls_path=calls,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
