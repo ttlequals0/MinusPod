@@ -120,7 +120,7 @@ def test_differential_override_leaves_an_organic_mark_marker_alone():
 def test_pass2_differential_override_treats_mark_like_keep():
     original = dict(_marker())
     processed = dict(_marker(start=60.0, end=90.0))
-    rem_p, rem_o, kept_p, kept_o = _partition_pass2_category_actions(
+    _rem_p, rem_o, kept_p, kept_o = _partition_pass2_category_actions(
         [processed], [original], {'sponsor': 'mark'}, _override())
     assert kept_o == [] and kept_p == []
     assert rem_o == [original]
@@ -130,7 +130,7 @@ def test_pass2_differential_override_treats_mark_like_keep():
 def test_pass2_organic_mark_marker_is_kept_and_stamped():
     original = dict(_marker(start=500.0, end=540.0))
     processed = dict(_marker(start=60.0, end=100.0))
-    rem_p, rem_o, kept_p, kept_o = _partition_pass2_category_actions(
+    _rem_p, rem_o, kept_p, kept_o = _partition_pass2_category_actions(
         [processed], [original], {'sponsor': 'mark'}, _override())
     assert kept_o == [original]
     assert rem_o == []

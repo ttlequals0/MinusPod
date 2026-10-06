@@ -128,7 +128,7 @@ class TestPass2:
     def test_injected_cross_promo_is_cut_in_pass_two(self):
         original = _ad(5549.7, 5584.6)
         processed = _ad(120.0, 155.0)
-        rem_p, rem_o, kept_p, kept_o = _partition_pass2_category_actions(
+        _rem_p, rem_o, kept_p, kept_o = _partition_pass2_category_actions(
             [processed], [original], ACTIONS, _override())
         assert kept_o == [] and kept_p == []
         assert rem_o == [original]
@@ -138,7 +138,7 @@ class TestPass2:
     def test_organic_cross_promo_is_still_kept_in_pass_two(self):
         original = _ad(5400.0, 5480.0)
         processed = _ad(60.0, 140.0)
-        rem_p, rem_o, kept_p, kept_o = _partition_pass2_category_actions(
+        _rem_p, rem_o, kept_p, kept_o = _partition_pass2_category_actions(
             [processed], [original], ACTIONS, _override())
         assert kept_o == [original]
         assert rem_o == []

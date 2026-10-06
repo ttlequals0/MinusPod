@@ -42,7 +42,7 @@ def _stored():
 
 
 def _fresh():
-    # Empty string is the "unset" form here: _batch_size_ceiling treats any
+    # Empty string is the "unset" form here: _read_ceiling treats any
     # falsy stored value as no ceiling.
     _db().set_setting(Transcriber.BATCH_CEILING_SETTING, '')
     return Transcriber()
