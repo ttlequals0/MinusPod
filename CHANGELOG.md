@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.98.0] - Unreleased
+## [2.98.0] - 2026-10-06
 
 ### Added
 - The failover transcriber has its own upload-attempt limit, including when the active transcriber runs locally. Leaving it blank preserves inheritance.
