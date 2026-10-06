@@ -27,7 +27,8 @@ from whisper_pool import get_pool
 # the bottom of that file, so the apparent circular import is safe.
 from main_app import db, storage, shutdown_event
 from main_app.processing import (
-    _active_phases_for_admission, _admission_gates, _resolve_route_snapshot,
+    _active_phases_for_admission, _admission_gates, _required_providers_for_admission,
+    _resolve_route_snapshot,
 )
 from recents_feed import rebuild_recents_feed
 
@@ -69,9 +70,6 @@ def _blocked_queue_entries(db, held_pairs: set, legacy_hold: bool = False) -> se
     pre-migration marker, which blocks every row needing any LLM account.
     Unresolvable routes leave a row eligible for the per-run check to refuse.
     """
-    from main_app.processing import (
-        _admission_gates, _required_providers_for_admission, _resolve_route_snapshot,
-    )
     # Both are slug-independent, so one resolution covers the whole scan.
     snapshot = _resolve_route_snapshot()
     if snapshot is None:

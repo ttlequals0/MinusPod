@@ -9,7 +9,7 @@ import requests as requests_lib
 
 from transcriber import (
     Transcriber, _get_whisper_settings, _get_whisper_compute_type,
-    check_whisper_connectivity, _api_timeout,
+    _api_timeout,
     _whisper_api_rejects_word_timestamps,
     _whisper_api_rejects_vad_filter,
     extract_audio_chunk,
@@ -864,35 +864,6 @@ class TestTranscriptionRejected:
             assert post.call_count == 3
         finally:
             os.unlink(temp_path)
-
-
-class TestCheckWhisperConnectivity:
-    """Availability probe used by the offline queue re-drive."""
-
-    def test_local_backend_always_reachable(self):
-        with patch('transcriber._get_whisper_settings',
-                   return_value={'backend': WHISPER_BACKEND_LOCAL,
-                                 'api_base_url': '', 'api_key': ''}):
-            assert check_whisper_connectivity() is True
-
-    def test_api_backend_reachable_below_500(self):
-        mock_response = MagicMock()
-        mock_response.status_code = 401
-        with patch('transcriber._get_whisper_settings',
-                   return_value={'backend': WHISPER_BACKEND_API,
-                                 'api_base_url': 'http://localhost:8765/v1',
-                                 'api_key': ''}), \
-             patch('transcriber.safe_get', return_value=mock_response):
-            assert check_whisper_connectivity() is True
-
-    def test_api_backend_unreachable_on_exception(self):
-        with patch('transcriber._get_whisper_settings',
-                   return_value={'backend': WHISPER_BACKEND_API,
-                                 'api_base_url': 'http://localhost:8765/v1',
-                                 'api_key': ''}), \
-             patch('transcriber.safe_get',
-                   side_effect=requests_lib.exceptions.ConnectionError('refused')):
-            assert check_whisper_connectivity() is False
 
 
 class TestExtractAudioChunkSinglePass:

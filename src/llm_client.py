@@ -2351,38 +2351,6 @@ def is_failover_trigger_error(error: Exception) -> bool:
             or is_not_found_error(error) or is_limit_exceeded_error(error))
 
 
-def check_llm_connectivity(timeout: float = 5.0) -> bool:
-    """Availability probe for the offline queue re-drive (#482).
-
-    OpenRouter and OpenAI-compatible providers reuse the startup verification
-    (an endpoint /models probe). Anthropic gets a real network probe here:
-    verify_llm_connection only checks key presence for it, which would report
-    "reachable" during a genuine outage and thrash the re-drive loop. Any HTTP
-    response below 500 proves the endpoint is up. On success the LLM circuit
-    breaker resets so re-queued episodes are not immediately rejected by a
-    breaker that opened while the service was down.
-    """
-    try:
-        if get_effective_provider() == PROVIDER_ANTHROPIC:
-            api_key = get_api_key()
-            if not api_key:
-                return False
-            response = requests.get(
-                'https://api.anthropic.com/v1/models',
-                headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01'},
-                timeout=timeout,
-            )
-            reachable = response.status_code < 500
-        else:
-            reachable = verify_llm_connection()
-    except Exception as e:
-        logger.debug(f"LLM connectivity probe failed: {e}")
-        return False
-    if reachable:
-        _get_circuit_breaker_for_provider(get_effective_provider()).reset()
-    return reachable
-
-
 def is_llm_api_error(error: Exception) -> bool:
     """Check if error is any Anthropic or OpenAI API error type."""
     a = _anthropic_exc()

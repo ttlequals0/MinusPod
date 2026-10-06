@@ -74,7 +74,7 @@ def test_dict_override_marks_origin():
 
 
 def test_route_for_phase_applies_live_override():
-    ctx = run_context.RunContext.__new__(run_context.RunContext)
+    ctx = run_context.RunContext('example-podcast', 'a1b2c3d4e5f6')
     ctx.route_snapshot = {'detection': {'phase': 'detection', 'provider_key': 'anthropic',
                                         'configured_model': 'claude-sonnet-5', 'base_url': None,
                                         'credential_slot': 'primary', 'account_id': PRIMARY.account_id}}
@@ -133,7 +133,7 @@ def test_new_snapshot_retains_original_routes_while_standby_is_active():
             _active({'llm:primary', 'llm:secondary'}), _configured(), \
             patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
         snapshot = processing._resolve_route_snapshot()
-        ctx = run_context.RunContext.__new__(run_context.RunContext)
+        ctx = run_context.RunContext('example-podcast', 'a1b2c3d4e5f6')
         ctx.route_snapshot = snapshot
         with patch.object(run_context, 'current', return_value=ctx):
             assert run_context.route_for_phase('detection')['configured_model'] == 'qwen3:8b'
@@ -148,7 +148,7 @@ def test_new_snapshot_retains_original_routes_while_standby_is_active():
 
 def test_reviewer_started_on_standby_restores_original_frozen_pass():
     reviewer = AdReviewer(MagicMock())
-    ctx = run_context.RunContext.__new__(run_context.RunContext)
+    ctx = run_context.RunContext('example-podcast', 'a1b2c3d4e5f6')
     ctx.route_snapshot = {
         'detection': {'provider_key': PRIMARY.provider_key, 'configured_model': PRIMARY.model_id,
                       'base_url': PRIMARY.base_url, 'credential_slot': 'primary'},
@@ -183,3 +183,26 @@ def test_admission_uses_live_standby_without_mutating_original_snapshot():
     assert routes['detection']['credential_slot'] == 'failover'
     assert routes['detection']['configured_model'] == 'qwen3:8b'
     assert snapshot['detection']['credential_slot'] == 'primary'
+
+
+def test_standby_account_change_mid_run_is_refused():
+    replaced = {**FAILOVER_CFG, 'base_url': 'http://127.0.0.2:11434/v1'}
+    ctx = run_context.begin('example-podcast', 'a1b2c3d4e5f6', run_id='pin-run')
+    try:
+        with _active({'llm:primary'}), _configured(), \
+                patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG), \
+                patch.object(llm_route.llm_client, 'get_client_for_provider', return_value=MagicMock()):
+            first = apply_failover(PRIMARY)
+            llm_route.client_for_route(first)
+        with _active({'llm:primary'}), _configured(), \
+                patch.object(failover, 'failover_llm_config', return_value=replaced):
+            second = apply_failover(PRIMARY)
+            assert second.account_id == first.account_id
+            try:
+                llm_route.client_for_route(second)
+            except llm_route.llm_client.ProviderAccountChangedError as exc:
+                assert exc.credential_slot == 'failover'
+            else:
+                raise AssertionError('standby account change was not refused')
+    finally:
+        run_context.end(ctx)

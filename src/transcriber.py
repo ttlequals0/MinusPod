@@ -816,33 +816,6 @@ def _connection_test_timeout(whisper_settings: dict = None) -> float:
                min(_api_timeout(settings), CONNECTION_TEST_TIMEOUT_CEILING))
 
 
-def check_whisper_connectivity(timeout: float = 5.0) -> bool:
-    """Availability probe for the offline queue re-drive (#482).
-
-    Local backend (or an unconfigured API URL) never blocks a re-drive: those
-    failure modes are not connectivity. For the API backend, any HTTP response
-    with status below 500 proves the endpoint is up (401/404 included).
-    """
-    settings = _get_whisper_settings()
-    if settings['backend'] != WHISPER_BACKEND_API or not settings['api_base_url']:
-        return True
-    url = f"{settings['api_base_url'].rstrip('/')}/models"
-    headers = {}
-    if settings['api_key']:
-        headers['Authorization'] = f"Bearer {settings['api_key']}"
-    try:
-        response = safe_get(
-            url,
-            trust=URLTrust.OPERATOR_CONFIGURED,
-            timeout=timeout,
-            headers=headers,
-        )
-        return response.status_code < 500
-    except Exception as e:
-        logger.debug(f"Whisper connectivity probe failed: {e}")
-        return False
-
-
 def _trigger_whisper_failover(original: Exception) -> None:
     """Trigger whisper failover; re-raise `original` when no failover ends up active, so the episode defers."""
     target = failover.TARGET_WHISPER

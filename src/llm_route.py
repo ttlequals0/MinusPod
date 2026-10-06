@@ -249,9 +249,14 @@ def _failover_route(phase: str | None, credential_slot: str) -> Route | None:
         return None
     model = cfg['models'].get(phase) or cfg['models']['detection']
     base_url = _failover_base_url(cfg['provider'], cfg['base_url'])
+    account_id = account_identity(cfg['provider'], base_url)
+    ctx = run_context.current()
+    if ctx is not None:
+        # A standby account replaced mid-run then fails the account check and requeues.
+        account_id = ctx.pin_failover_account(account_id)
     return Route(phase=phase, provider_key=cfg['provider'], model_id=model,
                  base_url=base_url, slot=SLOT_FAILOVER, credential_slot=SLOT_FAILOVER,
-                 account_id=account_identity(cfg['provider'], base_url))
+                 account_id=account_id)
 
 
 def apply_failover(route: Route) -> Route:

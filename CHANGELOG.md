@@ -21,6 +21,7 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- A run that started on the standby provider requeues if the standby account is replaced mid-run, instead of finishing on a different account.
 - An LLM max-retries setting of 0 now sends one request before failing over; the two per-window retries no longer run on top of it.
 - When saving failover state fails, the call logs that the standby was skipped instead of failing silently.
 - **Probe now** no longer loads a local Whisper model in a web worker; the background worker runs the diagnostic decode and the card shows the last result until then.

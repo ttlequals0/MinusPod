@@ -145,6 +145,7 @@ class RunContext:
         self.whisper_failover_used = False
         self._llm_failover_used = set()
         self._failover_usage_lock = threading.Lock()
+        self._failover_account_id = None
         self._thinking_notices = {}
         self._thinking_notice_lock = threading.Lock()
 
@@ -157,6 +158,13 @@ class RunContext:
         if slot in ('primary', 'secondary'):
             with self._failover_usage_lock:
                 self._llm_failover_used.add(slot)
+
+    def pin_failover_account(self, account_id: str | None) -> str | None:
+        """First standby account this run resolved; later routes compare against it."""
+        with self._failover_usage_lock:
+            if self._failover_account_id is None:
+                self._failover_account_id = account_id
+            return self._failover_account_id
 
     def note_whisper_failover(self) -> None:
         with self._failover_usage_lock:

@@ -141,13 +141,13 @@ class TestBlockedQueueEntries:
     def test_passthrough_feed_is_not_blocked_by_a_held_provider(self, feed, monkeypatch):
         _set_mode('passthrough')
         self._queue(EP)
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         assert background._blocked_queue_entries(db, {('provider-a', 'primary')}) == set()
 
     def test_standard_feed_is_blocked_by_a_held_provider(self, feed, monkeypatch):
         self._queue(EP)
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         assert background._blocked_queue_entries(
             db, {('provider-a', 'primary')}) == {(SLUG, EP)}
@@ -159,7 +159,7 @@ class TestBlockedQueueEntries:
         db.set_episodes_passthrough(SLUG, [other], True)
         self._queue(EP)
         self._queue(other)
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         assert background._blocked_queue_entries(
             db, {('provider-a', 'primary')}) == {(SLUG, EP)}
@@ -179,7 +179,7 @@ class TestBlockedQueueEntries:
             calls['n'] += 1
             return FULL_SNAPSHOT
 
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot', _counting)
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot', _counting)
         try:
             background._blocked_queue_entries(db, {('provider-a', 'primary')})
         finally:
@@ -212,7 +212,7 @@ class TestDispatcherClaimsAroundBlockedEpisodes:
                   + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
         record_hold_until(db, 'provider-a', future)
 
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         # Silences the hold tick and the probe, which would otherwise reap or
         # clear the hold under test.
@@ -275,7 +275,7 @@ class TestDispatcherClaimsAroundBlockedEpisodes:
                   + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
         record_hold_until(db, 'provider-a', future)
 
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         monkeypatch.setattr(background, '_run_tick', lambda fn, name: None)
         monkeypatch.setattr(background, 'IDLE_WAIT_SECONDS', 0.01)
@@ -327,7 +327,7 @@ class TestDispatcherClaimsAroundBlockedEpisodes:
                   + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
         record_hold_until(db, 'provider-a', future)
 
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         monkeypatch.setattr(background, '_run_tick', lambda fn, name: None)
         monkeypatch.setattr(background, 'IDLE_WAIT_SECONDS', 0.01)
@@ -370,7 +370,7 @@ class TestBlockedScanPaging:
             db.upsert_episode_for_processing(SLUG, episode_id,
                                              'https://example.com/e.mp3', title='E')
         monkeypatch.setattr(background, 'BLOCKED_SCAN_PAGE', 2)
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         blocked = background._blocked_queue_entries(db, {('provider-a', 'primary')})
         assert blocked == {(SLUG, episode_id) for episode_id in episode_ids}
@@ -387,7 +387,7 @@ class TestBlockedScanPaging:
                                          title='O', priority=10)
         db.upsert_episode_for_processing(SLUG, later_ep, 'https://example.com/e.mp3',
                                          title='L', priority=5)
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         assert background._blocked_queue_entries(
             db, {('provider-a', 'primary')}) == {(SLUG, later_ep)}
@@ -406,7 +406,7 @@ class TestBlockedScanPaging:
             monkeypatch.setattr(
                 Database, name,
                 lambda self, *a, _name=name, **kw: seen.append(_name))
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
 
         assert len(background._blocked_queue_entries(
@@ -422,7 +422,7 @@ class TestBlockedScanPaging:
                                              'https://example.com/e.mp3', title='E')
         monkeypatch.setattr(background, 'BLOCKED_SCAN_PAGE', 2)
         monkeypatch.setattr(background, 'BLOCKED_SCAN_MAX_ROWS', 2)
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         assert len(background._blocked_queue_entries(
             db, {('provider-a', 'primary')})) == 2
@@ -438,7 +438,7 @@ class TestLegacyUnscopedHold:
         db.set_episodes_passthrough(SLUG, [EP], True)
         db.upsert_episode_for_processing(SLUG, EP, 'https://example.com/e.mp3',
                                          title='E')
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         assert background._blocked_queue_entries(
             db, set(), legacy_hold=True) == set()
@@ -446,7 +446,7 @@ class TestLegacyUnscopedHold:
     def test_standard_episode_is_blocked_by_the_legacy_marker(self, feed, monkeypatch):
         db.upsert_episode_for_processing(SLUG, EP, 'https://example.com/e.mp3',
                                          title='E')
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         assert background._blocked_queue_entries(
             db, set(), legacy_hold=True) == {(SLUG, EP)}
@@ -468,7 +468,7 @@ class TestLegacyUnscopedHold:
                   + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
         db.set_setting('rate_limit_hold_until', future)
 
-        monkeypatch.setattr('main_app.processing._resolve_route_snapshot',
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
                             lambda: FULL_SNAPSHOT)
         monkeypatch.setattr(background, '_run_tick', lambda fn, name: None)
         monkeypatch.setattr(background, 'IDLE_WAIT_SECONDS', 0.01)
