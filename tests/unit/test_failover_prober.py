@@ -93,6 +93,22 @@ def test_two_failures_trigger_and_recovery_cancels():
     assert failover.probe_state('llm:primary')['healthy_streak'] == 2
 
 
+def test_healthy_probe_resets_llm_circuit_breaker():
+    db = Database(); _reset(db)
+    db.set_setting('llm_provider', 'openai-compatible', is_default=False)
+    failover.invalidate_cache()
+    request_config = failover._capture_probe_context(db, 'llm:primary')['request_config']
+    cb = failover.llm_client._get_circuit_breaker_for_provider(
+        request_config['provider'], 'primary', request_config['base_url'])
+    for _ in range(5):
+        cb.record_failure(RuntimeError('boom'))
+    assert cb.state == cb.OPEN
+    with _probe({'llm:primary': True, 'llm:failover': True}), \
+            patch.object(failover.webhook_service, 'fire_failover_event'):
+        failover.probe_tick(db, ['llm:primary'])
+    assert cb.state == cb.CLOSED
+
+
 def test_manual_failover_not_cancelled_by_probes():
     db = Database(); _reset(db)
     failover.trigger('llm:primary', 'operator', source='manual')
@@ -110,6 +126,36 @@ def test_probe_failure_without_configured_failover_only_records():
         failover.probe_tick(db); failover.probe_tick(db)
     assert failover.is_active('llm:primary') is False
     assert failover.probe_state('llm:primary')['reachable'] is False
+
+
+def test_two_429_probes_do_not_trigger_failover():
+    db = Database(); _reset(db)
+    db.set_setting('llm_provider', 'openai-compatible', is_default=False)
+    failover.invalidate_cache()
+    with patch.object(failover.provider_probe, 'probe_models_endpoint',
+                      return_value={'ok': False, 'reachable': True, 'status': 429,
+                                    'detail': 'rejected'}), \
+            patch.object(failover.webhook_service, 'fire_failover_event'):
+        failover.probe_tick(db, ['llm:primary'])
+        failover.probe_tick(db, ['llm:primary'])
+    assert failover.is_active('llm:primary') is False
+    state = failover.probe_state('llm:primary')
+    assert state['status'] == 429 and state['detail'] == 'rate limited'
+    assert state['failed_streak'] == 0
+
+
+def test_429_probe_while_failed_over_does_not_advance_healthy_streak():
+    db = Database(); _reset(db)
+    db.set_setting('llm_provider', 'openai-compatible', is_default=False)
+    failover.invalidate_cache()
+    failover.trigger('llm:primary', 'test', source='auto')
+    with patch.object(failover.provider_probe, 'probe_models_endpoint',
+                      return_value={'ok': False, 'reachable': True, 'status': 429,
+                                    'detail': 'rejected'}), \
+            patch.object(failover.webhook_service, 'fire_failover_event'):
+        failover.probe_tick(db, ['llm:primary'])
+    assert failover.is_active('llm:primary') is True
+    assert failover.probe_state('llm:primary')['healthy_streak'] == 0
 
 
 def test_ensure_fresh_probes_skips_recent():
@@ -735,16 +781,22 @@ def test_llm_probe_404_stays_unreachable():
         assert failover.probe_target('llm:failover')['reachable'] is False
 
 
-@pytest.mark.parametrize('result', [
-    {'ok': False, 'reachable': True, 'status': 200, 'detail': 'malformed model list'},
-    {'ok': False, 'reachable': True, 'status': 429, 'detail': 'rate limited'},
-])
-def test_invalid_llm_probe_response_is_not_healthy(result):
+def test_malformed_llm_probe_response_is_not_healthy():
     db = Database(); _reset(db)
     db.set_setting('failover_llm_base_url', 'http://example.com/v1', is_default=False)
     failover.invalidate_cache()
-    with _Http(result):
+    with _Http({'ok': False, 'reachable': True, 'status': 200, 'detail': 'malformed model list'}):
         assert failover.probe_target('llm:failover')['reachable'] is False
+
+
+def test_429_llm_probe_response_is_neutral_not_unhealthy():
+    # Rate limited is not a failure (R1): reachable is None, not False.
+    db = Database(); _reset(db)
+    db.set_setting('failover_llm_base_url', 'http://example.com/v1', is_default=False)
+    failover.invalidate_cache()
+    with _Http({'ok': False, 'reachable': True, 'status': 429, 'detail': 'rate limited'}):
+        result = failover.probe_target('llm:failover')
+    assert result == {'reachable': None, 'status': 429, 'detail': 'rate limited'}
 
 
 @pytest.mark.parametrize('invalid_result', [
@@ -900,9 +952,11 @@ def _whisper_failed_over(db, model='tiny'):
 
 
 def test_web_worker_probe_defers_local_decode_to_leader():
+    """R2: a web request thread defers even on the leader process, since the
+    decode is gated on the thread, not the per-process leader flag."""
     db = Database(); _reset(db)
     _whisper_failed_over(db)
-    with patch.object(transcriber, 'is_background_leader', return_value=False), \
+    with patch.object(transcriber.run_context, 'in_background_thread', return_value=False), \
             patch.object(transcriber, 'local_transcription_available', return_value=True), \
             patch.object(transcriber, '_latest_local_outcome', return_value=None), \
             patch.object(transcriber.WhisperModelSingleton, 'get_instance') as loader:

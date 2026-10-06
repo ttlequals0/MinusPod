@@ -573,6 +573,9 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         # (connect/DNS failure or a read timeout, which reports reachable
         # True with no status); never classify that as reachable.
         if kind == 'llm':
+            if status == 429:
+                # The provider is up, just throttled: neutral, like a busy local probe.
+                return {'reachable': None, 'status': 429, 'detail': 'rate limited'}
             reachable = result.get('ok') is True and status is not None and 200 <= status < 300
         else:
             # Some Whisper servers omit /models (404) or only accept POST there (405).
@@ -704,6 +707,16 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
             )
         probe_result = {key: value for key, value in result.items()
                         if key != 'local_outcome'}
+        if target in ('llm:primary', 'llm:secondary') and result['reachable'] is True:
+            # A healthy probe means requests would go through again; reset
+            # the breaker so a recovered provider is not still rejected by
+            # one opened while it was down (regression from e85eaccd).
+            try:
+                llm_client._get_circuit_breaker_for_provider(
+                    request_config.get('provider') or '', target.split(':', 1)[1],
+                    request_config.get('base_url')).reset()
+            except Exception:
+                logger.debug(f"Circuit breaker reset failed for {target}", exc_info=True)
         if result['reachable'] is None:
             # Busy or unconfigured: no evidence either way.
             streaks = {'healthy_streak': healthy_streak, 'failed_streak': failed_streak}
