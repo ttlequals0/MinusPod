@@ -88,6 +88,7 @@ release notes.
 - A network-scope audio cue template kept the network id it was promoted under, so it stopped reaching sibling feeds after the owning feed's network setting changed. It now follows the owning feed's network, or demotes to podcast-only when the feed leaves every network; an upgrade migration heals templates already affected.
 - Subscribed feeds now carry the enclosure `length` attribute the RSS spec requires: the processed file's byte size for a cut episode, or upstream's own `length` while it is still unprocessed. Fixes the podcast validator's "Missing item enclosure length attribute" warning.
 - The background refresh loop's first maintenance pass (pattern cleanup, DB backup, community sync, update check) no longer waits for host uptime to reach the refresh interval before running.
+- Requesting `/ui/index.html` by its exact path now revalidates instead of caching for an hour, matching `/ui/` itself.
 
 ### Security
 - Updated fsspec to 2026.6.0 and Werkzeug to 3.1.9 to fix CVE-2026-104851 and CVE-2026-102598.

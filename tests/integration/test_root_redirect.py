@@ -25,3 +25,28 @@ def test_root_redirects_to_ui(client):
 def test_feed_slugs_still_route_past_the_root(client):
     response = client.get('/no-such-feed-here')
     assert response.status_code == 404
+
+
+def test_ui_index_html_by_explicit_path_revalidates(client):
+    """A direct request for index.html must not be cached, same as the '/ui/' fallback."""
+    response = client.get('/ui/index.html')
+    assert response.headers['Cache-Control'] == 'no-cache, must-revalidate'
+
+
+def test_ui_root_still_revalidates(client):
+    response = client.get('/ui/')
+    assert response.headers['Cache-Control'] == 'no-cache, must-revalidate'
+
+
+def test_ui_asset_stays_immutable(client):
+    from pathlib import Path
+
+    assets_dir = Path(__file__).parents[2] / 'static' / 'ui' / 'assets'
+    asset_name = next(assets_dir.iterdir()).name
+    response = client.get(f'/ui/assets/{asset_name}')
+    assert response.headers['Cache-Control'] == 'public, max-age=31536000, immutable'
+
+
+def test_ui_other_file_keeps_hourly_cache(client):
+    response = client.get('/ui/logo.svg')
+    assert response.headers['Cache-Control'] == 'public, max-age=3600'
