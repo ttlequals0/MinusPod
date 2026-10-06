@@ -344,6 +344,14 @@ elements it relies on are untouched. A basic podcast app sees a normal
 feed and plays the audio. Podcasting 2.0 apps see the additional tags.
 Nothing about this support breaks older clients.
 
+## Example served feed
+
+[docs/examples/served-feed.xml](examples/served-feed.xml) is a sanitized
+excerpt of a real feed served by a MinusPod instance, with the host,
+feed key, and episode identifiers replaced by placeholders. It shows the
+`podcast:guid`, `podcast:locked`, `podcast:funding`, `podcast:txt`,
+`podcast:transcript`, and `podcast:chapters` tags as MinusPod emits them.
+
 ## References
 
 External Podcasting 2.0 documentation:

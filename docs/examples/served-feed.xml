@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- minuspod-rss-render-version:2 -->
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+<channel>
+<title>The Daily Tech Show</title>
+<link>http://your-server:8000/example-podcast</link>
+<description><![CDATA[<p>A sample podcast description used to illustrate a MinusPod-served feed.</p>]]></description>
+<language>en-US</language>
+<itunes:author>Acme Podcasts</itunes:author>
+<docs>http://blogs.law.harvard.edu/tech/rss</docs>
+<copyright>Copyright Acme Podcasts</copyright>
+<managingEditor>owner@example.com (Acme Podcasts)</managingEditor>
+<webMaster>owner@example.com (Acme Podcasts)</webMaster>
+<ttl>720</ttl>
+<pubDate>Fri, 02 Oct 2026 17:09:51 PDT</pubDate>
+<itunes:type>episodic</itunes:type>
+<itunes:subtitle>A sample podcast used to illustrate a MinusPod-served feed.</itunes:subtitle>
+<itunes:summary>
+&lt;p&gt;A sample podcast description used to illustrate a MinusPod-served feed.&lt;/p&gt;
+</itunes:summary>
+<itunes:keywords>example, sample, technology, podcast</itunes:keywords>
+<itunes:explicit>no</itunes:explicit>
+<itunes:block>no</itunes:block>
+<itunes:owner><itunes:name>Jane Host</itunes:name><itunes:email>owner@example.com</itunes:email></itunes:owner>
+<itunes:category text="Technology" />
+<category>Technology</category>
+<category>Software</category>
+<lastBuildDate>Sat, 03 Oct 2026 00:21:54 +0000</lastBuildDate>
+<generator>MinusPod</generator>
+<image>
+  <url>http://your-server:8000/example-podcast/cover-minuspod-sample.jpg</url>
+  <title>The Daily Tech Show</title>
+  <link>http://your-server:8000/example-podcast</link>
+</image>
+<itunes:image href="http://your-server:8000/example-podcast/cover-minuspod-sample.jpg" />
+<podcast:guid>2f299d51-47bc-5831-b94f-347884a721b4</podcast:guid>
+<podcast:locked>yes</podcast:locked>
+<podcast:funding url="http://example.com/support">Support the show!</podcast:funding>
+<podcast:txt purpose="ai-content">true</podcast:txt>
+<item>
+  <title>A sample episode 1</title>
+  <description><![CDATA[<p>A sample episode description used to illustrate a MinusPod-served feed item.</p>
+
+<p>Chapters</p><p>00:01 Introduction<br>12:30 Topic Overview<br>31:05 Discussion<br>58:40 Wrap-Up</p>]]></description>
+  <enclosure url="http://your-server:8000/episodes/example-podcast/a1b2c3d4e5f6.mp3" type="audio/mpeg" />
+  <guid isPermaLink="false">a1b2c3d4e5f6</guid>
+  <pubDate>Wed, 30 Sep 2026 01:55:39 +0000</pubDate>
+  <itunes:duration>3605</itunes:duration>
+  <itunes:episode>103</itunes:episode>
+  <podcast:transcript url="http://your-server:8000/episodes/example-podcast/a1b2c3d4e5f6.vtt" type="text/vtt" language="en" rel="captions" />
+  <podcast:chapters url="http://your-server:8000/episodes/example-podcast/a1b2c3d4e5f6/chapters.json" type="application/json+chapters" />
+</item>
+<item>
+  <title>A sample episode 2</title>
+  <description><![CDATA[<p>A sample episode description used to illustrate a MinusPod-served feed item.</p>
+
+<p>Chapters</p><p>00:01 Introduction<br>10:12 Topic Overview<br>35:48 Discussion<br>60:15 Wrap-Up</p>]]></description>
+  <enclosure url="http://your-server:8000/episodes/example-podcast/b2c3d4e5f6a1.mp3" type="audio/mpeg" />
+  <guid isPermaLink="false">b2c3d4e5f6a1</guid>
+  <pubDate>Wed, 23 Sep 2026 02:57:24 +0000</pubDate>
+  <itunes:duration>3720</itunes:duration>
+  <itunes:episode>102</itunes:episode>
+  <podcast:transcript url="http://your-server:8000/episodes/example-podcast/b2c3d4e5f6a1.vtt" type="text/vtt" language="en" rel="captions" />
+  <podcast:chapters url="http://your-server:8000/episodes/example-podcast/b2c3d4e5f6a1/chapters.json" type="application/json+chapters" />
+</item>
+<item>
+  <title>A sample episode 3</title>
+  <description><![CDATA[<p>A sample episode description used to illustrate a MinusPod-served feed item.</p>
+
+<p>Chapters</p><p>00:01 Introduction<br>14:02 Topic Overview<br>29:50 Discussion<br>56:31 Wrap-Up</p>]]></description>
+  <enclosure url="http://your-server:8000/episodes/example-podcast/c3d4e5f6a1b2.mp3" type="audio/mpeg" />
+  <guid isPermaLink="false">c3d4e5f6a1b2</guid>
+  <pubDate>Wed, 16 Sep 2026 02:57:34 +0000</pubDate>
+  <itunes:duration>3511</itunes:duration>
+  <itunes:episode>101</itunes:episode>
+  <podcast:transcript url="http://your-server:8000/episodes/example-podcast/c3d4e5f6a1b2.vtt" type="text/vtt" language="en" rel="captions" />
+  <podcast:chapters url="http://your-server:8000/episodes/example-podcast/c3d4e5f6a1b2/chapters.json" type="application/json+chapters" />
+</item>
+</channel>
+</rss>
