@@ -40,7 +40,7 @@ import {
 import AIModelsSection from './settings/AIModelsSection';
 import FailoverSection from './settings/FailoverSection';
 import { cancelFailover, failoverQueryKey, getFailover, probeFailover, triggerFailover, type FailoverTargetName } from '../api/failover';
-import { useCollapsibleOpen } from '../components/CollapsibleSection';
+import { sectionVisible, useCollapsibleOpen } from '../components/CollapsibleSection';
 
 const FAILOVER_STORAGE_KEY = 'settings-section-failover';
 import StageTunablesSection from './settings/StageTunablesSection';
@@ -480,7 +480,8 @@ function Settings() {
   // Fetch standby models and poll failover only while its card is visible.
   const [failoverOpen, setFailoverOpen] = useCollapsibleOpen(FAILOVER_STORAGE_KEY);
   const [searchMatches, setSearchMatches] = useState<Set<string> | null>(null);
-  const failoverVisible = searchMatches !== null ? searchMatches.has(FAILOVER_STORAGE_KEY) : failoverOpen;
+  // Settings sits above the search provider, so it applies the shared rule to its own match state.
+  const failoverVisible = sectionVisible(searchMatches, FAILOVER_STORAGE_KEY, failoverOpen);
   const failoverCatalog = useModelCatalog(
     failoverLlm.provider, 'failover', catalogsEnabled && failoverLlm.enabled === true && failoverVisible,
   );

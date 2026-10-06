@@ -12,9 +12,12 @@ import ChevronCaret from './ChevronCaret';
 // Lives here so knowledge of the storage-key contract stays next to the
 // component that owns it.
 /** Search matches override saved openness when gating section queries. */
-export function useSectionVisible(storageKey: string, open: boolean): boolean {
-  const matchKeys = useSettingsSearch();
+export function sectionVisible(matchKeys: Set<string> | null, storageKey: string, open: boolean): boolean {
   return matchKeys !== null ? matchKeys.has(storageKey) : open;
+}
+
+export function useSectionVisible(storageKey: string, open: boolean): boolean {
+  return sectionVisible(useSettingsSearch(), storageKey, open);
 }
 
 export function useCollapsibleOpen(
