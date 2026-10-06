@@ -247,6 +247,11 @@ MinusPod supports up to two full provider configurations: Provider A, and one op
 
 The Ad Reviewer section has its own slot selector, described in [Ad Reviewer](configuration.md#ad-reviewer). `Same as pass` inherits both the provider and model of whichever pass is being reviewed. `Provider A` or `Provider B` runs the reviewer on that slot instead, and enables the Review Model selector for its catalog.
 
+[Pattern Cleanup](pattern-cleanup.md), under Settings > Experiments, also has
+its own provider and model selectors. Each can inherit detection's choice.
+Choose a higher-quality model when reviewing patterns: an approved pattern
+can affect matches in many later episodes.
+
 Switching a stage's slot only changes that stage. Model discovery re-runs for the newly selected slot, so the model dropdown next to it shows that slot's own catalog. Every other stage's slot and model stay exactly as you left them. A stage still accepts a hand-typed model ID (the "Type a model ID" link) for models a slot's catalog does not list, the same as the single-provider case. If a stage is set to Provider B and Provider B is later disabled, that stage falls back to Provider A until Provider B is turned back on.
 
 Each slot needs its own API key and, where relevant, base URL configured under Settings > LLM Provider before a stage can use it; an unconfigured slot's model list comes back empty until credentials are saved.

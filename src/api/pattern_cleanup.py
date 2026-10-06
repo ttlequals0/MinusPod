@@ -36,7 +36,8 @@ def _camel_key(key: str) -> str:
 def _camelize(value):
     """Recursively camelCase dict keys; the API is camelCase everywhere, DB storage is not."""
     if isinstance(value, dict):
-        return {_camel_key(k): _camelize(v) for k, v in value.items()}
+        return {_camel_key(k): bool(v) if k == 'is_active' and v is not None else _camelize(v)
+                for k, v in value.items()}
     if isinstance(value, list):
         return [_camelize(v) for v in value]
     return value

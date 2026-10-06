@@ -46,9 +46,13 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Chapters** - Chapter markers MinusPod generates for the processed audio, served as Podcasting 2.0 JSON and embedded in the MP3 as ID3 frames. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
 
+**Cleanup** - The Patterns page tab for approving, rejecting, and undoing suggested edits to learned patterns. These decisions change the pattern library, not audio already published. [Pattern Cleanup](pattern-cleanup.md#approve-reject-undo)
+
 **Community patterns** - Opt-in sharing of learned ad patterns with other MinusPod users, and pulling theirs in return. [Configuration > Community Patterns](configuration.md#community-patterns-optional)
 
 **Confidence** - The detector's certainty (0-100%) that a flagged region is an ad. Only detections at or above the cut threshold are removed; the rest stay in the audio for review. [Configuration > Ad Detection Settings](configuration.md#ad-detection-settings)
+
+**Contaminated pattern** - A learned ad pattern that contains show content or other material that should not be matched as an ad. Pattern Cleanup can flag it for review; nothing changes until a suggestion is approved. [Pattern Cleanup](pattern-cleanup.md#the-five-kinds)
 
 **Correction** - Your verdict on a detection: "Confirm ad" or "Not an ad". Corrections train future detection for that feed and can trigger a recut. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
 
@@ -80,6 +84,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## E
 
+**Enclosure length** - The audio file size in bytes declared in an RSS item. MinusPod uses the processed file size after cutting and the publisher's declared size for unprocessed audio. [Podcasting 2.0 > Regenerated for the processed audio](podcasting-2.0.md#regenerated-for-the-processed-audio)
+
 **Episode statuses** - *Discovered* (seen in the feed, not processed), *Pending* (queued), *Processing* (running now), *Completed* (processed and in your feed), *Failed* (will retry), *Permanently failed* (out of retries), *Deferred* (waiting on an offline endpoint). [How It Works > Processing Queue](how-it-works.md#processing-queue)
 
 ## F
@@ -90,9 +96,13 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Fingerprint** - An acoustic signature of a known ad, matched against new episodes without any transcript. One of the pattern types MinusPod learns from confirmed cuts. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
+**Force recheck all** - Starts another review of every active learned pattern, including previously reviewed ones, and replaces their pending cleanup suggestions. Work proceeds in batches. [Pattern Cleanup > Force recheck](pattern-cleanup.md#force-recheck)
+
 **First pass (Pass 1)** - The main detection run over the freshly transcribed episode: patterns, cross-fetch, and the LLM reading the transcript in windows. [How It Works](how-it-works.md#how-it-works)
 
 ## H
+
+**Health probe** - A periodic check that an LLM or transcription endpoint is usable. Failover uses probe results to detect outages and recover the original provider; fresh results are shared across queued episodes. [Failover > Health probes](failover.md#health-probes)
 
 **Held for Review** - An ad that detection wanted to cut but a per-feed guard (max ad duration, cue-gated approval, a reviewer contradiction, or a verification conflict) stopped. The audio stays intact until you approve or dismiss it. [Web Interface > Held for Review](web-interface.md#held-for-review)
 
@@ -120,6 +130,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Offline queue** - An opt-in hold that parks an episode when the LLM provider or Whisper endpoint is unreachable, probes the service every few minutes, and re-queues the episode once it answers. It does not stop the queue: everything not waiting on that service keeps processing. [Configuration > Offline Queue](configuration.md#offline-queue)
 
+**OPML** - A portable list of podcast subscriptions. Export all or selected feeds using their original URLs or MinusPod's ad-free URLs, then import the file into another podcast app. [Web Interface > OPML export](web-interface.md#opml-export)
+
 **Opening window exclusion** - A global or per-feed number of seconds at the start of an episode during which ad markers are ignored, so a show's opening cue is not cut as an ad. [Configuration > Detection Tuning](configuration.md#opening-window-exclusion)
 
 **Outbound Requests** - The settings section holding the two User-Agent strings MinusPod sends: one for audio, artwork, and chapters, one for RSS. Editable so a host that starts refusing ours can be worked around without a new release. [Configuration > Outbound Requests](configuration.md#outbound-requests)
@@ -134,6 +146,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Pattern** - Anything MinusPod has learned from confirmed ads and reapplies to new episodes: text patterns from transcripts and audio fingerprints. Patterns catch repeat ads without spending LLM tokens. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
+**Pattern Cleanup** - An experiment that reviews learned text patterns with an LLM and suggests trims, splits, sponsor corrections, and disabling unused or unreliable patterns. It supports scheduled and manual runs, with a separate provider and model choice. [Pattern Cleanup](pattern-cleanup.md)
+
 **Podping** - An opt-in listener that watches the Hive blockchain for publish notifications and refreshes a matching feed immediately. System Health identifies the active RPC node, checks every fallback every five minutes, and can check them on demand. Scheduled feed polling continues either way. [Podcasting 2.0 > Podping](podcasting-2.0.md#podping)
 
 **Processing mode** - The per-feed preset that decides what the pipeline does with each episode: standard ad removal, keep-content detection, skip ad detection (transcripts and chapters only), pass-through, or cue-only (cuts from cue pairs and previously learned ad patterns, no LLM call). One select in Feed Settings; the REST API also accepts the underlying per-field flags. [How It Works](how-it-works.md)
@@ -142,7 +156,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified, plus elapsed stage and FFmpeg timing when available. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
-**Provider A / Provider B** - The two LLM provider slots a pipeline stage can be routed to, renamed from Primary/Secondary. The API still accepts the old `primary`/`secondary` field names and values. [LLM Providers > Per-Stage Providers](llm-providers.md#per-stage-providers)
+**Provider A / Provider B** - The two LLM provider slots a pipeline stage can be routed to, renamed from Primary/Secondary. The API retains `primary`/`secondary` slot values and `secondary*` settings keys. [LLM Providers > Per-Stage Providers](llm-providers.md#per-stage-providers)
 
 ## Q
 
@@ -159,6 +173,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Reprocess modes** - *Patterns + AI* (the default, everything), *AI Only* (skip the learned-pattern DB), *Re-detect Ads* (reuse the saved transcript, rerun detection), and *Recut*. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
 
 **Resurrected** - A detection the validator rejected that the Ad Reviewer overruled and put back in the cut list. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
+
+**Retired pattern** - A pattern disabled after an approved cleanup suggestion because it has gone unused. Its record is retained and the approval can be undone if it has not been changed afterward. [Pattern Cleanup > The five kinds](pattern-cleanup.md#the-five-kinds)
 
 **Retention** - How long processed audio is kept before the episode resets to Discovered. The pre-cut original can have its own shorter window, and any feed can override the whole window on its own settings page. [Configuration > Per-feed retention](configuration.md#per-feed-retention)
 
@@ -198,6 +214,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Transcript (VTT)** - The Podcasting 2.0 transcript MinusPod generates for the processed audio, with cut regions accounted for. [Podcasting 2.0](podcasting-2.0.md)
 
+**Transcript differential** - Comparing the locally transcribed audio with a publisher transcript to find speech absent from the publisher's copy. Gaps need corroboration before they can be cut. [Upstream Transcript Differential](transcript-differential.md)
+
 ## U
 
 **User-Agent** - The string MinusPod sends to identify itself on an outbound request; there are two, because hosts disagree about what they will answer. [Configuration > Outbound Requests](configuration.md#outbound-requests)
@@ -216,6 +234,6 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Waveform Ad Editor** - The visual editor for a single detection: waveform, transcript context, and draggable boundaries, with the original audio for reference. [Web Interface > Waveform Ad Editor](web-interface.md#waveform-ad-editor)
 
-**Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet, Queue Held, Queue Resumed, Service Offline, Service Reachable. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
+**Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet, Queue Held, Queue Resumed, Service Offline, Service Reachable, Failover Triggered, and Failover Cancelled. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
 
 [< Docs index](README.md) | [Project README](../README.md)

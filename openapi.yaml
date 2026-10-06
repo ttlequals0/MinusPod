@@ -1063,7 +1063,7 @@ paths:
                   type:
                     - boolean
                     - 'null'
-                  description: Per-feed opt-out from the upstream-transcript differential (diffs the upstream podcast:transcript against the Whisper transcript to help locate ads). Null follows the global transcriptDifferentialEnabled setting.
+                  description: Per-feed override for upstream-transcript differential. True enables and false disables it for this feed; null follows the global transcriptDifferentialEnabled setting.
                 differentialFetchMode:
                   type:
                     - string
@@ -4163,9 +4163,13 @@ paths:
       summary: Run pattern cleanup now
       description: >-
         Starts a cleanup run on a background thread and returns immediately
-        with the new run's id. `force` clears every learned pattern's review
-        stamp first, so the whole catalog is reviewed again even if nothing
-        changed. Rate limited to 6/hour.
+        with the new run's id. Each run processes a configured batch. `force`
+        resets review history used for eligibility and replaces pending
+        suggestions for every active learned pattern; approved and rejected
+        decision records remain. Later normal runs continue the remaining
+        batches. Calling force again restarts this process. A missing body
+        means force=false. A supplied body must be a JSON object and force
+        must be a JSON boolean. Rate limited to 6/hour.
       operationId: runPatternCleanup
       requestBody:
         required: false
@@ -4188,7 +4192,7 @@ paths:
                   runId:
                     type: integer
         '400':
-          description: Request body must be a JSON object
+          description: Malformed JSON, non-object request body, or non-boolean force
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -4232,9 +4236,10 @@ paths:
         - Patterns
       summary: List pattern cleanup suggestions
       description: >-
-        Each suggestion carries the pattern summary it was made against
-        (sponsor, scope, podcast title, counts), the proposed `payload`, and
-        the `before` snapshot used to undo an approval.
+        Each suggestion carries the current pattern summary (sponsor, scope,
+        podcast title, counts), the proposed payload, and an immutable before
+        snapshot from review time. Use limit and offset to reach older
+        decisions, including approved suggestions available for undo.
       operationId: listPatternCleanupSuggestions
       parameters:
         - name: status
@@ -4306,7 +4311,10 @@ paths:
       tags:
         - Patterns
       summary: Reject a pattern cleanup suggestion
-      description: Leaves the pattern alone and marks it reviewed.
+      description: >-
+        Leaves the pattern alone and acknowledges the reviewed version and
+        statistical evidence. Returns a conflict when the pattern changed
+        after the suggestion was made; unseen newer text is not marked reviewed.
       operationId: rejectPatternCleanupSuggestion
       parameters:
         - name: suggestion_id
@@ -4336,7 +4344,10 @@ paths:
       tags:
         - Patterns
       summary: Undo an approved pattern cleanup suggestion
-      description: Restores the pattern (or split pieces) from the `before` snapshot.
+      description: >-
+        Restores only fields owned by the approval, using its before and
+        post-approval snapshots. Split undo restores the original pattern
+        and disables its unchanged children.
       operationId: undoPatternCleanupSuggestion
       parameters:
         - name: suggestion_id
@@ -4358,8 +4369,9 @@ paths:
         '409':
           description: >-
             Refused when the suggestion is not approved, a later approval on
-            the same pattern has not been undone, or the field it changed was
-            edited since (error: invalid_transition)
+            the same pattern has not been undone, owned fields or split children
+            changed afterward, or an older approval lacks enough saved state
+            for safe undo (error: invalid_transition)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -6514,16 +6526,14 @@ paths:
                   type: boolean
                   description: Alias of secondaryProviderEnabled (Provider A/B rename, #806).
                 providerB:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                   description: Alias of secondaryProvider.
-                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                  enum: [anthropic, openai-compatible, ollama, openrouter, '', null]
                 providerBBaseUrl:
                   type: string
                   description: Alias of secondaryProviderBaseUrl.
                 providerBApiKey:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                   description: Alias of secondaryProviderApiKey.
                 providerBRequestsPerMin:
                   type: integer
@@ -6538,56 +6548,72 @@ paths:
                   minimum: 0
                   description: Alias of secondaryProviderTokensPerMin.
                 providerATimeoutSeconds:
-                  type: integer
-                  nullable: true
-                  minimum: 10
-                  maximum: 3600
-                  description: Request timeout for Provider A. Null clears it to the provider-type default; omitted leaves it unchanged.
+                  anyOf:
+                    - type: integer
+                      minimum: 10
+                      maximum: 3600
+                    - type: 'null'
+                    - type: string
+                      const: ''
+                  description: Request timeout for Provider A. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
                 providerAMaxRetries:
-                  type: integer
-                  nullable: true
-                  minimum: 0
-                  maximum: 10
-                  description: Max retries for Provider A. Null clears it to the provider-type default; omitted leaves it unchanged.
+                  anyOf:
+                    - type: integer
+                      minimum: 0
+                      maximum: 10
+                    - type: 'null'
+                    - type: string
+                      const: ''
+                  description: Max retries for Provider A. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
                 providerBTimeoutSeconds:
-                  type: integer
-                  nullable: true
-                  minimum: 10
-                  maximum: 3600
-                  description: Request timeout for Provider B. Null clears it to the provider-type default; omitted leaves it unchanged.
+                  anyOf:
+                    - type: integer
+                      minimum: 10
+                      maximum: 3600
+                    - type: 'null'
+                    - type: string
+                      const: ''
+                  description: Request timeout for Provider B. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
                 providerBMaxRetries:
-                  type: integer
-                  nullable: true
-                  minimum: 0
-                  maximum: 10
-                  description: Max retries for Provider B. Null clears it to the provider-type default; omitted leaves it unchanged.
+                  anyOf:
+                    - type: integer
+                      minimum: 0
+                      maximum: 10
+                    - type: 'null'
+                    - type: string
+                      const: ''
+                  description: Max retries for Provider B. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
                 failoverLlmEnabled:
                   type: boolean
                   description: Enable or disable the shared LLM failover provider. Off by default.
                 failoverLlmProvider:
-                  type: string
-                  nullable: true
-                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                  type: [string, 'null']
+                  enum: [anthropic, openai-compatible, ollama, openrouter, '', null]
                   description: LLM failover provider type. Empty or null clears it.
                 failoverLlmBaseUrl:
                   type: string
                   description: Base URL for the LLM failover provider; requests are SSRF-validated.
                 failoverLlmApiKey:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                   description: API key for the LLM failover provider. Omit to leave unchanged; null or empty to clear.
                 failoverLlmTimeoutSeconds:
-                  type: integer
-                  nullable: true
-                  minimum: 10
-                  maximum: 3600
-                  description: Request timeout for the LLM failover provider. Null clears it to the provider-type default; omitted leaves it unchanged.
+                  anyOf:
+                    - type: integer
+                      minimum: 10
+                      maximum: 3600
+                    - type: 'null'
+                    - type: string
+                      const: ''
+                  description: Request timeout for the LLM failover provider. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
                 failoverLlmMaxRetries:
-                  type: integer
-                  nullable: true
-                  minimum: 0
-                  maximum: 10
-                  description: Max retries for the LLM failover provider. Null clears it to the provider-type default; omitted leaves it unchanged.
+                  anyOf:
+                    - type: integer
+                      minimum: 0
+                      maximum: 10
+                    - type: 'null'
+                    - type: string
+                      const: ''
+                  description: Max retries for the LLM failover provider. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
                 failoverLlmDetectionModel:
                   type: string
                   description: Model the LLM failover provider uses for ad detection.
@@ -6614,8 +6640,7 @@ paths:
                   type: string
                   description: Base URL for the transcriber failover API backend, SSRF-validated.
                 failoverWhisperApiKey:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                   description: API key for the transcriber failover API backend. Omit to leave unchanged; null or empty to clear.
                 failoverWhisperApiModel:
                   type: string
@@ -6626,10 +6651,13 @@ paths:
                   maximum: 3600
                   description: Request timeout for the transcriber failover API backend.
                 failoverWhisperMaxAttempts:
-                  type: integer
-                  nullable: true
-                  minimum: 1
-                  maximum: 10
+                  anyOf:
+                    - type: integer
+                      minimum: 1
+                      maximum: 10
+                    - type: 'null'
+                    - type: string
+                      const: ''
                   description: Upload attempts for the failover transcriber, including the first upload. Null or blank inherits whisperMaxAttempts; omit to leave unchanged.
                 failoverWhisperLanguage:
                   type: string
@@ -9871,7 +9899,7 @@ paths:
                   type: boolean
                 cron:
                   type: string
-                  description: Standard 5-field cron expression. Must be a valid cron string.
+                  description: Valid 5-field cron expression in UTC.
                 batchSize:
                   type: integer
                   minimum: 1
@@ -9881,15 +9909,15 @@ paths:
                   minimum: 7
                   maximum: 3650
                 provider:
-                  type: string
+                  type: [string, 'null']
                   description: >-
                     'primary'/'secondary' (or the 'a'/'b' aliases) or
-                    'same_as_detection'; blank clears the override so
+                    'same_as_detection'; blank or null clears the override so
                     detection's slot is inherited.
                 model:
-                  type: string
+                  type: [string, 'null']
                   maxLength: 200
-                  description: Blank inherits the detection model.
+                  description: Blank or null inherits the detection model.
       responses:
         '200':
           description: Updated settings
@@ -9897,7 +9925,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PatternCleanupSettings' }
         '400':
-          description: Invalid cron, batchSize/unusedDays out of range, unknown provider slot, or model too long
+          description: Malformed or empty request object, invalid field type, invalid cron, out-of-range value, unknown provider slot, or model too long
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -11753,7 +11781,7 @@ components:
           type: boolean
         cron:
           type: string
-          description: Cron expression; validated with utils.cron.is_valid_expression.
+          description: Five-field cron expression in UTC.
         batchSize:
           type: integer
           minimum: 1
@@ -11782,19 +11810,17 @@ components:
               type: boolean
               description: Whether another run currently holds the cleanup lock.
             lastRun:
-              type: string
-              nullable: true
+              type: [string, 'null']
               description: >-
                 ISO 8601 UTC start of the newest run row, including one still
                 running. Enabling the schedule does not change it.
             lastError:
-              type: string
-              nullable: true
+              type: [string, 'null']
               description: Error of the newest finished run, if it failed.
             lastSummary:
-              allOf:
+              anyOf:
                 - $ref: '#/components/schemas/PatternCleanupRun'
-              nullable: true
+                - type: 'null'
               description: The newest finished run (completed or failed).
             pending:
               type: object
@@ -11814,8 +11840,7 @@ components:
         startedAt:
           type: string
         finishedAt:
-          type: string
-          nullable: true
+          type: [string, 'null']
         status:
           type: string
           enum: [running, completed, failed]
@@ -11825,14 +11850,14 @@ components:
           type: string
           enum: [schedule, manual]
         model:
-          type: string
-          nullable: true
+          type: [string, 'null']
+          description: Configured cleanup model captured at run start, before failover overrides.
         provider:
-          type: string
-          nullable: true
+          type: [string, 'null']
+          description: Configured cleanup provider captured at run start, not actual request usage.
         credentialSlot:
-          type: string
-          nullable: true
+          type: [string, 'null']
+          description: Configured credential slot captured at run start, before failover overrides.
         reviewedCount:
           type: integer
         suggestedCount:
@@ -11841,10 +11866,9 @@ components:
           type: integer
         errorCount:
           type: integer
-          description: Patterns whose review raised and were skipped; the run still completes.
+          description: Number of patterns whose review or storage failed. Repeated call failures can stop the run.
         error:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Set only when the whole run failed (e.g. rate limited).
 
     PatternCleanupSuggestion:
@@ -11853,8 +11877,7 @@ components:
         id:
           type: integer
         runId:
-          type: integer
-          nullable: true
+          type: [integer, 'null']
         patternId:
           type: integer
         kind:
@@ -11864,8 +11887,9 @@ components:
           type: string
           enum: [pending, approved, rejected, undone]
         confidence:
-          type: number
-          nullable: true
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
         reasons:
           type: array
           items:
@@ -11873,25 +11897,76 @@ components:
         payload:
           type: object
           description: >-
-            Shape depends on kind: trim {text}; split {pieces: [{text,
+            Shape depends on kind: trim {text, sponsor?}; split {pieces: [{text,
             sponsor}]}; rename {sponsor}; retire {unusedDays, lastMatchedAt,
             confirmationCount}; flag {falsePositiveCount, confirmationCount,
-            contaminated, contaminationReason, recommended, trimText?}.
+            contaminated, contaminationReason, recommended, trimText?, sponsor?}.
+            A trim's optional sponsor applies a sponsor correction in the
+            same approval as the text edit.
         before:
-          type: object
-          nullable: true
+          type: [object, 'null']
           description: Snapshot of the pattern at suggestion time, used to undo an approval.
+          properties:
+            textTemplate:
+              type: [string, 'null']
+            sponsor:
+              type: [string, 'null']
+            sponsorId:
+              type: [integer, 'null']
+            isActive:
+              type: boolean
+            introVariants:
+              type: array
+              items: { type: string }
+            outroVariants:
+              type: array
+              items: { type: string }
+            sourceContext:
+              type: string
+              description: Optional retained source transcript around the reviewed pattern, with its span marked by double brackets. Absent when unavailable.
         applied:
-          type: object
-          nullable: true
+          type: [object, 'null']
           description: >-
-            Set once approved: newPatternIds, disabledPatternId, appliedAt,
-            appliedSeq, plus text (trim) or sponsorId (rename).
+            Saved approval result, including the post-approval state used
+            to refuse undo after later edits. Older approvals may lack snapshots.
+          properties:
+            newPatternIds:
+              type: array
+              items: { type: integer }
+            disabledPatternId:
+              type: [integer, 'null']
+            appliedAt:
+              type: string
+              format: date-time
+            appliedSeq:
+              type: integer
+              format: int64
+              description: Orders approvals on one pattern for undo conflict checks.
+            text:
+              type: string
+            sponsorId:
+              type: integer
+            after:
+              type: object
+              description: Post-approval values of fields owned by this change.
+              properties:
+                isActive:
+                  type: boolean
+            newPatternStates:
+              type: array
+              description: Post-approval snapshots of split children.
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  fields:
+                    type: object
+                    properties:
+                      isActive: { type: boolean }
         createdAt:
           type: string
         reviewedAt:
-          type: string
-          nullable: true
+          type: [string, 'null']
         pattern:
           type: object
           description: Present on the suggestions list; omitted on approve/reject/undo responses.
@@ -11899,16 +11974,13 @@ components:
             id:
               type: integer
             sponsor:
-              type: string
-              nullable: true
+              type: [string, 'null']
             scope:
               type: string
             networkId:
-              type: string
-              nullable: true
+              type: [string, 'null']
             podcastTitle:
-              type: string
-              nullable: true
+              type: [string, 'null']
             isActive:
               type: boolean
             confirmationCount:
@@ -11916,8 +11988,7 @@ components:
             falsePositiveCount:
               type: integer
             lastMatchedAt:
-              type: string
-              nullable: true
+              type: [string, 'null']
             createdAt:
               type: string
 
@@ -12538,7 +12609,7 @@ components:
           type:
             - boolean
             - 'null'
-          description: Per-feed opt-out from the upstream-transcript differential for this feed. Null follows the global transcriptDifferentialEnabled setting.
+          description: Per-feed override for upstream-transcript differential. True enables and false disables it for this feed; null follows the global transcriptDifferentialEnabled setting.
         latestEpisodes:
           type: array
           items:
@@ -14384,8 +14455,7 @@ components:
           description: 'Routing slot for pattern cleanup, one of `primary`, `secondary`, or `same_as_detection`. Null when unset, which inherits detectionProvider.'
           properties:
             value:
-              type: string
-              nullable: true
+              type: [string, 'null']
             isDefault:
               type: boolean
         patternCleanupModel:
@@ -14393,8 +14463,7 @@ components:
           description: Model for pattern cleanup. Null when unset, which inherits the detection model.
           properties:
             value:
-              type: string
-              nullable: true
+              type: [string, 'null']
             isDefault:
               type: boolean
         whisperModel:
@@ -15467,8 +15536,7 @@ components:
           description: Alias of secondaryProvider.
           properties:
             value:
-              type: string
-              nullable: true
+              type: [string, 'null']
             isDefault:
               type: boolean
         providerBBaseUrl:
@@ -15514,8 +15582,7 @@ components:
           description: Request timeout for Provider A. Null value means the provider-type default.
           properties:
             value:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             isDefault:
               type: boolean
         providerAMaxRetries:
@@ -15523,8 +15590,7 @@ components:
           description: Max retries for Provider A. Null value means the provider-type default.
           properties:
             value:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             isDefault:
               type: boolean
         providerBTimeoutSeconds:
@@ -15532,8 +15598,7 @@ components:
           description: Request timeout for Provider B. Null value means the provider-type default.
           properties:
             value:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             isDefault:
               type: boolean
         providerBMaxRetries:
@@ -15541,8 +15606,7 @@ components:
           description: Max retries for Provider B. Null value means the provider-type default.
           properties:
             value:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             isDefault:
               type: boolean
         failoverLlmEnabled:
@@ -15558,8 +15622,7 @@ components:
           description: LLM failover provider type, or null when unset.
           properties:
             value:
-              type: string
-              nullable: true
+              type: [string, 'null']
             isDefault:
               type: boolean
         failoverLlmBaseUrl:
@@ -15578,8 +15641,7 @@ components:
           description: Request timeout for the LLM failover provider. Null value means the provider-type default.
           properties:
             value:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             isDefault:
               type: boolean
         failoverLlmMaxRetries:
@@ -15587,8 +15649,7 @@ components:
           description: Max retries for the LLM failover provider. Null value means the provider-type default.
           properties:
             value:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             isDefault:
               type: boolean
         failoverLlmDetectionModel:
@@ -15680,8 +15741,7 @@ components:
           description: Failover transcriber upload attempts; null inherits whisperMaxAttempts.
           properties:
             value:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
               minimum: 1
               maximum: 10
             isDefault:
@@ -15844,30 +15904,23 @@ components:
             secondaryProviderTokensPerMin:
               type: integer
             providerATimeoutSeconds:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             providerAMaxRetries:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             providerBTimeoutSeconds:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             providerBMaxRetries:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             failoverLlmEnabled:
               type: boolean
             failoverLlmProvider:
-              type: string
-              nullable: true
+              type: [string, 'null']
             failoverLlmBaseUrl:
               type: string
             failoverLlmTimeoutSeconds:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             failoverLlmMaxRetries:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             failoverLlmDetectionModel:
               type: string
             failoverLlmReviewModel:
@@ -15890,8 +15943,7 @@ components:
             failoverWhisperApiTimeoutSeconds:
               type: integer
             failoverWhisperMaxAttempts:
-              type: integer
-              nullable: true
+              type: [integer, 'null']
             failoverWhisperLanguage:
               type: string
             failoverProbeIntervalMinutes:

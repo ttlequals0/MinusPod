@@ -30,6 +30,7 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 - Optional ad-reviewer stage that confirms, adjusts, or rejects each cut and can resurrect borderline detections
 - Audio-side signals: loudness analysis, DAI transition detection, pre/post-roll, and a VAD-gap detector for spans Whisper drops
 - Per-feed audio cue detection that snaps cuts to a show's jingle or stinger
+- [Publisher transcript comparison](docs/transcript-differential.md) adds evidence for speech omitted from an upstream transcript; unmatched gaps wait for review
 - Confidence scoring with a review queue; rejected detections stay visible for auditing
 - Every marker carries a segment category (sponsor, cross-promo, self-promo, interaction, and opt-in intro/outro/recap), each resolving to remove, beep, or keep, set globally or per feed and defaulting to remove until configured
 
@@ -40,18 +41,20 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 **LLM providers**
 - Bring your own: Anthropic, OpenRouter, Ollama, or any OpenAI-compatible endpoint, switchable at runtime
 - Per-stage tuning (model, temperature, tokens, reasoning) and editable prompts with per-pass overrides
+- Independent Provider A/B routing, plus [failover](docs/failover.md) to a separately configured LLM or transcriber during outages
 - Provider keys encrypted with AES-256-GCM behind a master passphrase
 
 **Patterns and sponsors**
 - Cross-episode pattern learning from your corrections, scoped podcast to network to global
 - Sponsor list with aliases and normalizations
 - Opt-in community pattern sync, with one-PR submission back
+- Experimental [Pattern Cleanup](docs/pattern-cleanup.md): scheduled suggestions to trim, split, rename, or retire learned patterns, with approval and undo
 
 **Publishing**
 - Re-cut RSS feeds served per podcast, with versioned audio files
 - Podcasting 2.0: regenerated transcripts and chapters, AI-content disclosure, value-for-value tags passed through
 - Optional Podping listener refreshes a feed within seconds of the host announcing a new episode, on top of scheduled polling
-- OPML import/export, and an optional cover-art badge that marks the re-feed
+- OPML import/export, including selected subscriptions with ad-free URLs, and an optional cover-art badge that marks the re-feed
 - Local feeds: build a feed from your own audio files instead of an upstream RSS feed, with single or bulk episode upload, a dry-run import preview, and the same ad-removal pipeline as a subscribed feed
 - Optional Recents feed combines processed episodes published on or after its creation date across subscribed and local feeds, including feeds added later
 

@@ -213,6 +213,7 @@ def test_suggestions_list_shape_and_pattern_join(app_client, podcast):
     assert s['kind'] == 'trim' and s['status'] == 'pending'
     assert s['payload'] == {'text': 'Acme'}
     assert s['before']['textTemplate'] == p['text_template']
+    assert s['before']['isActive'] is True
     assert s['reasons'] == ['looks like show content']
     pat = s['pattern']
     assert pat['id'] == p['id'] and pat['sponsor'] == 'Acme' and pat['scope'] == 'podcast'
@@ -267,6 +268,17 @@ def test_approve_returns_updated_suggestion(app_client, podcast):
     body = r.get_json()
     assert body['status'] == 'approved' and body['applied']['appliedAt']
     assert body['applied']['newPatternIds'] == [] and 'applied_at' not in body['applied']
+
+
+
+def test_retire_response_uses_boolean_snapshot_states(app_client, podcast):
+    p = _pattern(podcast)
+    sid = _suggest(podcast, p, kind='retire', payload={'unused_days': 90})
+    response = app_client.post(f'/api/v1/patterns/cleanup/suggestions/{sid}/approve')
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['before']['isActive'] is True
+    assert body['applied']['after']['isActive'] is False
 
 
 def test_approve_missing_suggestion_is_404(app_client, podcast):

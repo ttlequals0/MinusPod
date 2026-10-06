@@ -431,8 +431,11 @@ Pattern Cleanup runs an LLM review of your learned ad patterns on a schedule,
 suggesting trims, splits, sponsor renames, and retirements for patterns that
 carry extra show content or have stopped matching. Off by default, and
 nothing it suggests changes a pattern until you approve it on the Patterns
-page. Full documentation, including the settings, the five suggestion
-kinds, and the API: [Pattern Cleanup](pattern-cleanup.md).
+page. Choose its provider, model, UTC cron schedule, model-review batch size,
+and unused-days threshold under Settings > Experiments. Run now also works
+with scheduling off. Statistics checks can flag new false positives without
+repeating model reviews. Full documentation, including force recheck,
+approve/reject/undo, and the API: [Pattern Cleanup](pattern-cleanup.md).
 
 ## Reprocessing
 

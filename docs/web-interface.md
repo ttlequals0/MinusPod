@@ -16,6 +16,7 @@
 - [Adding a New Ad](#adding-a-new-ad)
 - [Ad Review tab](#ad-review-tab)
 - [Cleanup tab](#cleanup-tab)
+- [OPML export](#opml-export)
 - [Audio Cue Templates](#audio-cue-templates)
 - [Held for Review](#held-for-review)
 - [Partial Detection](#partial-detection)
@@ -25,7 +26,7 @@
 
 ## Overview
 
-The server includes a web-based management UI at `/ui/`:
+The server includes a web-based management UI at `/ui/`. Opening the server root redirects there:
 
 - Dashboard with feed artwork and episode counts
 - Add feeds by RSS URL with optional episode cap
@@ -83,13 +84,29 @@ The server includes a web-based management UI at `/ui/`:
 
 ### Dashboard views
 
-The dashboard toolbar has a Podcasts / Episodes switch. Podcasts is the original view, one card or row per show, and it keeps the grid and list layouts and the sort control. Episodes reorganizes the same dashboard around recent work instead: one section per podcast, each with its cover, its title, its total episode count, a "View all episodes" link, and that show's newest episodes underneath.
+The dashboard toolbar has a Podcasts / Episodes switch. On mobile, an icon menu holds both choices to leave room for the other controls. Podcasts is the original view, one card or row per show, and it keeps the grid and list layouts and the sort control. Episodes reorganizes the same dashboard around recent work instead: one section per podcast, each with its cover, its title, its total episode count, a "View all episodes" link, and that show's newest episodes underneath.
 
 The View menu sets how many episodes each podcast section shows, from 1 to 10, defaulting to 3. Both the chosen view and the chosen count are remembered in the browser, so the dashboard opens the way you left it.
 
 Episode rows in this view are the same rows the feed page renders, with the same status badge, hold chip, pass-through indicator, and per-row action button, so nothing is lost by staying on the dashboard. The Recents feed is left out of the grouped view: its episodes belong to the shows they came from, so it would always render empty.
 
 One request loads the episode groups rather than one request per show, and the dashboard asks for one page of feeds at a time rather than the whole subscription list. Sorting happens on the server before the page is cut, so a page is a slice of the sorted list rather than a sorted slice; changing the sort returns you to page one. Only the active view is fetched: the Podcasts grid never pays for the episode projection, and the Episodes view never fetches a second bare feed list. Screens that need every feed, such as the podcast pickers on Stats, History and Patterns, keep their own unpaginated request.
+
+### OPML export
+
+Use **Export OPML** on the dashboard to download all or selected subscriptions
+with MinusPod's ad-free feed URLs. The picker starts with every feed selected;
+use Select all or individual checkboxes to change the selection. Exports use
+custom feed names when set. If the feed list cannot load, Retry fetches it again.
+
+Settings > Data Management also offers full exports with either original or
+modified URLs. Original URLs point at the publishers; modified URLs point at
+MinusPod and include the feed key when authenticated feeds are enabled.
+
+API clients can use `GET /api/v1/feeds/export-opml?mode=modified` for all feeds,
+or `POST` to the same URL with `{"slugs":["example-podcast"]}` for a selection.
+The POST form avoids URL-length limits for large selections. See
+[API & Webhooks](api-and-webhooks.md#api).
 
 ### Episode actions and job state
 
@@ -217,9 +234,20 @@ Corrections go through the same per-episode corrections endpoint used on the epi
 
 ### Cleanup tab
 
-The Patterns page's third tab, Cleanup, lists suggestions from the Pattern Cleanup experiment (Settings > Experiments > Pattern Cleanup). A badge on the tab shows the pending count. Filter chips narrow the list by kind (Trim, Split, Rename, Retire, Flag) and a status select switches between Pending, Approved, Rejected, and Undone.
+The Patterns page's Cleanup tab lists suggestions from the Pattern Cleanup experiment (Settings > Experiments > Pattern Cleanup). A badge on the tab shows the pending count. Filter by kind (Trim, Split, Rename, Retire, Flag) and status (Pending, Approved, Rejected, Undone).
 
-Each card shows the pattern's sponsor, scope, and podcast, plus the model's confidence and reasons. The proposed change itself renders per kind: a trim strikes through the removed text next to the kept copy, a split shows each new piece in its own box, a rename shows old sponsor to new, and retire or flag shows the stats behind the suggestion. Approve and Reject buttons appear on a pending row, Undo on an already-approved one. Select-all plus bulk Approve/Reject act on every checked pending row at once. An empty list links back to Settings > Experiments to start a run. See [Pattern Cleanup](pattern-cleanup.md) for what each kind does and how approve, reject, and undo work.
+Each card shows the sponsor, scope, podcast, confidence, and reasons. Expand
+Original pattern text to check any suggestion against its source. Source
+context is also available when the original transcript was retained. Trims
+show removed text beside the retained copy; a combined trim and rename shows
+both changes. Split cards show the proposed pieces, while retirement and
+false-positive flags show the relevant statistics.
+
+Approve or Reject a pending suggestion, or Undo an approved one. Load older
+suggestions reaches earlier decisions. Select all and bulk actions apply to
+the loaded pending rows. On mobile, a dropdown replaces the kind filter chips
+to keep the toolbar within the screen. See [Pattern Cleanup](pattern-cleanup.md)
+for validation rules, undo conflicts, and force recheck behavior.
 
 ### Audio Cue Templates
 

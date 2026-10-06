@@ -37,8 +37,8 @@ had not run.
   more than one, MinusPod keeps the best type in that order.
 - Local feeds have no publisher transcript to compare against and always skip
   the stage.
-- The stage is gated by the per-feed and global toggles described below. Off
-  at either level skips it for new runs.
+- The per-feed setting overrides the global default. Inherit follows the
+  global setting; On enables the stage for that feed even when the default is off.
 - The publisher's transcript URL is read-only evidence. MinusPod never serves
   it to subscribers; see [Podcasting 2.0 > Regenerated for the processed
   audio](podcasting-2.0.md#regenerated-for-the-processed-audio).
@@ -106,6 +106,14 @@ else the run does.
   (Inherit / On / Off), next to **Cross-fetch diff**, that overrides the
   global default for that feed. See [Configuration > Ad Detection
   Settings](configuration.md#ad-detection-settings).
+
+The API uses `transcriptDifferentialEnabled` on
+`PUT /api/v1/settings/ad-detection` for the global default and
+`transcriptDifferential` on `PATCH /api/v1/feeds/{slug}` for the feed override.
+Send `true` for On, `false` for Off, or `null` to inherit on the feed.
+`GET /api/v1/feeds/{slug}/episodes/{id}` returns the comparison result in
+`upstreamTranscript`, including status, coverage, and detected gaps. The full
+schemas are in [openapi.yaml](../openapi.yaml).
 
 ## Limits
 

@@ -64,12 +64,12 @@ Key endpoints:
 - `GET /api/v1/patterns/stats` - Pattern database statistics
 - `GET /api/v1/patterns/cleanup` - Pattern cleanup settings plus live state: `inProgress`, `lastRun`, `lastError`, `lastSummary`, pending suggestion counts by kind (Experiments). See [Pattern Cleanup](pattern-cleanup.md#api)
 - `PUT /api/v1/settings/pattern-cleanup` - Update pattern cleanup settings (`enabled`, `cron`, `batchSize`, `unusedDays`, `provider`, `model`)
-- `POST /api/v1/patterns/cleanup/run` - Start a pattern cleanup run (body `{"force": true}` reviews every learned pattern again); 202 with `{"runId"}`, 409 if one is already running, rate limited to 6/hour
+- `POST /api/v1/patterns/cleanup/run` - Start a cleanup batch; `{"force": true}` resets all active learned patterns and replaces their pending suggestions. Later normal batches continue the remaining work. Returns 202 with `{"runId"}`, 400 for invalid input, or 409 if already running; rate limited to 6/hour
 - `GET /api/v1/patterns/cleanup/runs` - Recent pattern cleanup runs, newest first
-- `GET /api/v1/patterns/cleanup/suggestions` - List pattern cleanup suggestions, filterable by `status` and `kind`
+- `GET /api/v1/patterns/cleanup/suggestions` - List suggestions by `status` and `kind`; `limit` and `offset` paginate older decisions. Includes original text and optional retained transcript context; trim proposals can also correct the sponsor
 - `POST /api/v1/patterns/cleanup/suggestions/{id}/approve` - Approve one suggestion, applying it to the pattern in place
 - `POST /api/v1/patterns/cleanup/suggestions/{id}/reject` - Reject one suggestion
-- `POST /api/v1/patterns/cleanup/suggestions/{id}/undo` - Undo an approved suggestion, restoring the pattern's prior state
+- `POST /api/v1/patterns/cleanup/suggestions/{id}/undo` - Undo an approval without overwriting later manual edits; unsafe or out-of-order undo returns 409
 - `POST /api/v1/patterns/cleanup/suggestions/bulk` - Approve or reject several suggestion ids at once
 - `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)
 - `GET /api/v1/search?q=query` - Full-text search across all content, grouped into shows, episodes, transcripts, patterns and sponsors. Optional `groups` (comma-separated subset of those five, default all) limits which are computed; an unrequested group is returned empty rather than omitted. Names are case-sensitive, empty tokens from a stray comma are ignored, and duplicates are tolerated. A query shorter than two characters returns every group empty. The old `type` parameter was removed; a request that still sends it gets a 400
@@ -203,8 +203,8 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Queue Resumed` | The rate-limit hold cleared and the queue is claiming work again. One alert per 5 minutes. |
 | `Service Offline` | An episode deferred because the LLM or Whisper endpoint was unreachable (Offline queue). One alert per service per 5 minutes. |
 | `Service Reachable` | The offline probe found a service back up and re-queued its deferred episodes. One alert per service per 5 minutes. |
-| `Failover Triggered` | A target (`llm-a`, `llm-b`, or `transcriber`) switched to its failover configuration, automatically or by hand. One alert per target per 5 minutes. See [Failover](failover.md). |
-| `Failover Cancelled` | A target switched back to its own configuration. One alert per target per 5 minutes. |
+| `Failover Triggered` | A target (`llm-a`, `llm-b`, or `transcriber`) switched to its failover configuration, automatically or by hand. Every state change sends an event. See [Failover](failover.md). |
+| `Failover Cancelled` | A target switched back to its own configuration. Every state change sends an event. |
 
 The **Test** button sends one sample payload per event the webhook is subscribed to, each shaped like that event's real payload (see Default Payloads below) with `test: true` set. A webhook subscribed to three events gets three test deliveries in one click; a custom payload template renders against each event's own variable set (episode-shaped for `Episode Processed`/`Episode Failed`, provider-shaped for the alert events, and so on).
 
