@@ -198,10 +198,7 @@ def test_keep_action_marker_goes_to_kept_not_rejected():
 
 
 def test_mark_action_marker_lands_in_kept_bucket_via_the_real_endpoint(app_client):
-    """The local _split_markers helper above mirrors get_episode's bucketing
-    by hand; this drives the REAL endpoint to prove action_applied='mark'
-    lands in keptMarkers there too, with actionApplied carried through so
-    the UI can label it Marked rather than Kept."""
+    """Verify the endpoint keeps Mark actions in `keptMarkers` for the UI."""
     slug = 'split-mark-real'
     eid = _seed(slug)
     db.save_episode_details(slug, eid, ad_markers=[

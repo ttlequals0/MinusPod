@@ -870,10 +870,7 @@ def _public_feed_url(slug, key):
 
 
 def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
-    """Fields shared by the feed list, detail, and PATCH responses.
-    global_actions lets a caller looping over many feeds resolve the
-    global setting once instead of once per feed.
-    """
+    """Build shared feed response fields, optionally reusing global actions."""
     resolved_actions = db.resolve_segment_actions(podcast['slug'], podcast, global_actions=global_actions)
     ad_chapters_enabled, ad_chapter_categories = ad_chapter_compat_view(resolved_actions)
     return {

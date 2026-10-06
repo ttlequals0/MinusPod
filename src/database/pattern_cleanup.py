@@ -111,10 +111,7 @@ class PatternCleanupMixin:
     def get_cleanup_suggestions(self, status: str | None = None, kind: str | None = None,
                                 limit: int = 50, offset: int = 0,
                                 before_id: int | None = None) -> list[dict]:
-        """Suggestions newest first, each with a `pattern` summary.
-        `before_id` keyset-pages after `s.id`, and takes precedence over `offset` when both
-        are given. Ordered by id alone (not created_at) so the before_id cursor, offset, and
-        sort order all agree."""
+        """Return suggestions newest first; `before_id` pages by id and takes precedence over `offset`."""
         summary_cols = ', '.join(f'ap.{c} AS p_{c}' for c in _PATTERN_SUMMARY_FIELDS)
         query = f"""
             SELECT s.*, {summary_cols}, ks.name AS p_sponsor, pc.title AS p_podcast_title

@@ -295,10 +295,7 @@ class TestMergeDuplicateOverlapPrefersKeepCategory:
         assert out[0]['category'] == 'interaction'
 
     def test_sponsor_remove_vs_interaction_mark_combines_to_interaction(self):
-        """Mark must be preferred as the keep-resolving side exactly like
-        keep, even when (unlike the keep sibling test above) the
-        higher-confidence contributor is the remove side: only an explicit
-        mark check, not the confidence fallback, can get this right."""
+        """Prefer Mark as the keep-resolving side even when remove has higher confidence."""
         det = self._det()
         action_map = dict(_all_remove_map(), interaction='mark')
         sponsor_ad = _ad(0.0, 100.0, 'text_pattern', confidence=0.9, category='sponsor')
@@ -734,10 +731,7 @@ class TestEffectiveActionMergeGate:
         new_last, entries = split_conflicting_action_span(
             mark_ad, remove_ad, 'mark', 'remove')
 
-        # Both sides resolve to remove-priority once the pattern override
-        # applies, so they split at their shared boundary (130.0); a mark
-        # side wrongly left at keep-priority would instead keep the whole
-        # [100, 140] span and push remove_ad's start to 140.0.
+        # Both sides resolve to remove priority; keeping Mark priority would push remove_ad to 140.0.
         assert new_last['end'] == 130.0
         assert entries[0]['start'] == 130.0
 

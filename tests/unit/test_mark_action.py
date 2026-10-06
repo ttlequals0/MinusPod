@@ -1,8 +1,4 @@
-"""Mark action: keep-like in the pipeline, chaptered instead of invisible.
-
-Chapter-eligibility tests (held_status, min confidence, resolve_ad_chapter_config)
-live in test_ad_chapters.py; this covers the pipeline partition/precedence side.
-"""
+"""Test Mark pipeline precedence and partitioning; chapter eligibility is covered in test_ad_chapters.py."""
 from tests.app_bootstrap import bootstrap
 
 bootstrap('mark_action_test_', passphrase='mark-action-test-pass')

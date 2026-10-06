@@ -369,10 +369,7 @@ def is_pending_review(marker) -> bool:
 
 
 def refreshed_keep_like_action(marker, actions: dict[str, str] | None) -> str | None:
-    """A keep-like marker's action_applied re-resolved against the feed's
-    CURRENT per-category action. A held marker, or no actions map, keeps the
-    stored action as-is. Never resolves into a cut (remove/beep).
-    """
+    """Re-resolve keep-like actions from feed config; preserve held or unmapped actions and never cut."""
     action = marker.get('action_applied')
     category = marker.get('category')
     if (actions is not None and is_keep_like(action) and not is_pending_review(marker)
@@ -2197,10 +2194,7 @@ def normalize_ad_chapters_enabled_compat(value, allow_null=False) -> tuple[bool 
 
 def apply_ad_chapter_compat(resolved: dict[str, str], data: dict,
                             allow_null: bool = False) -> tuple[dict[str, str] | None, str | None]:
-    """Translate adChaptersEnabled/adChapterCategories into the categories
-    that flip between keep and mark. Returns (changes, error); changes is
-    None when neither field was present. allow_null no-ops a cleared field.
-    """
+    """Translate legacy chapter settings to keep/mark actions; `allow_null` treats cleared fields as absent."""
     if 'adChaptersEnabled' not in data and 'adChapterCategories' not in data:
         return None, None
 

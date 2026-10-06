@@ -47,11 +47,7 @@ class AdChapterConfig:
 
 
 def refresh_keep_like_markers(markers, actions) -> list[dict]:
-    """Keep/mark markers re-resolved against the feed's CURRENT per-category
-    action, so a Keep <-> Mark switch takes effect on a chapter rebuild
-    without a re-render. A held marker is left alone: AdChapterConfig.held_status
-    already re-resolves it from `actions` on its own.
-    """
+    """Re-resolve marker actions from current feed config; held markers use AdChapterConfig."""
     refreshed = []
     for marker in markers or []:
         resolved = refreshed_keep_like_action(marker, actions)

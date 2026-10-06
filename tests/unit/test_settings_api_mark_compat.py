@@ -1,10 +1,4 @@
-"""Global adChaptersEnabled/adChapterCategories compatibility fields.
-
-Retired in favor of the 'mark' segment action (2.98.0,
-mark_action_from_ad_chapters_v1): GET /settings derives them from
-segment_category_actions; PUT/PATCH /settings/ad-detection translates them
-back into it. See spec 1.4.
-"""
+"""Test compatibility translation for retired ad chapter settings."""
 import json
 
 import pytest
@@ -27,10 +21,7 @@ def client():
 
 @pytest.fixture(autouse=True)
 def _reset_segment_category_actions():
-    """This module shares one DB singleton with other settings test modules
-    in the same pytest run (see test_settings_registry_api_roundtrip.py);
-    clear the mutated map so a later module's "fresh default" assertions
-    are not left looking at a category this file marked."""
+    """Clear shared settings mutations so later tests see fresh defaults."""
     yield
     from api import get_database
     get_database().clear_setting('segment_category_actions')
