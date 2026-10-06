@@ -230,3 +230,19 @@ def test_disabling_failover_clears_active_state(app_client, hdr):
     fire.assert_called_once_with('cancel', 'llm:primary', 'manual', None)
     event = db.get_failover_events(1)[0]
     assert (event['target'], event['action'], event['source']) == ('llm:primary', 'cancel', 'manual')
+
+
+def test_disabling_provider_b_cancels_active_secondary_failover(app_client, hdr):
+    db = get_database()
+    db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+    db.set_setting('failover_state:llm:secondary',
+                   '{"active": true, "source": "manual", "since": "x", "reason": "r"}',
+                   is_default=False)
+    with patch('failover.webhook_service.fire_failover_event') as fire:
+        r = app_client.put('/api/v1/settings/ad-detection',
+                           json={'providerBEnabled': False}, headers=hdr)
+    assert r.status_code == 200
+    assert db.get_setting('failover_state:llm:secondary') is None
+    fire.assert_called_once_with('cancel', 'llm:secondary', 'manual', None)
+    event = db.get_failover_events(1)[0]
+    assert (event['target'], event['action'], event['source']) == ('llm:secondary', 'cancel', 'manual')

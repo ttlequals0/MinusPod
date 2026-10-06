@@ -54,6 +54,8 @@ def trigger_failover(name):
     target = failover.API_TARGET_NAMES.get(name)
     if target is None:
         return error_response('unknown failover target', 404)
+    if not failover.target_enabled(target):
+        return error_response('failover_target_disabled', 409)
     if not failover.is_configured(target):
         return error_response('failover_not_configured', 409)
     try:
@@ -90,5 +92,16 @@ def cancel_failover(name):
 @api.route('/failover/probe', methods=['POST'])
 @log_request
 def probe_failover():
-    failover.probe_tick(get_database())
+    db = get_database()
+    before = failover.all_probe_states()
+    failover.probe_tick(db)
+    after = failover.all_probe_states()
+    recovered = any(
+        after[target]['reachable'] is True and before[target]['reachable'] is not True
+        for target in after
+    )
+    if recovered and db.get_deferred_episodes():
+        from main_app.background import _offline_queue_target_resolver
+        from offline_queue import offline_queue_tick
+        offline_queue_tick(db, _offline_queue_target_resolver)
     return json_response({'probes': probes_view()})

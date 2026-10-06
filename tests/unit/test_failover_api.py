@@ -69,6 +69,16 @@ def test_trigger_unconfigured_is_409(app_client, hdr):
     assert r.get_json()['error'] == 'failover_not_configured'
 
 
+def test_trigger_disabled_provider_b_is_409(app_client, hdr):
+    db = api.get_database()
+    db.set_setting('secondary_provider_enabled', 'false', is_default=False)
+    db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+    failover.invalidate_cache()
+    r = app_client.post('/api/v1/failover/llm-b/trigger', headers=hdr)
+    assert r.status_code == 409
+    assert r.get_json()['error'] == 'failover_target_disabled'
+
+
 @pytest.mark.parametrize('body', [[], [1], 'reason', 1, 0, False, True])
 def test_trigger_rejects_non_object_json(app_client, hdr, configured, body):
     with patch('failover.trigger') as trigger:
@@ -144,6 +154,33 @@ def test_probe_now(app_client, hdr, configured):
     assert r.status_code == 200
     assert r.get_json()['probes']['llm-a']['reachable'] is True
     assert r.get_json()['probes']['llm-a']['healthyStreak'] == 1
+
+
+def test_probe_now_requeues_deferred_episode_without_maintenance_tick(app_client, hdr, configured):
+    db = configured
+    for t in failover.PROBE_TARGETS:
+        db.clear_setting(f'failover_probe:{t}')
+    failover.invalidate_cache()
+    slug = 'failover-probe-feed'
+    db.create_podcast(slug, 'https://example.com/feed.xml', title='Probe Requeue Test')
+    db.upsert_episode(slug, 'ep-1', title='Episode 1', status='deferred',
+                      original_url='https://example.com/ep1.mp3',
+                      error_message='Deferred (llm endpoint unreachable)',
+                      deferred_at='2999-01-01T00:00:00Z', deferred_service='llm')
+    snapshot = {'detection': {'credential_slot': 'primary'}, 'review': {'credential_slot': 'primary'},
+               'verification': {'credential_slot': 'primary'}, 'chapters': {'credential_slot': 'primary'}}
+    try:
+        with patch('main_app.background._resolve_route_snapshot', return_value=snapshot), \
+                patch('failover.probe_target',
+                      return_value={'reachable': True, 'status': 200, 'detail': 'ok'}):
+            r = app_client.post('/api/v1/failover/probe', headers=hdr)
+        assert r.status_code == 200
+        assert db.get_episode(slug, 'ep-1')['status'] == 'pending'
+    finally:
+        db.delete_podcast(slug)
+        for t in failover.PROBE_TARGETS:
+            db.clear_setting(f'failover_probe:{t}')
+        failover.invalidate_cache()
 
 
 def test_models_slot_failover_uses_failover_client(app_client, hdr, configured):

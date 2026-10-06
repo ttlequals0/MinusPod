@@ -2212,6 +2212,8 @@ def _apply_secondary_provider_fields(db, data):
         value = 'true' if bool(data['secondaryProviderEnabled']) else 'false'
         db.set_setting('secondary_provider_enabled', value, is_default=False)
         logger.info(f"Updated secondary_provider_enabled to: {value}")
+        if value == 'false':
+            _after_commit(lambda: failover.cancel(failover.TARGET_LLM_SECONDARY, source='manual'))
         changed = True
 
     if 'secondaryProvider' in data:
