@@ -23,6 +23,7 @@ release notes.
 - Pattern Cleanup (Experiments): a scheduled LLM review of learned ad patterns that suggests trims, splits, sponsor renames, and retirements. It also flags patterns with many false positives or copy mixed with show content. Suggestions are reviewed on the Patterns page and change nothing until approved, and an approved change can be undone. Off by default. See [Pattern Cleanup](docs/pattern-cleanup.md).
 
 ### Fixed
+- Pattern cleanup rejects malformed requests and invalid setting types before starting a run or saving changes.
 - A stale pre-fix published date could make an upstream GUID change look like a new episode, duplicating it in the feed. Matching now tolerates that drift, a one-time cleanup removes existing duplicates, and the renderer drops any repeat too.
 - Episode run details show which targets ran on failover, and the episode API returns it as `failover` in run stats.
 - The Failover card shows Provider B as off, with no action, while Provider B is disabled; `GET /failover` reports `enabled` per target.

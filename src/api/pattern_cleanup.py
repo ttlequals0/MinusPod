@@ -117,12 +117,12 @@ def get_pattern_cleanup_status():
 @limiter.limit('6/hour')
 @log_request
 def run_pattern_cleanup():
-    data = request.get_json(silent=True)
-    if data is None:
-        data = {}
+    data = request.get_json(silent=True) if request.get_data() else {}
     if not isinstance(data, dict):
         return error_response('request body must be a JSON object', 400)
-    force = bool(data.get('force', False))
+    force = data.get('force', False)
+    if not isinstance(force, bool):
+        return error_response('force must be a boolean', 400)
     db = get_database()
     run_id = pattern_cleanup.start_cleanup_run(db, force=force, trigger='manual')
     if run_id is None:

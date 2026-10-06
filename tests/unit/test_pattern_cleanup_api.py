@@ -147,6 +147,23 @@ def test_run_rejects_non_object_body(app_client, podcast):
     start.assert_not_called()
 
 
+@pytest.mark.parametrize('body', ['{', 'null', 'false', '1', '"false"'])
+def test_run_rejects_invalid_json_without_starting(app_client, podcast, body):
+    with patch.object(pattern_cleanup, 'start_cleanup_run') as start:
+        response = app_client.post('/api/v1/patterns/cleanup/run',
+                                   data=body, content_type='application/json')
+    assert response.status_code == 400
+    start.assert_not_called()
+
+
+@pytest.mark.parametrize('force', ['false', 'true', 0, 1, None, [], {}])
+def test_run_rejects_non_boolean_force(app_client, podcast, force):
+    with patch.object(pattern_cleanup, 'start_cleanup_run') as start:
+        response = app_client.post('/api/v1/patterns/cleanup/run', json={'force': force})
+    assert response.status_code == 400
+    start.assert_not_called()
+
+
 def test_run_conflict_when_lock_held(app_client, podcast):
     """No mocking: the endpoint's own start_cleanup_run hits the real fcntl lock."""
     fd = open(os.path.join(str(podcast.data_dir), pattern_cleanup.LOCK_FILENAME), 'w')
@@ -376,6 +393,31 @@ def test_put_settings_blank_provider_clears_override(app_client, podcast, reset_
 def test_put_settings_invalid_cron_is_400(app_client, podcast, reset_cleanup_settings):
     r = app_client.put('/api/v1/settings/pattern-cleanup', json={'cron': 'not a cron'})
     assert r.status_code == 400
+
+
+@pytest.mark.parametrize('body', ['{', 'null', 'false', '1', '"enabled"', '["enabled"]'])
+def test_put_settings_requires_json_object(app_client, podcast, reset_cleanup_settings, body):
+    response = app_client.put('/api/v1/settings/pattern-cleanup',
+                              data=body, content_type='application/json')
+    assert response.status_code == 400
+    assert podcast.get_setting('pattern_cleanup_schedule_anchor') is None
+
+
+@pytest.mark.parametrize('field,value', [
+    ('enabled', 'false'), ('enabled', 'true'), ('enabled', 0), ('enabled', 1),
+    ('enabled', None), ('enabled', []), ('enabled', {}),
+    ('cron', None), ('cron', 1), ('cron', True), ('cron', []), ('cron', {}),
+])
+def test_put_settings_invalid_types_do_not_save_partial_changes(
+        app_client, podcast, reset_cleanup_settings, field, value):
+    podcast.set_setting('pattern_cleanup_model', 'original-model')
+    response = app_client.put('/api/v1/settings/pattern-cleanup', json={
+        'enabled': True, 'model': 'replacement-model', field: value,
+    })
+    assert response.status_code == 400
+    assert podcast.get_setting('pattern_cleanup_model') == 'original-model'
+    assert podcast.get_setting_bool('pattern_cleanup_enabled', False) is False
+    assert podcast.get_setting('pattern_cleanup_schedule_anchor') is None
 
 
 @pytest.mark.parametrize('value', [0, 201, 'nope', True])

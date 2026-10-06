@@ -4511,20 +4511,24 @@ def update_db_backup_settings():
 def update_pattern_cleanup_settings():
     """Update pattern cleanup settings; a blank provider inherits detection's slot."""
     db = get_database()
-    data = request.get_json()
-    if not data:
-        return error_response('Request body required', 400)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not data:
+        return error_response('request body must be a non-empty JSON object', 400)
 
     staged = {}
     if 'enabled' in data:
-        enabling = bool(data['enabled'])
+        enabling = data['enabled']
+        if not isinstance(enabling, bool):
+            return error_response('enabled must be a boolean', 400)
         staged['pattern_cleanup_enabled'] = 'true' if enabling else 'false'
         was_enabled = db.get_setting_bool('pattern_cleanup_enabled', default=False)
         if enabling and not was_enabled:
             # Turning the schedule on waits for the next cron slot, even after a stale run.
             staged['pattern_cleanup_schedule_anchor'] = utc_now_iso()
     if 'cron' in data:
-        cron = (data['cron'] or '').strip()
+        if not isinstance(data['cron'], str):
+            return error_response('cron must be a string', 400)
+        cron = data['cron'].strip()
         if not is_valid_expression(cron):
             return error_response(f'invalid cron expression: {cron}', 400)
         staged['pattern_cleanup_cron'] = cron
