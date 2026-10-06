@@ -53,8 +53,10 @@ const STATUS_BADGE: Record<Exclude<CleanupStatus, 'pending'>, [string, string]> 
   undone: ['Undone', tint.neutral],
 };
 
-const actionBtn = `${cardActionBtn} grow basis-0 sm:grow-0 sm:basis-auto disabled:opacity-50 transition-colors ${focusRing}`;
-const bulkActionBtn = `${cardActionBtn.replace('whitespace-nowrap', 'whitespace-normal')} grow basis-0 sm:grow-0 sm:basis-auto sm:whitespace-nowrap disabled:opacity-50 transition-colors ${focusRing}`;
+// cardActionBtn is 44px at every width elsewhere; scope it to phones here, matching FailoverSection.
+const scopedCardActionBtn = cardActionBtn.replace('min-h-[44px]', 'max-sm:min-h-[44px]');
+const actionBtn = `${scopedCardActionBtn} grow basis-0 sm:grow-0 sm:basis-auto disabled:opacity-50 transition-colors ${focusRing}`;
+const bulkActionBtn = `${scopedCardActionBtn.replace('whitespace-nowrap', 'whitespace-normal')} grow basis-0 sm:grow-0 sm:basis-auto sm:whitespace-nowrap disabled:opacity-50 transition-colors ${focusRing}`;
 const PAGE_SIZE = 200;
 
 function actionError(err: unknown, action?: 'approve' | 'reject' | 'undo'): string {
@@ -110,7 +112,7 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
             <span className={`${badgeBase} ${tint.secondary}`}>{piece.sponsor}</span>
             <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words">{piece.text}</p>
             <details className="mt-2 border-t border-border pt-2">
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">
+              <summary className="flex max-sm:min-h-11 cursor-pointer items-center text-sm text-muted-foreground">
                 Locate piece in original text
               </summary>
               <TrimDiff original={original} kept={piece.text} />
@@ -230,7 +232,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
 
       {s.before?.textTemplate && (
         <details className="rounded border border-border bg-muted/30 px-3 py-2">
-          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
+          <summary className="flex max-sm:min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
             Original pattern text
           </summary>
           <p className="max-h-60 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
@@ -240,7 +242,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
       )}
       {s.before?.sourceContext && (
         <details className="rounded border border-border bg-muted/30 px-3 py-2">
-          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
+          <summary className="flex max-sm:min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
             Source context
           </summary>
           <p className="max-h-60 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
@@ -390,7 +392,7 @@ export default function CleanupTab() {
             id="cleanup-status"
             value={status}
             onChange={(e) => changeFilter({ status: e.target.value as CleanupStatus })}
-            className={`min-h-11 flex-1 sm:flex-none min-w-0 ${selectBase}`}
+            className={`max-sm:min-h-11 flex-1 sm:flex-none min-w-0 ${selectBase}`}
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
@@ -406,7 +408,7 @@ export default function CleanupTab() {
             onChange={(checked) => setSelected(checked ? new Set(pendingIds) : new Set())}
             label="Select all"
             labelClassName="text-sm text-muted-foreground"
-            className="min-h-11"
+            className="max-sm:min-h-11"
           />
           <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
             <button
@@ -465,7 +467,7 @@ export default function CleanupTab() {
             type="button"
             disabled={isFetchingNextPage}
             onClick={() => fetchNextPage()}
-            className={`min-h-11 px-4 py-2 rounded-lg text-sm disabled:opacity-50 ${focusRing} ${btnOutline}`}
+            className={`max-sm:min-h-11 px-4 py-2 rounded-lg text-sm disabled:opacity-50 ${focusRing} ${btnOutline}`}
           >
             {isFetchingNextPage ? 'Loading...' : 'Load older suggestions'}
           </button>

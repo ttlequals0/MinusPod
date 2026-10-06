@@ -33,8 +33,8 @@ interface PatternCleanupSectionProps {
 }
 
 const STORAGE_KEY = 'settings-section-pattern-cleanup';
-const fieldInput = 'min-h-11 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm';
-const actionButton = `min-h-11 px-4 py-2 rounded-lg disabled:opacity-50 text-sm ${focusRing}`;
+const fieldInput = 'max-sm:min-h-11 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm';
+const actionButton = `max-sm:min-h-11 px-4 py-2 rounded-lg disabled:opacity-50 text-sm ${focusRing}`;
 
 function runErrorMessage(e: unknown): string {
   if (e instanceof ApiError && e.status === 409) return 'A cleanup run is already in progress.';
@@ -144,7 +144,7 @@ function PatternCleanupSection({
           </div>
 
           {settings.enabled && (
-            <div className="[&_input]:min-h-11 [&_select]:min-h-11 [&_button]:min-h-11">
+            <div className="max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
               <CronScheduleField
                 id="pattern-cleanup-cron"
                 value={settings.cron}
@@ -154,7 +154,7 @@ function PatternCleanupSection({
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 [&_select]:min-h-11 [&_input]:min-h-11 [&_button]:min-h-11 [&_label]:min-h-11 [&_label]:flex [&_label]:items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-sm:[&_select]:min-h-11 max-sm:[&_input]:min-h-11 max-sm:[&_button]:min-h-11 max-sm:[&_label]:min-h-11 [&_label]:flex [&_label]:items-center">
             <StageProviderSelect
               id="patternCleanupProvider"
               label="Cleanup Provider"

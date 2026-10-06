@@ -259,6 +259,32 @@ describe('PatternCleanupSection', () => {
     expect(await screen.findByText(/never/i)).toBeDefined();
   });
 
+  it('scopes 44px control sizing to phones, not desktop', async () => {
+    const { container } = renderSection();
+    await screen.findByLabelText(/schedule \(cron\)/i);
+    const tokens = (el: Element) => el.className.split(' ');
+    const divs = Array.from(container.querySelectorAll('div'));
+
+    const cronWrapper = divs.find((d) => tokens(d).includes('max-sm:[&_input]:min-h-11'));
+    expect(tokens(cronWrapper!)).toContain('max-sm:[&_select]:min-h-11');
+    expect(tokens(cronWrapper!)).toContain('max-sm:[&_button]:min-h-11');
+    expect(tokens(cronWrapper!)).not.toContain('[&_input]:min-h-11');
+
+    const providerWrapper = divs.find((d) => tokens(d).includes('max-sm:[&_label]:min-h-11'));
+    expect(tokens(providerWrapper!)).toContain('max-sm:[&_select]:min-h-11');
+    expect(tokens(providerWrapper!)).toContain('max-sm:[&_input]:min-h-11');
+    expect(tokens(providerWrapper!)).toContain('max-sm:[&_button]:min-h-11');
+    expect(tokens(providerWrapper!)).not.toContain('[&_label]:min-h-11');
+
+    const batch = screen.getByLabelText(/patterns per run/i);
+    expect(tokens(batch)).toContain('max-sm:min-h-11');
+    expect(tokens(batch)).not.toContain('min-h-11');
+
+    const run = screen.getByRole('button', { name: /run now/i });
+    expect(tokens(run)).toContain('max-sm:min-h-11');
+    expect(tokens(run)).not.toContain('min-h-11');
+  });
+
   it('renders Retry instead of the form when the GET fails', async () => {
     mockGet.mockRejectedValue(new Error('boom'));
     const user = userEvent.setup();
