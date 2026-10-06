@@ -1033,8 +1033,6 @@ def resolve_chapters_mode(podcast_row, db=None):
 # Chapter list in served descriptions (#720): per-feed 'on'/'off', NULL
 # follows the global chapters_in_notes setting.
 CHAPTERS_IN_NOTES_VALUES = EPISODE_LOGS_VALUES
-# Per-feed ad_chapters_enabled_override, same 'on'/'off' shape.
-AD_CHAPTERS_OVERRIDE_VALUES = EPISODE_LOGS_VALUES
 
 
 def _resolve_feed_toggle(db, podcast_row, column, setting, default) -> bool:
@@ -2170,6 +2168,21 @@ def coerce_bool_setting(value) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in _TRUTHY_STRINGS
+
+
+def normalize_ad_chapters_enabled_compat(value, allow_null=False) -> tuple[bool | None, str | None]:
+    """adChaptersEnabled compat field to bool; accepts legacy 'on'/'off'
+    strings an unmigrated feed panel may still send, and (per the old
+    per-feed override contract) null as a no-op when allow_null is set.
+    Returns (bool_or_None, error); error is None on success.
+    """
+    if value is None and allow_null:
+        return True, None
+    if isinstance(value, bool):
+        return value, None
+    if isinstance(value, str) and value.lower() in ('on', 'off'):
+        return value.lower() == 'on', None
+    return None, "adChaptersEnabled must be true, false, 'on', or 'off'"
 
 
 def _validate_parallel_windows(value: str) -> bool:

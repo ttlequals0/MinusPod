@@ -29,8 +29,8 @@ from config import (
     PODPING_HOST_ACTIVE_DAYS,
     VALID_CHAPTERS_MODES,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
-    coerce_bool_setting,
     differential_fetch_effective,
+    normalize_ad_chapters_enabled_compat,
     resolve_differential_fetch_mode,
     resolve_feed_processing_mode,
     resolve_max_ad_duration_confirmed,
@@ -434,17 +434,10 @@ def _deserialize_json_map(raw):
 
 
 def _translate_ad_chapter_compat_for_feed(db, pending_override_raw, data):
-    """Translate the retired adChaptersEnabled/adChapterCategories fields into
-    the feed's segment_category_actions override (spec 1.4): true marks a
-    keep category, false demotes a marked one back to keep, adChaptersEnabled:
-    false demotes every mark on this feed, true is accepted and ignored.
-
-    `pending_override_raw` is the override JSON this PATCH is about to store
-    (or the feed's current one if segmentCategoryActions was not sent),
-    which doubles as the baseline for "currently keep/mark".
-
-    Returns (new_override_json_or_None, error). None means neither compat
-    field was present, so the caller leaves segment_category_actions alone.
+    """Translate the retired adChaptersEnabled/adChapterCategories fields
+    into the feed's segment_category_actions override (spec 1.4). Returns
+    (new_override_json_or_None, error); None means neither field was
+    present, so the caller leaves segment_category_actions alone.
     """
     if 'adChaptersEnabled' not in data and 'adChapterCategories' not in data:
         return None, None
@@ -471,11 +464,18 @@ def _translate_ad_chapter_compat_for_feed(db, pending_override_raw, data):
                 override[cat] = 'keep'
                 resolved[cat] = 'keep'
 
-    if 'adChaptersEnabled' in data and not coerce_bool_setting(data['adChaptersEnabled']):
-        for cat in SEGMENT_CATEGORIES:
-            if resolved.get(cat) == 'mark':
-                override[cat] = 'keep'
-                resolved[cat] = 'keep'
+    if 'adChaptersEnabled' in data:
+        # Null is a no-op here, matching the old per-feed override contract
+        # where clearing adChaptersEnabled meant "no instruction, inherit".
+        enabled, error = normalize_ad_chapters_enabled_compat(
+            data['adChaptersEnabled'], allow_null=True)
+        if error:
+            return None, error
+        if not enabled:
+            for cat in SEGMENT_CATEGORIES:
+                if resolved.get(cat) == 'mark':
+                    override[cat] = 'keep'
+                    resolved[cat] = 'keep'
 
     return json.dumps(override), None
 

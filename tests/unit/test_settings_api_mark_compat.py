@@ -110,10 +110,24 @@ def test_adchaptersenabled_true_is_accepted_and_ignored(client):
     assert body['segmentCategoryActions']['value']['sponsor'] == 'mark'
 
 
+def test_adchaptersenabled_accepts_legacy_on_off_strings(client):
+    """The still-unmigrated feed panel may still send 'on'/'off'."""
+    assert _put(client, {'segmentCategoryActions': {'sponsor': 'mark'}}).status_code == 200
+
+    assert _put(client, {'adChaptersEnabled': 'on'}).status_code == 200
+    assert client.get(BASE).get_json()['segmentCategoryActions']['value']['sponsor'] == 'mark'
+
+    assert _put(client, {'adChaptersEnabled': 'off'}).status_code == 200
+    assert client.get(BASE).get_json()['segmentCategoryActions']['value']['sponsor'] == 'keep'
+
+
 @pytest.mark.parametrize('payload', [
     {'adChapterCategories': {'bogus': True}},
     {'adChapterCategories': {'sponsor': 'yes'}},
     {'adChapterCategories': []},
+    {'adChaptersEnabled': 'maybe'},
+    {'adChaptersEnabled': 1},
+    {'adChaptersEnabled': None},
 ])
 def test_adchaptercategories_validates(client, payload):
     assert _put(client, payload).status_code == 400

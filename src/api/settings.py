@@ -34,6 +34,7 @@ from config import (
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
     WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
     coerce_bool_setting,
+    normalize_ad_chapters_enabled_compat,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
     get_env_backed_int,
@@ -1726,13 +1727,9 @@ def _apply_segment_category_actions(db, data):
 
 
 def _translate_ad_chapter_compat(db, data):
-    """Translate the retired adChaptersEnabled/adChapterCategories fields into
-    the global segment_category_actions map (spec 1.4): true marks a keep
-    category, false demotes a marked one back to keep, adChaptersEnabled:
-    false demotes every mark, true is accepted and ignored.
-
-    Returns (new_map_or_None, error). None means neither compat field was
-    present, so the caller writes nothing.
+    """Translate the retired adChaptersEnabled/adChapterCategories fields
+    into segment_category_actions (spec 1.4). Returns (new_map_or_None,
+    error); None means neither field was present, so nothing is written.
     """
     if 'adChaptersEnabled' not in data and 'adChapterCategories' not in data:
         return None, None
@@ -1753,10 +1750,14 @@ def _translate_ad_chapter_compat(db, data):
             elif not flag and merged.get(cat) == 'mark':
                 merged[cat] = 'keep'
 
-    if 'adChaptersEnabled' in data and not coerce_bool_setting(data['adChaptersEnabled']):
-        for cat in SEGMENT_CATEGORIES:
-            if merged.get(cat) == 'mark':
-                merged[cat] = 'keep'
+    if 'adChaptersEnabled' in data:
+        enabled, error = normalize_ad_chapters_enabled_compat(data['adChaptersEnabled'])
+        if error:
+            return None, error
+        if not enabled:
+            for cat in SEGMENT_CATEGORIES:
+                if merged.get(cat) == 'mark':
+                    merged[cat] = 'keep'
 
     return merged, None
 

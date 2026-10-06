@@ -196,7 +196,7 @@ def test_ad_chapter_settings_reject_without_partial_write(client):
     assert put({'adChaptersEnabled': False}).status_code == 200
     assert put({'adChaptersEnabled': True, 'adChapterTitleFormat': '{nope}'}).status_code == 400
     assert enabled() is False
-    assert put({'adChaptersEnabled': 'false'}).status_code == 200
+    assert put({'adChaptersEnabled': 'off'}).status_code == 200
     assert enabled() is False
 
 

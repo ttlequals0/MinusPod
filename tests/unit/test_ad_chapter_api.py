@@ -145,10 +145,52 @@ def test_patch_ad_chapters_enabled_true_is_accepted_and_ignored(app_client, seed
     assert feed['adChapterCategories']['sponsor'] is True
 
 
+def test_patch_ad_chapters_enabled_accepts_legacy_on_off_strings(app_client, seeded_feed):
+    """The still-unmigrated feed panel may still send 'on'/'off'."""
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    r = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers, json={
+        'segmentCategoryActions': {'sponsor': 'mark'}})
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    r = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers, json={
+        'adChaptersEnabled': 'on'})
+    assert r.status_code == 200, r.get_data(as_text=True)
+    assert app_client.get(
+        f'/api/v1/feeds/{slug}').get_json()['adChapterCategories']['sponsor'] is True
+
+    r = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers, json={
+        'adChaptersEnabled': 'off'})
+    assert r.status_code == 200, r.get_data(as_text=True)
+    assert app_client.get(
+        f'/api/v1/feeds/{slug}').get_json()['adChapterCategories']['sponsor'] is False
+
+
+def test_patch_ad_chapters_enabled_null_is_a_no_op(app_client, seeded_feed):
+    """Matches the old per-feed override contract: null clears/ignores."""
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    r = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers, json={
+        'segmentCategoryActions': {'sponsor': 'mark'}})
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    r = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers, json={
+        'adChaptersEnabled': None})
+    assert r.status_code == 200, r.get_data(as_text=True)
+    assert app_client.get(
+        f'/api/v1/feeds/{slug}').get_json()['adChapterCategories']['sponsor'] is True
+
+
 @pytest.mark.parametrize('payload', [
     {'adChapterCategories': {'bogus': True}},
     {'adChapterCategories': {'sponsor': 1}},
     {'adChapterCategories': 'x'},
+    {'adChaptersEnabled': 'maybe'},
+    {'adChaptersEnabled': 1},
 ])
 def test_feed_ad_chapter_categories_validate(app_client, seeded_feed, payload):
     _authed(app_client)
