@@ -1,8 +1,6 @@
 """Ad chapter settings: defaults and title format validation.
 
-ad_chapters_enabled and ad_chapter_categories are retired in favor of the
-'mark' segment action (2.98.0); see test_mark_action_migration.py for the
-one-shot migration that folds them in.
+ad_chapters_enabled/ad_chapter_categories are retired; see test_mark_action_migration.py.
 """
 import pytest
 

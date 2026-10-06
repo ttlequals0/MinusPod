@@ -573,11 +573,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         payload_key='differentialFetchMode',
         validator=_one_of('auto', 'on', 'off')),
     # Ad chapters: publish marked segments as skippable chapters. The enable
-    # toggle and category list are retired in favor of the 'mark' segment
-    # action (2.98.0, mark_action_from_ad_chapters_v1); their rows stay in
-    # the DB, unread, for the one-shot migration's upgrade path, but the
-    # registry entries are gone since src/api now derives the compatibility
-    # fields from segment_category_actions instead of reading them.
+    # toggle/category list are retired (mark_action_from_ad_chapters_v1, 2.98.0).
     'ad_chapters_include_held': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='adChaptersIncludeHeld', payload_kind='bool'),

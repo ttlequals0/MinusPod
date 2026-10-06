@@ -2319,9 +2319,8 @@ class SchemaMixin:
 
     @staticmethod
     def _legacy_resolve_ad_chapter_categories(raw_json, baseline):
-        """Historical copy of the retired resolve_ad_chapter_categories_map,
-        frozen here so mark_action_from_ad_chapters_v1 keeps reading the
-        2.84.0-2.97.x shape even after the live resolver is edited or gone."""
+        """Frozen copy of the retired resolve_ad_chapter_categories_map;
+        keeps this migration correct regardless of later cleanup."""
         merged = dict(baseline)
         if not raw_json:
             return merged
@@ -2337,15 +2336,8 @@ class SchemaMixin:
         return merged
 
     def _run_mark_action_from_ad_chapters_migration(self, conn):
-        """One-shot: fold the retired global/per-feed ad chapter enable and
-        category toggles into the 'mark' segment action (2.98.0, spec 1.3).
-
-        Reads only the pre-migration values of ad_chapters_enabled,
-        ad_chapter_categories and segment_category_actions (global and per
-        feed); writes mark/keep overrides only where the resolved behaviour
-        would otherwise silently change. Deletes nothing: the retired
-        settings rows and the two podcasts columns stay in place, unread.
-        """
+        """One-shot: folds the retired ad chapter enable/category toggles
+        into the 'mark' segment action (spec 1.3); writes only when needed."""
         gate = 'mark_action_from_ad_chapters_v1'
         if conn.execute(
                 "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
@@ -2388,11 +2380,15 @@ class SchemaMixin:
         feeds_marked = feeds_kept = 0
         for row in rows:
             podcast_row = dict(row)
+            own_actions_raw = podcast_row['segment_category_actions']
+            malformed = False
             try:
-                own_actions = json.loads(podcast_row['segment_category_actions'] or '{}')
+                own_actions = json.loads(own_actions_raw) if own_actions_raw else {}
                 if not isinstance(own_actions, dict):
+                    malformed = True
                     own_actions = {}
             except (TypeError, ValueError):
+                malformed = True
                 own_actions = {}
 
             enabled_override = podcast_row.get('ad_chapters_enabled_override')
@@ -2418,6 +2414,11 @@ class SchemaMixin:
             if new_overrides:
                 merged = dict(own_actions)
                 merged.update(new_overrides)
+                if malformed:
+                    logger.warning(
+                        "Migration: feed %r had unparseable segment_category_actions "
+                        "(%r); replacing with %r",
+                        podcast_row['slug'], own_actions_raw, merged)
                 self.update_podcast(podcast_row['slug'], conn=conn,
                                     segment_category_actions=json.dumps(merged))
                 if 'mark' in new_overrides.values():
