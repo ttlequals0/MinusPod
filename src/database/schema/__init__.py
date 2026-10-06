@@ -366,7 +366,7 @@ class SchemaMixin:
         pair has state, the older (lower id) row is kept.
         """
         gate = 'dedup_orphan_discovered_episodes_v1'
-        if conn.execute(
+        if not self._table_exists(conn, 'episodes') or conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)
         ).fetchone():
             return
