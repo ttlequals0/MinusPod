@@ -111,7 +111,7 @@ def test_authenticated_export_is_redacted_json_attachment(app_client, seeded_fee
 
 def test_export_resolves_global_segment_actions_once_for_many_feeds(app_client, seeded_feed):
     """The global segment_category_actions setting is read once per export,
-    not once per feed (feeds.py get_feeds_export_list, ~1012)."""
+    not once per feed."""
     _authed(app_client)
     db = seeded_feed['db']
     extra_slugs = [f'config-export-api-extra-{i}' for i in range(3)]

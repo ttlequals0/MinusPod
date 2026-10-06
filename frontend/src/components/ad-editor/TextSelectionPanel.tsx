@@ -94,11 +94,9 @@ function TextSelectionPanel({
 }: Props) {
   const [frozenRuns, setFrozenRuns] = useState<TextRun[]>([]);
   const [currentText, setCurrentText] = useState('');
-  // The mouseup listener is bound once per flatWords change, so it reads
-  // frozenRuns and onRunsChange through refs to avoid stale closures. The
-  // frozenRuns ref is kept in lockstep with the state by every setter below,
-  // not by a useEffect keyed on frozenRuns: an effect only runs after the
-  // next commit, which can land after a mouseup's setTimeout(0) fires.
+  // The mouseup listener reads frozenRuns/onRunsChange through refs to avoid
+  // stale closures; frozenRunsRef is set by every setter below, not a
+  // useEffect, which would lag a mouseup's own setTimeout(0).
   const frozenRunsRef = useRef(frozenRuns);
   const setFrozenRunsSynced = (next: TextRun[]) => {
     frozenRunsRef.current = next;
@@ -129,12 +127,9 @@ function TextSelectionPanel({
   const [isPlaying, setIsPlaying] = useState(false);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
-  // The mouseup listener's effect is keyed on [flatWords] and only rebinds
-  // once, when the fetch resolves and flatWords turns from [] into the real
-  // list; a mouseup that lands between that DOM update and the listener
-  // actually rebinding would otherwise read an empty flatWords from a stale
-  // closure and silently no-op. Set synchronously alongside the fetch so
-  // every commitSelection, old listener or new, reads the real list.
+  // Set synchronously alongside the fetch, not read from the flatWords
+  // closure: a mouseup landing before the listener effect rebinds would
+  // otherwise see an empty list and silently no-op.
   const flatWordsRef = useRef<FlatWord[]>([]);
 
   // Fetch once. The episode's words live in episode_details.original_segments_json
@@ -263,14 +258,9 @@ function TextSelectionPanel({
     ]);
   };
 
-  // Commit on mouseup/touchend so drag doesn't thrash parent state. Listener
-  // is scoped to the transcript root, not document, so unrelated mouseups in
-  // the modal (sponsor input, etc.) don't fire commitSelection. useLayoutEffect,
-  // not useEffect: the transcript div (and transcriptRef) only exists once
-  // segments load, so this binds on the same render as flatWords turning
-  // non-empty. A deferred passive effect leaves a window, between that
-  // render committing and the effect actually running, where a mouseup has
-  // no listener to catch it at all.
+  // Commit on mouseup/touchend, scoped to the transcript root so unrelated
+  // mouseups elsewhere don't fire it. useLayoutEffect, not useEffect: a
+  // passive effect would leave a mouseup with no listener right as segments load.
   useLayoutEffect(() => {
     const root = transcriptRef.current;
     if (!root) return;
@@ -339,18 +329,24 @@ function TextSelectionPanel({
       flatWords,
     );
     setFrozenRunsSynced(merged);
-    setCurrentText('');
-    onSelectionChange(0, 0, '');
+    if (merged.length === 1) {
+      // Nothing else to merge with: zeroing the selection here would
+      // disable Save on this one valid span. Mirror it as the current
+      // selection instead, so it stays directly saveable.
+      const [only] = merged;
+      setCurrentText(only.text);
+      onSelectionChange(only.start, only.end, only.text);
+    } else {
+      setCurrentText('');
+      onSelectionChange(0, 0, '');
+    }
     onRunsChange(merged);
   };
 
   const removeRun = (index: number) => {
     const next = frozenRunsRef.current.filter((_, i) => i !== index);
-    // Removing down to exactly one frozen run with no active selection is a
-    // dead end otherwise: the single-run form below is zeroed (cleared by the
-    // last freeze), so Save stays disabled at "0 / 50" even though that one
-    // run is a perfectly valid span. Promote it back to the current
-    // selection so the single-run path can save it.
+    // One run left with no active selection would zero the single-run form
+    // and disable Save: promote it back to the current selection instead.
     if (next.length === 1 && !hasSelection) {
       const [restored] = next;
       setFrozenRunsSynced([]);

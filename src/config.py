@@ -2197,12 +2197,9 @@ def normalize_ad_chapters_enabled_compat(value, allow_null=False) -> tuple[bool 
 
 def apply_ad_chapter_compat(resolved: dict[str, str], data: dict,
                             allow_null: bool = False) -> tuple[dict[str, str] | None, str | None]:
-    """adChaptersEnabled/adChapterCategories (spec 1.4) against an already
-    resolved segment-actions map. Returns (changes, error): changes holds
-    only the categories that flip between keep and mark, for the caller to
-    merge into its own map (global, full) or override (per-feed, partial).
-    None changes means neither field was present. allow_null tolerates a
-    per-feed PATCH clearing either field as a no-op.
+    """Translate adChaptersEnabled/adChapterCategories into the categories
+    that flip between keep and mark. Returns (changes, error); changes is
+    None when neither field was present. allow_null no-ops a cleared field.
     """
     if 'adChaptersEnabled' not in data and 'adChapterCategories' not in data:
         return None, None

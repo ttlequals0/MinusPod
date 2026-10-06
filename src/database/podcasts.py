@@ -755,10 +755,8 @@ class PodcastMixin:
     def resolve_segment_actions(self, slug: str, podcast: dict | None = None,
                                 global_actions: dict[str, str] | None = None) -> dict[str, str]:
         """Full map for every SEGMENT_CATEGORIES key: per-feed override ->
-        global segment_category_actions setting -> DEFAULT_SEGMENT_ACTION.
-        Malformed JSON at either level is ignored (treated as unset). Pass
-        global_actions (already resolved) to skip the settings query when
-        resolving several feeds in one request.
+        global setting -> DEFAULT_SEGMENT_ACTION; malformed JSON is treated
+        as unset. Pass global_actions (resolved) to skip the query for many feeds.
         """
         if podcast is None:
             podcast = self.get_podcast_by_slug(slug)

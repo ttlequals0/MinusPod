@@ -38,7 +38,7 @@ def feeds(app_client):
 
 def test_feed_list_resolves_global_segment_actions_once(app_client, feeds):
     """The global segment_category_actions setting is read once per request,
-    not once per feed (feeds.py ~899)."""
+    not once per feed."""
     db = feeds['db']
     calls = []
     original_get_setting = db.get_setting

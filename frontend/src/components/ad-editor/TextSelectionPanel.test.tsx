@@ -85,10 +85,8 @@ async function waitForTranscript(container: HTMLElement) {
   });
 }
 
-// One spy for the whole file, reconfigured per call and restored in
-// afterEach below, instead of a fresh vi.spyOn per call that never gets
-// torn down (window.getSelection would otherwise stay mocked for every
-// later test in this file, including ones that never select anything).
+// One spy for the whole file, reconfigured per call and restored in afterEach,
+// instead of a fresh vi.spyOn per call that never gets torn down.
 let getSelectionSpy: ReturnType<typeof vi.spyOn>;
 
 // Simulates dragging a selection across words [startIdx, endIdx] and the
@@ -109,12 +107,9 @@ async function selectWords(container: HTMLElement, startIdx: number, endIdx: num
     getRangeAt: () => range,
   } as unknown as Selection);
   fireEvent.mouseUp(root);
-  // commitSelection runs on a deferred tick (setTimeout 0) after mouseup, so
-  // wait for its observable effect: specifically the readout showing THIS
-  // selection's own start/end, not just "some selection is active". A prior
-  // call in the same test can leave a selection already active, so a generic
-  // not-disabled (or a bare setTimeout(resolve, 0)) check can pass before
-  // this call's own deferred commitSelection has actually run.
+  // Wait for the readout to show THIS selection's own start/end, not just
+  // "some selection is active": a prior call can leave one already active,
+  // so a generic not-disabled check can pass before this one actually lands.
   await waitFor(() => {
     expect(screen.getByText(
       (content) => content.includes(expectedStart) && content.includes(expectedEnd),
@@ -132,7 +127,7 @@ afterEach(() => {
 });
 
 describe('TextSelectionPanel run list', () => {
-  it('adds a run: freezing the current selection reports it and clears the selection', async () => {
+  it('adds a run: freezing the only selection reports it and keeps it selectable', async () => {
     const { container, onRunsChange, onSelectionChange } = renderPanel();
     await waitForTranscript(container);
 
@@ -144,9 +139,12 @@ describe('TextSelectionPanel run list', () => {
       { start: 0, end: 2.9, text: 'alpha bravo charlie' },
     ]);
     expect(screen.getByText('0:00.0 - 0:02.9')).toBeTruthy();
-    expect(onSelectionChange).toHaveBeenLastCalledWith(0, 0, '');
+    // Freezing when the merged list has only one run would otherwise zero
+    // the current selection and disable Save with nothing frozen to save
+    // instead: it stays mirrored as the current selection too.
+    expect(onSelectionChange).toHaveBeenLastCalledWith(0, 2.9, 'alpha bravo charlie');
     expect(screen.getByRole('button', { name: 'Add another span' }).hasAttribute('disabled'))
-      .toBe(true);
+      .toBe(false);
   });
 
   it('removes a run and restores the sole survivor as the current selection', async () => {
@@ -166,10 +164,8 @@ describe('TextSelectionPanel run list', () => {
 
     await user.click(screen.getByRole('button', { name: 'Remove span 0:00.0 to 0:02.9' }));
 
-    // Dropping to one frozen run with no active selection used to be a dead
-    // end: the form was zeroed by the last freeze, so nothing could save the
-    // survivor. It is promoted back to the current selection instead, not
-    // left as an unreachable chip.
+    // The sole survivor is promoted back to the current selection, not left
+    // as an unreachable chip with the zeroed single-run form behind it.
     expect(onRunsChange).toHaveBeenLastCalledWith([
       { start: 10, end: 12.9, text: 'golf hotel india' },
     ]);
