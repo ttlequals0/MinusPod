@@ -83,13 +83,13 @@ def _fail(episode_id, error):
 
 
 class TestDeferral:
-    def test_standby_outage_after_primary_rejection_preserves_final_retry(self, seeded_episode):
+    def test_primary_outage_defers_when_standby_rejects_model(self, seeded_episode):
         db.set_setting('offline_queue_enabled', 'true')
         final_retry = MAX_EPISODE_RETRIES - 1
         db.upsert_episode(SLUG, seeded_episode, retry_count=final_retry)
         request = httpx.Request('POST', 'http://example.com')
-        primary_error = openai.NotFoundError('missing model', response=httpx.Response(404, request=request), body=None)
-        standby_error = openai.InternalServerError('unavailable', response=httpx.Response(503, request=request), body=None)
+        primary_error = openai.InternalServerError('unavailable', response=httpx.Response(503, request=request), body=None)
+        standby_error = openai.NotFoundError('missing model', response=httpx.Response(404, request=request), body=None)
         primary = MagicMock(); primary.create_message.side_effect = primary_error
         standby = MagicMock(); standby.create_message.side_effect = standby_error
         route = llm_route.Route(
@@ -107,7 +107,7 @@ class TestDeferral:
                 llm_timeout=1, max_retries=0, max_tokens=10, slug=SLUG,
                 episode_id=seeded_episode, call_label='detection', phase_key='detection',
                 provider='openai-compatible', credential_slot='primary')
-        assert response is None and error is standby_error
+        assert response is None and error is primary_error
         failure = _windows_failed_response('detection', 1, 1, error, 'standby-model')
         ctx = EpisodeContext(slug=SLUG, episode_id=seeded_episode)
         with patch('main_app.processing.ad_detector.process_transcript', return_value=failure), \

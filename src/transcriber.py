@@ -44,7 +44,7 @@ from utils.rate_limit import parse_retry_after
 import utils.subprocess_registry
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.ttl_cache import TTLCache
-from whisper_pool import get_pool
+from whisper_pool import get_pool, is_background_leader
 from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
@@ -319,6 +319,10 @@ def probe_local_transcription(request_config: dict) -> dict:
               and outcome.get('model') in (None, load_config['model']))
     if not request_config.get('recover_runtime') and not failed:
         return {'reachable': True, 'status': None, 'detail': 'Local stack available'}
+    # Only the leader owns the model; a web worker loading one would hold VRAM it never frees.
+    if not is_background_leader():
+        return {'reachable': None, 'status': None, 'deferred': True,
+                'detail': 'Diagnostic decode runs in the background worker'}
     with _idle_local_probe() as free:
         if not free:
             return {'reachable': None, 'status': None, 'detail': 'Local transcription busy'}
@@ -1296,6 +1300,11 @@ def _log_prefix() -> str:
 # downstream log of the returned value is references a known-safe constant
 # (CodeQL py/clear-text-logging-sensitive-data).
 _CANONICAL_COMPUTE_TYPES = {t: t for t in WHISPER_COMPUTE_TYPES}
+
+
+def canonical_compute_type(raw: str | None) -> str:
+    """The compute type the runtime loads for a raw setting value."""
+    return _CANONICAL_COMPUTE_TYPES.get(raw or WHISPER_COMPUTE_TYPE_DEFAULT, WHISPER_COMPUTE_TYPE_DEFAULT)
 
 
 def _get_whisper_compute_type() -> str:

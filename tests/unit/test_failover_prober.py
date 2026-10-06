@@ -35,6 +35,7 @@ def _reset(db):
     for t in failover.PROBE_TARGETS:
         db.clear_setting(f'failover_probe:{t}')
         db.clear_setting(f'failover_probe_lease:{t}')
+        db.clear_setting(f'failover_probe_requested:{t}')
     for t in failover.TARGETS:
         db.clear_setting(f'failover_state:{t}')
         db.clear_setting(f'failover_generation:{t}')
@@ -772,6 +773,7 @@ def test_only_valid_llm_probe_response_counts_toward_recovery(invalid_result):
 def test_malformed_fixed_provider_response_does_not_recover(provider):
     db = Database(); _reset(db)
     db.set_setting('llm_provider', provider, is_default=False)
+    db.set_setting(f'{provider}_api_key', 'example-key', is_default=False)
     db.set_setting('failover_llm_enabled', 'true', is_default=False)
     db.set_setting('failover_llm_provider', 'anthropic', is_default=False)
     db.set_setting('failover_llm_detection_model', 'claude-example', is_default=False)
@@ -885,3 +887,116 @@ def test_unconfigured_target_never_counts_or_triggers():
     assert data['reachable'] is None and data['checked_at']
     assert data['failed_streak'] == 0 and data['healthy_streak'] == 0
     assert failover.is_active('llm:secondary') is False
+
+
+def _whisper_failed_over(db, model='tiny'):
+    db.set_setting('whisper_model', model, is_default=False)
+    db.clear_setting('transcribe_last_local_outcome')
+    db.set_setting('failover_state:whisper', json.dumps({
+        'active': True, 'source': 'auto', 'since': '2026-01-01T00:00:00Z',
+        'reason': 'local decode failed',
+    }), is_default=False)
+    failover.invalidate_cache()
+
+
+def test_web_worker_probe_defers_local_decode_to_leader():
+    db = Database(); _reset(db)
+    _whisper_failed_over(db)
+    with patch.object(transcriber, 'is_background_leader', return_value=False), \
+            patch.object(transcriber, 'local_transcription_available', return_value=True), \
+            patch.object(transcriber, '_latest_local_outcome', return_value=None), \
+            patch.object(transcriber.WhisperModelSingleton, 'get_instance') as loader:
+        result = failover.probe_tick(db, ['whisper:active'])
+    loader.assert_not_called()
+    assert result['whisper:active']['checked_at'] is None
+    assert failover.probe_state('whisper:active')['checked_at'] is None
+    assert db.get_setting('failover_probe_lease:whisper:active') is None
+    assert failover.take_requested_probes(db) == ['whisper:active']
+    assert failover.take_requested_probes(db) == []
+
+
+def test_busy_local_probes_are_neutral_for_recovery():
+    db = Database(); _reset(db)
+    _whisper_failed_over(db)
+    busy = {'reachable': None, 'status': None, 'detail': 'Local transcription busy'}
+    healthy = {'reachable': True, 'status': None, 'detail': 'Local diagnostic decode succeeded'}
+    with patch.object(transcriber, 'probe_local_transcription',
+                      side_effect=[healthy, busy, busy, healthy]), \
+            patch.object(failover.webhook_service, 'fire_failover_event'):
+        for _ in range(3):
+            failover.probe_tick(db, ['whisper:active'])
+            assert failover.is_active('whisper') is True
+        assert failover.probe_state('whisper:active')['healthy_streak'] == 1
+        failover.probe_tick(db, ['whisper:active'])
+    assert failover.is_active('whisper') is False
+
+
+def test_busy_busy_healthy_healthy_recovers_with_two_probes():
+    db = Database(); _reset(db)
+    _whisper_failed_over(db)
+    busy = {'reachable': None, 'status': None, 'detail': 'Local transcription busy'}
+    healthy = {'reachable': True, 'status': None, 'detail': 'Local diagnostic decode succeeded'}
+    with patch.object(transcriber, 'probe_local_transcription',
+                      side_effect=[busy, busy, healthy, healthy]), \
+            patch.object(failover.webhook_service, 'fire_failover_event'):
+        for _ in range(4):
+            failover.probe_tick(db, ['whisper:active'])
+    assert failover.is_active('whisper') is False
+
+
+def test_standby_model_outcome_does_not_discard_inflight_original_probe():
+    db = Database(); _reset(db)
+    _whisper_failed_over(db)
+    standby_outcome = {'outcome': 'success', 'backend': 'local', 'model': 'standby-model',
+                       'device': 'cpu', 'observed_at': '2026-10-05T00:00:00.654321Z'}
+
+    def delayed_probe(_config):
+        db.set_setting('transcribe_last_local_outcome', json.dumps(standby_outcome),
+                       is_default=False)
+        return {'reachable': True, 'status': None, 'detail': 'Local diagnostic decode succeeded'}
+
+    with patch.object(transcriber, 'probe_local_transcription', side_effect=delayed_probe):
+        failover.probe_tick(db, ['whisper:active'])
+    state = failover.probe_state('whisper:active')
+    assert state['checked_at'] is not None and state['healthy_streak'] == 1
+
+
+@pytest.mark.parametrize('provider', ['anthropic', 'openrouter'])
+def test_fixed_provider_without_key_is_not_configured(provider):
+    db = Database(); _reset(db)
+    db.set_setting('llm_provider', provider, is_default=False)
+    db.clear_setting(f'{provider}_api_key')
+    failover.invalidate_cache()
+    with patch.dict('os.environ', {'ANTHROPIC_API_KEY': '', 'OPENROUTER_API_KEY': ''}), \
+            patch.object(failover.provider_probe, 'probe_fixed_endpoint') as probe:
+        result = failover.probe_target('llm:primary')
+    probe.assert_not_called()
+    assert result == {'reachable': None, 'status': None, 'detail': 'Not configured'}
+    db.clear_setting('llm_provider')
+
+
+@pytest.mark.parametrize('status,reachable', [(200, True), (404, True), (405, True),
+                                              (401, False), (503, False)])
+def test_whisper_api_probe_status_classification(status, reachable):
+    db = Database(); _reset(db)
+    db.set_setting('whisper_backend', 'openai-api', is_default=False)
+    db.set_setting('whisper_api_base_url', 'http://example.com/v1', is_default=False)
+    failover.invalidate_cache()
+    with patch.object(failover.provider_probe, 'probe_models_endpoint',
+                      return_value={'ok': status == 200, 'reachable': True, 'status': status}):
+        assert failover.probe_target('whisper:active')['reachable'] is reachable
+    db.clear_setting('whisper_api_base_url')
+
+
+def test_local_probe_config_matches_runtime_normalization():
+    db = Database(); _reset(db)
+    db.set_setting('whisper_compute_type', 'not-a-type', is_default=False)
+    with patch.dict('os.environ', {'WHISPER_DEVICE': ' CUDA '}):
+        config = failover._capture_probe_context(db, 'whisper:active')['request_config']
+    db.clear_setting('whisper_compute_type')
+    assert config['device'] == 'cuda'
+    assert config['compute_type'] == transcriber.WHISPER_COMPUTE_TYPE_DEFAULT
+
+
+def test_probe_waiters_outlast_a_worst_case_http_probe():
+    assert failover._PROBE_WAIT_SECONDS > 2 * failover.HTTP_TIMEOUT_PROBE

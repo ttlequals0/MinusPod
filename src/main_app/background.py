@@ -590,7 +590,13 @@ def background_queue_processor():
             # maintenance cadence above.
             if time.monotonic() - last_probe >= failover.probe_interval_seconds():
                 last_probe = time.monotonic()
+                _run_tick(failover.take_requested_probes, 'failover_probe_requests')
                 _run_tick(failover.probe_tick, 'failover_probe_tick')
+            else:
+                requested = _run_tick(failover.take_requested_probes, 'failover_probe_requests')
+                if requested:
+                    _run_tick(lambda tick_db: failover.probe_tick(tick_db, requested),
+                              'failover_probe_tick')
 
             for waiter in list(running):
                 if not waiter.is_alive():

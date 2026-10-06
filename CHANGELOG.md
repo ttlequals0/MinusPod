@@ -21,6 +21,10 @@ release notes.
 - Webhook and email events for failover triggered and cancelled.
 
 ### Fixed
+- **Probe now** no longer loads a local Whisper model in a web worker; the background worker runs the diagnostic decode and the card shows the last result until then.
+- Local recovery no longer stalls under load: busy probes leave recovery progress unchanged, and standby-model decodes no longer discard a probe of the original model. Local probes normalize device and compute type the way the transcriber does.
+- Transcription probes count HTTP 405 from `/models` as reachable, like 404.
+- Anthropic and OpenRouter probes with no API key report Not configured instead of recording a failed request.
 - Deferred episodes resume through healthy providers required by their current routes, including standby providers. Health results are refreshed after configuration, failover state, or local outcome changes.
 - Failover startup avoids circular imports through audio and subprocess helpers.
 - Health checks share ownership across workers and probe only stale endpoints required by each run.

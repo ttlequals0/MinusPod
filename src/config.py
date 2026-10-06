@@ -1550,11 +1550,18 @@ WHISPER_DEVICES = ('cpu', 'cuda')
 WHISPER_DEVICE_DEFAULT = 'cpu'
 
 
+def normalize_whisper_device(raw: str | None) -> str | None:
+    """Canonical device for a WHISPER_DEVICE value, or None when unrecognized."""
+    value = (raw or WHISPER_DEVICE_DEFAULT).strip().lower()
+    return value if value in WHISPER_DEVICES else None
+
+
 def resolve_whisper_device():
     """Validated WHISPER_DEVICE. An unrecognized value degrades to CPU (#605)."""
-    raw = (os.environ.get('WHISPER_DEVICE') or WHISPER_DEVICE_DEFAULT).strip().lower()
-    if raw in WHISPER_DEVICES:
-        return raw
+    raw = os.environ.get('WHISPER_DEVICE')
+    device = normalize_whisper_device(raw)
+    if device is not None:
+        return device
     _tunable_logger.warning(
         "WHISPER_DEVICE=%r is not one of %s; transcribing on CPU instead",
         raw, ', '.join(WHISPER_DEVICES))

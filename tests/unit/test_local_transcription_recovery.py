@@ -27,6 +27,7 @@ def local_state(monkeypatch):
     monkeypatch.setattr(transcriber, '_local_probe_active', False)
     monkeypatch.setattr(transcriber, '_GPU_ADMISSION_SEMAPHORE', threading.Semaphore(1))
     monkeypatch.setattr(transcriber, 'GPU_TRANSCRIBE_MAX_CONCURRENT', 1)
+    monkeypatch.setattr(transcriber, 'is_background_leader', lambda: True)
 
 
 def test_import_health_does_not_load_a_model_without_recorded_failure(monkeypatch):
@@ -209,3 +210,12 @@ def test_real_failure_after_diagnostic_success_in_same_second_wins(monkeypatch):
     monkeypatch.setattr(transcriber.database, 'Database', MagicMock())
     transcriber._record_local_transcription_outcome({'outcome': 'failed', 'device': 'cpu'})
     assert transcriber._latest_local_outcome('cpu')['outcome'] == 'failed'
+
+
+def test_web_worker_never_runs_the_diagnostic_decode(monkeypatch):
+    loader = MagicMock()
+    monkeypatch.setattr(transcriber, 'is_background_leader', lambda: False)
+    monkeypatch.setattr(transcriber.WhisperModelSingleton, 'get_instance', loader)
+    result = transcriber.probe_local_transcription(CONFIG)
+    assert result['reachable'] is None and result['deferred'] is True
+    loader.assert_not_called()

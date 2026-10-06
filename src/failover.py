@@ -16,8 +16,8 @@ import database
 import webhook_service
 import transcriber
 from config import (
-    FAILOVER_API_TARGET_NAMES, WHISPER_BACKEND_API, WHISPER_BACKEND_LOCAL,
-    DEFAULT_OPENAI_BASE_URL, coerce_bool_setting,
+    FAILOVER_API_TARGET_NAMES, HTTP_TIMEOUT_PROBE, WHISPER_BACKEND_API, WHISPER_BACKEND_LOCAL,
+    WHISPER_DEVICE_DEFAULT, DEFAULT_OPENAI_BASE_URL, coerce_bool_setting, normalize_whisper_device,
 )
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -262,7 +262,8 @@ _PROBE_OF = {origin: probe for probe, origin in _ORIGIN_OF.items()}
 _MAX_PROBE_WORKERS = 5
 _PROBE_LEASE_SECONDS = 30.0
 _PROBE_LEASE_RENEW_SECONDS = 5.0
-_PROBE_WAIT_SECONDS = 6.0
+# An HTTP probe can spend HTTP_TIMEOUT_PROBE on connect and again on read.
+_PROBE_WAIT_SECONDS = 2 * HTTP_TIMEOUT_PROBE + 2.0
 _PROBE_WAIT_POLL_SECONDS = 0.05
 _ANY_CHECKED_AT = object()
 _PROBE_CONFIG = {
@@ -295,18 +296,11 @@ _PROBE_CONFIG = {
         ('WHISPER_MODEL', 'WHISPER_DEVICE', 'WHISPER_COMPUTE_TYPE'),
     ),
 }
-_PROBE_CONFIG_QUERY = {
-    'llm:primary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?,?)",
-    'llm:secondary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?)",
-    'llm:failover': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?)",
-    'whisper:active': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?)",
-    'whisper:failover': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?,?)",
-}
-_PROBE_CONTEXT_QUERY = {
-    'llm:primary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?,?,?)",
-    'llm:secondary': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?)",
-    'whisper:active': "SELECT key, value FROM settings WHERE key IN (?,?,?,?,?,?,?,?)",
-}
+_PROBE_REQUEST_PREFIX = 'failover_probe_requested:'
+
+
+def _settings_query(keys) -> str:
+    return f"SELECT key, value FROM settings WHERE key IN ({','.join('?' * len(keys))})"  # noqa: S608
 
 
 def probe_interval_seconds() -> int:
@@ -378,7 +372,7 @@ def probe_state(target: str) -> dict:
 
 def _probe_config_identity(conn, target: str) -> str:
     setting_keys, _ = _PROBE_CONFIG[target]
-    rows = conn.execute(_PROBE_CONFIG_QUERY[target], setting_keys).fetchall()
+    rows = conn.execute(_settings_query(setting_keys), setting_keys).fetchall()
     settings = {row['key']: row['value'] for row in rows}
     return _probe_config_identity_from_values(target, settings)
 
@@ -396,8 +390,7 @@ def _capture_probe_context(db, target: str) -> dict:
         keys.append(f'failover_generation:{origin}')
     if target == 'whisper:active':
         keys.extend(('failover_state:whisper', 'transcribe_last_local_outcome'))
-    query = _PROBE_CONTEXT_QUERY.get(target, _PROBE_CONFIG_QUERY[target])
-    rows = conn.execute(query, keys).fetchall()
+    rows = conn.execute(_settings_query(keys), keys).fetchall()
     values = {row['key']: row['value'] for row in rows}
     try:
         generation = max(0, int(values.get(f'failover_generation:{origin}') or 0)) if origin else None
@@ -492,9 +485,7 @@ def _probe_request_config(db, target: str, settings: dict[str, str],
                        environment.get('WHISPER_API_KEY') or '',
             'local_model': settings.get('whisper_model') or
                            environment.get('WHISPER_MODEL') or 'small',
-            'device': environment.get('WHISPER_DEVICE') or 'cpu',
-            'compute_type': settings.get('whisper_compute_type') or
-                            environment.get('WHISPER_COMPUTE_TYPE') or 'auto',
+            **_local_runtime_config(settings, environment),
         }
     return {
         'backend': settings.get('failover_whisper_backend') or WHISPER_BACKEND_API,
@@ -503,19 +494,38 @@ def _probe_request_config(db, target: str, settings: dict[str, str],
         'local_model': settings.get('failover_whisper_model') or
                        settings.get('whisper_model') or
                        environment.get('WHISPER_MODEL') or 'small',
-        'device': environment.get('WHISPER_DEVICE') or 'cpu',
-        'compute_type': settings.get('whisper_compute_type') or
-                        environment.get('WHISPER_COMPUTE_TYPE') or 'auto',
+        **_local_runtime_config(settings, environment),
     }
+
+
+def _local_runtime_config(settings: dict, environment: dict) -> dict:
+    """Device and compute type normalized the way the runtime loads them."""
+    return {
+        'device': normalize_whisper_device(environment.get('WHISPER_DEVICE')) or WHISPER_DEVICE_DEFAULT,
+        'compute_type': transcriber.canonical_compute_type(
+            settings.get('whisper_compute_type') or environment.get('WHISPER_COMPUTE_TYPE')),
+    }
+
+
+def _local_stamp_changed(old: str | None, new: str | None, model: str | None) -> bool:
+    """True when a newer local outcome concerns `model`; standby-model outcomes are ignored."""
+    if old == new:
+        return False
+    try:
+        outcome = json.loads(new) if new else None
+    except (TypeError, ValueError):
+        return True
+    return not isinstance(outcome, dict) or outcome.get('model') in (None, model)
 
 
 def _probe_context_is_current(conn, target: str, context: dict) -> bool:
     origin = _ORIGIN_OF.get(target)
     if origin and _generation_in_transaction(conn, origin) != context['generation']:
         return False
-    if (target == 'whisper:active'
-            and _setting_in_transaction(conn, 'transcribe_last_local_outcome')
-            != context.get('local_outcome_stamp')):
+    if target == 'whisper:active' and _local_stamp_changed(
+            context.get('local_outcome_stamp'),
+            _setting_in_transaction(conn, 'transcribe_last_local_outcome'),
+            context.get('request_config', {}).get('local_model')):
         return False
     return _probe_config_identity(conn, target) == context['config_identity']
 
@@ -536,6 +546,8 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
             if not provider:
                 return {'reachable': None, 'status': None, 'detail': 'Not configured'}
             if provider in provider_probe.FIXED_PROVIDER_PROBES:
+                if not key:
+                    return {'reachable': None, 'status': None, 'detail': 'Not configured'}
                 result = provider_probe.probe_fixed_endpoint(provider, key)
             else:
                 norm = llm_client._normalize_base_url_for_provider(provider, base_url or DEFAULT_OPENAI_BASE_URL)
@@ -555,8 +567,8 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         if kind == 'llm':
             reachable = result.get('ok') is True and status is not None and 200 <= status < 300
         else:
-            # Some Whisper servers omit /models, so only their 404 is exceptional.
-            reachable = status == 404 or (
+            # Some Whisper servers omit /models (404) or only accept POST there (405).
+            reachable = status in (404, 405) or (
                 status is not None and 200 <= status < 300
             )
         return {'reachable': reachable, 'status': status, 'detail': result.get('detail', '')}
@@ -685,7 +697,8 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
         probe_result = {key: value for key, value in result.items()
                         if key != 'local_outcome'}
         if result['reachable'] is None:
-            streaks = {'healthy_streak': 0, 'failed_streak': 0}
+            # Busy or unconfigured: no evidence either way.
+            streaks = {'healthy_streak': healthy_streak, 'failed_streak': failed_streak}
         elif result['reachable'] is True:
             streaks = {'healthy_streak': healthy_streak + 1, 'failed_streak': 0}
         else:
@@ -785,6 +798,10 @@ def _probe_requested_target(db, target: str, checked_at: str | None,
         context = _capture_probe_context(db, target)
         context['lease_token'] = token
         result = probe_target(target, context['request_config'])
+        if result.get('deferred'):
+            _release_probe_lease(db, target, token)
+            db.set_setting(f'{_PROBE_REQUEST_PREFIX}{target}', utc_now_iso())
+            return probe_state(target)
         data, _ = _record_probe(db, target, result, context)
         return data
     except Exception as exc:
@@ -812,6 +829,18 @@ def probe_tick(db, targets: list[str] | None = None,
         return dict(zip(targets, results, strict=True))
 
 
+def take_requested_probes(db) -> list[str]:
+    """Pop the probes a web worker handed to the background leader."""
+    keys = [f'{_PROBE_REQUEST_PREFIX}{target}' for target in PROBE_TARGETS]
+    query = _settings_query(keys)
+    if not db.get_connection().execute(query, keys).fetchall():
+        return []
+    with db.transaction(immediate=True) as conn:
+        found = {row['key'] for row in conn.execute(query, keys).fetchall()}
+        conn.executemany('DELETE FROM settings WHERE key = ?', [(key,) for key in found])
+    return [target for target, key in zip(PROBE_TARGETS, keys, strict=True) if key in found]
+
+
 def _parse_iso(value: str | None) -> float:
     dt = parse_iso_utc(value)
     return dt.timestamp() if dt else 0.0
@@ -821,7 +850,9 @@ def _probe_matches_context(cached: dict, context: dict) -> bool:
     return (
         cached.get('_generation') == context['generation']
         and cached.get('_config_identity') == context['config_identity']
-        and cached.get('_local_outcome_stamp') == context.get('local_outcome_stamp')
+        and not _local_stamp_changed(
+            cached.get('_local_outcome_stamp'), context.get('local_outcome_stamp'),
+            context.get('request_config', {}).get('local_model'))
     )
 
 
