@@ -180,28 +180,88 @@ class PatternCleanupMixin:
         if conn is None:
             target.commit()
 
-    def clear_cleanup_reviewed(self) -> int:
-        """Clear review stamps on every learned pattern (force recheck)."""
-        conn = self.get_connection()
+    def reset_cleanup_force_state(self, conn=None) -> int:
+        """Clear completion and pending state for the active learned backlog."""
+        if conn is None:
+            with self.transaction(immediate=True) as own:
+                return self.reset_cleanup_force_state(conn=own)
         cursor = conn.execute(
-            "UPDATE ad_patterns SET cleanup_reviewed_at = NULL, cleanup_reviewed_hash = NULL "
-            "WHERE created_by = 'auto' AND source = 'local'")
-        conn.commit()
+            "UPDATE ad_patterns SET cleanup_reviewed_at = NULL, cleanup_reviewed_hash = NULL, "
+            "cleanup_stats_reviewed = '{}' "
+            "WHERE created_by = 'auto' AND source = 'local' AND is_active = 1")
+        conn.execute(
+            "DELETE FROM pattern_cleanup_suggestions WHERE status = 'pending' AND pattern_id IN ("
+            "SELECT id FROM ad_patterns WHERE created_by = 'auto' AND source = 'local' "
+            "AND is_active = 1)")
         return cursor.rowcount
 
+    def get_cleanup_stats_rows(self, conn=None) -> list[dict]:
+        """Return active learned patterns for statistics checks, regardless of review state."""
+        rows = (conn or self.get_connection()).execute(
+            f"""SELECT ap.*, ks.name AS sponsor, pc.title AS podcast_title
+                FROM ad_patterns ap
+                LEFT JOIN known_sponsors ks ON ks.id = ap.sponsor_id
+                LEFT JOIN podcasts pc ON pc.slug = ap.podcast_id
+                WHERE {LEARNED_PATTERN_WHERE}
+                ORDER BY ap.id"""  # noqa: S608
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_cleanup_stats_reviewed(self, pattern_id: int, conn=None) -> dict | None:
+        row = (conn or self.get_connection()).execute(
+            "SELECT cleanup_stats_reviewed FROM ad_patterns WHERE id = ?", (pattern_id,)
+        ).fetchone()
+        if not row or row['cleanup_stats_reviewed'] is None:
+            return None
+        try:
+            value = json.loads(row['cleanup_stats_reviewed'])
+        except (TypeError, json.JSONDecodeError):
+            return None
+        return value if isinstance(value, dict) else None
+
+    def set_cleanup_stats_reviewed(self, pattern_id: int, evidence_map: dict, conn=None) -> None:
+        target = conn or self.get_connection()
+        target.execute(
+            "UPDATE ad_patterns SET cleanup_stats_reviewed = ? WHERE id = ?",
+            (json.dumps(evidence_map, sort_keys=True), pattern_id))
+        if conn is None:
+            target.commit()
+
+    def get_cleanup_stat_decisions(self, pattern_id: int, conn=None) -> list[dict]:
+        rows = (conn or self.get_connection()).execute(
+            "SELECT * FROM pattern_cleanup_suggestions WHERE pattern_id = ? "
+            "AND kind IN ('retire', 'flag') AND status IN ('approved', 'rejected', 'undone') "
+            "ORDER BY id", (pattern_id,)
+        ).fetchall()
+        return [_decode_suggestion(row) for row in rows]
+
     def get_cleanup_candidate_rows(self, *, force: bool = False, batch_size: int = 25) -> list[dict]:
-        """Active learned patterns, never-reviewed first, then oldest review.
-        Filters out pending (unless forced) and already-reviewed-unchanged patterns in SQL
-        and caps the result to batch_size plus a margin; the caller still rechecks each row."""
+        """Active learned patterns needing model review, oldest review first."""
         conn = self.get_connection()
         conn.create_function('cleanup_review_hash', 2, review_hash)
-        pending_filter = '' if force else (
-            " AND NOT EXISTS (SELECT 1 FROM pattern_cleanup_suggestions s "
-            "WHERE s.pattern_id = ap.id AND s.status = 'pending')")
+        pending_model = """EXISTS (
+            SELECT 1 FROM pattern_cleanup_suggestions s
+            WHERE s.pattern_id = ap.id AND s.status = 'pending'
+              AND (
+                    s.kind NOT IN ('retire', 'flag')
+                    OR (s.kind = 'flag' AND (
+                        COALESCE(json_extract(s.payload, '$.contaminated'), 0) = 1
+                        OR json_extract(s.payload, '$.recommended') = 'trim'
+                    ))
+              )
+              AND (
+                    json_type(s.before, '$.text_template') IS NULL
+                    OR json_type(s.before, '$.sponsor') IS NULL
+                    OR cleanup_review_hash(
+                        json_extract(s.before, '$.text_template'),
+                        json_extract(s.before, '$.sponsor'))
+                       = cleanup_review_hash(ap.text_template, ks.name)
+              )
+        )"""
+        pending_filter = '' if force else ' AND NOT (' + pending_model + ')'
         cursor = conn.execute(
             f"""SELECT ap.*, ks.name AS sponsor, pc.title AS podcast_title,
-                       EXISTS(SELECT 1 FROM pattern_cleanup_suggestions s
-                              WHERE s.pattern_id = ap.id AND s.status = 'pending') AS has_pending
+                       {pending_model} AS has_pending_model
                 FROM ad_patterns ap
                 LEFT JOIN known_sponsors ks ON ks.id = ap.sponsor_id
                 LEFT JOIN podcasts pc ON pc.slug = ap.podcast_id

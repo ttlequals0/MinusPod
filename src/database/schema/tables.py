@@ -280,7 +280,8 @@ TABLE_DDL['ad_patterns'] = """CREATE TABLE IF NOT EXISTS ad_patterns (
     category TEXT,
     community_last_confirmed_at TEXT,
     cleanup_reviewed_at TEXT,
-    cleanup_reviewed_hash TEXT
+    cleanup_reviewed_hash TEXT,
+    cleanup_stats_reviewed TEXT
 )"""
 
 TABLE_DDL['pattern_corrections'] = """CREATE TABLE IF NOT EXISTS pattern_corrections (
