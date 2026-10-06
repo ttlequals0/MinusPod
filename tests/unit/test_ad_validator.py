@@ -14,7 +14,7 @@ from utils.markers import carve_fragment, learning_bounds, mark_distinct_merge
 from utils.text import word_boundary_re
 from tests.unit.marker_test_utils import RegistryStub, registry_confirms
 from config import (
-    HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
+    HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
     HOLD_REASON_UNCORROBORATED_TAIL,
     HOLD_REASON_ESTIMATED_PATTERN,
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
@@ -3497,7 +3497,6 @@ class TestTranscriptDifferentialEvidence:
                 'detection_stage': 'claude'}
 
     def _stage_marker(self, start=1250.0, end=1300.0):
-        from config import HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
         return {'start': start, 'end': end, 'confidence': 0.75, 'sponsor': None,
                 'reason': 'Upstream transcript omits this span',
                 'detection_stage': 'transcript_differential', 'category': 'sponsor',
@@ -3527,7 +3526,6 @@ class TestTranscriptDifferentialEvidence:
 
     @pytest.mark.parametrize('offset_confirmed', [False, True])
     def test_uncorroborated_stage_marker_stays_held(self, offset_confirmed):
-        from config import HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
         ad = self._validate(self._stage_marker(),
                             [self._span(offset_confirmed=offset_confirmed)])
         assert ad['validation']['decision'] == Decision.REVIEW.value
@@ -3536,7 +3534,6 @@ class TestTranscriptDifferentialEvidence:
         assert 'corroborated_by' not in ad
 
     def test_stage_marker_without_the_flag_stays_held(self):
-        from config import HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
         marker = self._stage_marker()
         for key in ('held_for_review', 'was_cut', 'hold_reason',
                     'transcript_differential_uncorroborated'):

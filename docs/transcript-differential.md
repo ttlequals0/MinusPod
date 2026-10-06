@@ -68,13 +68,15 @@ Each gap becomes a held marker: category `sponsor`, confidence 0.6 (0.75 when
 `offset_confirmed`), reason "Upstream transcript omits this span", and hold
 reason `transcript_differential_unreviewed`. It never auto-cuts.
 
-- If the gap overlaps another stage's detection (fingerprint, text pattern, an
-  audio cue, or the LLM) by at least half its length, the two merge: the other
-  detection is marked `corroborated_by: transcript_differential`, its
-  confidence rises by 0.1 (0.15 when the gap was `offset_confirmed`, capped at
-  0.95, never lowered), and the held gap marker itself is released along with
-  it.
-- If nothing else overlaps it, the gap stays its own held marker on the
+- If a fingerprint, text pattern, audio cue, or LLM detection covers at least
+  half of the gap, the two merge and the held gap marker is released. The
+  merged marker spans both and keeps the other detection's stage.
+- The validator also checks every other detection against the gaps. When a
+  gap covers at least half of a detection's own length, that detection is
+  marked `corroborated_by: transcript_differential` and its confidence rises
+  by 0.1 (0.15 when the gap was `offset_confirmed`, capped at 0.95, never
+  lowered).
+- If no detection releases it, the gap stays its own held marker on the
   episode's Held for Review list, with the hold reason above, until you
   confirm or reject it.
 - Rejecting a held gap marker clears it from that episode without seeding a

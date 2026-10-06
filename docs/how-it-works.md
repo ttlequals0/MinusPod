@@ -252,11 +252,11 @@ Rejecting a differential detection as not an ad, held or not, still blocks that 
 When a feed's `podcast:transcript` tag points at a transcript made before the
 ads were spliced in, MinusPod diffs its own Whisper transcript against it:
 any block of speech the publisher's copy omits is a candidate ad, with no
-audio refetch required. A found gap corroborates another stage's detection
-(raising its confidence and clearing its own hold) when the two overlap by
-at least half the gap, or holds for review on its own, tagged "Upstream
-transcript omits this span", when nothing else backs it. It never cuts by
-itself. See [Upstream Transcript Differential](transcript-differential.md)
+audio refetch required. A found gap releases its own hold when another
+stage's detection covers at least half of the gap. A detection that a gap
+covers for at least half of its own length is also marked corroborated and
+gains confidence. A gap nothing releases holds for review on its own, tagged
+"Upstream transcript omits this span". It never cuts by itself. See [Upstream Transcript Differential](transcript-differential.md)
 for the full mechanism, thresholds, and settings.
 
 ### Keep Content Only

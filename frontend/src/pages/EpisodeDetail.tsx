@@ -299,7 +299,6 @@ function SpendSummary({ label, spend, title }: {
   );
 }
 
-// Why a new run cannot start. Only read once isActionBlocked says it cannot.
 // Header summary of the upstream transcript diff; hidden when the stage did not run.
 function TranscriptDiffBadge({ diff }: { diff?: UpstreamTranscript | null }) {
   if (!diff || diff.status === 'none') return null;
@@ -323,6 +322,7 @@ function TranscriptDiffBadge({ diff }: { diff?: UpstreamTranscript | null }) {
   );
 }
 
+// Why a new run cannot start. Only read once isActionBlocked says it cannot.
 function blockedRunReason(jobState?: JobState): string {
   if (jobState === 'queued') return 'This episode is already queued.';
   if (jobState === 'processing') return 'This episode is already processing.';
