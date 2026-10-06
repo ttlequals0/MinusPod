@@ -3,8 +3,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from config import (coerce_bool_setting, resolve_ad_chapter_categories_map,
-                    resolve_segment_category_actions_map)
+from config import coerce_bool_setting, resolve_segment_category_actions_map
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
 
@@ -772,13 +771,3 @@ class PodcastMixin:
             self.get_setting('segment_category_actions'))
         per_feed_raw = podcast.get('segment_category_actions') if podcast else None
         return resolve_segment_category_actions_map(per_feed_raw, baseline=global_resolved)
-
-    def resolve_ad_chapter_categories(self, slug: str,
-                                      podcast: dict | None = None) -> dict[str, bool]:
-        """Per-feed override -> global ad_chapter_categories -> defaults."""
-        if podcast is None:
-            podcast = self.get_podcast_by_slug(slug)
-        global_resolved = resolve_ad_chapter_categories_map(
-            self.get_setting('ad_chapter_categories'))
-        per_feed_raw = podcast.get('ad_chapter_categories_override') if podcast else None
-        return resolve_ad_chapter_categories_map(per_feed_raw, baseline=global_resolved)

@@ -38,7 +38,6 @@ from config import (
     SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
     SILENCE_SNAP_MAX_DISTANCE_SECONDS,
     resolve_segment_category_actions_map,
-    DEFAULT_AD_CHAPTER_CATEGORIES_JSON, resolve_ad_chapter_categories_map,
     valid_ad_chapter_title_format,
     resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     resolve_jit_blocked_user_agents,
@@ -179,10 +178,6 @@ def _payload_max_audio_download_mb() -> int:
 def _payload_segment_category_actions() -> dict[str, str]:
     return resolve_segment_category_actions_map(
         registry_default('segment_category_actions'))
-
-
-def _payload_ad_chapter_categories() -> dict[str, bool]:
-    return resolve_ad_chapter_categories_map(registry_default('ad_chapter_categories'))
 
 
 def _payload_community_sync_categories() -> list[str]:
@@ -577,14 +572,15 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='auto', seeded=True, in_ad_reset=True,
         payload_key='differentialFetchMode',
         validator=_one_of('auto', 'on', 'off')),
-    # Ad chapters: publish kept or held segments as skippable chapters.
-    'ad_chapters_enabled': SettingSpec(
-        default='false', seeded=True, in_ad_reset=True,
-        payload_key='adChaptersEnabled', payload_kind='bool'),
-    'ad_chapter_categories': SettingSpec(
-        default=DEFAULT_AD_CHAPTER_CATEGORIES_JSON, seeded=True, in_ad_reset=True,
-        payload_key='adChapterCategories',
-        payload_factory=_payload_ad_chapter_categories),
+    # Ad chapters: publish marked segments as skippable chapters. The enable
+    # toggle and category list are retired in favor of the 'mark' segment
+    # action (2.98.0, mark_action_from_ad_chapters_v1). Not seeded, not in
+    # the bulk ad-reset list, no payload_key (absent from the GET /settings
+    # 'defaults' block): these bare entries exist only so registry_default()
+    # does not KeyError under src/api's adChaptersEnabled/adChapterCategories
+    # compatibility reads; Task 3 removes both along with those reads.
+    'ad_chapters_enabled': SettingSpec(default='false', resettable=False),
+    'ad_chapter_categories': SettingSpec(default='{}', resettable=False),
     'ad_chapters_include_held': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='adChaptersIncludeHeld', payload_kind='bool'),

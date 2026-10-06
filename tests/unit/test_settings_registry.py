@@ -17,7 +17,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from config import (
     SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION,
-    DEFAULT_AD_CHAPTER_CATEGORIES_JSON,
     DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
 )
 from database import Database
@@ -58,8 +57,6 @@ SEED_SNAPSHOT = {
     'chapters_enabled': 'true',
     'chapters_mode': 'auto',
     'chapters_in_notes': 'false',
-    'ad_chapters_enabled': 'false',
-    'ad_chapter_categories': DEFAULT_AD_CHAPTER_CATEGORIES_JSON,
     'ad_chapters_include_held': 'false',
     'ad_chapter_title_format': 'Ad: {label}',
     'ad_chapter_held_title_format': 'Possible ad: {label}',
@@ -162,13 +159,14 @@ SEED_SNAPSHOT = {
 
 # The pre-registry bulk reset endpoint reset exactly these keys
 # (62 hand-enumerated + 23 stage tunables via STAGE_TUNABLE_PAYLOAD_KEYS).
+# ad_chapters_enabled and ad_chapter_categories dropped out of the registry
+# with the retired settings (62 -> 60; 2.98.0, mark_action_from_ad_chapters_v1).
 EXPECTED_AD_RESET_KEYS = {
     'system_prompt', 'verification_prompt', 'claude_model',
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
     'chapters_enabled', 'chapters_mode', 'chapters_in_notes', 'chapters_model',
     'skip_second_pass', 'differential_fetch_mode',
     'transcript_differential_enabled',
-    'ad_chapters_enabled', 'ad_chapter_categories',
     'ad_chapters_include_held', 'ad_chapter_title_format',
     'ad_chapter_held_title_format', 'ad_chapter_resume_title',
     'ad_chapter_min_confidence',
@@ -520,11 +518,13 @@ class TestGetDefaults:
         # Failover and per-slot overrides add the latest settings.
         # transcriptDifferentialEnabled added after that (156 -> 157).
         # Six patternCleanup* settings plus patternCleanupPrompt (157 -> 164).
+        # adChaptersEnabled and adChapterCategories retired with the settings
+        # they came from (164 -> 162; 2.98.0, mark_action_from_ad_chapters_v1).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 164
+        assert len(payload_keys) == 162
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys

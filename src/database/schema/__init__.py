@@ -45,6 +45,7 @@ from community_export import find_foreign_sponsors, declared_sponsor_names_lower
 from config import (
     CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX, count_pending_review,
+    SEGMENT_CATEGORIES, SEGMENT_ACTIONS, resolve_segment_category_actions_map,
 )
 from utils.markers import collapse_duplicate_markers
 from utils.text import extract_text_in_range
@@ -2268,6 +2269,14 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"network cue template retag migration failed: {e}")
 
+        # Fold the retired ad_chapters_enabled/ad_chapter_categories toggles
+        # into the 'mark' segment action (2.98.0, spec 1.3).
+        try:
+            self._run_mark_action_from_ad_chapters_migration(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"mark action from ad chapters migration failed: {e}")
+
     def _run_retag_network_cue_templates(self, conn):
         """Re-tag network-scope cue templates to their owning feed's current
         effective network; an empty effective network demotes to podcast scope."""
@@ -2307,6 +2316,124 @@ class SchemaMixin:
             logger.info(
                 "Migration: re-tagged %d and demoted %d network cue template(s) "
                 "to match their owning feed's current network", moved, demoted)
+
+    @staticmethod
+    def _legacy_resolve_ad_chapter_categories(raw_json, baseline):
+        """Historical copy of the retired resolve_ad_chapter_categories_map,
+        frozen here so mark_action_from_ad_chapters_v1 keeps reading the
+        2.84.0-2.97.x shape even after the live resolver is edited or gone."""
+        merged = dict(baseline)
+        if not raw_json:
+            return merged
+        try:
+            parsed = json.loads(raw_json)
+        except (TypeError, ValueError):
+            return merged
+        if not isinstance(parsed, dict):
+            return merged
+        for cat, flag in parsed.items():
+            if cat in merged and isinstance(flag, bool):
+                merged[cat] = flag
+        return merged
+
+    def _run_mark_action_from_ad_chapters_migration(self, conn):
+        """One-shot: fold the retired global/per-feed ad chapter enable and
+        category toggles into the 'mark' segment action (2.98.0, spec 1.3).
+
+        Reads only the pre-migration values of ad_chapters_enabled,
+        ad_chapter_categories and segment_category_actions (global and per
+        feed); writes mark/keep overrides only where the resolved behaviour
+        would otherwise silently change. Deletes nothing: the retired
+        settings rows and the two podcasts columns stay in place, unread.
+        """
+        gate = 'mark_action_from_ad_chapters_v1'
+        if conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+            return
+        if not (self._table_exists(conn, 'settings') and self._table_exists(conn, 'podcasts')):
+            return
+
+        global_enabled_pre = self.get_setting_bool('ad_chapters_enabled', False)
+        legacy_default_categories = {
+            cat: cat in ('sponsor', 'cross_promo') for cat in SEGMENT_CATEGORIES}
+        global_categories_pre = self._legacy_resolve_ad_chapter_categories(
+            self.get_setting('ad_chapter_categories'), legacy_default_categories)
+        global_actions_pre = resolve_segment_category_actions_map(
+            self.get_setting('segment_category_actions'))
+
+        global_actions_post = dict(global_actions_pre)
+        promoted = [
+            cat for cat in SEGMENT_CATEGORIES
+            if global_enabled_pre and global_actions_pre.get(cat) == 'keep'
+            and global_categories_pre.get(cat)
+        ]
+        for cat in promoted:
+            global_actions_post[cat] = 'mark'
+
+        if promoted:
+            conn.execute(
+                """INSERT INTO settings (key, value, is_default, updated_at)
+                   VALUES ('segment_category_actions', ?, 0,
+                           strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                   ON CONFLICT(key) DO UPDATE SET value = excluded.value,
+                     is_default = 0, updated_at = excluded.updated_at""",
+                (json.dumps(global_actions_post),))
+
+        rows = conn.execute(
+            "SELECT slug, ad_chapters_enabled_override, "
+            "ad_chapter_categories_override, segment_category_actions "
+            "FROM podcasts"
+        ).fetchall()
+
+        feeds_marked = feeds_kept = 0
+        for row in rows:
+            podcast_row = dict(row)
+            try:
+                own_actions = json.loads(podcast_row['segment_category_actions'] or '{}')
+                if not isinstance(own_actions, dict):
+                    own_actions = {}
+            except (TypeError, ValueError):
+                own_actions = {}
+
+            enabled_override = podcast_row.get('ad_chapters_enabled_override')
+            effective_enabled = (enabled_override == 'on' if enabled_override in ('on', 'off')
+                                 else global_enabled_pre)
+            effective_categories = self._legacy_resolve_ad_chapter_categories(
+                podcast_row.get('ad_chapter_categories_override'), global_categories_pre)
+            effective_actions = resolve_segment_category_actions_map(
+                podcast_row.get('segment_category_actions'), baseline=global_actions_pre)
+
+            new_overrides = {}
+            for cat in SEGMENT_CATEGORIES:
+                has_own_action = cat in own_actions and own_actions[cat] in SEGMENT_ACTIONS
+                chaptered_pre = (effective_enabled
+                                 and effective_actions.get(cat) == 'keep'
+                                 and effective_categories.get(cat))
+                if chaptered_pre:
+                    if has_own_action or global_actions_post.get(cat) != 'mark':
+                        new_overrides[cat] = 'mark'
+                elif global_actions_post.get(cat) == 'mark' and not has_own_action:
+                    new_overrides[cat] = 'keep'
+
+            if new_overrides:
+                merged = dict(own_actions)
+                merged.update(new_overrides)
+                self.update_podcast(podcast_row['slug'], conn=conn,
+                                    segment_category_actions=json.dumps(merged))
+                if 'mark' in new_overrides.values():
+                    feeds_marked += 1
+                if 'keep' in new_overrides.values():
+                    feeds_kept += 1
+
+        conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (gate,))
+        conn.commit()
+        if promoted or feeds_marked or feeds_kept:
+            logger.info(
+                "Migration: promoted %d global categor%s to mark, added an "
+                "explicit mark override on %d feed(s) and an explicit keep "
+                "override on %d feed(s)",
+                len(promoted), 'y' if len(promoted) == 1 else 'ies',
+                feeds_marked, feeds_kept)
 
     def _run_correct_opus48_token_cost(self, conn):
         """One-time correction of recorded Opus 4.8 (`claudeopus48`) token cost.

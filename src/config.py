@@ -236,14 +236,18 @@ def resolve_segment_category_actions_map(
 # Ad chapters: segments left in the audio published as skippable chapters.
 AD_CHAPTER_SNAP_SECONDS = 2.0
 AD_CHAPTER_KINDS = frozenset({'ad', 'resume'})
-DEFAULT_AD_CHAPTER_CATEGORIES = {
-    cat: cat in ('sponsor', 'cross_promo') for cat in SEGMENT_CATEGORIES}
-DEFAULT_AD_CHAPTER_CATEGORIES_JSON = json.dumps(DEFAULT_AD_CHAPTER_CATEGORIES)
 
 
 def resolve_ad_chapter_categories_map(raw_json, baseline=None) -> dict[str, bool]:
-    """Full category -> bool map; unknown keys and non-bool values are ignored."""
-    merged = dict(baseline) if baseline is not None else dict(DEFAULT_AD_CHAPTER_CATEGORIES)
+    """Full category -> bool map; unknown keys and non-bool values are ignored.
+
+    The global/per-feed ad_chapters_enabled and ad_chapter_categories settings
+    this resolves are retired in favor of the 'mark' segment action (2.98.0,
+    mark_action_from_ad_chapters_v1); this stays only as a compatibility shim
+    for the adChaptersEnabled/adChapterCategories API fields in src/api.
+    """
+    merged = dict(baseline) if baseline is not None else {
+        cat: cat in ('sponsor', 'cross_promo') for cat in SEGMENT_CATEGORIES}
     if not raw_json:
         return merged
     try:
@@ -272,7 +276,10 @@ def valid_ad_chapter_title_format(value) -> bool:
 
 
 def validate_ad_chapter_categories(value) -> str | None:
-    """Error message for an adChapterCategories map, or None when it is valid."""
+    """Error message for an adChapterCategories map, or None when it is valid.
+
+    Compatibility shim for src/api's PATCH translation (Task 3 removes this
+    with the retired adChapterCategories field)."""
     if not isinstance(value, dict):
         return 'adChapterCategories must be an object'
     for cat, flag in value.items():
@@ -1079,11 +1086,6 @@ def _resolve_feed_toggle(db, podcast_row, column, setting, default) -> bool:
 def resolve_chapters_in_notes(db, podcast_row) -> bool:
     return _resolve_feed_toggle(db, podcast_row, 'chapters_in_notes',
                                 'chapters_in_notes', False)
-
-
-def resolve_ad_chapters_enabled(db, podcast_row) -> bool:
-    return _resolve_feed_toggle(db, podcast_row, 'ad_chapters_enabled_override',
-                                'ad_chapters_enabled', False)
 
 
 def resolve_cue_template_score_with_source(db, podcast_id):

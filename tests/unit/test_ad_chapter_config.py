@@ -1,68 +1,36 @@
-"""Ad chapter settings: defaults, category map resolution, per-feed overrides."""
-import json
-from unittest.mock import MagicMock
+"""Ad chapter settings: defaults and title format validation.
 
+ad_chapters_enabled and ad_chapter_categories are retired in favor of the
+'mark' segment action (2.98.0); see test_mark_action_migration.py for the
+one-shot migration that folds them in.
+"""
 import pytest
 
 from tests.app_bootstrap import bootstrap
 
 bootstrap('ad_chapter_config_test_')
 
-from config import (  # noqa: E402
-    DEFAULT_AD_CHAPTER_CATEGORIES_JSON, SEGMENT_CATEGORIES,
-    resolve_ad_chapter_categories_map, resolve_ad_chapters_enabled,
-    valid_ad_chapter_title_format,
-)
+from config import valid_ad_chapter_title_format  # noqa: E402
 from database.settings import SETTINGS_REGISTRY, registry_default  # noqa: E402
 
 
-def test_registry_defaults_are_off_and_sponsor_cross_promo():
-    assert registry_default('ad_chapters_enabled') == 'false'
+def test_registry_defaults_for_remaining_ad_chapter_settings():
     assert registry_default('ad_chapters_include_held') == 'false'
     assert registry_default('ad_chapter_title_format') == 'Ad: {label}'
     assert registry_default('ad_chapter_held_title_format') == 'Possible ad: {label}'
     assert registry_default('ad_chapter_resume_title') == 'Show'
     assert registry_default('ad_chapter_min_confidence') == '0.9'
-    assert json.loads(registry_default('ad_chapter_categories')) == {
-        'sponsor': True, 'cross_promo': True, 'self_promo': False,
-        'interaction': False, 'intro': False, 'outro': False, 'recap': False}
-    for key in ('ad_chapters_enabled', 'ad_chapter_categories',
-                'ad_chapters_include_held', 'ad_chapter_title_format',
+    for key in ('ad_chapters_include_held', 'ad_chapter_title_format',
                 'ad_chapter_held_title_format', 'ad_chapter_resume_title',
                 'ad_chapter_min_confidence'):
         assert SETTINGS_REGISTRY[key].in_ad_reset
         assert SETTINGS_REGISTRY[key].seeded
-
-
-def test_categories_map_fills_every_category_and_ignores_junk():
-    full = resolve_ad_chapter_categories_map(None)
-    assert set(full) == set(SEGMENT_CATEGORIES)
-    assert full['sponsor'] is True and full['recap'] is False
-    merged = resolve_ad_chapter_categories_map(
-        json.dumps({'recap': True, 'bogus': True, 'sponsor': 'yes'}))
-    assert merged['recap'] is True
-    assert merged['sponsor'] is True  # non-bool ignored, default kept
-    assert 'bogus' not in merged
-    assert resolve_ad_chapter_categories_map('not json') == full
-    layered = resolve_ad_chapter_categories_map(
-        json.dumps({'sponsor': False}), baseline=full)
-    assert layered['sponsor'] is False and layered['cross_promo'] is True
-
-
-def test_default_json_matches_resolver():
-    assert json.loads(DEFAULT_AD_CHAPTER_CATEGORIES_JSON) == resolve_ad_chapter_categories_map(None)
-
-
-def test_enabled_follows_override_then_global():
-    db = MagicMock()
-    db.get_setting_bool.return_value = True
-    assert resolve_ad_chapters_enabled(db, {'ad_chapters_enabled_override': 'off'}) is False
-    assert resolve_ad_chapters_enabled(db, {'ad_chapters_enabled_override': 'on'}) is True
-    assert resolve_ad_chapters_enabled(db, {'ad_chapters_enabled_override': None}) is True
-    assert resolve_ad_chapters_enabled(db, None) is True
-    db.get_setting_bool.return_value = False
-    assert resolve_ad_chapters_enabled(db, {}) is False
-    db.get_setting_bool.assert_called_with('ad_chapters_enabled', False)
+    # Bare compat-only entries (src/api still reads these by key); neither
+    # seeds, resets in bulk, nor appears in the GET /settings defaults block.
+    for key in ('ad_chapters_enabled', 'ad_chapter_categories'):
+        assert not SETTINGS_REGISTRY[key].seeded
+        assert not SETTINGS_REGISTRY[key].in_ad_reset
+        assert SETTINGS_REGISTRY[key].payload_key is None
 
 
 def test_title_format_validator():
@@ -87,22 +55,6 @@ def test_title_format_validator():
 ])
 def test_title_format_validator_rejects_field_access(value):
     assert not valid_ad_chapter_title_format(value)
-
-
-def test_per_feed_categories_layer_over_global(temp_db):
-    db = temp_db
-    db.set_setting('ad_chapter_categories', json.dumps({'recap': True}), is_default=False)
-    db.create_podcast('example-podcast', 'https://example.com/feed', 'Example')
-    db.update_podcast('example-podcast',
-                      ad_chapter_categories_override=json.dumps({'sponsor': False}))
-    resolved = db.resolve_ad_chapter_categories('example-podcast')
-    assert resolved['recap'] is True
-    assert resolved['sponsor'] is False
-    assert resolved['cross_promo'] is True
-    row = db.get_podcast_by_slug('example-podcast')
-    assert row['ad_chapter_categories_override'] == json.dumps({'sponsor': False})
-    db.update_podcast('example-podcast', ad_chapters_enabled_override='on')
-    assert db.get_podcast_by_slug('example-podcast')['ad_chapters_enabled_override'] == 'on'
 
 
 def test_old_machine_form_defaults_are_migrated_once(temp_db):
