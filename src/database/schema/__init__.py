@@ -9,6 +9,9 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from utils.text import normalize_title_for_match
+from utils.time import parse_iso_utc
+
 logger = logging.getLogger(__name__)
 
 # Rows read per page by the duplicate-marker collapse, so a large library does
@@ -346,6 +349,88 @@ class SchemaMixin:
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
+
+    def _dedup_orphan_discovered_episodes(self, conn) -> None:
+        """One-shot cleanup for stale-published_at duplicates: a row stored
+        before the published_at timezone fix can be off by a dropped
+        named-zone offset, which made an upstream GUID rotation miss the
+        exact title+date match and insert a second 'discovered' row for an
+        episode that already existed (database/episodes.py's fuzzy match
+        now prevents new occurrences; this clears out the ones already
+        created).
+
+        An orphan is a 'discovered' row with no processing state (no
+        processed file, no episode_details row) that shares a podcast, a
+        normalized title, and a published_at within FUZZY_MATCH_WINDOW_HOURS
+        with another row. The row with state is kept; when neither row in a
+        pair has state, the older (lower id) row is kept.
+        """
+        gate = 'dedup_orphan_discovered_episodes_v1'
+        if conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)
+        ).fetchone():
+            return
+        from database.episodes import FUZZY_MATCH_WINDOW_HOURS
+
+        rows = conn.execute(
+            """SELECT e.id, e.podcast_id, e.title, e.published_at, e.status,
+                      e.processed_file,
+                      EXISTS(SELECT 1 FROM episode_details ed
+                             WHERE ed.episode_id = e.id) AS has_details
+               FROM episodes e
+               WHERE e.title IS NOT NULL AND e.published_at IS NOT NULL"""
+        ).fetchall()
+
+        groups: dict[tuple, list] = {}
+        for row in rows:
+            title_key = normalize_title_for_match(row['title'])
+            if not title_key:
+                continue
+            groups.setdefault((row['podcast_id'], title_key), []).append(dict(row))
+
+        def has_state(row) -> bool:
+            return (row['status'] != 'discovered' or bool(row['processed_file'])
+                    or bool(row['has_details']))
+
+        to_delete = []
+        for group_rows in groups.values():
+            if len(group_rows) < 2:
+                continue
+            group_rows.sort(key=lambda r: r['published_at'])
+            clusters = [[group_rows[0]]]
+            for row in group_rows[1:]:
+                prev_dt = parse_iso_utc(clusters[-1][-1]['published_at'])
+                this_dt = parse_iso_utc(row['published_at'])
+                if (prev_dt and this_dt and abs((this_dt - prev_dt).total_seconds())
+                        / 3600 <= FUZZY_MATCH_WINDOW_HOURS):
+                    clusters[-1].append(row)
+                else:
+                    clusters.append([row])
+
+            for members in clusters:
+                if len(members) < 2:
+                    continue
+                stateful = [r for r in members if has_state(r)]
+                orphans = [r for r in members if not has_state(r)]
+                if not orphans:
+                    continue
+                if stateful:
+                    to_delete.extend(r['id'] for r in orphans)
+                else:
+                    oldest_id = min(r['id'] for r in members)
+                    to_delete.extend(r['id'] for r in members if r['id'] != oldest_id)
+
+        if to_delete:
+            placeholders = ','.join('?' for _ in to_delete)
+            conn.execute(
+                f"DELETE FROM episodes WHERE id IN ({placeholders})",  # noqa: S608
+                to_delete)
+            logger.info(
+                f"Migration: removed {len(to_delete)} orphan discovered-episode "
+                "duplicate(s) left by a stale pre-fix published_at"
+            )
+        conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (gate,))
+        conn.commit()
 
     def _run_schema_migrations(self):
         """Run schema migrations for existing databases."""
@@ -685,6 +770,8 @@ class SchemaMixin:
                 logger.info(f"Migration: Normalized {fixed} RFC 2822 published_at dates to ISO 8601")
         except Exception as e:
             logger.warning(f"published_at normalization migration: {e}")
+
+        self._dedup_orphan_discovered_episodes(conn)
 
         # -- Addressing log columns (per-mode yield and waste) --
         # Nullable on purpose: NULL marks rows from before yield recording
