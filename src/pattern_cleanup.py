@@ -20,7 +20,7 @@ from llm_client import ProviderRateLimitedError
 from llm_route import (
     LiveRoute, apply_failover, client_for_route, live_route_from, resolve_route,
 )
-from pattern_cleanup_hash import INVALID_MARKER, review_hash
+from pattern_cleanup_hash import INVALID_MARKER, review_hash, stats_evidence_hash
 from pattern_variants import derive_intro_outro
 from processing_queue import ProcessingQueue
 from sponsor_normalize import get_or_create_known_sponsor, sanitize_sponsor_name
@@ -56,6 +56,13 @@ TRIM_MIN_FRACTION = 0.10
 # Alignment edges can wobble by a character at word boundaries.
 OVERLAP_TOLERANCE_CHARS = 2
 HIGH_FP_MIN = 2
+_MODEL_INPUT_FIELDS = (
+    'text_template', 'sponsor_id', 'sponsor', 'intro_variants', 'outro_variants', 'is_active',
+)
+_STATS_INPUT_FIELDS = (
+    *_MODEL_INPUT_FIELDS, 'created_at', 'last_matched_at',
+    'confirmation_count', 'false_positive_count',
+)
 # Patterns whose review is unusable this many times are parked until a forced run.
 INVALID_LIMIT = 3
 INVALID_PREFIX = 'invalid:'
@@ -125,8 +132,8 @@ def _decode_list(value) -> list:
     return parsed if isinstance(parsed, list) else []
 
 
-def _before_snapshot(pattern: dict) -> dict:
-    return {
+def _before_snapshot(pattern: dict, context: str | None = None) -> dict:
+    before = {
         'text_template': pattern.get('text_template'),
         'sponsor': pattern.get('sponsor'),
         'sponsor_id': pattern.get('sponsor_id'),
@@ -135,10 +142,15 @@ def _before_snapshot(pattern: dict) -> dict:
         'is_active': pattern.get('is_active'),
         'disabled_at': pattern.get('disabled_at'),
         'disabled_reason': pattern.get('disabled_reason'),
-        # Lets a stale retire/flag approval be refused if the counters moved since.
+        # Refuse stale retire/flag decisions when counters change.
+        'created_at': pattern.get('created_at'),
         'last_matched_at': pattern.get('last_matched_at'),
         'confirmation_count': pattern.get('confirmation_count'),
+        'false_positive_count': pattern.get('false_positive_count'),
     }
+    if context is not None:
+        before['source_context'] = context
+    return before
 
 
 def _snapshot_fields(pattern: dict, fields: tuple[str, ...]) -> dict:
@@ -150,8 +162,10 @@ def _suggestion_stale_fields(suggestion: dict, *, approving: bool) -> tuple[str,
     fields = ['text_template', 'sponsor_id', 'sponsor']
     kind = suggestion['kind']
     payload = suggestion.get('payload') or {}
-    if kind in ('retire', 'flag'):
-        fields.extend(('last_matched_at', 'confirmation_count'))
+    if kind == 'retire':
+        fields.extend(('created_at', 'last_matched_at'))
+    if kind == 'flag':
+        fields.extend(('false_positive_count', 'confirmation_count'))
     if (kind == 'trim'
             or kind == 'flag' and payload.get('recommended') == 'trim'):
         fields.extend(('intro_variants', 'outro_variants'))
@@ -184,13 +198,10 @@ def _suggestion_after_fields(suggestion: dict) -> tuple[str, ...]:
 # Selection and stats
 
 def select_candidates(db, *, force: bool, batch_size: int) -> list[dict]:
-    """Learned patterns due for review; force clears every review stamp first."""
-    if force:
-        db.clear_cleanup_reviewed()
+    """Return learned patterns due for review after any run-level force reset."""
     out = []
     for row in db.get_cleanup_candidate_rows(force=force, batch_size=batch_size):
-        # A pattern awaiting the user's decision is not re-reviewed unless forced.
-        if row.pop('has_pending') and not force:
+        if row.pop('has_pending_model', False) and not force:
             continue
         stamp = row.get('cleanup_reviewed_hash')
         if stamp == INVALID_MARKER or stamp == review_hash(row.get('text_template'), row.get('sponsor')):
@@ -218,6 +229,7 @@ def stats_suggestions(db, pattern: dict, unused_days: int, now=None) -> list[dic
         out.append(_suggestion('retire', 1.0, [reason], {
             'unused_days': unused_days,
             'last_matched_at': pattern.get('last_matched_at'),
+            'created_at': pattern.get('created_at'),
             'confirmation_count': pattern.get('confirmation_count') or 0,
         }))
     fp = pattern.get('false_positive_count') or 0
@@ -574,38 +586,257 @@ def _record_failure(db, pattern: dict) -> None:
     """Count a failed review like an unusable one so the pattern rotates back and parks."""
     try:
         with db.transaction(immediate=True) as conn:
-            _record_invalid(db, pattern, conn)
+            current = _pattern_on(conn, pattern['id'])
+            if current is not None:
+                _supersede_obsolete_model_pending(conn, current)
+                if (_same_model_input(pattern, current)
+                        and _same_review_metadata(pattern, current)):
+                    _record_invalid(db, current, conn)
     except Exception as e:
         logger.warning("pattern_cleanup: pattern %s failure not recorded: %s", pattern['id'], e)
         db.clear_leaked_transaction(logger, 'pattern cleanup')
 
 
+def _same_fields(expected: dict, current: dict, fields: tuple[str, ...]) -> bool:
+    return _matches_snapshot(current, _snapshot_fields(expected, fields), fields)
+
+
+def _same_model_input(expected: dict, current: dict) -> bool:
+    return _same_fields(expected, current, _MODEL_INPUT_FIELDS)
+
+
+def _same_suggestion_content(suggestion: dict, current: dict) -> bool:
+    fields = [field for field in _suggestion_stale_fields(suggestion, approving=True)
+              if field not in ('false_positive_count', 'confirmation_count')]
+    return _matches_snapshot(current, suggestion.get('before') or {}, tuple(fields))
+
+
+def _obsolete_model_version(suggestion: dict, current: dict) -> bool:
+    before = suggestion.get('before') or {}
+    return ('text_template' in before and 'sponsor' in before
+            and review_hash(before.get('text_template'), before.get('sponsor'))
+            != review_hash(current.get('text_template'), current.get('sponsor')))
+
+
+def _same_stats_input(expected: dict, current: dict) -> bool:
+    return _same_fields(expected, current, _STATS_INPUT_FIELDS)
+
+
+def _same_review_metadata(expected: dict, current: dict) -> bool:
+    return all(expected.get(field) == current.get(field) for field in (
+        'cleanup_reviewed_at', 'cleanup_reviewed_hash', 'cleanup_stats_reviewed'))
+
+
+def _stats_evidence(kind: str, pattern: dict, payload: dict) -> str | None:
+    if kind == 'retire':
+        anchor = (payload.get('last_matched_at') or payload.get('created_at')
+                  or pattern.get('created_at'))
+        threshold = payload.get('unused_days')
+        if anchor is None or threshold is None:
+            return None
+        evidence = {'inactive_since': anchor, 'unused_days': threshold}
+    elif kind == 'flag':
+        false_positives = payload.get('false_positive_count')
+        if not isinstance(false_positives, int) or isinstance(false_positives, bool):
+            return None
+        evidence = {'false_positive_count': false_positives}
+    else:
+        return None
+    return stats_evidence_hash(kind, pattern.get('text_template'), pattern.get('sponsor'), evidence)
+
+
+def _stats_acknowledgments(db, conn, pattern: dict) -> dict:
+    acknowledgments = db.get_cleanup_stats_reviewed(pattern['id'], conn=conn)
+    if acknowledgments is not None:
+        return acknowledgments
+    acknowledgments = {}
+    for decision in db.get_cleanup_stat_decisions(pattern['id'], conn=conn):
+        before = decision.get('before') or {}
+        if ('text_template' not in before or 'sponsor' not in before
+                or review_hash(before.get('text_template'), before.get('sponsor'))
+                != review_hash(pattern.get('text_template'), pattern.get('sponsor'))):
+            continue
+        payload = decision.get('payload') or {}
+        history_before = dict(before)
+        history_before.setdefault('created_at', pattern.get('created_at'))
+        history_before.setdefault('last_matched_at', payload.get('last_matched_at'))
+        fingerprint = _stats_evidence(decision['kind'], history_before, payload)
+        if fingerprint is not None:
+            acknowledgments[decision['kind']] = fingerprint
+    db.set_cleanup_stats_reviewed(pattern['id'], acknowledgments, conn=conn)
+    return acknowledgments
+
+
+def _acknowledge_stats_decision(db, conn, suggestion: dict, pattern: dict) -> None:
+    kind = suggestion['kind']
+    if kind not in ('retire', 'flag'):
+        return
+    before = suggestion.get('before') or {}
+    payload = suggestion.get('payload') or {}
+    fingerprint = _stats_evidence(kind, before, payload)
+    if fingerprint is None:
+        return
+    acknowledgments = _stats_acknowledgments(db, conn, pattern)
+    acknowledgments[kind] = fingerprint
+    db.set_cleanup_stats_reviewed(pattern['id'], acknowledgments, conn=conn)
+
+
+def _decode_pending_rows(rows) -> list[dict]:
+    decoded = []
+    for row in rows:
+        item = dict(row)
+        for field in ('reasons', 'payload', 'before', 'applied'):
+            item[field] = json.loads(item[field]) if item.get(field) else None
+        decoded.append(item)
+    return decoded
+
+
+def _stats_only_suggestion(suggestion: dict) -> bool:
+    if suggestion['kind'] == 'retire':
+        return True
+    payload = suggestion.get('payload') or {}
+    return (suggestion['kind'] == 'flag' and not payload.get('contaminated')
+            and payload.get('recommended') != 'trim')
+
+
+def _pending_pattern_suggestions(conn, pattern_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM pattern_cleanup_suggestions WHERE pattern_id = ? AND status = 'pending'",
+        (pattern_id,)).fetchall()
+    return _decode_pending_rows(rows)
+
+
+def _supersede_obsolete_model_pending(conn, pattern: dict) -> None:
+    for suggestion in _pending_pattern_suggestions(conn, pattern['id']):
+        if (not _stats_only_suggestion(suggestion)
+                and _obsolete_model_version(suggestion, pattern)):
+            conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?",
+                         (suggestion['id'],))
+
+
+def _is_false_positive_reason(reason: str) -> bool:
+    return (isinstance(reason, str)
+            and re.fullmatch(r'\d+ false positives against \d+ confirmations', reason) is not None)
+
+
+def _run_stats_sweep(db, run_id: int, unused_days: int, segments_cache: dict) -> set[tuple[int, str]]:
+    """Persist new statistical evidence independently from model-review eligibility."""
+    changed = set()
+    for scanned in db.get_cleanup_stats_rows():
+        with db.transaction(immediate=True) as conn:
+            current = _pattern_on(conn, scanned['id'])
+            if current is None or not _same_stats_input(scanned, current):
+                continue
+            candidates = {item['kind']: item for item in stats_suggestions(db, current, unused_days)}
+            acknowledgments = _stats_acknowledgments(db, conn, current)
+            all_pending = _pending_pattern_suggestions(conn, current['id'])
+            pending = {item['kind']: item for item in all_pending
+                       if item['kind'] in ('retire', 'flag')}
+            for existing in all_pending:
+                if (not _stats_only_suggestion(existing)
+                        and _obsolete_model_version(existing, current)):
+                    conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?",
+                                 (existing['id'],))
+                    pending.pop(existing['kind'], None)
+            for kind, existing in list(pending.items()):
+                proposal = candidates.get(kind)
+                if _stats_only_suggestion(existing) and (
+                        proposal is None or acknowledgments.get(kind) ==
+                        _stats_evidence(kind, current, proposal['payload'])):
+                    conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?",
+                                 (existing['id'],))
+                    pending.pop(kind)
+            model_flag = pending.get('flag')
+            if (model_flag is not None and not _stats_only_suggestion(model_flag)
+                    and _same_suggestion_content(model_flag, current)):
+                proposal = candidates.get('flag')
+                payload = dict(model_flag.get('payload') or {})
+                payload.update({
+                    'false_positive_count': current.get('false_positive_count') or 0,
+                    'confirmation_count': current.get('confirmation_count') or 0,
+                })
+                reasons = [reason for reason in model_flag.get('reasons') or []
+                           if not _is_false_positive_reason(reason)]
+                fingerprint = (_stats_evidence('flag', current, proposal['payload'])
+                               if proposal is not None else None)
+                if (proposal is not None
+                        and acknowledgments.get('flag') != fingerprint):
+                    reasons.extend(reason for reason in proposal['reasons']
+                                   if reason not in reasons)
+                before = _before_snapshot(
+                    current, (model_flag.get('before') or {}).get('source_context'))
+                old_before = model_flag.get('before') or {}
+                stale_fields = _suggestion_stale_fields(model_flag, approving=True)
+                if (not _matches_snapshot(current, old_before, stale_fields)
+                        or payload != model_flag.get('payload') or reasons != model_flag.get('reasons')):
+                    db.upsert_cleanup_suggestion(
+                        run_id, current['id'], 'flag',
+                        max(model_flag.get('confidence') or 0,
+                            proposal['confidence'] if proposal else 0),
+                        reasons, payload, before, conn=conn)
+                    model_flag.update(before=before, payload=payload, reasons=reasons)
+                    changed.add((current['id'], 'flag'))
+            for kind, proposal in candidates.items():
+                fingerprint = _stats_evidence(kind, current, proposal['payload'])
+                if fingerprint is None or acknowledgments.get(kind) == fingerprint:
+                    continue
+                existing = pending.get(kind)
+                if existing is not None and not _stats_only_suggestion(existing):
+                    continue
+                if existing is None:
+                    context = source_context(db, current, segments_cache)
+                    before = _before_snapshot(current, context)
+                    db.upsert_cleanup_suggestion(
+                        run_id, current['id'], kind, proposal['confidence'], proposal['reasons'],
+                        proposal['payload'], before, conn=conn)
+                    changed.add((current['id'], kind))
+                elif (_stats_evidence(kind, existing.get('before') or {},
+                                      existing.get('payload') or {}) != fingerprint
+                      or not _matches_snapshot(
+                          current, existing.get('before') or {},
+                          _suggestion_stale_fields(existing, approving=True))):
+                    context = source_context(db, current, segments_cache)
+                    before = _before_snapshot(current, context)
+                    db.upsert_cleanup_suggestion(
+                        run_id, current['id'], kind, proposal['confidence'], proposal['reasons'],
+                        proposal['payload'], before, conn=conn)
+                    changed.add((current['id'], kind))
+    return changed
+
+
 def _process_pattern(db, run_id: int, pattern: dict, unused_days: int, live: LiveRoute,
-                     system_prompt: str, force: bool = False, sponsors=None,
-                     segments_cache: dict | None = None) -> tuple[int, bool]:
-    """(suggestions stored, LLM review skipped) for one pattern."""
-    stats = stats_suggestions(db, pattern, unused_days)
-    skip_llm = any(s['kind'] == 'retire' for s in stats)
-    verdict = None
-    if not skip_llm:
-        verdict = review_pattern(pattern, source_context(db, pattern, segments_cache), live=live,
-                                 system_prompt=system_prompt, sponsors=sponsors)
-    suggestions = _suggestions_for(pattern, stats, verdict)
-    before = _before_snapshot(pattern)
+                     system_prompt: str, sponsors=None,
+                     segments_cache: dict | None = None) -> tuple[set[str], bool]:
+    """Return stored kinds and whether the review became stale."""
+    context = source_context(db, pattern, segments_cache)
+    verdict = review_pattern(pattern, context, live=live, system_prompt=system_prompt,
+                             sponsors=sponsors)
     with db.transaction(immediate=True) as conn:
-        if force:
-            db.supersede_pending(pattern['id'], conn=conn)
+        current = _pattern_on(conn, pattern['id'])
+        if current is None:
+            return set(), True
+        if not _same_model_input(pattern, current):
+            _supersede_obsolete_model_pending(conn, current)
+            return set(), True
+        if not _same_review_metadata(pattern, current):
+            return set(), True
+        _supersede_obsolete_model_pending(conn, current)
+        acknowledgments = db.get_cleanup_stats_reviewed(current['id'], conn=conn) or {}
+        stats = [item for item in stats_suggestions(db, current, unused_days)
+                 if acknowledgments.get(item['kind']) != _stats_evidence(
+                     item['kind'], current, item['payload'])]
+        suggestions = _suggestions_for(current, stats, verdict)
+        before = _before_snapshot(current, context)
         for s in suggestions:
-            db.upsert_cleanup_suggestion(run_id, pattern['id'], s['kind'], s['confidence'],
+            db.upsert_cleanup_suggestion(run_id, current['id'], s['kind'], s['confidence'],
                                          s['reasons'], s['payload'], before, conn=conn)
-        if not suggestions and not skip_llm:
-            if verdict is None:
-                _record_invalid(db, pattern, conn)
-            elif verdict['action'] == 'keep':
-                db.stamp_pattern_cleanup_reviewed(
-                    pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor')),
-                    conn=conn)
-    return len(suggestions), skip_llm
+        if verdict is None:
+            _record_invalid(db, current, conn)
+        else:
+            db.stamp_pattern_cleanup_reviewed(
+                current['id'], review_hash(current.get('text_template'), current.get('sponsor')),
+                conn=conn)
+    return {item['kind'] for item in suggestions}, False
 
 
 @contextmanager
@@ -685,22 +916,26 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str)
     """Body of a run; the caller holds the lock and created the run row."""
     start = time.monotonic()
     counts = {'reviewed': 0, 'suggested': 0, 'skipped': 0, 'errors': 0}
+    suggestion_keys = set()
     original_live = None
     status, error = 'completed', None
     try:
-        original_route = resolve_route(PHASE)
-        original_live = live_route_from(original_route)
+        if force:
+            db.reset_cleanup_force_state()
         batch_size = _clamped_int(db, 'pattern_cleanup_batch_size', BATCH_SIZE_RANGE)
         unused_days = _clamped_int(db, 'pattern_cleanup_unused_days', UNUSED_DAYS_RANGE)
+        segments_cache: dict = {}
+        suggestion_keys.update(_run_stats_sweep(db, run_id, unused_days, segments_cache))
+        original_route = resolve_route(PHASE)
+        original_live = live_route_from(original_route)
         system_prompt = _system_prompt(db)
         sponsors = SponsorService(db)
-        segments_cache: dict = {}
         call_errors = 0
         for pattern in select_candidates(db, force=force, batch_size=batch_size):
             live = _live_route(original_route)
             try:
                 stored, skipped = _process_pattern(
-                    db, run_id, pattern, unused_days, live, system_prompt, force=force,
+                    db, run_id, pattern, unused_days, live, system_prompt,
                     sponsors=sponsors, segments_cache=segments_cache)
             except ProviderRateLimitedError:
                 raise
@@ -716,13 +951,14 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str)
                 continue
             call_errors = 0
             counts['reviewed'] += 1
-            counts['suggested'] += stored
+            suggestion_keys.update((pattern['id'], kind) for kind in stored)
             counts['skipped'] += int(skipped)
     except Exception as e:
         status, error = 'failed', str(e) or type(e).__name__
         logger.warning("pattern_cleanup: run %s failed: %s", run_id, error)
         db.clear_leaked_transaction(logger, 'pattern cleanup')
 
+    counts['suggested'] = len(suggestion_keys)
     summary = {
         'runId': run_id, 'status': status, 'trigger': trigger, 'forced': force, **counts,
         'model': original_live.model if original_live else None,
@@ -949,6 +1185,7 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
         applied['applied_at'] = utc_now_iso()
         # Orders approvals on one pattern so undo can refuse out of order.
         applied['applied_seq'] = time.time_ns()
+        _acknowledge_stats_decision(db, conn, suggestion, pattern)
         db.set_cleanup_suggestion_status(suggestion_id, 'approved', applied=applied, conn=conn)
         db.supersede_pending(pattern['id'], conn=conn)
     invalidate_pattern_catalog_scope()
@@ -965,6 +1202,7 @@ def reject_suggestion(db, suggestion_id: int) -> dict:
             check_fields = _suggestion_stale_fields(suggestion, approving=False)
             if not _matches_snapshot(pattern, before, check_fields):
                 raise SuggestionStateError('the pattern changed after this suggestion was made')
+            _acknowledge_stats_decision(db, conn, suggestion, pattern)
         db.set_cleanup_suggestion_status(suggestion_id, 'rejected', conn=conn)
         if pattern is not None:
             db.stamp_pattern_cleanup_reviewed(
@@ -1048,6 +1286,7 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
         db.stamp_pattern_cleanup_reviewed(
             pattern['id'], review_hash(restored.get('text_template'), restored.get('sponsor')),
             conn=conn)
+        _acknowledge_stats_decision(db, conn, suggestion, pattern)
         db.set_cleanup_suggestion_status(suggestion_id, 'undone', conn=conn)
     invalidate_pattern_catalog_scope()
     return db.get_cleanup_suggestion(suggestion_id)

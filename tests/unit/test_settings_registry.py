@@ -51,7 +51,7 @@ SEED_SNAPSHOT = {
     '_review_prompt_migrated': 'true',
     'audio_bitrate': '128k',
     'chapter_prompt': ('sha256', 'ba78ae10ed245f1b215407d2980358cdf6aff6b5f64dfc1662c6f6848cb418b4'),
-    'pattern_cleanup_prompt': ('sha256', 'c05051eb7ebe5b5beda7203b309a69d0a8b34db2c1f3f893675a2562575496ff'),
+    'pattern_cleanup_prompt': ('sha256', '485b57bb6dfb67b3fe00eae7939f4fb6f9a112afbbd10691c5b7cbc9e04ddd32'),
     'audio_normalize_enabled': 'false',
     'audio_normalize_intensity': 'normal',
     'auto_process_enabled': 'true',

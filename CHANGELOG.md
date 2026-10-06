@@ -23,6 +23,7 @@ release notes.
 - Pattern Cleanup (Experiments): a scheduled LLM review of learned ad patterns that suggests trims, splits, sponsor renames, and retirements. It also flags patterns with many false positives or copy mixed with show content. Suggestions are reviewed on the Patterns page and change nothing until approved, and an approved change can be undone. Off by default. See [Pattern Cleanup](docs/pattern-cleanup.md).
 
 ### Fixed
+- Forced cleanup rechecks continue across bounded batches. Statistics checks run independently of model reviews, preserve dismissed evidence while unchanged, and retain source context without overwriting later decisions.
 - Expanded feature guides, glossary entries, and API contracts for pattern cleanup, failover, transcript differential, and OPML export. Cleanup API snapshots now use booleans for active state.
 - Cleanup records evidence for reviewed patterns and resets the active review backlog atomically while preserving decision history.
 - Cleanup action buttons keep their disabled appearance while work is pending.

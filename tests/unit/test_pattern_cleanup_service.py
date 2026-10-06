@@ -121,7 +121,8 @@ def test_force_clears_stamps_and_selects_all(temp_db):
     a = _pattern(temp_db, text=AD2, sponsor='Widgetco')
     temp_db.stamp_pattern_cleanup_reviewed(a['id'], review_hash(AD2, 'Widgetco'))
     assert select_candidates(temp_db, force=False, batch_size=10) == []
-    ids = [p['id'] for p in select_candidates(temp_db, force=True, batch_size=10)]
+    temp_db.reset_cleanup_force_state()
+    ids = [p['id'] for p in select_candidates(temp_db, force=False, batch_size=10)]
     assert ids == [a['id']]
     assert temp_db.get_ad_pattern_by_id(a['id'])['cleanup_reviewed_hash'] is None
 
@@ -140,7 +141,18 @@ def test_pattern_with_pending_suggestion_is_not_reselected(temp_db):
     p = _pattern(temp_db)
     temp_db.upsert_cleanup_suggestion(None, p['id'], 'trim', 0.9, [], {'text': AD}, {})
     assert select_candidates(temp_db, force=False, batch_size=10) == []
-    assert [c['id'] for c in select_candidates(temp_db, force=True, batch_size=10)] == [p['id']]
+    temp_db.reset_cleanup_force_state()
+    assert [c['id'] for c in select_candidates(temp_db, force=False, batch_size=10)] == [p['id']]
+
+
+def test_incomplete_legacy_model_snapshot_survives_normal_run(temp_db, live_route):
+    pattern = _pattern(temp_db)
+    temp_db.upsert_cleanup_suggestion(None, pattern['id'], 'trim', 0.9, [], {'text': AD}, {})
+    with patch.object(pattern_cleanup, 'call_llm') as llm:
+        run_cleanup(temp_db)
+    assert not llm.called
+    pending = temp_db.get_cleanup_suggestions(status='pending')
+    assert len(pending) == 1 and pending[0]['kind'] == 'trim'
 
 
 # Stats suggestions
@@ -437,8 +449,10 @@ def test_run_cleanup_counts_and_summary(temp_db, live_route):
     sugg = temp_db.get_cleanup_suggestions(status='pending')
     assert [(s['pattern_id'], s['kind']) for s in sugg] == [(trim_p['id'], 'trim')]
     assert sugg[0]['before']['text_template'] == trim_p['text_template']
+    assert 'source_context' not in sugg[0]['before']
     assert temp_db.get_ad_pattern_by_id(keep_p['id'])['cleanup_reviewed_hash'] == review_hash(AD2, 'Widgetco')
-    assert temp_db.get_ad_pattern_by_id(trim_p['id'])['cleanup_reviewed_hash'] is None
+    assert temp_db.get_ad_pattern_by_id(trim_p['id'])['cleanup_reviewed_hash'] == review_hash(
+        trim_p['text_template'], 'Acme')
     run = temp_db.get_cleanup_runs(limit=1)[0]
     assert run['id'] == summary['runId'] and run['started_at'] == summary['startedAt']
     assert run['status'] == 'completed' and run['trigger'] == 'manual' and run['model'] == 'test-model'
@@ -493,7 +507,7 @@ def test_run_refreshes_failover_from_frozen_original_route(temp_db):
     assert summary['credentialSlot'] == 'primary'
 
 
-def test_run_skips_llm_when_retire_suggested(temp_db, live_route):
+def test_run_reviews_pattern_and_suggests_retirement_independently(temp_db, live_route):
     p = _pattern(temp_db)
     temp_db.get_connection().execute(
         "UPDATE ad_patterns SET created_at = ? WHERE id = ?",
@@ -502,9 +516,332 @@ def test_run_skips_llm_when_retire_suggested(temp_db, live_route):
     fake, calls = _fake_llm(_reply())
     with patch.object(pattern_cleanup, 'call_llm', fake):
         summary = run_cleanup(temp_db)
-    assert calls == []
-    assert summary['skipped'] == 1 and summary['suggested'] == 1
+    assert len(calls) == 1
+    assert summary['reviewed'] == 1 and summary['suggested'] == 1
     assert temp_db.get_cleanup_suggestions()[0]['kind'] == 'retire'
+
+
+def test_force_reset_continues_through_normal_batches(temp_db, live_route):
+    temp_db.set_setting('pattern_cleanup_batch_size', '2')
+    patterns = [_pattern(temp_db, text=f'pattern {i} ' + AD) for i in range(5)]
+    for pattern in patterns:
+        temp_db.stamp_pattern_cleanup_reviewed(
+            pattern['id'], review_hash(pattern['text_template'], pattern['sponsor']))
+        _suggest(temp_db, pattern, 'trim', {'text': AD})
+    fake, calls = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        first = run_cleanup(temp_db, force=True)
+        second = run_cleanup(temp_db)
+        third = run_cleanup(temp_db)
+    assert [first['reviewed'], second['reviewed'], third['reviewed']] == [2, 2, 1]
+    assert len(calls) == len(patterns)
+    assert temp_db.get_cleanup_suggestions(status='pending') == []
+    assert all(temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] for p in patterns)
+
+
+def test_stats_pending_does_not_block_first_model_review(temp_db, live_route):
+    pattern = _pattern(temp_db, false_positive_count=3, confirmation_count=1)
+    fake, calls = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+        run_cleanup(temp_db)
+    assert len(calls) == 1
+    assert temp_db.get_ad_pattern_by_id(pattern['id'])['cleanup_reviewed_hash'] == review_hash(
+        pattern['text_template'], pattern['sponsor'])
+    assert [s['kind'] for s in temp_db.get_cleanup_suggestions(status='pending')] == ['flag']
+
+
+def test_model_suggestion_stores_context_used_for_review(temp_db, live_route):
+    _pattern(temp_db)
+    fake, calls = _fake_llm(_reply(action='trim', text=AD))
+    with patch.object(pattern_cleanup, 'source_context',
+                      return_value='retained transcript context') as context, \
+            patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    suggestion = temp_db.get_cleanup_suggestions(status='pending')[0]
+    assert len(calls) == 1 and context.call_count == 1
+    assert suggestion['before']['source_context'] == 'retained transcript context'
+
+
+def test_acknowledged_false_positive_evidence_only_resurfaces_for_new_events(
+        temp_db, live_route):
+    pattern = _pattern(temp_db, false_positive_count=3, confirmation_count=1)
+    fake, calls = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    flag = temp_db.get_cleanup_suggestions(status='pending')[0]
+    reject_suggestion(temp_db, flag['id'])
+    with patch.object(pattern_cleanup, 'source_context') as context, \
+            patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+        assert not context.called
+        temp_db.update_ad_pattern(pattern['id'], confirmation_count=2)
+        run_cleanup(temp_db)
+        assert not context.called
+    assert temp_db.get_cleanup_suggestions(status='pending') == []
+    temp_db.update_ad_pattern(pattern['id'], false_positive_count=4)
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    assert len(calls) == 1
+    pending = temp_db.get_cleanup_suggestions(status='pending')
+    assert len(pending) == 1 and pending[0]['payload']['false_positive_count'] == 4
+
+
+def test_acknowledged_retirement_resurfaces_when_threshold_changes(temp_db, live_route):
+    pattern = _pattern(temp_db)
+    temp_db.set_setting('pattern_cleanup_unused_days', '90')
+    temp_db.get_connection().execute(
+        "UPDATE ad_patterns SET created_at = ? WHERE id = ?",
+        (_iso(utc_now() - timedelta(days=200)), pattern['id']))
+    temp_db.get_connection().commit()
+    fake, calls = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    retirement = next(item for item in temp_db.get_cleanup_suggestions(status='pending')
+                      if item['kind'] == 'retire')
+    reject_suggestion(temp_db, retirement['id'])
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    assert not any(item['kind'] == 'retire'
+                   for item in temp_db.get_cleanup_suggestions(status='pending'))
+    temp_db.set_setting('pattern_cleanup_unused_days', '120')
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    assert any(item['kind'] == 'retire'
+               for item in temp_db.get_cleanup_suggestions(status='pending'))
+    assert len(calls) == 1
+
+
+def test_model_kept_pattern_can_age_into_retirement_without_another_call(temp_db, live_route):
+    pattern = _pattern(temp_db)
+    fake, calls = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    temp_db.get_connection().execute(
+        "UPDATE ad_patterns SET created_at = ? WHERE id = ?",
+        (_iso(utc_now() - timedelta(days=200)), pattern['id']))
+    temp_db.get_connection().commit()
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    assert len(calls) == 1
+    assert any(item['kind'] == 'retire'
+               for item in temp_db.get_cleanup_suggestions(status='pending'))
+
+
+def test_force_forgets_stats_ack_without_reseeding_decision_history(temp_db, live_route):
+    pattern = _pattern(temp_db, false_positive_count=3, confirmation_count=1)
+    fake, calls = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    flag = next(item for item in temp_db.get_cleanup_suggestions(status='pending')
+                if item['kind'] == 'flag')
+    reject_suggestion(temp_db, flag['id'])
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db, force=True)
+    assert len(calls) == 2
+    assert any(item['kind'] == 'flag'
+               for item in temp_db.get_cleanup_suggestions(status='pending'))
+    assert temp_db.get_cleanup_stats_reviewed(pattern['id']) == {}
+
+
+def test_model_flag_reconciles_counters_after_fp_eligibility_ends(temp_db, live_route):
+    pattern = _pattern(temp_db, false_positive_count=3, confirmation_count=1)
+    fake, calls = _fake_llm(_reply(contaminated=True,
+                                   contamination_reason='includes show content'))
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    flag = next(item for item in temp_db.get_cleanup_suggestions(status='pending')
+                if item['kind'] == 'flag')
+    assert '3 false positives against 1 confirmations' in flag['reasons']
+    temp_db.update_ad_pattern(pattern['id'], false_positive_count=0, confirmation_count=4)
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    refreshed = temp_db.get_cleanup_suggestions(status='pending')[0]
+    assert len(calls) == 1
+    assert refreshed['payload']['contaminated'] is True
+    assert refreshed['payload']['false_positive_count'] == 0
+    assert refreshed['payload']['confirmation_count'] == 4
+    assert '3 false positives against 1 confirmations' not in refreshed['reasons']
+    reject_suggestion(temp_db, refreshed['id'])
+
+
+def test_normalized_equivalent_text_keeps_model_warning_and_snapshot(temp_db, live_route):
+    pattern = _pattern(temp_db, false_positive_count=0, confirmation_count=0)
+    fake, calls = _fake_llm(_reply(contaminated=True,
+                                   contamination_reason='includes show content'))
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    warning = next(item for item in temp_db.get_cleanup_suggestions(status='pending')
+                   if item['kind'] == 'flag')
+    temp_db.update_ad_pattern(pattern['id'], text_template=pattern['text_template'].upper())
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    current = temp_db.get_cleanup_suggestions(status='pending')
+    assert len(calls) == 1
+    assert len(current) == 1 and current[0]['id'] == warning['id']
+    assert current[0]['before']['text_template'] == pattern['text_template']
+
+
+def test_model_flag_refresh_preserves_manual_disabled_reason_conflict(temp_db, live_route):
+    pattern = _pattern(temp_db, false_positive_count=0, confirmation_count=0)
+    fake, calls = _fake_llm(_reply(contaminated=True,
+                                   contamination_reason='includes show content'))
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    warning = next(item for item in temp_db.get_cleanup_suggestions(status='pending')
+                   if item['kind'] == 'flag')
+    assert warning['before']['disabled_reason'] is None
+    temp_db.update_ad_pattern(pattern['id'], disabled_reason='manual note')
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    current = temp_db.get_ad_pattern_by_id(pattern['id'])
+    refreshed = temp_db.get_cleanup_suggestion(warning['id'])
+    assert len(calls) == 1
+    assert current['disabled_reason'] == 'manual note'
+    assert refreshed['before']['disabled_reason'] is None
+    with pytest.raises(SuggestionStateError):
+        apply_suggestion(temp_db, warning['id'])
+
+
+def test_llm_result_merges_statistics_from_transaction_time_row(temp_db, live_route):
+    pattern = _pattern(temp_db)
+
+    def raise_fp_then_keep(**kwargs):
+        temp_db.update_ad_pattern(
+            pattern['id'], false_positive_count=3, confirmation_count=1)
+        return _reply(), None
+
+    with patch.object(pattern_cleanup, 'call_llm', raise_fp_then_keep):
+        run_cleanup(temp_db)
+    flag = next(item for item in temp_db.get_cleanup_suggestions(status='pending')
+                if item['kind'] == 'flag')
+    assert flag['payload']['false_positive_count'] == 3
+    assert flag['payload']['confirmation_count'] == 1
+
+
+def test_new_model_review_removes_obsolete_version_proposals(temp_db, live_route):
+    pattern = _pattern(temp_db)
+    old = _suggest(temp_db, pattern, 'trim', {'text': AD})
+    temp_db.update_ad_pattern(pattern['id'], text_template=AD2)
+    fake, _ = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+    assert temp_db.get_cleanup_suggestion(old) is None
+    assert not any(item['kind'] == 'trim'
+                   for item in temp_db.get_cleanup_suggestions(status='pending'))
+
+
+def test_stats_flag_snapshot_refreshes_when_confirmations_change(temp_db, live_route):
+    pattern = _pattern(temp_db, false_positive_count=3, confirmation_count=1)
+    with patch.object(pattern_cleanup, 'call_llm', _fake_llm(_reply())[0]):
+        run_cleanup(temp_db)
+    original = temp_db.get_cleanup_suggestions(status='pending')[0]
+    temp_db.update_ad_pattern(pattern['id'], confirmation_count=2)
+    with patch.object(pattern_cleanup, 'call_llm') as llm:
+        run_cleanup(temp_db)
+    refreshed = temp_db.get_cleanup_suggestions(status='pending')[0]
+    assert not llm.called
+    assert refreshed['id'] != original['id']
+    assert refreshed['before']['confirmation_count'] == 2
+    assert refreshed['payload']['confirmation_count'] == 2
+
+
+def test_old_content_stat_decision_does_not_acknowledge_current_version(temp_db, live_route):
+    pattern = _pattern(temp_db, false_positive_count=3, confirmation_count=1)
+    old = _suggest(temp_db, pattern, 'flag', {
+        'false_positive_count': 3, 'confirmation_count': 1, 'contaminated': False,
+        'recommended': 'disable'})
+    temp_db.set_cleanup_suggestion_status(old, 'rejected')
+    temp_db.update_ad_pattern(pattern['id'], text_template=AD2)
+    temp_db.get_connection().execute(
+        "UPDATE ad_patterns SET cleanup_stats_reviewed = NULL WHERE id = ?", (pattern['id'],))
+    temp_db.get_connection().commit()
+    with patch.object(pattern_cleanup, 'call_llm', _fake_llm(_reply())[0]):
+        run_cleanup(temp_db)
+    pending = temp_db.get_cleanup_suggestions(status='pending')
+    assert any(item['kind'] == 'flag' for item in pending)
+
+
+def test_legacy_never_matched_retire_decision_uses_pattern_creation_time(temp_db, live_route):
+    pattern = _pattern(temp_db)
+    temp_db.set_setting('pattern_cleanup_unused_days', '90')
+    temp_db.get_connection().execute(
+        "UPDATE ad_patterns SET created_at = ? WHERE id = ?",
+        (_iso(utc_now() - timedelta(days=200)), pattern['id']))
+    temp_db.get_connection().commit()
+    before = pattern_cleanup._before_snapshot(pattern)
+    before.pop('created_at')
+    sid = temp_db.upsert_cleanup_suggestion(None, pattern['id'], 'retire', 1.0,
+        ['unused'], {'unused_days': 90, 'last_matched_at': None}, before)
+    temp_db.set_cleanup_suggestion_status(sid, 'rejected')
+    temp_db.get_connection().execute(
+        "UPDATE ad_patterns SET cleanup_stats_reviewed = NULL WHERE id = ?", (pattern['id'],))
+    temp_db.get_connection().commit()
+    with patch.object(pattern_cleanup, 'call_llm', _fake_llm(_reply())[0]):
+        run_cleanup(temp_db)
+    assert not any(item['kind'] == 'retire'
+                   for item in temp_db.get_cleanup_suggestions(status='pending'))
+
+
+def test_statistics_proposal_persists_when_route_setup_fails(temp_db):
+    pattern = _pattern(temp_db, false_positive_count=3, confirmation_count=1)
+    with patch.object(pattern_cleanup, 'source_context',
+                      return_value='retained statistical context'), \
+            patch.object(pattern_cleanup, 'resolve_route', side_effect=RuntimeError('no route')):
+        summary = run_cleanup(temp_db)
+    pending = temp_db.get_cleanup_suggestions(status='pending')
+    assert summary['status'] == 'failed'
+    flag = next(item for item in pending
+                if item['pattern_id'] == pattern['id'] and item['kind'] == 'flag')
+    assert flag['before']['source_context'] == 'retained statistical context'
+
+
+def test_stale_model_result_does_not_stamp_changed_pattern(temp_db, live_route):
+    pattern = _pattern(temp_db)
+
+    def change_then_keep(**kwargs):
+        temp_db.update_ad_pattern(pattern['id'], text_template=AD2)
+        return _reply(), None
+
+    with patch.object(pattern_cleanup, 'call_llm', change_then_keep):
+        run_cleanup(temp_db)
+    current = temp_db.get_ad_pattern_by_id(pattern['id'])
+    assert current['cleanup_reviewed_hash'] is None
+    assert temp_db.get_cleanup_suggestions(status='pending') == []
+
+
+def test_failed_model_call_does_not_mark_concurrently_changed_pattern_invalid(
+        temp_db, live_route):
+    pattern = _pattern(temp_db)
+
+    def change_then_fail(**kwargs):
+        temp_db.update_ad_pattern(pattern['id'], text_template=AD2)
+        return None, RuntimeError('provider error')
+
+    with patch.object(pattern_cleanup, 'call_llm', change_then_fail):
+        run_cleanup(temp_db)
+    assert temp_db.get_ad_pattern_by_id(pattern['id'])['cleanup_reviewed_hash'] is None
+
+
+def test_model_result_does_not_overwrite_concurrent_stats_decision(temp_db, live_route):
+    pattern = _pattern(temp_db, false_positive_count=3, confirmation_count=1)
+
+    def reject_then_trim(**kwargs):
+        flag = next(item for item in temp_db.get_cleanup_suggestions(status='pending')
+                    if item['kind'] == 'flag')
+        reject_suggestion(temp_db, flag['id'])
+        return _reply(action='trim', text=AD), None
+
+    with patch.object(pattern_cleanup, 'call_llm', reject_then_trim):
+        run_cleanup(temp_db)
+    rejected = next(item for item in temp_db.get_cleanup_suggestions()
+                    if item['kind'] == 'flag')
+    current = temp_db.get_ad_pattern_by_id(pattern['id'])
+    assert rejected['status'] == 'rejected'
+    assert temp_db.get_cleanup_suggestions(status='pending') == []
+    assert temp_db.get_cleanup_stats_reviewed(pattern['id'])['flag']
+    assert current['cleanup_reviewed_hash'] == review_hash(
+        pattern['text_template'], pattern['sponsor'])
 
 
 def test_high_fp_flag_carries_trim_text(temp_db, live_route):
@@ -526,7 +863,8 @@ def test_contaminated_keep_becomes_flag(temp_db, live_route):
     sugg = temp_db.get_cleanup_suggestions()
     assert sugg[0]['kind'] == 'flag' and sugg[0]['payload']['contaminated'] is True
     assert sugg[0]['payload']['recommended'] == 'disable'
-    assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] is None
+    assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] == review_hash(
+        p['text_template'], p['sponsor'])
 
 
 def test_per_pattern_error_continues(temp_db, live_route):
@@ -1205,7 +1543,8 @@ def test_three_invalid_reviews_park_the_pattern_until_force(temp_db, live_route)
             run_cleanup(temp_db)
             assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] == expected
     assert select_candidates(temp_db, force=False, batch_size=10) == []
-    assert [c['id'] for c in select_candidates(temp_db, force=True, batch_size=10)] == [p['id']]
+    temp_db.reset_cleanup_force_state()
+    assert [c['id'] for c in select_candidates(temp_db, force=False, batch_size=10)] == [p['id']]
 
 
 def test_rename_then_flag_then_undo_rename_refused_until_flag_undone(temp_db):
