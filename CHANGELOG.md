@@ -62,6 +62,7 @@ release notes.
 - Startup uses an existence query for the search index and runs the historical marker repair once, recording completion only after a successful transaction.
 
 ### Security
+- Updated fsspec to 2026.6.0 and Werkzeug to 3.1.9 to fix CVE-2026-104851 and CVE-2026-102598.
 - Updated fast-uri to 3.1.8 to fix a moderate vulnerability in frontend build tooling.
 
 ### Changed
