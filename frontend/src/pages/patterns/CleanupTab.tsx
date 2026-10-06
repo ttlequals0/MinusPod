@@ -53,8 +53,8 @@ const STATUS_BADGE: Record<Exclude<CleanupStatus, 'pending'>, [string, string]> 
   undone: ['Undone', tint.neutral],
 };
 
-const actionBtn = `${cardActionBtn} grow basis-0 sm:grow-0 sm:basis-auto ${focusRing}`;
-const bulkActionBtn = `${cardActionBtn.replace('whitespace-nowrap', 'whitespace-normal')} grow basis-0 sm:grow-0 sm:basis-auto sm:whitespace-nowrap ${focusRing}`;
+const actionBtn = `${cardActionBtn} grow basis-0 sm:grow-0 sm:basis-auto disabled:opacity-50 transition-colors ${focusRing}`;
+const bulkActionBtn = `${cardActionBtn.replace('whitespace-nowrap', 'whitespace-normal')} grow basis-0 sm:grow-0 sm:basis-auto sm:whitespace-nowrap disabled:opacity-50 transition-colors ${focusRing}`;
 const PAGE_SIZE = 200;
 
 function actionError(err: unknown, action?: 'approve' | 'reject' | 'undo'): string {
@@ -465,7 +465,7 @@ export default function CleanupTab() {
             type="button"
             disabled={isFetchingNextPage}
             onClick={() => fetchNextPage()}
-            className={`min-h-11 px-4 py-2 rounded-lg text-sm ${focusRing} ${btnOutline}`}
+            className={`min-h-11 px-4 py-2 rounded-lg text-sm disabled:opacity-50 ${focusRing} ${btnOutline}`}
           >
             {isFetchingNextPage ? 'Loading...' : 'Load older suggestions'}
           </button>
