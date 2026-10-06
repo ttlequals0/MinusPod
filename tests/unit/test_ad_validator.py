@@ -3500,7 +3500,7 @@ class TestTranscriptDifferentialEvidence:
         from config import HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
         return {'start': start, 'end': end, 'confidence': 0.75, 'sponsor': None,
                 'reason': 'Upstream transcript omits this span',
-                'detection_stage': 'transcript_differential', 'category': 'ad',
+                'detection_stage': 'transcript_differential', 'category': 'sponsor',
                 'held_for_review': True, 'was_cut': False,
                 'hold_reason': HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
                 'transcript_differential_uncorroborated': True,

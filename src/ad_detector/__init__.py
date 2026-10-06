@@ -603,7 +603,7 @@ def transcript_differential_ads(spans, fp_pairs=None):
             'confidence': 0.75 if offset_confirmed else 0.6,
             'sponsor': None,
             'detection_stage': 'transcript_differential',
-            'category': 'ad',
+            'category': 'sponsor',
             'reason': 'Upstream transcript omits this span',
             TRANSCRIPT_SPAN: {'start': start, 'end': end, 'words': span.get('words'),
                               'offset_confirmed': offset_confirmed},

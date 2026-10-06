@@ -200,3 +200,41 @@ def test_build_validator_forwards_transcript_spans():
             100.0, SEGMENTS, '', false_positive_corrections=[], min_cut_confidence=0.8,
             max_ad_duration_override=None, cue_gate_enabled=False, transcript_spans=[SPAN])
     assert validator_cls.call_args.kwargs['transcript_spans'] == [SPAN]
+
+
+def _transcribe(saved_text, saved_segments, fresh_segments):
+    outcome = {}
+    with patch('main_app.processing.storage') as storage, \
+         patch.object(processing.db, 'get_original_segments', return_value=saved_segments), \
+         patch.object(processing.db, 'get_repair_holes', return_value=[]), \
+         patch.object(processing.db, 'add_repair_holes'), \
+         patch('main_app.processing.parse_transcript_segments', return_value=[]), \
+         patch('main_app.processing.transcriber.transcribe_chunked',
+               return_value=fresh_segments) as transcribe, \
+         patch('main_app.processing._repair_transcript',
+               side_effect=lambda *a, **k: (a[3], [], [])), \
+         patch('main_app.processing._apply_transcript_corrections'), \
+         patch('main_app.processing.get_feed_language_override', return_value=None), \
+         patch('main_app.processing._download_episode_audio', return_value='/tmp/a.mp3'), \
+         patch('main_app.processing.status_service'):
+        storage.get_transcript.return_value = saved_text
+        storage.get_original_path.return_value = None
+        _, segments = processing._download_and_transcribe(
+            'feed', 'ep1', 'https://example.com/ep1.mp3', outcome=outcome)
+    return outcome, segments, transcribe
+
+
+def test_saved_segments_report_reuse():
+    outcome, _, transcribe = _transcribe('saved text', SEGMENTS, SEGMENTS)
+    transcribe.assert_not_called()
+    assert outcome['segments_reused'] is True
+
+
+def test_empty_saved_transcript_falls_back_and_skips_reuse(stage):
+    outcome, segments, transcribe = _transcribe('saved text', None, SEGMENTS)
+    transcribe.assert_called_once()
+    assert outcome['segments_reused'] is False
+    stage.get_stored.return_value = {'status': 'ok', 'source_url': URL, 'spans': [SPAN],
+                                     'fetched_at': _iso(1)}
+    stage.run(segments=segments, segments_reused=outcome['segments_reused'])
+    stage.fetch.assert_called_once()

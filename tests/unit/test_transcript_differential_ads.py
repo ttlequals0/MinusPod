@@ -35,7 +35,7 @@ def test_uncorroborated_span_is_held_with_the_stage_keys():
     assert ad['confidence'] == 0.6
     assert ad['sponsor'] is None
     assert ad['detection_stage'] == 'transcript_differential'
-    assert ad['category'] == 'ad'
+    assert ad['category'] == 'sponsor'
     assert ad['reason'] == 'Upstream transcript omits this span'
     assert ad['held_for_review'] is True
     assert ad['was_cut'] is False
@@ -68,6 +68,7 @@ def test_merge_releases_hold_on_llm_overlap():
     assert 'transcript_differential_uncorroborated' not in ad
     assert ad['detection_stage'] == 'claude'
     assert ad[TRANSCRIPT_SPAN]['start'] == 100.0
+    assert ad['category'] == 'sponsor'
     assert (ad['start'], ad['end']) == (98.0, 160.0)
     assert ad['confidence'] == 0.9
 

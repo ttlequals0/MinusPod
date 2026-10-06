@@ -777,7 +777,7 @@ def _forced_transcription_already_done(slug, episode_id, requested_at) -> bool:
 
 def _download_and_transcribe(slug, episode_id, episode_url,
                               skip_transcription=False, podcast=None,
-                              force_transcription=False):
+                              force_transcription=False, outcome=None):
     """Pipeline stage: Download audio and get/create transcript segments.
 
     ``skip_transcription``: cue_only preset opt-out; goes straight to
@@ -792,8 +792,12 @@ def _download_and_transcribe(slug, episode_id, episode_url,
     redundant db.get_podcast_by_slug here), matching the pattern used by
     _run_differential_fetch. None is treated as non-local.
 
+    ``outcome``: optional dict; gets ``segments_reused`` True only when saved segments were used.
+
     Returns (audio_path, segments) or raises on failure.
     """
+    outcome = {} if outcome is None else outcome
+    outcome['segments_reused'] = False
     if skip_transcription:
         original_path = storage.get_original_path(slug, episode_id)
         if original_path and os.path.exists(original_path):
@@ -830,6 +834,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         # Existing usable transcript: reuse it and skip transcription. A
         # transcript that yields no segments falls through to a fresh
         # transcription below rather than proceeding with nothing.
+        outcome['segments_reused'] = True
         duration_min = segments[-1]['end'] / 60
         audio_logger.info(
             f"[{slug}:{episode_id}] Found existing transcript: "
@@ -6570,15 +6575,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # earlier episode must not be mistaken for this run's outcome when
         # transcription is skipped or an existing transcript is reused.
         transcriber.last_transcription_stats = None
-        # Mirrors _download_and_transcribe's reuse branch; gates the transcript diff reuse.
-        segments_reused = (not force_transcription and not skip_transcription_active
-                           and bool(storage.get_transcript(slug, episode_id)))
+        transcribe_outcome = {}
         try:
             audio_path, segments = _download_and_transcribe(
                 slug, episode_id, episode_url,
                 skip_transcription=skip_transcription_active,
                 podcast=podcast_settings,
-                force_transcription=force_transcription)
+                force_transcription=force_transcription,
+                outcome=transcribe_outcome)
         finally:
             # Recorded even when _download_and_transcribe raises (OOM
             # exhaustion): the failure handler's history row still gets the
@@ -6596,7 +6600,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             _publish_status('update_job_stage', slug, episode_id, "pass1:transcript_diff", 21)
             transcript_diff = _run_transcript_diff(
                 slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings,
-                segments_reused=segments_reused)
+                segments_reused=transcribe_outcome.get('segments_reused', False))
             if transcript_diff['status'] == 'ok':
                 transcript_spans = transcript_diff['spans']
             _check_cancel(cancel_event, slug, episode_id)
