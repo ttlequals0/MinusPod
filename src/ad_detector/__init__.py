@@ -588,8 +588,8 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
     return ads
 
 
-def transcript_differential_ads(spans, corroborating_spans=None, fp_pairs=None):
-    """Markers for upstream transcript gaps; held unless another stage covers half the span."""
+def transcript_differential_ads(spans, fp_pairs=None):
+    """Held markers for upstream transcript gaps; only _merge_detection_results releases one."""
     ads = []
     for span in spans or []:
         start, end = float(span['start']), float(span['end'])
@@ -607,15 +607,11 @@ def transcript_differential_ads(spans, corroborating_spans=None, fp_pairs=None):
             'reason': 'Upstream transcript omits this span',
             TRANSCRIPT_SPAN: {'start': start, 'end': end, 'words': span.get('words'),
                               'offset_confirmed': offset_confirmed},
+            'held_for_review': True,
+            'was_cut': False,
+            'hold_reason': HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
+            'transcript_differential_uncorroborated': True,
         }
-        if not any(spans_overlapping([ad], cs, ce, min_fraction_of='span')
-                   for cs, ce in corroborating_spans or []):
-            ad.update({
-                'held_for_review': True,
-                'was_cut': False,
-                'hold_reason': HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
-                'transcript_differential_uncorroborated': True,
-            })
         ads.append(ad)
     return ads
 
@@ -2499,10 +2495,9 @@ class AdDetector:
             if dd_ads:
                 logger.info(f"[{slug}:{episode_id}] Differential stage found {len(dd_ads)} ads")
 
-        # Stage 2.6: upstream transcript gaps, held unless another stage or the merge corroborates.
+        # Stage 2.6: upstream transcript gaps, held until the merge finds a releasing detection.
         if transcript_spans:
-            td_ads = transcript_differential_ads(
-                transcript_spans, [(a['start'], a['end']) for a in all_ads], fp_pairs)
+            td_ads = transcript_differential_ads(transcript_spans, fp_pairs)
             all_ads.extend(td_ads)
             detection_stats['transcript_differential_matches'] = len(td_ads)
             if td_ads:

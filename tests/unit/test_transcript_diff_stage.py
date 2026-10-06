@@ -43,10 +43,11 @@ def stage():
                       return_value=None) as get_stored, \
          patch.object(processing.db, 'save_episode_upstream_transcript') as save, \
          patch.object(processing.db, 'get_setting_bool', return_value=True):
-        def run(episode=EPISODE, podcast=FEED, segments=SEGMENTS):
+        def run(episode=EPISODE, podcast=FEED, segments=SEGMENTS, segments_reused=True):
             run_stats = {}
             payload = processing._run_transcript_diff(
-                'feed', 'ep1', episode, segments, run_stats, podcast=podcast)
+                'feed', 'ep1', episode, segments, run_stats, podcast=podcast,
+                segments_reused=segments_reused)
             return payload, run_stats
         yield MagicMock(run=run, fetch=fetch, align=align, get_stored=get_stored, save=save)
 
@@ -131,6 +132,25 @@ def test_local_feed_without_url_skips(stage):
     assert payload['status'] == 'none'
     stage.fetch.assert_not_called()
     assert run_stats['transcript_diff']['status'] == 'none'
+    stage.save.assert_not_called()
+
+
+@pytest.mark.parametrize('stored,saved', [
+    ({'status': 'none', 'spans': []}, False),
+    ({'status': 'ok', 'source_url': URL, 'spans': [SPAN], 'fetched_at': _iso(1)}, True),
+])
+def test_no_url_saves_none_only_over_a_real_result(stage, stored, saved):
+    stage.get_stored.return_value = stored
+    payload, _ = stage.run(episode={'upstream_transcript_url': None})
+    assert payload['status'] == 'none'
+    assert stage.save.called is saved
+
+
+def test_fresh_segments_bypass_reuse(stage):
+    stage.get_stored.return_value = {'status': 'ok', 'source_url': URL, 'spans': [SPAN],
+                                     'fetched_at': _iso(1)}
+    stage.run(segments_reused=False)
+    stage.fetch.assert_called_once()
 
 
 def test_no_segments_skips(stage):

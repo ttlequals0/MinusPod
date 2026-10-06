@@ -5,6 +5,8 @@ false_positive correction) and fp_suppressed (excludes a correction's
 text_snippet from cross-episode FP matching once it's known to have come
 from a rejected differential hold rather than a confirmed false positive).
 """
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('fp_text_scoping_test_')
@@ -514,3 +516,43 @@ def test_backfill_endpoint_skips_differential_provenance_rows():
     assert rows[differential_id] is None
     assert rows[normal_id] is not None
     assert len(rows[normal_id]) >= 50
+
+
+@pytest.mark.parametrize('hold_reason,stage', [
+    ('transcript_differential_unreviewed', 'transcript_differential'),
+    (None, 'transcript_differential'),
+    ('transcript_differential_unreviewed', 'claude'),
+])
+def test_reject_transcript_gap_hold_writes_null_text(hold_reason, stage):
+    slug, episode_id = _make_episode(f'fp-scope-td-{stage}-{hold_reason}',
+                                     f'ep-fp-scope-td-{stage}-{hold_reason}')
+    db.save_episode_details(
+        slug, episode_id, transcript_text=TRANSCRIPT_TEXT,
+        ad_markers=[_held_marker(0.0, 60.0, hold_reason=hold_reason,
+                                  detection_stage=stage)],
+        pending_review_count=1,
+    )
+
+    with app.test_request_context():
+        _handle_reject_correction(db, slug, episode_id, {'start': 0.0, 'end': 60.0})
+
+    row = db.get_connection().execute(
+        """SELECT text_snippet, source_hold_reason FROM pattern_corrections
+           WHERE episode_id = ? AND correction_type = 'false_positive'""",
+        (episode_id,),
+    ).fetchone()
+    assert row['text_snippet'] is None
+    assert row['source_hold_reason'] == 'transcript_differential_unreviewed'
+    assert db.get_podcast_false_positive_texts(slug) == []
+
+
+def test_false_positive_texts_exclude_transcript_gap_provenance():
+    slug, episode_id = _make_episode('fp-scope-td-reader', 'ep-fp-scope-td-reader')
+    db.create_pattern_correction(
+        correction_type='false_positive', episode_id=episode_id,
+        podcast_title='FP Scope Test', original_bounds={'start': 10.0, 'end': 20.0},
+        text_snippet='transcript gap leaked text ' * 3,
+        source_hold_reason='transcript_differential_unreviewed',
+        podcast_id=db.get_podcast_by_slug(slug)['id'],
+    )
+    assert db.get_podcast_false_positive_texts(slug) == []

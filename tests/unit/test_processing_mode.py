@@ -126,7 +126,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                    token_cost=0.012, real_token_tracking=False,
                    approval_recut=False, route_snapshot=None,
                    failover_state=None, standby_dispatch=False,
-                   probe_phases=_PROBE_PHASES_UNSET):
+                   probe_phases=_PROBE_PHASES_UNSET, episode_row=None):
     """Run stubbed pipeline stages with optional frozen routes and failover state."""
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
@@ -203,7 +203,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         p(processing.os.path, 'exists', side_effect=lambda path:
           False if path in ('/tmp/mode.mp3', '/tmp/cut.mp3') else path_exists(path))
 
-        db.get_episode.return_value = {}
+        db.get_episode.return_value = episode_row or {}
         db.get_podcast_by_slug.return_value = podcast_row
         db.reserve_provider_spend.return_value = (
             admission or {'allowed': True, 'reservation_id': 'provider-run-1'})
@@ -324,6 +324,20 @@ class TestProcessEpisodeModePlumbing:
                           return_value={'status': 'unreliable', 'spans': []}):
             m = _run_pipeline(_row())
         assert m['detect'].call_args.kwargs['transcript_spans'] == []
+
+    def test_transcript_fetch_error_does_not_stop_the_run(self):
+        row = dict(_row(), transcript_differential=1)
+        episode = {'upstream_transcript_url': 'https://cdn.example.com/ep1.vtt',
+                   'upstream_transcript_type': 'text/vtt'}
+        with patch.object(processing, 'fetch_upstream_transcript',
+                          side_effect=RuntimeError('upstream down')) as fetch:
+            m = _run_pipeline(row, episode_row=episode)
+        fetch.assert_called_once()
+        assert m['result'] is True
+        assert m['detect'].call_args.kwargs['transcript_spans'] == []
+        m['finalize'].assert_called_once()
+        saved = m['db'].save_episode_upstream_transcript.call_args.args[2]
+        assert saved['status'] == 'error'
 
     def test_skip_detection_skips_transcript_diff(self):
         with patch.object(processing, '_run_transcript_diff') as stage:

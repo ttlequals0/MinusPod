@@ -8,7 +8,8 @@ from config import (
     MIN_AD_DURATION, SEGMENT_CATEGORIES,
     count_pending_review, is_pending_review, resolve_max_ad_duration_confirmed,
     resolve_max_boundary_shift,
-    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
+    SNIPPET_EXCLUDED_STAGE_REASONS,
 )
 from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
@@ -1231,7 +1232,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
 
     # Resolve the matched held marker's hold_reason server-side, before
     # _clear_held_marker_on_reject pops it below -- the client payload
-    # carries no hold_reason of its own. A differential-uncorroborated hold
+    # carries no hold_reason of its own. A cross-fetch or transcript-gap hold
     # (by hold_reason or detection_stage) was only ever a hold candidate,
     # never a confirmed false positive of a real detector, so its text must
     # not seed cross-episode FP matching on other episodes.
@@ -1244,19 +1245,14 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
                 break
 
     source_hold_reason = None
-    is_differential_hold = False
     if matched_marker is not None:
-        marker_hold_reason = matched_marker.get('hold_reason')
-        is_differential_hold = (
-            marker_hold_reason == HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
-            or matched_marker.get('detection_stage') == 'dai_differential'
-        )
-        source_hold_reason = (
-            HOLD_REASON_DIFFERENTIAL_UNCORROBORATED if is_differential_hold
-            else marker_hold_reason
-        )
+        source_hold_reason = matched_marker.get('hold_reason')
+        if source_hold_reason not in SNIPPET_EXCLUDED_HOLD_REASONS:
+            source_hold_reason = SNIPPET_EXCLUDED_STAGE_REASONS.get(
+                matched_marker.get('detection_stage'), source_hold_reason)
 
-    text_snippet = None if is_differential_hold else rejected_text
+    text_snippet = (None if source_hold_reason in SNIPPET_EXCLUDED_HOLD_REASONS
+                    else rejected_text)
 
     if pattern_id:
         pattern = db.get_ad_pattern_by_id(pattern_id)
@@ -1927,7 +1923,7 @@ def backfill_false_positive_texts():
     conn = db.get_connection()
 
     # Get corrections without text
-    cursor = conn.execute('''
+    cursor = conn.execute(f'''
         SELECT pc.id, pc.episode_id, pc.original_bounds, p.slug
         FROM pattern_corrections pc
         JOIN episodes e ON pc.podcast_id = e.podcast_id
@@ -1935,8 +1931,8 @@ def backfill_false_positive_texts():
         JOIN podcasts p ON e.podcast_id = p.id
         WHERE pc.correction_type = 'false_positive'
         AND (pc.text_snippet IS NULL OR pc.text_snippet = '')
-        AND (pc.source_hold_reason IS NULL OR pc.source_hold_reason != 'differential_uncorroborated')
-    ''')
+        AND {SNIPPET_EXCLUDED_SQL}
+    ''', SNIPPET_EXCLUDED_SQL_PARAMS)  # noqa: S608 (SNIPPET_EXCLUDED_SQL is a fixed placeholder fragment)
 
     rows = cursor.fetchall()
     logger.info(f"Found {len(rows)} false positive corrections to backfill")

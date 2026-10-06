@@ -3535,13 +3535,14 @@ class TestTranscriptDifferentialEvidence:
         assert ad['hold_reason'] == HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
         assert 'corroborated_by' not in ad
 
-    def test_released_stage_marker_validates_normally(self):
+    def test_stage_marker_without_the_flag_stays_held(self):
+        from config import HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
         marker = self._stage_marker()
         for key in ('held_for_review', 'was_cut', 'hold_reason',
                     'transcript_differential_uncorroborated'):
             marker.pop(key)
         ad = self._validate(marker, [self._span()])
-        assert ad.get('hold_reason') is None
+        assert ad['hold_reason'] == HOLD_REASON_TRANSCRIPT_DIFFERENTIAL
 
     def test_span_releases_rule_5_differential_hold(self):
         diff = {'start': 1250.0, 'end': 1300.0, 'confidence': 0.95,
@@ -3580,3 +3581,23 @@ class TestTranscriptDifferentialEvidence:
                             analysis=analysis, duration=10600.0)
         assert ad['corroborated_by'] == 'transition_pair'
         assert ad['transcript_corroborated'] is True
+
+    @pytest.mark.parametrize('confidence,offset_confirmed,expected_boost', [
+        (0.6, False, 0.1), (0.6, True, 0.15)])
+    def test_corroboration_raises_adjusted_confidence(self, confidence, offset_confirmed,
+                                                      expected_boost):
+        base = self._validate(dict(self._llm_ad(), confidence=confidence), [])
+        boosted = self._validate(dict(self._llm_ad(), confidence=confidence),
+                                 [self._span(offset_confirmed=offset_confirmed)])
+        before = base['validation']['adjusted_confidence']
+        assert boosted['validation']['adjusted_confidence'] == pytest.approx(
+            min(0.95, before + expected_boost), abs=1e-3)
+
+    def test_corroboration_boost_is_capped_and_never_lowers(self):
+        capped = self._validate(dict(self._llm_ad(), confidence=0.9),
+                                [self._span(offset_confirmed=True)])
+        assert capped['validation']['adjusted_confidence'] <= 0.95
+        base = self._validate(dict(self._llm_ad(), confidence=1.0), [])
+        high = self._validate(dict(self._llm_ad(), confidence=1.0), [self._span()])
+        assert (high['validation']['adjusted_confidence']
+                == base['validation']['adjusted_confidence'])

@@ -1142,19 +1142,25 @@ def _reusable_transcript_diff(stored, url):
     return stored
 
 
-def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, podcast=None):
-    """Pipeline stage: diff Whisper against the publisher's transcript. Never raises."""
+def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, podcast=None,
+                         segments_reused=False):
+    """Pipeline stage: diff Whisper against the publisher's transcript. Never raises.
+
+    A stored result is reused only with ``segments_reused``: fresh segments move the gap times.
+    """
     url = (episode_row or {}).get('upstream_transcript_url')
     payload = {'status': 'none', 'source_url': url, 'mime': None, 'timed': None,
                'coverage': None, 'spans': [], 'fetched_at': None, 'error': None}
     reused = False
+    persist = True
     host = 'unknown'
     try:
         if url:
             host = urlparse(url).hostname or host
         if url and segments and resolve_transcript_differential(podcast, db):
-            stored = _reusable_transcript_diff(
+            stored = (_reusable_transcript_diff(
                 db.get_episode_upstream_transcript(slug, episode_id), url)
+                if segments_reused else None)
             if stored is not None:
                 payload.update(stored)
                 reused = True
@@ -1174,11 +1180,15 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
                                            spans=result['spans'])
                     except Exception as e:
                         payload.update(status='error', error=str(e), spans=[])
+        elif not url:
+            # Nothing to record unless an earlier result would otherwise go stale.
+            stored = db.get_episode_upstream_transcript(slug, episode_id)
+            persist = bool(stored) and stored.get('status') != 'none'
     except Exception as e:
         audio_logger.warning(f"[{slug}:{episode_id}] Transcript diff stage failed: {e}")
         db.clear_leaked_transaction(audio_logger, 'transcript diff stage')
         payload.update(status='error', error=str(e), spans=[])
-    if not reused:
+    if persist and not reused:
         try:
             db.save_episode_upstream_transcript(slug, episode_id, payload)
         except Exception as e:
@@ -6560,6 +6570,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # earlier episode must not be mistaken for this run's outcome when
         # transcription is skipped or an existing transcript is reused.
         transcriber.last_transcription_stats = None
+        # Mirrors _download_and_transcribe's reuse branch; gates the transcript diff reuse.
+        segments_reused = (not force_transcription and not skip_transcription_active
+                           and bool(storage.get_transcript(slug, episode_id)))
         try:
             audio_path, segments = _download_and_transcribe(
                 slug, episode_id, episode_url,
@@ -6582,7 +6595,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         if not skip_detection:
             _publish_status('update_job_stage', slug, episode_id, "pass1:transcript_diff", 21)
             transcript_diff = _run_transcript_diff(
-                slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings)
+                slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings,
+                segments_reused=segments_reused)
             if transcript_diff['status'] == 'ok':
                 transcript_spans = transcript_diff['spans']
             _check_cancel(cancel_event, slug, episode_id)

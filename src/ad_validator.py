@@ -1076,10 +1076,13 @@ class AdValidator:
 
         # Transcript verification - adjust confidence
         confidence = self._verify_in_transcript(ad, confidence, flags)
-        if self._transcript_corroboration(ad):
+        transcript_hits = self._transcript_hits(ad)
+        if transcript_hits:
             ad['transcript_corroborated'] = True
             ad.setdefault('corroborated_by', 'transcript_differential')
             flags.append("INFO: Upstream transcript omits this span")
+            boost = 0.15 if any(s.get('offset_confirmed') for s in transcript_hits) else 0.1
+            confidence = max(confidence, min(0.95, confidence + boost))
 
         # Make decision based on adjusted confidence and flags
         decision = self._make_decision(confidence, flags, duration)
@@ -1341,13 +1344,16 @@ class AdValidator:
             return 'dai_differential'
         return None
 
+    def _transcript_hits(self, ad: dict) -> list[dict]:
+        """Upstream gaps covering half the ad; a gap's own marker never counts."""
+        if not self.transcript_spans or ad.get('detection_stage') == 'transcript_differential':
+            return []
+        return spans_overlapping(self.transcript_spans, ad['start'], ad['end'],
+                                 min_fraction_of='query')
+
     def _transcript_corroboration(self, ad: dict) -> str | None:
-        """'transcript_differential' when an upstream gap covers half the ad; a gap's own marker never counts."""
-        if (self.transcript_spans and ad.get('detection_stage') != 'transcript_differential'
-                and spans_overlapping(self.transcript_spans, ad['start'], ad['end'],
-                                      min_fraction_of='query')):
-            return 'transcript_differential'
-        return None
+        """'transcript_differential' when an upstream gap corroborates the ad."""
+        return 'transcript_differential' if self._transcript_hits(ad) else None
 
     def _get_text_in_range(self, start: float, end: float) -> str:
         """Get transcript text within time range.
@@ -1441,10 +1447,9 @@ class AdValidator:
             self._mark_held(ad, flags, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED)
             return Decision.REVIEW
 
-        # A lone upstream transcript gap is held for review, never solo-cut; the merge clears the flag on overlap.
+        # An upstream transcript gap is never solo-cut; a released one carries the releasing stage.
         if (decision != Decision.REJECT
-                and ad.get('detection_stage') == 'transcript_differential'
-                and ad.get('transcript_differential_uncorroborated')):
+                and ad.get('detection_stage') == 'transcript_differential'):
             self._mark_held(ad, flags, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL)
             return Decision.REVIEW
 

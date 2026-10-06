@@ -4,6 +4,7 @@ import logging
 
 from config import (
     CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, SEGMENT_CATEGORIES,
+    SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
 )
 from utils.markers import parse_ad_markers
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
@@ -831,7 +832,7 @@ class PatternMixin:
         - start, end: Original time bounds
         """
         conn = self.get_connection()
-        cursor = conn.execute('''
+        cursor = conn.execute(f'''
             SELECT pc.text_snippet, pc.episode_id, pc.original_bounds, pc.created_at
             FROM pattern_corrections pc
             JOIN episodes e ON pc.podcast_id = e.podcast_id
@@ -842,10 +843,10 @@ class PatternMixin:
             AND pc.text_snippet IS NOT NULL
             AND length(pc.text_snippet) >= 50
             AND COALESCE(pc.fp_suppressed, 0) = 0
-            AND (pc.source_hold_reason IS NULL OR pc.source_hold_reason != 'differential_uncorroborated')
+            AND {SNIPPET_EXCLUDED_SQL}
             ORDER BY pc.created_at DESC
             LIMIT ?
-        ''', (podcast_slug, limit))
+        ''', (podcast_slug, *SNIPPET_EXCLUDED_SQL_PARAMS, limit))  # noqa: S608 (SNIPPET_EXCLUDED_SQL is a fixed placeholder fragment)
 
         results = []
         for row in cursor.fetchall():

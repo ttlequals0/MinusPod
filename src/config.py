@@ -71,6 +71,20 @@ HOLD_REASON_LARGE_VAD_GAP = 'large_vad_gap_extension'
 HOLD_REASON_NO_TRANSCRIPT_EVIDENCE = 'no_transcript_evidence'
 # An upstream-transcript-differential gap the LLM did not corroborate (2.98.0).
 HOLD_REASON_TRANSCRIPT_DIFFERENTIAL = 'transcript_differential_unreviewed'
+# Candidate-only holds whose rejected text must not seed cross-episode false-positive matching.
+SNIPPET_EXCLUDED_HOLD_REASONS = frozenset({
+    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED, HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
+})
+# Stages whose markers count as those holds even after hold_reason was popped.
+SNIPPET_EXCLUDED_STAGE_REASONS = {
+    'dai_differential': HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    'transcript_differential': HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
+}
+# SQL fragment and params excluding those reasons from false-positive text reads.
+SNIPPET_EXCLUDED_SQL = (
+    f"(pc.source_hold_reason IS NULL OR pc.source_hold_reason NOT IN "
+    f"({', '.join('?' * len(SNIPPET_EXCLUDED_HOLD_REASONS))}))")
+SNIPPET_EXCLUDED_SQL_PARAMS = tuple(sorted(SNIPPET_EXCLUDED_HOLD_REASONS))
 # Share of an evidence-gated span a measured DAI core must cover to stand in for transcript evidence.
 EVIDENCE_GATE_DAI_CORE_MIN_COVERAGE = 0.5
 # Holds only the reviewer stamps; recut validation cannot re-derive them.

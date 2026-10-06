@@ -1,11 +1,13 @@
 """Stage 2.6 markers from upstream transcript gaps and their merge-time hold release."""
 import os
 import sys
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector import AdDetector, transcript_differential_ads
+from ad_validator import AdValidator
 from config import HOLD_REASON_TRANSCRIPT_DIFFERENTIAL, is_pending_review
 from utils.markers import TRANSCRIPT_SPAN
 
@@ -51,20 +53,8 @@ def test_offset_confirmed_raises_confidence_only():
     assert ad[TRANSCRIPT_SPAN]['offset_confirmed'] is True
 
 
-def test_corroborating_span_emits_an_unheld_marker():
-    ads = transcript_differential_ads([SPAN], corroborating_spans=[(105.0, 150.0)])
-    assert len(ads) == 1
-    assert ads[0].get('held_for_review') is not True
-    assert 'transcript_differential_uncorroborated' not in ads[0]
-
-
-def test_short_corroborating_overlap_keeps_the_hold():
-    ads = transcript_differential_ads([SPAN], corroborating_spans=[(150.0, 170.0)])
-    assert ads[0]['held_for_review'] is True
-
-
 def test_false_positive_region_excluded_and_empty_inputs():
-    assert transcript_differential_ads([SPAN], fp_pairs=[(95.0, 165.0)]) == []
+    assert transcript_differential_ads([SPAN], [(95.0, 165.0)]) == []
     assert transcript_differential_ads(None) == []
     assert transcript_differential_ads([]) == []
 
@@ -134,3 +124,44 @@ def test_process_transcript_runs_stage_after_cross_fetch():
     assert len(ads) == 1
     assert ads[0]['detection_stage'] == 'transcript_differential'
     assert ads[0]['held_for_review'] is True
+
+
+def _pattern(start, end, **fields):
+    base = dict(start=start, end=end, confidence=0.95, sponsor=None, pattern_id=1,
+                category=None, defined=False, match_type='exact', span_estimated=False,
+                text_start=None, text_end=None, absorbed_ids=[])
+    return SimpleNamespace(**(base | fields))
+
+
+def _detect(patterns, llm_ads, action_map=None):
+    detector = AdDetector(api_key='test-key')
+    detector.text_pattern_matcher = MagicMock()
+    detector.text_pattern_matcher.find_matches.return_value = patterns
+    with patch.object(detector, 'initialize_client'), \
+         patch.object(detector, 'detect_ads',
+                      return_value={'ads': llm_ads, 'status': 'success',
+                                    'raw_response': '', 'model': 'm'}):
+        return detector.process_transcript(
+            [{'start': 0.0, 'end': 300.0, 'text': 'hello'}], slug='s', episode_id='e1',
+            transcript_spans=[SPAN], keep_content=False, action_map=action_map)['ads']
+
+
+def test_keep_action_split_leaves_the_gap_remainder_held():
+    ads = _detect([_pattern(95.0, 150.0, category='intro')], [],
+                  action_map={'intro': 'keep', 'sponsor': 'remove'})
+    gaps = [m for m in ads if m['detection_stage'] == 'transcript_differential']
+    assert gaps and all(m['held_for_review'] for m in gaps)
+    validated = AdValidator(600.0, [], episode_description='',
+                            transcript_spans=[SPAN]).validate(gaps).ads
+    assert all(a.get('hold_reason') == HOLD_REASON_TRANSCRIPT_DIFFERENTIAL for a in validated)
+
+
+def test_dropped_estimated_pattern_does_not_widen_a_precise_llm_ad():
+    estimated = _pattern(98.0, 165.0, span_estimated=True, text_start=151.0, text_end=157.0)
+    claude = dict(_claude(150.0, 158.0, confidence=0.95),
+                  word_timed_start=150.0, word_timed_end=158.0)
+    ads = _detect([estimated], [claude])
+    llm = next(m for m in ads if m['detection_stage'] == 'claude')
+    assert (llm['start'], llm['end']) == (150.0, 158.0)
+    assert any(m['detection_stage'] == 'transcript_differential' and m['held_for_review']
+               for m in ads)
