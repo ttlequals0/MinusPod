@@ -200,9 +200,6 @@ def is_defined_pattern(pattern: dict) -> bool:
 # Minimum text length for pattern matching (characters)
 MIN_TEXT_LENGTH = 50
 
-# Maximum intro/outro phrase length to check
-MAX_PHRASE_LENGTH = 200
-
 # Common ad transition phrases (for detecting multi-sponsor contamination)
 AD_TRANSITION_PHRASES = [
     "this episode is brought to you by",

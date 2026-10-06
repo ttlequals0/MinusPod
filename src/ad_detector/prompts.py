@@ -613,7 +613,7 @@ def parse_ads_from_response(response_text: str, slug: str = None,
         List of validated ad dicts with start, end, confidence, reason, end_text
     """
     try:
-        ads, extraction_method = extract_json_ads_array(response_text, slug, episode_id)
+        ads, _extraction_method = extract_json_ads_array(response_text, slug, episode_id)
 
         if ads is None or not isinstance(ads, list):
             logger.warning(f"[{slug}:{episode_id}] No valid JSON array found in response")

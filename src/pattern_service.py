@@ -9,7 +9,6 @@ Handles:
 """
 import logging
 import json
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from config import (
@@ -42,7 +41,6 @@ from community_export import (
 # test names. New code should import the LEARNING_* names directly.
 VERIFICATION_MIN_CONFIDENCE = LEARNING_MIN_CONFIDENCE
 VERIFICATION_MIN_CONFIDENCE_LONG = LEARNING_MIN_CONFIDENCE_LONG
-VERIFICATION_LONG_DURATION_THRESHOLD = LEARNING_LONG_DURATION_THRESHOLD
 
 logger = logging.getLogger('podcast.patterns')
 
@@ -167,16 +165,6 @@ KNOWN_NETWORKS = {
     'slate': ['slate.com', 'slate podcasts'],
     'iheart': ['iheart.com', 'iheartradio', 'iheartpodcast'],
 }
-
-
-@dataclass
-class PatternMatch:
-    """Represents a pattern match result."""
-    pattern_id: int
-    scope: str
-    confidence: float
-    sponsor: str | None
-    text_similarity: float
 
 
 class PatternService:

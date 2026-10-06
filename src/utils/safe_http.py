@@ -28,7 +28,6 @@ import enum
 import logging
 import os
 import time
-from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlparse
 
@@ -56,18 +55,6 @@ class IncompleteResponseError(Exception):
 
 class ResponseDeadlineError(Exception):
     """Raised when a streamed body is still arriving at the caller's deadline."""
-
-
-@dataclass
-class FetchResult:
-    """Distinguishes success, size-cap rejection, and network failure so
-    callers can emit structured log events without conflating them."""
-
-    ok: bool
-    status_code: int | None
-    content: bytes | None
-    error: str | None
-    size_capped: bool = False
 
 
 class _ChunkedResponse(Protocol):

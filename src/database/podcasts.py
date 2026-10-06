@@ -160,12 +160,6 @@ class PodcastMixin:
         ).fetchone()
         return dict(row) if row else None
 
-    def get_podcast_slugs(self) -> list[str]:
-        """Get podcast slugs without episode aggregates."""
-        return [row['slug'] for row in self.get_connection().execute(
-            "SELECT slug FROM podcasts"
-        ).fetchall()]
-
     def get_podcast_last_checked_at(self, slug: str) -> str | None:
         """Return only the RSS freshness timestamp for a feed."""
         row = self.get_connection().execute(

@@ -505,24 +505,6 @@ class StatusService:
                 revision=int(status.get('revision', 0)),
             )
 
-    def subscribe(self, callback: callable):
-        """Subscribe to status updates."""
-        # _subscribers is touched from SSE-request threads and the processing
-        # thread; guard mutation/iteration with the status lock so a concurrent
-        # subscribe/unsubscribe can't corrupt the list mid-notify
-        # (concurrency-sweep-3).
-        with self._subscribers_lock:
-            self._subscribers.append(callback)
-
-        def _unsubscribe():
-            with self._subscribers_lock:
-                try:
-                    self._subscribers.remove(callback)
-                except ValueError:
-                    pass
-
-        return _unsubscribe
-
     def _notify_subscribers(self):
         """Notify all subscribers of status change."""
         status = self.get_status()

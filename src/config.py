@@ -476,7 +476,6 @@ WINDOW_OVERLAP_SECONDS = 180    # Overlap between windows (3 min)
 # ============================================================
 # Background Processing (seconds)
 # ============================================================
-RSS_REFRESH_INTERVAL = 900      # Seconds between RSS refreshes (15 min)
 # Feed Refresh Failed alerting (#516). A failure only increments the
 # per-feed counter when the previous counted failure is at least the
 # interval old (on-demand refreshes triggered by client polls would
@@ -1178,7 +1177,6 @@ def resolve_differential_fetch_setting(db, podcast_id):
 DIFFERENTIAL_FETCH_MODE_AUTO = 'auto'
 DIFFERENTIAL_FETCH_MODE_ON = 'on'
 DIFFERENTIAL_FETCH_MODE_OFF = 'off'
-DIFFERENTIAL_FETCH_MODE_INHERIT = 'inherit'
 VALID_DIFFERENTIAL_FETCH_MODES = frozenset({
     DIFFERENTIAL_FETCH_MODE_AUTO,
     DIFFERENTIAL_FETCH_MODE_ON,
@@ -1473,7 +1471,6 @@ LLM_TIMEOUT_DEFAULT = 120.0          # Anthropic / fast cloud APIs
 LLM_TIMEOUT_LOCAL = 600.0            # Ollama / local models (10 min)
 LLM_RETRY_MAX_RETRIES = 3            # Default retries for cloud APIs
 LLM_RETRY_MAX_RETRIES_LOCAL = 2      # Fewer retries for local (each is slow)
-AD_DETECTION_MAX_TOKENS = int(os.environ.get('AD_DETECTION_MAX_TOKENS', '4096'))
 
 # ============================================================
 # Outbound HTTP

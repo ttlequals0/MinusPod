@@ -61,10 +61,6 @@ def is_active(target: str) -> bool:
     return state(target)['active']
 
 
-def all_states() -> dict[str, dict]:
-    return {t: state(t) for t in TARGETS}
-
-
 def failover_llm_config() -> dict:
     return {
         'provider': _setting('failover_llm_provider') or '',

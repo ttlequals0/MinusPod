@@ -931,18 +931,6 @@ del _key
 AD_RESET_SETTING_KEYS = tuple(
     key for key, spec in SETTINGS_REGISTRY.items() if spec.in_ad_reset)
 
-# Per-phase failover keys used by settings and routing.
-FAILOVER_LLM_KEYS = (
-    'failover_llm_enabled', 'failover_llm_provider', 'failover_llm_base_url',
-    'failover_llm_timeout_seconds', 'failover_llm_max_retries',
-    'failover_llm_detection_model', 'failover_llm_review_model',
-    'failover_llm_verification_model', 'failover_llm_chapters_model')
-FAILOVER_WHISPER_KEYS = (
-    'failover_whisper_enabled', 'failover_whisper_backend', 'failover_whisper_model',
-    'failover_whisper_api_base_url', 'failover_whisper_api_model',
-    'failover_whisper_api_timeout_seconds', 'failover_whisper_max_attempts',
-    'failover_whisper_language')
-
 
 def _validate_registry():
     """Fail fast if the registry drifts from the mechanism catalogs."""

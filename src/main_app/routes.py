@@ -66,7 +66,6 @@ from utils.opml import build_opml_xml
 
 # Resolved once at registration time
 STATIC_DIR = None
-ROOT_DIR = None
 
 
 def _personalize_rss_for_subscriber(cached_rss: str) -> str:
@@ -357,10 +356,9 @@ def _local_original_response(slug, episode_id, requested_version=None):
 
 def register_routes(app):
     """Register all routes on the Flask app."""
-    global STATIC_DIR, ROOT_DIR
+    global STATIC_DIR
 
     STATIC_DIR = Path(__file__).parent.parent.parent / 'static' / 'ui'
-    ROOT_DIR = Path(__file__).parent.parent.parent
 
     # ========== Web UI Static File Serving ==========
 
@@ -442,7 +440,7 @@ def register_routes(app):
             # bots probe random slugs (`/foo`, `/.hidden`, `/etc`, ...) and
             # each probe would otherwise fire an outbound request per
             # subscribed feed. The scheduled refresher keeps feed_map
-            # current within `RSS_REFRESH_INTERVAL`; a bogus slug just 404s.
+            # current on its own interval; a bogus slug just 404s.
             feed_logger.info(f"[{slug}] Feed not found (no refresh-on-miss)")
             abort(404)
 

@@ -2237,13 +2237,6 @@ class Transcriber:
         return (recorded_at is None
                 or utc_now() - recorded_at > timedelta(days=self.BATCH_CEILING_TTL_DAYS))
 
-    def _batch_size_ceiling(self) -> int | None:
-        """Unexpired stored ceiling as a positive int, else None."""
-        entry = self._read_ceiling()
-        if entry is None or self._ceiling_expired(entry):
-            return None
-        return entry['size']
-
     def record_batch_size_ceiling(self, batch_size: int) -> None:
         """Persist batch_size as this device's ceiling. Called only after a
         completed run, since only completion proves a size fits; ratchets down

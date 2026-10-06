@@ -1,6 +1,5 @@
 """Sponsor and normalization service - single source of truth for sponsor data."""
 import re
-import json
 import logging
 import threading
 
@@ -85,7 +84,6 @@ class SponsorService:
     def __init__(self, db):
         """Initialize with database instance."""
         self.db = db
-        self._cache_normalizations = None
         self._cache_sponsors = None
         # Cache freshness gate; payload lives on instance attrs above and
         # _compiled_patterns below. Single key '_loaded'.
@@ -98,18 +96,6 @@ class SponsorService:
         # "Wegovy"). Lowercase-only replacements (e.g. "ag1") are matcher
         # canonicalizations and are skipped here.
         self._cache_transcript_corrections = []
-
-    @staticmethod
-    def _parse_aliases(aliases) -> list:
-        """Parse aliases from DB value (JSON string or list)."""
-        if isinstance(aliases, list):
-            return aliases
-        if isinstance(aliases, str):
-            try:
-                return json.loads(aliases)
-            except json.JSONDecodeError:
-                return []
-        return []
 
     def _refresh_cache_if_needed(self):
         """Cache for 5 minutes to avoid constant DB hits.
@@ -168,7 +154,6 @@ class SponsorService:
 
             # Publish all caches, then flip the freshness flag last so no reader
             # ever observes a partially-built cache.
-            self._cache_normalizations = cache_normalizations
             self._cache_sponsors = cache_sponsors
             self._cache_transcript_corrections = transcript_corrections
             self._compiled_patterns = compiled_patterns
@@ -180,7 +165,6 @@ class SponsorService:
     def invalidate_cache(self):
         """Call after any updates."""
         self._freshness.clear()
-        self._cache_normalizations = None
         self._cache_sponsors = None
         self._cache_transcript_corrections = []
 
@@ -228,11 +212,6 @@ class SponsorService:
             logger.info(f"Seeded {added} new sponsors and {norm_added} new normalizations (existing rows preserved)")
 
     # ========== Normalization ==========
-
-    def get_normalizations(self) -> list[dict]:
-        """Get all active normalizations."""
-        self._refresh_cache_if_needed()
-        return self._cache_normalizations or []
 
     def apply_transcript_corrections(self, text: str) -> str:
         """Apply display-preserving corrections to transcript text.
