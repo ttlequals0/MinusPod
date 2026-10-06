@@ -151,7 +151,7 @@ All routes are under `/api/v1`, and every `POST`/`PUT` needs the `X-CSRF-Token` 
 | `PUT /settings/pattern-cleanup` | Update the six settings |
 | `POST /patterns/cleanup/run` | Start a run (`{"force": true}` to force); 202 with `{"runId"}`, 409 if one is already running, rate limited to 6/hour |
 | `GET /patterns/cleanup/runs` | Recent runs, newest first |
-| `GET /patterns/cleanup/suggestions` | List suggestions, filterable by `status` and `kind`; paginate with `limit` (1-200, default 50) and `offset` |
+| `GET /patterns/cleanup/suggestions` | List suggestions, filterable by `status` and `kind`; paginate with `limit` (1-200, default 50) and `before_id` (smallest id already loaded); `offset` remains supported |
 | `POST /patterns/cleanup/suggestions/{id}/approve` | Approve one suggestion |
 | `POST /patterns/cleanup/suggestions/{id}/reject` | Reject one suggestion |
 | `POST /patterns/cleanup/suggestions/{id}/undo` | Undo an approved suggestion |
@@ -183,6 +183,8 @@ and `force` must be a boolean. Settings updates require a non-empty object;
 `enabled` must be a boolean, `cron` a string, and numeric settings integers.
 Malformed requests return HTTP 400 before starting work or saving any fields.
 Stale approvals, rejections, and unsafe undo operations return HTTP 409.
+
+Suggestion pages are ordered by descending id. Prefer `before_id` when decisions may change between pages: it avoids the skipped rows that offset pagination can produce when earlier suggestions leave the list. When supplied, `before_id` takes precedence over `offset`.
 
 Suggestion payloads use camelCase. A trim may include `payload.sponsor` for a
 combined correction; a flag recommending a trim uses `trimText` and may also

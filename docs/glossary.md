@@ -122,6 +122,12 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Low ad yield** - The amber episode badge shown when a run removed far less ad time than the feed's recent average. Usually a lightly-filled DAI download, occasionally a missed ad worth a look. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
+## M
+
+**Mark action** - A segment action that leaves the audio intact and publishes a skippable chapter when chapters are enabled. Keep leaves the audio intact without an ad chapter. [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
+
+**Multi-span Mark ad** - Selecting several transcript spans under one sponsor and saving each as a separate missed-ad correction. Each span must pass the minimum text length before saving starts. [Web Interface > Adding a New Ad](web-interface.md#adding-a-new-ad)
+
 ## N
 
 **Normalization** - A rule that maps sponsor name variants ("betterhelp.com slash pod", "Better Help") onto one sponsor so patterns and history stay tidy. [Web Interface > Sponsors and Normalizations](web-interface.md#sponsors-and-normalizations)
@@ -186,7 +192,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Sidecar file** - An optional file next to an archive-import audio file, sharing its exact basename: a `.txt` description, a `.jpg`/`.jpeg`/`.png` cover, or a `.json` file overriding title, description, publish date, season, and episode. A JSON sidecar overrides everything else, including the filename's sNNeNN token. [Local Feeds > JSON sidecar](local-feeds.md#json-sidecar)
 
-**Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep). [How It Works > Segment Categories](how-it-works.md#segment-categories)
+**Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, keep, or mark). [How It Works > Segment Categories](how-it-works.md#segment-categories)
 
 **Silence snap** - Nudging a cut boundary to the nearest silence so the edit lands between words instead of inside one. [Audio Cues > Silence snap](audio-cues.md#silence-snap)
 

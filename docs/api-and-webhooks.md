@@ -66,7 +66,7 @@ Key endpoints:
 - `PUT /api/v1/settings/pattern-cleanup` - Update pattern cleanup settings (`enabled`, `cron`, `batchSize`, `unusedDays`, `provider`, `model`)
 - `POST /api/v1/patterns/cleanup/run` - Start a cleanup batch; `{"force": true}` resets all active learned patterns and replaces their pending suggestions. Later normal batches continue the remaining work. Returns 202 with `{"runId"}`, 400 for invalid input, or 409 if already running; rate limited to 6/hour
 - `GET /api/v1/patterns/cleanup/runs` - Recent pattern cleanup runs, newest first
-- `GET /api/v1/patterns/cleanup/suggestions` - List suggestions by `status` and `kind`; `limit` and `offset` paginate older decisions. Includes original text and optional retained transcript context; trim proposals can also correct the sponsor
+- `GET /api/v1/patterns/cleanup/suggestions` - List suggestions by `status` and `kind`; `limit` and `before_id` paginate older decisions without skipping rows after an approval or rejection; the cursor overrides the older `offset` parameter. Includes original text and optional retained transcript context; trim proposals can also correct the sponsor
 - `POST /api/v1/patterns/cleanup/suggestions/{id}/approve` - Approve one suggestion, applying it to the pattern in place
 - `POST /api/v1/patterns/cleanup/suggestions/{id}/reject` - Reject one suggestion
 - `POST /api/v1/patterns/cleanup/suggestions/{id}/undo` - Undo an approval without overwriting later manual edits; unsafe or out-of-order undo returns 409

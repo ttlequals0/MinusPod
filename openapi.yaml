@@ -816,7 +816,7 @@ paths:
                   additionalProperties:
                     type: boolean
                   deprecated: true
-                  description: Deprecated. Translates into segmentCategoryActions; true marks the category, false demotes it from mark to keep. null is a no-op.
+                  description: Deprecated. Translates into segmentCategoryActions; true promotes keep to mark, false demotes mark to keep; remove and beep stay unchanged. null is a no-op.
                 queuePriority:
                   type:
                     - string
@@ -3638,7 +3638,7 @@ paths:
                   enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
                   description: >-
                     Segment category for this pattern's matches; each feed's
-                    segment actions map the category to remove, beep, or keep.
+                    segment actions map the category to remove, beep, keep, or mark.
                     Null clears the category, and an uncategorized pattern
                     resolves as sponsor. An unrecognized value is rejected
                     with 400.
@@ -6321,16 +6321,17 @@ paths:
                   description: Append the generated chapter list to served episode descriptions and the episode API description. Feeds can override per feed.
                   example: false
                 adChaptersEnabled:
-                  type: boolean
+                  type: [boolean, string]
+                  enum: [true, false, 'on', 'off']
                   deprecated: true
-                  description: Deprecated. Translates into segmentCategoryActions; false demotes every mark to keep, true is accepted and ignored.
+                  description: Deprecated. Translates into segmentCategoryActions; false or 'off' demotes every mark to keep, true or 'on' is accepted and ignored.
                   example: false
                 adChapterCategories:
                   type: object
                   additionalProperties:
                     type: boolean
                   deprecated: true
-                  description: Deprecated. Translates into segmentCategoryActions; true marks the category, false demotes it from mark to keep.
+                  description: Deprecated. Translates into segmentCategoryActions; true promotes keep to mark, false demotes mark to keep; remove and beep stay unchanged.
                   example: {sponsor: true, cross_promo: true}
                 adChaptersIncludeHeld:
                   type: boolean
@@ -12797,7 +12798,7 @@ components:
                 $ref: '#/components/schemas/AdMarker'
             keptMarkers:
               type: array
-              description: Segments deliberately left in the audio by a per-category keep action (action_applied=keep, not held for review). Distinct from rejectedAdMarkers, which holds flagged-but-not-kept-on-purpose detections.
+              description: Segments deliberately left in the audio by a Keep or Mark action, not held for review. actionApplied distinguishes keep from mark; rejectedAdMarkers contains detections rejected by the pipeline.
               items:
                 $ref: '#/components/schemas/AdMarker'
             cueDetections:
@@ -13908,10 +13909,9 @@ components:
           description: What kind of content this span is. LLM detection stages emit it directly; fingerprint, text-pattern, and differential stages default to sponsor. An unknown or missing value falls back to sponsor at marker-save time.
           example: sponsor
         actionApplied:
-          type: string
-          nullable: true
+          type: [string, 'null']
           enum: [remove, beep, keep, mark, null]
-          description: The action resolved for this marker's category at cut time (per-feed override, else global default, else remove). Null for a marker that has not gone through action resolution.
+          description: The action resolved for this marker's category (per-feed override, else global default, else remove). Stored Keep/Mark values reflect current switches between Keep and Mark without recutting; changes involving remove or beep require a recut. Null before action resolution.
           example: remove
         approved:
           type: boolean
@@ -14080,9 +14080,8 @@ components:
           description: Segment category, or null when no stage classified the marker
           enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
         actionApplied:
-          type: string
-          nullable: true
-          description: Action the category resolved to for this marker
+          type: [string, 'null']
+          description: Action resolved for this marker. Stored Keep/Mark values reflect current switches between Keep and Mark without recutting; changes involving remove or beep require a recut.
           enum: [remove, beep, keep, mark, null]
         reviewerVerdict:
           type: string
