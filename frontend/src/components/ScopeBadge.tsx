@@ -8,7 +8,7 @@ export function ScopeBadge({
   pattern,
   podcastClassName,
 }: {
-  pattern: AdPattern;
+  pattern: Pick<AdPattern, 'scope' | 'network_id' | 'podcast_name'>;
   podcastClassName?: string;
 }) {
   if (pattern.scope === 'global') {

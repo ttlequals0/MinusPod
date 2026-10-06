@@ -11938,9 +11938,14 @@ components:
               nullable: true
             scope:
               type: string
+            networkId:
+              type: string
+              nullable: true
             podcastTitle:
               type: string
               nullable: true
+            isActive:
+              type: boolean
             confirmationCount:
               type: integer
             falsePositiveCount:

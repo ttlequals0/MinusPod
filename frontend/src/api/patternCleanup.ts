@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import type { PatternScope } from './patterns';
 
 export const patternCleanupQueryKey = ['patternCleanup'] as const;
 
@@ -59,29 +60,40 @@ export interface PatternCleanupRun {
   error: string | null;
 }
 
-// Payload keys are snake_case as stored by the service.
 export interface TrimPayload { text: string }
 export interface SplitPayload { pieces: Array<{ text: string; sponsor: string }> }
 export interface RenamePayload { sponsor: string }
 export interface RetirePayload {
-  unused_days: number;
-  last_matched_at: string | null;
-  confirmation_count: number;
+  unusedDays: number;
+  lastMatchedAt: string | null;
+  confirmationCount: number;
 }
 export interface FlagPayload {
-  false_positive_count: number;
-  confirmation_count: number;
+  falsePositiveCount: number;
+  confirmationCount: number;
   contaminated: boolean;
-  contamination_reason: string | null;
+  contaminationReason: string | null;
   recommended: 'disable' | 'trim';
-  trim_text?: string;
+  trimText?: string;
+}
+
+// Pattern snapshot taken when the suggestion was made.
+export interface CleanupBefore {
+  textTemplate: string | null;
+  sponsor: string | null;
+  introVariants: string[];
+  outroVariants: string[];
+  isActive: boolean | number | null;
+  disabledReason: string | null;
 }
 
 export interface CleanupPatternSummary {
   id: number;
   sponsor: string | null;
-  scope: string;
+  scope: PatternScope;
+  networkId: string | null;
   podcastTitle: string | null;
+  isActive: boolean;
   confirmationCount: number;
   falsePositiveCount: number;
   lastMatchedAt: string | null;
@@ -97,7 +109,7 @@ export interface PatternCleanupSuggestion {
   confidence: number | null;
   reasons: string[];
   payload: TrimPayload | SplitPayload | RenamePayload | RetirePayload | FlagPayload;
-  before: Record<string, unknown> | null;
+  before: CleanupBefore | null;
   applied: Record<string, unknown> | null;
   createdAt: string;
   reviewedAt: string | null;

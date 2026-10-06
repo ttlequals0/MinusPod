@@ -188,6 +188,7 @@ def test_suggestions_list_shape_and_pattern_join(app_client, podcast):
     pat = s['pattern']
     assert pat['id'] == p['id'] and pat['sponsor'] == 'Acme' and pat['scope'] == 'podcast'
     assert pat['podcastTitle'] == 'The Daily Tech Show'
+    assert pat['networkId'] is None and pat['isActive'] is True
     assert pat['confirmationCount'] == 5 and pat['falsePositiveCount'] == 1
 
 
