@@ -1,6 +1,7 @@
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { ghostBtn } from './controlStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { touchTarget } from '../buttonStyles';
 
 // Shared waveform zoom control for the audio-editor modals: a range slider
 // flanked by zoom-out / zoom-in buttons and a numeric readout. Presentational;
@@ -22,7 +23,7 @@ function ZoomControl({ value, min, max, step = 0.1, onChange, onZoomIn, onZoomOu
         type="button"
         onClick={onZoomOut}
         disabled={value <= min + 0.01}
-        className={`p-1.5 rounded ${ghostBtn} ${focusRing}`}
+        className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`}
         title="Zoom out"
       >
         <ZoomOut className="w-3.5 h-3.5" />
@@ -34,14 +35,14 @@ function ZoomControl({ value, min, max, step = 0.1, onChange, onZoomIn, onZoomOu
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 accent-primary"
+        className="flex-1 accent-primary max-sm:min-h-11"
         title="Zoom"
       />
       <button
         type="button"
         onClick={onZoomIn}
         disabled={value >= max - 0.01}
-        className={`p-1.5 rounded ${ghostBtn} ${focusRing}`}
+        className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`}
         title="Zoom in"
       >
         <ZoomIn className="w-3.5 h-3.5" />

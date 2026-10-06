@@ -12,6 +12,8 @@ interface Props {
   onChange: (next: string) => void;
   sponsors: SponsorOption[];
   placeholder?: string;
+  inputClassName?: string;
+  disabled?: boolean;
 }
 
 // Controlled sponsor combobox. The dropdown is rendered inside the React
@@ -22,7 +24,7 @@ interface Props {
 // Selection uses onMouseDown rather than onClick because the input's
 // onBlur fires before onClick would land -- onMouseDown commits the value
 // before the focus-loss collapses the menu.
-export function SponsorInput({ value, onChange, sponsors, placeholder }: Props) {
+export function SponsorInput({ value, onChange, sponsors, placeholder, inputClassName = '', disabled = false }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -61,20 +63,21 @@ export function SponsorInput({ value, onChange, sponsors, placeholder }: Props) 
       <input
         type="text"
         value={query}
+        disabled={disabled}
         placeholder={placeholder ?? 'e.g. BetterHelp, Squarespace, Progressive'}
         onChange={(e) => {
           setQuery(e.target.value);
           onChange(e.target.value);
           setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => { if (!disabled) setOpen(true); }}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
             e.stopPropagation();
             setOpen(false);
           }
         }}
-        className="w-full pl-3 pr-8 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
+        className={`w-full pl-3 pr-8 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm ${inputClassName}`}
         aria-autocomplete="list"
         aria-expanded={open}
       />

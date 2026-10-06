@@ -28,6 +28,7 @@ function SegmentActionToggle({ value, onChange, ariaLabel, disabled, muted }: Se
       ariaLabel={ariaLabel}
       disabled={disabled}
       muted={muted}
+      mobileTouchTarget
     />
   );
 }

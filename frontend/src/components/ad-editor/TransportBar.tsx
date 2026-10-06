@@ -3,6 +3,7 @@ import { Play, Pause, SkipBack, SkipForward, Rewind, FastForward, Square } from 
 import { formatTime } from '../../utils/adReviewHelpers';
 import { ghostBtn, primaryBtn, selectionBtn } from './controlStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { touchTarget } from '../buttonStyles';
 import { tint } from '../badgeStyles';
 import SpeedMenu from './SpeedMenu';
 
@@ -51,20 +52,20 @@ function TransportBar({
           grouped beside it at any width. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center sm:gap-4">
         <div className="flex flex-wrap items-center justify-center gap-0.5">
-          <button type="button" onClick={onSeekToStart} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Jump to START pin">
+          <button type="button" onClick={onSeekToStart} className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`} title="Jump to START pin">
             <SkipBack className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => onSeekRelative(-10)} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Back 10s">
+          <button type="button" onClick={() => onSeekRelative(-10)} className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`} title="Back 10s">
             <Rewind className="w-4 h-4" />
           </button>
-          <button type="button" onClick={onTogglePlay} className={`p-1.5 rounded ${primaryBtn} ${focusRing}`} title="Play / pause (Space)">
+          <button type="button" onClick={onTogglePlay} className={`p-1.5 rounded ${primaryBtn} ${touchTarget} ${focusRing}`} title="Play / pause (Space)">
             {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
           </button>
           {onPlaySelection && (
             <button
               type="button"
               onClick={onPlaySelection}
-              className={`${selectionBtn} ${focusRing}`}
+              className={`${selectionBtn} ${touchTarget} ${focusRing}`}
               title="Play the selection only"
               aria-label="Play selection"
             >
@@ -73,13 +74,13 @@ function TransportBar({
               <span aria-hidden="true" className="text-xs font-bold leading-none">]</span>
             </button>
           )}
-          <button type="button" onClick={() => onSeekRelative(10)} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Forward 10s">
+          <button type="button" onClick={() => onSeekRelative(10)} className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`} title="Forward 10s">
             <FastForward className="w-4 h-4" />
           </button>
-          <button type="button" onClick={onSeekToEnd} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Jump to END pin">
+          <button type="button" onClick={onSeekToEnd} className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`} title="Jump to END pin">
             <SkipForward className="w-4 h-4" />
           </button>
-          <button type="button" onClick={onStop} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Stop (pause + return to START)">
+          <button type="button" onClick={onStop} className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`} title="Stop (pause + return to START)">
             <Square className="w-4 h-4" />
           </button>
           <SpeedMenu playbackRate={playbackRate} onChange={onPlaybackRateChange} className="ml-0.5" />

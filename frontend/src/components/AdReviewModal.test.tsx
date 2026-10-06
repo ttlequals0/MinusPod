@@ -32,11 +32,22 @@ type MockRun = { start: number; end: number; text: string };
 // the double just needs to call onRunsChange with whatever the test wants,
 // so these tests stay focused on AdReviewModal's own submit/label logic.
 vi.mock('./ad-editor/TextSelectionPanel', () => ({
-  default: ({ onRunsChange }: { onRunsChange: (runs: MockRun[]) => void }) => (
+  default: ({ onRunsChange, onSelectionChange, disabled = false }: {
+    onRunsChange: (runs: MockRun[]) => void;
+    onSelectionChange: (start: number, end: number, text: string) => void;
+    disabled?: boolean;
+  }) => {
+    const updateRuns = (runs: MockRun[]) => {
+      onRunsChange(runs);
+      const current = runs[runs.length - 1];
+      if (current) onSelectionChange(current.start, current.end, current.text);
+    };
+    return (
     <div data-testid="text-selection-panel">
       <button
         type="button"
-        onClick={() => onRunsChange([
+        disabled={disabled}
+        onClick={() => updateRuns([
           { start: 30, end: 40, text: 'a'.repeat(60) },
           { start: 10, end: 20, text: 'b'.repeat(60) },
         ])}
@@ -45,15 +56,35 @@ vi.mock('./ad-editor/TextSelectionPanel', () => ({
       </button>
       <button
         type="button"
-        onClick={() => onRunsChange([
+        disabled={disabled}
+        onClick={() => updateRuns([
           { start: 10, end: 20, text: 'a'.repeat(60) },
           { start: 30, end: 40, text: 'short' },
         ])}
       >
         set two runs one short
       </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => updateRuns([
+          { start: 10, end: 20, text: 'b'.repeat(60) },
+          { start: 30, end: 40, text: 'c'.repeat(60) },
+        ])}
+      >
+        change second run
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => updateRuns([{ start: 10, end: 20, text: 'b'.repeat(60) }])}
+      >
+        keep only saved run
+      </button>
+      <button type="button" aria-label="Remove span 0:10.0 to 0:20.0" disabled={disabled} />
     </div>
-  ),
+    );
+  },
 }));
 
 vi.mock('./SplitMarkerModal', () => ({
@@ -166,6 +197,92 @@ describe('AdReviewModal hideConfirm', () => {
     const user = userEvent.setup();
     await user.keyboard('c');
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'confirm', sponsor: 'Acme' });
+  });
+});
+
+describe('AdReviewModal multi-span submission', () => {
+  it('keeps a saved run saved when only the failed run changes before retry', async () => {
+    const onCreate = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('save failed'))
+      .mockResolvedValueOnce(undefined);
+    renderModal({ mode: 'create', onCreate });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'By text' }));
+    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+    await user.type(screen.getByLabelText(/Sponsor name/), 'Acme');
+    await user.click(screen.getByRole('button', { name: 'Mark ad (2 spans)' }));
+
+    await waitFor(() => expect(screen.getByText(/Failed to save/)).toBeTruthy());
+    expect(onCreate.mock.calls.map(([run]) => run.start)).toEqual([10, 30]);
+
+    await user.click(screen.getByRole('button', { name: 'change second run' }));
+    expect(screen.getByText(/Saved/)).toBeTruthy();
+    expect(screen.getByText(/Not submitted/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Mark ad (2 spans)' }));
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(3));
+    expect(onCreate.mock.calls.map(([run]) => run.start)).toEqual([10, 30, 30]);
+  });
+
+  it('does not resubmit a saved run after failed spans are removed', async () => {
+    const onCreate = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('save failed'));
+    const onCreateDone = vi.fn();
+    renderModal({ mode: 'create', onCreate, onCreateDone });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'By text' }));
+    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+    await user.type(screen.getByLabelText(/Sponsor name/), 'Acme');
+    await user.click(screen.getByRole('button', { name: 'Mark ad (2 spans)' }));
+    await waitFor(() => expect(screen.getByText(/Failed to save/)).toBeTruthy());
+
+    await user.click(screen.getByRole('button', { name: 'keep only saved run' }));
+    await user.click(screen.getByRole('button', { name: 'By audio' }));
+    await user.click(screen.getByRole('button', { name: 'By text' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+
+    expect(onCreate).toHaveBeenCalledTimes(2);
+    expect(onCreateDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses selected transcript text instead of showing an ignored template editor', async () => {
+    renderModal({ mode: 'create', onCreate: vi.fn() });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'By text' }));
+    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+
+    expect(screen.queryByLabelText(/Text template/)).toBeNull();
+    expect(screen.getByText('Each span uses the transcript text you selected.')).toBeTruthy();
+  });
+
+  it('disables span editing while a multi-span submission is pending', async () => {
+    let resolveCreate: (() => void) | undefined;
+    const onCreate = vi.fn()
+      .mockImplementationOnce(() => new Promise<void>((resolve) => { resolveCreate = resolve; }))
+      .mockResolvedValueOnce(undefined);
+    const { onClose, onSkip } = renderModal({ mode: 'create', onCreate });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'By text' }));
+    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+    await user.type(screen.getByLabelText(/Sponsor name/), 'Acme');
+    await user.click(screen.getByRole('button', { name: 'Mark ad (2 spans)' }));
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'change second run' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'By audio' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'By text' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Remove span 0:10.0 to 0:20.0' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByLabelText('Selection start time').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByLabelText('Selection end time').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Cancel' }).hasAttribute('disabled')).toBe(true);
+    await user.keyboard('{Escape}');
+    await user.keyboard('s');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onSkip).not.toHaveBeenCalled();
+    resolveCreate?.();
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2));
   });
 });
 

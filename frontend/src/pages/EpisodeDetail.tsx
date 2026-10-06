@@ -619,6 +619,8 @@ function EpisodeDetail() {
       confidence: marker.confidence,
       reason: marker.reason || '',
       sponsor: marker.sponsor,
+      category: marker.category ?? null,
+      action_applied: marker.actionApplied ?? null,
       pattern_id: undefined,
       detection_stage: marker.detection_stage || 'first_pass',
     }));

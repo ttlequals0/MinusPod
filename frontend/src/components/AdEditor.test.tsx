@@ -9,11 +9,12 @@ import type { AdCreateSubmit } from './AdReviewModal';
 // this double just exercises AdEditor's create-submit routing, same
 // boundary AdReviewModal.test.tsx draws around its own children.
 vi.mock('./AdReviewModal', () => ({
-  default: ({ onCreate, onCreateDone }: {
+  default: ({ item, onCreate, onCreateDone }: {
+    item: { category?: string | null; actionApplied?: string | null };
     onCreate: (s: AdCreateSubmit, meta?: { silent?: boolean }) => Promise<void> | void;
     onCreateDone?: () => void;
   }) => (
-    <div>
+    <div data-testid="review-item" data-category={item.category ?? ''} data-action-applied={item.actionApplied ?? ''}>
       <button
         type="button"
         onClick={() => {
@@ -61,6 +62,27 @@ function renderEditor() {
   );
   return { onCorrection, onCorrectionAsync, ...view };
 }
+
+describe('AdEditor review metadata', () => {
+  it('forwards detected category and resolved action to the review modal', () => {
+    render(
+      <MemoryRouter>
+        <AdEditor
+          detectedAds={[{
+            start: 10, end: 40, confidence: 0.9, reason: '',
+            category: 'cross_promo', action_applied: 'beep',
+          }]}
+          audioDuration={100}
+          onCorrection={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    const item = screen.getByTestId('review-item');
+    expect(item.getAttribute('data-category')).toBe('cross_promo');
+    expect(item.getAttribute('data-action-applied')).toBe('beep');
+  });
+});
 
 describe('AdEditor create submit path', () => {
   it('a single-run submit calls onCorrection and never onCorrectionAsync', async () => {

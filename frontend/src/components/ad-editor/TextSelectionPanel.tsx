@@ -33,6 +33,7 @@ interface Props {
   // Playback rate is owned by the parent (same audio element drives both modes).
   playbackRate: number;
   setPlaybackRate: (r: number) => void;
+  disabled?: boolean;
 }
 
 interface FlatWord extends TranscriptWord {
@@ -91,6 +92,7 @@ function TextSelectionPanel({
   onRunsChange,
   playbackRate,
   setPlaybackRate,
+  disabled = false,
 }: Props) {
   const [frozenRuns, setFrozenRuns] = useState<TextRun[]>([]);
   const [currentText, setCurrentText] = useState('');
@@ -131,6 +133,10 @@ function TextSelectionPanel({
   // closure: a mouseup landing before the listener effect rebinds would
   // otherwise see an empty list and silently no-op.
   const flatWordsRef = useRef<FlatWord[]>([]);
+  const disabledRef = useRef(disabled);
+  useLayoutEffect(() => {
+    disabledRef.current = disabled;
+  }, [disabled]);
 
   // Fetch once. The episode's words live in episode_details.original_segments_json
   // and never change after transcription, so no refetch on selection edits.
@@ -239,6 +245,7 @@ function TextSelectionPanel({
   };
 
   const commitSelection = () => {
+    if (disabledRef.current) return;
     const resolved = resolveSelection();
     if (!resolved) return;
     const words = flatWordsRef.current;
@@ -390,7 +397,8 @@ function TextSelectionPanel({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search the transcript"
-            className="w-full pl-8 pr-3 py-1.5 rounded-md border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring"
+            disabled={disabled}
+            className="w-full pl-8 pr-3 py-1.5 rounded-md border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring max-sm:min-h-11"
           />
         </div>
         {matchIndices.length > 0 && (
@@ -400,18 +408,20 @@ function TextSelectionPanel({
             </span>
             <button
               type="button"
+              disabled={disabled}
               onClick={() =>
                 setCurrentMatch((m) => (m - 1 + matchIndices.length) % matchIndices.length)
               }
-              className={`p-1 rounded ${btnGhost} ${focusRing}`}
+              className={`p-1 rounded ${btnGhost} ${focusRing} ${touchTarget}`}
               aria-label="Previous match"
             >
               <ChevronUp className="w-4 h-4" />
             </button>
             <button
               type="button"
+              disabled={disabled}
               onClick={() => setCurrentMatch((m) => (m + 1) % matchIndices.length)}
-              className={`p-1 rounded ${btnGhost} ${focusRing}`}
+              className={`p-1 rounded ${btnGhost} ${focusRing} ${touchTarget}`}
               aria-label="Next match"
             >
               <ChevronDown className="w-4 h-4" />
@@ -445,8 +455,9 @@ function TextSelectionPanel({
             <button
               type="button"
               onClick={() => removeRun(i)}
+              disabled={disabled}
               aria-label={`Remove span ${formatTime(run.start)} to ${formatTime(run.end)}`}
-              className={`${touchTarget} max-sm:-mx-2.5 max-sm:-my-2.5 rounded text-muted-foreground hover:text-destructive ${focusRing}`}
+              className={`${touchTarget} max-sm:-mx-2.5 max-sm:-my-2.5 rounded text-muted-foreground hover:text-destructive disabled:opacity-40 ${focusRing}`}
             >
               &times;
             </button>
@@ -455,8 +466,8 @@ function TextSelectionPanel({
         <button
           type="button"
           onClick={freezeCurrentRun}
-          disabled={!hasSelection}
-          className={`px-2 py-1 rounded text-xs ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing}`}
+          disabled={!hasSelection || disabled}
+          className={`px-2 py-1 rounded text-xs ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing} max-sm:min-h-11`}
         >
           Add another span
         </button>
@@ -468,7 +479,7 @@ function TextSelectionPanel({
           Selection clears (e.g., when focus moves to the textarea). */}
       <div
         ref={transcriptRef}
-        className="bg-secondary/40 rounded-lg p-3 max-h-[40vh] overflow-y-auto text-sm leading-relaxed select-text selection:bg-primary/50 selection:text-primary-foreground"
+        className={`bg-secondary/40 rounded-lg p-3 max-h-[40vh] overflow-y-auto text-sm leading-relaxed select-text selection:bg-primary/50 selection:text-primary-foreground ${disabled ? 'pointer-events-none select-none' : ''}`}
       >
         {flatWords.length === 0 ? (
           <p className="text-muted-foreground">Transcript is empty.</p>
@@ -507,8 +518,8 @@ function TextSelectionPanel({
         <button
           type="button"
           onClick={() => snapTo(adStart)}
-          disabled={!hasSelection}
-          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing}`}
+          disabled={!hasSelection || disabled}
+          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing} ${touchTarget}`}
           aria-label="Snap to selection start"
           title="Snap to selection start"
         >
@@ -517,8 +528,8 @@ function TextSelectionPanel({
         <button
           type="button"
           onClick={togglePlay}
-          disabled={!hasSelection}
-          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing}`}
+          disabled={!hasSelection || disabled}
+          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing} ${touchTarget}`}
           aria-label={isPlaying ? 'Pause' : 'Play selection'}
         >
           {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -526,14 +537,14 @@ function TextSelectionPanel({
         <button
           type="button"
           onClick={() => snapTo(adEnd)}
-          disabled={!hasSelection}
-          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing}`}
+          disabled={!hasSelection || disabled}
+          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing} ${touchTarget}`}
           aria-label="Snap to selection end"
           title="Snap to selection end"
         >
           <SkipForward className="w-4 h-4" />
         </button>
-        <SpeedMenu playbackRate={playbackRate} onChange={setPlaybackRate} />
+        <SpeedMenu playbackRate={playbackRate} onChange={setPlaybackRate} disabled={disabled} />
         <span className="text-xs text-muted-foreground">
           Plays the selected span only. Selection snaps to word boundaries.
         </span>

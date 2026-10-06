@@ -28,7 +28,13 @@ vi.mock('react-router', () => ({
 
 // Stub heavy child components that are not under test.
 vi.mock('../components/AdEditor', () => ({
-  default: () => <div data-testid="ad-editor" />,
+  default: ({ detectedAds }: { detectedAds: Array<{ category?: string | null; action_applied?: string | null }> }) => (
+    <div
+      data-testid="ad-editor"
+      data-category={detectedAds[0]?.category ?? ''}
+      data-action-applied={detectedAds[0]?.action_applied ?? ''}
+    />
+  ),
 }));
 vi.mock('../components/PatternLink', () => ({
   default: ({ reason }: { reason: string }) => <span>{reason}</span>,
@@ -1330,6 +1336,26 @@ describe('Detected ads: inline audition', () => {
     }));
     expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Play this ad' })).toBeNull();
+  });
+});
+
+describe('AdEditor detected marker metadata', () => {
+  it('passes category and resolved action into the edit flow', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      transcript: 'available',
+      adMarkers: [{
+        start: 10, end: 40, confidence: 0.9, category: 'cross_promo',
+        actionApplied: 'beep',
+      }],
+    }));
+
+    await user.click(await screen.findByRole('button', { name: 'Edit ads' }));
+
+    const editor = screen.getByTestId('ad-editor');
+    expect(editor.getAttribute('data-category')).toBe('cross_promo');
+    expect(editor.getAttribute('data-action-applied')).toBe('beep');
   });
 });
 

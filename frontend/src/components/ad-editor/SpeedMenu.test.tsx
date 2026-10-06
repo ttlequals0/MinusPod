@@ -23,5 +23,24 @@ describe('SpeedMenu', () => {
 
     expect(onChange).toHaveBeenCalledWith(1.5);
     expect(screen.queryByRole('button', { name: '1.5×' })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('closes on Escape and restores focus to the trigger without reaching the parent', async () => {
+    const onParentEscape = vi.fn();
+    window.addEventListener('keydown', onParentEscape);
+    try {
+      render(<SpeedMenu playbackRate={1} onChange={vi.fn()} />);
+      const user = userEvent.setup();
+      const trigger = screen.getByRole('button', { name: 'Playback speed' });
+      await user.click(trigger);
+      await user.keyboard('{Escape}');
+
+      expect(screen.queryByRole('button', { name: '1×' })).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+      expect(onParentEscape).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('keydown', onParentEscape);
+    }
   });
 });

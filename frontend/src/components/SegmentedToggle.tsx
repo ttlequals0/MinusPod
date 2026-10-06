@@ -25,6 +25,7 @@ interface SegmentedToggleProps<T extends string> {
   // for a popover row. A toolbar row sizes to its labels so it fits a phone.
   fill?: boolean;
   disabled?: boolean;
+  mobileTouchTarget?: boolean;
 }
 
 const VARIANTS = {
@@ -44,6 +45,7 @@ const VARIANTS = {
 // ring-inset on focus applies it itself.
 function SegmentedToggle<T extends string>({
   options, value, onChange, ariaLabel, variant = 'settings', muted, fill, disabled,
+  mobileTouchTarget = false,
 }: SegmentedToggleProps<T>) {
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const isRadio = variant === 'settings';
@@ -109,7 +111,7 @@ function SegmentedToggle<T extends string>({
             disabled={disabled}
             onClick={() => onChange(option.value)}
             onKeyDown={isRadio ? (e) => handleKeyDown(e, i) : undefined}
-            className={`${sizing.segment}${fill ? ' flex-1 min-w-11' : ''} transition-colors disabled:opacity-50 ${
+            className={`${sizing.segment}${fill ? ' flex-1 min-w-11' : ''}${mobileTouchTarget ? ' max-sm:min-h-11' : ''} transition-colors disabled:opacity-50 ${
               sizing.divided && i > 0 ? 'border-l border-border' : ''
             } ${selected ? selectedFill : btnSecondary} ${focusRing}`}
           >

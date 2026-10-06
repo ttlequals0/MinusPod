@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { PLAYBACK_RATES, ghostBtn } from './controlStyles';
+import { touchTarget } from '../buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
 
@@ -10,20 +11,28 @@ interface SpeedMenuProps {
   rates?: readonly number[];
   // Spacing/positioning at the call site; the popover itself is fixed.
   className?: string;
+  disabled?: boolean;
 }
 
 // Compact h-8 ghost button + popover, not a native <select> (iOS Safari sizes
 // those with its own metrics Tailwind can't override). Shared by TransportBar
 // and TextSelectionPanel so both playback bars match.
-function SpeedMenu({ playbackRate, onChange, rates = PLAYBACK_RATES, className = '' }: SpeedMenuProps) {
+function SpeedMenu({ playbackRate, onChange, rates = PLAYBACK_RATES, className = '', disabled = false }: SpeedMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   useOutsideClick(ref, open, () => setOpen(false));
   useEffect(() => {
     if (!open) return;
     // stopPropagation so Escape only closes the popover, not the parent modal
     // (both editors close on a window-level Escape and would discard the edit).
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
@@ -31,9 +40,11 @@ function SpeedMenu({ playbackRate, onChange, rates = PLAYBACK_RATES, className =
   return (
     <div className={`relative ${className}`} ref={ref}>
       <button
+        ref={triggerRef}
         type="button"
+        disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className={`h-8 px-1.5 rounded inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${ghostBtn} focus:outline-hidden focus:ring-2 focus:ring-ring`}
+        className={`h-8 px-1.5 rounded inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${ghostBtn} focus:outline-hidden focus:ring-2 focus:ring-ring ${touchTarget}`}
         title="Playback speed"
         aria-expanded={open}
         aria-label="Playback speed"
@@ -47,9 +58,10 @@ function SpeedMenu({ playbackRate, onChange, rates = PLAYBACK_RATES, className =
             <li key={r}>
               <button
                 type="button"
+                disabled={disabled}
                 aria-current={r === playbackRate}
-                onClick={() => { onChange(r); setOpen(false); }}
-                className={`block w-full px-3 py-1 text-right text-xs tabular-nums hover:bg-accent ${r === playbackRate ? 'text-foreground font-semibold' : 'text-muted-foreground'} ${focusRing}`}
+                onClick={() => { onChange(r); setOpen(false); triggerRef.current?.focus(); }}
+                className={`block w-full px-3 py-1 text-right text-xs tabular-nums hover:bg-accent ${r === playbackRate ? 'text-foreground font-semibold' : 'text-muted-foreground'} ${focusRing} max-sm:min-h-11 max-sm:min-w-11`}
               >
                 {r}&times;
               </button>

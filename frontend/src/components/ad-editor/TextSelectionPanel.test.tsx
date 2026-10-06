@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatTime } from '../../utils/adReviewHelpers';
@@ -42,9 +42,11 @@ vi.mock('../../api/feeds', async (importOriginal) => ({
 function Harness({
   onRunsChange,
   onSelectionChange,
+  disabled = false,
 }: {
   onRunsChange: (runs: TextRun[]) => void;
   onSelectionChange: (start: number, end: number, text: string) => void;
+  disabled?: boolean;
 }) {
   const [adStart, setAdStart] = useState(0);
   const [adEnd, setAdEnd] = useState(0);
@@ -64,6 +66,7 @@ function Harness({
         onSelectionChange(start, end, text);
       }}
       onRunsChange={onRunsChange}
+      disabled={disabled}
       playbackRate={playbackRate}
       setPlaybackRate={setPlaybackRate}
     />
@@ -173,6 +176,37 @@ describe('TextSelectionPanel run list', () => {
     expect(screen.queryByText('0:00.0 - 0:02.9')).toBeNull();
     expect(screen.queryByText('0:10.0 - 0:12.9')).toBeNull();
     expect(screen.getByText('Selection: 0:10.0 - 0:12.9 (2.9s)')).toBeTruthy();
+  });
+
+  it('blocks frozen-span removal and transcript selection while submitting', async () => {
+    const { container, onRunsChange, onSelectionChange, rerender } = renderPanel();
+    await waitForTranscript(container);
+    const user = userEvent.setup();
+    await selectWords(container, 0, 2);
+    await user.click(screen.getByRole('button', { name: 'Add another span' }));
+    onSelectionChange.mockClear();
+    onRunsChange.mockClear();
+
+    rerender(<Harness onRunsChange={onRunsChange} onSelectionChange={onSelectionChange} disabled />);
+    const remove = screen.getByRole('button', { name: 'Remove span 0:00.0 to 0:02.9' });
+    expect(remove.hasAttribute('disabled')).toBe(true);
+    await user.click(remove);
+    const transcript = container.querySelector('.select-text') as HTMLElement;
+    const start = container.querySelector('[data-widx="3"]') as HTMLElement;
+    const end = container.querySelector('[data-widx="5"]') as HTMLElement;
+    const range = document.createRange();
+    range.setStart(start, 0);
+    range.setEnd(end, 0);
+    getSelectionSpy.mockReturnValue({
+      isCollapsed: false,
+      rangeCount: 1,
+      getRangeAt: () => range,
+    } as unknown as Selection);
+    fireEvent.mouseUp(transcript);
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+
+    expect(onRunsChange).not.toHaveBeenCalled();
+    expect(onSelectionChange).not.toHaveBeenCalled();
   });
 
   it('merges runs that sit within 1s of each other on freeze', async () => {

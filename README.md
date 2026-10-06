@@ -32,7 +32,7 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 - Per-feed audio cue detection that snaps cuts to a show's jingle or stinger
 - [Publisher transcript comparison](docs/transcript-differential.md) adds evidence for speech omitted from an upstream transcript; unmatched gaps wait for review
 - Confidence scoring with a review queue; rejected detections stay visible for auditing
-- Every marker carries a segment category (sponsor, cross-promo, self-promo, interaction, and opt-in intro/outro/recap), each resolving to remove, beep, keep, or mark (kept and published as a skippable chapter), set globally or per feed and defaulting to remove until configured
+- Every marker carries a segment category (sponsor, cross-promo, self-promo, interaction, and opt-in intro/outro/recap), each resolving to remove, beep, keep, or mark (left in the audio and published as a skippable chapter when chapters are enabled), set globally or per feed and defaulting to remove until configured
 
 **Transcription**
 - Local Whisper on GPU or CPU via faster-whisper, or a remote OpenAI-compatible API
@@ -48,7 +48,7 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 - Cross-episode pattern learning from your corrections, scoped podcast to network to global
 - Sponsor list with aliases and normalizations
 - Opt-in community pattern sync, with one-PR submission back
-- Experimental [Pattern Cleanup](docs/pattern-cleanup.md): scheduled suggestions to trim, split, rename, or retire learned patterns, with approval and undo
+- Experimental [Pattern Cleanup](docs/pattern-cleanup.md): scheduled or manual suggestions to trim, split, rename, retire, or flag unreliable learned patterns, with approval and undo
 
 **Publishing**
 - Re-cut RSS feeds served per podcast, with versioned audio files
