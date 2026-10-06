@@ -1234,11 +1234,8 @@ class RSSParser:
         return value if value > 0 else None
 
     def backfill_processed_size(self, db, storage, slug: str, ep: dict) -> int | None:
-        """Resolve a processed episode's enclosure length, statting and
-        persisting it once for a row left over from before the
-        processed_size_bytes column existed. Mutates ``ep`` in place so the
-        caller's own render uses the resolved value. Returns None, without
-        touching the DB, when the file is missing."""
+        """Stat and persist a pre-migration row's size once; mutates ``ep``
+        in place. Returns None, without touching the DB, if the file is missing."""
         size = ep.get('processed_size_bytes')
         if size:
             return int(size)

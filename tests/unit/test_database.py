@@ -1593,6 +1593,10 @@ class TestBatchMethods:
         temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
         temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3',
                                status='processed', processed_file='/path/1.mp3')
+        # processed_size_bytes is UPDATE-only (never set on INSERT), so it
+        # needs its own call to land on the row, matching how the finalize
+        # path actually populates it.
+        temp_db.upsert_episode(slug, 'ep-1', processed_size_bytes=12345)
         temp_db.upsert_episode(slug, 'ep-2', original_url='https://example.com/2.mp3',
                                status='failed', error_message='oops')
 
@@ -1603,6 +1607,7 @@ class TestBatchMethods:
             assert ep['status'] == 'discovered'
             assert ep['processed_file'] is None
             assert ep['error_message'] is None
+            assert ep['processed_size_bytes'] is None
 
     def test_batch_set_episodes_pending(self, temp_db):
         slug = 'batch-pending'

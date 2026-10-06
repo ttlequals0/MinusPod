@@ -1279,6 +1279,7 @@ class EpisodeMixin:
             f"""UPDATE episodes SET
                 status = 'discovered',
                 processed_file = NULL, original_file = NULL, processed_at = NULL,
+                processed_size_bytes = NULL,
                 original_duration = NULL, new_duration = NULL,
                 ads_removed = 0, ads_removed_firstpass = 0, ads_removed_secondpass = 0,
                 error_message = NULL, ad_detection_status = NULL,
@@ -1531,6 +1532,7 @@ class EpisodeMixin:
             status=EpisodeStatus.DISCOVERED.value,
             processed_file=None,
             processed_at=None,
+            processed_size_bytes=None,
             original_duration=None,
             new_duration=None,
             ads_removed=0,
