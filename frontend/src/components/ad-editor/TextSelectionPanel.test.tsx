@@ -11,11 +11,11 @@ const { SEGMENTS } = vi.hoisted(() => {
     { word: 'alpha', start: 0.0, end: 0.9 },
     { word: 'bravo', start: 1.0, end: 1.9 },
     { word: 'charlie', start: 2.0, end: 2.9 },
-    // Gap from run A's end (2.9) is 0.3s -- merges with A on freeze.
+    // Gap from run A's end (2.9) is 0.3s, so this merges with A on freeze.
     { word: 'delta', start: 3.2, end: 4.1 },
     { word: 'echo', start: 4.2, end: 5.1 },
     { word: 'foxtrot', start: 5.2, end: 6.1 },
-    // Gap from run B's end (6.1) is 3.9s -- never merges.
+    // Gap from run B's end (6.1) is 3.9s, so this never merges.
     { word: 'golf', start: 10.0, end: 10.9 },
     { word: 'hotel', start: 11.0, end: 11.9 },
     { word: 'india', start: 12.0, end: 12.9 },
@@ -183,9 +183,9 @@ describe('TextSelectionPanel run list', () => {
       { start: 10, end: 12.9, text: 'golf hotel india' },
     ]);
 
-    // A second selection replaces the current run again; A is still untouched
-    // and the two are NOT merged even though the gap is under 1s -- merge
-    // only happens on freeze.
+    // A second selection replaces the current run again. A is still
+    // untouched, and the two are NOT merged even though the gap is under
+    // 1s, since merge only happens on freeze.
     await selectWords(container, 3, 5);
     expect(onRunsChange).toHaveBeenLastCalledWith([
       { start: 0, end: 2.9, text: 'alpha bravo charlie' },

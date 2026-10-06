@@ -221,11 +221,18 @@ export function AdEditor({
       reason: s.reason,
       category: s.category,
     };
-    const result = onCorrectionAsync
+    // Single-run (not part of a multi-span batch) keeps the original
+    // fire-and-forget onCorrection/mutate path unchanged. Only a multi-span
+    // run (meta.silent) needs the awaitable path, to confirm or fail each
+    // run before submitting the next.
+    if (!meta?.silent) {
+      onCorrection(correction);
+      finishCreate();
+      return Promise.resolve();
+    }
+    return onCorrectionAsync
       ? onCorrectionAsync(correction)
       : Promise.resolve(onCorrection(correction));
-    if (!meta?.silent) finishCreate();
-    return result;
   };
 
   const handleSkip = advanceOrClose;

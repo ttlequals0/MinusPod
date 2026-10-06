@@ -1468,9 +1468,15 @@ function AdReviewModal({
                 rows={4}
                 className="mt-1 w-full px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-xs font-mono"
               />
-              <div className={`text-xs mt-1 ${textTemplateInput.trim().length < 50 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                {textTemplateInput.trim().length} / 50 chars min
-              </div>
+              {/* Multi-span validity is per-run (see the preflight message
+                  below), not tied to this textarea, which only edits the
+                  current unfrozen run and is often empty once every span is
+                  frozen. */}
+              {!isMultiSpan && (
+                <div className={`text-xs mt-1 ${textTemplateInput.trim().length < 50 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {textTemplateInput.trim().length} / 50 chars min
+                </div>
+              )}
             </label>
             <label className="block text-sm">
               <span className="block mb-1 text-muted-foreground">Reason (optional)</span>

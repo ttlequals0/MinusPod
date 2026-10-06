@@ -272,6 +272,17 @@ describe('AdReviewModal multi-span create', () => {
     expect(screen.getByRole('button', { name: 'Mark ad (2 spans)' })).toBeTruthy();
   });
 
+  it('hides the single-run char counter once multi-span, leaving the per-run preflight message', async () => {
+    renderModal({ mode: 'create', onCreate: vi.fn() });
+    const user = userEvent.setup();
+    await enterTextModeWithSponsor(user);
+
+    expect(screen.getByText(/\/ 50 chars min/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+
+    expect(screen.queryByText(/\/ 50 chars min/)).toBeNull();
+  });
+
   it('blocks submit and names the short run\'s time range', async () => {
     const onCreate = vi.fn();
     renderModal({ mode: 'create', onCreate });
