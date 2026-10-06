@@ -227,9 +227,8 @@ class CueTemplateMixin:
 
     def retag_network_cue_templates(self, podcast_id: int, network_id: str | None,
                                     conn=None) -> int:
-        """Re-tag a feed's own network-scope templates to its new effective
-        network; an empty network_id demotes them to podcast scope instead.
-        Pass conn to join the caller's transaction; omit it to commit here."""
+        """Re-tag a feed's own network-scope templates to its new effective network
+        (empty demotes them to podcast scope); conn joins the caller's transaction."""
         own_conn = conn is None
         if own_conn:
             conn = self.get_connection()
