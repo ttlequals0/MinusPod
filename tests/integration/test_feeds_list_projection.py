@@ -36,6 +36,28 @@ def feeds(app_client):
         db.delete_podcast(slug)
 
 
+def test_feed_list_resolves_global_segment_actions_once(app_client, feeds):
+    """The global segment_category_actions setting is read once per request,
+    not once per feed (feeds.py ~899)."""
+    db = feeds['db']
+    calls = []
+    original_get_setting = db.get_setting
+
+    def counting_get_setting(key):
+        if key == 'segment_category_actions':
+            calls.append(key)
+        return original_get_setting(key)
+
+    db.get_setting = counting_get_setting
+    try:
+        body = app_client.get('/api/v1/feeds').get_json()
+    finally:
+        db.get_setting = original_get_setting
+
+    assert len(body['feeds']) >= len(feeds['slugs'])
+    assert len(calls) == 1
+
+
 def test_default_feeds_stays_backward_compatible(app_client, feeds):
     body = app_client.get('/api/v1/feeds').get_json()
     assert 'feeds' in body

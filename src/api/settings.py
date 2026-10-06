@@ -34,7 +34,7 @@ from config import (
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
     WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
     coerce_bool_setting,
-    normalize_ad_chapters_enabled_compat,
+    apply_ad_chapter_compat, ad_chapter_compat_view,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
     get_env_backed_int,
@@ -632,12 +632,8 @@ def _build_settings_payload():
         settings, 'splice_veto_enabled', registry_default('splice_veto_enabled')))
 
     # Compatibility fields (spec 1.4): derived from segment_category_actions,
-    # not their own retired settings. adChaptersEnabled is true when any
-    # category resolves to mark; adChapterCategories mirrors that per category.
-    ad_chapters_enabled = any(
-        segment_category_actions.get(cat) == 'mark' for cat in SEGMENT_CATEGORIES)
-    ad_chapter_categories = {
-        cat: segment_category_actions.get(cat) == 'mark' for cat in SEGMENT_CATEGORIES}
+    # not their own retired settings.
+    ad_chapters_enabled, ad_chapter_categories = ad_chapter_compat_view(segment_category_actions)
     ad_chapters_include_held = coerce_bool_setting(
         _str_setting('ad_chapters_include_held'))
     ad_chapter_title_format = _str_setting('ad_chapter_title_format')
@@ -1735,30 +1731,10 @@ def _translate_ad_chapter_compat(db, data):
         return None, None
 
     merged = resolve_segment_category_actions_map(db.get_setting('segment_category_actions'))
-
-    if 'adChapterCategories' in data:
-        value = data['adChapterCategories']
-        if not isinstance(value, dict):
-            return None, 'adChapterCategories must be an object'
-        for cat, flag in value.items():
-            if cat not in SEGMENT_CATEGORIES or not isinstance(flag, bool):
-                return None, (f"adChapterCategories: '{cat}' must be a known "
-                               "category with true or false")
-        for cat, flag in value.items():
-            if flag and merged.get(cat) == 'keep':
-                merged[cat] = 'mark'
-            elif not flag and merged.get(cat) == 'mark':
-                merged[cat] = 'keep'
-
-    if 'adChaptersEnabled' in data:
-        enabled, error = normalize_ad_chapters_enabled_compat(data['adChaptersEnabled'])
-        if error:
-            return None, error
-        if not enabled:
-            for cat in SEGMENT_CATEGORIES:
-                if merged.get(cat) == 'mark':
-                    merged[cat] = 'keep'
-
+    changes, error = apply_ad_chapter_compat(merged, data)
+    if error:
+        return None, error
+    merged.update(changes)
     return merged, None
 
 

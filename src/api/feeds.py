@@ -30,7 +30,7 @@ from config import (
     VALID_CHAPTERS_MODES,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     differential_fetch_effective,
-    normalize_ad_chapters_enabled_compat,
+    apply_ad_chapter_compat, ad_chapter_compat_view,
     resolve_differential_fetch_mode,
     resolve_feed_processing_mode,
     resolve_max_ad_duration_confirmed,
@@ -437,7 +437,9 @@ def _translate_ad_chapter_compat_for_feed(db, pending_override_raw, data):
     """Translate the retired adChaptersEnabled/adChapterCategories fields
     into the feed's segment_category_actions override (spec 1.4). Returns
     (new_override_json_or_None, error); None means neither field was
-    present, so the caller leaves segment_category_actions alone.
+    present, so the caller leaves segment_category_actions alone. null for
+    either field is a no-op, matching the old per-feed override contract
+    where clearing it meant "no instruction, inherit".
     """
     if 'adChaptersEnabled' not in data and 'adChapterCategories' not in data:
         return None, None
@@ -448,35 +450,10 @@ def _translate_ad_chapter_compat_for_feed(db, pending_override_raw, data):
         pending_override_raw, baseline=global_resolved)
     override = dict(_deserialize_json_map(pending_override_raw) or {})
 
-    if 'adChapterCategories' in data:
-        value = data['adChapterCategories']
-        if not isinstance(value, dict):
-            return None, 'adChapterCategories must be an object'
-        for cat, flag in value.items():
-            if cat not in SEGMENT_CATEGORIES or not isinstance(flag, bool):
-                return None, (f"adChapterCategories: '{cat}' must be a known "
-                               "category with true or false")
-        for cat, flag in value.items():
-            if flag and resolved.get(cat) == 'keep':
-                override[cat] = 'mark'
-                resolved[cat] = 'mark'
-            elif not flag and resolved.get(cat) == 'mark':
-                override[cat] = 'keep'
-                resolved[cat] = 'keep'
-
-    if 'adChaptersEnabled' in data:
-        # Null is a no-op here, matching the old per-feed override contract
-        # where clearing adChaptersEnabled meant "no instruction, inherit".
-        enabled, error = normalize_ad_chapters_enabled_compat(
-            data['adChaptersEnabled'], allow_null=True)
-        if error:
-            return None, error
-        if not enabled:
-            for cat in SEGMENT_CATEGORIES:
-                if resolved.get(cat) == 'mark':
-                    override[cat] = 'keep'
-                    resolved[cat] = 'keep'
-
+    changes, error = apply_ad_chapter_compat(resolved, data, allow_null=True)
+    if error:
+        return None, error
+    override.update(changes)
     return json.dumps(override), None
 
 
@@ -896,9 +873,14 @@ def _public_feed_url(slug, key):
                              slug, key)
 
 
-def _podcast_base_json(podcast, feed_url, db) -> dict:
-    """Fields shared by the feed list, detail, and PATCH responses."""
-    resolved_actions = db.resolve_segment_actions(podcast['slug'], podcast)
+def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
+    """Fields shared by the feed list, detail, and PATCH responses.
+
+    global_actions lets a caller looping over many feeds resolve the global
+    segment_category_actions setting once instead of once per feed.
+    """
+    resolved_actions = db.resolve_segment_actions(podcast['slug'], podcast, global_actions=global_actions)
+    ad_chapters_enabled, ad_chapter_categories = ad_chapter_compat_view(resolved_actions)
     return {
         'slug': podcast['slug'],
         'feedType': podcast.get('feed_type', 'subscribed'),
@@ -926,10 +908,8 @@ def _podcast_base_json(podcast, feed_url, db) -> dict:
         # Compatibility fields (spec 1.4): derived from the feed's resolved
         # segment actions, not the retired ad_chapters_enabled_override /
         # ad_chapter_categories_override columns.
-        'adChaptersEnabled': any(
-            resolved_actions.get(cat) == 'mark' for cat in SEGMENT_CATEGORIES),
-        'adChapterCategories': {
-            cat: resolved_actions.get(cat) == 'mark' for cat in SEGMENT_CATEGORIES},
+        'adChaptersEnabled': ad_chapters_enabled,
+        'adChapterCategories': ad_chapter_categories,
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
         'lowAdYieldAction': podcast.get('low_ad_yield_action'),
         'episodeLogs': podcast.get('episode_logs'),
@@ -1033,11 +1013,12 @@ def get_feeds_export_list(db) -> list[dict]:
     """All feeds with override fields, unpaginated, for GET /system/config-export."""
     feed_auth_key = get_feed_auth_key(db)
     podping = _podping_context(db)
+    global_actions = resolve_segment_category_actions_map(db.get_setting('segment_category_actions'))
     feeds = []
     for podcast in db.get_all_podcasts():
         feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
         entry = {
-            **_podcast_base_json(podcast, feed_url, db),
+            **_podcast_base_json(podcast, feed_url, db, global_actions=global_actions),
             **_podcast_listing_fields(podcast, podping),
             'lastEpisodeDate': podcast.get('last_episode_date'),
             # Upstream RSS URL the instance polls, explicit for bug reports
@@ -1156,6 +1137,7 @@ def list_feeds():
 
     feed_auth_key = get_feed_auth_key(db)
     podping = _podping_context(db)
+    global_actions = resolve_segment_category_actions_map(db.get_setting('segment_category_actions'))
 
     include_latest = request.args.get('includeLatestEpisodes', '').lower() == 'true'
     episodes_per_feed = min(
@@ -1176,7 +1158,7 @@ def list_feeds():
         feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
 
         feed_json = {
-            **_podcast_base_json(podcast, feed_url, db),
+            **_podcast_base_json(podcast, feed_url, db, global_actions=global_actions),
             **_podcast_listing_fields(podcast, podping),
             'lastEpisodeDate': podcast.get('last_episode_date'),
         }

@@ -8,7 +8,7 @@ Kept free of Flask and DB imports so it can be unit tested directly.
 """
 import math
 
-from config import SEGMENT_CATEGORIES, is_keep_like, is_pending_review
+from config import SEGMENT_CATEGORIES, is_keep_like, is_pending_review, refreshed_keep_like_action
 from utils.markers import parse_ad_markers, spans_match
 
 # Filter value and summary key for markers no stage classified. Not a member of
@@ -47,23 +47,6 @@ def _reviewer_moved_from_marker(marker: dict) -> bool:
     return (marker.get('reviewer_verdict') == 'adjust'
             and marker.get('reviewer_original_start') is not None
             and marker.get('reviewer_original_end') is not None)
-
-
-def _refreshed_action(marker: dict, actions: dict[str, str] | None) -> str | None:
-    """A keep-like marker's action re-resolved against the feed's CURRENT
-    per-category action (mirrors ad_chapters.refresh_keep_like_markers, kept
-    separate here so this module stays free of its database import). A held
-    marker, or no actions map for the feed, keeps the stored action as-is.
-    Never resolves into a cut (remove/beep): that still needs a recut.
-    """
-    action = marker.get('action_applied')
-    category = marker.get('category')
-    if (actions is not None and is_keep_like(action) and not is_pending_review(marker)
-            and category in SEGMENT_CATEGORIES):
-        resolved = actions.get(category, action)
-        if is_keep_like(resolved):
-            return resolved
-    return action
 
 
 def flatten_detections(rows: list[dict], corrections: list[dict],
@@ -107,7 +90,7 @@ def flatten_detections(rows: list[dict], corrections: list[dict],
                 'patternId': marker.get('pattern_id'),
                 'detectionStage': marker.get('detection_stage'),
                 'category': marker.get('category'),
-                'actionApplied': _refreshed_action(marker, feed_actions),
+                'actionApplied': refreshed_keep_like_action(marker, feed_actions),
                 'reviewerVerdict': marker.get('reviewer_verdict'),
                 'reviewerOriginalStart': marker.get('reviewer_original_start'),
                 'reviewerOriginalEnd': marker.get('reviewer_original_end'),

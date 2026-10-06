@@ -753,15 +753,18 @@ class PodcastMixin:
         global_keep = (self.get_setting('keep_original_audio') or 'true').lower() != 'false'
         return effective_keep_original(per_feed, global_keep)
 
-    def resolve_segment_actions(self, slug: str,
-                                podcast: dict | None = None) -> dict[str, str]:
+    def resolve_segment_actions(self, slug: str, podcast: dict | None = None,
+                                global_actions: dict[str, str] | None = None) -> dict[str, str]:
         """Full map for every SEGMENT_CATEGORIES key: per-feed override ->
         global segment_category_actions setting -> DEFAULT_SEGMENT_ACTION.
-        Malformed JSON at either level is ignored (treated as unset).
+        Malformed JSON at either level is ignored (treated as unset). Pass
+        global_actions (already resolved) to skip the settings query when
+        resolving several feeds in one request.
         """
         if podcast is None:
             podcast = self.get_podcast_by_slug(slug)
-        global_resolved = resolve_segment_category_actions_map(
-            self.get_setting('segment_category_actions'))
+        if global_actions is None:
+            global_actions = resolve_segment_category_actions_map(
+                self.get_setting('segment_category_actions'))
         per_feed_raw = podcast.get('segment_category_actions') if podcast else None
-        return resolve_segment_category_actions_map(per_feed_raw, baseline=global_resolved)
+        return resolve_segment_category_actions_map(per_feed_raw, baseline=global_actions)

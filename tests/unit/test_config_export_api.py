@@ -107,4 +107,32 @@ def test_authenticated_export_is_redacted_json_attachment(app_client, seeded_fee
     for webhook in data['webhooks']:
         parts = urlsplit(webhook['url'])
         assert not parts.path
-        assert not parts.query
+
+
+def test_export_resolves_global_segment_actions_once_for_many_feeds(app_client, seeded_feed):
+    """The global segment_category_actions setting is read once per export,
+    not once per feed (feeds.py get_feeds_export_list, ~1012)."""
+    _authed(app_client)
+    db = seeded_feed['db']
+    extra_slugs = [f'config-export-api-extra-{i}' for i in range(3)]
+    for slug in extra_slugs:
+        db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+
+    calls = []
+    original_get_setting = db.get_setting
+
+    def counting_get_setting(key):
+        if key == 'segment_category_actions':
+            calls.append(key)
+        return original_get_setting(key)
+
+    db.get_setting = counting_get_setting
+    try:
+        response = app_client.get('/api/v1/system/config-export')
+    finally:
+        db.get_setting = original_get_setting
+        for slug in extra_slugs:
+            db.delete_podcast(slug)
+
+    assert response.status_code == 200
+    assert len(calls) == 1

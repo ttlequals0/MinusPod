@@ -5,7 +5,8 @@ from dataclasses import dataclass, field
 from config import (
     SEGMENT_CATEGORY_LABELS,
     AD_CHAPTER_KINDS, AD_CHAPTER_SNAP_SECONDS, CHAPTERS_MODE_OFF,
-    SEGMENT_CATEGORIES, is_keep_like, is_pending_review, resolve_chapters_mode,
+    SEGMENT_CATEGORIES, is_pending_review, refreshed_keep_like_action,
+    resolve_chapters_mode,
 )
 from database.settings import registry_current_value, registry_default
 from utils.time import adjust_timestamp
@@ -46,21 +47,16 @@ class AdChapterConfig:
 
 
 def refresh_keep_like_markers(markers, actions) -> list[dict]:
-    """Markers whose stored action_applied is keep (or mark) get it
-    re-resolved against the feed's CURRENT per-category action, so a Keep ->
-    Mark (or back) switch takes effect on a chapter rebuild without a
-    re-render. A held marker is left alone: AdChapterConfig.held_status
-    already re-resolves it from `actions` on its own. Never resolves into a
-    cut (remove/beep): that still needs a re-render.
+    """Keep/mark markers re-resolved against the feed's CURRENT per-category
+    action, so a Keep <-> Mark switch takes effect on a chapter rebuild
+    without a re-render. A held marker is left alone: AdChapterConfig.held_status
+    already re-resolves it from `actions` on its own.
     """
     refreshed = []
     for marker in markers or []:
-        action = marker.get('action_applied')
-        category = marker.get('category')
-        if is_keep_like(action) and not is_pending_review(marker) and category in SEGMENT_CATEGORIES:
-            resolved = actions.get(category, action)
-            if is_keep_like(resolved) and resolved != action:
-                marker = {**marker, 'action_applied': resolved}
+        resolved = refreshed_keep_like_action(marker, actions)
+        if resolved != marker.get('action_applied'):
+            marker = {**marker, 'action_applied': resolved}
         refreshed.append(marker)
     return refreshed
 

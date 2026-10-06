@@ -368,6 +368,21 @@ def is_pending_review(marker) -> bool:
     return bool(marker.get('held_for_review')) and not marker.get('was_cut', True)
 
 
+def refreshed_keep_like_action(marker, actions: dict[str, str] | None) -> str | None:
+    """A keep-like marker's action_applied re-resolved against the feed's
+    CURRENT per-category action. A held marker, or no actions map, keeps the
+    stored action as-is. Never resolves into a cut (remove/beep).
+    """
+    action = marker.get('action_applied')
+    category = marker.get('category')
+    if (actions is not None and is_keep_like(action) and not is_pending_review(marker)
+            and category in SEGMENT_CATEGORIES):
+        resolved = actions.get(category, action)
+        if is_keep_like(resolved):
+            return resolved
+    return action
+
+
 def count_pending_review(markers) -> int:
     """Number of markers awaiting review; persisted as pending_review_count."""
     return sum(1 for m in markers if is_pending_review(m))
@@ -2168,10 +2183,8 @@ def coerce_bool_setting(value) -> bool:
 
 
 def normalize_ad_chapters_enabled_compat(value, allow_null=False) -> tuple[bool | None, str | None]:
-    """adChaptersEnabled compat field to bool; accepts legacy 'on'/'off'
-    strings an unmigrated feed panel may still send, and (per the old
-    per-feed override contract) null as a no-op when allow_null is set.
-    Returns (bool_or_None, error); error is None on success.
+    """adChaptersEnabled to bool; accepts legacy 'on'/'off' strings, and
+    null as a no-op when allow_null is set. (bool_or_None, error) on return.
     """
     if value is None and allow_null:
         return True, None
@@ -2180,6 +2193,60 @@ def normalize_ad_chapters_enabled_compat(value, allow_null=False) -> tuple[bool 
     if isinstance(value, str) and value.lower() in ('on', 'off'):
         return value.lower() == 'on', None
     return None, "adChaptersEnabled must be true, false, 'on', or 'off'"
+
+
+def apply_ad_chapter_compat(resolved: dict[str, str], data: dict,
+                            allow_null: bool = False) -> tuple[dict[str, str] | None, str | None]:
+    """adChaptersEnabled/adChapterCategories (spec 1.4) against an already
+    resolved segment-actions map. Returns (changes, error): changes holds
+    only the categories that flip between keep and mark, for the caller to
+    merge into its own map (global, full) or override (per-feed, partial).
+    None changes means neither field was present. allow_null tolerates a
+    per-feed PATCH clearing either field as a no-op.
+    """
+    if 'adChaptersEnabled' not in data and 'adChapterCategories' not in data:
+        return None, None
+
+    working = dict(resolved)
+    changes: dict[str, str] = {}
+
+    if 'adChapterCategories' in data:
+        value = data['adChapterCategories']
+        if value is None and allow_null:
+            pass
+        elif not isinstance(value, dict):
+            return None, 'adChapterCategories must be an object'
+        else:
+            for cat, flag in value.items():
+                if cat not in SEGMENT_CATEGORIES or not isinstance(flag, bool):
+                    return None, (f"adChapterCategories: '{cat}' must be a known "
+                                   "category with true or false")
+            for cat, flag in value.items():
+                if flag and working.get(cat) == 'keep':
+                    working[cat] = changes[cat] = 'mark'
+                elif not flag and working.get(cat) == 'mark':
+                    working[cat] = changes[cat] = 'keep'
+
+    if 'adChaptersEnabled' in data:
+        enabled, error = normalize_ad_chapters_enabled_compat(data['adChaptersEnabled'], allow_null)
+        if error:
+            return None, error
+        if not enabled:
+            for cat in SEGMENT_CATEGORIES:
+                if working.get(cat) == 'mark':
+                    working[cat] = changes[cat] = 'keep'
+
+    return changes, None
+
+
+def ad_chapter_compat_view(resolved: dict[str, str]) -> tuple[bool, dict[str, bool]]:
+    """GET-side adChaptersEnabled/adChapterCategories (spec 1.4), derived
+    from an already resolved segment-actions map.
+    """
+    return (
+        any(resolved.get(cat) == 'mark' for cat in SEGMENT_CATEGORIES),
+        {cat: resolved.get(cat) == 'mark' for cat in SEGMENT_CATEGORIES},
+    )
 
 
 def _validate_parallel_windows(value: str) -> bool:
