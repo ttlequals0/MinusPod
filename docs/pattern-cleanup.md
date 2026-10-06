@@ -38,7 +38,7 @@ Settings > Experiments > Pattern Cleanup has:
 - **Patterns per run** - how many patterns one run reviews, 1 to 200, default 25. Patterns never reviewed go first, then the ones reviewed longest ago.
 - **Retire after (days unused)** - how long without a match before cleanup suggests retiring a pattern, 7 to 3650 days, default 90.
 
-Turning the schedule on for the first time does not start a run immediately: enabling it stamps the last-run time to now, so the first scheduled run waits for the next cron slot instead of firing on the next background tick. **Run now** is unaffected and always starts a run right away, subject to the usual lock (see below).
+Turning the schedule on never starts a run right away. Each time it goes from off to on, the next scheduled run waits for the first cron slot after that moment, even when the last run was weeks ago. Enabling does not change the Last run time on the card. **Run now** is unaffected and always starts a run right away, subject to the usual lock (see below).
 
 A run starts in a background thread and the API call returns as soon as it has been queued; the Settings card polls while a run is in progress and updates the last-run line (reviewed, suggested, skipped, and any error) once it finishes. Only one run can hold the lock at a time; starting another while one is active returns an in-progress error instead of queueing a second run.
 
@@ -56,10 +56,11 @@ The model's answer goes through a validation gate before anything is stored:
 - Any text it proposes keeping must be a close match to a real contiguous slice of the original pattern text (a near-substring, not just similar wording).
 - A trim must actually remove a meaningful amount of text, at least 5 words or 10% of the original, or it is treated as a no-op.
 - A split's pieces must not overlap, and each piece must mention its own sponsor.
-- A rename must name a sponsor that is both present in the text and a valid sponsor name.
+- When the pattern's text does not name its recorded sponsor (or it has none), a trim must keep the name of a sponsor already in the sponsor list.
+- A rename must name a sponsor that is both present in the text and a valid sponsor name. The podcast's own title or slug is never accepted as a sponsor.
 - Confidence below 0.5 is dropped.
 
-A pattern that fails this gate three times in a row, across runs, is parked: later runs skip it until you force a recheck.
+A pattern is parked after three failed reviews in a row across runs, whether the gate rejected the answer or the call itself failed. Later runs skip it until you force a recheck. A failed pattern also moves to the back of the queue, so it cannot hold up the rest of the batch. Three failed review calls in a row within one run stop that run as failed, since that usually means the provider or model setting is wrong.
 
 **Known limit**: the gate checks sponsor presence by searching the proposed text for the sponsor's name, not by checking that the name sits inside the actual sponsor copy. A mechanical substring check cannot tell "this is the sponsor being advertised" apart from "this sponsor's name happens to appear here." If a sponsor's name survives only in a passing aside the model kept alongside the real read, rather than in the ad copy itself, the gate accepts it anyway. Review a suggestion's kept text before approving if the pattern's wording is unusual.
 
@@ -77,11 +78,11 @@ Each suggestion carries the model's confidence and a short list of reasons, show
 
 ## Approve, reject, undo
 
-**Approve** applies the change to the pattern in place and keeps a snapshot of the pattern's prior state. **Reject** leaves the pattern untouched and marks it reviewed, so it is skipped on later runs unless the pattern's text changes or you force a recheck.
+**Approve** applies the change to the pattern in place and keeps a snapshot of the pattern's prior state. It is refused if the pattern's text or sponsor changed after the suggestion was made. **Reject** leaves the pattern untouched and marks it reviewed, so it is skipped on later runs unless the pattern's text changes or you force a recheck.
 
 **Undo** restores the pattern from that snapshot: a trim or flag-trim restores the text, a rename restores the sponsor, and retire or a flag-disable restores active status. A split's undo re-enables the original pattern and disables the pieces that were created from it. Undo is scoped to exactly the fields its own kind changed, so undoing a trim never touches a sponsor rename applied separately.
 
-Undo is refused once a later suggestion has been approved against the same pattern. Approving a second change commits to the pattern's new state, and undoing an earlier one out from under it would leave the two approvals in conflict. Reject the second suggestion's effects by hand first, or treat the sequence as final.
+Undo is refused once a later suggestion has been approved against the same pattern. Approving a second change commits to the pattern's new state, and undoing an earlier one out from under it would leave the two approvals in conflict. To undo the earlier one, undo the later approval first. Undo is also refused when the field it would restore was edited after the approval.
 
 ## Force recheck
 
@@ -93,7 +94,7 @@ All routes are under `/api/v1`, and every `POST`/`PUT` needs the `X-CSRF-Token` 
 
 | Route | Purpose |
 |---|---|
-| `GET /patterns/cleanup` | Settings plus live state: `inProgress`, `lastRun`, `lastError`, `lastSummary`, pending counts by kind |
+| `GET /patterns/cleanup` | Settings plus live state: `inProgress`, `lastRun` (start of the newest run), `lastSummary` and `lastError` (newest finished run), pending counts by kind |
 | `PUT /settings/pattern-cleanup` | Update the six settings |
 | `POST /patterns/cleanup/run` | Start a run (`{"force": true}` to force); 202 with `{"runId"}`, 409 if one is already running, rate limited to 6/hour |
 | `GET /patterns/cleanup/runs` | Recent runs, newest first |
