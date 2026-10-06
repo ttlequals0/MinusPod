@@ -62,7 +62,7 @@ function ModelSelect({ id, label, value, catalog, onChange, description, inherit
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full min-h-11 sm:min-h-0 ${selectBase}`}
+          className={`w-full ${selectBase}`}
         >
           {inheritLabel && <option value="">{inheritLabel}</option>}
           {notConfigured && <option value="">Not configured</option>}

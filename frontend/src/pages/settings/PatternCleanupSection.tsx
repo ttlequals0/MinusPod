@@ -30,7 +30,7 @@ interface PatternCleanupSectionProps {
   detectionSlot: ProviderSlot;
 }
 
-const fieldInput = 'px-3 py-1.5 min-h-11 sm:min-h-0 rounded-lg border border-input bg-background text-foreground text-sm';
+const fieldInput = 'px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm';
 const actionButton = `px-4 py-2 rounded-lg disabled:opacity-50 text-sm ${touchTarget} ${focusRing}`;
 
 function runErrorMessage(e: unknown): string {
