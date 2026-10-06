@@ -33,7 +33,8 @@ def openai_primary(monkeypatch):
     for var in ('OPENAI_BASE_URL', 'OPENAI_API_KEY', 'LLM_PROVIDER'):
         monkeypatch.delenv(var, raising=False)
     db = get_database()
-    saved = {key: db.get_setting(key) for key in ('llm_provider', 'openai_base_url')}
+    saved = {key: db.get_setting(key)
+             for key in ('llm_provider', 'openai_base_url', 'openai_api_key')}
     db.set_setting('llm_provider', 'openai-compatible', is_default=False)
     db.set_setting('openai_base_url', OLD_BASE, is_default=False)
     invalidate_provider_cache()
