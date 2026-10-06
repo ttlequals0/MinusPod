@@ -31,15 +31,16 @@ class PatternCleanupMixin:
 
     def finish_cleanup_run(self, run_id: int, *, status: str, reviewed: int, suggested: int,
                            skipped: int, error: str | None = None, model: str | None = None,
-                           provider: str | None = None, credential_slot: str | None = None) -> None:
+                           provider: str | None = None, credential_slot: str | None = None,
+                           error_count: int = 0) -> None:
         conn = self.get_connection()
         conn.execute(
             """UPDATE pattern_cleanup_runs SET status = ?, finished_at = ?, reviewed_count = ?,
-                   suggested_count = ?, skipped_count = ?, error = ?, model = ?, provider = ?,
-                   credential_slot = ?
+                   suggested_count = ?, skipped_count = ?, error_count = ?, error = ?, model = ?,
+                   provider = ?, credential_slot = ?
                WHERE id = ?""",
-            (status, utc_now_iso(), reviewed, suggested, skipped, error, model, provider,
-             credential_slot, run_id))
+            (status, utc_now_iso(), reviewed, suggested, skipped, error_count, error, model,
+             provider, credential_slot, run_id))
         conn.commit()
 
     def get_cleanup_runs(self, limit: int = 20) -> list[dict]:
@@ -49,20 +50,39 @@ class PatternCleanupMixin:
 
     def upsert_cleanup_suggestion(self, run_id: int | None, pattern_id: int, kind: str,
                                   confidence: float | None, reasons: list, payload: dict,
-                                  before: dict) -> int:
-        """Store a pending suggestion, replacing a pending one of the same pattern and kind."""
-        with self.transaction(immediate=True) as conn:
-            conn.execute(
-                "DELETE FROM pattern_cleanup_suggestions "
-                "WHERE pattern_id = ? AND kind = ? AND status = 'pending'",
-                (pattern_id, kind))
-            cursor = conn.execute(
-                """INSERT INTO pattern_cleanup_suggestions
-                   (run_id, pattern_id, kind, confidence, reasons, payload, before, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (run_id, pattern_id, kind, confidence, json.dumps(reasons or []),
-                 json.dumps(payload or {}), json.dumps(before or {}), utc_now_iso()))
-            return cursor.lastrowid
+                                  before: dict, conn=None) -> int:
+        """Store a pending suggestion, replacing a pending one of the same kind; `conn` joins a caller transaction."""
+        if conn is None:
+            with self.transaction(immediate=True) as own:
+                return self.upsert_cleanup_suggestion(run_id, pattern_id, kind, confidence,
+                                                      reasons, payload, before, conn=own)
+        conn.execute(
+            "DELETE FROM pattern_cleanup_suggestions "
+            "WHERE pattern_id = ? AND kind = ? AND status = 'pending'",
+            (pattern_id, kind))
+        cursor = conn.execute(
+            """INSERT INTO pattern_cleanup_suggestions
+               (run_id, pattern_id, kind, confidence, reasons, payload, before, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (run_id, pattern_id, kind, confidence, json.dumps(reasons or []),
+             json.dumps(payload or {}), json.dumps(before or {}), utc_now_iso()))
+        return cursor.lastrowid
+
+    def supersede_pending(self, pattern_id: int, conn=None) -> int:
+        """Drop every pending suggestion of any kind for a pattern."""
+        target = conn or self.get_connection()
+        cursor = target.execute(
+            "DELETE FROM pattern_cleanup_suggestions WHERE pattern_id = ? AND status = 'pending'",
+            (pattern_id,))
+        if conn is None:
+            target.commit()
+        return cursor.rowcount
+
+    def get_approved_cleanup_suggestions(self, pattern_id: int, conn=None) -> list[dict]:
+        rows = (conn or self.get_connection()).execute(
+            "SELECT * FROM pattern_cleanup_suggestions WHERE pattern_id = ? AND status = 'approved'",
+            (pattern_id,)).fetchall()
+        return [_decode_suggestion(row) for row in rows]
 
     def get_cleanup_suggestion(self, suggestion_id: int, conn=None) -> dict | None:
         row = (conn or self.get_connection()).execute(

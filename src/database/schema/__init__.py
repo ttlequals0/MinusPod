@@ -2227,6 +2227,9 @@ class SchemaMixin:
             ap_cols = self._get_table_columns(conn, 'ad_patterns')
             self._add_column_if_missing(conn, 'ad_patterns', 'cleanup_reviewed_at', 'TEXT', ap_cols)
             self._add_column_if_missing(conn, 'ad_patterns', 'cleanup_reviewed_hash', 'TEXT', ap_cols)
+            run_cols = self._get_table_columns(conn, 'pattern_cleanup_runs')
+            self._add_column_if_missing(conn, 'pattern_cleanup_runs', 'error_count',
+                                        'INTEGER NOT NULL DEFAULT 0', run_cols)
         except Exception as e:
             conn.rollback()
             logger.warning(f"ad_patterns cleanup review columns migration: {e}")

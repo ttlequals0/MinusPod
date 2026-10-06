@@ -3,6 +3,8 @@ import fcntl
 import json
 import os
 import sys
+import threading
+import time
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -406,7 +408,9 @@ def test_per_pattern_error_continues(temp_db, live_route):
         summary = run_cleanup(temp_db)
     assert len(calls) == 2
     assert summary['status'] == 'completed'
-    assert summary['errors'] == 1 and summary['reviewed'] == 2
+    assert summary['errors'] == 1 and summary['reviewed'] == 1
+    run = temp_db.get_cleanup_runs(limit=1)[0]
+    assert run['error_count'] == 1 and run['reviewed_count'] == 1
 
 
 def test_fatal_error_marks_run_failed(temp_db):
@@ -469,17 +473,47 @@ def test_tick_defers_while_processing(temp_db):
 def test_tick_runs_when_due_and_idle(temp_db):
     temp_db.set_setting('pattern_cleanup_enabled', 'true')
     temp_db.set_setting('pattern_cleanup_last_run', _iso(utc_now() - timedelta(days=8)))
-    with patch.object(pattern_cleanup, 'run_cleanup', return_value={'status': 'completed'}) as run, \
+    with patch.object(pattern_cleanup, 'start_cleanup_run', return_value=7) as start, \
             patch.object(pattern_cleanup, '_busy_slots', return_value=0):
-        assert pattern_cleanup_tick(temp_db) == {'status': 'completed'}
-    run.assert_called_once_with(temp_db, trigger='schedule')
+        assert pattern_cleanup_tick(temp_db) == 7
+    start.assert_called_once_with(temp_db, trigger='schedule')
 
 
-def test_tick_swallows_in_progress(temp_db):
+def test_tick_returns_none_when_lock_held(temp_db):
     temp_db.set_setting('pattern_cleanup_enabled', 'true')
-    with patch.object(pattern_cleanup, 'run_cleanup', side_effect=CleanupInProgressError()), \
+    fd = open(os.path.join(str(temp_db.data_dir), LOCK_FILENAME), 'w')
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        with patch.object(pattern_cleanup, '_busy_slots', return_value=0):
+            assert pattern_cleanup_tick(temp_db) is None
+    finally:
+        fd.close()
+
+
+def test_tick_returns_promptly_while_run_works_in_background(temp_db):
+    temp_db.set_setting('pattern_cleanup_enabled', 'true')
+    release = threading.Event()
+    entered = threading.Event()
+
+    def slow_run(db, run_id, started_at, *, force, trigger):
+        entered.set()
+        release.wait(10)
+        return {}
+    with patch.object(pattern_cleanup, '_execute_run', side_effect=slow_run), \
             patch.object(pattern_cleanup, '_busy_slots', return_value=0):
-        assert pattern_cleanup_tick(temp_db) is None
+        t0 = time.monotonic()
+        run_id = pattern_cleanup_tick(temp_db)
+        assert time.monotonic() - t0 < 2.0
+        assert isinstance(run_id, int)
+        assert entered.wait(5)
+        assert pattern_cleanup.is_cleanup_running(temp_db) is True
+        assert pattern_cleanup.start_cleanup_run(temp_db) is None
+        release.set()
+        deadline = time.monotonic() + 5
+        while pattern_cleanup.is_cleanup_running(temp_db) and time.monotonic() < deadline:
+            time.sleep(0.05)
+    assert pattern_cleanup.is_cleanup_running(temp_db) is False
+    assert temp_db.get_cleanup_runs(limit=1)[0]['id'] == run_id
 
 
 # apply / reject / undo
@@ -613,3 +647,171 @@ def test_undo_requires_approved(temp_db):
 def test_missing_suggestion(temp_db):
     with pytest.raises(pattern_cleanup.SuggestionNotFoundError):
         apply_suggestion(temp_db, 9999)
+
+
+# Review fixes: gate, forced supersede, invalid parking, undo ordering
+
+def test_forced_keep_supersedes_every_pending_kind(temp_db, live_route):
+    p = _pattern(temp_db)
+    temp_db.upsert_cleanup_suggestion(None, p['id'], 'trim', 0.9, [], {'text': AD}, {})
+    temp_db.upsert_cleanup_suggestion(None, p['id'], 'rename', 0.9, [], {'sponsor': 'Acme'}, {})
+    fake, _ = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db, force=True)
+    assert temp_db.get_cleanup_suggestions(status='pending') == []
+
+
+def test_supersede_pending_keeps_decided_rows(temp_db):
+    p = _pattern(temp_db)
+    done = temp_db.upsert_cleanup_suggestion(None, p['id'], 'trim', 0.9, [], {'text': AD}, {})
+    temp_db.set_cleanup_suggestion_status(done, 'rejected')
+    temp_db.upsert_cleanup_suggestion(None, p['id'], 'flag', 0.9, [], {}, {})
+    assert temp_db.supersede_pending(p['id']) == 1
+    assert temp_db.get_cleanup_suggestion(done)['status'] == 'rejected'
+
+
+def test_trim_to_sponsor_name_only_rejected(temp_db):
+    p = _pattern(temp_db)
+    result, _ = _review(p, _reply(action='trim', text='Acme.'))
+    assert result is None
+
+
+def test_trim_that_keeps_show_content_and_drops_the_ad_rejected(temp_db):
+    p = _pattern(temp_db)
+    result, _ = _review(p, _reply(action='trim', text=LEAD.strip()))
+    assert result is None
+
+
+def test_rename_to_word_fragment_rejected(temp_db):
+    p = _pattern(temp_db, text=AD + ' pick a category and concatenate your savings today')
+    result, _ = _review(p, _reply(action='rename', sponsor='cat'))
+    assert result is None
+
+
+def test_rename_to_substring_of_brand_rejected(temp_db):
+    p = _pattern(temp_db, text=AD, sponsor='Widgetco')
+    result, _ = _review(p, _reply(action='rename', sponsor='Acm'))
+    assert result is None
+
+
+def test_split_piece_sponsor_inside_longer_word_rejected(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    result, _ = _review(p, _reply(action='split', pieces=[
+        {'text': AD, 'sponsor': 'Acm'}, {'text': AD2, 'sponsor': 'Widgetco'}]))
+    assert result is None
+
+
+def test_split_that_drops_the_current_sponsor_rejected(temp_db):
+    p = _pattern(temp_db, text=AD2 + ' ' + LEAD + 'Acme is great.', sponsor='Acme')
+    result, _ = _review(p, _reply(action='split', pieces=[
+        {'text': AD2[:70], 'sponsor': 'Widgetco'}, {'text': AD2[70:], 'sponsor': 'Widgetco'}]))
+    assert result is None
+
+
+def test_rename_sponsor_rejects_show_name(temp_db):
+    p = _pattern(temp_db, text=AD + ' thanks to show-a listeners', podcast_id='show-a')
+    result, _ = _review(p, _reply(action='rename', sponsor='show-a'))
+    assert result is None
+
+
+def test_trim_with_one_inserted_word_does_not_pull_show_words_back(temp_db):
+    p = _pattern(temp_db)
+    padded = AD.replace('the best widgets', 'the very best widgets')
+    result, _ = _review(p, _reply(action='trim', text=padded))
+    assert result['action'] == 'trim'
+    assert result['text'] == AD
+
+
+def test_three_invalid_reviews_park_the_pattern_until_force(temp_db, live_route):
+    p = _pattern(temp_db)
+    fake, _ = _fake_llm(SimpleNamespace(content='not json'))
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        for expected in ('invalid:1', 'invalid:2', 'invalid'):
+            run_cleanup(temp_db)
+            assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] == expected
+    assert select_candidates(temp_db, force=False, batch_size=10) == []
+    assert [c['id'] for c in select_candidates(temp_db, force=True, batch_size=10)] == [p['id']]
+
+
+def test_rename_then_flag_then_undo_rename_refused_until_flag_undone(temp_db):
+    p = _pattern(temp_db, text=AD, sponsor='Acme Inc')
+    rename = _suggest(temp_db, p, 'rename', {'sponsor': 'Acme'})
+    flag = _suggest(temp_db, p, 'flag', {'false_positive_count': 3, 'confirmation_count': 0,
+                                         'contaminated': False, 'contamination_reason': None,
+                                         'recommended': 'disable'})
+    apply_suggestion(temp_db, rename)
+    apply_suggestion(temp_db, flag)
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, rename)
+    undo_suggestion(temp_db, flag)
+    row = temp_db.get_ad_pattern_by_id(p['id'])
+    assert row['is_active'] == 1 and row['sponsor'] == 'Acme'
+    undo_suggestion(temp_db, rename)
+    row = temp_db.get_ad_pattern_by_id(p['id'])
+    assert row['is_active'] == 1 and row['sponsor'] == 'Acme Inc'
+
+
+def test_trim_then_retire_then_undo_retire_keeps_the_trim(temp_db):
+    p = _pattern(temp_db)
+    trim = _suggest(temp_db, p, 'trim', {'text': AD})
+    apply_suggestion(temp_db, trim)
+    retire = _suggest(temp_db, p, 'retire', {'unused_days': 90, 'last_matched_at': None,
+                                             'confirmation_count': 0})
+    apply_suggestion(temp_db, retire)
+    undo_suggestion(temp_db, retire)
+    row = temp_db.get_ad_pattern_by_id(p['id'])
+    assert row['is_active'] == 1 and row['text_template'] == AD
+
+
+def test_flag_then_split_refused_on_disabled_pattern(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2, false_positive_count=3)
+    flag = _suggest(temp_db, p, 'flag', {'false_positive_count': 3, 'confirmation_count': 0,
+                                         'contaminated': False, 'contamination_reason': None,
+                                         'recommended': 'disable'})
+    split = _suggest(temp_db, p, 'split', {'pieces': [
+        {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Widgetco'}]})
+    apply_suggestion(temp_db, flag)
+    with pytest.raises(SuggestionStateError):
+        apply_suggestion(temp_db, split)
+
+
+def test_split_undo_refused_when_a_piece_changed(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    sid = _suggest(temp_db, p, 'split', {'pieces': [
+        {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Widgetco'}]})
+    new_ids = apply_suggestion(temp_db, sid)['applied']['new_pattern_ids']
+    temp_db.update_ad_pattern(new_ids[0], is_active=0)
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+    temp_db.update_ad_pattern(new_ids[0], is_active=1)
+    piece = temp_db.get_ad_pattern_by_id(new_ids[1])
+    rename = _suggest(temp_db, piece, 'rename', {'sponsor': 'Widgetco'})
+    apply_suggestion(temp_db, rename)
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+
+
+def test_split_with_invalid_piece_sponsor_refused(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2)
+    sid = _suggest(temp_db, p, 'split', {'pieces': [
+        {'text': AD, 'sponsor': 'Acme'}, {'text': AD2, 'sponsor': 'Megaphone'}]})
+    with pytest.raises(SuggestionStateError):
+        apply_suggestion(temp_db, sid)
+    assert temp_db.get_ad_pattern_by_id(p['id'])['is_active'] == 1
+
+
+def test_status_write_failure_marks_run_failed(temp_db, live_route):
+    _pattern(temp_db, text=AD2, sponsor='Widgetco')
+    real_set = temp_db.set_setting
+
+    def flaky(key, value, *a, **kw):
+        if key == 'pattern_cleanup_last_summary':
+            raise RuntimeError('disk full')
+        return real_set(key, value, *a, **kw)
+    fake, _ = _fake_llm(_reply())
+    with patch.object(pattern_cleanup, 'call_llm', fake), \
+            patch.object(temp_db, 'set_setting', side_effect=flaky):
+        summary = run_cleanup(temp_db)
+    assert summary['status'] == 'failed'
+    run = temp_db.get_cleanup_runs(limit=1)[0]
+    assert run['status'] == 'failed' and 'disk full' in run['error']

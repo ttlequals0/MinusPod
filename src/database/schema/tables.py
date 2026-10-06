@@ -383,6 +383,7 @@ TABLE_DDL['pattern_cleanup_runs'] = """CREATE TABLE IF NOT EXISTS pattern_cleanu
     reviewed_count INTEGER NOT NULL DEFAULT 0,
     suggested_count INTEGER NOT NULL DEFAULT 0,
     skipped_count INTEGER NOT NULL DEFAULT 0,
+    error_count INTEGER NOT NULL DEFAULT 0,
     error TEXT
 )"""
 
