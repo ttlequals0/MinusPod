@@ -372,5 +372,3 @@ export function DetectionRows({
     </>
   );
 }
-
-export default DetectionRows;

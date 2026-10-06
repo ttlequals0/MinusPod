@@ -297,12 +297,6 @@ export async function submitSplit(
 
 // Bulk + community-pattern API
 
-export interface BulkPatternResult {
-  deleted?: number;
-  disabled?: number;
-  ids: number[];
-}
-
 export interface MergeSuggestionMember {
   id: number;
   text_template: string;

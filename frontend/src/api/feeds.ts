@@ -634,25 +634,6 @@ export async function updateLocalEpisode(
   });
 }
 
-export interface BulkLocalEpisodeEdit extends LocalEpisodePatch {
-  episodeId: string;
-}
-
-export async function bulkUpdateLocalEpisodes(
-  slug: string, entries: BulkLocalEpisodeEdit[],
-): Promise<{ updated: number }> {
-  return apiRequest<{ updated: number }>(`/feeds/${slug}/episodes`, {
-    method: 'PATCH',
-    body: entries,
-  });
-}
-
-export async function deleteLocalEpisode(
-  slug: string, episodeId: string,
-): Promise<{ deleted: number; episodeId: string }> {
-  return apiRequest(`/feeds/${slug}/episodes/${episodeId}`, { method: 'DELETE' });
-}
-
 export async function uploadLocalEpisodeArtwork(
   slug: string, episodeId: string, file: File,
 ): Promise<{ message: string; episodeId: string }> {

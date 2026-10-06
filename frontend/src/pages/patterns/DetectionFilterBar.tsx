@@ -181,5 +181,3 @@ export function DetectionFilterBar({
     </div>
   );
 }
-
-export default DetectionFilterBar;

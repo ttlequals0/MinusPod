@@ -132,11 +132,6 @@ export async function runPatternCleanup(force = false): Promise<{ runId: number 
   });
 }
 
-export async function getPatternCleanupRuns(limit = 20): Promise<PatternCleanupRun[]> {
-  const res = await apiRequest<{ runs: PatternCleanupRun[] }>(`/patterns/cleanup/runs?limit=${limit}`);
-  return res.runs;
-}
-
 export async function getPatternCleanupSuggestions(
   query: SuggestionQuery = {},
 ): Promise<PatternCleanupSuggestion[]> {

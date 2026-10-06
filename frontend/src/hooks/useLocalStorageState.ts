@@ -42,5 +42,3 @@ export function useLocalStorageState<T>(
 
   return [value, setValue];
 }
-
-export default useLocalStorageState;

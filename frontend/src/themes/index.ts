@@ -1,5 +1,5 @@
-export type { ThemeVariables, ThemeVarKey, ThemePair, ThemeGroup } from './themes';
-export { THEMES, THEME_VAR_KEYS, THEME_GROUPS, GROUPED_THEMES, DEFAULT_THEME_ID, getThemeById } from './themes';
+export type { ThemeVariables } from './themes';
+export { THEME_GROUPS, GROUPED_THEMES, DEFAULT_THEME_ID, getThemeById } from './themes';
 
 import type { ThemeVariables } from './themes';
 import { THEME_VAR_KEYS } from './themes';

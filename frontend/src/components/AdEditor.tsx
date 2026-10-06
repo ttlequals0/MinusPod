@@ -63,7 +63,7 @@ const ADD_BUTTON_BTN =
 const GHOST_BTN =
   `${btnGhost} transition-colors`;
 
-export function AdEditor({
+function AdEditor({
   detectedAds,
   audioDuration,
   audioUrl,
