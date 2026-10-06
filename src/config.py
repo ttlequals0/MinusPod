@@ -69,6 +69,8 @@ HOLD_REASON_CUE_LOW_CONFIDENCE = 'cue_low_confidence'
 HOLD_REASON_LARGE_VAD_GAP = 'large_vad_gap_extension'
 # An LLM span with no category or an audio-only reason whose transcript holds no ad language (#807).
 HOLD_REASON_NO_TRANSCRIPT_EVIDENCE = 'no_transcript_evidence'
+# An upstream-transcript-differential gap the LLM did not corroborate (2.98.0).
+HOLD_REASON_TRANSCRIPT_DIFFERENTIAL = 'transcript_differential_unreviewed'
 # Share of an evidence-gated span a measured DAI core must cover to stand in for transcript evidence.
 EVIDENCE_GATE_DAI_CORE_MIN_COVERAGE = 0.5
 # Holds only the reviewer stamps; recut validation cannot re-derive them.
@@ -984,6 +986,16 @@ def resolve_skip_second_pass(podcast_row, db=None):
     if not db:
         return False
     return db.get_setting_bool('skip_second_pass', False)
+
+
+def resolve_transcript_differential(podcast_row, db=None):
+    """Resolve the upstream-transcript differential opt-out, with a global fallback."""
+    value = (podcast_row or {}).get('transcript_differential')
+    if value is not None:
+        return bool(value)
+    if not db:
+        return True
+    return db.get_setting_bool('transcript_differential_enabled', True)
 
 
 CUE_ONLY_SAFETY_HOLD_NEW = 'hold_new'

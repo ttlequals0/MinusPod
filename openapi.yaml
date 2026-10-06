@@ -1059,6 +1059,11 @@ paths:
                     - boolean
                     - 'null'
                   description: When true, the pass-2 verification scan of the cut audio is skipped. Null follows the global skipSecondPass setting.
+                transcriptDifferential:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed opt-out from the upstream-transcript differential (diffs the upstream podcast:transcript against the Whisper transcript to help locate ads). Null follows the global transcriptDifferentialEnabled setting.
                 differentialFetchMode:
                   type:
                     - string
@@ -4791,7 +4796,7 @@ paths:
             no filter.
           schema:
             type: string
-            enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, no_transcript_evidence]
+            enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, no_transcript_evidence, transcript_differential_unreviewed]
       responses:
         '200':
           description: Paginated detection list
@@ -6011,6 +6016,10 @@ paths:
                 skipSecondPass:
                   type: boolean
                   description: When true, feeds that inherit this setting skip the pass-2 verification scan.
+                transcriptDifferentialEnabled:
+                  type: boolean
+                  description: Default for the upstream-transcript differential; feeds that inherit this setting follow it. Diffs the upstream podcast:transcript against the Whisper transcript to help locate ads.
+                  example: true
                 differentialFetchMode:
                   type: string
                   enum: ['auto', 'on', 'off']
@@ -12031,6 +12040,11 @@ components:
             - boolean
             - 'null'
           description: Whether the pass-2 verification scan of the cut audio is skipped for this feed. Null follows the global skipSecondPass setting.
+        transcriptDifferential:
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed opt-out from the upstream-transcript differential for this feed. Null follows the global transcriptDifferentialEnabled setting.
         latestEpisodes:
           type: array
           items:
@@ -13298,7 +13312,7 @@ components:
         hold_reason:
           type: string
           nullable: true
-          enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, no_transcript_evidence, null]
+          enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, no_transcript_evidence, transcript_differential_unreviewed, null]
           description: Why the marker requires review. reviewer_boundary_conflict means a reviewer proposal crossed protected merged-ad evidence; reviewer_reject_conflict means the reviewer rejected a span backed by measured evidence or a confirmed sponsor; reviewer_failed means the review call failed and no independent evidence backs the bounds.
         reviewer_reasoning:
           type: string
@@ -13469,7 +13483,7 @@ components:
           type: string
           nullable: true
           description: Why the detection is held for review; null unless status is pending
-          enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, no_transcript_evidence, null]
+          enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, no_transcript_evidence, transcript_differential_unreviewed, null]
         status:
           type: string
           enum: [accepted, rejected, pending]
@@ -14563,6 +14577,14 @@ components:
         skipSecondPass:
           type: object
           description: Skip the pass-2 verification scan by default for feeds that inherit this setting.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        transcriptDifferentialEnabled:
+          type: object
+          description: Default for the upstream-transcript differential for feeds that inherit this setting.
           properties:
             value:
               type: boolean

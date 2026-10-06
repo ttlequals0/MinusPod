@@ -258,6 +258,9 @@ def _build_settings_payload():
         settings, 'chapters_mode', registry_default('chapters_mode'))
     skip_second_pass = coerce_bool_setting(_setting_value(
         settings, 'skip_second_pass', registry_default('skip_second_pass')))
+    transcript_differential_enabled = coerce_bool_setting(_setting_value(
+        settings, 'transcript_differential_enabled',
+        registry_default('transcript_differential_enabled')))
     differential_fetch_mode = _setting_value(
         settings, 'differential_fetch_mode', registry_default('differential_fetch_mode'))
     chapters_in_notes = coerce_bool_setting(_setting_value(
@@ -743,6 +746,8 @@ def _build_settings_payload():
         'chaptersMode': _sv('chapters_mode', chapters_mode),
         'chaptersInNotes': _sv('chapters_in_notes', chapters_in_notes),
         'skipSecondPass': _sv('skip_second_pass', skip_second_pass),
+        'transcriptDifferentialEnabled': _sv(
+            'transcript_differential_enabled', transcript_differential_enabled),
         'differentialFetchMode': _sv(
             'differential_fetch_mode', differential_fetch_mode),
         'adChaptersEnabled': _sv('ad_chapters_enabled', ad_chapters_enabled),
@@ -1120,6 +1125,9 @@ def _validate_processing_defaults_payload(data):
             return error_response('chaptersMode must be auto, generate, or off', 400)
     if 'skipSecondPass' in data and not isinstance(data['skipSecondPass'], bool):
         return error_response('skipSecondPass must be a boolean', 400)
+    if ('transcriptDifferentialEnabled' in data
+            and not isinstance(data['transcriptDifferentialEnabled'], bool)):
+        return error_response('transcriptDifferentialEnabled must be a boolean', 400)
     if 'spliceVetoEnabled' in data and not isinstance(data['spliceVetoEnabled'], bool):
         return error_response('spliceVetoEnabled must be a boolean', 400)
     if 'differentialFetchMode' in data:
@@ -1594,6 +1602,13 @@ def _apply_processing_flags(db, data):
             return error_response('skipSecondPass must be a boolean', 400)
         db.set_setting('skip_second_pass',
                        'true' if data['skipSecondPass'] else 'false',
+                       is_default=False)
+
+    if 'transcriptDifferentialEnabled' in data:
+        if not isinstance(data['transcriptDifferentialEnabled'], bool):
+            return error_response('transcriptDifferentialEnabled must be a boolean', 400)
+        db.set_setting('transcript_differential_enabled',
+                       'true' if data['transcriptDifferentialEnabled'] else 'false',
                        is_default=False)
 
     if 'differentialFetchMode' in data:

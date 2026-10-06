@@ -268,6 +268,32 @@ def _podcast_localname(elem) -> str:
     return tag[end + 1:] if end != -1 else tag
 
 
+# Preference order for picking one podcast:transcript tag among several
+# (2.98.0 transcript differential). Compared case-insensitively.
+_TRANSCRIPT_TYPE_PRIORITY = (
+    'text/vtt', 'application/srt', 'application/x-subrip',
+    'application/json', 'text/plain', 'text/html',
+)
+
+
+def _best_upstream_transcript_tag(tags):
+    """Pick the (url, lowercased type) with the best type rank; http(s) only."""
+    best = None
+    best_rank = len(_TRANSCRIPT_TYPE_PRIORITY)
+    for url, raw_type in tags:
+        if not url or urlparse(url).scheme not in ('http', 'https'):
+            continue
+        norm_type = (raw_type or '').strip().lower()
+        try:
+            rank = _TRANSCRIPT_TYPE_PRIORITY.index(norm_type)
+        except ValueError:
+            rank = len(_TRANSCRIPT_TYPE_PRIORITY)
+        if best is None or rank < best_rank:
+            best = (url, norm_type or None)
+            best_rank = rank
+    return best
+
+
 _ENCLOSURE_PREFIX_RE = re.compile(r'<enclosure url="([^"]+)/episodes/')
 RSS_RENDER_VERSION = 2
 _RENDER_VERSION_RE = re.compile(r'<!-- minuspod-rss-render-version:(\d+) -->')
@@ -693,6 +719,58 @@ class RSSParser:
             return {'uses_podping': uses, 'hive_accounts': accounts}
 
         return unknown
+
+    @staticmethod
+    def _parse_upstream_transcript_tags(feed_content) -> dict:
+        """Map each item's guid text and enclosure URL to its raw
+        podcast:transcript (url, type) tags.
+
+        feedparser flattens multiple podcast:transcript tags on one item
+        down to a single dict, so picking the best of several requires this
+        raw-XML pass.
+        """
+        tags_by_key: dict = {}
+        if not feed_content:
+            return tags_by_key
+        try:
+            payload = (_XML_ENCODING_DECL.sub('', feed_content, count=1).encode('utf-8')
+                       if isinstance(feed_content, str) else feed_content)
+            root = defused_fromstring(payload)
+        except Exception:
+            return tags_by_key
+
+        channel = None
+        for child in root:
+            tag = getattr(child, 'tag', '')
+            if isinstance(tag, str) and (tag == 'channel' or tag.endswith('}channel')):
+                channel = child
+                break
+        if channel is None:
+            return tags_by_key
+
+        for item in channel:
+            tag = getattr(item, 'tag', '')
+            if not (isinstance(tag, str) and (tag == 'item' or tag.endswith('}item'))):
+                continue
+            transcripts = []
+            guid_text = None
+            enclosure_url = None
+            for elem in item:
+                elem_tag = getattr(elem, 'tag', '')
+                if elem_tag == 'guid':
+                    guid_text = (elem.text or '').strip()
+                elif elem_tag == 'enclosure':
+                    enclosure_url = elem.get('url')
+                elif _is_podcast_element(elem) and _podcast_localname(elem) == 'transcript':
+                    url = elem.get('url')
+                    if url:
+                        transcripts.append((url, elem.get('type') or ''))
+            if not transcripts:
+                continue
+            for key in (guid_text, enclosure_url):
+                if key:
+                    tags_by_key[key] = transcripts
+        return tags_by_key
 
     @staticmethod
     def find_channel_element(feed_content):
@@ -1725,6 +1803,8 @@ class RSSParser:
         if not feed:
             return []
 
+        transcript_tags_by_key = self._parse_upstream_transcript_tags(feed_content)
+
         episodes = []
         for entry in feed.entries:
             episode_url = None
@@ -1767,6 +1847,18 @@ class RSSParser:
                     if candidate and urlparse(candidate).scheme in ('http', 'https'):
                         upstream_chapters_url = candidate
 
+                # Upstream podcast:transcript (2.98.0 transcript differential):
+                # several tags may exist per item, so pick the best type from
+                # a raw-XML pass keyed on guid or enclosure URL.
+                upstream_transcript_url = None
+                upstream_transcript_type = None
+                transcript_tags = (transcript_tags_by_key.get(entry.get('id', ''))
+                                    or transcript_tags_by_key.get(episode_url))
+                if transcript_tags:
+                    best = _best_upstream_transcript_tag(transcript_tags)
+                    if best:
+                        upstream_transcript_url, upstream_transcript_type = best
+
                 # Map per-episode iTunes categories to vocabulary tags.
                 ep_tags: list[str] = []
                 try:
@@ -1791,6 +1883,8 @@ class RSSParser:
                     'episode_number': episode_number,
                     'rss_duration': rss_duration,
                     'upstream_chapters_url': upstream_chapters_url,
+                    'upstream_transcript_url': upstream_transcript_url,
+                    'upstream_transcript_type': upstream_transcript_type,
                     'tags': ep_tags,
                 })
 

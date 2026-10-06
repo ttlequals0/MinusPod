@@ -93,6 +93,9 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     splice_veto_enabled INTEGER,
     cue_gated_approval INTEGER DEFAULT 0,
     skip_second_pass INTEGER,
+    -- Per-feed opt-out for the upstream-transcript differential (2.98.0).
+    -- NULL = inherit the global transcript_differential_enabled setting.
+    transcript_differential INTEGER,
     skip_transcription INTEGER,
     cue_only_safety TEXT,
     -- Queue priority (#625): NULL/0 = normal, 10 = high, -10 = low
@@ -181,6 +184,12 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     -- (issue #560 follow-up). Auto mode fetches it when the embedded chapter
     -- probe comes up short. NULL when the feed does not publish the tag.
     upstream_chapters_url TEXT,
+    -- Upstream podcast:transcript URL + MIME type, captured at RSS discovery/
+    -- refresh (2.98.0). The transcript differential stage fetches and diffs
+    -- it against the Whisper transcript to locate ads. NULL when the feed
+    -- does not publish the tag, or none of its tags is http(s).
+    upstream_transcript_url TEXT,
+    upstream_transcript_type TEXT,
     -- Chapter regeneration runs in a background thread; the stamp marks it
     -- in flight and the error is the last failure.
     chapters_regen_started_at TEXT,
@@ -213,6 +222,9 @@ TABLE_DDL['episode_details'] = """CREATE TABLE IF NOT EXISTS episode_details (
     final_segments_json TEXT,
     applied_cuts_json TEXT,
     repair_holes_json TEXT,
+    -- Upstream transcript differential result (2.98.0): status, coverage,
+    -- spans. Raw cues are not persisted here; re-fetched on re-detection.
+    upstream_transcript_json TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
 )"""

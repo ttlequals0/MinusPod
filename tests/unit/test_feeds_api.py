@@ -593,3 +593,39 @@ def test_patch_rejects_unknown_chapters_in_notes_value(app_client, seeded_feed):
     resp = app_client.patch(f"/api/v1/feeds/{seeded_feed['slug']}", json={'chaptersInNotes': 'maybe'},
                             headers=_csrf_headers(app_client))
     assert resp.status_code == 400
+
+
+# -- transcriptDifferential (2.98.0) --
+
+def test_the_api_exposes_transcript_differential_as_a_nullable_bool():
+    from api.feeds import _NULLABLE_BOOL_FIELDS
+    assert ('transcriptDifferential', 'transcript_differential') in _NULLABLE_BOOL_FIELDS
+
+
+def test_get_feed_echoes_null_transcript_differential(app_client, seeded_feed):
+    _authed(app_client)
+    resp = app_client.get(f"/api/v1/feeds/{seeded_feed['slug']}")
+    assert resp.status_code == 200
+    assert resp.get_json()['transcriptDifferential'] is None
+
+
+@pytest.mark.parametrize('value', [True, False])
+def test_patch_sets_transcript_differential(app_client, seeded_feed, value):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'transcriptDifferential': value},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert resp.get_json()['transcriptDifferential'] is value
+    assert bool(seeded_feed['db'].get_podcast_by_slug(slug)['transcript_differential']) is value
+
+
+def test_patch_null_resets_transcript_differential(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    app_client.patch(f'/api/v1/feeds/{slug}', json={'transcriptDifferential': True}, headers=headers)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'transcriptDifferential': None}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['transcriptDifferential'] is None
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['transcript_differential'] is None

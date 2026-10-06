@@ -846,6 +846,11 @@ class EpisodeMixin:
             VALUES (?, ?)
             ON CONFLICT(episode_id) DO UPDATE
             SET dai_differential_json = excluded.dai_differential_json""",
+        'upstream_transcript_json': """
+            INSERT INTO episode_details (episode_id, upstream_transcript_json)
+            VALUES (?, ?)
+            ON CONFLICT(episode_id) DO UPDATE
+            SET upstream_transcript_json = excluded.upstream_transcript_json""",
     }
 
     def _upsert_episode_detail_json(self, slug, episode_id, column, value) -> bool:
@@ -910,6 +915,29 @@ class EpisodeMixin:
             (db_episode_id,),
         ).fetchone()
         return row['dai_differential_json'] if row else None
+
+    def save_episode_upstream_transcript(self, slug: str, episode_id: str, payload: dict):
+        """Save the upstream transcript differential result for an episode."""
+        if self._upsert_episode_detail_json(
+                slug, episode_id, 'upstream_transcript_json', json.dumps(payload)):
+            logger.debug(f"[{slug}:{episode_id}] Saved upstream transcript diff to database")
+
+    def get_episode_upstream_transcript(self, slug: str, episode_id: str) -> dict | None:
+        """Return the parsed upstream_transcript_json for an episode, or None."""
+        conn = self.get_connection()
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            return None
+        row = conn.execute(
+            "SELECT upstream_transcript_json FROM episode_details WHERE episode_id = ?",
+            (db_episode_id,),
+        ).fetchone()
+        if not row or not row['upstream_transcript_json']:
+            return None
+        try:
+            return json.loads(row['upstream_transcript_json'])
+        except (TypeError, ValueError):
+            return None
 
     def get_transcribed_details_created_at(self, slug: str, episode_id: str) -> str | None:
         """created_at of the details row, when it holds a transcript.
@@ -1495,13 +1523,16 @@ class EpisodeMixin:
                 """INSERT INTO episodes
                    (podcast_id, episode_id, original_url, title, description,
                     artwork_url, episode_number, published_at, rss_duration,
-                    upstream_chapters_url, tags, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
+                    upstream_chapters_url, upstream_transcript_url,
+                    upstream_transcript_type, tags, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
                    ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
                     episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
                     published_at = COALESCE(excluded.published_at, episodes.published_at),
                     rss_duration = COALESCE(excluded.rss_duration, episodes.rss_duration),
                     upstream_chapters_url = COALESCE(excluded.upstream_chapters_url, episodes.upstream_chapters_url),
+                    upstream_transcript_url = COALESCE(excluded.upstream_transcript_url, episodes.upstream_transcript_url),
+                    upstream_transcript_type = COALESCE(excluded.upstream_transcript_type, episodes.upstream_transcript_type),
                     original_url = COALESCE(episodes.original_url, excluded.original_url),
                     title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
                     description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
@@ -1511,6 +1542,8 @@ class EpisodeMixin:
                       OR episodes.published_at IS NOT COALESCE(episodes.published_at, excluded.published_at)
                       OR episodes.rss_duration IS NOT COALESCE(episodes.rss_duration, excluded.rss_duration)
                       OR episodes.upstream_chapters_url IS NOT COALESCE(episodes.upstream_chapters_url, excluded.upstream_chapters_url)
+                      OR episodes.upstream_transcript_url IS NOT COALESCE(episodes.upstream_transcript_url, excluded.upstream_transcript_url)
+                      OR episodes.upstream_transcript_type IS NOT COALESCE(episodes.upstream_transcript_type, excluded.upstream_transcript_type)
                       OR episodes.original_url IS NOT COALESCE(episodes.original_url, excluded.original_url)
                       OR episodes.title IS NOT CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END
                       OR episodes.description IS NOT CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END
@@ -1527,6 +1560,8 @@ class EpisodeMixin:
                     iso_published,
                     ep.get('rss_duration'),
                     ep.get('upstream_chapters_url'),
+                    ep.get('upstream_transcript_url'),
+                    ep.get('upstream_transcript_type'),
                     tags_json,
                 )
             )

@@ -8,7 +8,7 @@ const ALL_HOLD_REASONS = [
   'reviewer_failed', 'reviewer_reject_conflict', 'estimated_pattern_bounds',
   'verification_miss', 'verification_kept_conflict', 'differential_uncorroborated',
   'large_vad_gap_extension', 'cue_template_unproven', 'cue_low_confidence',
-  'no_transcript_evidence',
+  'no_transcript_evidence', 'transcript_differential_unreviewed',
 ];
 
 describe('hold reason maps', () => {

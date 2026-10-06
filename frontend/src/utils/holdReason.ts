@@ -18,6 +18,7 @@ export const HOLD_REASON_LABELS: Record<HoldReason, string> = {
   cue_template_unproven: 'Unproven cue',
   cue_low_confidence: 'Low-confidence cue',
   no_transcript_evidence: 'No ad language in transcript',
+  transcript_differential_unreviewed: 'Upstream transcript omits this span',
 };
 
 // Tooltip text for each hold reason.
@@ -39,4 +40,5 @@ export const HOLD_REASON_TITLES: Record<HoldReason, string> = {
   cue_template_unproven: "This cue template hasn't cut a confirmed ad yet",
   cue_low_confidence: 'The cue match fell below the cut-confidence threshold',
   no_transcript_evidence: "No sponsor, link, promo code or ad phrase in this span's transcript",
+  transcript_differential_unreviewed: 'The upstream transcript has no matching gap here, and no detector corroborated it',
 };

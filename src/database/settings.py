@@ -549,6 +549,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'skip_second_pass': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='skipSecondPass', payload_kind='bool'),
+    'transcript_differential_enabled': SettingSpec(
+        default='true', seeded=True, in_ad_reset=True,
+        payload_key='transcriptDifferentialEnabled', payload_kind='bool'),
     'differential_fetch_mode': SettingSpec(
         default='auto', seeded=True, in_ad_reset=True,
         payload_key='differentialFetchMode',

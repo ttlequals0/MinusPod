@@ -90,3 +90,35 @@ def test_processing_defaults_reject_mixed_payload_before_any_write(app_client):
     assert response.status_code == 400
     assert db.get_setting('chapters_mode') == 'generate'
     db.set_setting('chapters_mode', 'auto', is_default=False)
+
+
+def test_transcript_differential_enabled_round_trips(app_client):
+    db = get_database()
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    response = app_client.put(
+        '/api/v1/settings/ad-detection',
+        json={'transcriptDifferentialEnabled': False},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    settings = app_client.get('/api/v1/settings').get_json()
+    assert settings['transcriptDifferentialEnabled']['value'] is False
+
+    db.set_setting('transcript_differential_enabled', 'true', is_default=False)
+
+
+def test_transcript_differential_enabled_rejects_non_boolean(app_client):
+    db = get_database()
+    db.set_setting('transcript_differential_enabled', 'true', is_default=False)
+    _authed(app_client)
+
+    response = app_client.put(
+        '/api/v1/settings/ad-detection',
+        json={'transcriptDifferentialEnabled': 'true'},
+        headers=_csrf_headers(app_client),
+    )
+
+    assert response.status_code == 400
+    assert db.get_setting('transcript_differential_enabled') == 'true'

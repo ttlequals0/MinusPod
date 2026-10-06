@@ -319,6 +319,9 @@ class SchemaMixin:
             ('rss_duration', 'REAL'),
             # Upstream podcast:chapters JSON URL (issue #560 follow-up)
             ('upstream_chapters_url', 'TEXT'),
+            # Upstream podcast:transcript URL + MIME type (2.98.0)
+            ('upstream_transcript_url', 'TEXT'),
+            ('upstream_transcript_type', 'TEXT'),
             # Degraded pass-1 completion: sanitized error when a transient,
             # non-auth LLM failure published on pattern/cross-fetch markers
             # alone. NULL on a clean run.
@@ -500,6 +503,8 @@ class SchemaMixin:
             ('applied_cuts_json', 'TEXT'),
             # Transcript holes re-transcribed without speech, skipped on reprocess.
             ('repair_holes_json', 'TEXT'),
+            # Upstream transcript differential result (2.98.0)
+            ('upstream_transcript_json', 'TEXT'),
         ]
         for col, definition in details_migrations:
             self._add_column_if_missing(conn, 'episode_details', col, definition, det_cols)
@@ -536,6 +541,9 @@ class SchemaMixin:
             ('splice_veto_enabled', 'INTEGER'),
             ('cue_gated_approval', 'INTEGER DEFAULT 0'),
             ('skip_second_pass', 'INTEGER'),
+            # Per-feed opt-out for the upstream-transcript differential
+            # (2.98.0); NULL inherits transcript_differential_enabled.
+            ('transcript_differential', 'INTEGER'),
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),
             ('last_modified_header', 'TEXT'),

@@ -80,6 +80,7 @@ SEED_SNAPSHOT = {
     'differential_measured_corr_max': '0.60',
     'differential_fetch_mode': 'auto',
     'skip_second_pass': 'false',
+    'transcript_differential_enabled': 'true',
     'enable_ad_review': 'false',
     'keep_original_audio': 'true',
     'learning_min_confidence': '0.85',
@@ -165,6 +166,7 @@ EXPECTED_AD_RESET_KEYS = {
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
     'chapters_enabled', 'chapters_mode', 'chapters_in_notes', 'chapters_model',
     'skip_second_pass', 'differential_fetch_mode',
+    'transcript_differential_enabled',
     'ad_chapters_enabled', 'ad_chapter_categories',
     'ad_chapters_include_held', 'ad_chapter_title_format',
     'ad_chapter_held_title_format', 'ad_chapter_resume_title',
@@ -514,11 +516,12 @@ class TestGetDefaults:
         # then the two tokens-per-minute keys, primary and secondary (125 -> 127).
         # adDetectionExcludeStartSeconds added after that (127 -> 128).
         # Failover and per-slot overrides add the latest settings.
+        # transcriptDifferentialEnabled added after that (156 -> 157).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 156
+        assert len(payload_keys) == 157
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
