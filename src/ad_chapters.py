@@ -37,9 +37,7 @@ class AdChapterConfig:
         category = marker.get('category')
         if category not in SEGMENT_CATEGORIES:
             return None
-        # A held marker has no action_applied yet, so its chapter eligibility
-        # is the feed's CURRENT resolved action for the category, not the
-        # marker; a confirmed mark marker already carries that decision.
+        # Held markers have no action yet; use the feed's resolved action for the category.
         if held and self.actions.get(category) != 'mark':
             return None
         if not held and _marker_confidence(marker) < self.min_confidence:

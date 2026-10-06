@@ -687,11 +687,8 @@ def get_episode(slug, episode_id):
 
     # Parse ad markers if present, separating into four buckets:
     #   pendingReviewMarkers: held_for_review=True and not was_cut (checked FIRST)
-    #   keptMarkers:          action_applied keep-like and not held (deliberate
-    #                         per-category keep/mark; that resolution clears
-    #                         holds upstream, so this never overlaps
-    #                         pendingReviewMarkers; actionApplied on each
-    #                         marker tells keep from mark for the UI label)
+    #   keptMarkers:          action_applied keep-like and not held;
+    #                         actionApplied tells keep from mark.
     #   rejectedAdMarkers:    REJECT decision or not was_cut (and not held/kept)
     #   adMarkers:            everything else (accepted cuts)
     ad_markers = []

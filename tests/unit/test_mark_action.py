@@ -14,6 +14,7 @@ from main_app.processing import (  # noqa: E402
     _apply_late_keep_safety_net,
     _partition_keep_ads,
     _partition_pass2_category_actions,
+    _stamp_and_carve_cuts,
 )
 
 
@@ -41,11 +42,19 @@ def test_mark_marker_is_not_cut_and_stamped_mark():
 
 
 def test_mark_marker_contributes_no_time_saved():
-    """A mark marker bypasses the cut exactly like keep: was_cut False means
-    it never enters the cut list that computes original - new duration."""
-    keep, remove = _partition_keep_ads([_marker()], {'sponsor': 'mark'})
-    assert remove == []
-    assert keep[0]['was_cut'] is False
+    """A mark marker must not reach the rendered cut list: with a separate
+    remove marker in play, the real stamp-and-carve step must produce a cut
+    covering only the remove span, so time saved never counts the mark span."""
+    actions = {'sponsor': 'mark', 'interaction': 'remove'}
+    mark_marker = _marker(start=10.0, end=40.0)
+    remove_marker = _marker(start=100.0, end=130.0, category='interaction')
+    keep, remove = _partition_keep_ads([mark_marker, remove_marker], actions)
+    assert [a['start'] for a in keep] == [10.0]
+
+    cuts = _stamp_and_carve_cuts('slug', 'ep', remove, keep + remove, actions, keep)
+
+    assert [(c['start'], c['end']) for c in cuts] == [(100.0, 130.0)]
+    assert cuts[0]['action_applied'] == 'remove'
 
 
 def test_pattern_defined_overrides_mark_to_remove():

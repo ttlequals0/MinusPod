@@ -1683,9 +1683,7 @@ def resolve_category_action(category, action_map: dict[str, str]) -> str:
 
 
 def _pattern_overridden_action(action, marker: dict) -> str | None:
-    """A pattern-defined detection overrides a keep-like resolution to remove.
-    Single source of truth shared by effective_resolved_action and
-    split_conflicting_action_span, so both honor mark the same way keep is."""
+    """A pattern-defined detection overrides a keep-like resolution to remove."""
     if is_keep_like(action) and marker.get('pattern_defined'):
         return 'remove'
     return action
