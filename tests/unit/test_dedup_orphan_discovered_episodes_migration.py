@@ -163,3 +163,64 @@ def test_cluster_compares_to_first_member_not_the_running_last(temp_db):
     assert temp_db.get_episode(slug, 'chainA0000001') is not None
     assert temp_db.get_episode(slug, 'chainB0000001') is None
     assert temp_db.get_episode(slug, 'chainC0000001') is not None
+
+
+def test_a_discovered_duplicate_with_processing_history_is_kept(temp_db):
+    slug = _seed_podcast(temp_db)
+    temp_db.upsert_episode(
+        slug, 'historyrow00001', title='History Episode', published_at='2026-01-01T00:00:00Z',
+        original_url='https://example.com/a.mp3', status='discovered')
+    temp_db.upsert_episode(
+        slug, 'bareorphan00001', title='History Episode', published_at='2026-01-01T05:00:00Z',
+        original_url='https://example.com/b.mp3', status='discovered')
+    podcast = temp_db.get_podcast_by_slug(slug)
+    conn = temp_db.get_connection()
+    conn.execute(
+        "INSERT INTO processing_history (podcast_id, podcast_slug, episode_id, status) "
+        "VALUES (?, ?, ?, 'completed')",
+        (podcast['id'], slug, 'historyrow00001'))
+    conn.commit()
+
+    _run(temp_db)
+
+    assert temp_db.get_episode(slug, 'historyrow00001') is not None
+    assert temp_db.get_episode(slug, 'bareorphan00001') is None
+
+
+def test_a_discovered_duplicate_with_passthrough_override_is_kept(temp_db):
+    slug = _seed_podcast(temp_db)
+    temp_db.upsert_episode(
+        slug, 'passthrukeep01', title='Passthrough Episode', published_at='2026-01-01T00:00:00Z',
+        original_url='https://example.com/a.mp3', status='discovered')
+    temp_db.upsert_episode(
+        slug, 'passthrubare01', title='Passthrough Episode', published_at='2026-01-01T05:00:00Z',
+        original_url='https://example.com/b.mp3', status='discovered')
+    temp_db.set_episodes_passthrough(slug, ['passthrukeep01'], True)
+
+    _run(temp_db)
+
+    assert temp_db.get_episode(slug, 'passthrukeep01') is not None
+    assert temp_db.get_episode(slug, 'passthrubare01') is None
+
+
+def test_deleted_duplicate_rows_disappear_from_the_search_index(temp_db):
+    slug = _seed_podcast(temp_db)
+    temp_db.upsert_episode(
+        slug, 'indexkept000001', title='Indexed Title', published_at='2026-01-01T00:00:00Z',
+        original_url='https://example.com/old.mp3', status='processed')
+    temp_db.upsert_episode(
+        slug, 'indexorphan0001', title='Indexed Title', published_at='2026-01-01T07:00:00Z',
+        original_url='https://example.com/new.mp3', status='discovered')
+
+    conn = _run(temp_db)
+
+    orphan_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM search_index "
+        "WHERE content_type = 'episode' AND content_id = ?",
+        ('indexorphan0001',)).fetchone()['c']
+    kept_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM search_index "
+        "WHERE content_type = 'episode' AND content_id = ?",
+        ('indexkept000001',)).fetchone()['c']
+    assert orphan_count == 0
+    assert kept_count == 1

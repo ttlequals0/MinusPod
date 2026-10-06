@@ -350,23 +350,46 @@ class SchemaMixin:
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
 
+    # Tables whose rows mean an episode has real state and must never be
+    # deleted as an orphan duplicate. ad_reviewer_log.podcast_id has TEXT
+    # affinity, so it matches on episode_id alone to avoid a false delete.
+    _EPISODE_STATE_TABLES = (
+        ('processing_history', 'h', 'h.podcast_id = e.podcast_id AND h.episode_id = e.episode_id'),
+        ('pattern_corrections', 'pc', 'pc.podcast_id = e.podcast_id AND pc.episode_id = e.episode_id'),
+        ('processing_runs', 'r', 'r.podcast_id = e.podcast_id AND r.episode_id = e.episode_id'),
+        ('auto_process_queue', 'q', 'q.podcast_id = e.podcast_id AND q.episode_id = e.episode_id'),
+        ('cue_detections', 'cd', 'cd.podcast_id = e.podcast_id AND cd.episode_id = e.episode_id'),
+        ('addressing_log', 'al', 'al.podcast_slug = p.slug AND al.episode_id = e.episode_id'),
+        ('ad_reviewer_log', 'rl', 'rl.episode_id = e.episode_id'),
+        ('llm_call_usage', 'lu', 'lu.podcast_id = e.podcast_id AND lu.episode_id = e.episode_id'),
+    )
+
     def _dedup_orphan_discovered_episodes(self, conn) -> None:
         """One-shot cleanup: removes the state-free orphan of a discovered
         duplicate pair left by a stale pre-fix published_at (see
         episodes.py's fuzzy GUID-change match)."""
         gate = 'dedup_orphan_discovered_episodes_v1'
-        if not self._table_exists(conn, 'episodes') or conn.execute(
-            "SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)
-        ).fetchone():
+        if not (self._table_exists(conn, 'episodes') and self._table_exists(conn, 'podcasts')):
+            return
+        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
             return
 
+        state_fragments = ['EXISTS(SELECT 1 FROM episode_details ed '
+                           'WHERE ed.episode_id = e.id) AS has_details']
+        for table, alias, cond in self._EPISODE_STATE_TABLES:
+            if self._table_exists(conn, table):
+                # table/alias/cond come from the fixed tuple above, not user input.
+                state_fragments.append(
+                    f"EXISTS(SELECT 1 FROM {table} {alias} WHERE {cond}) AS has_{table}")  # noqa: S608
+            else:
+                state_fragments.append(f"0 AS has_{table}")
+
         rows = conn.execute(
-            """SELECT e.id, e.podcast_id, e.title, e.published_at, e.status,
-                      e.processed_file,
-                      EXISTS(SELECT 1 FROM episode_details ed
-                             WHERE ed.episode_id = e.id) AS has_details
-               FROM episodes e
-               WHERE e.title IS NOT NULL AND e.published_at IS NOT NULL"""
+            "SELECT e.id, e.podcast_id, e.episode_id, e.title, e.published_at, "  # noqa: S608
+            "e.status, e.processed_file, e.passthrough_enabled, p.slug, "
+            + ', '.join(state_fragments)
+            + " FROM episodes e JOIN podcasts p ON e.podcast_id = p.id "
+              "WHERE e.title IS NOT NULL AND e.published_at IS NOT NULL"
         ).fetchall()
 
         groups: dict[tuple, list] = {}
@@ -377,8 +400,11 @@ class SchemaMixin:
             groups.setdefault((row['podcast_id'], title_key), []).append(dict(row))
 
         def has_state(row) -> bool:
-            return (row['status'] != 'discovered' or bool(row['processed_file'])
-                    or bool(row['has_details']))
+            if (row['status'] != 'discovered' or bool(row['processed_file'])
+                    or row['passthrough_enabled'] is not None):
+                return True
+            return any(row[f'has_{table}']
+                       for table in ('details',) + tuple(t for t, _, _ in self._EPISODE_STATE_TABLES))
 
         to_delete = []
         for group_rows in groups.values():
@@ -402,16 +428,20 @@ class SchemaMixin:
                 if not orphans:
                     continue
                 if stateful:
-                    to_delete.extend(r['id'] for r in orphans)
+                    to_delete.extend(orphans)
                 else:
                     oldest_id = min(r['id'] for r in members)
-                    to_delete.extend(r['id'] for r in members if r['id'] != oldest_id)
+                    to_delete.extend(r for r in members if r['id'] != oldest_id)
 
         if to_delete:
-            placeholders = ','.join('?' for _ in to_delete)
+            ids = [r['id'] for r in to_delete]
+            placeholders = ','.join('?' for _ in ids)
             conn.execute(
                 f"DELETE FROM episodes WHERE id IN ({placeholders})",  # noqa: S608
-                to_delete)
+                ids)
+            pairs = [(r['episode_id'], r['slug']) for r in to_delete]
+            for start in range(0, len(pairs), _COLLAPSE_BATCH_ROWS):
+                self._delete_indexed_episodes(conn, pairs[start:start + _COLLAPSE_BATCH_ROWS])
             logger.info(
                 f"Migration: removed {len(to_delete)} orphan discovered-episode "
                 "duplicate(s) left by a stale pre-fix published_at"
