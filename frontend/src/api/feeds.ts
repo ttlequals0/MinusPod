@@ -423,8 +423,6 @@ export interface UpdateFeedPayload {
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;
   chaptersInNotes?: 'on' | 'off' | null;
-  adChaptersEnabled?: 'on' | 'off' | null;
-  adChapterCategories?: Partial<Record<SegmentCategory, boolean>> | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
   lowAdYieldAction?: LowAdYieldAction | null;
   episodeLogs?: EpisodeLogsOverride | null;

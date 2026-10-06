@@ -399,6 +399,15 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
     });
   });
 
+  it('picking Mark saves it as the segment action override', async () => {
+    renderPanel(makeFeed());
+    const group = await screen.findByRole('radiogroup', { name: 'Sponsor action' });
+    await userEvent.click(within(group).getByRole('radio', { name: 'Mark' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      segmentCategoryActions: { sponsor: 'mark' },
+    });
+  });
+
   it('clearing the only override sends segmentCategoryActions null', async () => {
     renderPanel(makeFeed({ segmentCategoryActions: { cross_promo: 'keep' } }));
     await screen.findByRole('radiogroup', { name: 'Cross-promo action' });
@@ -1336,6 +1345,13 @@ describe('FeedSettingsPanel chapters in description control', () => {
     expect((screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement).value).toBe('');
   });
 
+  it('has no per-feed ad chapters enable or category controls', () => {
+    renderPanel(makeFeed());
+    expect(screen.queryByRole('combobox', { name: 'Ad chapters' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Use global categories' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Sponsor' })).toBeNull();
+  });
+
   it('selecting On fires updateFeed with chaptersInNotes on', async () => {
     renderPanel(makeFeed());
     await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), 'on');
@@ -1346,57 +1362,5 @@ describe('FeedSettingsPanel chapters in description control', () => {
     renderPanel(makeFeed({ chaptersInNotes: 'off' }));
     await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), '');
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersInNotes: null });
-  });
-});
-
-describe('FeedSettingsPanel ad chapters overrides', () => {
-  const NAME = 'Ad chapters';
-  const GLOBAL_CATEGORIES = {
-    sponsor: true,
-    cross_promo: true,
-    self_promo: false,
-    interaction: false,
-    intro: false,
-    outro: false,
-    recap: false,
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockUpdateFeed.mockResolvedValue(makeFeed());
-    mockGetSettings.mockResolvedValue({
-      adChaptersEnabled: { value: true },
-      adChapterCategories: { value: GLOBAL_CATEGORIES },
-    });
-  });
-
-  it('sends the ad chapters override', async () => {
-    renderPanel(makeFeed({ adChaptersEnabled: null }));
-    const select = await screen.findByRole('combobox', { name: NAME }) as HTMLSelectElement;
-    expect(select.value).toBe('');
-    await userEvent.selectOptions(select, 'off');
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { adChaptersEnabled: 'off' });
-  });
-
-  it('shows the global label in the inherit option', async () => {
-    renderPanel(makeFeed());
-    expect(await screen.findByRole('option', { name: 'Use global (on)' })).toBeDefined();
-  });
-
-  it('lets a feed override the chaptered categories', async () => {
-    const { rerenderWithFeed } = renderPanel(makeFeed({ adChapterCategories: null }));
-    const useGlobal = await screen.findByRole('checkbox', { name: 'Use global categories' }) as HTMLInputElement;
-    expect(useGlobal.checked).toBe(true);
-    expect(screen.queryByRole('checkbox', { name: 'Sponsor' })).toBeNull();
-
-    await userEvent.click(useGlobal);
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { adChapterCategories: GLOBAL_CATEGORIES });
-
-    rerenderWithFeed(makeFeed({ adChapterCategories: { sponsor: false } }));
-    const sponsor = await screen.findByRole('checkbox', { name: 'Sponsor' }) as HTMLInputElement;
-    expect(sponsor.checked).toBe(false);
-
-    await userEvent.click(sponsor);
-    expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { adChapterCategories: { sponsor: true } });
   });
 });

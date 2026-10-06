@@ -34,17 +34,24 @@ export const SEGMENT_CATEGORY_DESCRIPTIONS: Record<SegmentCategory, string> = {
   recap: 'Previews and coming-up bumpers',
 };
 
-export type SegmentAction = 'remove' | 'beep' | 'keep';
+export type SegmentAction = 'remove' | 'beep' | 'keep' | 'mark';
 
-export const SEGMENT_ACTIONS: SegmentAction[] = ['remove', 'beep', 'keep'];
+export const SEGMENT_ACTIONS: SegmentAction[] = ['remove', 'beep', 'keep', 'mark'];
 
 export const SEGMENT_ACTION_LABELS: Record<SegmentAction, string> = {
   remove: 'Remove',
   beep: 'Beep',
   keep: 'Keep',
+  mark: 'Mark',
 };
 
 export const DEFAULT_SEGMENT_ACTION: SegmentAction = 'remove';
+
+// Mirrors is_keep_like in src/config.py: mark behaves like keep everywhere
+// audio is concerned, differing only in whether it gets a chapter.
+export function isKeepLike(action?: string | null): boolean {
+  return action === 'keep' || action === 'mark';
+}
 
 // Filter value for markers no detection stage classified. Not a member of
 // SegmentCategory: unset is the absence of a category, not a category. Matches

@@ -19,6 +19,7 @@ import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
 import { isActionBlocked } from '../utils/processingStage';
+import { isKeepLike } from '../utils/segmentCategory';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
@@ -1263,7 +1264,7 @@ function EpisodeDetail() {
                       : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
                   </span>
                   <SegmentCategoryBadge category={segment.category} />
-                  {segment.actionApplied === 'keep' && <KeptBadge />}
+                  {isKeepLike(segment.actionApplied) && <KeptBadge action={segment.actionApplied as 'keep' | 'mark'} />}
                   {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
                     <StageBadge stage={segment.detection_stage} />
                   )}
@@ -1551,7 +1552,7 @@ function EpisodeDetail() {
                         {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                       </span>
                       <SegmentCategoryBadge category={segment.category} />
-                      {segment.actionApplied === 'keep' && <KeptBadge />}
+                      {isKeepLike(segment.actionApplied) && <KeptBadge action={segment.actionApplied as 'keep' | 'mark'} />}
                       {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
                         <StageBadge stage={segment.detection_stage} />
                       )}
@@ -1728,7 +1729,7 @@ function EpisodeDetail() {
                       {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                     </span>
                     <SegmentCategoryBadge category={segment.category} />
-                    <KeptBadge />
+                    <KeptBadge action={segment.actionApplied === 'mark' ? 'mark' : 'keep'} />
                   </div>
                 </div>
               ))}
@@ -1784,7 +1785,7 @@ function EpisodeDetail() {
                             {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                           </span>
                           <SegmentCategoryBadge category={segment.category} />
-                          {segment.actionApplied === 'keep' && <KeptBadge />}
+                          {isKeepLike(segment.actionApplied) && <KeptBadge action={segment.actionApplied as 'keep' | 'mark'} />}
                           <span className={`${badgeBase} font-medium ${tint.destructive}`}>
                             Not cut
                           </span>

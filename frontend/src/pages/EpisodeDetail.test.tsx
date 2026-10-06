@@ -1361,6 +1361,16 @@ describe('Segment category chips (#565)', () => {
     expect(screen.queryByText('Kept')).toBeNull();
   });
 
+  it('shows a Marked badge, not Kept, when actionApplied is mark', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude', category: 'sponsor', actionApplied: 'mark' }],
+    }));
+    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(screen.getByText('Marked')).not.toBeNull();
+    expect(screen.queryByText('Kept')).toBeNull();
+  });
+
   it('shows the category label on a Held for Review row', async () => {
     renderDetail(makeEpisode({
       pendingReviewMarkers: [{ ...heldMarker, category: 'self_promo' }],
@@ -1415,6 +1425,16 @@ describe('Kept segments section (2.78.3)', () => {
     expect(screen.getByText('Kept segments (1)')).not.toBeNull();
     expect(screen.getByText('Intro')).not.toBeNull();
     expect(screen.getByText('Kept')).not.toBeNull();
+  });
+
+  it('renders a Marked badge for a kept marker whose actionApplied is mark', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      keptMarkers: [{ start: 127.8, end: 140.2, confidence: 0.9, category: 'sponsor', actionApplied: 'mark' }],
+    }));
+    expect(await screen.findByTestId('kept-segments-section')).not.toBeNull();
+    expect(screen.getByText('Marked')).not.toBeNull();
+    expect(screen.queryByText('Kept')).toBeNull();
   });
 
   it('offers a play button per row when the original audio is retained', async () => {
