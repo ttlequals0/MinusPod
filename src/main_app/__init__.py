@@ -614,7 +614,7 @@ compress.init_app(app)
 # middleware stack.
 
 # Import and register API blueprint
-from api import api as api_blueprint, init_limiter
+from api import api as api_blueprint, init_limiter, limiter
 app.register_blueprint(api_blueprint)
 init_limiter(app)
 
@@ -708,6 +708,7 @@ def _apply_security_headers(response):
 # Register routes from routes module
 from main_app.routes import register_routes
 register_routes(app)
+limiter.exempt(app.view_functions['serve_ui'])
 
 # Re-export public API for downstream consumers
 from main_app.feeds import refresh_rss_feed, refresh_all_feeds, invalidate_feed_cache, get_feed_map

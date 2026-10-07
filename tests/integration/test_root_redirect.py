@@ -9,6 +9,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('rootredirect_test_', secret_key='rootredirect-test-secret')
 
 from main_app import app  # noqa: E402
+from api import limiter  # noqa: E402
 
 
 @pytest.fixture
@@ -55,3 +56,29 @@ def test_ui_manifest_revalidates(client):
 def test_ui_other_file_keeps_hourly_cache(client):
     response = client.get('/ui/logo.svg')
     assert response.headers['Cache-Control'] == 'public, max-age=3600'
+
+
+def test_ui_assets_are_exempt_from_default_rate_limit(client):
+    assert limiter.enabled
+    limiter.reset()
+    try:
+        last_manifest = None
+        for _ in range(201):
+            last_manifest = client.get('/ui/manifest.webmanifest')
+        assert last_manifest.status_code == 200
+        assert last_manifest.headers['Cache-Control'] == 'no-cache, must-revalidate'
+
+        assert client.get('/ui/index.html').status_code == 200
+        assert client.get('/ui/settings/example').status_code == 200
+        assert client.get('/ui/assets/not-a-real-asset.js').status_code == 404
+
+        last_api_response = None
+        for _ in range(201):
+            last_api_response = client.get('/api/v1/auth/status')
+        assert last_api_response.status_code == 429
+
+        for _ in range(4):
+            login_response = client.post('/api/v1/auth/login', json={})
+        assert login_response.status_code == 429
+    finally:
+        limiter.reset()
