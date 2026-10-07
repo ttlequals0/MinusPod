@@ -54,3 +54,14 @@ def test_usd_rate_rejects_stale_or_invalid_responses(payload):
 def test_usd_rate_rejects_unknown_currency_code():
     with pytest.raises(fx_rates.FxRateError):
         fx_rates.get_usd_rate('EURO')
+
+
+def test_currency_request_error_logs_type_without_upstream_details(caplog):
+    secret = 'upstream-secret-value'
+    with patch('fx_rates.get_capped', side_effect=RuntimeError(secret)):
+        with pytest.raises(fx_rates.FxRateError) as error:
+            fx_rates.get_currencies()
+
+    assert str(error.value) == 'Could not load currency data'
+    assert 'RuntimeError' in caplog.text
+    assert secret not in caplog.text

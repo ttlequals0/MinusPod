@@ -1,6 +1,7 @@
 """Frankfurter exchange-rate lookups for provider-budget display values."""
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -14,6 +15,7 @@ _MAX_RESPONSE_BYTES = 128 * 1024
 _CACHE_SECONDS = 6 * 60 * 60
 _MAX_RATE_AGE = timedelta(days=7)
 _currencies_cache: tuple[float, list[dict]] | None = None
+logger = logging.getLogger(__name__)
 
 
 class FxRateError(Exception):
@@ -84,4 +86,5 @@ def _get_json(path: str):
         )
         return json.loads(body, parse_float=Decimal)
     except Exception as exc:
+        logger.warning("Currency service request failed (%s)", type(exc).__name__)
         raise FxRateError('Could not load currency data') from exc

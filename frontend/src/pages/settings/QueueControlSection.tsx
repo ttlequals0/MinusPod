@@ -62,6 +62,7 @@ function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
   const currencies = useQuery({
     queryKey: ['provider-budget-currencies'],
     queryFn: getProviderBudgetCurrencies,
+    retry: false,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
@@ -125,11 +126,48 @@ function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
   const needsCurrentRate = preview?.currency === draft.displayCurrency && !currentRate;
   const switchPending = preview?.currency === draft.displayCurrency && !previewApplied && !rate.isError;
   const hasSelectedCurrency = currencies.data?.some((currency) => currency.code === draft.displayCurrency);
+  const showCurrencyLoadError = currencies.isError || (currencies.isPending && currencies.errorUpdatedAt > 0);
 
   return <div className="space-y-4">
     <Checkbox checked={draft.enabled} onChange={(enabled) => setDraft({ ...draft, enabled })} label="Enable provider admission controls" />
     <div className="grid gap-4 sm:grid-cols-2">
-      <div><label htmlFor="budgetCurrency" className="block text-sm font-medium text-foreground mb-1">Budget currency</label><select id="budgetCurrency" value={draft.displayCurrency} disabled={switchPending} onChange={(event) => { const currency = event.target.value; setPreviewApplied(false); setPreview({ currency, fromCurrency: draft.displayCurrency, dailyLimit: draft.dailyLimit, unknownReserve: draft.unknownReserve, fromRate: displayedRate.current.localPerUsd }); setDraft({ ...draft, displayCurrency: currency }); setBudgetDirty(true); }} className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground disabled:opacity-50 ${focusRing}`}><option value="USD">USD, US Dollar</option>{draft.displayCurrency !== 'USD' && !hasSelectedCurrency && <option value={draft.displayCurrency}>{draft.displayCurrency}</option>}{currencies.data?.filter((currency) => currency.code !== 'USD').map((currency) => <option key={currency.code} value={currency.code}>{currency.code}, {currency.name}</option>)}</select></div>
+      <div>
+        <label htmlFor="budgetCurrency" className="block text-sm font-medium text-foreground mb-1">Budget currency</label>
+        <select
+          id="budgetCurrency"
+          value={draft.displayCurrency}
+          disabled={switchPending}
+          onChange={(event) => {
+            const currency = event.target.value;
+            setPreviewApplied(false);
+            setPreview({ currency, fromCurrency: draft.displayCurrency, dailyLimit: draft.dailyLimit, unknownReserve: draft.unknownReserve, fromRate: displayedRate.current.localPerUsd });
+            setDraft({ ...draft, displayCurrency: currency });
+            setBudgetDirty(true);
+          }}
+          className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground disabled:opacity-50 ${focusRing}`}
+        >
+          <option value="USD">USD, US Dollar</option>
+          {draft.displayCurrency !== 'USD' && !hasSelectedCurrency && <option value={draft.displayCurrency}>{draft.displayCurrency}</option>}
+          {currencies.data?.filter((currency) => currency.code !== 'USD').map((currency) => (
+            <option key={currency.code} value={currency.code}>{currency.code}, {currency.name}</option>
+          ))}
+        </select>
+        {showCurrencyLoadError && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <p role="alert" className="text-sm text-destructive">
+              Could not load currency choices. USD and your saved currency are still available.
+            </p>
+            <button
+              type="button"
+              onClick={() => void currencies.refetch()}
+              disabled={currencies.isFetching}
+              className={`min-h-11 px-3 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm ${focusRing}`}
+            >
+              {currencies.isFetching ? 'Retrying...' : 'Retry'}
+            </button>
+          </div>
+        )}
+      </div>
       <div><label htmlFor="dailyBudget" className="block text-sm font-medium text-foreground mb-1">Daily limit in {draft.displayCurrency}</label><input id="dailyBudget" value={draft.dailyLimit} inputMode="decimal" disabled={needsCurrentRate} onChange={(event) => { setDraft({ ...draft, dailyLimit: event.target.value }); setBudgetDirty(true); }} className="w-full px-3 py-2 rounded-lg border border-input bg-background disabled:opacity-50" /><p className="mt-1 text-xs text-muted-foreground">0 allows unlimited daily spending.</p></div>
       <div><label htmlFor="maxReservations" className="block text-sm font-medium text-foreground mb-1">Concurrent reservations</label><NumberInput id="maxReservations" value={draft.maxReservations} min={1} max={64} fallback={1} parse={parseInt} onCommit={(maxReservations) => setDraft({ ...draft, maxReservations })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground" /></div>
     </div>

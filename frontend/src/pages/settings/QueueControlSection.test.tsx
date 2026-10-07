@@ -212,7 +212,7 @@ describe('QueueControlSection', () => {
     })));
   });
 
-  it('keeps a saved currency available when the currency list cannot load', async () => {
+  it('keeps a saved currency available and retries a failed currency list without saving', async () => {
     mocked.getProviderBudget.mockResolvedValue({
       enabled: false, dailyLimitMicrousd: 1_250_000, maxReservations: 1,
       unknownCost: 'deny', unknownReserveMicrousd: 0,
@@ -220,7 +220,10 @@ describe('QueueControlSection', () => {
       fxRate: { localPerUsd: '0.8', source: 'Frankfurter', sourceDate: '2026-09-10', fetchedAt: null },
       status: { provider: 'test', spentMicrousd: 0, reservedMicrousd: 0, activeReservations: 0 },
     });
-    mocked.getProviderBudgetCurrencies.mockRejectedValue(new Error('offline'));
+    let resolveCurrencies!: (currencies: settingsApi.CurrencyOption[]) => void;
+    mocked.getProviderBudgetCurrencies
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveCurrencies = resolve; }));
     mocked.getOfflineQueueSettings.mockResolvedValue({ enabled: false, ttlHours: 48, deferredCount: 0 });
     mocked.getRateLimitHoldSettings.mockResolvedValue({ enabled: false, holdUntil: null, llmUsageUrl: '', rateLimitProbeMinutes: 5 });
     mocked.updateProviderBudget.mockResolvedValue({
@@ -232,13 +235,25 @@ describe('QueueControlSection', () => {
     });
     renderSection();
     const user = userEvent.setup();
-    expect((await screen.findByLabelText('Budget currency') as HTMLSelectElement).value).toBe('EUR');
+    const currency = await screen.findByLabelText('Budget currency') as HTMLSelectElement;
+    expect(currency.value).toBe('EUR');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Could not load currency choices. USD and your saved currency are still available.',
+    );
     expect(mocked.getProviderBudgetRate).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Save admission settings' }));
-    await waitFor(() => expect(mocked.updateProviderBudget).toHaveBeenCalledWith({
-      enabled: false, dailyLimitMicrousd: 1_250_000, maxReservations: 1,
-      unknownCost: 'deny', unknownReserveMicrousd: 0,
-    }));
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Could not load currency choices. USD and your saved currency are still available.',
+    );
+    const retryButton = screen.getByRole('button', { name: 'Retrying...' }) as HTMLButtonElement;
+    expect(retryButton.disabled).toBe(true);
+    resolveCurrencies!([{ code: 'EUR', name: 'Euro' }]);
+    await screen.findByRole('option', { name: 'EUR, Euro' });
+    expect(currency.value).toBe('EUR');
+    expect(mocked.getProviderBudgetCurrencies).toHaveBeenCalledTimes(2);
+    expect(mocked.getProviderBudgetRate).not.toHaveBeenCalled();
+    expect(mocked.updateProviderBudget).not.toHaveBeenCalled();
   });
 
   it('preserves an unsaved cap through two currency changes', async () => {

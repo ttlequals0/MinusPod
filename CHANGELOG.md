@@ -25,8 +25,9 @@ release notes.
 - The ad editor's "By text" mode can mark several separate transcript runs as one missed ad: "Add another span" freezes the current selection as a removable chip, and Save submits one correction per span in time order.
 
 ### Fixed
-- Pattern, sponsor, and normalization APIs return boolean active flags. OpenAPI nullability and detection stages now match the response formats.
+- Currency lookup failures now show a retry action without resetting saved choices. Currency list requests no longer go through two automatic retry layers, and errors are logged without exposing upstream details.
 - Search-index statistics use indexed content-type counts instead of scanning stored documents.
+- Pattern, sponsor, and normalization APIs return boolean active flags. OpenAPI nullability and detection stages now match the response formats.
 - Multi-span ad saves retain successful spans across retries and selection changes, lock edits during submission, and remove the unused multi-span template editor.
 - The episode ad editor preserves detected categories, and its controls and segment-action toggles meet the mobile touch-target size.
 - Documented Mark and multi-span editing in the glossary, cursor pagination for cleanup reviews, and the current segment-action API contracts.

@@ -2,6 +2,7 @@ from tests.app_bootstrap import bootstrap
 from decimal import Decimal
 from unittest.mock import patch
 
+import fx_rates
 from fx_rates import FxRate, FxRateError
 
 
@@ -69,6 +70,25 @@ def test_provider_budget_rejects_zero_unknown_reservation(app_client):
         'unknownReserveMicrousd': 0,
     })
     assert response.status_code == 400
+
+
+def test_provider_budget_currency_failure_does_not_expose_upstream_error(
+        app_client, monkeypatch, caplog):
+    secret = 'upstream-secret-value'
+
+    def fail_upstream(*args, **kwargs):
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr(fx_rates, '_currencies_cache', None)
+    monkeypatch.setattr(fx_rates, 'get_capped', fail_upstream)
+
+    response = app_client.get('/api/v1/settings/provider-budget/currencies')
+
+    assert response.status_code == 503
+    assert response.get_json() == {'error': 'Could not load currency data', 'status': 503}
+    assert 'RuntimeError' in caplog.text
+    assert secret not in caplog.text
+    assert secret not in response.get_data(as_text=True)
 
 
 def test_provider_budget_converts_local_amounts_and_records_rate(app_client, temp_db):

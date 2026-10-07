@@ -101,7 +101,7 @@ export async function updateProviderBudget(
 }
 
 export async function getProviderBudgetCurrencies(): Promise<CurrencyOption[]> {
-  const result = await apiRequest<{ currencies: CurrencyOption[] }>('/settings/provider-budget/currencies');
+  const result = await apiRequest<{ currencies: CurrencyOption[] }>('/settings/provider-budget/currencies', { skipRetry: true });
   return result.currencies;
 }
 
