@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import CollapsibleSection, { useSectionVisible } from './CollapsibleSection';
+import CollapsibleSection, { useCollapsibleOpen, useSectionVisible } from './CollapsibleSection';
 import { SettingsBulkCollapseProvider } from '../context/SettingsBulkCollapseContext';
 import { SettingsSearchContext } from '../context/SettingsSearchContext';
 
@@ -33,6 +33,47 @@ describe('section query visibility', () => {
       </SettingsSearchContext.Provider>,
     );
     expect(screen.getByText('false')).toBeTruthy();
+  });
+});
+
+describe('storageKey changes without a remount (e.g. SPA nav across /feeds/:slug)', () => {
+  it('useCollapsibleOpen re-reads the new key instead of carrying the old key\'s value', () => {
+    localStorage.setItem('feed-a', JSON.stringify(true));
+    localStorage.setItem('feed-b', JSON.stringify(false));
+
+    function Mirror({ storageKey }: { storageKey: string }) {
+      const [open] = useCollapsibleOpen(storageKey);
+      return <span>{String(open)}</span>;
+    }
+
+    const { rerender } = render(<Mirror storageKey="feed-a" />);
+    expect(screen.getByText('true')).toBeTruthy();
+
+    // Same component instance, no remount -- mirrors a slug prop change.
+    rerender(<Mirror storageKey="feed-b" />);
+    expect(screen.getByText('false')).toBeTruthy();
+  });
+
+  it('CollapsibleSection itself re-reads its own persisted open state on a storageKey change', () => {
+    localStorage.setItem('feed-a-cues', JSON.stringify(true));
+    localStorage.setItem('feed-b-cues', JSON.stringify(false));
+
+    const { rerender } = render(
+      <CollapsibleSection title="Audio Cue Templates" storageKey="feed-a-cues" defaultOpen={false} unmountWhenClosed>
+        <div>content</div>
+      </CollapsibleSection>,
+    );
+    expect(screen.getByText('content')).toBeTruthy();
+
+    rerender(
+      <CollapsibleSection title="Audio Cue Templates" storageKey="feed-b-cues" defaultOpen={false} unmountWhenClosed>
+        <div>content</div>
+      </CollapsibleSection>,
+    );
+    expect(screen.queryByText('content')).toBeNull();
+
+    // The re-seed must not clobber feed-b's own stored value with feed-a's.
+    expect(JSON.parse(localStorage.getItem('feed-b-cues') ?? 'null')).toBe(false);
   });
 });
 

@@ -32,6 +32,20 @@ export function useLocalStorageState<T>(
 ): [T, (value: T | ((prev: T) => T)) => void] {
   const [value, setValue] = useState<T>(() => readStoredValue(key, defaultValue));
 
+  // The lazy initializer above only runs on mount. A component reused across
+  // a changing key without remounting (e.g. CollapsibleSection across
+  // /feeds/:slug) must re-seed from the new key's own persisted value
+  // instead of carrying the previous key's state forward. Adjusted during
+  // render (React's documented pattern for this) rather than in an effect,
+  // so the corrected value is already in place for any hook called later in
+  // this same render (e.g. a useQuery `enabled` flag) -- an effect-based
+  // resync would still fire that hook once with the stale value first.
+  const [prevKey, setPrevKey] = useState(key);
+  if (key !== prevKey) {
+    setPrevKey(key);
+    setValue(readStoredValue(key, defaultValue));
+  }
+
   useEffect(() => {
     try {
       localStorage.setItem(key, JSON.stringify(value));

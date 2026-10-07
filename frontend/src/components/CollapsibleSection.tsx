@@ -27,6 +27,17 @@ export function useCollapsibleOpen(
   const [open, setOpen] = useState(
     () => readStoredValue<boolean>(storageKey, defaultOpen) === true,
   );
+  // The lazy initializer above only runs on mount. A host reused across a
+  // changing storageKey (e.g. CueTemplatesPanel across /feeds/:slug without
+  // a remount) must re-seed from the new key's own persisted value instead
+  // of carrying the previous key's state forward. Adjusted during render
+  // (not in an effect) so a query `enabled` flag computed later in this
+  // same render already sees the corrected value.
+  const [prevKey, setPrevKey] = useState(storageKey);
+  if (storageKey !== prevKey) {
+    setPrevKey(storageKey);
+    setOpen(readStoredValue<boolean>(storageKey, defaultOpen) === true);
+  }
   return [open, setOpen];
 }
 

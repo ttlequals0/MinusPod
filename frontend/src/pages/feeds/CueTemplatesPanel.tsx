@@ -370,12 +370,15 @@ function CueTemplatesPanel({ slug }: Props) {
             {verifyState.matched === 0 ? ' No matches yet - it may not recur, or the bracket is loose.' : ''}
           </p>
         )}
-        {templatesQuery.isLoading && <LoadingSpinner size="sm" className="my-2" />}
-        {templatesQuery.error && (
+        {panelOpen && templatesQuery.isLoading && <LoadingSpinner size="sm" className="my-2" />}
+        {panelOpen && templatesQuery.error && (
           <p className="text-sm text-destructive">Could not load cue templates.</p>
         )}
 
-        {!templatesQuery.isLoading && templates.length === 0 && (
+        {/* Gated on panelOpen too: while collapsed the query is disabled
+            (isLoading reads false), so without this the empty state would
+            render even though no fetch has actually run. */}
+        {panelOpen && !templatesQuery.isLoading && templates.length === 0 && (
           <p className="text-sm text-muted-foreground">
             No cues yet. Mark one to start.
           </p>

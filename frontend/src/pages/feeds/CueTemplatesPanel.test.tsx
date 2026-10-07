@@ -135,6 +135,26 @@ function renderPanel() {
   );
 }
 
+// Same QueryClientProvider instance across a rerender with a different
+// slug, so CueTemplatesPanel is reused rather than remounted -- the
+// shape of an in-app navigation between /feeds/:slug pages.
+function renderPanelFor(slug: string) {
+  const client = makeClient();
+  const result = render(
+    <QueryClientProvider client={client}>
+      <CueTemplatesPanel slug={slug} />
+    </QueryClientProvider>,
+  );
+  return {
+    ...result,
+    navigateTo: (nextSlug: string) => result.rerender(
+      <QueryClientProvider client={client}>
+        <CueTemplatesPanel slug={nextSlug} />
+      </QueryClientProvider>,
+    ),
+  };
+}
+
 function makeEpisode(id: string, title: string, hasOriginalAudio = true): Episode {
   return {
     id,
@@ -750,5 +770,34 @@ describe('Network-scope template whose network no longer matches the feed', () =
     await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
     expect(screen.queryByText(/Shared on network/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Make podcast-only' })).toBeDefined();
+  });
+});
+
+describe('SPA navigation between feeds without a remount', () => {
+  it('re-reads the new feed\'s own persisted open state instead of carrying the previous feed\'s', async () => {
+    localStorage.setItem('feed-cue-templates-feed-a', 'true');
+    localStorage.setItem('feed-cue-templates-feed-b', 'false');
+    mockListCueTemplates.mockImplementation((slug: string) =>
+      Promise.resolve(slug === 'feed-a' ? [makeTemplate({ id: 1, label: 'From A' })] : []));
+
+    const { navigateTo } = renderPanelFor('feed-a');
+    await waitFor(() => expect(mockListCueTemplates).toHaveBeenCalledWith('feed-a'));
+    await screen.findByText('From A');
+
+    mockListCueTemplates.mockClear();
+    navigateTo('feed-b');
+
+    // feed-b's own persisted state is closed; the query must stay disabled
+    // instead of inheriting feed-a's open state.
+    await waitFor(() => expect(screen.queryByText('From A')).toBeNull());
+    expect(mockListCueTemplates).not.toHaveBeenCalled();
+  });
+
+  it('never shows "No cues yet" for a collapsed panel whose query is simply disabled', async () => {
+    localStorage.setItem('feed-cue-templates-feed-c', 'false');
+    renderPanelFor('feed-c');
+
+    await waitFor(() => expect(mockListCueTemplates).not.toHaveBeenCalled());
+    expect(screen.queryByText(/No cues yet/)).toBeNull();
   });
 });
