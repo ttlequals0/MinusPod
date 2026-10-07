@@ -16,6 +16,7 @@ release notes.
 - Visiting the server root redirects to the web UI. (#808)
 - Export selected feeds as OPML from the Feeds page. (#810)
 - Choose Podcasts or Episodes from an icon menu in the mobile dashboard toolbar.
+- Dashboard episode rows have an Actions menu with a confirmed Delete for downloaded audio; episode records and processing history remain, and original audio uploaded to local feeds is kept. (#822)
 - Provider failover for LLM and transcription: a standby provider with its own key, endpoint, timeout, retries, and per-stage models takes over when the active one is unreachable, times out, returns a 5xx, or rejects the key, model, or billing. A failing call or transcription chunk moves onto it mid-run; health probes run on a configurable interval and switch back after a configurable number of healthy probes; failover can also be triggered and cancelled by hand from Settings or the API. (#806)
 - Per-provider LLM request timeout and max retries for Provider A, Provider B, and the failover provider, and a max upload attempts setting for the transcription API.
 - Webhook and email events for failover triggered and cancelled.

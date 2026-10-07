@@ -90,7 +90,7 @@ The dashboard toolbar has a Podcasts / Episodes switch. On mobile, an icon menu 
 
 The View menu sets how many episodes each podcast section shows, from 1 to 10, defaulting to 3. Both the chosen view and the chosen count are remembered in the browser, so the dashboard opens the way you left it.
 
-Episode rows in this view are the same rows the feed page renders, with the same status badge, hold chip, pass-through indicator, and per-row action button, so nothing is lost by staying on the dashboard. The Recents feed is left out of the grouped view: its episodes belong to the shows they came from, so it would always render empty.
+Episode rows show the same status badge, hold chip, and pass-through indicator as the feed page. Each dashboard row adds an Actions menu with Process or Reprocess and Full Analysis. For processed episodes that are not busy, Delete removes downloaded audio and resets the episode to Discovered while preserving its record and processing history. Original audio uploaded to local feeds is kept. The Recents feed is left out of the grouped view: its episodes belong to the shows they came from, so it would always render empty.
 
 One request loads the episode groups rather than one request per show, and the dashboard asks for one page of feeds at a time rather than the whole subscription list. Sorting happens on the server before the page is cut, so a page is a slice of the sorted list rather than a sorted slice; changing the sort returns you to page one. Only the active view is fetched: the Podcasts grid never pays for the episode projection, and the Episodes view never fetches a second bare feed list. Screens that need every feed, such as the podcast pickers on Stats, History and Patterns, keep their own unpaginated request.
 

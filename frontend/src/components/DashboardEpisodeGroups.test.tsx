@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import DashboardEpisodeGroups, { clampEpisodesPerPodcast } from './DashboardEpisodeGroups';
@@ -101,7 +102,8 @@ describe('DashboardEpisodeGroups', () => {
     expect(link.querySelector('span')?.getAttribute('class')).toContain('hidden sm:inline');
   });
 
-  it('disables a queued row action while a sibling row stays actionable, keeping both action labels stable', () => {
+  it('disables a queued Actions menu while a sibling row stays actionable', async () => {
+    const user = userEvent.setup();
     const feed: Feed = {
       slug: 'show-e', title: 'Show E', sourceUrl: 'https://example.com/e.xml', feedUrl: 'https://example.com/e.xml',
       episodeCount: 2,
@@ -111,12 +113,15 @@ describe('DashboardEpisodeGroups', () => {
       ],
     };
     renderGroups([feed]);
-    // status !== 'completed' for e1, so its action label stays "Process",
-    // not a state word, while it is disabled for being queued.
-    const queuedButton = screen.getByText('Process').closest('button') as HTMLButtonElement;
+    const queuedRow = screen.getByText('Episode e1').closest('div.relative') as HTMLElement;
+    const queuedButton = within(queuedRow).getByRole('button', { name: 'Actions' }) as HTMLButtonElement;
     expect(queuedButton.disabled).toBe(true);
-    const idleButton = screen.getByText('Reprocess').closest('button') as HTMLButtonElement;
+    const idleRow = screen.getByText('Episode e2').closest('div.relative') as HTMLElement;
+    const idleButton = within(idleRow).getByRole('button', { name: 'Actions' }) as HTMLButtonElement;
     expect(idleButton.disabled).toBe(false);
+    await user.click(idleButton);
+    expect(screen.getByRole('menuitem', { name: /Reprocess/ })).toBeTruthy();
+    await user.keyboard('{Escape}');
   });
 
   it('collapses a podcast section, hiding its episodes, and persists the choice', async () => {
@@ -184,10 +189,17 @@ describe('DashboardEpisodeGroups: projection fields', () => {
     expect(screen.getByTitle('Transcription timed out')).toBeTruthy();
   });
 
-  it('labels the row action from hasBeenProcessed', () => {
+  it('offers Process or Reprocess from hasBeenProcessed', async () => {
+    const user = userEvent.setup();
     renderGroups([feed]);
-    expect(screen.getByText('Reprocess')).toBeTruthy();
-    expect(screen.getByText('Process')).toBeTruthy();
+    const processedRow = screen.getByText('Episode held').closest('div.relative') as HTMLElement;
+    await user.click(within(processedRow).getByRole('button', { name: 'Actions' }));
+    expect(screen.getByRole('menuitem', { name: /Reprocess/ })).toBeTruthy();
+    await user.keyboard('{Escape}');
+    const unprocessedRow = screen.getByText('Episode broken').closest('div.relative') as HTMLElement;
+    await user.click(within(unprocessedRow).getByRole('button', { name: 'Actions' }));
+    expect(screen.getByRole('menuitem', { name: /^Process/ })).toBeTruthy();
+    await user.keyboard('{Escape}');
   });
 
   it('gives the artwork link an accessible name', () => {
