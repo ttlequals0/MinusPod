@@ -49,7 +49,7 @@ describe('storageKey changes without a remount (e.g. SPA nav across /feeds/:slug
     const { rerender } = render(<Mirror storageKey="feed-a" />);
     expect(screen.getByText('true')).toBeTruthy();
 
-    // Same component instance, no remount -- mirrors a slug prop change.
+    // Reuse the instance to match navigation to another feed.
     rerender(<Mirror storageKey="feed-b" />);
     expect(screen.getByText('false')).toBeTruthy();
   });

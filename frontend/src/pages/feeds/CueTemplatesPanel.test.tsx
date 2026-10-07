@@ -135,9 +135,7 @@ function renderPanel() {
   );
 }
 
-// Same QueryClientProvider instance across a rerender with a different
-// slug, so CueTemplatesPanel is reused rather than remounted -- the
-// shape of an in-app navigation between /feeds/:slug pages.
+// Keep the provider mounted while switching feeds.
 function renderPanelFor(slug: string) {
   const client = makeClient();
   const result = render(

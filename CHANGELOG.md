@@ -26,6 +26,7 @@ release notes.
 - The ad editor's "By text" mode can mark several separate transcript runs as one missed ad: "Add another span" freezes the current selection as a removable chip, and Save submits one correction per span in time order.
 
 ### Fixed
+- Feed panels restore their saved expansion state when navigating between feeds.
 - Static UI assets are exempt from the app-wide rate limiter, so reloads do not blank the interface.
 - Currency lookup failures now show a retry action without resetting saved choices. Currency list requests no longer go through two automatic retry layers, and errors are logged without exposing upstream details.
 - Search-index statistics use indexed content-type counts instead of scanning stored documents.
