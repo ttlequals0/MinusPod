@@ -262,25 +262,32 @@ function TextSelectionPanel({
     return { startIdx: Math.min(a, b), endIdx: Math.max(a, b) };
   };
 
-  const commitSelection = () => {
-    if (disabledRef.current) return;
+  // Pure: resolves the browser's live Selection into {start, end, text}
+  // without touching React state, so freezeCurrentRun can call it directly
+  // for the freshest value instead of trusting adStart/adEnd/currentText,
+  // which the deferred mouseup commit below may not have applied yet.
+  const resolveCurrentSelection = (): TextRun | null => {
     const resolved = resolveSelection();
-    if (!resolved) return;
+    if (!resolved) return null;
     const words = flatWordsRef.current;
     const first = words[resolved.startIdx];
     const last = words[resolved.endIdx];
-    if (!first || !last) return;
+    if (!first || !last) return null;
     const text = words
       .slice(resolved.startIdx, resolved.endIdx + 1)
       .map((w) => w.word.trim())
       .filter(Boolean)
       .join(' ');
-    setCurrentText(text);
-    onSelectionChange(first.start, last.end, text);
-    onRunsChangeRef.current([
-      ...frozenRunsRef.current,
-      { start: first.start, end: last.end, text },
-    ]);
+    return { start: first.start, end: last.end, text };
+  };
+
+  const commitSelection = () => {
+    if (disabledRef.current) return;
+    const current = resolveCurrentSelection();
+    if (!current) return;
+    setCurrentText(current.text);
+    onSelectionChange(current.start, current.end, current.text);
+    onRunsChangeRef.current([...frozenRunsRef.current, current]);
   };
 
   // Commit on mouseup/touchend, scoped to the transcript root so unrelated
@@ -348,9 +355,17 @@ function TextSelectionPanel({
   // selection so the next drag starts a fresh one. Runs within
   // MERGE_GAP_SECONDS of each other collapse into one at this point.
   const freezeCurrentRun = () => {
-    if (!hasSelection) return;
+    // Re-resolve the live selection first: a mouseup's commit is deferred
+    // one tick (setTimeout 0), so a freeze click fired before that tick
+    // runs would otherwise read adStart/adEnd/currentText before they
+    // caught up, freezing a stale (or still-default, empty-text) selection.
+    // Falls back to the already-committed state once the selection itself
+    // is gone (e.g. a second freeze click with nothing newly selected).
+    const current = resolveCurrentSelection()
+      ?? (hasSelection ? { start: adStart, end: adEnd, text: currentText } : null);
+    if (!current) return;
     const merged = mergeRuns(
-      [...frozenRunsRef.current, { start: adStart, end: adEnd, text: currentText }],
+      [...frozenRunsRef.current, current],
       flatWords,
       savedKeys,
     );
