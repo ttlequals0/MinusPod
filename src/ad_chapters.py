@@ -48,6 +48,7 @@ class AdChapterConfig:
 
 def refresh_keep_like_markers(markers, actions) -> list[dict]:
     """Re-resolve marker actions from current feed config; held markers use AdChapterConfig."""
+    # Lets a Keep/Mark category switch apply on the next chapter rebuild, no episode re-render needed.
     refreshed = []
     for marker in markers or []:
         resolved = refreshed_keep_like_action(marker, actions)

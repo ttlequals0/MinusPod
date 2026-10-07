@@ -2196,6 +2196,7 @@ def apply_ad_chapter_compat(resolved: dict[str, str], data: dict,
                             allow_null: bool = False) -> tuple[dict[str, str] | None, str | None]:
     """Translate legacy chapter settings to keep/mark actions; `allow_null` treats cleared fields as absent."""
     if 'adChaptersEnabled' not in data and 'adChapterCategories' not in data:
+        # None (not {}) tells the caller neither field was sent, vs. sent-but-unchanged.
         return None, None
 
     working = dict(resolved)

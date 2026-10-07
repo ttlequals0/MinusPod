@@ -130,6 +130,7 @@ class PatternCleanupMixin:
         if before_id is not None:
             query += " AND s.id < ?"
             params.append(int(before_id))
+        # Sort by id alone so cursor, offset and sort agree.
         query += " ORDER BY s.id DESC LIMIT ?"
         params.append(int(limit))
         if before_id is None:

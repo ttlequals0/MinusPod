@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { formatTime } from '../../utils/adReviewHelpers';
-import TextSelectionPanel, { type TextRun } from './TextSelectionPanel';
+import TextSelectionPanel, { runKey, type TextRun } from './TextSelectionPanel';
 
 // vi.mock factories are hoisted above the file's top-level consts, so the
 // fixture lives inside vi.hoisted to avoid a use-before-initialization error.
@@ -43,10 +43,12 @@ function Harness({
   onRunsChange,
   onSelectionChange,
   disabled = false,
+  savedKeys,
 }: {
   onRunsChange: (runs: TextRun[]) => void;
   onSelectionChange: (start: number, end: number, text: string) => void;
   disabled?: boolean;
+  savedKeys?: Set<string>;
 }) {
   const [adStart, setAdStart] = useState(0);
   const [adEnd, setAdEnd] = useState(0);
@@ -67,6 +69,7 @@ function Harness({
       }}
       onRunsChange={onRunsChange}
       disabled={disabled}
+      savedKeys={savedKeys}
       playbackRate={playbackRate}
       setPlaybackRate={setPlaybackRate}
     />
@@ -224,6 +227,33 @@ describe('TextSelectionPanel run list', () => {
     ]);
     expect(screen.getByText('0:00.0 - 0:06.1')).toBeTruthy();
     expect(screen.queryByText('0:00.0 - 0:02.9')).toBeNull();
+  });
+
+  it('does not merge a new span into an already-saved run, even within the gap', async () => {
+    const onRunsChange = vi.fn();
+    const onSelectionChange = vi.fn();
+    const savedKeys = new Set([runKey({ start: 0, end: 2.9, text: 'alpha bravo charlie' })]);
+    const { container } = render(
+      <Harness
+        onRunsChange={onRunsChange}
+        onSelectionChange={onSelectionChange}
+        savedKeys={savedKeys}
+      />,
+    );
+    await waitForTranscript(container);
+    const user = userEvent.setup();
+
+    await selectWords(container, 0, 2); // run A: 0 - 2.9, already saved
+    await user.click(screen.getByRole('button', { name: 'Add another span' }));
+    await selectWords(container, 3, 5); // run B: 3.2 - 6.1, 0.3s gap from A
+    await user.click(screen.getByRole('button', { name: 'Add another span' }));
+
+    // Without the saved-run guard this would merge into a single
+    // 0 - 6.1 run, re-covering the already-saved 0 - 2.9 range.
+    expect(onRunsChange).toHaveBeenLastCalledWith([
+      { start: 0, end: 2.9, text: 'alpha bravo charlie' },
+      { start: 3.2, end: 6.1, text: 'delta echo foxtrot' },
+    ]);
   });
 
   it('replaces the current (unfrozen) run on a new selection without touching frozen runs', async () => {

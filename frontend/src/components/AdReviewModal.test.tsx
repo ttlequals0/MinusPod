@@ -32,6 +32,7 @@ type MockRun = { start: number; end: number; text: string };
 // the double just needs to call onRunsChange with whatever the test wants,
 // so these tests stay focused on AdReviewModal's own submit/label logic.
 vi.mock('./ad-editor/TextSelectionPanel', () => ({
+  runKey: (run: MockRun) => JSON.stringify([run.start, run.end, run.text]),
   default: ({ onRunsChange, onSelectionChange, disabled = false }: {
     onRunsChange: (runs: MockRun[]) => void;
     onSelectionChange: (start: number, end: number, text: string) => void;
@@ -283,6 +284,25 @@ describe('AdReviewModal multi-span submission', () => {
     expect(onSkip).not.toHaveBeenCalled();
     resolveCreate?.();
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2));
+  });
+
+  it('disables the boundary inputs once a run is saved, even after submission ends', async () => {
+    const onCreate = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('save failed'));
+    renderModal({ mode: 'create', onCreate });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'By text' }));
+    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+    await user.type(screen.getByLabelText(/Sponsor name/), 'Acme');
+    await user.click(screen.getByRole('button', { name: 'Mark ad (2 spans)' }));
+
+    await waitFor(() => expect(screen.getByText(/Failed to save/)).toBeTruthy());
+
+    // The saved run's template is locked (hasSavedRun); the boundary inputs
+    // must follow or nudging them flips Done back to Save and re-submits.
+    expect(screen.getByLabelText('Selection start time').hasAttribute('disabled')).toBe(true);
+    expect(screen.getByLabelText('Selection end time').hasAttribute('disabled')).toBe(true);
   });
 });
 

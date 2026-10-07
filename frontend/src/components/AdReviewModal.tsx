@@ -12,7 +12,7 @@ import { Pin } from './ad-editor/Pin';
 import { usePeaks } from './ad-editor/usePeaks';
 import { usePeakSlice } from './ad-editor/usePeakSlice';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
-import TextSelectionPanel, { type TextRun } from './ad-editor/TextSelectionPanel';
+import TextSelectionPanel, { type TextRun, runKey } from './ad-editor/TextSelectionPanel';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
 import { edgeBtn, ghostBtn, primaryBtn } from './ad-editor/controlStyles';
@@ -80,9 +80,8 @@ export interface AdCreateSubmit {
 
 type RunStatus = 'pending' | 'saved' | 'failed';
 
-function runStatusKey(run: TextRun): string {
-  return JSON.stringify([run.start, run.end, run.text]);
-}
+// Same key format TextSelectionPanel uses, so saved-run lookups agree.
+const runStatusKey = runKey;
 
 interface Props {
   item: AdReviewItem;
@@ -321,6 +320,10 @@ function AdReviewModal({
   const isMultiSpan = orderedRuns.length > 1;
   const hasSavedRun = [...runStatusByKey.values()].includes('saved');
   const lockMultiFields = multiSubmitting || hasSavedRun;
+  const savedRunKeys = useMemo(
+    () => new Set([...runStatusByKey].filter(([, status]) => status === 'saved').map(([key]) => key)),
+    [runStatusByKey],
+  );
   const shortRun = isMultiSpan
     ? orderedRuns.find((r) => r.text.trim().length < 50)
     : undefined;
@@ -1158,6 +1161,7 @@ function AdReviewModal({
               textTemplateFromSelectionRef.current = true;
             }}
             onRunsChange={setRuns}
+            savedKeys={savedRunKeys}
             disabled={multiSubmitting}
             playbackRate={playbackRate}
             setPlaybackRate={setPlaybackRate}
@@ -1350,7 +1354,7 @@ function AdReviewModal({
             <span>Selection:</span>
             <input
               ref={startInputRef}
-              disabled={multiSubmitting}
+              disabled={lockMultiFields}
               type="text"
               inputMode="decimal"
               value={startInput}
@@ -1364,7 +1368,7 @@ function AdReviewModal({
             <span>-</span>
             <input
               ref={endInputRef}
-              disabled={multiSubmitting}
+              disabled={lockMultiFields}
               type="text"
               inputMode="decimal"
               value={endInput}

@@ -34,7 +34,12 @@ interface Props {
   playbackRate: number;
   setPlaybackRate: (r: number) => void;
   disabled?: boolean;
+  // Keys (via runKey) of runs the host has already saved. Fixed in the merge
+  // step so a retry can't re-cover a saved range.
+  savedKeys?: Set<string>;
 }
+
+const EMPTY_SAVED_KEYS = new Set<string>();
 
 interface FlatWord extends TranscriptWord {
   globalIndex: number; // position across all segments, for selection math
@@ -43,6 +48,11 @@ interface FlatWord extends TranscriptWord {
 // Runs this close in time collapse into one on freeze.
 const MERGE_GAP_SECONDS = 1;
 const chipClass = `${badgeBase} inline-flex items-center gap-1.5 border border-border bg-background text-foreground`;
+
+// Shared with AdReviewModal so saved-run lookups use an identical key.
+export function runKey(run: TextRun): string {
+  return JSON.stringify([run.start, run.end, run.text]);
+}
 
 function textForRange(words: FlatWord[], start: number, end: number): string {
   return words
@@ -53,13 +63,20 @@ function textForRange(words: FlatWord[], start: number, end: number): string {
 }
 
 // Re-derives merged text from the transcript rather than concatenating the
-// source runs, so an overlap doesn't duplicate words.
-function mergeRuns(runs: TextRun[], words: FlatWord[]): TextRun[] {
+// source runs, so an overlap doesn't duplicate words. A saved run is treated
+// as fixed: it never absorbs a neighbor and never gets absorbed, so a retry
+// after a partial failure can't silently re-cover an already-saved range.
+function mergeRuns(runs: TextRun[], words: FlatWord[], savedKeys: Set<string>): TextRun[] {
   const sorted = [...runs].sort((a, b) => a.start - b.start);
   const merged: TextRun[] = [];
   for (const run of sorted) {
     const last = merged[merged.length - 1];
-    if (last && run.start <= last.end + MERGE_GAP_SECONDS) {
+    const canMerge =
+      last &&
+      !savedKeys.has(runKey(last)) &&
+      !savedKeys.has(runKey(run)) &&
+      run.start <= last.end + MERGE_GAP_SECONDS;
+    if (canMerge) {
       last.end = Math.max(last.end, run.end);
       last.text = textForRange(words, last.start, last.end);
     } else {
@@ -93,6 +110,7 @@ function TextSelectionPanel({
   playbackRate,
   setPlaybackRate,
   disabled = false,
+  savedKeys = EMPTY_SAVED_KEYS,
 }: Props) {
   const [frozenRuns, setFrozenRuns] = useState<TextRun[]>([]);
   const [currentText, setCurrentText] = useState('');
@@ -334,6 +352,7 @@ function TextSelectionPanel({
     const merged = mergeRuns(
       [...frozenRunsRef.current, { start: adStart, end: adEnd, text: currentText }],
       flatWords,
+      savedKeys,
     );
     setFrozenRunsSynced(merged);
     if (merged.length === 1) {
