@@ -9,6 +9,19 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.98.1] - 2026-10-07
+
+### Added
+- Dashboard episode rows have an Actions menu with a confirmed Delete for downloaded audio; episode records and processing history remain, and original audio uploaded to local feeds is kept. (#822)
+
+### Fixed
+- In the ad editor's text mode, adding a second span right after selecting the first no longer drops the first span's text, so multi-span mark ad can save.
+- Feed panels restore their saved expansion state when navigating between feeds.
+- Static UI assets are exempt from the app-wide rate limiter, so reloads do not blank the interface.
+- Currency lookup failures now show a retry action without resetting saved choices. Currency list requests no longer go through two automatic retry layers, and errors are logged without exposing upstream details.
+- Search-index statistics use indexed content-type counts instead of scanning stored documents.
+- Pattern, sponsor, and normalization APIs return boolean active flags. OpenAPI nullability and detection stages now match the response formats.
+
 ## [2.98.0] - 2026-10-06
 
 ### Added
@@ -16,7 +29,6 @@ release notes.
 - Visiting the server root redirects to the web UI. (#808)
 - Export selected feeds as OPML from the Feeds page. (#810)
 - Choose Podcasts or Episodes from an icon menu in the mobile dashboard toolbar.
-- Dashboard episode rows have an Actions menu with a confirmed Delete for downloaded audio; episode records and processing history remain, and original audio uploaded to local feeds is kept. (#822)
 - Provider failover for LLM and transcription: a standby provider with its own key, endpoint, timeout, retries, and per-stage models takes over when the active one is unreachable, times out, returns a 5xx, or rejects the key, model, or billing. A failing call or transcription chunk moves onto it mid-run; health probes run on a configurable interval and switch back after a configurable number of healthy probes; failover can also be triggered and cancelled by hand from Settings or the API. (#806)
 - Per-provider LLM request timeout and max retries for Provider A, Provider B, and the failover provider, and a max upload attempts setting for the transcription API.
 - Webhook and email events for failover triggered and cancelled.
@@ -26,11 +38,6 @@ release notes.
 - The ad editor's "By text" mode can mark several separate transcript runs as one missed ad: "Add another span" freezes the current selection as a removable chip, and Save submits one correction per span in time order.
 
 ### Fixed
-- Feed panels restore their saved expansion state when navigating between feeds.
-- Static UI assets are exempt from the app-wide rate limiter, so reloads do not blank the interface.
-- Currency lookup failures now show a retry action without resetting saved choices. Currency list requests no longer go through two automatic retry layers, and errors are logged without exposing upstream details.
-- Search-index statistics use indexed content-type counts instead of scanning stored documents.
-- Pattern, sponsor, and normalization APIs return boolean active flags. OpenAPI nullability and detection stages now match the response formats.
 - Multi-span ad saves retain successful spans across retries and selection changes, lock edits during submission, and remove the unused multi-span template editor.
 - The episode ad editor preserves detected categories, and its controls and segment-action toggles meet the mobile touch-target size.
 - Documented Mark and multi-span editing in the glossary, cursor pagination for cleanup reviews, and the current segment-action API contracts.
