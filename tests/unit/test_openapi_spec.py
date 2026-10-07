@@ -292,3 +292,20 @@ def test_every_stage_tunable_is_documented():
         assert payload_key in put_props, payload_key
     entry = doc['components']['schemas']['Settings']['properties']['stageTunables']['additionalProperties']
     assert set(entry['properties']) == {'value', 'isDefault', 'envOverride'}
+
+
+def test_openapi_31_uses_json_schema_nullability():
+    doc = yaml.safe_load(SPEC_PATH.read_text())
+
+    def check_schema(node):
+        if isinstance(node, dict):
+            assert 'nullable' not in node, 'OpenAPI 3.1 requires null in type or anyOf'
+            if isinstance(node.get('type'), list) and 'null' in node['type'] and 'enum' in node:
+                assert None in node['enum']
+            for value in node.values():
+                check_schema(value)
+        elif isinstance(node, list):
+            for value in node:
+                check_schema(value)
+
+    check_schema(doc)

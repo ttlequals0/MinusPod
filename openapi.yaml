@@ -2002,7 +2002,7 @@ paths:
                 properties:
                   episodeId: { type: string }
                   start: { type: number }
-                  end: { type: number, nullable: true }
+                  end: {type: [number, 'null']}
                   resolutionMs: { type: integer }
                   peaks:
                     type: array
@@ -2107,7 +2107,7 @@ paths:
                         start: { type: number }
                         end: { type: number }
                         text: { type: string }
-                        sponsor: { type: string, nullable: true }
+                        sponsor: {type: [string, 'null']}
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -3871,7 +3871,7 @@ paths:
                         scope:
                           type: string
                         podcast_name:
-                          type: string
+                          type: [string, 'null']
                         created_at:
                           type: string
                         text_preview:
@@ -3930,9 +3930,9 @@ paths:
                         sponsor:
                           type: string
                         podcast_id:
-                          type: string
+                          type: [string, 'null']
                         podcast_name:
-                          type: string
+                          type: [string, 'null']
                         template_len:
                           type: integer
                         confirmation_count:
@@ -4051,11 +4051,9 @@ paths:
                       type: object
                       properties:
                         sponsor_id:
-                          type: integer
-                          nullable: true
+                          type: [integer, 'null']
                         sponsor:
-                          type: string
-                          nullable: true
+                          type: [string, 'null']
                         suggested_keep_id:
                           type: integer
                           description: Keep-target chosen by the tiebreaker
@@ -5474,7 +5472,7 @@ paths:
             schema:
               type: object
               properties:
-                apiKey:  { type: string, nullable: true, description: 'Omit to leave unchanged; null or empty to clear' }
+                apiKey:  {type: [string, 'null'], description: Omit to leave unchanged; null or empty to clear}
                 baseUrl: { type: string }
                 model:   { type: string }
                 affectedRunsAction:
@@ -6475,10 +6473,9 @@ paths:
                     per-stage provider override set to secondary while this is
                     false falls back to primary. Off by default.
                 secondaryProvider:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                   description: Secondary provider type. Empty or null clears it.
-                  enum: [anthropic, openai-compatible, ollama, openrouter, '']
+                  enum: [anthropic, openai-compatible, ollama, openrouter, '', null]
                   example: openai-compatible
                 secondaryProviderBaseUrl:
                   type: string
@@ -6489,8 +6486,7 @@ paths:
                     override back to the default.
                   example: http://localhost:11434/v1
                 secondaryProviderApiKey:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                   description: API key for the secondary provider. Omit to leave unchanged; null or empty to clear.
                 providerRequestsPerMin:
                   type: integer
@@ -6697,13 +6693,11 @@ paths:
                   description: Maximum response tokens (128-32768) for first-pass ad detection.
                   example: 4096
                 detectionReasoningBudget:
-                  type: integer
-                  nullable: true
+                  type: [integer, 'null']
                   description: Anthropic extended-thinking token budget (1024-65536). Only valid when llmProvider is anthropic.
                 detectionReasoningLevel:
-                  type: string
-                  nullable: true
-                  enum: [none, low, medium, high]
+                  type: [string, 'null']
+                  enum: [none, low, medium, high, null]
                   description: Reasoning effort level for non-Anthropic providers. Rejected when llmProvider is anthropic.
                 verificationTemperature:
                   type: number
@@ -6712,13 +6706,11 @@ paths:
                   type: integer
                   description: Maximum response tokens (128-32768) for the verification pass.
                 verificationReasoningBudget:
-                  type: integer
-                  nullable: true
+                  type: [integer, 'null']
                   description: Anthropic-only reasoning budget for verification pass.
                 verificationReasoningLevel:
-                  type: string
-                  nullable: true
-                  enum: [none, low, medium, high]
+                  type: [string, 'null']
+                  enum: [none, low, medium, high, null]
                   description: Reasoning effort level for verification pass (non-Anthropic).
                 reviewerTemperature:
                   type: number
@@ -6727,13 +6719,11 @@ paths:
                   type: integer
                   description: Maximum response tokens (128-32768) for the reviewer.
                 reviewerReasoningBudget:
-                  type: integer
-                  nullable: true
+                  type: [integer, 'null']
                   description: Anthropic-only reasoning budget for the reviewer.
                 reviewerReasoningLevel:
-                  type: string
-                  nullable: true
-                  enum: [none, low, medium, high]
+                  type: [string, 'null']
+                  enum: [none, low, medium, high, null]
                   description: Reasoning effort level for the reviewer (non-Anthropic).
                 chapterBoundaryTemperature:
                   type: number
@@ -6742,13 +6732,11 @@ paths:
                   type: integer
                   description: Maximum response tokens (128-32768) for chapter boundary detection.
                 chapterBoundaryReasoningBudget:
-                  type: integer
-                  nullable: true
+                  type: [integer, 'null']
                   description: Anthropic-only reasoning budget for chapter boundary detection.
                 chapterBoundaryReasoningLevel:
-                  type: string
-                  nullable: true
-                  enum: [none, low, medium, high]
+                  type: [string, 'null']
+                  enum: [none, low, medium, high, null]
                   description: Reasoning effort level for chapter boundary detection (non-Anthropic).
                 chapterTargetSeconds:
                   type: integer
@@ -6779,27 +6767,22 @@ paths:
                   type: integer
                   description: Maximum response tokens (128-32768) for chapter title generation.
                 chapterTitleReasoningBudget:
-                  type: integer
-                  nullable: true
+                  type: [integer, 'null']
                   description: Anthropic-only reasoning budget for chapter title generation.
                 chapterTitleReasoningLevel:
-                  type: string
-                  nullable: true
-                  enum: [none, low, medium, high]
+                  type: [string, 'null']
+                  enum: [none, low, medium, high, null]
                   description: Reasoning effort level for chapter title generation (non-Anthropic).
                 ollamaNumCtx:
-                  type: integer
-                  nullable: true
+                  type: [integer, 'null']
                   description: Ollama context window in tokens (512-131072). Only valid when llmProvider is ollama.
                 windowSizeSeconds:
-                  type: integer
-                  nullable: true
+                  type: [integer, 'null']
                   minimum: 120
                   maximum: 1800
                   description: Detection-window duration in seconds. Must be strictly greater than windowOverlapSeconds.
                 windowOverlapSeconds:
-                  type: integer
-                  nullable: true
+                  type: [integer, 'null']
                   minimum: 0
                   maximum: 1770
                   description: Overlap between consecutive detection windows in seconds. Must be less than windowSizeSeconds.
@@ -7285,11 +7268,13 @@ paths:
                         type: string
                         format: date
                   stable:
-                    $ref: '#/components/schemas/ReleaseInfo'
-                    nullable: true
+                    anyOf:
+                      - $ref: '#/components/schemas/ReleaseInfo'
+                      - type: 'null'
                   edge:
-                    $ref: '#/components/schemas/ReleaseInfo'
-                    nullable: true
+                    anyOf:
+                      - $ref: '#/components/schemas/ReleaseInfo'
+                      - type: 'null'
                   channel:
                     type: string
                     enum: [stable, edge]
@@ -7355,12 +7340,10 @@ paths:
                           type: integer
                           description: Number of API calls made with this model
                         inputCostPerMtok:
-                          type: number
-                          nullable: true
+                          type: [number, 'null']
                           description: Input cost per million tokens (USD)
                         outputCostPerMtok:
-                          type: number
-                          nullable: true
+                          type: [number, 'null']
                           description: Output cost per million tokens (USD)
 
   /system/model-pricing:
@@ -7393,10 +7376,10 @@ paths:
                       type: object
                       properties:
                         matchKey:
-                          type: string
+                          type: [string, 'null']
                           description: Normalized model key for pricing lookups
                         rawModelId:
-                          type: string
+                          type: [string, 'null']
                           description: Original model identifier from pricing source
                         displayName:
                           type: string
@@ -7917,13 +7900,11 @@ paths:
                       description:
                         type: string
                       firstEvent:
-                        type: string
+                        type: [string, 'null']
                         format: date-time
-                        nullable: true
                       lastEvent:
-                        type: string
+                        type: [string, 'null']
                         format: date-time
-                        nullable: true
                       version:
                         type: string
         '400':
@@ -8513,8 +8494,7 @@ paths:
                   type: string
                   description: Optional shared secret for HMAC signature verification
                 payloadTemplate:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                   description: Optional custom payload template
                 contentType:
                   type: string
@@ -8557,8 +8537,7 @@ paths:
                 secret:
                   type: string
                 payloadTemplate:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                 contentType:
                   type: string
       responses:
@@ -8664,8 +8643,7 @@ paths:
                     type: string
                     description: Rendered template preview (when valid)
                   error:
-                    type: string
-                    nullable: true
+                    type: [string, 'null']
                     description: Error message (when invalid)
         '429':
           description: Rate limit exceeded
@@ -9342,7 +9320,7 @@ paths:
                       type: object
                       properties:
                         id: { type: integer }
-                        sponsor: { type: string, nullable: true }
+                        sponsor: {type: [string, 'null']}
                         reasons:
                           type: array
                           items: { type: string }
@@ -10129,8 +10107,7 @@ paths:
                   type: string
                   description: Required when promoting to network scope
                 scoreThreshold:
-                  type: number
-                  nullable: true
+                  type: [number, 'null']
                   minimum: 0.30
                   maximum: 0.99
                   description: >
@@ -10457,8 +10434,7 @@ paths:
                         end:
                           type: number
                         prominenceDb:
-                          type: number
-                          nullable: true
+                          type: [number, 'null']
         '404':
           description: Feed or original audio not found
 
@@ -10509,17 +10485,13 @@ paths:
                           type: string
                           enum: [template, spectral, loud_spot]
                         label:
-                          type: string
-                          nullable: true
+                          type: [string, 'null']
                         cueType:
-                          type: string
-                          nullable: true
+                          type: [string, 'null']
                         score:
-                          type: number
-                          nullable: true
+                          type: [number, 'null']
                         prominenceDb:
-                          type: number
-                          nullable: true
+                          type: [number, 'null']
         '404':
           description: Feed not found
 
@@ -10596,33 +10568,27 @@ paths:
                           enum: [recurring, intro, outro]
                           description: recurring (repeats within the episode), or intro/outro (shared across sibling episodes)
                         count:
-                          type: integer
-                          nullable: true
+                          type: [integer, 'null']
                           description: Recurring candidates only -- times the sound recurs within the episode
                         episodeMatches:
-                          type: integer
-                          nullable: true
+                          type: [integer, 'null']
                           description: Intro/outro candidates only -- how many sibling episodes share the segment
                         suggestedType:
-                          type: string
-                          nullable: true
-                          enum: [show_intro, show_outro, ad_break_boundary, ad_break_start, ad_break_end, content_transition]
+                          type: [string, 'null']
+                          enum: [show_intro, show_outro, ad_break_boundary, ad_break_start, ad_break_end, content_transition, null]
                           description: Capture-type hint; intro/outro get show_intro/show_outro; recurring gets ad-affinity type or null
                         adBoundaryHits:
-                          type: integer
-                          nullable: true
+                          type: [integer, 'null']
                           description: Recurring candidates only -- how many occurrences landed near a known ad boundary
                         boundaryAffinity:
-                          type: number
+                          type: [number, 'null']
                           format: float
                           minimum: 0
                           maximum: 1
-                          nullable: true
                           description: adBoundaryHits / count; null when no ad history was available
                         affinitySource:
-                          type: string
-                          nullable: true
-                          enum: [episode, siblings]
+                          type: [string, 'null']
+                          enum: [episode, siblings, null]
                           description: Whether affinity was computed from the scanned episode's own ad history or from sibling episodes
         '404':
           description: Feed or original audio not found
@@ -10663,8 +10629,7 @@ paths:
                   type: number
                   description: End of the span to dismiss (seconds)
                 label:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
                   description: Optional human-readable label for the dismissal
       responses:
         '201':
@@ -10677,8 +10642,7 @@ paths:
                   id:
                     type: integer
                   label:
-                    type: string
-                    nullable: true
+                    type: [string, 'null']
                   startS:
                     type: number
                   endS:
@@ -10722,8 +10686,7 @@ paths:
                         id:
                           type: integer
                         label:
-                          type: string
-                          nullable: true
+                          type: [string, 'null']
                         sourceEpisodeId:
                           type: string
                         startS:
@@ -10838,8 +10801,7 @@ paths:
                             templateId:
                               type: integer
                             label:
-                              type: string
-                              nullable: true
+                              type: [string, 'null']
                             hint:
                               type: string
                               enum: [raise_threshold, recapture]
@@ -10907,8 +10869,7 @@ paths:
                         enum: [high, partial, low]
                         description: high when signal is clearly above the effect floor; partial when signal is below the effect floor; low when no clear gap was found.
                       suggested:
-                        type: number
-                        nullable: true
+                        type: [number, 'null']
                         description: Proposed threshold (0-1), or null on low confidence.
                       noiseCeiling:
                         type: number
@@ -10926,8 +10887,7 @@ paths:
                         type: number
                         description: Lowest confidence at which a cue can affect a cut on this install.
                       effectFloorWarning:
-                        type: string
-                        nullable: true
+                        type: [string, 'null']
                         enum: [signal-below-floor, null]
                         description: signal-below-floor when the signal cluster sits below the effect floor; null otherwise.
                       scoresN:
@@ -11161,8 +11121,7 @@ paths:
                     type: number
                     description: Mean peak ZNCC score of the proposed window. Present when ready.
                   baselineMeanPeakScore:
-                    type: number
-                    nullable: true
+                    type: [number, 'null']
                     description: >
                       Mean peak score of the original window. Present when ready;
                       null when the original window falls outside the live
@@ -11560,8 +11519,7 @@ components:
           enum: [ad_break_boundary, ad_break_start, ad_break_end, show_intro, show_outro, content_transition]
           default: ad_break_boundary
         sourceEpisodeId:
-          type: string
-          nullable: true
+          type: [string, 'null']
         sourceOffsetS:
           type: number
         durationS:
@@ -11575,15 +11533,13 @@ components:
           enum: [podcast, network]
           default: podcast
         networkId:
-          type: string
-          nullable: true
+          type: [string, 'null']
         enabled:
           type: boolean
         createdAt:
           type: string
         createdBy:
-          type: string
-          nullable: true
+          type: [string, 'null']
         owned:
           type: boolean
           description: >
@@ -11625,8 +11581,7 @@ components:
             whenever the create route returns so the UI can display a consistent
             hint without a separate config fetch. Absent on list rows.
         scoreThreshold:
-          type: number
-          nullable: true
+          type: [number, 'null']
           minimum: 0.30
           maximum: 0.99
           description: >
@@ -11635,8 +11590,7 @@ components:
             fall back to the per-feed override or global setting.
             Minimum 0.30 (noise floor; sub-floor values pass noise as matches).
         lastMatchAt:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Timestamp of this template's most recent above-threshold match. Null when it has never matched.
         matchedEpisodes:
           type: integer
@@ -11663,17 +11617,13 @@ components:
         enabled: { type: boolean }
         cron:    { type: string }
         lastRun:
-          type: string
-          nullable: true
+          type: [string, 'null']
         lastError:
-          type: string
-          nullable: true
+          type: [string, 'null']
         manifestVersion:
-          type: string
-          nullable: true
+          type: [string, 'null']
         lastSummary:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: JSON-encoded summary of the last sync (counts + manifest version)
         categories:
           type: array
@@ -11718,17 +11668,15 @@ components:
         exists:
           type: boolean
           description: False when no file is on disk, in which case cuts render as silence.
-        sizeBytes: { type: integer, nullable: true }
+        sizeBytes: {type: [integer, 'null']}
         updatedAt:
-          type: integer
-          nullable: true
+          type: [integer, 'null']
           description: Unix mtime, used by the UI to bust the preview cache.
         durationSeconds:
-          type: number
-          nullable: true
+          type: [number, 'null']
           description: Every cut becomes this long.
-        channels: { type: integer, nullable: true }
-        sampleRateHz: { type: integer, nullable: true }
+        channels: {type: [integer, 'null']}
+        sampleRateHz: {type: [integer, 'null']}
     DatabaseBackupSettings:
       type: object
       properties:
@@ -11747,16 +11695,13 @@ components:
           type: integer
           description: Number of backup files to keep (1 = overwrite mode, >1 = rotate mode).
         lastRun:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: ISO 8601 timestamp of the last completed backup run, or null.
         lastError:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Error message from the most recent failed backup run, or null.
         lastSummary:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: JSON-encoded DatabaseBackupRunSummary from the last successful run, or null.
 
     DatabaseBackupRunSummary:
@@ -12719,9 +12664,8 @@ components:
             - 'null'
           description: Original duration in seconds
         newDuration:
-          type: number
+          type: [number, 'null']
           description: Duration after ad removal in seconds
-          nullable: true
         adsRemoved:
           type: integer
           description: Rendered cuts in the output audio. Markers merged into one cut count once.
@@ -12741,12 +12685,10 @@ components:
           type: boolean
           description: True when this episode has a processed output on record, independent of its current status. A completed episode queued again reverts to status pending, so clients use this rather than status to choose between a Process and a Reprocess label.
         artworkUrl:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Episode cover declared by the publisher. Null when the episode declares none, or when the URL is not https and would be blocked as mixed content; clients fall back to the feed artwork. A local feed has no publisher, so this instead falls back to /api/v1/feeds/{slug}/episodes/{episode_id}/artwork whenever the episode has a cached cover (an upload or embedded-artwork extraction), and stays null only when it has none.
         error:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Failure reason from the most recent processing attempt, present when status is failed or permanently_failed
 
     EpisodeDetail:
@@ -12766,16 +12708,14 @@ components:
               description: Adjacent episodes in the same feed, newest-first order. previous is the newer episode, next the older; either is null at a feed boundary (issue #417).
               properties:
                 previous:
-                  type: object
-                  nullable: true
+                  type: [object, 'null']
                   properties:
                     id:
                       type: string
                     title:
                       type: string
                 next:
-                  type: object
-                  nullable: true
+                  type: [object, 'null']
                   properties:
                     id:
                       type: string
@@ -13786,18 +13726,14 @@ components:
         id:
           type: integer
         template_id:
-          type: integer
-          nullable: true
+          type: [integer, 'null']
         label:
-          type: string
-          nullable: true
+          type: [string, 'null']
         cue_type:
-          type: string
-          nullable: true
-          enum: [ad_break_boundary, ad_break_start, ad_break_end, show_intro, show_outro, content_transition]
+          type: [string, 'null']
+          enum: [ad_break_boundary, ad_break_start, ad_break_end, show_intro, show_outro, content_transition, null]
         role:
-          type: string
-          nullable: true
+          type: [string, 'null']
         source:
           type: string
           description: Always 'template'; spectral cues are not recorded
@@ -13806,11 +13742,9 @@ components:
         end_s:
           type: number
         match_score:
-          type: number
-          nullable: true
+          type: [number, 'null']
         confidence:
-          type: number
-          nullable: true
+          type: [number, 'null']
         outcome:
           type: string
           enum: [snap, pair, none, below_threshold]
@@ -13822,18 +13756,16 @@ components:
           type: string
           enum: [pending, confirmed, rejected]
         edge_distance_s:
-          type: number
-          nullable: true
+          type: [number, 'null']
           description: >
             Signed distance (edge - cue) from an above-threshold cue to the
             nearest pre-snap LLM ad edge on its eligible side. NULL for advisory
             (non_ad) cues and for below_threshold rows.
         unused_reason:
-          type: string
-          nullable: true
+          type: [string, 'null']
           enum: [covered, out_of_reach, below_snap_confidence, advisory_role,
                  unpaired, below_pair_confidence, covered_by_existing_ad,
-                 no_partner_in_band, phase_mismatch]
+                 no_partner_in_band, phase_mismatch, null]
           description: >
             For an outcome='none' cue, why it did nothing. NULL for snap / pair /
             below_threshold outcomes.
@@ -13861,17 +13793,13 @@ components:
         pending:
           type: integer
         avgScore:
-          type: number
-          nullable: true
+          type: [number, 'null']
         minScore:
-          type: number
-          nullable: true
+          type: [number, 'null']
         maxScore:
-          type: number
-          nullable: true
+          type: [number, 'null']
         confirmRate:
-          type: number
-          nullable: true
+          type: [number, 'null']
           description: confirmed / (confirmed + rejected), or null if none reviewed
 
     AdMarker:
@@ -13891,12 +13819,11 @@ components:
           type: string
           description: Reason for marking as ad
         sponsor:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Sponsor or advertiser name extracted from the ad
         detection_stage:
           type: string
-          enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential]
+          enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential, vad_gap, cue_pair, heuristic_preroll, heuristic_postroll, keep_content, manual]
           description: Which detection stage found this ad
           example: first_pass
         corroborated_by:
@@ -13940,13 +13867,11 @@ components:
               end:
                 type: number
         hold_reason:
-          type: string
-          nullable: true
+          type: [string, 'null']
           enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, no_transcript_evidence, transcript_differential_unreviewed, null]
           description: Why the marker requires review. reviewer_boundary_conflict means a reviewer proposal crossed protected merged-ad evidence; reviewer_reject_conflict means the reviewer rejected a span backed by measured evidence or a confirmed sponsor; reviewer_failed means the review call failed and no independent evidence backs the bounds.
         reviewer_reasoning:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Reviewer explanation when the reviewer evaluated this marker.
         reviewer_verdict:
           type: string
@@ -14001,8 +13926,7 @@ components:
             stats, which the API does not return.
           example: cut
         pass2_hold_review:
-          type: object
-          nullable: true
+          type: [object, 'null']
           description: Set on a held marker when review of a pass-2 span inside it did not release the hold. The hold stays pending; cleared when a later review releases it. Diagnostic only, separate from reviewer_reasoning.
           properties:
             span:
@@ -14019,12 +13943,10 @@ components:
               type: string
               description: Reviewer reasoning, or the abstain reason for an inconclusive review.
         reviewer_proposed_start:
-          type: number
-          nullable: true
+          type: [number, 'null']
           description: Informational reviewer-proposed start on a held marker. It is not applied until a human confirms it.
         reviewer_proposed_end:
-          type: number
-          nullable: true
+          type: [number, 'null']
           description: Informational reviewer-proposed end on a held marker. It is not applied until a human confirms it.
         validation:
           type: object
@@ -14062,21 +13984,20 @@ components:
         feedTitle: { type: string }
         episodeId: { type: string }
         episodeTitle: { type: string }
-        publishDate: { type: string, nullable: true }
+        publishDate: {type: [string, 'null']}
         hasOriginalAudio: { type: boolean }
         processedUrl:
           type: string
           description: Same-origin processed-audio URL (carries the feed auth key when enabled)
         start: { type: number }
         end: { type: number }
-        confidence: { type: number, nullable: true }
-        sponsor: { type: string, nullable: true }
-        reason: { type: string, nullable: true }
-        patternId: { type: integer, nullable: true }
-        detectionStage: { type: string, nullable: true }
+        confidence: {type: [number, 'null']}
+        sponsor: {type: [string, 'null']}
+        reason: {type: [string, 'null']}
+        patternId: {type: [integer, 'null']}
+        detectionStage: {type: [string, 'null']}
         category:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Segment category, or null when no stage classified the marker
           enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
         actionApplied:
@@ -14084,8 +14005,7 @@ components:
           description: Action resolved for this marker. Stored Keep/Mark values reflect current switches between Keep and Mark without recutting; changes involving remove or beep require a recut.
           enum: [remove, beep, keep, mark, null]
         reviewerVerdict:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: >-
             Ad reviewer verdict on this marker, or null when the reviewer did
             not run. inconclusive means the reviewer abstained: the marker keeps
@@ -14095,12 +14015,10 @@ components:
             originals, and neither records reviewerOriginalStart/End.
           enum: [confirmed, adjust, reject, resurrect, inconclusive, failure, null]
         reviewerOriginalStart:
-          type: number
-          nullable: true
+          type: [number, 'null']
           description: Start of the span before the reviewer moved it; present only when the reviewer moved the span
         reviewerOriginalEnd:
-          type: number
-          nullable: true
+          type: [number, 'null']
           description: End of the span before the reviewer moved it; present only when the reviewer moved the span
         reviewerMoved:
           type: boolean
@@ -14109,8 +14027,7 @@ components:
             reviewer or by a human approving a trimmed boundary. Use this
             instead of inferring a move from reviewerVerdict/reviewerOriginalStart/End.
         holdReason:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Why the detection is held for review; null unless status is pending
           enum: [max_duration, no_cue_evidence, uncorroborated_tail, reviewer_contradiction, reviewer_boundary_conflict, reviewer_inconclusive_bounds, estimated_pattern_bounds, reviewer_reject_conflict, reviewer_failed, no_splice_evidence, verification_miss, verification_kept_conflict, differential_uncorroborated, large_vad_gap_extension, cue_template_unproven, cue_low_confidence, no_transcript_evidence, transcript_differential_unreviewed, null]
         status:
@@ -14132,20 +14049,16 @@ components:
           description: Human-readable model name
           example: Claude Opus 4.5
         created:
-          type: string
+          type: [string, 'null']
           format: date-time
-          nullable: true
         inputCostPerMtok:
-          type: number
-          nullable: true
+          type: [number, 'null']
           description: Input cost per million tokens (USD), present when pricing is known
         outputCostPerMtok:
-          type: number
-          nullable: true
+          type: [number, 'null']
           description: Output cost per million tokens (USD), present when pricing is known
         pricingSource:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Pricing source, including operator when a configured override applies
 
     ModelPricingOverride:
@@ -15214,16 +15127,13 @@ components:
             isDefault:
               type: boolean
         feedAuthKey:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Global feed auth key (64 hex chars) carried as ?key= on feed/episode URLs and embedded in the badged cover path token; null until first enable.
         opmlModifiedUrl:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Copyable public URL for importing modified (ad-free) feeds by URL; null when feed auth is disabled.
         opmlOriginalUrl:
-          type: string
-          nullable: true
+          type: [string, 'null']
           description: Copyable public URL for importing original (upstream) feeds by URL; null when feed auth is disabled.
         minCutConfidence:
           type: object
@@ -15447,8 +15357,7 @@ components:
           type: object
           properties:
             value:
-              type: string
-              nullable: true
+              type: [string, 'null']
               description: Secondary provider type (anthropic, openrouter, openai-compatible, ollama), or null when unset
             isDefault:
               type: boolean
@@ -15809,12 +15718,10 @@ components:
             properties:
               value:
                 description: Resolved value (env > DB > default). Type depends on field; nullable for reasoning budgets/levels and ollamaNumCtx.
-                nullable: true
               isDefault:
                 type: boolean
               envOverride:
-                type: string
-                nullable: true
+                type: [string, 'null']
                 description: Environment variable currently overriding this setting (read-only in the UI), or null.
         stageTunableDefaults:
           type: object
@@ -15844,11 +15751,11 @@ components:
               type: string
               description: Per-pass override for the resurrect pass; empty clears it.
             claudeModel:
-              type: string
+              type: [string, 'null']
             verificationModel:
-              type: string
+              type: [string, 'null']
             chaptersModel:
-              type: string
+              type: [string, 'null']
             whisperModel:
               type: string
             whisperBackend:
@@ -16109,8 +16016,7 @@ components:
               type: string
               description: Transcription backend in use (local or openai-api)
             whisperApiHost:
-              type: string
-              nullable: true
+              type: [string, 'null']
               description: scheme://host of the remote whisper endpoint, or null when transcription is local
             baseUrl:
               type: string
@@ -16350,9 +16256,8 @@ components:
         version:
           type: string
         releaseDate:
-          type: string
+          type: [string, 'null']
           format: date
-          nullable: true
         url:
           type: string
         notes:
@@ -17318,8 +17223,7 @@ components:
         status:
           type: integer
         details:
-          type: object
-          nullable: true
+          type: [object, 'null']
 
   responses:
     BadRequest:

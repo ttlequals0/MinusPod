@@ -42,6 +42,8 @@ def list_sponsors():
 
 def _parse_sponsor_json(sponsor_data):
     """Deserialize the JSON-encoded aliases/common_ctas/tags columns in place."""
+    if 'is_active' in sponsor_data:
+        sponsor_data['is_active'] = bool(sponsor_data['is_active'])
     for field in ('aliases', 'common_ctas', 'tags'):
         if isinstance(sponsor_data.get(field), str):
             try:
@@ -181,6 +183,8 @@ def _to_normalization_v2(row):
     if not row:
         return row
     out = dict(row)
+    if 'is_active' in out:
+        out['is_active'] = bool(out['is_active'])
     for legacy, v2 in _LEGACY_TO_V2.items():
         if legacy in out and v2 not in out:
             out[v2] = out.pop(legacy)

@@ -74,6 +74,7 @@ def list_patterns():
         # Matcher-only join columns; the list response does not carry them.
         pattern.pop('sponsor_tags', None)
         pattern.pop('sponsor_active', None)
+        pattern['is_active'] = bool(pattern.get('is_active'))
         pattern['trust'] = compute_pattern_trust(pattern, now)
         pattern['can_split'] = can_split_pattern(pattern)
 
@@ -354,6 +355,7 @@ def get_pattern(pattern_id):
     if not pattern:
         return error_response('Pattern not found', 404)
 
+    pattern['is_active'] = bool(pattern.get('is_active'))
     return json_response(pattern)
 
 
@@ -1680,7 +1682,7 @@ def export_patterns():
             'sponsor': pattern.get('sponsor'),
             'confirmation_count': pattern.get('confirmation_count', 0),
             'false_positive_count': pattern.get('false_positive_count', 0),
-            'is_active': pattern.get('is_active', True),
+            'is_active': bool(pattern.get('is_active', True)),
             'created_at': pattern.get('created_at'),
         }
         # Unset stays absent (issue #565). An explicit null re-imports as a
