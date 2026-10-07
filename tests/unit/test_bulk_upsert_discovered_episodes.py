@@ -18,6 +18,7 @@ _test_data_dir = bootstrap('bulk_upsert_test_')
 
 import database
 import database.episodes as episodes_module
+from utils.text import normalize_title_for_match
 
 db = database.Database()
 
@@ -326,14 +327,48 @@ def test_fuzzy_index_is_built_before_any_chunk_transaction(monkeypatch):
         events.append('build')
         return real_build(existing_by_id)
 
-    def spied_transaction(immediate=False):
+    def spied_transaction(self, immediate=False):
         events.append('transaction')
         return real_transaction(immediate=immediate)
 
     monkeypatch.setattr(type(db), '_build_fuzzy_index', staticmethod(spied_build))
-    monkeypatch.setattr(db, 'transaction', spied_transaction)
+    monkeypatch.setattr(type(db), 'transaction', spied_transaction)
 
     db.bulk_upsert_discovered_episodes(slug, [_episode(_eid()), _episode(_eid())])
 
     assert events[0] == 'build'
     assert events.index('build') < events.index('transaction')
+
+
+def test_title_date_matched_refresh_replaces_fuzzy_index_entry(monkeypatch):
+    """A row matched by _refresh_discovery_state via title+date (not via its
+    own id, because a different incoming episode shares that title+date)
+    must have the fuzzy index point at the freshly re-fetched row, not an
+    orphaned copy loaded before the chunk's write transaction opened."""
+    slug = _feed('upsert-fuzzy-title-date-refresh')
+    old_id = _eid()
+    db.upsert_episode(
+        slug, old_id, title='Refresh Match Episode', published_at='2026-01-01T00:00:00Z',
+        original_url='https://example.com/old.mp3', status='processed')
+
+    captured = {}
+    real_build = type(db)._build_fuzzy_index
+
+    def capturing_build(existing_by_id):
+        index = real_build(existing_by_id)
+        captured['existing_by_id'] = existing_by_id
+        captured['index'] = index
+        return index
+
+    monkeypatch.setattr(type(db), '_build_fuzzy_index', staticmethod(capturing_build))
+
+    new_id = _eid()
+    db.bulk_upsert_discovered_episodes(slug, [
+        _episode(new_id, title='Refresh Match Episode', published='2026-01-01T00:00:00Z'),
+    ])
+
+    key = normalize_title_for_match('Refresh Match Episode')
+    bucket = captured['index'].get(key, [])
+    matches = [row for _, row in bucket if row.get('episode_id') == old_id]
+    assert len(matches) == 1
+    assert matches[0] is captured['existing_by_id'][old_id]

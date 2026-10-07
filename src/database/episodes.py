@@ -112,15 +112,19 @@ def _add_to_fuzzy_index(fuzzy_index: dict, row: dict) -> None:
 
 
 def _remove_from_fuzzy_index(fuzzy_index: dict, row: dict | None) -> None:
-    """Drop `row` from the bucket its current title/published_at maps to."""
+    """Drop the entry for row['episode_id'] from the bucket row's title maps
+    to. Matches by id, not object identity: titles are immutable once set
+    (see _upsert_one_discovered_episode), so a stale cached copy of a row
+    always shares its bucket with a freshly re-fetched copy of that row."""
     if row is None:
         return
     key, _ = _fuzzy_index_key_and_dt(row)
     bucket = fuzzy_index.get(key) if key is not None else None
     if not bucket:
         return
+    episode_id = row.get('episode_id')
     for i, (_, candidate) in enumerate(bucket):
-        if candidate is row:
+        if candidate.get('episode_id') == episode_id:
             bucket.pop(i)
             break
     if not bucket:
@@ -1413,18 +1417,19 @@ class EpisodeMixin:
         for start in range(0, len(normalized), DISCOVERY_UPSERT_CHUNK):
             chunk = normalized[start:start + DISCOVERY_UPSERT_CHUNK]
             chunk_ids = [ep['id'] for ep in chunk if ep.get('id')]
-            stale_rows = [existing_by_id[cid] for cid in chunk_ids if cid in existing_by_id]
+            stale_snapshot = {cid: existing_by_id[cid] for cid in chunk_ids if cid in existing_by_id}
             with self.transaction(immediate=True) as conn:
-                self._refresh_discovery_state(
-                    conn, podcast_id, chunk, existing_by_id, title_date_map)
-                # _refresh_discovery_state may have swapped in fresh row objects
-                # for these ids; resync the fuzzy index to match.
-                for row in stale_rows:
-                    _remove_from_fuzzy_index(fuzzy_index, row)
-                for cid in chunk_ids:
-                    refreshed = existing_by_id.get(cid)
+                touched_ids = self._refresh_discovery_state(
+                    conn, podcast_id, chunk, existing_by_id, title_date_map) or set()
+                # Rows matched by id or by title/date may have been swapped
+                # for fresh DB copies; resync the fuzzy index to match.
+                for tid in set(chunk_ids) | set(touched_ids):
+                    refreshed = existing_by_id.get(tid)
                     if refreshed is not None:
+                        _remove_from_fuzzy_index(fuzzy_index, refreshed)
                         _add_to_fuzzy_index(fuzzy_index, refreshed)
+                    else:
+                        _remove_from_fuzzy_index(fuzzy_index, stale_snapshot.get(tid))
                 newly_inserted_pairs = []
                 for ep in chunk:
                     row_inserted, row_skipped = self._upsert_one_discovered_episode(
@@ -1453,7 +1458,11 @@ class EpisodeMixin:
     @staticmethod
     def _refresh_discovery_state(
             conn, podcast_id, chunk, existing_by_id, title_date_map):
-        """Refresh the chunk's dedup keys after taking the writer lock."""
+        """Refresh the chunk's dedup keys after taking the writer lock.
+
+        Returns the episode_ids whose existing_by_id entry may have changed
+        (id-matched plus title/date-matched), for fuzzy-index resync.
+        """
         ids = [episode['id'] for episode in chunk if episode.get('id')]
         title_dates = [
             (episode.get('title'), episode['_iso_published']) for episode in chunk
@@ -1470,7 +1479,7 @@ class EpisodeMixin:
             for title, published_at in title_dates:
                 params.extend((title, published_at))
         if not clauses:
-            return
+            return set()
 
         for episode_id in ids:
             existing_by_id.pop(episode_id, None)
@@ -1481,11 +1490,14 @@ class EpisodeMixin:
             f"FROM episodes WHERE podcast_id = ? AND ({' OR '.join(clauses)})",
             params,
         ).fetchall()
+        touched_ids = set(ids)
         for raw_row in rows:
             row = dict(raw_row)
+            touched_ids.add(row['episode_id'])
             existing_by_id[row['episode_id']] = row
             if row['title'] and row['published_at']:
                 title_date_map[(row['title'], row['published_at'])] = row['episode_id']
+        return touched_ids
 
     @staticmethod
     def _build_fuzzy_index(existing_by_id: dict) -> dict:
