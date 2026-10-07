@@ -260,10 +260,7 @@ function TextSelectionPanel({
     return { startIdx: Math.min(a, b), endIdx: Math.max(a, b) };
   };
 
-  // Pure: resolves the browser's live Selection into {start, end, text}
-  // without touching React state, so freezeCurrentRun can call it directly
-  // for the freshest value instead of trusting adStart/adEnd/currentText,
-  // which the deferred mouseup commit below may not have applied yet.
+  // Resolves the live selection before the deferred mouseup state update.
   const resolveCurrentSelection = (): TextRun | null => {
     const resolved = resolveSelection();
     if (!resolved) return null;
@@ -353,12 +350,8 @@ function TextSelectionPanel({
   // selection so the next drag starts a fresh one. Runs within
   // MERGE_GAP_SECONDS of each other collapse into one at this point.
   const freezeCurrentRun = () => {
-    // Re-resolve the live selection first: a mouseup's commit is deferred
-    // one tick (setTimeout 0), so a freeze click fired before that tick
-    // runs would otherwise read adStart/adEnd/currentText before they
-    // caught up, freezing a stale (or still-default, empty-text) selection.
-    // Falls back to the already-committed state once the selection itself
-    // is gone (e.g. a second freeze click with nothing newly selected).
+    // Resolve before the deferred mouseup commit, then fall back to the
+    // committed state if the browser no longer exposes a live selection.
     const current = resolveCurrentSelection()
       ?? (hasSelection ? { start: adStart, end: adEnd, text: currentText } : null);
     if (!current) return;

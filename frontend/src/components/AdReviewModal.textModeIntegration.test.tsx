@@ -5,13 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdReviewModal, { type AdReviewItem } from './AdReviewModal';
 import { formatTime } from '../utils/adReviewHelpers';
 
-// Reproduces a production report: select a long run A (0:00.0-1:00.0,
-// ~1000+ chars), freeze it with no wait after releasing the drag, then
-// select a run B far enough away that it never merges with A. Save should
-// stay enabled with both spans intact. Exercises the real TextSelectionPanel
-// inside the real AdReviewModal (no TextSelectionPanel mock), since
-// AdReviewModal.test.tsx's double can't catch a text-loss bug that only
-// shows up in the real component's mouseup/freeze timing.
+// Reproduces a drag-release/freeze race in the real modal that the panel mock
+// misses: the first frozen span must retain its text before a second is selected.
 
 vi.mock('wavesurfer.js', () => ({
   default: { create: vi.fn(() => ({ on: vi.fn(), destroy: vi.fn() })) },
