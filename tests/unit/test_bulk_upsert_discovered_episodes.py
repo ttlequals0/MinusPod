@@ -8,6 +8,7 @@ discovered nothing.
 """
 
 import sqlite3
+import time
 
 import pytest
 
@@ -16,6 +17,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('bulk_upsert_test_')
 
 import database
+import database.episodes as episodes_module
 
 db = database.Database()
 
@@ -278,3 +280,60 @@ def test_fuzzy_match_rejects_a_non_quarter_hour_drift():
     assert inserted == 1
     assert db.get_episode(slug, old_id) is not None
     assert db.get_episode(slug, new_id) is not None
+
+
+def test_fuzzy_fallback_cost_is_linear_not_quadratic(monkeypatch):
+    """3000 existing rows and 3000 incoming misses must cost O(existing +
+    incoming) normalize_title_for_match calls, never their product: the
+    fuzzy fallback must scan a per-title bucket, not every existing row."""
+    slug = _feed('upsert-fuzzy-scale')
+    existing = [_episode(_eid(), title=f'Existing Episode {i}') for i in range(3000)]
+    db.bulk_upsert_discovered_episodes(slug, existing)
+
+    incoming = [_episode(_eid(), title=f'Incoming Episode {i}') for i in range(3000)]
+
+    calls = [0]
+    real_normalize = episodes_module.normalize_title_for_match
+
+    def counting_normalize(title):
+        calls[0] += 1
+        return real_normalize(title)
+
+    monkeypatch.setattr(episodes_module, 'normalize_title_for_match', counting_normalize)
+
+    start = time.monotonic()
+    inserted = db.bulk_upsert_discovered_episodes(slug, incoming)
+    elapsed = time.monotonic() - start
+
+    assert inserted == 3000
+    # A per-item full scan would cost existing * incoming = 9,000,000 calls;
+    # bounded work costs a small multiple of existing + incoming = 6,000.
+    assert calls[0] <= 2 * (len(existing) + len(incoming))
+    assert elapsed < 10.0
+
+
+def test_fuzzy_index_is_built_before_any_chunk_transaction(monkeypatch):
+    """The candidate index must be built once per feed before the first
+    chunk's write transaction opens, not rebuilt or delayed per chunk."""
+    slug = _feed('upsert-fuzzy-index-order')
+    db.bulk_upsert_discovered_episodes(slug, [_episode(_eid())])
+
+    events = []
+    real_build = type(db)._build_fuzzy_index
+    real_transaction = db.transaction
+
+    def spied_build(existing_by_id):
+        events.append('build')
+        return real_build(existing_by_id)
+
+    def spied_transaction(immediate=False):
+        events.append('transaction')
+        return real_transaction(immediate=immediate)
+
+    monkeypatch.setattr(type(db), '_build_fuzzy_index', staticmethod(spied_build))
+    monkeypatch.setattr(db, 'transaction', spied_transaction)
+
+    db.bulk_upsert_discovered_episodes(slug, [_episode(_eid()), _episode(_eid())])
+
+    assert events[0] == 'build'
+    assert events.index('build') < events.index('transaction')

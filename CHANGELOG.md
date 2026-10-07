@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.98.2] - Unreleased
+
+### Fixed
+- Discovering episodes on a large back-catalog feed no longer holds the database write lock for seconds at a time, which was starving other writers on every refresh.
+
 ## [2.98.1] - 2026-10-07
 
 ### Added

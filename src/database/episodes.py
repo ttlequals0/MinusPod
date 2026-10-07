@@ -91,6 +91,42 @@ def _serialize_applied_cut(cut: dict) -> dict:
     return out
 
 
+def _fuzzy_index_key_and_dt(row: dict):
+    """Normalized title and parsed published_at for a row, or (None, None)
+    when either is missing so the row cannot ever fuzzy-match."""
+    title = row.get('title')
+    published = row.get('published_at')
+    if not title or not published:
+        return None, None
+    dt = parse_iso_utc(published)
+    if not dt:
+        return None, None
+    key = normalize_title_for_match(title)
+    return (key, dt) if key else (None, None)
+
+
+def _add_to_fuzzy_index(fuzzy_index: dict, row: dict) -> None:
+    key, dt = _fuzzy_index_key_and_dt(row)
+    if key is not None:
+        fuzzy_index.setdefault(key, []).append((dt, row))
+
+
+def _remove_from_fuzzy_index(fuzzy_index: dict, row: dict | None) -> None:
+    """Drop `row` from the bucket its current title/published_at maps to."""
+    if row is None:
+        return
+    key, _ = _fuzzy_index_key_and_dt(row)
+    bucket = fuzzy_index.get(key) if key is not None else None
+    if not bucket:
+        return
+    for i, (_, candidate) in enumerate(bucket):
+        if candidate is row:
+            bucket.pop(i)
+            break
+    if not bucket:
+        fuzzy_index.pop(key, None)
+
+
 class EpisodeMixin:
     """Episode management methods."""
 
@@ -1372,16 +1408,27 @@ class EpisodeMixin:
             (row['title'], row['published_at']): row['episode_id']
             for row in rows if row['title'] and row['published_at']
         }
+        fuzzy_index = self._build_fuzzy_index(existing_by_id)
 
         for start in range(0, len(normalized), DISCOVERY_UPSERT_CHUNK):
             chunk = normalized[start:start + DISCOVERY_UPSERT_CHUNK]
+            chunk_ids = [ep['id'] for ep in chunk if ep.get('id')]
+            stale_rows = [existing_by_id[cid] for cid in chunk_ids if cid in existing_by_id]
             with self.transaction(immediate=True) as conn:
                 self._refresh_discovery_state(
                     conn, podcast_id, chunk, existing_by_id, title_date_map)
+                # _refresh_discovery_state may have swapped in fresh row objects
+                # for these ids; resync the fuzzy index to match.
+                for row in stale_rows:
+                    _remove_from_fuzzy_index(fuzzy_index, row)
+                for cid in chunk_ids:
+                    refreshed = existing_by_id.get(cid)
+                    if refreshed is not None:
+                        _add_to_fuzzy_index(fuzzy_index, refreshed)
                 newly_inserted_pairs = []
                 for ep in chunk:
                     row_inserted, row_skipped = self._upsert_one_discovered_episode(
-                        conn, podcast_id, slug, ep, existing_by_id, title_date_map)
+                        conn, podcast_id, slug, ep, existing_by_id, title_date_map, fuzzy_index)
                     inserted += row_inserted
                     skipped += row_skipped
                     if row_inserted:
@@ -1441,21 +1488,30 @@ class EpisodeMixin:
                 title_date_map[(row['title'], row['published_at'])] = row['episode_id']
 
     @staticmethod
-    def _find_fuzzy_duplicate(title, iso_published, exclude_id, existing_by_id):
+    def _build_fuzzy_index(existing_by_id: dict) -> dict:
+        """Group existing rows by normalized title, with published_at parsed
+        once, so fuzzy lookup is a dict lookup plus a scan of same-title rows."""
+        fuzzy_index: dict = {}
+        for row in existing_by_id.values():
+            _add_to_fuzzy_index(fuzzy_index, row)
+        return fuzzy_index
+
+    @staticmethod
+    def _find_fuzzy_duplicate(title, iso_published, exclude_id, fuzzy_index):
         """Find a same-episode row under a different GUID via a dropped
         timezone offset, when the exact title+date lookup misses."""
         target_dt = parse_iso_utc(iso_published)
         target_title = normalize_title_for_match(title)
         if not target_dt or not target_title:
             return None
+        bucket = fuzzy_index.get(target_title)
+        if not bucket:
+            return None
         best, best_key = None, None
-        for episode_id, row in existing_by_id.items():
-            if episode_id == exclude_id:
+        for candidate_dt, row in bucket:
+            if row.get('episode_id') == exclude_id:
                 continue
-            if normalize_title_for_match(row.get('title')) != target_title:
-                continue
-            candidate_dt = parse_iso_utc(row.get('published_at'))
-            if not candidate_dt or not is_timezone_drift(candidate_dt, target_dt):
+            if not is_timezone_drift(candidate_dt, target_dt):
                 continue
             delta_seconds = abs((candidate_dt - target_dt).total_seconds())
             key = (-_STATUS_MATCH_PRIORITY.get(row.get('status'), 0), delta_seconds)
@@ -1464,7 +1520,7 @@ class EpisodeMixin:
         return best
 
     def _upsert_one_discovered_episode(
-            self, conn, podcast_id, slug, ep, existing_by_id, title_date_map):
+            self, conn, podcast_id, slug, ep, existing_by_id, title_date_map, fuzzy_index):
         """Upsert one discovered episode. Returns an (inserted, skipped) delta.
 
         Lock errors propagate so the whole batch fails and the caller retries the
@@ -1480,7 +1536,7 @@ class EpisodeMixin:
                 existing = existing_by_id.get(existing_id) if existing_id != ep['id'] else None
                 if existing is None:
                     existing = self._find_fuzzy_duplicate(
-                        ep.get('title'), iso_published, ep['id'], existing_by_id)
+                        ep.get('title'), iso_published, ep['id'], fuzzy_index)
                 if existing is not None:
                     # Update episode_id to match new GUID for discovered episodes
                     # (no cached files yet, safe to update)
@@ -1569,11 +1625,13 @@ class EpisodeMixin:
                 )
             )
             if ep['id'] not in existing_by_id:
-                existing_by_id[ep['id']] = {
+                new_row = {
                     'episode_id': ep['id'], 'episode_number': ep.get('episode_number'),
                     'status': 'discovered', 'title': ep.get('title'),
                     'published_at': iso_published,
                 }
+                existing_by_id[ep['id']] = new_row
+                _add_to_fuzzy_index(fuzzy_index, new_row)
                 if ep.get('title') and iso_published:
                     title_date_map[(ep.get('title'), iso_published)] = ep['id']
                 return 1, 0
@@ -1582,11 +1640,13 @@ class EpisodeMixin:
             effective_published = current['published_at'] or iso_published
             if all(old_key) and title_date_map.get(old_key) == ep['id']:
                 title_date_map.pop(old_key)
+            _remove_from_fuzzy_index(fuzzy_index, current)
             current.update(
                 episode_number=ep.get('episode_number') or current['episode_number'],
                 title=effective_title,
                 published_at=effective_published,
             )
+            _add_to_fuzzy_index(fuzzy_index, current)
             if effective_title and effective_published:
                 title_date_map[(effective_title, effective_published)] = ep['id']
         except sqlite3.OperationalError:
