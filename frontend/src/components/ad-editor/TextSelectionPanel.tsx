@@ -62,8 +62,9 @@ function textForRange(words: FlatWord[], start: number, end: number): string {
     .join(' ');
 }
 
-// Rebuild merged text from the transcript to avoid duplicate words.
-// Keep saved runs fixed so retries cannot merge across an already-saved range.
+// Re-derive merged text from the transcript so overlaps do not duplicate words.
+// A saved run is fixed: it neither absorbs nor joins a neighbor, so a retry
+// after a partial failure cannot re-cover an already-saved range.
 function mergeRuns(runs: TextRun[], words: FlatWord[], savedKeys: Set<string>): TextRun[] {
   const sorted = [...runs].sort((a, b) => a.start - b.start);
   const merged: TextRun[] = [];
