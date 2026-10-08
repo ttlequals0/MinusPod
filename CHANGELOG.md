@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.98.4] - 2026-10-08
 
 ### Added
 - When a webhook template fails, MinusPod uses a readable text body for `text/*` endpoints and JSON otherwise; test results identify each affected event. (#826)
