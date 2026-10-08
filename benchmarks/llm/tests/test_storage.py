@@ -3,12 +3,15 @@ import pytest
 
 from benchmark.storage import (
     StorageError,
+    append_call,
     append_jsonl,
     append_response,
+    call_shard,
     dedup_index,
     errored_keys,
     find_call,
     hash_prompt,
+    read_calls,
     read_jsonl,
     read_response,
     safe_model_id,
@@ -103,25 +106,71 @@ def test_read_response_returns_last_write(tmp_path):
     assert read_response(tmp_path, "absent-model", "c1") is None
 
 
-def test_dedup_index_built_from_calls(tmp_path):
-    p = tmp_path / "calls.jsonl"
-    for rec in [
+def test_append_call_shards_by_model(tmp_path):
+    p1 = append_call(tmp_path, {"call_id": "c1", "model": "openai/gpt-4"})
+    p2 = append_call(tmp_path, {"call_id": "c2", "model": "openai/gpt-4"})
+    p3 = append_call(tmp_path, {"call_id": "c3", "model": "anthropic:claude"})
+    assert p1 == p2 == call_shard(tmp_path, "openai/gpt-4") == tmp_path / "calls" / "openai_gpt-4.jsonl"
+    assert p3 == tmp_path / "calls" / "anthropic_claude.jsonl"
+    assert [r["call_id"] for r in read_jsonl(p1)] == ["c1", "c2"]
+
+
+def test_read_calls_orders_by_shard_name_then_within_file(tmp_path):
+    append_call(tmp_path, {"call_id": "b1", "model": "model-b"})
+    append_call(tmp_path, {"call_id": "a1", "model": "model-a"})
+    append_call(tmp_path, {"call_id": "a2", "model": "model-a"})
+    assert [r["call_id"] for r in read_calls(tmp_path)] == ["a1", "a2", "b1"]
+
+
+def test_read_calls_yields_legacy_file_rows_first_and_warns(tmp_path, caplog):
+    append_jsonl(tmp_path / "calls.jsonl", {"call_id": "legacy1", "model": "m"})
+    append_call(tmp_path, {"call_id": "shard1", "model": "m"})
+    with caplog.at_level("WARNING"):
+        rows = list(read_calls(tmp_path))
+    assert [r["call_id"] for r in rows] == ["legacy1", "shard1"]
+    assert sum("migrate-calls" in m for m in caplog.messages) == 1
+
+
+def test_read_calls_missing_raw_dir_yields_nothing(tmp_path):
+    assert list(read_calls(tmp_path / "absent")) == []
+
+
+def test_find_call_scans_raw_dir_across_shards(tmp_path):
+    append_call(tmp_path, {"call_id": "c1", "model": "m1"})
+    append_call(tmp_path, {"call_id": "c2", "model": "m2"})
+    assert find_call(tmp_path, "c2") == {"call_id": "c2", "model": "m2"}
+    assert find_call(tmp_path, "absent") is None
+
+
+def test_find_call_accepts_records_iterable():
+    records = [{"call_id": "c1", "trial": 0}, {"call_id": "c1", "trial": 1}]
+    assert find_call(records, "c1") == {"call_id": "c1", "trial": 1}
+
+
+def test_dedup_index_built_from_calls():
+    records = [
         {"model": "m1", "episode_id": "e1", "trial": 0, "window_index": 0, "prompt_hash": "h1"},
         {"model": "m1", "episode_id": "e1", "trial": 0, "window_index": 1, "prompt_hash": "h2"},
         {"model": "m2", "episode_id": "e1", "trial": 0, "window_index": 0, "prompt_hash": "h3"},
-    ]:
-        append_jsonl(p, rec)
-    idx = dedup_index(p)
+    ]
+    idx = dedup_index(records)
     assert ("m1", "e1", 0, 0, "h1") in idx
     assert ("m1", "e1", 0, 1, "h2") in idx
     assert len(idx) == 3
 
 
-def test_errored_keys_filters_only_errors(tmp_path):
-    p = tmp_path / "calls.jsonl"
-    append_jsonl(p, {"model": "m", "episode_id": "e", "trial": 0, "window_index": 0, "prompt_hash": "h", "error": None})
-    append_jsonl(p, {"model": "m", "episode_id": "e", "trial": 0, "window_index": 1, "prompt_hash": "h2", "error": {"type": "X"}})
-    err = errored_keys(p)
+def test_dedup_index_accepts_raw_dir(tmp_path):
+    append_call(tmp_path, {"model": "m1", "episode_id": "e1", "trial": 0, "window_index": 0, "prompt_hash": "h1"})
+    idx = dedup_index(tmp_path)
+    assert idx == {("m1", "e1", 0, 0, "h1")}
+
+
+def test_errored_keys_filters_only_errors():
+    records = [
+        {"model": "m", "episode_id": "e", "trial": 0, "window_index": 0, "prompt_hash": "h", "error": None},
+        {"model": "m", "episode_id": "e", "trial": 0, "window_index": 1, "prompt_hash": "h2", "error": {"type": "X"}},
+    ]
+    err = errored_keys(records)
     assert err == {("m", "e", 0, 1, "h2")}
 
 
@@ -154,28 +203,23 @@ def _row(**kw):
     return {**base, **kw}
 
 
-def test_errored_keys_discharged_by_a_later_success(tmp_path):
-    """calls.jsonl is append-only, so a successful retry must clear the earlier
-    failure. Otherwise every --retry-errors pass redoes work already recovered."""
-    p = tmp_path / "calls.jsonl"
-    append_jsonl(p, _row(error={"message": "boom"}))
-    assert errored_keys(p) == {("m", "ep", 0, 0, "h")}
+def test_errored_keys_discharged_by_a_later_success():
+    """Call shards are append-only, so a successful retry must clear the
+    earlier failure. Otherwise every --retry-errors pass redoes work already
+    recovered."""
+    records = [_row(error={"message": "boom"})]
+    assert errored_keys(records) == {("m", "ep", 0, 0, "h")}
 
-    append_jsonl(p, _row())
-    assert errored_keys(p) == set()
-
-
-def test_errored_keys_reinstated_when_the_retry_also_fails(tmp_path):
-    p = tmp_path / "calls.jsonl"
-    append_jsonl(p, _row(error={"message": "boom"}))
-    append_jsonl(p, _row())
-    append_jsonl(p, _row(error={"message": "boom again"}))
-    assert errored_keys(p) == {("m", "ep", 0, 0, "h")}
+    records.append(_row())
+    assert errored_keys(records) == set()
 
 
-def test_errored_keys_are_per_key(tmp_path):
+def test_errored_keys_reinstated_when_the_retry_also_fails():
+    records = [_row(error={"message": "boom"}), _row(), _row(error={"message": "boom again"})]
+    assert errored_keys(records) == {("m", "ep", 0, 0, "h")}
+
+
+def test_errored_keys_are_per_key():
     """A success on one window must not discharge a different window's failure."""
-    p = tmp_path / "calls.jsonl"
-    append_jsonl(p, _row(window_index=0, error={"message": "boom"}))
-    append_jsonl(p, _row(window_index=1))
-    assert errored_keys(p) == {("m", "ep", 0, 0, "h")}
+    records = [_row(window_index=0, error={"message": "boom"}), _row(window_index=1)]
+    assert errored_keys(records) == {("m", "ep", 0, 0, "h")}

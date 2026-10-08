@@ -12,7 +12,7 @@ import pytest
 
 from benchmark import corpus, parsing, report as report_mod, runner
 from benchmark.corpus import CorpusError, Window
-from benchmark.storage import append_jsonl
+from benchmark.storage import append_call
 
 
 SEGMENTS = [
@@ -187,13 +187,12 @@ def test_reconstruct_user_prompt_uses_record_segment_id_mode(tmp_path, write_cor
 def test_report_isolates_addressing_modes(tmp_path, minimal_cfg, pricing_snapshot, write_corpus_episode):
     ep_dir = write_corpus_episode(tmp_path / "corpus", segments=SEGMENTS)
     ep = corpus.load_episode(ep_dir)
-    calls_path = tmp_path / "calls.jsonl"
-    append_jsonl(calls_path, {
+    append_call(tmp_path, {
         **CALL_TEMPLATE, "call_id": "c1", "episode_id": ep.ep_id,
         "addressing_mode": "timestamps",
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
     })
-    append_jsonl(calls_path, {
+    append_call(tmp_path, {
         **CALL_TEMPLATE, "call_id": "c2", "episode_id": ep.ep_id,
         "model": "m-id-only", "addressing_mode": "segment_ids",
         "parsed_ads": [{"start": 0.0, "end": 30.0}],
@@ -201,7 +200,7 @@ def test_report_isolates_addressing_modes(tmp_path, minimal_cfg, pricing_snapsho
 
     out_ts = tmp_path / "report_ts.md"
     report_mod.render(
-        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path,
+        cfg=minimal_cfg, episodes=[ep], raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot, output_path=out_ts, assets_dir=tmp_path / "assets_ts",
     )
     text_ts = out_ts.read_text()
@@ -211,7 +210,7 @@ def test_report_isolates_addressing_modes(tmp_path, minimal_cfg, pricing_snapsho
 
     out_id = tmp_path / "report_id.md"
     report_mod.render(
-        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path,
+        cfg=minimal_cfg, episodes=[ep], raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot, output_path=out_id, assets_dir=tmp_path / "assets_id",
         addressing_mode="segment_ids",
     )
@@ -224,22 +223,21 @@ def test_report_isolates_addressing_modes(tmp_path, minimal_cfg, pricing_snapsho
 def test_report_historical_record_without_field_counts_as_timestamps(tmp_path, minimal_cfg, pricing_snapshot, write_corpus_episode):
     ep_dir = write_corpus_episode(tmp_path / "corpus", segments=SEGMENTS)
     ep = corpus.load_episode(ep_dir)
-    calls_path = tmp_path / "calls.jsonl"
-    append_jsonl(calls_path, {
+    append_call(tmp_path, {
         **CALL_TEMPLATE, "call_id": "c1", "episode_id": ep.ep_id,
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
     })  # no addressing_mode key at all, as every call before this feature existed
 
     out_default = tmp_path / "report.md"
     report_mod.render(
-        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path,
+        cfg=minimal_cfg, episodes=[ep], raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot, output_path=out_default, assets_dir=tmp_path / "assets",
     )
     assert "`m1`" in out_default.read_text()
 
     out_id = tmp_path / "report_id.md"
     report_mod.render(
-        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path,
+        cfg=minimal_cfg, episodes=[ep], raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot, output_path=out_id, assets_dir=tmp_path / "assets_id",
         addressing_mode="segment_ids",
     )
@@ -249,15 +247,14 @@ def test_report_historical_record_without_field_counts_as_timestamps(tmp_path, m
 def test_id_contract_miss_surfaced_in_per_model_detail(tmp_path, minimal_cfg, pricing_snapshot, write_corpus_episode):
     ep_dir = write_corpus_episode(tmp_path / "corpus", segments=SEGMENTS)
     ep = corpus.load_episode(ep_dir)
-    calls_path = tmp_path / "calls.jsonl"
-    append_jsonl(calls_path, {
+    append_call(tmp_path, {
         **CALL_TEMPLATE, "call_id": "c1", "episode_id": ep.ep_id,
         "addressing_mode": "segment_ids", "id_contract_miss": True,
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
     })
     out = tmp_path / "report.md"
     report_mod.render(
-        cfg=minimal_cfg, episodes=[ep], calls_path=calls_path,
+        cfg=minimal_cfg, episodes=[ep], raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot, output_path=out, assets_dir=tmp_path / "assets",
         addressing_mode="segment_ids",
     )

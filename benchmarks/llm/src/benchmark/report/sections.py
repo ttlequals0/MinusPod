@@ -271,7 +271,7 @@ def _render_failures(calls: list[dict]) -> str:
         "",
         "### Sample messages (first 3 per category)",
         "",
-        "First three raw error messages per category, so you can see what the provider actually returned without grepping calls.jsonl. Messages are truncated to ~240 characters; full text lives in `results/raw/calls.jsonl`.",
+        "First three raw error messages per category, so you can see what the provider actually returned without grepping the call records. Messages are truncated to ~240 characters; full text lives in `results/raw/calls/<model>.jsonl`.",
         "",
     ]
     for cat, recs in sorted(by_bucket.items(), key=lambda x: -len(x[1])):
@@ -297,75 +297,76 @@ def _render_failures(calls: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _render_charts_section(stats: dict[str, ModelStats]) -> str:
+def _render_charts_section(stats: dict[str, ModelStats], assets_dir_name: str = "report_assets") -> str:
     pareto_sources = "Source data: [Best Accuracy](#best-accuracy-f05--iou--05), [Best Value](#best-value-f05-per-dollar)"
     if any(_is_free_tier(s) for s in stats.values()):
         pareto_sources += ", [Best Free-Tier](#best-free-tier-f05)"
+    a = assets_dir_name
     return (
         "## Charts\n\n"
         "### Cost vs F1 (Pareto)\n\n"
         "Each model is one colored point. Lower-left is unhelpful (expensive, inaccurate). Upper-left is the sweet spot (accurate, cheap). The legend below the chart shows each model's color next to its F1 and cost-per-episode.\n\n"
-        "![Cost vs F1 by model](report_assets/pareto.svg)\n\n"
+        f"![Cost vs F1 by model]({a}/pareto.svg)\n\n"
         f"{pareto_sources}\n\n"
         "### Accuracy vs latency\n\n"
         "F0.5 (y) against p50 latency (x, log scale). The cost Pareto above answers what accuracy costs in dollars; this one answers what it costs in wall-clock time. Upper-left is accurate and fast. MinusPod's pipeline is offline, so a slow accurate model is usable, but the chart shows which models make you choose and which don't. The OpenRouter latency caveat from the Metric Key applies.\n\n"
-        "![Accuracy vs latency by model](report_assets/accuracy_latency.svg)\n\n"
+        f"![Accuracy vs latency by model]({a}/accuracy_latency.svg)\n\n"
         "Source data: [Best Accuracy](#best-accuracy-f05--iou--05) (F0.5), [Latency tail](#latency-tail) (p50)\n\n"
         "### JSON schema compliance\n\n"
         "Fraction of each model's responses that parsed as a clean JSON array. 1.0 means every response came back exactly as requested; lower numbers mean the parser had to recover from markdown fences, object wrappers, or extra fields.\n\n"
-        "![JSON compliance per model](report_assets/compliance.svg)\n\n"
+        f"![JSON compliance per model]({a}/compliance.svg)\n\n"
         "Source data: [Per-Model Detail](#per-model-detail) (`JSON compliance` field)\n\n"
         "### F1 by episode (heatmap)\n\n"
         "F1 score for each (model, episode) pair. Greener is more accurate, redder is less. The no-ad episodes are excluded. They have no F1 because they're PASS/FAIL negative controls.\n\n"
-        "![F1 score per model and episode](report_assets/episodes.svg)\n\n"
+        f"![F1 score per model and episode]({a}/episodes.svg)\n\n"
         "Source data: [Quick Comparison](#quick-comparison), [Per-Episode Detail](#per-episode-detail)\n\n"
         "### Confidence calibration (heatmap)\n\n"
         "One row per model, one column per self-reported confidence bin. Cell text is the actual hit rate at that bin plus the sample size; cell color is the calibration error (actual minus bin midpoint). Red cells mean the model claimed high confidence but was usually wrong; green is well-calibrated; blue is underconfident. Empty cells mean the model never produced a prediction in that bin. Models are sorted from most overconfident at the top to most underconfident at the bottom.\n\n"
-        "![Confidence calibration per model](report_assets/calibration.svg)\n\n"
+        f"![Confidence calibration per model]({a}/calibration.svg)\n\n"
         "Source data: [Confidence calibration](#confidence-calibration) table\n\n"
         "### Latency percentiles\n\n"
         "p50, p90, p99, and max per model on a log scale. The gap between p99 and max indicates how heavy the tail is. For OpenRouter-routed models, the tail also includes upstream provider load.\n\n"
-        "![Latency percentiles per model](report_assets/latency_tail.svg)\n\n"
+        f"![Latency percentiles per model]({a}/latency_tail.svg)\n\n"
         "Source data: [Latency tail](#latency-tail) table\n\n"
         "### Cross-model agreement (window distribution)\n\n"
         "Histogram of how many models flagged at least one ad per (episode, window). The left side is windows nobody flagged (clear non-ad content), the right side is windows everyone flagged (clear sponsor reads). Bars in the middle are contested (some models said yes, some said no) and are candidates for ensemble voting or manual review. This view is anonymous (bars don't show which models contributed); the per-model breakdown is in the next chart.\n\n"
-        "![Cross-model agreement histogram](report_assets/agreement.svg)\n\n"
+        f"![Cross-model agreement histogram]({a}/agreement.svg)\n\n"
         "Source data: [Cross-model agreement](#cross-model-agreement) table\n\n"
         "### Per-model alignment with majority\n\n"
         "Stacked horizontal bar per model. Green + blue segments are windows where the model voted with the majority (true positives + true negatives); orange is windows where it voted yes but most others voted no (likely false positive / hallucination); red is windows where it voted no but most others voted yes (likely missed real ad). Right-edge label is alignment rate. High alignment means the model tracks consensus; low alignment is either insight or noise depending on whether those broken-from-consensus calls were right.\n\n"
-        "![Per-model alignment with majority](report_assets/alignment.svg)\n\n"
+        f"![Per-model alignment with majority]({a}/alignment.svg)\n\n"
         "Source data: [Per-model alignment with consensus](#per-model-alignment-with-consensus) table\n\n"
         "### Precision vs Recall (with F1 isocurves)\n\n"
         "Scatter of precision (y) vs recall (x) for each model. Dashed gray lines are F1 isocurves; points on the same dashed line have the same F1. Top-right is ideal (high precision AND high recall). Top-left is cautious (high precision, low recall). Bottom-right is greedy (high recall, low precision). Useful for picking a model whose error profile matches your tolerance: precision-leaning for environments where false positives are expensive, recall-leaning for completeness-first.\n\n"
-        "![Precision vs recall scatter](report_assets/precision_recall.svg)\n\n"
+        f"![Precision vs recall scatter]({a}/precision_recall.svg)\n\n"
         "Source data: [Precision, recall, and FP/FN breakdown](#precision-recall-and-fpfn-breakdown) table\n\n"
         "### Boundary accuracy (start + end MAE)\n\n"
         "Stacked horizontal bars per model: blue is mean absolute error on the predicted ad START in seconds, orange is the same for END. Total error labeled at the right. Sorted by total ascending so the cleanest boundaries are at the top. Skewed bars (start much larger than end, or vice versa) mean the model systematically overshoots on one side. Relevant if you cut audio downstream.\n\n"
-        "![Boundary MAE per model](report_assets/boundary.svg)\n\n"
+        f"![Boundary MAE per model]({a}/boundary.svg)\n\n"
         "Source data: [Boundary accuracy](#boundary-accuracy) table\n\n"
         "### Token efficiency vs F1\n\n"
         "Scatter of output tokens per detected ad (x, log scale) vs F1 (y). Upper-left is the efficient zone: high accuracy with few output tokens. Right-side points are reasoning-heavy models that emit chain-of-thought alongside their JSON. The chart answers whether the extra tokens buy more F1 or just burn output budget. A model that lands far right at modest F1 is paying for reasoning that didn't help.\n\n"
-        "![Token efficiency vs F1](report_assets/token_efficiency.svg)\n\n"
+        f"![Token efficiency vs F1]({a}/token_efficiency.svg)\n\n"
         "Source data: [Output token efficiency](#output-token-efficiency) table\n\n"
         "### Cost split (input vs output)\n\n"
         "Stacked horizontal bars per model: blue is the input share of per-episode cost, orange is the output share, total labeled at the right, sorted by total ascending. Every model reads the same transcripts, so a long blue bar is an expensive input price and a long orange bar is a talkative model. Reasoning models show up as mostly orange.\n\n"
-        "![Cost split per model](report_assets/cost_split.svg)\n\n"
+        f"![Cost split per model]({a}/cost_split.svg)\n\n"
         "Source data: [Cost breakdown (input vs output)](#cost-breakdown-input-vs-output) table\n\n"
         "### Trial variance (determinism check)\n\n"
         "Horizontal bars of mean F1 stdev across episodes per model. All trials run at temperature 0.0 so well-behaved models cluster near zero. Bars are color-graded: green below 0.02 (effectively deterministic), yellow 0.02-0.05 (slight noise), red above 0.05 (single-trial F1 numbers from this model should be treated with suspicion). Dotted reference lines mark the 0.02 and 0.05 thresholds.\n\n"
-        "![Trial F1 variance per model](report_assets/trial_variance.svg)\n\n"
+        f"![Trial F1 variance per model]({a}/trial_variance.svg)\n\n"
         "Source data: [Trial variance (determinism check)](#trial-variance-determinism-check) table\n\n"
         "### Detection rate by ad length\n\n"
         "Heatmap of model (row) vs ad-length bucket (column), cell = detection rate with sample size. Greener = caught more ads in that bucket; redder = missed more. Models are sorted by overall detection rate so the strongest are at the top. Empty (gray) cells mean that bucket had no truth ads for the corresponding model's trials.\n\n"
-        "![Detection rate by ad length](report_assets/detection_by_length.svg)\n\n"
+        f"![Detection rate by ad length]({a}/detection_by_length.svg)\n\n"
         "Source data: [Detection rate by ad characteristic > By ad length](#by-ad-length) table\n\n"
         "### Detection rate by ad position\n\n"
         "Same shape as the ad-length heatmap, but columns are episode position (pre-roll / mid-roll / post-roll). A common pattern: pre-roll is easy because of clear show-intro transitions; post-roll is harder because models near the end of long episodes often produce shorter responses or run out of context to anchor on.\n\n"
-        "![Detection rate by ad position](report_assets/detection_by_position.svg)\n\n"
+        f"![Detection rate by ad position]({a}/detection_by_position.svg)\n\n"
         "Source data: [Detection rate by ad characteristic > By ad position](#by-ad-position) table\n\n"
         "### Parser stress (extraction-method usage)\n\n"
         "Heatmap of model (row) vs extraction-method (column), cell = number of responses parsed via that method. Columns are ordered by total usage. `json_array_direct` is the clean path; everything else is a recovery path the parser had to take because the model added markdown fences, wrapped the array in an object, or returned malformed JSON. Models near the top of the chart use the clean path most often. They are operationally easier to consume.\n\n"
-        "![Parser stress heatmap](report_assets/parser_stress.svg)\n\n"
+        f"![Parser stress heatmap]({a}/parser_stress.svg)\n\n"
         "Source data: [Parser stress test](#parser-stress-test) table\n"
     )
 
@@ -668,6 +669,7 @@ def _render_run_metadata(
     raw_calls: list[dict] | None = None,
     prompt_source: str = "live",
     addressing_mode: str = "timestamps",
+    prompt_variant: str = "detection",
 ) -> str:
     total_calls = len(calls)
     successful = sum(1 for c in calls if not c.get("error"))
@@ -685,7 +687,7 @@ def _render_run_metadata(
     ]
     if raw_calls is not None and len(raw_calls) != total_calls:
         lines.append(
-            f"- Raw rows in calls.jsonl: {len(raw_calls)} "
+            f"- Raw call records: {len(raw_calls)} "
             f"({len(raw_calls) - total_calls} superseded by later retries; kept for audit)"
         )
     lines += [
@@ -698,6 +700,7 @@ def _render_run_metadata(
         " this run will come in under the figure above.",
         f"- Active pricing snapshot: {pricing_snapshot.captured_at}",
         f"- Addressing mode: {addressing_mode}",
+        f"- Prompt variant: {prompt_variant}",
         f"- System prompt: {prompt_source}",
     ]
     return "\n".join(lines)
@@ -763,7 +766,9 @@ def _render_boundary_accuracy(stats: dict[str, ModelStats]) -> str:
     return "\n".join(lines)
 
 
-def _render_calibration_table(calibration: dict[str, list[tuple[float, bool]]]) -> str:
+def _render_calibration_table(
+    calibration: dict[str, list[tuple[float, bool]]], assets_dir_name: str = "report_assets",
+) -> str:
     """Bin self-reported confidence and show the actual hit rate in each bin.
     Reveals overconfident models (e.g., phi-4 reports ~0.95 confidence on
     detections that are wrong nearly all the time).
@@ -794,7 +799,7 @@ def _render_calibration_table(calibration: dict[str, list[tuple[float, bool]]]) 
                 hit = sum(1 for t in ins if t) / n
                 cells.append(f"{hit:.2f} (n={n})")
         lines.append(f"| `{model}` | " + " | ".join(cells) + f" | {total_n} |")
-    lines += ["", "See `report_assets/calibration.svg` for the visual reliability diagram."]
+    lines += ["", f"See `{assets_dir_name}/calibration.svg` for the visual reliability diagram."]
     return "\n".join(lines)
 
 

@@ -642,13 +642,14 @@ def _render_detection_bucket_chart(
 
     if not detection_buckets:
         return
-    # Sort models by overall detection rate (sum of hits / total) for that bucket kind, desc
+    # Sort models by overall detection rate (sum of hits / total) for that bucket kind,
+    # desc; tie-break alphabetically so output doesn't depend on input iteration order.
     def overall_rate(model):
         all_hits = []
         for label in bucket_order:
             all_hits.extend(detection_buckets[model].get(bucket_kind, {}).get(label, []))
         return sum(all_hits) / len(all_hits) if all_hits else 0
-    models_sorted = sorted(detection_buckets, key=overall_rate, reverse=True)
+    models_sorted = sorted(detection_buckets, key=lambda m: (-overall_rate(m), m))
     if not models_sorted:
         return
 

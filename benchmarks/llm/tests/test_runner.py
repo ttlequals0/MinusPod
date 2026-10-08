@@ -11,7 +11,7 @@ import pytest
 
 from benchmark import corpus, runner
 from benchmark.llm import LLMResponse
-from benchmark.storage import read_jsonl
+from benchmark.storage import read_calls, read_jsonl
 
 
 def test_build_user_prompt_uses_minuspod_format(make_episode):
@@ -83,9 +83,10 @@ def test_call_id_is_deterministic_shape():
 
 
 def test_run_writes_v2_records_and_response_shards(tmp_path, minimal_cfg, make_episode, pricing_snapshot, monkeypatch):
-    """The execute path writes schema v2: response bodies appended to a
-    per-model JSONL shard, response_path pointing at the shard, and no
-    prompt_path (prompts are reconstructed on demand)."""
+    """The execute path writes schema v3: response bodies and the call record
+    itself both appended to per-model JSONL shards, response_path pointing at
+    the response shard, and no prompt_path (prompts are reconstructed on
+    demand)."""
     async def fake_call(**kwargs):
         return LLMResponse(
             text='[{"start_time": 0.0, "end_time": 30.0}]',
@@ -104,10 +105,11 @@ def test_run_writes_v2_records_and_response_shards(tmp_path, minimal_cfg, make_e
     ))
 
     assert stats.completed == 2  # 1 model x 1 window x 2 trials
-    records = list(read_jsonl(paths.calls_jsonl))
+    assert (paths.calls_dir / "m1.jsonl").is_file()
+    records = list(read_calls(paths.raw))
     assert len(records) == 2
     for rec in records:
-        assert rec["schema_version"] == 2
+        assert rec["schema_version"] == 3
         assert rec["response_path"] == "responses/m1.jsonl"
         assert "prompt_path" not in rec
 

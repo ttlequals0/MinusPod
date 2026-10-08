@@ -555,6 +555,16 @@ def _ci_half_width(values: list[float]) -> float:
     return _t_crit(n - 1, two_sided=True) * metrics.trial_stdev(values) / math.sqrt(n)
 
 
+def _paired_diff_stats(a: dict[str, float], b: dict[str, float]) -> tuple[float, float, int] | None:
+    """Mean, sample stdev, and count of (a - b) over the keys a and b share.
+    None when fewer than 2 shared keys (episodes)."""
+    keys = [k for k in a if k in b]
+    if len(keys) < 2:
+        return None
+    diffs = [a[k] - b[k] for k in keys]
+    return statistics.fmean(diffs), statistics.stdev(diffs), len(diffs)
+
+
 def _sig_worse(leader: dict[str, float], model: dict[str, float]) -> bool:
     """Paired one-sided t-test (95%): is `model` significantly worse than
     `leader` across the episodes they share? Models are scored on the same
@@ -563,19 +573,82 @@ def _sig_worse(leader: dict[str, float], model: dict[str, float]) -> bool:
     wins across episodes (mean difference near zero) are NOT separated; a model
     that is consistently below the leader is. Ties / < 2 shared episodes -> not
     worse (same tier)."""
-    eps = [e for e in leader if e in model]
-    diffs = [leader[e] - model[e] for e in eps]
-    n = len(diffs)
-    if n < 2:
+    stats = _paired_diff_stats(leader, model)
+    if stats is None:
         return False
-    mean_d = statistics.fmean(diffs)
+    mean_d, sd, n = stats
     if mean_d <= 0:
         return False
-    sd = statistics.stdev(diffs)
     if sd == 0:
         return True  # strictly worse on every shared episode
     t = mean_d / (sd / math.sqrt(n))
     return t > _t_crit(n - 1, two_sided=False)
+
+
+def _betacf(a: float, b: float, x: float) -> float:
+    """Continued-fraction term of the incomplete beta function (Lentz's
+    algorithm), used only to turn a t-statistic into a p-value below."""
+    maxit, eps, fpmin = 200, 3e-16, 1e-300
+    qab, qap, qam = a + b, a + 1.0, a - 1.0
+    c = 1.0
+    d = 1.0 - qab * x / qap
+    if abs(d) < fpmin:
+        d = fpmin
+    d = 1.0 / d
+    h = d
+    for m in range(1, maxit + 1):
+        m2 = 2 * m
+        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        if abs(d) < fpmin:
+            d = fpmin
+        c = 1.0 + aa / c
+        if abs(c) < fpmin:
+            c = fpmin
+        d = 1.0 / d
+        h *= d * c
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        if abs(d) < fpmin:
+            d = fpmin
+        c = 1.0 + aa / c
+        if abs(c) < fpmin:
+            c = fpmin
+        d = 1.0 / d
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < eps:
+            break
+    return h
+
+
+def _betai(a: float, b: float, x: float) -> float:
+    """Regularized incomplete beta function I_x(a, b)."""
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    bt = math.exp(
+        math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
+        + a * math.log(x) + b * math.log(1.0 - x)
+    )
+    if x < (a + 1.0) / (a + b + 2.0):
+        return bt * _betacf(a, b, x) / a
+    return 1.0 - bt * _betacf(b, a, 1.0 - x) / b
+
+
+def _paired_t_pvalue(a: dict[str, float], b: dict[str, float]) -> float | None:
+    """Two-sided p-value for the same paired t-test `_sig_worse` uses (a - b
+    over shared episodes); None when fewer than 2 shared episodes."""
+    stats = _paired_diff_stats(a, b)
+    if stats is None:
+        return None
+    mean_d, sd, n = stats
+    if sd == 0:
+        return 0.0 if mean_d != 0 else 1.0
+    t_abs = abs(mean_d / (sd / math.sqrt(n)))
+    df = n - 1
+    return _betai(df / 2.0, 0.5, df / (df + t_abs * t_abs))
 
 
 def _tier_label(index: int) -> str:

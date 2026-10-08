@@ -1,11 +1,11 @@
-"""Report renders cleanly from synthesized calls.jsonl."""
+"""Report renders cleanly from synthesized call records."""
 from __future__ import annotations
 
 from benchmark import report
 from benchmark.report import charts
 from benchmark.report.aggregate import ModelStats
 from benchmark.report.sections import _error_bucket, _render_fp_windows
-from benchmark.storage import append_jsonl
+from benchmark.storage import append_call
 
 
 CALL_RECORD_TEMPLATE = {
@@ -32,11 +32,10 @@ CALL_RECORD_TEMPLATE = {
 
 
 def test_render_with_no_data(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
-    calls = tmp_path / "calls.jsonl"
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[make_episode()],
-        calls_path=calls,
+        raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -45,12 +44,11 @@ def test_render_with_no_data(tmp_path, minimal_cfg, make_episode, pricing_snapsh
 
 def test_render_with_one_call(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     ep = make_episode(n_windows=1)
-    calls = tmp_path / "calls.jsonl"
-    append_jsonl(calls, {**CALL_RECORD_TEMPLATE, "call_id": "c1", "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}]})
+    append_call(tmp_path, {**CALL_RECORD_TEMPLATE, "call_id": "c1", "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}]})
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls,
+        raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -67,13 +65,12 @@ def test_per_model_detail_reports_verbosity_and_truncation(tmp_path, minimal_cfg
     visible at a glance.
     """
     ep = make_episode(n_windows=1)
-    calls = tmp_path / "calls.jsonl"
-    append_jsonl(calls, {
+    append_call(tmp_path, {
         **CALL_RECORD_TEMPLATE, "call_id": "c1", "model": "verbose-model",
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
         "output_tokens": 1500, "truncated": False, "over_1024_tokens": True,
     })
-    append_jsonl(calls, {
+    append_call(tmp_path, {
         **CALL_RECORD_TEMPLATE, "call_id": "c2", "model": "verbose-model",
         "trial": 1,
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
@@ -84,7 +81,7 @@ def test_per_model_detail_reports_verbosity_and_truncation(tmp_path, minimal_cfg
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls,
+        raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -116,13 +113,12 @@ def test_json_format_summary_classifies_native_prompt_inject_mixed():
 def test_tldr_table_columns_and_json_mode_telemetry(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     """Best Accuracy table renders the F0.5 tier columns; per-model detail shows JSON mode."""
     ep = make_episode(n_windows=1)
-    calls = tmp_path / "calls.jsonl"
     # Two trials on `m1` (one native, one prompt_injection) -> mixed.
-    append_jsonl(calls, {
+    append_call(tmp_path, {
         **CALL_RECORD_TEMPLATE, "call_id": "c1", "trial": 0,
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
     })
-    append_jsonl(calls, {
+    append_call(tmp_path, {
         **CALL_RECORD_TEMPLATE, "call_id": "c2", "trial": 1,
         "json_format_used": "prompt_injection",
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
@@ -130,7 +126,7 @@ def test_tldr_table_columns_and_json_mode_telemetry(tmp_path, minimal_cfg, make_
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls,
+        raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -160,12 +156,11 @@ def test_aggregate_model_order_deterministic(make_episode, pricing_snapshot):
 
 def test_render_handles_no_ad_episode(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     ep = make_episode(n_windows=1, no_ad=True)
-    calls = tmp_path / "calls.jsonl"
-    append_jsonl(calls, {**CALL_RECORD_TEMPLATE, "call_id": "c2", "parsed_ads": []})
+    append_call(tmp_path, {**CALL_RECORD_TEMPLATE, "call_id": "c2", "parsed_ads": []})
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls,
+        raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -211,7 +206,7 @@ def test_moderation_block_is_counted_and_flagged():
 
 
 def test_campaign_mixing_detects_two_prompt_hashes_per_unit():
-    """calls.jsonl accumulates campaigns unless rotated. Dedup ignores
+    """Call records accumulate campaigns unless rotated. Dedup ignores
     prompt_hash, so a partial re-run silently keeps old rows for the units it
     did not reach. Nothing else in the report would surface that."""
     from benchmark.report.aggregate import campaign_mixing

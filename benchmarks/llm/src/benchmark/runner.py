@@ -1,4 +1,4 @@
-"""Async fan-out runner: dispatches LLM calls and writes calls.jsonl."""
+"""Async fan-out runner: dispatches LLM calls and writes per-model call shards."""
 from __future__ import annotations
 
 import asyncio
@@ -11,16 +11,17 @@ from pathlib import Path
 from utils.time import utc_now_iso
 from utils.prompt import scrub_description
 
-from . import llm, parsing, pricing
+from . import llm, parsing, pricing, variants
 from .config import BenchmarkConfig
 from .corpus import Episode, load_episode, stamp_id_windows
 from .metrics import compliance_score, schema_audit
 from .storage import (
     SCHEMA_VERSION,
+    append_call,
     append_jsonl,
     append_response,
     hash_prompt,
-    read_jsonl,
+    read_calls,
     safe_model_id,
     sanitize_error,
     scan_calls,
@@ -40,7 +41,8 @@ class WorkUnit:
 
 @dataclass
 class RunPaths:
-    calls_jsonl: Path
+    raw: Path
+    calls_dir: Path
     episode_results_jsonl: Path
     responses_dir: Path
     prompts_dir: Path
@@ -49,7 +51,8 @@ class RunPaths:
     def for_root(cls, results_root: Path) -> "RunPaths":
         raw = results_root / "raw"
         return cls(
-            calls_jsonl=raw / "calls.jsonl",
+            raw=raw,
+            calls_dir=raw / "calls",
             episode_results_jsonl=raw / "episode_results.jsonl",
             responses_dir=raw / "responses",
             prompts_dir=raw / "prompts",
@@ -114,6 +117,7 @@ def precompute_prompt_hashes(
     *,
     system_prompt: str,
     addressing_mode: str = "timestamps",
+    prompt_variant: str = "detection",
 ) -> dict[tuple[str, str, int, int], str]:
     """User prompt is identical across (model, trial); cache once per (episode, window).
 
@@ -129,7 +133,7 @@ def precompute_prompt_hashes(
             id_segments = id_windows[w.index] if id_windows is not None else None
             user_prompts[(ep.ep_id, w.index)] = _build_user_prompt(
                 ep, w, total_windows=len(ep.windows),
-                addressing_mode=addressing_mode, id_segments=id_segments,
+                addressing_mode=addressing_mode, prompt_variant=prompt_variant, id_segments=id_segments,
             )
     active_models = [m for m in cfg.models if not m.deprecated]
     hash_by_model_window: dict[tuple[str, str, int], str] = {
@@ -150,7 +154,7 @@ def precompute_prompt_hashes(
 
 
 def reconstruct_user_prompt(record: dict, *, corpus_dir: Path) -> str:
-    """Rebuild the exact user prompt for a calls.jsonl record from the corpus.
+    """Rebuild the exact user prompt for a call record from the corpus.
 
     Uses the record's own ``addressing_mode`` (records written before this
     field existed default to 'timestamps'). Deterministic as long as the
@@ -166,16 +170,18 @@ def reconstruct_user_prompt(record: dict, *, corpus_dir: Path) -> str:
         )
     window = episode.windows[window_index]
     addressing_mode = record.get("addressing_mode", "timestamps")
+    prompt_variant = record.get("prompt_variant", "detection")
     id_segments = stamp_id_windows(episode)[window_index] if addressing_mode == "segment_ids" else None
     return _build_user_prompt(
         episode, window, total_windows=len(episode.windows),
-        addressing_mode=addressing_mode, id_segments=id_segments,
+        addressing_mode=addressing_mode, prompt_variant=prompt_variant, id_segments=id_segments,
     )
 
 
 def _build_user_prompt(
     episode: Episode, window, *, total_windows: int,
     addressing_mode: str = "timestamps",
+    prompt_variant: str = "detection",
     id_segments: list[dict] | None = None,
 ) -> str:
     description = scrub_description(episode.metadata.description, max_length=4000)
@@ -184,6 +190,18 @@ def _build_user_prompt(
         transcript_lines = [f"[{seg['sid']}] {seg['text']}" for seg in (id_segments or [])]
     else:
         transcript_lines = window.transcript_lines
+    if prompt_variant == "segmentation":
+        return variants.format_segmentation_prompt(
+            podcast_name=episode.metadata.podcast_name,
+            episode_title=episode.metadata.title,
+            description_section=description_section,
+            transcript_lines=transcript_lines,
+            window_index=window.index,
+            total_windows=total_windows,
+            window_start=window.start,
+            window_end=window.end,
+            addressing_mode=addressing_mode,
+        )
     return parsing.format_window_prompt(
         podcast_name=episode.metadata.podcast_name,
         episode_title=episode.metadata.title,
@@ -206,13 +224,15 @@ async def run(
     system_prompt: str,
     include_errored: bool = False,
     addressing_mode: str = "timestamps",
+    prompt_variant: str = "detection",
+    all_episodes: list[Episode] | None = None,
 ) -> RunStats:
     prompt_hashes = precompute_prompt_hashes(
-        cfg, episodes, system_prompt=system_prompt, addressing_mode=addressing_mode,
+        cfg, episodes, system_prompt=system_prompt, addressing_mode=addressing_mode, prompt_variant=prompt_variant,
     )
     id_windows_by_ep = _id_windows_for_episodes(episodes, addressing_mode)
 
-    completed, err_keys = scan_calls(paths.calls_jsonl)
+    completed, err_keys = scan_calls(read_calls(paths.raw))
     units, skipped = build_work_list(
         cfg, episodes,
         completed=completed,
@@ -239,7 +259,7 @@ async def run(
         id_segments = id_windows[unit.window_index] if id_windows is not None else None
         user_prompt = _build_user_prompt(
             episode, window, total_windows=len(episode.windows),
-            addressing_mode=addressing_mode, id_segments=id_segments,
+            addressing_mode=addressing_mode, prompt_variant=prompt_variant, id_segments=id_segments,
         )
         ph = prompt_hashes[(unit.model_id, unit.episode_id, unit.trial, unit.window_index)]
 
@@ -282,7 +302,11 @@ async def run(
             elapsed_ms = int((time.perf_counter() - t0) * 1000)
             id_contract_miss = False
             try:
-                if addressing_mode == "segment_ids":
+                if prompt_variant == "segmentation":
+                    parsed_ads, extraction_method, id_contract_miss = variants.parse_segmentation_response(
+                        response_text, addressing_mode, id_segments,
+                    )
+                elif addressing_mode == "segment_ids":
                     parsed_ads, extraction_method, id_contract_miss = _parse_id_response(response_text, id_segments)
                 else:
                     parsed_ads, extraction_method = _parse_response(response_text)
@@ -312,6 +336,7 @@ async def run(
                 "window_index": unit.window_index,
                 "temperature": cfg.run.temperature,
                 "addressing_mode": addressing_mode,
+                "prompt_variant": prompt_variant,
                 "prompt_hash": ph,
                 "response_time_ms": elapsed_ms,
                 "input_tokens": input_tokens,
@@ -331,7 +356,7 @@ async def run(
                 # chatty models (phi-4, some Gemini variants) that won't fit
                 # under a tight max_tokens budget even when not truncated.
                 "over_1024_tokens": (output_tokens or 0) > 1024,
-                "response_path": str(response_path.relative_to(paths.calls_jsonl.parent)) if response_path else None,
+                "response_path": str(response_path.relative_to(paths.raw)) if response_path else None,
                 "extraction_method": extraction_method,
                 "compliance_score": comp,
                 "id_contract_miss": id_contract_miss,
@@ -341,9 +366,9 @@ async def run(
                 "error": error_payload,
             }
             try:
-                append_jsonl(paths.calls_jsonl, record)
+                append_call(paths.raw, record)
             except Exception as write_e:
-                logger.exception("failed to append calls.jsonl record %s: %s", call_id, write_e)
+                logger.exception("failed to append call record %s: %s", call_id, write_e)
                 return
 
             if error_payload:
@@ -353,24 +378,27 @@ async def run(
 
     await asyncio.gather(*(execute(u) for u in units), return_exceptions=False)
 
-    derive_episode_results(cfg, episodes, paths=paths)
+    # A --model/--episode-filtered run still derives episode_results.jsonl from the
+    # full corpus, so episodes outside this run's filter aren't dropped from it.
+    derive_episode_results(cfg, all_episodes if all_episodes is not None else episodes, paths=paths)
     return stats
 
 
 def derive_episode_results(cfg: BenchmarkConfig, episodes: list[Episode], *, paths: RunPaths) -> None:
-    """Recompute episode_results.jsonl from calls.jsonl. Idempotent."""
+    """Recompute episode_results.jsonl from the call shards. Idempotent."""
     if paths.episode_results_jsonl.exists():
         paths.episode_results_jsonl.unlink()
 
-    by_trial: dict[tuple[str, str, int], list[dict]] = {}
-    for rec in read_jsonl(paths.calls_jsonl):
+    by_trial: dict[tuple[str, str, int, str, str], list[dict]] = {}
+    for rec in read_calls(paths.raw):
         if rec.get("error"):
             continue
-        key = (rec["model"], rec["episode_id"], rec["trial"])
+        prompt_variant, addressing_mode = variants.record_cell(rec)
+        key = (rec["model"], rec["episode_id"], rec["trial"], addressing_mode, prompt_variant)
         by_trial.setdefault(key, []).append(rec)
 
     episodes_by_id = {ep.ep_id: ep for ep in episodes}
-    for (model, episode_id, trial), records in by_trial.items():
+    for (model, episode_id, trial, addressing_mode, prompt_variant), records in by_trial.items():
         episode = episodes_by_id.get(episode_id)
         if episode is None:
             continue
@@ -387,6 +415,8 @@ def derive_episode_results(cfg: BenchmarkConfig, episodes: list[Episode], *, pat
             "model": model,
             "episode_id": episode_id,
             "trial": trial,
+            "addressing_mode": addressing_mode,
+            "prompt_variant": prompt_variant,
             "window_count": len(records),
             "merged_ads": deduped,
             "total_input_tokens": sum(r.get("input_tokens", 0) for r in records),
