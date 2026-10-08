@@ -430,7 +430,7 @@ class TestFireTestEvent:
 
         results = fire_test_event(config)
 
-        assert results == [{'event': EVENT_AUTH_FAILURE, 'delivered': True}]
+        assert results == [{'event': EVENT_AUTH_FAILURE, 'delivered': True, 'templateFallback': False}]
         mock_post.assert_called_once()
         body = json.loads(mock_post.call_args.kwargs['data'])
         assert body['event'] == EVENT_AUTH_FAILURE
@@ -456,9 +456,9 @@ class TestFireTestEvent:
             results = fire_test_event(config)
 
         assert results == [
-            {'event': EVENT_EPISODE_FAILED, 'delivered': True},
-            {'event': EVENT_RATE_LIMIT_STRUCTURAL, 'delivered': True},
-            {'event': EVENT_UPDATE_AVAILABLE, 'delivered': True},
+            {'event': EVENT_EPISODE_FAILED, 'delivered': True, 'templateFallback': False},
+            {'event': EVENT_RATE_LIMIT_STRUCTURAL, 'delivered': True, 'templateFallback': False},
+            {'event': EVENT_UPDATE_AVAILABLE, 'delivered': True, 'templateFallback': False},
         ]
         assert mock_post.call_count == 3
         bodies = [json.loads(c.kwargs['data']) for c in mock_post.call_args_list]
@@ -481,7 +481,7 @@ class TestFireTestEvent:
         with patch('database.Database', return_value=mock_db):
             results = fire_test_event(config)
 
-        assert results == [{'event': EVENT_EPISODE_PROCESSED, 'delivered': True}]
+        assert results == [{'event': EVENT_EPISODE_PROCESSED, 'delivered': True, 'templateFallback': False}]
         mock_post.assert_called_once()
 
     @patch('webhook_service.safe_post')
@@ -495,7 +495,7 @@ class TestFireTestEvent:
         with patch('database.Database', return_value=mock_db):
             results = fire_test_event(config)
 
-        assert results == [{'event': EVENT_EPISODE_PROCESSED, 'delivered': True}]
+        assert results == [{'event': EVENT_EPISODE_PROCESSED, 'delivered': True, 'templateFallback': False}]
 
     @patch('webhook_service.safe_post')
     def test_unrecognized_event_reports_the_sample_it_actually_sent(self, mock_post):
@@ -510,7 +510,7 @@ class TestFireTestEvent:
         with patch('database.Database', return_value=mock_db):
             results = fire_test_event(config)
 
-        assert results == [{'event': EVENT_EPISODE_PROCESSED, 'delivered': True}]
+        assert results == [{'event': EVENT_EPISODE_PROCESSED, 'delivered': True, 'templateFallback': False}]
         body = json.loads(mock_post.call_args.kwargs['data'])
         assert body['event'] == EVENT_EPISODE_PROCESSED
 
@@ -530,8 +530,8 @@ class TestFireTestEvent:
         results = fire_test_event(config)
 
         assert results == [
-            {'event': EVENT_AUTH_FAILURE, 'delivered': True},
-            {'event': EVENT_LIMIT_EXCEEDED, 'delivered': False},
+            {'event': EVENT_AUTH_FAILURE, 'delivered': True, 'templateFallback': False},
+            {'event': EVENT_LIMIT_EXCEEDED, 'delivered': False, 'templateFallback': False},
         ]
 
     @patch('webhook_service.safe_post')
@@ -552,7 +552,170 @@ class TestFireTestEvent:
                     'payloadTemplate': template,
                 }
                 results = fire_test_event(config)
-                assert results == [{'event': event, 'delivered': True}]
+                assert [(r['event'], r['delivered']) for r in results] == [(event, True)]
+
+    @patch('webhook_service.safe_post')
+    def test_template_fallback_flagged_only_for_events_that_cannot_render(self, mock_post):
+        """An episode-only template renders for episode events and falls back
+        for alert events; each result says which."""
+        mock_post.return_value = MagicMock(status_code=200)
+        mock_db = MagicMock()
+        mock_db.get_latest_completed_processing.return_value = None
+        config = {
+            'url': 'https://hook.example.com',
+            'events': [EVENT_EPISODE_PROCESSED, EVENT_AUTH_FAILURE],
+            'payloadTemplate': '{{ podcast.name }} - {{ episode.title }}',
+        }
+
+        with patch('database.Database', return_value=mock_db):
+            results = fire_test_event(config)
+
+        assert results == [
+            {'event': EVENT_EPISODE_PROCESSED, 'delivered': True, 'templateFallback': False},
+            {'event': EVENT_AUTH_FAILURE, 'delivered': True, 'templateFallback': True},
+        ]
+
+    @patch('webhook_service.safe_post')
+    def test_no_template_never_reports_fallback(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200)
+        config = {'url': 'https://hook.example.com', 'events': [EVENT_AUTH_FAILURE]}
+
+        results = fire_test_event(config)
+
+        assert results[0]['templateFallback'] is False
+
+
+# ---------------------------------------------------------------------------
+# Template render failure: body fallback by content type
+# ---------------------------------------------------------------------------
+
+class TestTemplateFallbackBody:
+
+    EPISODE_ONLY = '{{ podcast.name }} - {{ episode.title }}'
+
+    def _alert_context(self):
+        return {
+            'event': EVENT_AUTH_FAILURE,
+            'provider': 'anthropic',
+            'model': 'claude-sonnet-4',
+            'error_message': 'Invalid API key provided',
+        }
+
+    def _config(self, content_type=None, template=EPISODE_ONLY):
+        config = {'url': 'https://hook.example.com', 'payloadTemplate': template}
+        if content_type is not None:
+            config['contentType'] = content_type
+        return config
+
+    @staticmethod
+    def _sent_body(mock_post):
+        return mock_post.call_args.kwargs['data'].decode('utf-8')
+
+    @patch('webhook_service.safe_post')
+    def test_text_plain_sends_readable_line(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200)
+
+        _prepare_and_dispatch(self._config('text/plain'), self._alert_context())
+
+        assert self._sent_body(mock_post) == (
+            'MinusPod Auth Failure: anthropic claude-sonnet-4 - Invalid API key provided'
+        )
+
+    @pytest.mark.parametrize('content_type', [
+        'Text/Plain; charset=utf-8',
+        'text/markdown',
+    ])
+    @patch('webhook_service.safe_post')
+    def test_other_text_content_types_get_readable_line(self, mock_post, content_type):
+        mock_post.return_value = MagicMock(status_code=200)
+
+        _prepare_and_dispatch(self._config(content_type), self._alert_context())
+
+        assert self._sent_body(mock_post).startswith('MinusPod Auth Failure: ')
+
+    @pytest.mark.parametrize('content_type', ['application/json', None])
+    @patch('webhook_service.safe_post')
+    def test_json_and_default_content_types_keep_json_fallback(self, mock_post, content_type):
+        mock_post.return_value = MagicMock(status_code=200)
+        context = self._alert_context()
+
+        _prepare_and_dispatch(self._config(content_type), context)
+
+        assert json.loads(mock_post.call_args.kwargs['data']) == context
+
+    @patch('webhook_service.safe_post')
+    def test_test_flag_prefixes_readable_line(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200)
+
+        _prepare_and_dispatch(
+            self._config('text/plain'), self._alert_context(), add_test_flag=True
+        )
+
+        assert self._sent_body(mock_post).startswith('[test] MinusPod Auth Failure: ')
+
+    @patch('webhook_service.safe_post')
+    def test_readable_line_for_episode_event(self, mock_post):
+        """A template that fails on an episode event still names the podcast,
+        the episode and the error."""
+        mock_post.return_value = MagicMock(status_code=200)
+        context = _build_context(_make_payload(
+            event=EVENT_EPISODE_FAILED,
+            podcast_name='My Show',
+            episode_title='Pilot',
+            error_message='Transcription failed',
+        ))
+
+        _prepare_and_dispatch(self._config('text/plain', '{{ nonexistent.field }}'), context)
+
+        assert self._sent_body(mock_post) == (
+            'MinusPod Episode Failed: My Show - Pilot - Transcription failed'
+        )
+
+    @pytest.mark.parametrize('event', sorted(VALID_EVENTS))
+    @patch('webhook_service.safe_post')
+    def test_readable_line_for_every_event(self, mock_post, event):
+        """Every event's test context yields a readable line, not JSON."""
+        mock_post.return_value = MagicMock(status_code=200)
+        mock_db = MagicMock()
+        mock_db.get_latest_completed_processing.return_value = None
+        config = {
+            'url': 'https://hook.example.com',
+            'events': [event],
+            'contentType': 'text/plain',
+            'payloadTemplate': '{{ episode.title.x.y }}',
+        }
+
+        with patch('database.Database', return_value=mock_db):
+            results = fire_test_event(config)
+        assert results[0]['templateFallback'] is True
+
+        body = mock_post.call_args.kwargs['data'].decode('utf-8')
+        assert body.startswith(f'[test] MinusPod {event}')
+        assert not body.startswith('{')
+
+    @pytest.mark.parametrize('context, expected', [
+        ({'event': 'Update Available', 'version': '2.74.0', 'channel': 'stable'},
+         'MinusPod Update Available: 2.74.0'),
+        ({'event': 'Failover Triggered', 'source': 'auto', 'target': 'llm-a', 'reason': 'HTTP 503'},
+         'MinusPod Failover Triggered: auto -> llm-a - HTTP 503'),
+        ({'event': 'Queue Held', 'hold_until_local': '2026-01-01T12:30:00+00:00',
+          'error_message': 'retry later'},
+         'MinusPod Queue Held: held until 2026-01-01T12:30:00+00:00 - retry later'),
+        ({'event': 'Service Reachable', 'service': 'llm', 'requeued': 3},
+         'MinusPod Service Reachable: llm - requeued 3'),
+        ({'event': 'Cue Template Quiet', 'podcast': 'My Show', 'template': {'label': 'stinger'}},
+         'MinusPod Cue Template Quiet: My Show - stinger'),
+    ])
+    def test_readable_line_uses_alert_specific_fields(self, context, expected):
+        assert webhook_service._plain_text_fallback(context) == expected
+
+    @patch('webhook_service.safe_post')
+    def test_readable_line_without_details_is_just_the_event(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200)
+
+        _prepare_and_dispatch(self._config('text/plain'), {'event': 'Queue Resumed'})
+
+        assert self._sent_body(mock_post) == 'MinusPod Queue Resumed'
 
 
 # ---------------------------------------------------------------------------

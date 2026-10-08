@@ -415,6 +415,49 @@ class TestWebhookUrlValidation:
         assert response.status_code == 400
 
 
+class TestWebhookTestEndpointMessage:
+    """The Test button's summary names the events whose payload template
+    could not render (the default payload was sent for them)."""
+
+    @staticmethod
+    def _post_test(client, results):
+        webhook = {'id': 'wh1', 'url': 'https://hook.example.com', 'events': []}
+        with patch('api.settings.load_webhooks', return_value=[webhook]), \
+             patch('api.settings.fire_test_event', return_value=results):
+            response = client.post('/api/v1/settings/webhooks/wh1/test')
+        assert response.status_code == 200
+        return json.loads(response.data)
+
+    def test_message_names_events_that_fell_back(self, client):
+        data = self._post_test(client, [
+            {'event': 'Episode Processed', 'delivered': True, 'templateFallback': False},
+            {'event': 'Auth Failure', 'delivered': True, 'templateFallback': True},
+            {'event': 'Limit Exceeded', 'delivered': True, 'templateFallback': True},
+        ])
+        assert data['success'] is True
+        assert data['message'] == (
+            '3 of 3 test payloads delivered; template could not render for 2 events '
+            '(default payload sent): Auth Failure, Limit Exceeded'
+        )
+        assert data['results'][1]['templateFallback'] is True
+
+    def test_message_singular_for_one_event(self, client):
+        data = self._post_test(client, [
+            {'event': 'Auth Failure', 'delivered': True, 'templateFallback': True},
+        ])
+        assert data['message'] == (
+            '1 of 1 test payload delivered; template could not render for 1 event '
+            '(default payload sent): Auth Failure'
+        )
+
+    def test_message_unchanged_without_fallback(self, client):
+        data = self._post_test(client, [
+            {'event': 'Auth Failure', 'delivered': False, 'templateFallback': False},
+        ])
+        assert data['success'] is False
+        assert data['message'] == '0 of 1 test payload delivered'
+
+
 class TestPartialUpdatePreservesOtherFields:
     """A PUT to /settings/ad-detection with one field must not touch the
     others. Locks in the `if 'fieldName' in data:` guard pattern that the

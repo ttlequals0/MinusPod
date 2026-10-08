@@ -274,36 +274,104 @@ def _render_template(template_str, context):
     return template.render(**context)
 
 
+def _is_text_content_type(content_type):
+    """True for any text/* content type, ignoring parameters such as charset."""
+    return (content_type or '').split(';')[0].strip().lower().startswith('text/')
+
+
+def _plain_text_fallback(context):
+    """One readable line for a text body when a custom template can't render.
+
+    Built only from fields the event's context actually has, so it works for
+    episode events and alert events alike.
+    """
+    podcast = context.get('podcast')
+    if isinstance(podcast, dict):
+        podcast_name = podcast.get('name')
+    else:
+        podcast_name = context.get('podcast_name') or podcast
+    episode = context.get('episode')
+    episode = episode if isinstance(episode, dict) else {}
+    template = context.get('template')
+    label = context.get('label') or (template.get('label') if isinstance(template, dict) else None)
+
+    route = None
+    if context.get('source') and context.get('target'):
+        route = f"{context['source']} -> {context['target']}"
+    held_until = context.get('hold_until_local')
+    requeued = context.get('requeued')
+    details = [
+        podcast_name,
+        episode.get('title'),
+        label,
+        ' '.join(str(context[key]) for key in ('provider', 'model') if context.get(key)),
+        context.get('service'),
+        context.get('version'),
+        route,
+        context.get('reason'),
+        f"held until {held_until}" if held_until else None,
+        f"requeued {requeued}" if requeued is not None else None,
+        context.get('error_message') or episode.get('error_message'),
+    ]
+    line = f"MinusPod {context.get('event', 'Event')}"
+    detail = ' - '.join(str(d) for d in details if d)
+    if detail:
+        line = f"{line}: {detail}"
+    return f"[test] {line}" if context.get('test') else line
+
+
+def _render_body(webhook_config, context):
+    """Render the request body. Returns (body_str, fell_back).
+
+    `fell_back` is True when a custom template failed to render and the
+    default payload was sent instead.
+    """
+    template_str = webhook_config.get('payloadTemplate')
+    if not template_str:
+        return json.dumps(dict(context)), False
+
+    try:
+        return _render_template(template_str, context), False
+    except TemplateError as exc:
+        # Custom templates referencing episode/podcast fields raise on alert
+        # events lacking them; fall back to the default payload so alerts
+        # aren't silently dropped (webhooks-misc-2). A text body gets a
+        # readable line; JSON would be noise in a notification.
+        if _is_text_content_type(webhook_config.get('contentType', 'application/json')):
+            fallback_kind, body_str = 'plain-text line', _plain_text_fallback(context)
+        else:
+            fallback_kind, body_str = 'JSON payload', json.dumps(dict(context))
+        logger.warning(
+            "Jinja2 render error for webhook %s; falling back to the default "
+            "%s so the event is not dropped: %s",
+            safe_url_for_log(webhook_config.get('url')), fallback_kind, exc,
+        )
+        return body_str, True
+
+
 def _prepare_and_dispatch(webhook_config, context, add_test_flag=False,
                           max_attempts=2):
     """Render payload and dispatch to a single webhook. Returns HTTP status or None."""
+    return _dispatch_webhook(webhook_config, context, add_test_flag, max_attempts)[0]
+
+
+def _dispatch_webhook(webhook_config, context, add_test_flag=False,
+                      max_attempts=2):
+    """Render and dispatch to a single webhook.
+
+    Returns (HTTP status or None, whether the default payload replaced a
+    template that failed to render).
+    """
     url = webhook_config.get('url')
     if not url:
-        return None
+        return None, False
 
     if add_test_flag:
         context = dict(context)
         context['test'] = True
 
     content_type = webhook_config.get('contentType', 'application/json')
-    template_str = webhook_config.get('payloadTemplate')
-
-    if template_str:
-        try:
-            body_str = _render_template(template_str, context)
-        except TemplateError as exc:
-            # Custom templates referencing episode/podcast fields raise on alert
-            # events lacking them; fall back to the default payload so alerts
-            # aren't silently dropped (webhooks-misc-2).
-            logger.warning(
-                "Jinja2 render error for webhook %s; falling back to the default "
-                "JSON payload so the event is not dropped: %s",
-                safe_url_for_log(url), exc,
-            )
-            body_str = json.dumps(dict(context))
-    else:
-        payload = dict(context)
-        body_str = json.dumps(payload)
+    body_str, fell_back = _render_body(webhook_config, context)
 
     body_bytes = body_str.encode('utf-8')
 
@@ -333,7 +401,7 @@ def _prepare_and_dispatch(webhook_config, context, add_test_flag=False,
             )
         except SSRFError as exc:
             logger.warning("Webhook URL blocked by SSRF check: %s (%s)", safe_url_for_log(url), exc)
-            return None
+            return None, fell_back
         except Exception as exc:
             logger.warning(
                 "Webhook attempt %d/%d failed for %s: %s",
@@ -347,7 +415,7 @@ def _prepare_and_dispatch(webhook_config, context, add_test_flag=False,
 
     if last_status is not None:
         logger.info("Webhook delivered to %s (status %d)", safe_url_for_log(url), last_status)
-    return last_status
+    return last_status, fell_back
 
 
 def load_webhooks(db=None):
@@ -686,23 +754,30 @@ def fire_test_event(webhook_config):
 
     Each payload matches the real shape for its event and is dispatched
     through the same render/dispatch path as real events (`_build_context`/
-    `_prepare_and_dispatch`), with `test: true` set. Falls back to a single
+    `_dispatch_webhook`), with `test: true` set. Falls back to a single
     Episode Processed sample when the webhook's event list is empty:
     webhooks created through the API always save a non-empty list, so this
     only covers legacy or hand-edited data.
 
-    Returns a list of {'event': ..., 'delivered': bool} dicts, one per
-    event tested, in subscription order (duplicates collapsed).
+    Returns a list of {'event': ..., 'delivered': bool, 'templateFallback':
+    bool} dicts, one per event tested, in subscription order (duplicates
+    collapsed). `templateFallback` is True when the custom payload template
+    could not render for that event and the default payload was sent.
     """
     events = list(dict.fromkeys(webhook_config.get('events') or [])) or [EVENT_EPISODE_PROCESSED]
 
     results = []
     for event in events:
         context = _build_test_context(event)
-        status = _prepare_and_dispatch(webhook_config, context, add_test_flag=True, max_attempts=1)
+        status, fell_back = _dispatch_webhook(
+            webhook_config, context, add_test_flag=True, max_attempts=1)
         delivered = status is not None and 200 <= status < 300
         # Report the event actually sent (context['event']), not the raw
         # stored value: they only diverge for an unrecognized/legacy event
         # name, which falls back to an Episode Processed sample.
-        results.append({'event': context['event'], 'delivered': delivered})
+        results.append({
+            'event': context['event'],
+            'delivered': delivered,
+            'templateFallback': fell_back,
+        })
     return results

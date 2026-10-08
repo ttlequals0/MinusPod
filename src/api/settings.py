@@ -4095,10 +4095,18 @@ def test_webhook(webhook_id):
         delivered_count = sum(1 for r in results if r['delivered'])
         total = len(results)
         plural = '' if total == 1 else 's'
+        message = f'{delivered_count} of {total} test payload{plural} delivered'
+        fell_back = [r['event'] for r in results if r['templateFallback']]
+        if fell_back:
+            message += (
+                f"; template could not render for {len(fell_back)} "
+                f"event{'' if len(fell_back) == 1 else 's'} "
+                f"(default payload sent): {', '.join(fell_back)}"
+            )
         return json_response({
             'success': delivered_count == total,
             'results': results,
-            'message': f'{delivered_count} of {total} test payload{plural} delivered',
+            'message': message,
         })
     except Exception as e:
         logger.error(f"Webhook test failed for {webhook_id}: {e}")
