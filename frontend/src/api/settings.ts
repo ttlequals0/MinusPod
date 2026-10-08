@@ -497,7 +497,7 @@ export async function deleteWebhook(id: string): Promise<{ message: string }> {
 
 export interface WebhookTestResult {
   success: boolean;
-  results: { event: string; delivered: boolean }[];
+  results: { event: string; delivered: boolean; templateFallback: boolean }[];
   message: string;
 }
 

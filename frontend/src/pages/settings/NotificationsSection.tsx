@@ -221,7 +221,11 @@ function WebhooksBlock() {
                 {testResult?.id === wh.id && (
                   <p
                     className={`text-xs mt-1 ${
-                      testResult.success ? 'text-success' : 'text-destructive'
+                      !testResult.success
+                        ? 'text-destructive'
+                        : testResult.results.some((r) => r.templateFallback)
+                          ? 'text-warning'
+                          : 'text-success'
                     }`}
                   >
                     {testResult.message}
