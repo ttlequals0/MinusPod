@@ -3,9 +3,8 @@ import type {
   DetectionReviewerFilter, DetectionSort, DetectionStatusFilter,
 } from '../../api/detections';
 import { SEGMENT_CATEGORY_FILTER_OPTIONS } from '../../utils/segmentCategory';
-import { selectBase } from '../../components/fieldStyles';
-import { focusRing } from '../../components/fieldStyles';
-import { btnSecondary } from '../../components/buttonStyles';
+import { focusRing, inputBase, selectBase } from '../../components/fieldStyles';
+import { btnSecondary, touchTarget } from '../../components/buttonStyles';
 
 const SORT_OPTIONS: Array<[DetectionSort, string]> = [
   ['date', 'Published'],
@@ -19,7 +18,7 @@ const REVIEWER_OPTIONS: Array<[DetectionReviewerFilter, string]> = [
   ['unadjusted', 'Not adjusted'],
 ];
 
-const SELECT_CLASS = `flex-1 sm:flex-none min-w-0 ${selectBase}`;
+const SELECT_CLASS = `min-h-11 w-full sm:min-h-0 ${selectBase}`;
 
 interface FeedOption {
   slug: string;
@@ -70,10 +69,10 @@ export function DetectionFilterBar({
   holdReason,
 }: Props) {
   return (
-    <div className="bg-card rounded-lg border border-border p-4 mb-6 flex flex-wrap gap-4 items-center">
+    <div className="bg-card rounded-lg border border-border p-4 mb-6 grid grid-cols-1 min-[375px]:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
       {status && (
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor={`${idPrefix}-status`} className="text-sm text-muted-foreground shrink-0">Status</label>
+        <div className="min-w-0">
+          <label htmlFor={`${idPrefix}-status`} className="mb-1 block text-sm text-muted-foreground">Status</label>
           <select
             id={`${idPrefix}-status`}
             value={status.value}
@@ -87,8 +86,8 @@ export function DetectionFilterBar({
         </div>
       )}
       {holdReason && (
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor={`${idPrefix}-hold-reason`} className="text-sm text-muted-foreground shrink-0">Hold reason</label>
+        <div className="min-w-0">
+          <label htmlFor={`${idPrefix}-hold-reason`} className="mb-1 block text-sm text-muted-foreground">Hold reason</label>
           <select
             id={`${idPrefix}-hold-reason`}
             value={holdReason.value}
@@ -102,13 +101,13 @@ export function DetectionFilterBar({
           </select>
         </div>
       )}
-      <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
-        <label htmlFor={`${idPrefix}-feed`} className="text-sm text-muted-foreground shrink-0">Podcast</label>
+      <div className="min-w-0">
+        <label htmlFor={`${idPrefix}-feed`} className="mb-1 block text-sm text-muted-foreground">Podcast</label>
         <select
           id={`${idPrefix}-feed`}
           value={feed}
           onChange={(e) => onFeedChange(e.target.value)}
-          className={`flex-1 sm:flex-none min-w-0 max-w-full sm:max-w-72 ${selectBase}`}
+          className={SELECT_CLASS}
         >
           <option value="">All podcasts</option>
           {feeds?.map((f) => (
@@ -116,8 +115,8 @@ export function DetectionFilterBar({
           ))}
         </select>
       </div>
-      <div className="flex items-center gap-2 w-full sm:w-auto">
-        <label htmlFor={`${idPrefix}-category`} className="text-sm text-muted-foreground shrink-0">Category</label>
+      <div className="min-w-0">
+        <label htmlFor={`${idPrefix}-category`} className="mb-1 block text-sm text-muted-foreground">Category</label>
         <select
           id={`${idPrefix}-category`}
           value={category}
@@ -129,8 +128,8 @@ export function DetectionFilterBar({
           ))}
         </select>
       </div>
-      <div className="flex items-center gap-2 w-full sm:w-auto">
-        <label htmlFor={`${idPrefix}-reviewer`} className="text-sm text-muted-foreground shrink-0">Reviewer</label>
+      <div className="min-w-0">
+        <label htmlFor={`${idPrefix}-reviewer`} className="mb-1 block text-sm text-muted-foreground">Reviewer</label>
         <select
           id={`${idPrefix}-reviewer`}
           value={reviewer}
@@ -142,41 +141,43 @@ export function DetectionFilterBar({
           ))}
         </select>
       </div>
-      <div className="flex items-center gap-2 w-full sm:flex-1 sm:min-w-[200px]">
-        <label htmlFor={`${idPrefix}-q`} className="text-sm text-muted-foreground shrink-0">Search</label>
+      {/* Neither the rows nor the cards have sortable headers, so sorting
+          lives in the filter bar at every width. */}
+      <div className={`min-w-0 min-[375px]:col-span-2 lg:col-span-1`}>
+        <label htmlFor={`${idPrefix}-sort`} className="mb-1 block text-sm text-muted-foreground">Sort</label>
+        <div className="flex min-w-0 items-center gap-2">
+          <select
+            id={`${idPrefix}-sort`}
+            value={sort}
+            onChange={(e) => onSortChange(e.target.value as DetectionSort)}
+            className={`min-w-0 flex-1 ${SELECT_CLASS}`}
+          >
+            {SORT_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => onOrderChange(order === 'desc' ? 'asc' : 'desc')}
+            aria-label={order === 'desc' ? 'Switch to ascending order' : 'Switch to descending order'}
+            className={`${touchTarget} shrink-0 rounded px-3 py-1.5 ${btnSecondary} transition-colors ${focusRing}`}
+          >
+            {order === 'desc'
+              ? <ChevronDown className="w-4 h-4" aria-hidden />
+              : <ChevronUp className="w-4 h-4" aria-hidden />}
+          </button>
+        </div>
+      </div>
+      <div className={`min-w-0 min-[375px]:col-span-2 lg:col-span-4`}>
+        <label htmlFor={`${idPrefix}-q`} className="mb-1 block text-sm text-muted-foreground">Search</label>
         <input
           id={`${idPrefix}-q`}
           type="text"
           value={q}
           onChange={(e) => onQChange(e.target.value)}
           placeholder="Sponsor or reason"
-          className="w-full min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+          className={`min-h-11 w-full min-w-0 sm:min-h-0 ${inputBase}`}
         />
-      </div>
-      {/* Neither the rows nor the cards have sortable headers, so sorting
-          lives in the filter bar at every width. */}
-      <div className="flex items-center gap-2 w-full sm:w-auto">
-        <label htmlFor={`${idPrefix}-sort`} className="text-sm text-muted-foreground shrink-0">Sort</label>
-        <select
-          id={`${idPrefix}-sort`}
-          value={sort}
-          onChange={(e) => onSortChange(e.target.value as DetectionSort)}
-          className={SELECT_CLASS}
-        >
-          {SORT_OPTIONS.map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => onOrderChange(order === 'desc' ? 'asc' : 'desc')}
-          aria-label={order === 'desc' ? 'Switch to ascending order' : 'Switch to descending order'}
-          className={`px-3 py-1.5 rounded ${btnSecondary} transition-colors ${focusRing}`}
-        >
-          {order === 'desc'
-            ? <ChevronDown className="w-4 h-4" aria-hidden />
-            : <ChevronUp className="w-4 h-4" aria-hidden />}
-        </button>
       </div>
     </div>
   );

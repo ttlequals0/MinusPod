@@ -12,7 +12,7 @@ release notes.
 ## [Unreleased]
 
 ### Fixed
-- Pattern filters use aligned, equal-width controls. The Notifications section groups Email and Webhooks into collapsible subsections. Podping server settings appear only while Podping is enabled and use compact node controls.
+- Filters across all Patterns tabs use aligned, equal-width controls. The Notifications section groups Email and Webhooks into collapsible subsections. Podping server settings appear only while Podping is enabled and use compact node controls.
 - The Settings page now labels runtime configuration backup and restore as Configuration Import / Export.
 
 ## [2.98.4] - 2026-10-08

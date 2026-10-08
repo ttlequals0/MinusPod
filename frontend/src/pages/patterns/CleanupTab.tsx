@@ -10,7 +10,6 @@ import {
   type CategoryPayload,
 } from '../../api/patternCleanup';
 import { ApiError, getErrorMessage } from '../../api/client';
-import SegmentedToggle from '../../components/SegmentedToggle';
 import Checkbox from '../../components/Checkbox';
 import { ActiveBadge } from '../../components/ActiveBadge';
 import { ScopeBadge } from '../../components/ScopeBadge';
@@ -400,34 +399,25 @@ export default function CleanupTab() {
 
   return (
     <div>
-      <div className="bg-card rounded-lg border border-border p-4 mb-6 flex flex-wrap gap-4 items-center">
-        <div className="w-full min-w-0 sm:w-auto">
-          <label htmlFor="cleanup-kind" className="sr-only">Kind</label>
+      <div className="bg-card rounded-lg border border-border p-4 mb-6 grid grid-cols-1 min-[375px]:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <div className="min-w-0">
+          <label htmlFor="cleanup-kind" className="mb-1 block text-sm text-muted-foreground">Kind</label>
           <select
             id="cleanup-kind"
             value={kind}
             onChange={(e) => changeFilter({ kind: e.target.value as KindFilter })}
-            className={`min-h-11 w-full sm:hidden ${selectBase}`}
+            className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
           >
             {KIND_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
           </select>
-          <div className="hidden sm:block">
-            <SegmentedToggle
-              variant="toolbar"
-              ariaLabel="Kind"
-              options={KIND_OPTIONS}
-              value={kind}
-              onChange={(v) => changeFilter({ kind: v })}
-            />
-          </div>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor="cleanup-status" className="text-sm text-muted-foreground shrink-0">Status</label>
+        <div className="min-w-0">
+          <label htmlFor="cleanup-status" className="mb-1 block text-sm text-muted-foreground">Status</label>
           <select
             id="cleanup-status"
             value={status}
             onChange={(e) => changeFilter({ status: e.target.value as CleanupStatus })}
-            className={`max-sm:min-h-11 flex-1 sm:flex-none min-w-0 ${selectBase}`}
+            className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
