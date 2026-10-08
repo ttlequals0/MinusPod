@@ -2,7 +2,7 @@
 
 Export global settings and feed configuration as JSON for import into the same or another installation. It does not move or replace the database, episodes, processing history, learned patterns, cue templates, audio, or cached artwork.
 
-The JSON export contains configured provider and SMTP credentials, webhook secrets, the global feed-auth key, and private feed source URLs. Protect the file like a password store. The administrator sign-in password, subscriber keys, encryption salt, runtime state, and media assets are not included. Import re-encrypts provider and SMTP credentials with the destination installation's encryption key. An unreadable source credential or unavailable destination encryption prevents the transfer.
+The JSON export contains configured provider and SMTP credentials, webhook secrets, the global feed-auth key, and private feed source URLs. Protect the file like a password store. The administrator sign-in password, subscriber keys, encryption salt, runtime state, and media assets are not included. Import re-encrypts provider and SMTP credentials with the destination installation's encryption key. An unreadable source credential or unavailable destination encryption prevents import.
 
 Import offers three scopes: global settings and feeds, global settings only, or feeds only. For feeds only, choose all feeds or a selection. It previews the selected changes before applying them. Import merges selected values, preserves omitted values and destination-only feeds, and never deletes feeds. Feed identity conflicts and invalid settings stop the import. The preview becomes stale if a destination setting in the import or selected feed configuration changes, or another import completes. Create a new preview before applying.
 

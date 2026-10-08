@@ -9,11 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.98.5] - 2026-10-08
 
 ### Fixed
 - Filters across all Patterns tabs use aligned, equal-width controls. The Notifications section groups Email and Webhooks into collapsible subsections. Podping server settings appear only while Podping is enabled and use compact node controls.
-- The Settings page now labels runtime configuration backup and restore as Configuration Import / Export.
+- The Settings page and documentation use Configuration Import / Export for runtime configuration backup and restore.
 
 ## [2.98.4] - 2026-10-08
 

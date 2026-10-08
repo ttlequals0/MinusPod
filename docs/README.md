@@ -9,7 +9,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Installation](installation.md) - requirements, quick start, CPU-only image, Intel hybrid CPU tuning
 - [Web Interface](web-interface.md) - the management UI, ad editor workflow, screenshots
 - [Configuration & Experiments](configuration.md) - settings, per-stage LLM tuning, VAD gap detector, provider keys, ad reviewer, community patterns, scheduled backups
-- [Configuration Import / Export](configuration-transfer.md) - export and restore global settings and selected feed configuration
+- [Configuration Import / Export](configuration-import-export.md) - export and restore global settings and selected feed configuration
 - [Audio Cue Detection](audio-cues.md) - per-feed cue templates, the find-audio-cues scan, cue types, settings, and tuning
 - [Upstream Transcript Differential](transcript-differential.md) - diffing the Whisper transcript against the publisher's ad-free `podcast:transcript`, how gaps corroborate or hold, settings
 - [Environment Variables](environment-variables.md) - every env var, grouped by how often you touch it
