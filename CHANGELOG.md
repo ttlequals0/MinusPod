@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.98.6] - 2026-10-08
+
+### Fixed
+- Notification and webhook controls meet the 44px mobile touch target.
+
 ## [2.98.5] - 2026-10-08
 
 ### Fixed

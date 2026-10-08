@@ -7,7 +7,7 @@ import {
 import type { EmailNotificationSettings, EmailNotificationSettingsPayload } from '../../api/settings';
 import { useTransientState } from '../../hooks/useTransientState';
 import { EVENT_OPTIONS } from './notificationEvents';
-import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { btnPrimary, btnSecondary, touchTarget } from '../../components/buttonStyles';
 import Checkbox from '../../components/Checkbox';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { focusRing } from '../../components/fieldStyles';
@@ -38,7 +38,7 @@ function draftFromSettings(s: EmailNotificationSettings): EmailDraft {
   };
 }
 
-const emailInputClass = `w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm ${focusRing}`;
+const emailInputClass = `max-sm:min-h-11 w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm ${focusRing}`;
 
 function EmailSettingsForm() {
   const queryClient = useQueryClient();
@@ -207,7 +207,7 @@ function EmailSettingsForm() {
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className={`absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors ${focusRing}`}
+              className={`${touchTarget} absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors ${focusRing}`}
             >
               {showPassword ? 'Hide' : 'Show'}
             </button>
@@ -254,6 +254,7 @@ function EmailSettingsForm() {
               checked={draft.events.includes(opt.value)}
               onChange={() => toggleEvent(opt.value)}
               label={opt.label}
+              className="max-sm:min-h-11 max-sm:min-w-11"
             />
           ))}
         </div>
@@ -263,7 +264,7 @@ function EmailSettingsForm() {
         checked={draft.enabled}
         onChange={(v) => set('enabled', v)}
         label="Enabled"
-        className="flex"
+        className="flex max-sm:min-h-11 max-sm:min-w-11"
       />
 
       {saveMutation.isError && (
@@ -276,7 +277,7 @@ function EmailSettingsForm() {
         <button
           type="submit"
           disabled={saveMutation.isPending || !dirty}
-          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+          className={`${touchTarget} px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
         >
           {saveMutation.isPending ? 'Saving...' : 'Save'}
         </button>
@@ -284,7 +285,7 @@ function EmailSettingsForm() {
           type="button"
           onClick={() => testMutation.mutate()}
           disabled={testMutation.isPending || !savedSendReady || dirty}
-          className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+          className={`${touchTarget} px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
         >
           {testMutation.isPending ? 'Sending...' : 'Send test email'}
         </button>

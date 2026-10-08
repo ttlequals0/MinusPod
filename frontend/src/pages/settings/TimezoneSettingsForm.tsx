@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { getNotificationTimezone, updateNotificationTimezone } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import { btnPrimary } from '../../components/buttonStyles';
+import { btnPrimary, touchTarget } from '../../components/buttonStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 
 const FALLBACK_ZONES = [
@@ -70,7 +70,7 @@ function TimezoneSettingsForm() {
             id="notification-timezone"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            className={`w-full ${selectBase}`}
+            className={`max-sm:min-h-11 w-full ${selectBase}`}
           >
             {!zones.includes(draft) && <option value={draft}>{draft}</option>}
             {zones.map((zone) => (
@@ -81,7 +81,7 @@ function TimezoneSettingsForm() {
         <button
           type="submit"
           disabled={saveMutation.isPending || !dirty}
-          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+          className={`${touchTarget} px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
         >
           {saveMutation.isPending ? 'Saving...' : 'Save timezone'}
         </button>
