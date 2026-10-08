@@ -208,6 +208,13 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 
 The **Test** button sends one sample payload per event the webhook is subscribed to, each shaped like that event's real payload (see Default Payloads below) with `test: true` set. A webhook subscribed to three events gets three test deliveries in one click; a custom payload template renders against each event's own variable set (episode-shaped for `Episode Processed`/`Episode Failed`, provider-shaped for the alert events, and so on).
 
+If a custom template can't render for an event (for example it uses `episode.title`, which alert events don't have), MinusPod still delivers the event with a default body instead of dropping it:
+
+- `text/*` content types get a one-line summary, such as `MinusPod Auth Failure: anthropic claude-sonnet-4 - Invalid API key provided`.
+- Any other content type gets the default JSON payload.
+
+The Test button reports this: its summary names each event whose template fell back, and each entry in `results` has a `templateFallback` flag.
+
 ### Template Variables
 
 Custom payload templates are Jinja2 strings rendered against these variables:
@@ -646,6 +653,17 @@ ntfy requires a custom payload template to match its expected JSON format.
        "actions": [{"action": "view", "label": "Open Episode", "url": "{{ episode.url }}"}]
      }
      ```
+
+The template above only renders for the episode events. To receive alert events (Auth Failure, Queue Held, ...) on the same webhook, use a plain-text template instead:
+
+- **URL:** `https://ntfy.sh/your-topic` (the topic is in the URL, so the template has no `topic` field)
+- **Content type:** `text/plain` (ntfy shows the body as the message)
+- **Payload template:**
+  ```
+  {{ event }}{% if episode is defined %}: {{ podcast.name }} - {{ episode.title }}{% endif %}{% if error_message %} - {{ error_message }}{% endif %}
+  ```
+
+This renders for every event, for example `Episode Processed: My Show - Episode 42` and `Auth Failure - Invalid API key provided`. Use **Test** to confirm that no subscribed event falls back.
 
 > ntfy also supports header-based delivery (`X-Title`, `X-Message`, `X-Click` headers with plain text body); either approach works with MinusPod's template system.
 

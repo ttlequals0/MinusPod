@@ -8675,7 +8675,7 @@ paths:
         - Settings
       summary: Test a webhook
       description: |
-        Send one test payload per event the webhook is subscribed to, matching each event's real payload shape (`test: true` set on every payload). Falls back to a single Episode Processed sample when the webhook's event list is empty. Rate limited to 10/min.
+        Send one test payload per event the webhook is subscribed to, matching each event's real payload shape (`test: true` set on every payload). Falls back to a single Episode Processed sample when the webhook's event list is empty. If a custom payload template cannot render for an event, the default payload is sent for it (a readable line for `text/*` content types, JSON otherwise) and the result is flagged `templateFallback`. Rate limited to 10/min.
       operationId: testWebhook
       parameters:
         - $ref: '#/components/parameters/webhook_id'
@@ -8699,9 +8699,12 @@ paths:
                           type: string
                         delivered:
                           type: boolean
+                        templateFallback:
+                          type: boolean
+                          description: 'true when the custom payload template could not render for this event and the default payload was sent instead'
                   message:
                     type: string
-                    description: 'Summary, e.g. "3 of 3 test payloads delivered"'
+                    description: 'Summary, e.g. "3 of 3 test payloads delivered". Names the events whose template fell back, if any.'
         '404':
           $ref: '#/components/responses/NotFound'
         '429':

@@ -212,6 +212,25 @@ describe('NotificationsSection', () => {
     expect(message.className).toContain('text-destructive');
   });
 
+  it('shows the summary as a warning when a template fell back for some events', async () => {
+    mockTestWebhook.mockResolvedValue({
+      success: true,
+      results: [
+        { event: 'Episode Failed', delivered: true, templateFallback: false },
+        { event: 'Auth Failure', delivered: true, templateFallback: true },
+      ],
+      message: '2 of 2 test payloads delivered; template could not render for 1 event (default payload sent): Auth Failure',
+    });
+    renderSection();
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect(screen.getByText('http://hook.example.com/x')).toBeDefined();
+    });
+    await user.click(screen.getByRole('button', { name: 'Test' }));
+    const message = await screen.findByText(/template could not render for 1 event/);
+    expect(message.className).toContain('text-warning');
+  });
+
   it('disables the test button while the draft is dirty', async () => {
     renderSection();
     const user = userEvent.setup();
