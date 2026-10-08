@@ -127,10 +127,6 @@ function EmailSettingsForm() {
 
   return (
     <form onSubmit={handleSave} className="space-y-4 p-4 rounded-lg border border-border bg-background">
-      <p className="text-xs text-muted-foreground">
-        Send an email through your own SMTP server when the selected events happen.
-      </p>
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="sm:col-span-2">
           <label htmlFor="email-smtp-host" className="block text-sm font-medium text-foreground mb-1">

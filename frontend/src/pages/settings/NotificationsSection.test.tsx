@@ -14,6 +14,7 @@ import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '.
 
 const EMAIL_SECTION_KEY = 'settings-section-notifications-email';
 const WEBHOOKS_SECTION_KEY = 'settings-section-notifications-webhooks';
+const NOTIFICATIONS_SECTION_KEY = 'settings-section-notifications';
 
 const mockGetEmail = vi.fn();
 const mockUpdateEmail = vi.fn();
@@ -111,17 +112,17 @@ describe('NotificationsSection', () => {
     });
     expect((screen.getByLabelText('From address') as HTMLInputElement).value).toBe('minuspod@example.com');
     expect((screen.getByLabelText('Recipients') as HTMLInputElement).value).toBe('op@example.com');
-    expect(screen.getByRole('heading', { name: 'Notifications: Email' })).toBeDefined();
-    expect(screen.getByRole('heading', { name: 'Notifications: Webhooks' })).toBeDefined();
-    expect(screen.getByRole('heading', { name: 'Timezone' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Notifications' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Email' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Webhooks' })).toBeDefined();
     expect(screen.getByText('http://hook.example.com/x')).toBeDefined();
   });
 
   it('persists email and webhook collapse state independently', async () => {
     const user = userEvent.setup();
     const view = renderSection();
-    const emailToggle = screen.getByRole('button', { name: 'Notifications: Email' });
-    const webhooksToggle = screen.getByRole('button', { name: 'Notifications: Webhooks' });
+    const emailToggle = screen.getByRole('button', { name: 'Email' });
+    const webhooksToggle = screen.getByRole('button', { name: 'Webhooks' });
 
     await user.click(emailToggle);
 
@@ -132,24 +133,27 @@ describe('NotificationsSection', () => {
 
     view.unmount();
     renderSection();
-    expect(screen.getByRole('button', { name: 'Notifications: Email' }).getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Notifications: Webhooks' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Email' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Webhooks' }).getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('keeps an email draft mounted while its section is collapsed', async () => {
+  it('keeps an email draft mounted while the subsection and parent are collapsed', async () => {
     const user = userEvent.setup();
     renderSection();
     const smtpHost = await screen.findByLabelText('SMTP host');
     await user.type(smtpHost, 'draft');
-    await user.click(screen.getByRole('button', { name: 'Notifications: Email' }));
-    await user.click(screen.getByRole('button', { name: 'Notifications: Email' }));
+    await user.click(screen.getByRole('button', { name: 'Email' }));
+    await user.click(screen.getByRole('button', { name: 'Email' }));
 
+    expect((screen.getByLabelText('SMTP host') as HTMLInputElement).value).toBe('mail.example.comdraft');
+    await user.click(screen.getByRole('button', { name: 'Notifications' }));
+    await user.click(screen.getByRole('button', { name: 'Notifications' }));
     expect((screen.getByLabelText('SMTP host') as HTMLInputElement).value).toBe('mail.example.comdraft');
   });
 
   it.each([
-    ['notifications', ['Notifications: Email', 'Notifications: Webhooks']],
-    ['webhooks', ['Notifications: Webhooks']],
+    ['notifications', ['Email', 'Webhooks']],
+    ['webhooks', ['Webhooks']],
   ])('searching "%s" reveals matching collapsed sections and restores saved states', async (query, titles) => {
     localStorage.setItem(EMAIL_SECTION_KEY, 'false');
     localStorage.setItem(WEBHOOKS_SECTION_KEY, 'false');
@@ -162,25 +166,53 @@ describe('NotificationsSection', () => {
       expect(screen.getByRole('button', { name: title }).getAttribute('aria-expanded')).toBe('true');
     }
     if (query === 'webhooks') {
-      expect(screen.getByRole('button', { name: 'Notifications: Email' }).getAttribute('aria-expanded')).toBe('false');
+      expect(screen.getByRole('button', { name: 'Email' }).getAttribute('aria-expanded')).toBe('false');
     }
 
     await user.click(screen.getByRole('button', { name: 'Clear notification search' }));
-    expect(screen.getByRole('button', { name: 'Notifications: Email' }).getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByRole('button', { name: 'Notifications: Webhooks' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Email' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Webhooks' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps Email searchable while settings load, then shows fields without changing the query', async () => {
+    let resolveEmail!: (settings: EmailNotificationSettings) => void;
+    mockGetEmail.mockImplementation(() => new Promise<EmailNotificationSettings>((resolve) => {
+      resolveEmail = resolve;
+    }));
+    const user = userEvent.setup();
+    render(searchableSectionTree());
+
+    await user.type(screen.getByRole('textbox', { name: 'Search notifications' }), 'notifications');
+    expect(screen.getByRole('button', { name: 'Email' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText('Send email notifications through your own SMTP server when the selected events happen.')).toBeDefined();
+
+    resolveEmail(makeSettings());
+    expect(await screen.findByLabelText('SMTP host')).toBeDefined();
+  });
+
+  it('keeps the Email error visible when searching notifications', async () => {
+    mockGetEmail.mockRejectedValue(new Error('offline'));
+    const user = userEvent.setup();
+    render(searchableSectionTree());
+
+    await user.type(screen.getByRole('textbox', { name: 'Search notifications' }), 'notifications');
+    expect(screen.getByRole('button', { name: 'Email' }).getAttribute('aria-expanded')).toBe('true');
+    expect(await screen.findByText('Failed to load email settings.')).toBeDefined();
   });
 
   it('responds to settings expand and collapse all signals', () => {
     const view = renderSection();
     view.rerender(sectionTree({ seq: 1, open: false }));
-    for (const title of ['Timezone', 'Notifications: Email', 'Notifications: Webhooks']) {
-      expect(screen.getByRole('button', { name: title }).getAttribute('aria-expanded')).toBe('false');
-    }
+    expect(screen.getByRole('button', { name: 'Notifications' }).getAttribute('aria-expanded')).toBe('false');
+    expect(JSON.parse(localStorage.getItem(NOTIFICATIONS_SECTION_KEY)!)).toBe(false);
+    expect(JSON.parse(localStorage.getItem(EMAIL_SECTION_KEY)!)).toBe(false);
+    expect(JSON.parse(localStorage.getItem(WEBHOOKS_SECTION_KEY)!)).toBe(false);
 
     view.rerender(sectionTree({ seq: 2, open: true }));
-    for (const title of ['Timezone', 'Notifications: Email', 'Notifications: Webhooks']) {
-      expect(screen.getByRole('button', { name: title }).getAttribute('aria-expanded')).toBe('true');
-    }
+    expect(screen.getByRole('button', { name: 'Notifications' }).getAttribute('aria-expanded')).toBe('true');
+    expect(JSON.parse(localStorage.getItem(NOTIFICATIONS_SECTION_KEY)!)).toBe(true);
+    expect(JSON.parse(localStorage.getItem(EMAIL_SECTION_KEY)!)).toBe(true);
+    expect(JSON.parse(localStorage.getItem(WEBHOOKS_SECTION_KEY)!)).toBe(true);
   });
 
   it('shows the full webhook URL and event label', async () => {

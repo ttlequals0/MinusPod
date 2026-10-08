@@ -30,8 +30,7 @@ import { getPatternCleanupStatus, patternCleanupQueryKey } from '../api/patternC
 import UnresolvedCorrectionsPanel from './patterns/UnresolvedCorrectionsPanel';
 import { btnOutline } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
-import { selectBase } from '../components/fieldStyles';
-import { focusRing } from '../components/fieldStyles';
+import { focusRing, inputBase, selectBase } from '../components/fieldStyles';
 import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
 } from '../utils/segmentCategory';
@@ -364,10 +363,10 @@ function PatternsPage() {
 
       {/* Filters */}
       <div className="bg-card rounded-lg border border-border p-4 mb-6">
-        <div className="flex flex-wrap gap-4 items-center">
+        <div className="grid grid-cols-1 min-[375px]:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Scope filter */}
-          <div className="flex items-center gap-2">
-            <label htmlFor="patterns-scope" className="text-sm text-muted-foreground">Scope:</label>
+          <div className="min-w-0">
+            <label htmlFor="patterns-scope" className="mb-1 block text-sm text-muted-foreground">Scope:</label>
             <select
               id="patterns-scope"
               value={scopeFilter}
@@ -375,7 +374,7 @@ function PatternsPage() {
                 setScopeFilter(e.target.value as ScopeFilter);
                 setPage(1);
               }}
-              className={`${selectBase}`}
+              className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
             >
               <option value="all">All</option>
               <option value="global">Global</option>
@@ -385,8 +384,8 @@ function PatternsPage() {
           </div>
 
           {/* Origin filter */}
-          <div className="flex items-center gap-2">
-            <label htmlFor="patterns-origin" className="text-sm text-muted-foreground">Origin:</label>
+          <div className="min-w-0">
+            <label htmlFor="patterns-origin" className="mb-1 block text-sm text-muted-foreground">Origin:</label>
             <select
               id="patterns-origin"
               value={originFilter}
@@ -394,7 +393,7 @@ function PatternsPage() {
                 setOriginFilter(e.target.value as OriginFilter);
                 setPage(1);
               }}
-              className={`${selectBase}`}
+              className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
             >
               <option value="all">All</option>
               <option value="auto">Auto</option>
@@ -403,8 +402,8 @@ function PatternsPage() {
           </div>
 
           {/* Source filter */}
-          <div className="flex items-center gap-2">
-            <label htmlFor="patterns-source" className="text-sm text-muted-foreground">Source:</label>
+          <div className="min-w-0">
+            <label htmlFor="patterns-source" className="mb-1 block text-sm text-muted-foreground">Source:</label>
             <select
               id="patterns-source"
               value={sourceFilter}
@@ -412,7 +411,7 @@ function PatternsPage() {
                 setSourceFilter(e.target.value as SourceFilter);
                 setPage(1);
               }}
-              className={`${selectBase}`}
+              className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
             >
               <option value="all">All</option>
               <option value="local">Local</option>
@@ -422,8 +421,8 @@ function PatternsPage() {
           </div>
 
           {/* Category filter */}
-          <div className="flex items-center gap-2">
-            <label htmlFor="patterns-category" className="text-sm text-muted-foreground">Category:</label>
+          <div className="min-w-0">
+            <label htmlFor="patterns-category" className="mb-1 block text-sm text-muted-foreground">Category:</label>
             <select
               id="patterns-category"
               value={categoryFilter}
@@ -431,7 +430,7 @@ function PatternsPage() {
                 setCategoryFilter(e.target.value);
                 setPage(1);
               }}
-              className={`${selectBase}`}
+              className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
             >
               {SEGMENT_CATEGORY_FILTER_OPTIONS.map(([value, label]) => (
                 <option key={value || 'all'} value={value}>{label}</option>
@@ -440,7 +439,7 @@ function PatternsPage() {
           </div>
 
           {/* Search */}
-          <div className="flex-1 min-w-[200px]">
+          <div className="min-w-0 min-[375px]:col-span-2">
             <input
               type="text"
               value={searchQuery}
@@ -449,12 +448,14 @@ function PatternsPage() {
                 setPage(1);
               }}
               placeholder="Search by sponsor, text, network..."
-              className="w-full px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+              aria-label="Search patterns"
+              className={`min-h-11 w-full sm:min-h-0 ${inputBase}`}
             />
           </div>
 
           {/* Show inactive toggle */}
           <Checkbox
+            className="min-h-11"
             checked={showInactive}
             onChange={(v) => { setShowInactive(v); setPage(1); }}
             label="Show inactive"

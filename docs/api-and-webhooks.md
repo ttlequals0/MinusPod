@@ -179,9 +179,9 @@ GET and HEAD enforce the same feed key on every public route. A HEAD request for
 
 ## Notifications
 
-MinusPod can notify you when episodes complete processing or permanently fail, and when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). It can also alert you when a rate-limit hold or an unreachable endpoint parks the queue. Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure them on the Settings page under **Notifications: Email** and **Notifications: Webhooks**, or via the REST API.
+MinusPod can notify you when episodes complete processing or permanently fail, and when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). It can also alert you when a rate-limit hold or an unreachable endpoint parks the queue. Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure them on the Settings page under **Notifications > Email** and **Notifications > Webhooks**, or via the REST API.
 
-The **Notifications: Email** and **Notifications: Webhooks** sections collapse independently and remember their open or closed states. Timezone is a separate section.
+The **Notifications** section contains the timezone setting and separate **Email** and **Webhooks** subsections. Each subsection collapses independently and remembers its open or closed state.
 
 Every payload carries `timestamp` (UTC, `Z`-suffixed) and `timestamp_local` (the same instant in the configured `notification_timezone`, with a UTC offset). `notification_timezone` is an IANA zone name (default `UTC`, or the container's `TZ` env var when it names a valid zone); get or set it at `GET`/`PUT /api/v1/settings/notifications/timezone`. Email shows `timestamp_local` in the Timestamp row, falling back to `timestamp` when the zone is UTC.
 
@@ -626,7 +626,7 @@ By default the failure and alert events, including the four new hold and offline
 Pushover supports native webhook ingestion with data extraction selectors. No custom payload template needed. MinusPod's default JSON payload works directly.
 
 1. Create a webhook at [pushover.net/dashboard](https://pushover.net/dashboard) and copy its URL.
-2. In MinusPod Settings, open **Notifications: Webhooks**: paste the URL, select events, **leave payload template blank**.
+2. In MinusPod Settings, open **Notifications > Webhooks**: paste the URL, select events, **leave payload template blank**.
 3. Click Test in MinusPod to fire a sample payload to Pushover.
 4. In Pushover, load the last payload and configure data extraction selectors:
 
@@ -644,7 +644,7 @@ Pushover supports native webhook ingestion with data extraction selectors. No cu
 ntfy requires a custom payload template to match its expected JSON format.
 
 1. Self-hosted or ntfy.sh: set your topic name
-2. Add a webhook under **Notifications: Webhooks** in Settings:
+2. Add a webhook under **Notifications > Webhooks** in Settings:
    - **URL:** `https://ntfy.sh/your-topic` (or your self-hosted instance)
    - **Payload template:**
      ```json

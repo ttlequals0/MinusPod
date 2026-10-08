@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
 import { getErrorMessage } from '../../api/client';
 import {
   getPodpingNodes,
@@ -7,19 +8,20 @@ import {
   resetPodpingNodes,
   updatePodpingNodes,
 } from '../../api/podping';
-import { btnSecondary } from '../../components/buttonStyles';
+import { btnGhost, btnSecondary, touchTarget } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 
 const MAX_NODES = 20;
 const fieldInput = `min-h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground ${focusRing}`;
 const actionButton = `min-h-11 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`;
 
-function PodpingServersSection() {
+function PodpingServersSection({ enabled }: { enabled: boolean }) {
   const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery({
     queryKey: podpingNodesQueryKey,
     queryFn: getPodpingNodes,
     staleTime: Infinity,
+    enabled,
   });
   const [draft, setDraft] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,7 @@ function PodpingServersSection() {
     onError: (cause: unknown) => setError(getErrorMessage(cause, 'Could not reset Podping nodes')),
   });
 
+  if (!enabled) return null;
   if (isLoading) return <p className="mt-3 text-sm text-muted-foreground">Loading Hive RPC nodes...</p>;
   if (isError || !data) {
     return <p className="mt-3 text-sm text-destructive">Could not load Hive RPC nodes.</p>;
@@ -63,10 +66,9 @@ function PodpingServersSection() {
   };
 
   return (
-    <div className="mt-4 border-t border-border pt-4">
+    <div className="mt-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h4 className="text-sm font-medium text-foreground">Hive RPC nodes</h4>
+        <div className="min-w-0">
           <p className="mt-1 text-sm text-muted-foreground">
             The listener rotates through these endpoints. Observed feed hosts remain separate in System Health.
           </p>
@@ -83,7 +85,7 @@ function PodpingServersSection() {
       </div>
       <div className="mt-3 space-y-2">
         {nodes.map((node, index) => (
-          <div key={index} className="grid grid-cols-3 gap-2 sm:flex sm:items-center">
+          <div key={index} className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
             <label className="sr-only" htmlFor={`podping-node-${index}`}>
               Hive RPC node {index + 1}
             </label>
@@ -95,37 +97,39 @@ function PodpingServersSection() {
               onChange={(event) => setDraft(nodes.map((value, i) => (
                 i === index ? event.target.value : value
               )))}
-              className={`${fieldInput} col-span-3 sm:flex-1`}
+              className={`${fieldInput} min-w-0 sm:flex-1`}
               placeholder="https://api.example.org"
               autoComplete="url"
             />
-            <button
-              type="button"
-              className={`${actionButton} ${btnSecondary}`}
-              aria-label={`Move Hive RPC node ${index + 1} up`}
-              disabled={busy || index === 0}
-              onClick={() => move(index, -1)}
-            >
-              Up
-            </button>
-            <button
-              type="button"
-              className={`${actionButton} ${btnSecondary}`}
-              aria-label={`Move Hive RPC node ${index + 1} down`}
-              disabled={busy || index === nodes.length - 1}
-              onClick={() => move(index, 1)}
-            >
-              Down
-            </button>
-            <button
-              type="button"
-              className={`${actionButton} ${btnSecondary}`}
-              aria-label={`Remove Hive RPC node ${index + 1}`}
-              disabled={busy || nodes.length === 1}
-              onClick={() => setDraft(nodes.filter((_, i) => i !== index))}
-            >
-              Remove
-            </button>
+            <div className="flex justify-end gap-1 sm:shrink-0">
+              <button
+                type="button"
+                className={`${touchTarget} h-8 w-8 rounded ${btnGhost} disabled:opacity-50 transition-colors ${focusRing}`}
+                aria-label={`Move Hive RPC node ${index + 1} up`}
+                disabled={busy || index === 0}
+                onClick={() => move(index, -1)}
+              >
+                <ArrowUp aria-hidden="true" className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className={`${touchTarget} h-8 w-8 rounded ${btnGhost} disabled:opacity-50 transition-colors ${focusRing}`}
+                aria-label={`Move Hive RPC node ${index + 1} down`}
+                disabled={busy || index === nodes.length - 1}
+                onClick={() => move(index, 1)}
+              >
+                <ArrowDown aria-hidden="true" className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className={`${touchTarget} h-8 w-8 rounded ${btnGhost} disabled:opacity-50 transition-colors ${focusRing}`}
+                aria-label={`Remove Hive RPC node ${index + 1}`}
+                disabled={busy || nodes.length === 1}
+                onClick={() => setDraft(nodes.filter((_, i) => i !== index))}
+              >
+                <Trash2 aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         ))}
       </div>

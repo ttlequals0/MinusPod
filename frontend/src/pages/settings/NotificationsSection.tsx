@@ -169,6 +169,7 @@ function WebhooksBlock() {
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">Send notifications to HTTP endpoints.</p>
       {isLoading && (
         <p className="text-sm text-muted-foreground">Loading webhooks...</p>
       )}
@@ -434,29 +435,32 @@ function WebhooksBlock() {
 
 function NotificationsSection() {
   return (
-    <>
-      <CollapsibleSection
-        title="Timezone"
-        storageKey="settings-section-notifications-timezone"
-        defaultOpen
-      >
+    <CollapsibleSection title="Notifications" storageKey="settings-section-notifications" defaultOpen>
+      <div className="space-y-4">
         <TimezoneSettingsForm />
-      </CollapsibleSection>
-      <CollapsibleSection
-        title="Notifications: Email"
-        storageKey="settings-section-notifications-email"
-        defaultOpen
-      >
-        <EmailSettingsForm />
-      </CollapsibleSection>
-      <CollapsibleSection
-        title="Notifications: Webhooks"
-        storageKey="settings-section-notifications-webhooks"
-        defaultOpen
-      >
-        <WebhooksBlock />
-      </CollapsibleSection>
-    </>
+        <CollapsibleSection
+          title="Email"
+          storageKey="settings-section-notifications-email"
+          defaultOpen
+          variant="subsection"
+        >
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Send email notifications through your own SMTP server when the selected events happen.
+            </p>
+            <EmailSettingsForm />
+          </div>
+        </CollapsibleSection>
+        <CollapsibleSection
+          title="Webhooks"
+          storageKey="settings-section-notifications-webhooks"
+          defaultOpen
+          variant="subsection"
+        >
+          <WebhooksBlock />
+        </CollapsibleSection>
+      </div>
+    </CollapsibleSection>
   );
 }
 

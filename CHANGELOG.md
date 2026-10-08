@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+- Pattern filters use aligned, equal-width controls. The Notifications section groups Email and Webhooks into collapsible subsections. Podping server settings appear only while Podping is enabled and use compact node controls.
+
 ## [2.98.4] - 2026-10-08
 
 ### Added

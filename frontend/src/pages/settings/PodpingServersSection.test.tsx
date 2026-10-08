@@ -20,13 +20,13 @@ vi.mock('../../api/podping', () => ({
 
 const defaults = ['https://one.example', 'https://two.example'];
 
-function renderSection() {
+function renderSection(enabled = true) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <PodpingServersSection />
+      <PodpingServersSection enabled={enabled} />
     </QueryClientProvider>,
   );
 }

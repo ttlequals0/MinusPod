@@ -8,17 +8,19 @@
  */
 import { useState } from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { render as rtlRender, screen } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GlobalDefaultsSection from './GlobalDefaultsSection';
 import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
 
+const { mockGetPodpingNodes } = vi.hoisted(() => ({
+  mockGetPodpingNodes: vi.fn(),
+}));
+
 vi.mock('../../api/podping', () => ({
   podpingNodesQueryKey: ['podping', 'nodes'],
-  getPodpingNodes: async () => ({
-    nodes: ['https://one.example'], defaults: ['https://one.example'],
-  }),
+  getPodpingNodes: (...args: unknown[]) => mockGetPodpingNodes(...args),
   updatePodpingNodes: async (nodes: string[]) => ({ nodes, defaults: nodes }),
   resetPodpingNodes: async () => ({
     nodes: ['https://one.example'], defaults: ['https://one.example'],
@@ -104,6 +106,11 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
 
 beforeEach(() => {
   localStorage.setItem('settings-section-global-defaults', 'true');
+  localStorage.removeItem('settings-section-podping-servers');
+  mockGetPodpingNodes.mockReset();
+  mockGetPodpingNodes.mockResolvedValue({
+    nodes: ['https://one.example'], defaults: ['https://one.example'],
+  });
 });
 
 describe('GlobalDefaultsSection: Podping notifications toggle', () => {
@@ -111,6 +118,8 @@ describe('GlobalDefaultsSection: Podping notifications toggle', () => {
     render(<PodpingHarness onCommit={() => {}} />);
     const toggle = screen.getByRole('switch', { name: 'Podping notifications' });
     expect(toggle.getAttribute('aria-checked')).toBe('false');
+    expect(screen.queryByLabelText('Hive RPC node 1')).toBeNull();
+    expect(mockGetPodpingNodes).not.toHaveBeenCalled();
   });
 
   it('commits { podpingEnabled: true } after switching on', async () => {
@@ -135,6 +144,25 @@ describe('GlobalDefaultsSection: Podping notifications toggle', () => {
     await user.click(screen.getByRole('button', { name: 'Commit' }));
 
     expect(committed).toEqual({ podpingEnabled: false });
+  });
+
+  it('shows the nested server editor only while enabled and preserves its draft', async () => {
+    const user = userEvent.setup();
+    render(<PodpingHarness onCommit={() => {}} />);
+    const toggle = screen.getByRole('switch', { name: 'Podping notifications' });
+
+    await user.click(toggle);
+    const input = await screen.findByLabelText('Hive RPC node 1');
+    expect(mockGetPodpingNodes).toHaveBeenCalledOnce();
+    await user.clear(input);
+    await user.type(input, 'https://draft.example');
+
+    await user.click(toggle);
+    expect(screen.queryByLabelText('Hive RPC node 1')).toBeNull();
+    await user.click(toggle);
+
+    expect(await screen.findByDisplayValue('https://draft.example')).toBeDefined();
+    await waitFor(() => expect(mockGetPodpingNodes).toHaveBeenCalledOnce());
   });
 });
 
