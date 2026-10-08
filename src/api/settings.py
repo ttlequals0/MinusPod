@@ -2519,10 +2519,7 @@ def _validate_failover_settings_payload(data):
 
 
 def _apply_provider_fields(db, data):
-    """Persist provider settings and refresh dependent runtime state after commit.
-
-    Provider identity changes also clear account-scoped rate-limit holds.
-    """
+    """Persist provider changes, then refresh runtime state and affected rate-limit holds."""
     provider_changed = False
     # Narrower than provider_changed: pricing mode is not a new account.
     credentials_changed = False
@@ -4479,7 +4476,7 @@ def test_webhook(webhook_id):
             message += (
                 f"; template could not render for {len(fell_back)} "
                 f"event{'' if len(fell_back) == 1 else 's'} "
-                f"(default payload sent): {', '.join(fell_back)}"
+                f"(default payload used): {', '.join(fell_back)}"
             )
         return json_response({
             'success': delivered_count == total,

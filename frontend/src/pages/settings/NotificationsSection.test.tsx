@@ -4,11 +4,16 @@
  * rendering under its sub-heading.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import NotificationsSection from './NotificationsSection';
 import type { EmailNotificationSettings } from '../../api/settings';
+import SearchableSectionGroup from '../../components/SearchableSectionGroup';
+import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '../../context/SettingsBulkCollapseContext';
+
+const EMAIL_SECTION_KEY = 'settings-section-notifications-email';
+const WEBHOOKS_SECTION_KEY = 'settings-section-notifications-webhooks';
 
 const mockGetEmail = vi.fn();
 const mockUpdateEmail = vi.fn();
@@ -57,16 +62,38 @@ function makeClient() {
   });
 }
 
-function renderSection() {
-  return render(
-    <QueryClientProvider client={makeClient()}>
-      <NotificationsSection />
-    </QueryClientProvider>,
+function sectionTree(
+  bulkSignal: SettingsBulkCollapseSignal | null = null,
+) {
+  return (
+    <SettingsBulkCollapseProvider value={bulkSignal}>
+      <QueryClientProvider client={makeClient()}>
+        <NotificationsSection />
+      </QueryClientProvider>
+    </SettingsBulkCollapseProvider>
   );
 }
 
+function searchableSectionTree() {
+  return (
+    <QueryClientProvider client={makeClient()}>
+      <SearchableSectionGroup
+        placeholder="Search notifications"
+        ariaLabel="Search notifications"
+        clearLabel="Clear notification search"
+      >
+        <NotificationsSection />
+      </SearchableSectionGroup>
+    </QueryClientProvider>
+  );
+}
+
+function renderSection() {
+  return render(sectionTree());
+}
+
 beforeEach(() => {
-  localStorage.setItem('settings-section-notifications', 'true');
+  localStorage.clear();
   vi.clearAllMocks();
   mockGetEmail.mockResolvedValue(makeSettings());
   mockGetWebhooks.mockResolvedValue([
@@ -84,10 +111,90 @@ describe('NotificationsSection', () => {
     });
     expect((screen.getByLabelText('From address') as HTMLInputElement).value).toBe('minuspod@example.com');
     expect((screen.getByLabelText('Recipients') as HTMLInputElement).value).toBe('op@example.com');
-    expect(screen.getByRole('heading', { name: 'Email' })).toBeDefined();
-    expect(screen.getByRole('heading', { name: 'Webhooks' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Notifications: Email' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Notifications: Webhooks' })).toBeDefined();
     expect(screen.getByRole('heading', { name: 'Timezone' })).toBeDefined();
     expect(screen.getByText('http://hook.example.com/x')).toBeDefined();
+  });
+
+  it('persists email and webhook collapse state independently', async () => {
+    const user = userEvent.setup();
+    const view = renderSection();
+    const emailToggle = screen.getByRole('button', { name: 'Notifications: Email' });
+    const webhooksToggle = screen.getByRole('button', { name: 'Notifications: Webhooks' });
+
+    await user.click(emailToggle);
+
+    expect(emailToggle.getAttribute('aria-expanded')).toBe('false');
+    expect(webhooksToggle.getAttribute('aria-expanded')).toBe('true');
+    expect(JSON.parse(localStorage.getItem(EMAIL_SECTION_KEY)!)).toBe(false);
+    expect(JSON.parse(localStorage.getItem(WEBHOOKS_SECTION_KEY)!)).toBe(true);
+
+    view.unmount();
+    renderSection();
+    expect(screen.getByRole('button', { name: 'Notifications: Email' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Notifications: Webhooks' }).getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('keeps an email draft mounted while its section is collapsed', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    const smtpHost = await screen.findByLabelText('SMTP host');
+    await user.type(smtpHost, 'draft');
+    await user.click(screen.getByRole('button', { name: 'Notifications: Email' }));
+    await user.click(screen.getByRole('button', { name: 'Notifications: Email' }));
+
+    expect((screen.getByLabelText('SMTP host') as HTMLInputElement).value).toBe('mail.example.comdraft');
+  });
+
+  it.each([
+    ['notifications', ['Notifications: Email', 'Notifications: Webhooks']],
+    ['webhooks', ['Notifications: Webhooks']],
+  ])('searching "%s" reveals matching collapsed sections and restores saved states', async (query, titles) => {
+    localStorage.setItem(EMAIL_SECTION_KEY, 'false');
+    localStorage.setItem(WEBHOOKS_SECTION_KEY, 'false');
+    const user = userEvent.setup();
+    render(searchableSectionTree());
+    const search = screen.getByRole('textbox', { name: 'Search notifications' });
+
+    await user.type(search, query);
+    for (const title of titles) {
+      expect(screen.getByRole('button', { name: title }).getAttribute('aria-expanded')).toBe('true');
+    }
+    if (query === 'webhooks') {
+      expect(screen.getByRole('button', { name: 'Notifications: Email' }).getAttribute('aria-expanded')).toBe('false');
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Clear notification search' }));
+    expect(screen.getByRole('button', { name: 'Notifications: Email' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Notifications: Webhooks' }).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('responds to settings expand and collapse all signals', () => {
+    const view = renderSection();
+    view.rerender(sectionTree({ seq: 1, open: false }));
+    for (const title of ['Timezone', 'Notifications: Email', 'Notifications: Webhooks']) {
+      expect(screen.getByRole('button', { name: title }).getAttribute('aria-expanded')).toBe('false');
+    }
+
+    view.rerender(sectionTree({ seq: 2, open: true }));
+    for (const title of ['Timezone', 'Notifications: Email', 'Notifications: Webhooks']) {
+      expect(screen.getByRole('button', { name: title }).getAttribute('aria-expanded')).toBe('true');
+    }
+  });
+
+  it('shows the full webhook URL and event label', async () => {
+    const longUrl = `https://hooks.example.com/${'pathsegment'.repeat(12)}`;
+    mockGetWebhooks.mockResolvedValue([
+      { id: 'wh-long', url: longUrl, events: ['Service Offline'], enabled: true,
+        payloadTemplate: null, contentType: 'application/json' },
+    ]);
+    const view = renderSection();
+
+    const webhooksSection = view.container.querySelector<HTMLElement>(`[data-search-key="${WEBHOOKS_SECTION_KEY}"]`);
+    expect(webhooksSection).not.toBeNull();
+    expect(await within(webhooksSection!).findByText(longUrl)).toBeDefined();
+    expect(within(webhooksSection!).getByText('Service Offline')).toBeDefined();
   });
 
   it('loads and saves the notification timezone', async () => {
@@ -219,7 +326,7 @@ describe('NotificationsSection', () => {
         { event: 'Episode Failed', delivered: true, templateFallback: false },
         { event: 'Auth Failure', delivered: true, templateFallback: true },
       ],
-      message: '2 of 2 test payloads delivered; template could not render for 1 event (default payload sent): Auth Failure',
+      message: '2 of 2 test payloads delivered; template could not render for 1 event (default payload used): Auth Failure',
     });
     renderSection();
     const user = userEvent.setup();

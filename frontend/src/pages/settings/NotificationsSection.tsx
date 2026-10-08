@@ -183,12 +183,12 @@ function WebhooksBlock() {
           {webhooks.map((wh) => (
             <div
               key={wh.id}
-              className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-background"
+              className="flex flex-col items-stretch justify-between gap-3 p-3 rounded-lg border border-border bg-background sm:flex-row sm:items-center"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-mono truncate max-w-xs" title={wh.url}>
-                    {wh.url.length > 50 ? wh.url.slice(0, 50) + '...' : wh.url}
+                  <span className="w-full min-w-0 break-all text-sm font-mono" title={wh.url}>
+                    {wh.url}
                   </span>
                   {wh.payloadTemplate && (
                     <span className={`${badgeBase} ${tint.blue}`}>
@@ -211,7 +211,7 @@ function WebhooksBlock() {
                     return (
                       <span
                         key={ev}
-                        className={`${badgeBase} ${tint.secondary}`}
+                        className={`${badgeBase} ${tint.secondary} whitespace-nowrap shrink-0`}
                       >
                         {label}
                       </span>
@@ -233,24 +233,24 @@ function WebhooksBlock() {
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
                 <button
                   onClick={() => testMutation.mutate(wh.id)}
                   disabled={testMutation.isPending}
-                  className={`px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+                  className={`min-h-11 px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing} sm:min-h-0`}
                 >
                   Test
                 </button>
                 <button
                   onClick={() => startEdit(wh)}
-                  className={`px-2.5 py-1 text-xs rounded ${btnSecondary} transition-colors ${focusRing}`}
+                  className={`min-h-11 px-2.5 py-1 text-xs rounded ${btnSecondary} transition-colors ${focusRing} sm:min-h-0`}
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => handleDeleteClick(wh.id)}
                   disabled={deleteMutation.isPending}
-                  className={`px-2.5 py-1 text-xs rounded bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-colors ${focusRing}`}
+                  className={`min-h-11 px-2.5 py-1 text-xs rounded bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-colors ${focusRing} sm:min-h-0`}
                 >
                   {deleteConfirmId === wh.id ? 'Confirm?' : 'Delete'}
                 </button>
@@ -434,22 +434,29 @@ function WebhooksBlock() {
 
 function NotificationsSection() {
   return (
-    <CollapsibleSection title="Notifications" storageKey="settings-section-notifications">
-      <div className="space-y-6">
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-foreground">Timezone</h3>
-          <TimezoneSettingsForm />
-        </div>
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-foreground">Email</h3>
-          <EmailSettingsForm />
-        </div>
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-foreground">Webhooks</h3>
-          <WebhooksBlock />
-        </div>
-      </div>
-    </CollapsibleSection>
+    <>
+      <CollapsibleSection
+        title="Timezone"
+        storageKey="settings-section-notifications-timezone"
+        defaultOpen
+      >
+        <TimezoneSettingsForm />
+      </CollapsibleSection>
+      <CollapsibleSection
+        title="Notifications: Email"
+        storageKey="settings-section-notifications-email"
+        defaultOpen
+      >
+        <EmailSettingsForm />
+      </CollapsibleSection>
+      <CollapsibleSection
+        title="Notifications: Webhooks"
+        storageKey="settings-section-notifications-webhooks"
+        defaultOpen
+      >
+        <WebhooksBlock />
+      </CollapsibleSection>
+    </>
   );
 }
 

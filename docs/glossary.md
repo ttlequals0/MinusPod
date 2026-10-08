@@ -46,6 +46,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Chapters** - Chapter markers MinusPod generates for the processed audio, served as Podcasting 2.0 JSON and embedded in the MP3 as ID3 frames. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
 
+**Chapter regeneration** - Refreshing an episode's chapters on demand. Each attempt gets its own processing-history entry and usage record, plus an episode log when log storage is enabled. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
+
 **Cleanup** - The Patterns page tab for approving, rejecting, and undoing suggested edits to learned patterns. These decisions change the pattern library, not audio already published. [Pattern Cleanup](pattern-cleanup.md#approve-reject-undo)
 
 **Community patterns** - Opt-in sharing of learned ad patterns with other MinusPod users, and pulling theirs in return. [Configuration > Community Patterns](configuration.md#community-patterns-optional)
@@ -243,5 +245,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Waveform Ad Editor** - The visual editor for a single detection: waveform, transcript context, and draggable boundaries, with the original audio for reference. [Web Interface > Waveform Ad Editor](web-interface.md#waveform-ad-editor)
 
 **Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet, Queue Held, Queue Resumed, Service Offline, Service Reachable, Failover Triggered, and Failover Cancelled. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
+
+**Webhook template fallback** - If a custom payload template cannot render for an event, MinusPod uses a default body. Webhook test results set a `templateFallback` flag whether or not delivery succeeds. Text content types get a readable line; other types get JSON. [API & Webhooks > Webhooks](api-and-webhooks.md#webhooks)
 
 [< Docs index](README.md) | [Project README](../README.md)

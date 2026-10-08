@@ -576,6 +576,70 @@ class TestFireTestEvent:
         ]
 
     @patch('webhook_service.safe_post')
+    def test_documented_ntfy_template_renders_every_event_and_episode_failure(self, mock_post):
+        mock_post.return_value = MagicMock(status_code=200)
+        mock_db = MagicMock()
+        mock_db.get_latest_completed_processing.return_value = None
+        template = (
+            '{{ event }}{% if episode is defined %}: {{ podcast.name }} - {{ episode.title }}{% endif %}'
+            '{% if error_message is defined and error_message %} - {{ error_message }}'
+            '{% elif episode is defined and episode.error_message is defined and episode.error_message %}'
+            ' - {{ episode.error_message }}{% endif %}'
+        )
+        config = {
+            'url': 'https://hook.example.com',
+            'events': sorted(VALID_EVENTS),
+            'contentType': 'text/plain',
+            'payloadTemplate': template,
+        }
+
+        with patch('database.Database', return_value=mock_db):
+            results = fire_test_event(config)
+
+        assert [result['event'] for result in results] == sorted(VALID_EVENTS)
+        assert all(result['delivered'] and not result['templateFallback'] for result in results)
+        bodies = [call.kwargs['data'].decode('utf-8') for call in mock_post.call_args_list]
+        failed_body = next(body for body in bodies if body.startswith(EVENT_EPISODE_FAILED))
+        assert failed_body == (
+            'Episode Failed: My Favorite Podcast - Episode 42: The Answer - '
+            'Transcription failed: audio file is corrupt or unsupported format'
+        )
+
+    @pytest.mark.parametrize('exception_type', [RuntimeError, webhook_service.SSRFError])
+    def test_dispatch_exception_log_redacts_url_and_exception(self, caplog, exception_type):
+        url = 'https://user:password@hook.example.com/private/path?token=secret-value'
+        with patch('webhook_service.safe_post', side_effect=exception_type(
+                f'transport failed for {url}')):
+            _prepare_and_dispatch({'url': url}, {'event': EVENT_AUTH_FAILURE}, max_attempts=1)
+
+        assert 'hook.example.com' in caplog.text
+        assert exception_type.__name__ in caplog.text
+        for sensitive_value in ('user', 'password', '/private/path', 'secret-value', 'transport failed'):
+            assert sensitive_value not in caplog.text
+
+    @pytest.mark.parametrize('dispatch_kind', ['episode', 'alert'])
+    def test_unexpected_dispatch_logs_redact_url_and_exception(self, caplog, dispatch_kind):
+        url = 'https://user:password@hook.example.com/private/path?token=secret-value'
+        webhook = {'url': url, 'enabled': True, 'events': [EVENT_EPISODE_PROCESSED]}
+        with patch('webhook_service.load_webhooks', return_value=[webhook]), \
+                patch('webhook_service._prepare_and_dispatch', side_effect=ValueError(
+                    f'unexpected render failure for {url}')), \
+                patch('webhook_service._timestamp_fields', return_value={}), \
+                patch('email_service.send_event_email'), \
+                patch.object(threading, 'Thread', SyncThread):
+            if dispatch_kind == 'episode':
+                _fire_event_sync(_make_payload())
+            else:
+                webhook['events'] = [EVENT_AUTH_FAILURE]
+                webhook_service._fire_alert_event(
+                    EVENT_AUTH_FAILURE, {}, 'test', dedup=False)
+
+        assert 'hook.example.com' in caplog.text
+        assert 'ValueError' in caplog.text
+        for sensitive_value in ('user', 'password', '/private/path', 'secret-value', 'unexpected render failure'):
+            assert sensitive_value not in caplog.text
+
+    @patch('webhook_service.safe_post')
     def test_no_template_never_reports_fallback(self, mock_post):
         mock_post.return_value = MagicMock(status_code=200)
         config = {'url': 'https://hook.example.com', 'events': [EVENT_AUTH_FAILURE]}
@@ -716,6 +780,21 @@ class TestTemplateFallbackBody:
         _prepare_and_dispatch(self._config('text/plain'), {'event': 'Queue Resumed'})
 
         assert self._sent_body(mock_post) == 'MinusPod Queue Resumed'
+
+    def test_plain_text_fallback_collapses_field_whitespace(self):
+        body = webhook_service._plain_text_fallback({
+            'event': EVENT_EPISODE_FAILED,
+            'source': 'primary\nroute',
+            'target': 'secondary\r\nroute',
+            'reason': 'upstream\n failed',
+            'episode': {'title': 'Pilot\n Episode'},
+            'error_message': 'request\r\n failed',
+        })
+
+        assert body == (
+            'MinusPod Episode Failed: Pilot Episode - primary route -> secondary route '
+            '- upstream failed - request failed'
+        )
 
 
 # ---------------------------------------------------------------------------

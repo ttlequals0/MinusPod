@@ -417,8 +417,7 @@ class TestWebhookUrlValidation:
 
 
 class TestWebhookTestEndpointMessage:
-    """The Test button's summary names the events whose payload template
-    could not render (the default payload was sent for them)."""
+    """The Test summary lists events that used a fallback payload."""
 
     @staticmethod
     def _post_test(client, results):
@@ -438,7 +437,7 @@ class TestWebhookTestEndpointMessage:
         assert data['success'] is True
         assert data['message'] == (
             '3 of 3 test payloads delivered; template could not render for 2 events '
-            '(default payload sent): Auth Failure, Limit Exceeded'
+            '(default payload used): Auth Failure, Limit Exceeded'
         )
         assert data['results'][1]['templateFallback'] is True
 
@@ -448,7 +447,17 @@ class TestWebhookTestEndpointMessage:
         ])
         assert data['message'] == (
             '1 of 1 test payload delivered; template could not render for 1 event '
-            '(default payload sent): Auth Failure'
+            '(default payload used): Auth Failure'
+        )
+
+    def test_fallback_message_is_independent_of_delivery_failure(self, client):
+        data = self._post_test(client, [
+            {'event': 'Auth Failure', 'delivered': False, 'templateFallback': True},
+        ])
+        assert data['success'] is False
+        assert data['message'] == (
+            '0 of 1 test payload delivered; template could not render for 1 event '
+            '(default payload used): Auth Failure'
         )
 
     def test_message_unchanged_without_fallback(self, client):

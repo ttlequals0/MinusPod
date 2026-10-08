@@ -11,7 +11,13 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+- When a webhook template fails, MinusPod uses a readable text body for `text/*` endpoints and JSON otherwise; test results identify each affected event. (#826)
+
 ### Fixed
+- Email notifications and Webhook notifications collapse independently. Webhook cards display full URLs and keep event labels on one line.
+- Webhook test summaries show template fallbacks separately from delivery status and wrap on narrow screens. Text fallbacks collapse whitespace, and dispatch error logs redact URL credentials and exception details.
+- The ntfy template example handles error messages on both failed episodes and alert events.
 - Regenerating chapters records a separate processing-history entry and episode log, including failed attempts, without changing the previous audio run's results or token totals.
 
 ## [2.98.3] - 2026-10-08

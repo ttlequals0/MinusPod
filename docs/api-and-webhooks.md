@@ -179,7 +179,9 @@ GET and HEAD enforce the same feed key on every public route. A HEAD request for
 
 ## Notifications
 
-MinusPod can notify you when episodes complete processing or permanently fail, and when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). It can also alert you when a rate-limit hold or an unreachable endpoint parks the queue. Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure both in **Settings > Notifications** in the web UI, or via the REST API.
+MinusPod can notify you when episodes complete processing or permanently fail, and when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). It can also alert you when a rate-limit hold or an unreachable endpoint parks the queue. Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure them on the Settings page under **Notifications: Email** and **Notifications: Webhooks**, or via the REST API.
+
+The **Notifications: Email** and **Notifications: Webhooks** sections collapse independently and remember their open or closed states. Timezone is a separate section.
 
 Every payload carries `timestamp` (UTC, `Z`-suffixed) and `timestamp_local` (the same instant in the configured `notification_timezone`, with a UTC offset). `notification_timezone` is an IANA zone name (default `UTC`, or the container's `TZ` env var when it names a valid zone); get or set it at `GET`/`PUT /api/v1/settings/notifications/timezone`. Email shows `timestamp_local` in the Timestamp row, falling back to `timestamp` when the zone is UTC.
 
@@ -208,12 +210,12 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 
 The **Test** button sends one sample payload per event the webhook is subscribed to, each shaped like that event's real payload (see Default Payloads below) with `test: true` set. A webhook subscribed to three events gets three test deliveries in one click; a custom payload template renders against each event's own variable set (episode-shaped for `Episode Processed`/`Episode Failed`, provider-shaped for the alert events, and so on).
 
-If a custom template can't render for an event (for example it uses `episode.title`, which alert events don't have), MinusPod still delivers the event with a default body instead of dropping it:
+If a custom template can't render for an event (for example it uses `episode.title`, which alert events don't have), MinusPod dispatches a default body. Network or endpoint errors can still prevent delivery:
 
 - `text/*` content types get a one-line summary, such as `MinusPod Auth Failure: anthropic claude-sonnet-4 - Invalid API key provided`.
 - Any other content type gets the default JSON payload.
 
-The Test button reports this: its summary names each event whose template fell back, and each entry in `results` has a `templateFallback` flag.
+The Test result lists each event's `delivered` status and `templateFallback` flag, so a fallback remains visible when delivery fails.
 
 ### Template Variables
 
@@ -624,7 +626,7 @@ By default the failure and alert events, including the four new hold and offline
 Pushover supports native webhook ingestion with data extraction selectors. No custom payload template needed. MinusPod's default JSON payload works directly.
 
 1. Create a webhook at [pushover.net/dashboard](https://pushover.net/dashboard) and copy its URL.
-2. In MinusPod Settings > Webhooks: paste the URL, select events, **leave payload template blank**.
+2. In MinusPod Settings, open **Notifications: Webhooks**: paste the URL, select events, **leave payload template blank**.
 3. Click Test in MinusPod to fire a sample payload to Pushover.
 4. In Pushover, load the last payload and configure data extraction selectors:
 
@@ -642,7 +644,7 @@ Pushover supports native webhook ingestion with data extraction selectors. No cu
 ntfy requires a custom payload template to match its expected JSON format.
 
 1. Self-hosted or ntfy.sh: set your topic name
-2. Add a webhook in Settings > Webhooks:
+2. Add a webhook under **Notifications: Webhooks** in Settings:
    - **URL:** `https://ntfy.sh/your-topic` (or your self-hosted instance)
    - **Payload template:**
      ```json
@@ -658,9 +660,12 @@ The template above only renders for the episode events. To receive alert events 
 
 - **URL:** `https://ntfy.sh/your-topic` (the topic is in the URL, so the template has no `topic` field)
 - **Content type:** `text/plain` (ntfy shows the body as the message)
+
+Episode failures put the error under `episode.error_message`, while alert events use top-level `error_message`. Use this template:
+
 - **Payload template:**
   ```
-  {{ event }}{% if episode is defined %}: {{ podcast.name }} - {{ episode.title }}{% endif %}{% if error_message %} - {{ error_message }}{% endif %}
+  {{ event }}{% if episode is defined %}: {{ podcast.name }} - {{ episode.title }}{% endif %}{% if error_message is defined and error_message %} - {{ error_message }}{% elif episode is defined and episode.error_message is defined and episode.error_message %} - {{ episode.error_message }}{% endif %}
   ```
 
 This renders for every event, for example `Episode Processed: My Show - Episode 42` and `Auth Failure - Invalid API key provided`. Use **Test** to confirm that no subscribed event falls back.
