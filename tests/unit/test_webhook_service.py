@@ -612,8 +612,11 @@ class TestFireTestEvent:
                 f'transport failed for {url}')):
             _prepare_and_dispatch({'url': url}, {'event': EVENT_AUTH_FAILURE}, max_attempts=1)
 
-        assert 'hook.example.com' in caplog.text
-        assert exception_type.__name__ in caplog.text
+        if exception_type is webhook_service.SSRFError:
+            expected_message = 'Webhook URL blocked by SSRF check: https://hook.example.com (SSRFError)'
+        else:
+            expected_message = 'Webhook attempt 1/1 failed for https://hook.example.com (RuntimeError)'
+        assert [record.getMessage() for record in caplog.records] == [expected_message]
         for sensitive_value in ('user', 'password', '/private/path', 'secret-value', 'transport failed'):
             assert sensitive_value not in caplog.text
 
@@ -634,8 +637,11 @@ class TestFireTestEvent:
                 webhook_service._fire_alert_event(
                     EVENT_AUTH_FAILURE, {}, 'test', dedup=False)
 
-        assert 'hook.example.com' in caplog.text
-        assert 'ValueError' in caplog.text
+        if dispatch_kind == 'episode':
+            expected_message = 'Unexpected error dispatching webhook to https://hook.example.com (ValueError)'
+        else:
+            expected_message = 'Failed to send Auth Failure webhook to https://hook.example.com (ValueError)'
+        assert [record.getMessage() for record in caplog.records] == [expected_message]
         for sensitive_value in ('user', 'password', '/private/path', 'secret-value', 'unexpected render failure'):
             assert sensitive_value not in caplog.text
 
