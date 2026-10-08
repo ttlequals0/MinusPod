@@ -324,6 +324,10 @@ def test_degraded_manual_regeneration_keeps_existing_chapters_and_recovers(app_c
         assert storage.get_chapters_json(SLUG, EPISODE_ID) == existing
         embed.assert_not_called()
         refresh.assert_not_called()
+        podcast = seeded.get_podcast_by_slug(SLUG)
+        failed = seeded.get_episode_processing_runs(podcast['id'], EPISODE_ID)[-1]
+        assert failed['status'] == 'failed'
+        assert json.loads(failed['processing_stats_json'])['mode'] == 'chapters'
 
         generator.return_value.chapters_degraded = False
         generator.return_value.generate_chapters.return_value = {
@@ -337,6 +341,9 @@ def test_degraded_manual_regeneration_keeps_existing_chapters_and_recovers(app_c
     assert detail['chaptersRegenError'] is None
     assert storage.get_chapters_json(SLUG, EPISODE_ID)['chapters'] == [
         {'startTime': 1, 'title': 'Recovered'}]
+    history = seeded.get_episode_processing_runs(podcast['id'], EPISODE_ID)
+    assert history[-1]['status'] == 'completed'
+    assert json.loads(history[-1]['processing_stats_json'])['mode'] == 'chapters'
 
 
 @pytest.mark.parametrize('response', ['', 'Opening topic'])
@@ -489,6 +496,12 @@ def test_regen_job_records_the_hold_on_a_provider_rate_limit(app_client, seeded)
     row = seeded.get_episode(SLUG, EPISODE_ID)
     assert row['chapters_regen_started_at'] is None
     assert row['chapters_regen_error'] == hold_message(held_until, error)
+    podcast = seeded.get_podcast_by_slug(SLUG)
+    history = seeded.get_episode_processing_runs(podcast['id'], EPISODE_ID)[-1]
+    assert history['status'] == 'failed'
+    assert history['error_message'] == hold_message(held_until, error)
+    assert json.loads(history['processing_stats_json'])['mode'] == 'chapters'
+    assert history['run_id']
     # A fresh pause alerts once, the same rule the failure handler follows.
     assert fire.call_count == 1
     assert fire.call_args.kwargs['hold_until'] == held_until
@@ -732,3 +745,118 @@ def test_regenerate_runs_under_the_chapters_route_and_a_run_id(app_client, seede
     assert seen['route'] == snapshot['chapters']
     assert seen['run_id']
     assert resolve.call_args.args[0] == seen['run_id']
+
+
+def test_regenerate_records_own_history_and_log_with_ledger_totals(
+        app_client, seeded, monkeypatch):
+    podcast = seeded.get_podcast_by_slug(SLUG)
+    prior_id = seeded.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=SLUG,
+        podcast_title='Ad Chapters', episode_id=EPISODE_ID,
+        episode_title='Original audio run', status='completed',
+        input_tokens=12, output_tokens=4, llm_cost=0.2,
+        processing_stats={'mode': 'reprocess'},
+    )
+    storage = get_storage()
+    monkeypatch.setattr(processing, 'db', seeded)
+    monkeypatch.setattr(processing, 'storage', storage)
+    finish = seeded.finish_chapters_regen
+    finished_after_history = []
+
+    def finish_after_history(*args, **kwargs):
+        rows = seeded.get_episode_processing_runs(podcast['id'], EPISODE_ID)
+        assert len(rows) == 2
+        assert rows[-1]['log_file']
+        finished_after_history.append(True)
+        return finish(*args, **kwargs)
+
+    monkeypatch.setattr(seeded, 'finish_chapters_regen', finish_after_history)
+
+    def generate(*_args, **_kwargs):
+        ctx = run_context.current()
+        attempt = seeded.begin_llm_attempt(
+            run_id=ctx.run_id, podcast_id=podcast['id'], episode_id=EPISODE_ID,
+            phase_key='chapters', invoking_pass=1, provider_key='ollama',
+            configured_model='m-chapters', credential_slot='secondary')
+        seeded.finalize_llm_attempt(
+            attempt, state='success', input_tokens=51, output_tokens=9,
+            provider_reported_cost_usd=0.42)
+        return {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
+
+    with patch('main_app.processing._resolve_or_load_route_snapshot',
+               return_value={'chapters': CHAPTERS_ROUTE}):
+        response = _post_regenerate(app_client, generate)
+
+    assert response.status_code == 202
+    assert finished_after_history == [True]
+    rows = seeded.get_episode_processing_runs(podcast['id'], EPISODE_ID)
+    chapter_run = rows[-1]
+    assert rows[0]['id'] == prior_id
+    assert chapter_run['status'] == 'completed'
+    assert chapter_run['run_id']
+    assert chapter_run['ads_detected'] == 0
+    assert chapter_run['input_tokens'] == 51
+    assert chapter_run['output_tokens'] == 9
+    assert chapter_run['llm_cost'] == pytest.approx(0.42)
+    assert json.loads(chapter_run['processing_stats_json'])['mode'] == 'chapters'
+    assert seeded.get_latest_completed_processing()['episode_title'] == 'Original audio run'
+
+    assert seeded.increment_episode_token_usage(
+        podcast['id'], EPISODE_ID, 5, 2, 0.1)
+    rows = seeded.get_episode_processing_runs(podcast['id'], EPISODE_ID)
+    assert rows[0]['input_tokens'] == 17
+    assert rows[0]['output_tokens'] == 6
+    assert rows[1]['input_tokens'] == 51
+
+    headers = _authed(app_client)
+    log_response = app_client.get(
+        f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/runs/'
+        f"{chapter_run['reprocess_number']}/log", headers=headers)
+    assert log_response.status_code == 200
+    messages = [line['msg'] for line in log_response.get_json()['lines']]
+    assert any('Chapter regeneration run started' in message for message in messages)
+    assert run_context.current() is None
+
+
+def test_failed_regeneration_records_history_and_log(app_client, seeded, monkeypatch):
+    podcast = seeded.get_podcast_by_slug(SLUG)
+    monkeypatch.setattr(processing, 'db', seeded)
+    monkeypatch.setattr(processing, 'storage', get_storage())
+    existing = {'version': '1.2.0', 'chapters': [{'startTime': 2, 'title': 'Keep'}]}
+    get_storage().save_chapters_json(SLUG, EPISODE_ID, existing)
+
+    def fail(*_args, **_kwargs):
+        raise RuntimeError('chapter failure')
+
+    with patch('main_app.processing._resolve_or_load_route_snapshot',
+               return_value={'chapters': CHAPTERS_ROUTE}):
+        response = _post_regenerate(app_client, fail)
+
+    assert response.status_code == 202
+    rows = seeded.get_episode_processing_runs(podcast['id'], EPISODE_ID)
+    failed = rows[-1]
+    assert failed['status'] == 'failed'
+    assert failed['error_message'] == 'chapter failure'
+    assert failed['processing_stats_json']
+    assert json.loads(failed['processing_stats_json'])['mode'] == 'chapters'
+    assert failed['log_file']
+    assert get_storage().get_chapters_json(SLUG, EPISODE_ID) == existing
+    assert run_context.current() is None
+
+
+def test_successful_regeneration_respects_disabled_episode_logs(app_client, seeded, monkeypatch):
+    podcast = seeded.get_podcast_by_slug(SLUG)
+    seeded.update_podcast(SLUG, episode_logs='off')
+    monkeypatch.setattr(processing, 'db', seeded)
+    monkeypatch.setattr(processing, 'storage', get_storage())
+    with patch('main_app.processing._resolve_or_load_route_snapshot',
+               return_value={'chapters': CHAPTERS_ROUTE}):
+        response = _post_regenerate(
+            app_client, {'version': '1.2.0', 'chapters': [
+                {'startTime': 1, 'title': 'Intro'}]})
+
+    assert response.status_code == 202
+    rows = seeded.get_episode_processing_runs(podcast['id'], EPISODE_ID)
+    assert rows[-1]['status'] == 'completed'
+    assert rows[-1]['log_file'] is None
+    assert run_context.current() is None

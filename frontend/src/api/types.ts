@@ -1474,6 +1474,7 @@ export interface ProcessingHistoryEntry {
   processedAt: string;
   processingDurationSeconds: number;
   status: 'completed' | 'failed';
+  mode?: string | null;
   adsDetected: number;
   errorMessage?: string;
   reprocessNumber: number;

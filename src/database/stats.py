@@ -1280,12 +1280,7 @@ class StatsMixin:
                                        input_tokens: int,
                                        output_tokens: int,
                                        llm_cost: float) -> bool:
-        """Increment token usage on the most recent completed processing_history entry.
-
-        Used by standalone API endpoints (regenerate-chapters, retry-ad-detection)
-        that make LLM calls outside the full processing pipeline.
-        Returns True if a row was updated.
-        """
+        """Add token usage to the latest completed audio run; return whether it was updated."""
         conn = self.get_connection()
         cursor = conn.execute(
             """UPDATE processing_history
@@ -1295,6 +1290,9 @@ class StatsMixin:
                WHERE id = (
                    SELECT id FROM processing_history
                    WHERE podcast_id = ? AND episode_id = ? AND status = 'completed'
+                     AND CASE WHEN json_valid(processing_stats_json)
+                              THEN json_extract(processing_stats_json, '$.mode')
+                         END IS NOT 'chapters'
                    ORDER BY processed_at DESC LIMIT 1
                )""",
             (input_tokens, output_tokens, llm_cost, podcast_id, episode_id)
@@ -1396,7 +1394,10 @@ class StatsMixin:
         cursor = conn.execute(
             f"""SELECT *, CASE WHEN json_valid(processing_stats_json)
                             THEN json_extract(processing_stats_json, '$.downloaded_duration')
-                       END AS downloaded_duration
+                       END AS downloaded_duration,
+                       CASE WHEN json_valid(processing_stats_json)
+                            THEN json_extract(processing_stats_json, '$.mode')
+                       END AS mode
                 FROM processing_history
                 WHERE {where_sql}
                 ORDER BY {sort_by} {sort_dir}
@@ -1463,7 +1464,10 @@ class StatsMixin:
         cursor = conn.execute(
             f"""SELECT *, CASE WHEN json_valid(processing_stats_json)
                             THEN json_extract(processing_stats_json, '$.downloaded_duration')
-                       END AS downloaded_duration
+                       END AS downloaded_duration,
+                       CASE WHEN json_valid(processing_stats_json)
+                            THEN json_extract(processing_stats_json, '$.mode')
+                       END AS mode
                 FROM processing_history
                 WHERE {where_sql}
                 ORDER BY processed_at DESC""",  # noqa: S608
@@ -1491,6 +1495,9 @@ class StatsMixin:
                LEFT JOIN episodes e ON e.episode_id = h.episode_id
                    AND e.podcast_id = h.podcast_id
                WHERE h.status = 'completed'
+                 AND CASE WHEN json_valid(h.processing_stats_json)
+                          THEN json_extract(h.processing_stats_json, '$.mode')
+                     END IS NOT 'chapters'
                ORDER BY h.processed_at DESC
                LIMIT 1"""
         ).fetchone()

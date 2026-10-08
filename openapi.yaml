@@ -2209,6 +2209,9 @@ paths:
         frames so players that ignore podcast:chapters pick them up.
         The work runs in the background because the topic pass can outlast
         a reverse proxy's request timeout; the episode reports progress.
+        It starts on demand outside the processing queue. Each finished attempt
+        adds a processing-history entry with its own usage and a saved episode
+        log when log storage is enabled, including failed attempts.
       operationId: regenerateChapters
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -17109,6 +17112,11 @@ components:
             - string
             - 'null'
           description: MinusPod version that produced this run. Null for runs recorded before 2.78.4.
+        mode:
+          type:
+            - string
+            - 'null'
+          description: Processing mode. Chapters-only regeneration uses chapters; older runs may omit it.
 
     Sponsor:
       type: object

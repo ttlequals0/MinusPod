@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+- Regenerating chapters records a separate processing-history entry and episode log, including failed attempts, without changing the previous audio run's results or token totals.
+
 ## [2.98.3] - 2026-10-08
 
 ### Added

@@ -114,6 +114,17 @@ describe('HistoryPage: duration formatting', () => {
   });
 });
 
+describe('HistoryPage: chapter regeneration rows', () => {
+  it('labels chapter runs and does not report ads detected', async () => {
+    renderPage([makeEntry({ mode: 'chapters', adsDetected: 0 })]);
+
+    expect(await screen.findAllByText('Chapter regeneration')).toHaveLength(2);
+    expect(screen.getByText('Ads: -')).toBeDefined();
+    const row = screen.getAllByText('Episode One').map((el) => el.closest('tr')).find(Boolean);
+    expect(row?.querySelector('td:nth-child(6)')?.textContent).toBe('-');
+  });
+});
+
 describe('HistoryPage: failure reason', () => {
   it('shows the reason a run failed', async () => {
     renderPage([makeEntry({ status: 'failed', errorMessage: 'Whisper API returned 401' })]);

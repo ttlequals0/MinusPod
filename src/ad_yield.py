@@ -13,8 +13,9 @@ LOW_YIELD_FRACTION = 0.35
 def latest_completed_run(runs):
     """Most recent completed run from a processingRuns list, or None. The
     run that produced the currently served audio."""
-    return next((r for r in reversed(runs) if r.get('status') == 'completed'),
-                None)
+    return next((r for r in reversed(runs)
+                 if r.get('status') == 'completed'
+                 and (r.get('stats') or {}).get('mode') != 'chapters'), None)
 
 
 def _detection_suppressed(stats):

@@ -760,10 +760,9 @@ function EpisodeDetail() {
   // only when the scan completed -- adsRemovedVerification defaults to 0,
   // so recuts, crashed scans, and pre-feature episodes would otherwise
   // falsely read as clean.
-  const latestRun = episode.processingRuns?.length
-    ? episode.processingRuns[episode.processingRuns.length - 1]
-    : null;
-  const latestCompletedRun = [...(episode.processingRuns ?? [])]
+  const audioRuns = (episode.processingRuns ?? []).filter((run) => run.stats?.mode !== 'chapters');
+  const latestRun = audioRuns.length ? audioRuns[audioRuns.length - 1] : null;
+  const latestCompletedRun = [...audioRuns]
     .reverse()
     .find((run) => run.status === 'completed');
   const thinkingNoticePasses = [...new Set(
@@ -1936,7 +1935,7 @@ function EpisodeDetail() {
         <div className="mb-6">
           <CollapsibleSection
             title="Logs"
-            subtitle="The pipeline log each run wrote"
+            subtitle="Saved logs for each run"
             defaultOpen={false}
             storageKey="episode-run-logs"
           >
