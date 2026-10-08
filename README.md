@@ -114,7 +114,7 @@ Compose requires an application password before it serves the normal API. Set th
 | [Installation](docs/installation.md) | Requirements, quick start, CPU image |
 | [Web Interface](docs/web-interface.md) | Management UI, ad editor workflow, screenshots |
 | [Configuration & Experiments](docs/configuration.md) | Settings, per-stage LLM tuning, VAD gap detector, ad reviewer, reprocessing, community patterns, scheduled backups |
-| [Runtime configuration transfer](docs/configuration-transfer.md) | Export and restore global settings and selected feed configuration |
+| [Configuration Import / Export](docs/configuration-transfer.md) | Export and restore global settings and selected feed configuration |
 | [Audio Cue Detection](docs/audio-cues.md) | Per-feed cue templates, the find-audio-cues suggestion scan, settings, and tuning |
 | [Community Patterns](patterns/README.md) | Crowdsourced ad pattern set: opt-in manifest sync, file format, and how to contribute |
 | [Environment Variables](docs/environment-variables.md) | Every env var, grouped by how often you touch it |

@@ -119,7 +119,7 @@ function ConfigurationTransferSection() {
   return (
     <section className="mt-4 rounded-lg border border-border bg-background p-4" aria-labelledby="config-transfer-title">
       <h4 id="config-transfer-title" className="text-sm font-semibold text-foreground">
-        Runtime Configuration Transfer
+        Configuration Import / Export
       </h4>
       <p className="mt-1 text-xs text-muted-foreground">
         Export or merge global settings and feed configuration as JSON. This does not transfer episodes, history, patterns, database contents, or media files.

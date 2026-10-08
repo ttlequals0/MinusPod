@@ -1,6 +1,6 @@
-# Runtime configuration transfer
+# Configuration Import / Export
 
-Runtime configuration transfer moves selected MinusPod settings and feed configuration between installations. It does not move or replace the database, episodes, processing history, learned patterns, cue templates, audio, or cached artwork.
+Export global settings and feed configuration as JSON for import into the same or another installation. It does not move or replace the database, episodes, processing history, learned patterns, cue templates, audio, or cached artwork.
 
 The JSON export contains configured provider and SMTP credentials, webhook secrets, the global feed-auth key, and private feed source URLs. Protect the file like a password store. The administrator sign-in password, subscriber keys, encryption salt, runtime state, and media assets are not included. Import re-encrypts provider and SMTP credentials with the destination installation's encryption key. An unreadable source credential or unavailable destination encryption prevents the transfer.
 
@@ -15,11 +15,11 @@ The file format is versioned independently of the MinusPod application version. 
 
 `pattern_cleanup_model` has three states: null inherits the detection model, an empty string means the model was explicitly cleared and must be selected before a run, and a nonempty string selects that model. Stage tunables export their effective values, using null only when the effective value is null. Nullable feed overrides can still inherit global defaults. Credentials set through environment variables may remain active after a database credential is cleared.
 
-Configuration transfer does not copy files that a setting may reference, such as locally stored media. It also does not dispatch test webhooks or email notifications during preview or import.
+Configuration import and export do not copy files that a setting may reference, such as locally stored media. Preview and import do not dispatch test webhooks or email notifications.
 
 ## UI and API
 
-Open Settings > Data Management > Runtime Configuration Transfer. Acknowledge that the file contains credentials before downloading it. To restore settings, select a JSON file and scope, review the affected setting names and feeds, then apply the import. Feed-refresh warnings appear after the settings are saved.
+Open Settings > Data Management > Configuration Import / Export. Acknowledge that the file contains credentials before downloading it. To restore settings, select a JSON file and scope, review the affected setting names and feeds, then apply the import. Feed-refresh warnings appear after the settings are saved.
 
 | Endpoint | Purpose |
 |---|---|
