@@ -1,5 +1,6 @@
 """Fair per-process admission for complete System One operations."""
-import hashlib
+import hmac
+import secrets
 import threading
 import time
 from collections import deque
@@ -24,6 +25,7 @@ class _Pool:
 
 _pools = {}
 _pools_lock = threading.Lock()
+_fingerprint_key = secrets.token_bytes(32)
 
 
 def _pool_for(endpoint, api_key):
@@ -35,7 +37,7 @@ def _pool_for(endpoint, api_key):
     if port is not None and (parts.scheme.lower(), port) not in {('https', 443), ('http', 80)}:
         host = f'{host}:{port}'
     normalized = urlunsplit((parts.scheme.lower(), host, parts.path.rstrip('/'), parts.query, ''))
-    fingerprint = hashlib.sha256((api_key or '').encode()).digest()
+    fingerprint = hmac.digest(_fingerprint_key, (api_key or '').encode(), 'sha256')
     with _pools_lock:
         return _pools.setdefault((normalized, fingerprint), _Pool())
 

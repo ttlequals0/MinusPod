@@ -1,11 +1,21 @@
 """Whole-operation capacity is shared, fair, and cancellable."""
+import hashlib
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from systemone import admission
 from systemone.admission import LocalOperationCapacityTimeout, operation_admission
+
+
+def test_pool_identity_does_not_store_raw_credentials_or_an_unkeyed_digest():
+    pool = admission._pool_for('https://example.com/fingerprint', 'first')
+    identity = next(key for key, value in admission._pools.items() if value is pool)
+    assert 'first' not in identity
+    assert identity[1] != b'first'
+    assert identity[1] != hashlib.sha256(b'first').digest()
 
 
 def test_normalized_endpoint_credentials_share_capacity_and_other_keys_do_not():
