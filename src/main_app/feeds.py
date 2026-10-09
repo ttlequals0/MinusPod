@@ -136,10 +136,16 @@ def _record_refresh_failure(slug: str, error_message: str, podcast=None):
 def _rss_cache_stale(slug: str, podcast) -> bool:
     """True when the served RSS is missing an episode we have already processed."""
     cached_rss = storage.get_rss(slug)
-    return not cached_rss or any(
-        ep['episode_id'] not in cached_rss
-        for ep in db.get_processed_episodes_for_feed(podcast['id'])
-    )
+    if not cached_rss:
+        return True
+    processed = db.get_processed_episodes_for_feed(podcast['id'])
+    if podcast.get('title_skip_action') == 'hide':
+        patterns = podcast.get('title_skip_patterns')
+        processed = [
+            ep for ep in processed
+            if not title_matches_skip_patterns(ep.get('title', ''), patterns)
+        ]
+    return any(ep['episode_id'] not in cached_rss for ep in processed)
 
 
 def _parse_backoff_seconds(failure_count: int) -> float:

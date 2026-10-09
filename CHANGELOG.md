@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+- Feed refreshes no longer force a full download when processed episodes are intentionally hidden by title rules.
+
 ## [2.98.6] - 2026-10-08
 
 ### Fixed
