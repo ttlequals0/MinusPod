@@ -11,7 +11,7 @@ import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import type { AffectedRunsAction, BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, ProviderSlot, SystemStatus, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
-import { LLM_PROVIDERS, SLOT_PRIMARY, SLOT_SECONDARY } from '../api/types';
+import { LLM_PROVIDERS, SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
@@ -117,15 +117,30 @@ interface FieldSpec {
   // ...or a property patch collected into one of the nested state objects.
   obj?: 'reviewer' | 'audioCue' | 'whisperApi' | 'failoverLlm' | 'failoverWhisper';
   prop?: string;
+  preserveExplicitBlank?: boolean;
 }
 
 function fieldBaseline(settings: SettingsShape, f: FieldSpec): SettingScalar | undefined {
-  const sv = (settings as unknown as Record<string, { value?: SettingScalar } | undefined>)[f.key]?.value;
+  const setting = (settings as unknown as Record<string, { value?: SettingScalar; isDefault?: boolean } | undefined>)[f.key];
+  const sv = setting?.value;
+  if (f.preserveExplicitBlank && setting?.isDefault === false && sv === '') return '';
   const dv = f.useDefault
     ? (settings.defaults as unknown as Record<string, SettingScalar | undefined>)[f.key]
     : undefined;
   const dflt = dv ?? f.literal ?? (f.kind === 'str' ? '' : undefined);
   return f.kind === 'str' ? (sv || dflt) : (sv ?? dflt);
+}
+
+function providerAccountIdentity(
+  slot: ProviderSlot,
+  providers: { primary: LlmProvider | ''; secondary: LlmProvider | '' },
+  urls: { primary: string; secondary: string },
+): string {
+  const provider = slot === SLOT_SECONDARY ? providers.secondary : providers.primary;
+  const baseUrl = provider === LLM_PROVIDERS.OLLAMA || provider === LLM_PROVIDERS.OPENAI_COMPATIBLE
+    ? (slot === SLOT_SECONDARY ? urls.secondary : urls.primary).trim()
+    : '';
+  return `${slot}:${provider}:${baseUrl}`;
 }
 
 function Settings() {
@@ -398,8 +413,20 @@ function Settings() {
   // same_as_detection/same_as_pass), not a provider type, so each is
   // resolved to a type here before it can be used to fetch a model catalog.
   // Mirrors llm_route.py's inheritance and secondary fallback.
-  const resolveStageSlots = (secondaryUsable: boolean): Record<StageKey, ProviderSlot> => {
-    const detection: ProviderSlot = detectionProvider === SLOT_SECONDARY && secondaryUsable
+  const resolveStageSlots = (
+    secondaryUsable: boolean,
+    overrides: Partial<{
+      detectionProvider: string;
+      verificationProvider: string;
+      chaptersProvider: string;
+      reviewProvider: string;
+    }> = {},
+  ): Record<StageKey, ProviderSlot> => {
+    const detectionValue = overrides.detectionProvider ?? detectionProvider;
+    const verificationValue = overrides.verificationProvider ?? verificationProvider;
+    const chaptersValue = overrides.chaptersProvider ?? chaptersProvider;
+    const reviewValue = overrides.reviewProvider ?? reviewer.provider;
+    const detection: ProviderSlot = detectionValue === SLOT_SECONDARY && secondaryUsable
       ? SLOT_SECONDARY
       : SLOT_PRIMARY;
     const inherited = (configured: string): ProviderSlot => (configured === SLOT_SECONDARY
@@ -409,11 +436,13 @@ function Settings() {
         : detection);
     return {
       detection,
-      verification: inherited(verificationProvider),
-      chapters: inherited(chaptersProvider),
-      review: reviewer.provider === SLOT_SECONDARY && secondaryUsable
-        ? SLOT_SECONDARY
-        : SLOT_PRIMARY,
+      verification: inherited(verificationValue),
+      chapters: inherited(chaptersValue),
+      review: reviewValue === SAME_AS_PASS || !reviewValue
+        ? detection
+        : reviewValue === SLOT_SECONDARY && secondaryUsable
+          ? SLOT_SECONDARY
+          : SLOT_PRIMARY,
     };
   };
   // llm_route.py routes a stage to the secondary only when the slot is on and
@@ -434,12 +463,58 @@ function Settings() {
     // to the detection catalog.
     : null;
 
+  const identityForSlot = (
+    slot: ProviderSlot,
+    overrides: Partial<{
+      llmProvider: LlmProvider;
+      openaiBaseUrl: string;
+      secondaryProvider: LlmProvider | '';
+      secondaryProviderBaseUrl: string;
+    }> = {},
+  ) => providerAccountIdentity(slot, {
+    primary: overrides.llmProvider ?? llmProvider,
+    secondary: overrides.secondaryProvider ?? secondaryProvider,
+  }, {
+    primary: overrides.openaiBaseUrl ?? openaiBaseUrl,
+    secondary: overrides.secondaryProviderBaseUrl ?? secondaryProviderBaseUrl,
+  });
+
+  const clearModelsForMovedStages = (
+    nextSlots: Record<StageKey, ProviderSlot>,
+    overrides: Partial<{
+      llmProvider: LlmProvider;
+      openaiBaseUrl: string;
+      secondaryProvider: LlmProvider | '';
+      secondaryProviderBaseUrl: string;
+    }> = {},
+    previousSlots = stageSlots,
+  ) => {
+    if (identityForSlot(previousSlots.detection) !== identityForSlot(nextSlots.detection, overrides)) {
+      setSelectedModel('');
+    }
+    if (identityForSlot(previousSlots.verification) !== identityForSlot(nextSlots.verification, overrides)) {
+      setVerificationModel('');
+    }
+    if (identityForSlot(previousSlots.chapters) !== identityForSlot(nextSlots.chapters, overrides)) {
+      setChaptersModel('');
+    }
+    const nextReviewSlot = nextSlots.review;
+    if ((reviewer.provider === SLOT_PRIMARY || reviewer.provider === SLOT_SECONDARY)
+        && reviewer.model && reviewer.model !== SAME_AS_PASS
+        && identityForSlot(previousSlots.review) !== identityForSlot(nextReviewSlot, overrides)) {
+      setReviewer((prev) => ({ ...prev, model: '' }));
+    }
+  };
+
   const handleSecondaryProviderEnabledChange = (enabled: boolean) => {
+    const nextProvider = enabled && !secondaryProvider ? LLM_PROVIDERS.ANTHROPIC : secondaryProvider;
+    const nextSlots = resolveStageSlots(enabled && !!nextProvider);
+    clearModelsForMovedStages(nextSlots, { secondaryProvider: nextProvider });
     setSecondaryProviderEnabled(enabled);
     if (enabled) {
       // Seed a concrete type so the type select and its dependent controls
       // never render blank; the user can change it before saving.
-      if (!secondaryProvider) setSecondaryProvider(LLM_PROVIDERS.ANTHROPIC);
+      if (!secondaryProvider) setSecondaryProvider(nextProvider);
       return;
     }
     const reverted = reconcileStageSlotsForSecondaryToggle(false, {
@@ -455,18 +530,57 @@ function Settings() {
   };
 
   const handleSecondaryProviderChange = (provider: LlmProvider) => {
+    const slots = resolveStageSlots(true);
+    clearModelsForMovedStages(slots, { secondaryProvider: provider }, slots);
     setSecondaryProvider(provider);
-    // Mirrors llmProvider's own onChange below: a saved model only survives
-    // a type switch for a stage this new type doesn't actually serve. The new
-    // type makes the slot usable, so resolve the stages against that.
-    const next = resolveStageSlots(true);
-    if (next.detection === SLOT_SECONDARY) setSelectedModel('');
-    if (next.verification === SLOT_SECONDARY) setVerificationModel('');
-    if (next.chapters === SLOT_SECONDARY) setChaptersModel('');
     // The base URL belongs to the old endpoint; clear it (and mark it touched)
     // so an inline key save commits the clear, not a stale URL (#235).
     setSecondaryProviderBaseUrl('');
     setSecondaryBaseUrlDirty(true);
+  };
+
+  const handlePrimaryProviderChange = (provider: LlmProvider) => {
+    clearModelsForMovedStages(stageSlots, { llmProvider: provider });
+    setLlmProvider(provider);
+  };
+
+  const handleAccountBaseUrlChange = (slot: ProviderSlot, url: string) => {
+    const nextSlots = stageSlots;
+    if (slot === SLOT_PRIMARY) {
+      clearModelsForMovedStages(nextSlots, { openaiBaseUrl: url });
+      setOpenaiBaseUrl(url);
+    } else {
+      clearModelsForMovedStages(nextSlots, { secondaryProviderBaseUrl: url });
+      setSecondaryProviderBaseUrl(url);
+      setSecondaryBaseUrlDirty(true);
+    }
+  };
+
+  const changeStageRoute = (stage: StageKey, slot: string) => {
+    const overrides = {
+      detectionProvider: stage === 'detection' ? slot : detectionProvider,
+      verificationProvider: stage === 'verification' ? slot : verificationProvider,
+      chaptersProvider: stage === 'chapters' ? slot : chaptersProvider,
+    };
+    const nextSlots = resolveStageSlots(secondaryProviderEnabled && !!secondaryProvider, overrides);
+    clearModelsForMovedStages(nextSlots);
+    if (stage === 'detection') setDetectionProvider(slot);
+    if (stage === 'verification') setVerificationProvider(slot);
+    if (stage === 'chapters') setChaptersProvider(slot);
+  };
+
+  const handleReviewerChange = (next: typeof reviewer) => {
+    let value = next;
+    if (next.provider !== reviewer.provider && reviewer.model && reviewer.model !== SAME_AS_PASS) {
+      const nextSlots = resolveStageSlots(
+        secondaryProviderEnabled && !!secondaryProvider,
+        { reviewProvider: next.provider },
+      );
+      if (identityForSlot(stageSlots.review) !== identityForSlot(nextSlots.review)) {
+        value = { ...next, model: '' };
+      }
+    }
+    setReviewer(value);
   };
 
   const catalogsEnabled = !settingsLoading;
@@ -623,14 +737,14 @@ function Settings() {
     { key: 'reviewPromptOverride', kind: 'str', value: reviewer.reviewPromptOverride, obj: 'reviewer', prop: 'reviewPromptOverride' },
     { key: 'resurrectPromptOverride', kind: 'str', value: reviewer.resurrectPromptOverride, obj: 'reviewer', prop: 'resurrectPromptOverride' },
     { key: 'enableAdReview', kind: 'val', useDefault: true, value: reviewer.enabled, obj: 'reviewer', prop: 'enabled' },
-    { key: 'reviewModel', kind: 'str', useDefault: true, value: reviewer.model, obj: 'reviewer', prop: 'model' },
+    { key: 'reviewModel', kind: 'str', useDefault: true, value: reviewer.model, obj: 'reviewer', prop: 'model', preserveExplicitBlank: true },
     { key: 'reviewProvider', kind: 'str', useDefault: true, value: reviewer.provider, obj: 'reviewer', prop: 'provider' },
     { key: 'reviewMaxBoundaryShift', kind: 'val', useDefault: true, value: reviewer.maxShift, obj: 'reviewer', prop: 'maxShift' },
     { key: 'adReviewerParallelAds', kind: 'val', useDefault: true, value: reviewer.parallelAds, obj: 'reviewer', prop: 'parallelAds' },
     // Models
-    { key: 'claudeModel', kind: 'str', value: selectedModel, set: setSelectedModel },
-    { key: 'verificationModel', kind: 'str', value: verificationModel, set: setVerificationModel },
-    { key: 'chaptersModel', kind: 'str', value: chaptersModel, set: setChaptersModel },
+    { key: 'claudeModel', kind: 'str', value: selectedModel, set: setSelectedModel, preserveExplicitBlank: true },
+    { key: 'verificationModel', kind: 'str', value: verificationModel, set: setVerificationModel, preserveExplicitBlank: true },
+    { key: 'chaptersModel', kind: 'str', value: chaptersModel, set: setChaptersModel, preserveExplicitBlank: true },
     // Per-phase provider overrides: SLOT values, not provider types (see
     // llm_route.py). Detection's own unset baseline is 'primary';
     // verification/chapters' is 'same_as_detection'.
@@ -666,10 +780,10 @@ function Settings() {
     { key: 'failoverLlmBaseUrl', kind: 'str', value: failoverLlm.baseUrl, obj: 'failoverLlm', prop: 'baseUrl' },
     { key: 'failoverLlmTimeoutSeconds', kind: 'val', literal: null, value: failoverLlm.timeoutSeconds, obj: 'failoverLlm', prop: 'timeoutSeconds' },
     { key: 'failoverLlmMaxRetries', kind: 'val', literal: null, value: failoverLlm.maxRetries, obj: 'failoverLlm', prop: 'maxRetries' },
-    { key: 'failoverLlmDetectionModel', kind: 'str', value: failoverLlm.detectionModel, obj: 'failoverLlm', prop: 'detectionModel' },
-    { key: 'failoverLlmReviewModel', kind: 'str', value: failoverLlm.reviewModel, obj: 'failoverLlm', prop: 'reviewModel' },
-    { key: 'failoverLlmVerificationModel', kind: 'str', value: failoverLlm.verificationModel, obj: 'failoverLlm', prop: 'verificationModel' },
-    { key: 'failoverLlmChaptersModel', kind: 'str', value: failoverLlm.chaptersModel, obj: 'failoverLlm', prop: 'chaptersModel' },
+    { key: 'failoverLlmDetectionModel', kind: 'str', value: failoverLlm.detectionModel, obj: 'failoverLlm', prop: 'detectionModel', preserveExplicitBlank: true },
+    { key: 'failoverLlmReviewModel', kind: 'str', value: failoverLlm.reviewModel, obj: 'failoverLlm', prop: 'reviewModel', preserveExplicitBlank: true },
+    { key: 'failoverLlmVerificationModel', kind: 'str', value: failoverLlm.verificationModel, obj: 'failoverLlm', prop: 'verificationModel', preserveExplicitBlank: true },
+    { key: 'failoverLlmChaptersModel', kind: 'str', value: failoverLlm.chaptersModel, obj: 'failoverLlm', prop: 'chaptersModel', preserveExplicitBlank: true },
     { key: 'failoverWhisperEnabled', kind: 'val', literal: false, value: failoverWhisper.enabled, obj: 'failoverWhisper', prop: 'enabled' },
     { key: 'failoverWhisperBackend', kind: 'str', useDefault: true, value: failoverWhisper.backend, obj: 'failoverWhisper', prop: 'backend' },
     { key: 'failoverWhisperModel', kind: 'str', value: failoverWhisper.model, obj: 'failoverWhisper', prop: 'model' },
@@ -865,6 +979,10 @@ function Settings() {
   // An endpoint or provider-type change moves in-flight work to a different
   // account, so the save carries the operator's decision about that work.
   const changedFields = computeChangedFields();
+  const providerIdentityHasUnsavedChanges = [
+    'llmProvider', 'openaiBaseUrl', 'secondaryProviderEnabled',
+    'secondaryProvider', 'secondaryProviderBaseUrl', 'detectionProvider',
+  ].some((key) => key in changedFields);
   const primaryAccountChanged = 'llmProvider' in changedFields || 'openaiBaseUrl' in changedFields;
   const secondaryAccountChanged =
     'secondaryProvider' in changedFields || 'secondaryProviderBaseUrl' in changedFields;
@@ -1155,15 +1273,8 @@ function Settings() {
         llmProvider={llmProvider}
         openaiBaseUrl={openaiBaseUrl}
         pricingSourceMode={pricingSourceMode}
-        onProviderChange={(p) => {
-          setLlmProvider(p);
-          // Only clear a stage's model if this switch actually changes its
-          // effective provider, i.e. it currently resolves to primary.
-          if (detectionSlot === SLOT_PRIMARY) setSelectedModel('');
-          if (verificationSlot === SLOT_PRIMARY) setVerificationModel('');
-          if (chaptersSlot === SLOT_PRIMARY) setChaptersModel('');
-        }}
-        onBaseUrlChange={setOpenaiBaseUrl}
+        onProviderChange={handlePrimaryProviderChange}
+        onBaseUrlChange={(url) => handleAccountBaseUrlChange(SLOT_PRIMARY, url)}
         onPricingSourceModeChange={setPricingSourceMode}
         providersState={providersState}
         onProviderKeySave={handleProviderKeySave}
@@ -1179,7 +1290,7 @@ function Settings() {
         secondaryProvider={secondaryProvider}
         onSecondaryProviderChange={handleSecondaryProviderChange}
         secondaryProviderBaseUrl={secondaryProviderBaseUrl}
-        onSecondaryProviderBaseUrlChange={(v) => { setSecondaryProviderBaseUrl(v); setSecondaryBaseUrlDirty(true); }}
+        onSecondaryProviderBaseUrlChange={(url) => handleAccountBaseUrlChange(SLOT_SECONDARY, url)}
         secondaryProviderApiKeyConfigured={settings?.secondaryProviderApiKeyConfigured ?? false}
         onSecondaryProviderKeySave={handleSecondaryProviderKeySave}
         onSecondaryProviderKeyClear={handleSecondaryProviderKeyClear}
@@ -1224,9 +1335,9 @@ function Settings() {
         detectionProvider={detectionProvider}
         verificationProvider={verificationProvider}
         chaptersProvider={chaptersProvider}
-        onDetectionProviderChange={setDetectionProvider}
-        onVerificationProviderChange={setVerificationProvider}
-        onChaptersProviderChange={setChaptersProvider}
+        onDetectionProviderChange={(slot) => changeStageRoute('detection', slot)}
+        onVerificationProviderChange={(slot) => changeStageRoute('verification', slot)}
+        onChaptersProviderChange={(slot) => changeStageRoute('chapters', slot)}
         secondaryProviderEnabled={secondaryProviderEnabled}
         modelPricingOverrides={settings?.modelPricingOverrides?.value ?? {}}
         additionalModelIds={[
@@ -1386,7 +1497,7 @@ function Settings() {
 
       <AdReviewerSection
         reviewer={reviewer}
-        onChange={setReviewer}
+        onChange={handleReviewerChange}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
         secondaryProviderEnabled={secondaryProviderEnabled}
@@ -1451,9 +1562,12 @@ function Settings() {
 
       <PatternCleanupSection
         primaryProvider={llmProvider}
+        primaryBaseUrl={openaiBaseUrl}
         secondaryProvider={secondaryProviderEnabled && secondaryProvider ? secondaryProvider : ''}
+        secondaryBaseUrl={secondaryProviderBaseUrl}
         secondaryEnabled={secondaryProviderEnabled}
         detectionSlot={detectionSlot}
+        providerIdentityHasUnsavedChanges={providerIdentityHasUnsavedChanges}
       />
 
       <SettingsGroupHeader title="Output" />

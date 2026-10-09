@@ -60,7 +60,18 @@ function RunCost({ run }: { run: EpisodeProcessingRun }) {
 // hover title used to hide, and the copy action lifts it out for a report.
 function RunResult({ run }: { run: EpisodeProcessingRun }) {
   const [open, setOpen] = useState(false);
-  if (run.status !== 'failed') return <>completed</>;
+  if (run.status !== 'failed') {
+    if (!run.stats?.chaptersDegraded) return <>completed</>;
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="text-amber-700 dark:text-amber-300">completed with chapter warning</span>
+        <div className="w-full max-w-xs whitespace-normal break-words rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+          {run.stats.chaptersDegradedReason && <p>{run.stats.chaptersDegradedReason}</p>}
+          <p className="mt-1">Check Settings &gt; AI Models, or regenerate chapters after recovery.</p>
+        </div>
+      </div>
+    );
+  }
   if (!run.errorMessage) return <span className="text-destructive">failed</span>;
   const panelId = `run-error-${run.runNumber}`;
   return (
@@ -99,6 +110,9 @@ function transcriptDiffSummary(run: EpisodeProcessingRun): string {
 
 function timingValue(run: EpisodeProcessingRun, key: typeof TIMING_STAGES[number][0]): string {
   const timings = run.stats?.timings;
+  if (run.stats?.mode === 'chapters' && key !== 'chaptersSeconds' && key !== 'ffmpegSeconds') {
+    return 'Not applicable';
+  }
   if (key === 'transcriptionSeconds' && run.stats?.transcriptionSkipped) return 'Skipped';
   if (key === 'detectionSeconds' && run.stats?.detectionSkipped) return 'Skipped';
   if (key === 'verificationSeconds' && run.stats?.verificationSkipped) return 'Skipped';
@@ -165,8 +179,9 @@ const COLUMNS: Column[] = [
     label: 'Run',
     render: (run) => {
       const s = run.stats;
+      const mode = s?.mode === 'chapters' ? 'Chapter regeneration' : s?.mode;
       const notes = [
-        s?.mode && s.mode !== 'auto' ? s.mode : null,
+        mode && mode !== 'auto' ? mode : null,
         s?.detectionSkipped ? 'no ad detection' : null,
         s?.verificationSkipped ? 'no verification' : null,
         s?.cueOnly ? 'cue-only' : null,
@@ -226,6 +241,7 @@ const COLUMNS: Column[] = [
   {
     label: 'Ads',
     render: (run) => {
+      if (run.stats?.mode === 'chapters') return '-';
       const m = run.stats?.markers;
       return m ? `${m.cut} cut / ${m.held} held / ${m.notCut} kept` : `${run.adsDetected} cut`;
     },

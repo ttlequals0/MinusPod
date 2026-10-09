@@ -1251,7 +1251,7 @@ class AdDetector:
         provider, credential_slot, model = live.provider, live.credential_slot, live.model
         llm_timeout, max_retries = live.timeout, live.max_retries
         max_tokens, temperature, reasoning = resolve_stage_tunables(
-            phase, provider=provider)
+            phase, provider=provider, model=model)
 
         return call_llm_for_window(
             llm_client=self._client_for_pass(pass_name, live.route),
@@ -1270,6 +1270,7 @@ class AdDetector:
             phase_key=phase,
             provider=provider,
             credential_slot=credential_slot,
+            stage_tunable_prefix=phase,
             response_format=schema_format_for(
                 model, 'ad_detection', AD_DETECTION_JSON_SCHEMA,
                 'Ad segments detected in this window.', provider=provider),

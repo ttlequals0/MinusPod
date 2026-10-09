@@ -155,6 +155,19 @@ def test_incomplete_legacy_model_snapshot_survives_normal_run(temp_db, live_rout
     assert len(pending) == 1 and pending[0]['kind'] == 'trim'
 
 
+def test_legacy_pending_model_suggestion_survives_category_review_upgrade(temp_db):
+    pattern = _pattern(temp_db, category='sponsor')
+    before = pattern_cleanup._before_snapshot(temp_db.get_ad_pattern_by_id(pattern['id']))
+    before.pop('category')
+    temp_db.upsert_cleanup_suggestion(
+        None, pattern['id'], 'trim', 0.9, [], {'text': AD}, before)
+    candidate = temp_db.get_cleanup_candidate_rows(force=True, batch_size=10)[0]
+    assert candidate['has_pending_model'] == 1
+    assert pattern_cleanup._obsolete_model_version(
+        temp_db.get_cleanup_suggestions(status='pending')[0], candidate) is False
+    assert select_candidates(temp_db, force=False, batch_size=10) == []
+
+
 # Stats suggestions
 
 def test_retire_when_unused_past_threshold(temp_db):
@@ -267,6 +280,66 @@ def test_valid_trim_returns_exact_original_substring(temp_db):
     assert result['action'] == 'trim'
     assert result['text'] == AD
     assert result['text'] in p['text_template']
+
+
+def test_category_only_review_is_validated_and_suggested(temp_db):
+    p = _pattern(temp_db, category='sponsor')
+    result, calls = _review(p, _reply(category='cross_promo'))
+    assert result['action'] == 'keep'
+    assert result['category'] == 'cross_promo'
+    assert 'Category on record: sponsor' in calls[0]['prompt']
+    suggestions = pattern_cleanup._suggestions_for(p, [], result)
+    assert [(item['kind'], item['payload']) for item in suggestions] == [
+        ('category', {'category': 'cross_promo'}),
+    ]
+
+
+@pytest.mark.parametrize('old_category,new_category', [
+    ('intro', 'outro'), ('outro', 'intro'), ('sponsor', 'recap'),
+])
+def test_learned_show_segment_category_correction_preserves_content(
+        temp_db, live_route, old_category, new_category):
+    text = ('Thanks for listening to the show. We will be back next week '
+            'with another conversation and a recap of the stories we covered.')
+    pattern = _pattern(temp_db, text=text, category=old_category)
+    fake, _ = _fake_llm(_reply(category=new_category))
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+
+    suggestions = temp_db.get_cleanup_suggestions(status='pending')
+    assert [item['kind'] for item in suggestions] == ['category']
+    suggestion_id = suggestions[0]['id']
+    apply_suggestion(temp_db, suggestion_id)
+    current = temp_db.get_ad_pattern_by_id(pattern['id'])
+    assert current['category'] == new_category
+    assert current['text_template'] == text
+    assert current['is_active'] == 1
+    assert not select_candidates(temp_db, force=False, batch_size=25)
+
+    undo_suggestion(temp_db, suggestion_id)
+    restored = temp_db.get_ad_pattern_by_id(pattern['id'])
+    assert restored['category'] == old_category
+    assert restored['text_template'] == text
+
+
+def test_invalid_category_is_ignored_without_invalidating_a_trim(temp_db):
+    p = _pattern(temp_db, category='sponsor')
+    result, _ = _review(p, _reply(action='trim', text=AD, category='pre_roll'))
+    assert result['action'] == 'trim'
+    assert result['category'] is None
+    assert pattern_cleanup._suggestions_for(p, [], result)[0]['payload'] == {'text': AD}
+
+
+def test_split_review_validates_categories_per_piece(temp_db):
+    original = AD + ' ' + AD2
+    p = _pattern(temp_db, text=original, category='sponsor')
+    _pattern(temp_db, text=AD2, sponsor='Widgetco')
+    result, _ = _review(p, _reply(action='split', pieces=[
+        {'text': AD, 'sponsor': 'Acme', 'category': 'cross_promo'},
+        {'text': AD2, 'sponsor': 'Widgetco', 'category': 'self_promo'},
+    ]))
+    assert result['action'] == 'split'
+    assert [piece['category'] for piece in result['pieces']] == ['cross_promo', 'self_promo']
 
 
 def test_trim_with_invented_words_is_rejected(temp_db):
@@ -978,6 +1051,22 @@ def test_contaminated_keep_becomes_flag(temp_db, live_route):
         p['text_template'], p['sponsor'])
 
 
+def test_contaminated_keep_does_not_create_category_suggestion(temp_db, live_route):
+    p = _pattern(temp_db, text=AD2, sponsor='Widgetco', category='sponsor')
+    fake, _ = _fake_llm(_reply(
+        contaminated=True, contamination_reason='mixes show content',
+        category='cross_promo'))
+    with patch.object(pattern_cleanup, 'call_llm', fake):
+        run_cleanup(temp_db)
+
+    suggestions = temp_db.get_cleanup_suggestions(status='pending')
+    assert [item['kind'] for item in suggestions] == ['flag']
+    assert temp_db.get_ad_pattern_by_id(p['id'])['category'] == 'sponsor'
+
+    apply_suggestion(temp_db, suggestions[0]['id'])
+    assert temp_db.get_ad_pattern_by_id(p['id'])['is_active'] == 0
+
+
 def test_per_pattern_error_continues(temp_db, live_route):
     _pattern(temp_db)
     _pattern(temp_db, text=AD2, sponsor='Widgetco')
@@ -1222,6 +1311,68 @@ def test_combined_trim_and_sponsor_correction_applies_and_undoes_atomically(
     assert restored['text_template'] == p['text_template']
     assert restored['sponsor_id'] == p['sponsor_id']
     assert restored['cleanup_reviewed_hash'] == review_hash(p['text_template'], 'Acme')
+
+
+def test_combined_trim_category_approval_and_undo(temp_db):
+    p = _pattern(temp_db, category='sponsor')
+    sid = _suggest(temp_db, p, 'trim', {'text': AD, 'category': 'cross_promo'})
+    approved = apply_suggestion(temp_db, sid)
+    updated = temp_db.get_ad_pattern_by_id(p['id'])
+    assert updated['text_template'] == AD and updated['category'] == 'cross_promo'
+    assert approved['applied']['after']['category'] == 'cross_promo'
+    assert updated['cleanup_reviewed_hash'] == review_hash(AD, 'Acme', 'cross_promo')
+
+    undo_suggestion(temp_db, sid)
+    restored = temp_db.get_ad_pattern_by_id(p['id'])
+    assert restored['text_template'] == p['text_template']
+    assert restored['category'] == 'sponsor'
+    assert restored['cleanup_reviewed_hash'] == review_hash(p['text_template'], 'Acme', 'sponsor')
+
+
+def test_combined_rename_category_approval_and_undo(temp_db):
+    p = _pattern(temp_db, text=AD, sponsor='Acme Inc', category='sponsor')
+    sid = _suggest(temp_db, p, 'rename', {'sponsor': 'Acme', 'category': 'cross_promo'})
+    apply_suggestion(temp_db, sid)
+    updated = temp_db.get_ad_pattern_by_id(p['id'])
+    assert (updated['sponsor'], updated['category']) == ('Acme', 'cross_promo')
+    undo_suggestion(temp_db, sid)
+    restored = temp_db.get_ad_pattern_by_id(p['id'])
+    assert (restored['sponsor'], restored['category']) == ('Acme Inc', 'sponsor')
+
+
+def test_split_applies_and_undoes_piece_categories(temp_db):
+    p = _pattern(temp_db, text=AD + ' ' + AD2, category='sponsor')
+    _pattern(temp_db, text=AD2, sponsor='Widgetco')
+    sid = _suggest(temp_db, p, 'split', {'pieces': [
+        {'text': AD, 'sponsor': 'Acme', 'category': 'cross_promo'},
+        {'text': AD2, 'sponsor': 'Widgetco', 'category': 'self_promo'},
+    ]})
+    applied = apply_suggestion(temp_db, sid)['applied']
+    children = [temp_db.get_ad_pattern_by_id(pid) for pid in applied['new_pattern_ids']]
+    assert [child['category'] for child in children] == ['cross_promo', 'self_promo']
+    undo_suggestion(temp_db, sid)
+    assert temp_db.get_ad_pattern_by_id(p['id'])['is_active'] == 1
+    assert all(temp_db.get_ad_pattern_by_id(child['id'])['is_active'] == 0 for child in children)
+
+
+def test_category_decision_reject_and_force_recheck(temp_db):
+    p = _pattern(temp_db, category='sponsor')
+    sid = _suggest(temp_db, p, 'category', {'category': 'cross_promo'})
+    reject_suggestion(temp_db, sid)
+    assert temp_db.get_ad_pattern_by_id(p['id'])['category'] == 'sponsor'
+    assert select_candidates(temp_db, force=False, batch_size=10) == []
+    temp_db.reset_cleanup_force_state()
+    assert [item['id'] for item in select_candidates(temp_db, force=False, batch_size=10)] == [p['id']]
+
+
+def test_category_undo_preserves_manual_category_edit(temp_db):
+    p = _pattern(temp_db, category='sponsor')
+    sid = _suggest(temp_db, p, 'category', {'category': 'cross_promo'})
+    apply_suggestion(temp_db, sid)
+    temp_db.update_ad_pattern(p['id'], category='self_promo')
+    with pytest.raises(SuggestionStateError):
+        undo_suggestion(temp_db, sid)
+    assert temp_db.get_ad_pattern_by_id(p['id'])['category'] == 'self_promo'
 
 
 def test_combined_trim_and_sponsor_approval_rolls_back_together(temp_db):
@@ -1537,6 +1688,53 @@ def test_reject_stale_trim_leaves_status_and_review_stamp_unchanged(temp_db):
     assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
     assert temp_db.get_ad_pattern_by_id(p['id'])['cleanup_reviewed_hash'] == current[
         'cleanup_reviewed_hash']
+
+
+def test_reject_trim_refuses_when_category_changed_since_suggestion(temp_db):
+    p = _pattern(temp_db, category='sponsor')
+    sid = _suggest(temp_db, p, 'trim', {'text': AD})
+    temp_db.update_ad_pattern(p['id'], category='cross_promo')
+
+    with pytest.raises(SuggestionStateError):
+        reject_suggestion(temp_db, sid)
+
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_ad_pattern_by_id(p['id'])['category'] == 'cross_promo'
+
+
+@pytest.mark.parametrize('kind,payload', [
+    ('trim', {'text': AD}),
+    ('rename', {'sponsor': 'Widgetco'}),
+    ('flag', {'false_positive_count': 0, 'confirmation_count': 0,
+              'contaminated': False, 'contamination_reason': None,
+              'recommended': 'trim', 'trim_text': AD}),
+])
+def test_apply_text_suggestion_refuses_category_changed_since_snapshot(
+        temp_db, kind, payload):
+    p = _pattern(temp_db, category='sponsor')
+    sid = _suggest(temp_db, p, kind, payload)
+    temp_db.update_ad_pattern(p['id'], category='self_promo')
+
+    with pytest.raises(SuggestionStateError):
+        apply_suggestion(temp_db, sid)
+
+    assert temp_db.get_cleanup_suggestion(sid)['status'] == 'pending'
+    assert temp_db.get_ad_pattern_by_id(p['id'])['category'] == 'self_promo'
+
+
+def test_legacy_snapshot_without_category_does_not_change_manual_category(temp_db):
+    p = _pattern(temp_db, category='sponsor')
+    before = pattern_cleanup._before_snapshot(p)
+    before.pop('category')
+    sid = temp_db.upsert_cleanup_suggestion(
+        None, p['id'], 'trim', 0.9, [], {'text': AD}, before)
+    temp_db.update_ad_pattern(p['id'], category='self_promo')
+
+    apply_suggestion(temp_db, sid)
+
+    current = temp_db.get_ad_pattern_by_id(p['id'])
+    assert current['text_template'] == AD
+    assert current['category'] == 'self_promo'
 
 
 def test_reject_stale_trim_with_variant_edit_leaves_suggestion_pending(temp_db):

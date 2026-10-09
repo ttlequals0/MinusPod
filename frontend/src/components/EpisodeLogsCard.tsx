@@ -32,6 +32,9 @@ function EpisodeLogsCard({ slug, episodeId, runs }: EpisodeLogsCardProps) {
           >
             <span className="font-medium">Run {run.runNumber}</span>
             <span className="text-muted-foreground">{formatDateTime(run.processedAt)}</span>
+            <span className="text-muted-foreground">
+              {run.stats?.mode === 'chapters' ? 'Chapter regeneration' : 'Audio processing'}
+            </span>
             {run.status === 'failed' && <span className="text-destructive">failed</span>}
             <span className="ml-auto">
               {run.hasLog ? (

@@ -1,9 +1,10 @@
 import { apiRequest } from './client';
 import type { PatternScope } from './patterns';
+import type { SegmentCategory } from '../utils/segmentCategory';
 
 export const patternCleanupQueryKey = ['patternCleanup'] as const;
 
-export type CleanupKind = 'trim' | 'split' | 'rename' | 'retire' | 'flag';
+export type CleanupKind = 'trim' | 'split' | 'rename' | 'retire' | 'flag' | 'category';
 export type CleanupStatus = 'pending' | 'approved' | 'rejected' | 'undone';
 
 export interface PatternCleanupSettings {
@@ -18,6 +19,7 @@ export interface PatternCleanupSettings {
 }
 
 export interface PatternCleanupStatus extends PatternCleanupSettings {
+  modelMissing: boolean;
   inProgress: boolean;
   // Start of the newest run, including one still running.
   lastRun: string | null;
@@ -44,9 +46,10 @@ export interface PatternCleanupRun {
   error: string | null;
 }
 
-export interface TrimPayload { text: string; sponsor?: string }
-export interface SplitPayload { pieces: Array<{ text: string; sponsor: string }> }
-export interface RenamePayload { sponsor: string }
+export interface TrimPayload { text: string; sponsor?: string; category?: SegmentCategory }
+export interface SplitPayload { pieces: Array<{ text: string; sponsor: string; category?: SegmentCategory }> }
+export interface RenamePayload { sponsor: string; category?: SegmentCategory }
+export interface CategoryPayload { category: SegmentCategory }
 export interface RetirePayload {
   unusedDays: number;
   lastMatchedAt: string | null;
@@ -60,11 +63,13 @@ export interface FlagPayload {
   recommended: 'disable' | 'trim';
   trimText?: string;
   sponsor?: string;
+  category?: SegmentCategory;
 }
 
 // Pattern snapshot taken when the suggestion was made.
 export interface CleanupBefore {
   textTemplate: string | null;
+  category?: SegmentCategory | null;
   sourceContext?: string | null;
   sponsor: string | null;
   introVariants: string[];
@@ -94,7 +99,7 @@ export interface PatternCleanupSuggestion {
   status: CleanupStatus;
   confidence: number | null;
   reasons: string[];
-  payload: TrimPayload | SplitPayload | RenamePayload | RetirePayload | FlagPayload;
+  payload: TrimPayload | SplitPayload | RenamePayload | RetirePayload | FlagPayload | CategoryPayload;
   before: CleanupBefore | null;
   applied: Record<string, unknown> | null;
   createdAt: string;

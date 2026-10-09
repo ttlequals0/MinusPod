@@ -31,6 +31,7 @@ function makeStatus(overrides: Partial<PatternCleanupStatus> = {}): PatternClean
     unusedDays: 90,
     provider: '',
     model: '',
+    modelMissing: false,
     inProgress: false,
     lastRun: '2026-10-04T04:00:00Z',
     lastError: null,
@@ -49,7 +50,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof PatternCleanup
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: 0 }, mutations: { retry: false } },
   });
-  return render(
+  const view = render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
         <PatternCleanupSection
@@ -62,6 +63,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof PatternCleanup
       </QueryClientProvider>
     </MemoryRouter>,
   );
+  return { ...view, queryClient: client };
 }
 
 beforeEach(() => {
@@ -85,7 +87,7 @@ describe('PatternCleanupSection', () => {
     expect((screen.getByLabelText(/patterns per run/i) as HTMLInputElement).value).toBe('25');
     expect((screen.getByLabelText(/retire after/i) as HTMLInputElement).value).toBe('90');
     expect((screen.getByLabelText(/cleanup provider/i) as HTMLSelectElement).value).toBe('same_as_detection');
-    expect((screen.getByLabelText(/cleanup model/i) as HTMLSelectElement).value).toBe('');
+    expect((screen.getByLabelText(/cleanup model/i) as HTMLSelectElement).value).toBe('same_as_detection');
     expect(screen.getByText('A higher quality model gives better trims and splits')).toBeDefined();
     expect(screen.getByText('Experimental')).toBeDefined();
   });
@@ -116,6 +118,140 @@ describe('PatternCleanupSection', () => {
       provider: 'primary', model: 'big-model',
     });
     expect(await screen.findByText(/^saved$/i)).toBeDefined();
+  });
+
+  it('requires choosing an inherited or explicit model when cleanup model is missing', async () => {
+    const user = userEvent.setup();
+    mockGet.mockResolvedValue(makeStatus({ model: '', modelMissing: true }));
+    mockUpdate.mockImplementation(async (body) => {
+      const saved = makeStatus({ ...body, modelMissing: false });
+      mockGet.mockResolvedValue(saved);
+      return saved;
+    });
+    renderSection();
+    const model = await screen.findByLabelText(/cleanup model/i);
+    expect((model as HTMLSelectElement).value).toBe('');
+    expect(screen.getByText('Pick a model before processing episodes.')).toBeDefined();
+    expect((screen.getByRole('button', { name: /run now/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /^save$/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(model).getAllByRole('option', { name: 'Same as detection model' })).toHaveLength(1);
+
+    await user.selectOptions(model, 'same_as_detection');
+    expect((screen.getByRole('button', { name: /run now/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /^save$/i }) as HTMLButtonElement).disabled).toBe(false);
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ model: '' })));
+    await waitFor(() => expect((screen.getByRole('button', { name: /run now/i }) as HTMLButtonElement).disabled)
+      .toBe(false));
+  });
+
+  it('clears the cleanup model when its selected provider slot changes identity', async () => {
+    const user = userEvent.setup();
+    mockGet.mockResolvedValue(makeStatus({ provider: 'primary', model: 'big-model' }));
+    renderSection();
+    await screen.findByLabelText(/cleanup model/i);
+
+    await user.selectOptions(screen.getByLabelText(/cleanup provider/i), 'secondary');
+
+    expect((screen.getByLabelText(/cleanup model/i) as HTMLSelectElement).value).toBe('');
+  });
+
+  it('keeps intentional model inheritance when the cleanup provider identity changes', async () => {
+    const user = userEvent.setup();
+    mockGet.mockResolvedValue(makeStatus({ provider: '', model: '', modelMissing: false }));
+    renderSection();
+    const model = await screen.findByLabelText(/cleanup model/i);
+    expect((model as HTMLSelectElement).value).toBe('same_as_detection');
+
+    await user.selectOptions(screen.getByLabelText(/cleanup provider/i), 'primary');
+
+    expect((screen.getByLabelText(/cleanup model/i) as HTMLSelectElement).value).toBe('same_as_detection');
+    expect(screen.queryByText('Pick a model before processing episodes.')).toBeNull();
+  });
+
+  it('clears cleanup model after the bound provider account changes', async () => {
+    mockGet.mockResolvedValue(makeStatus({ provider: 'primary', model: 'big-model' }));
+    const view = renderSection();
+    const model = await screen.findByLabelText(/cleanup model/i);
+    expect((model as HTMLSelectElement).value).toBe('big-model');
+
+    view.rerender(
+      <MemoryRouter>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <PatternCleanupSection
+            primaryProvider="ollama"
+            primaryBaseUrl="http://localhost:11434"
+            secondaryProvider="openrouter"
+            secondaryBaseUrl=""
+            secondaryEnabled
+            detectionSlot="secondary"
+            providerIdentityHasUnsavedChanges
+          />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect((screen.getByLabelText(/cleanup model/i) as HTMLSelectElement).value).toBe(''));
+  });
+
+  it('preserves inherited cleanup model after the bound account changes', async () => {
+    mockGet.mockResolvedValue(makeStatus({ provider: '', model: '', modelMissing: false }));
+    const view = renderSection();
+    await screen.findByLabelText(/cleanup model/i);
+
+    view.rerender(
+      <MemoryRouter>
+        <QueryClientProvider client={view.queryClient}>
+          <PatternCleanupSection
+            primaryProvider="anthropic"
+            secondaryProvider="new-provider"
+            secondaryEnabled
+            detectionSlot="secondary"
+            providerIdentityHasUnsavedChanges
+          />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    expect((screen.getByLabelText(/cleanup model/i) as HTMLSelectElement).value).toBe('same_as_detection');
+    expect(screen.queryByText('Pick a model before processing episodes.')).toBeNull();
+  });
+
+  it('keeps the imported cleanup model when the account and status are rehydrated', async () => {
+    const view = renderSection();
+    await screen.findByLabelText(/cleanup model/i);
+
+    view.rerender(
+      <MemoryRouter>
+        <QueryClientProvider client={view.queryClient}>
+          <PatternCleanupSection
+            primaryProvider="openai-compatible"
+            primaryBaseUrl="https://new.example/v1"
+            secondaryProvider="openrouter"
+            secondaryBaseUrl=""
+            secondaryEnabled
+            detectionSlot="secondary"
+          />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    mockCatalog.mockReturnValue({
+      models: [
+        { id: 'big-model', name: 'Big Model' },
+        { id: 'small-model', name: 'Small Model' },
+        { id: 'imported-model', name: 'Imported Model' },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    mockGet.mockResolvedValue(makeStatus({ provider: 'primary', model: 'imported-model' }));
+    await view.queryClient.invalidateQueries({ queryKey: ['patternCleanup'] });
+
+    await waitFor(() => expect(
+      (screen.getByLabelText(/cleanup model/i) as HTMLSelectElement).value,
+    ).toBe('imported-model'));
+    expect(screen.queryByText('Save changes before starting a run.')).toBeNull();
+    expect((screen.getByRole('button', { name: /run now/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('shows a save error inline', async () => {

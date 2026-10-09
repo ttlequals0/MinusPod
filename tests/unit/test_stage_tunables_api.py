@@ -75,12 +75,13 @@ class TestReasoningBudget:
         r = _put(client, {'detectionReasoningBudget': 8192})
         assert r.status_code == 200, r.data
 
-    def test_budget_rejected_when_provider_not_anthropic(self, client):
+    def test_budget_is_accepted_as_a_dormant_value_for_other_primary_provider(self, client):
         from database import Database
-        Database().set_setting('llm_provider', 'openrouter', is_default=False)
+        db = Database()
+        db.set_setting('llm_provider', 'openrouter', is_default=False)
         r = _put(client, {'detectionReasoningBudget': 8192})
-        assert r.status_code == 400
-        assert 'anthropic' in json.loads(r.data)['error']
+        assert r.status_code == 200, r.data
+        assert db.get_setting('detection_reasoning_budget') == '8192'
 
     def test_inline_provider_change_to_anthropic_allows_budget(self, client):
         from database import Database
@@ -99,11 +100,13 @@ class TestReasoningBudget:
 
 
 class TestReasoningLevel:
-    def test_level_rejected_when_provider_anthropic(self, client):
+    def test_level_is_accepted_for_anthropic_adaptive_models(self, client):
         from database import Database
-        Database().set_setting('llm_provider', 'anthropic', is_default=False)
+        db = Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
         r = _put(client, {'detectionReasoningLevel': 'high'})
-        assert r.status_code == 400
+        assert r.status_code == 200, r.data
+        assert db.get_setting('detection_reasoning_level') == 'high'
 
     def test_level_accepted_for_openrouter(self, client):
         from database import Database

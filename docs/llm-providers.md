@@ -6,6 +6,7 @@
 
 ## Contents
 
+- [Using Anthropic directly](#using-anthropic-directly)
 - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
 - [Using OpenRouter](#using-openrouter)
@@ -13,6 +14,22 @@
 - [LLM Pricing](#llm-pricing)
 - [Custom model pricing](#custom-model-pricing)
 - [Reviewer Calibration Self-Test](#reviewer-calibration-self-test)
+
+## Using Anthropic directly
+
+Select Anthropic and save an API key under Settings > AI & Processing. Each stage can use its own model. MinusPod chooses a tool-call format that the selected model supports. Models that reject forced tool calls use automatic tool choice with a strict schema. A response without the requested tool result follows the normal bounded retry policy; its token usage still counts.
+
+### Reasoning settings
+
+Under LLM Tunables, use **Reasoning budget** for models that accept manual thinking budgets, such as Claude 4.5 and 4.6. Use **Reasoning effort** for adaptive-only models, including Opus 4.7, Opus 4.8, and Claude 5 models. MinusPod sends the applicable setting for the model assigned to each stage. Both values persist when switching models or providers.
+
+Leave effort blank to use the configured default; without an environment default, the provider decides. `none` disables thinking where supported; models that require thinking use low effort instead. A numeric budget is not converted into an effort level. Model restrictions follow [Anthropic's thinking API](https://platform.claude.com/docs/en/build-with-claude/thinking).
+
+### Prompt caching
+
+MinusPod requests a 5-minute cache for static Anthropic system prompts. Transcript snippets and other per-call messages remain outside that cache boundary. Caching is automatic; there is no setting to enable it. Short prompts may not meet the provider's minimum cache size, and a changed prompt or expired cache causes a miss. See [Anthropic's prompt caching guide](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+
+Input token totals include cache reads and writes. Processing history reports these counts separately as subsets of input tokens. For direct Anthropic calls, estimated cost uses the model's cache-read discount and the 5-minute cache-write rate. A provider-reported cost takes precedence; calls without known pricing remain unpriced. Existing usage records are unchanged.
 
 ## Using Claude Code Wrapper (Max Subscription)
 
@@ -252,7 +269,9 @@ its own provider and model selectors. Each can inherit detection's choice.
 Choose a higher-quality model when reviewing patterns: an approved pattern
 can affect matches in many later episodes.
 
-Switching a stage's slot only changes that stage. Model discovery re-runs for the newly selected slot, so the model dropdown next to it shows that slot's own catalog. Every other stage's slot and model stay exactly as you left them. A stage still accepts a hand-typed model ID (the "Type a model ID" link) for models a slot's catalog does not list, the same as the single-provider case. If a stage is set to Provider B and Provider B is later disabled, that stage falls back to Provider A until Provider B is turned back on.
+Switching a stage's slot only changes that stage. Model discovery re-runs for the newly selected slot, so the model dropdown next to it shows that slot's own catalog. Other stages keep their slot and model unless their provider account also changes.
+
+When a provider type, custom endpoint, or stage route changes the account used by a stage, MinusPod clears that stage's saved model. Empty fields show a reminder to choose a model and stay blank after reload until you choose a replacement. A stage still accepts a hand-typed model ID (the "Type a model ID" link) for models a slot's catalog does not list. Changing only an API key keeps model selections. If a stage is set to Provider B and Provider B is later disabled, that stage falls back to Provider A until Provider B is turned back on.
 
 Each slot needs its own API key and, where relevant, base URL configured under Settings > LLM Provider before a stage can use it; an unconfigured slot's model list comes back empty until credentials are saved.
 

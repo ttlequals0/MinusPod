@@ -1,8 +1,11 @@
 """Tests for chapters_generator topic-boundary prompt construction."""
 import logging
 from dataclasses import dataclass
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
+import httpx
+import openai
 import pytest
 
 from tests.app_bootstrap import bootstrap
@@ -15,6 +18,11 @@ from chapters_generator import (
     build_segment_hints,
 )
 from llm_client import ProviderRateLimitedError
+from llm_client import ProviderAccountChangedError
+from cancel import ProcessingCancelled, ProcessingOwnershipLost
+from utils import llm_call
+import failover
+import llm_route
 
 
 @pytest.fixture(autouse=True)
@@ -479,6 +487,19 @@ class TestSharedLLMCallPath:
         gen._llm_client = client
         return gen, client
 
+    @pytest.mark.parametrize('response', ['', 'Opening topic'])
+    def test_incomplete_title_response_marks_generated_chapters_degraded(self, response):
+        gen, _ = _make_generator_with_stub()
+        with patch.object(gen, '_detect_boundaries_windowed', return_value=[
+                {'original_time': 900, 'title': None}]), \
+             patch('chapters_generator.call_llm', return_value=(_StubResponse(response), None)):
+            result = gen.generate_chapters(
+                segments=_long_episode_segments(1800), podcast_name='Show', episode_title='Episode')
+
+        assert len(result['chapters']) == 2
+        assert gen.chapters_degraded is True
+        assert gen.chapters_degradation_reason == 'chapter title generation failed'
+
     def test_boundary_failure_retries_then_returns_none(self):
         gen, client = self._failing_generator()
         with patch('utils.llm_call.is_retryable_error', return_value=True), \
@@ -637,17 +658,147 @@ class TestEmptyTopicDetectionDegradation:
         # AI topic detection is never invoked below MIN_DURATION_FOR_AI.
         assert stub.topic_prompt == ''
 
-    def test_chapter_calls_do_not_force_json_response_format(self):
-        # Chapter prompts expect line-based text; the JSON-object response
-        # format is a detection-window concern (call_llm_for_window only).
-        gen, stub = _make_generator_with_stub(canned_text='05:30 Topic A\n')
+    def test_missing_client_degrades_long_episode_with_actionable_reason(self, monkeypatch):
+        gen = ChaptersGenerator()
+        monkeypatch.setattr(gen, '_initialize_client', lambda: None)
+        monkeypatch.setattr(gen, '_client_for', lambda _route: None)
+
+        out = gen.generate_chapters(
+            segments=_long_episode_segments(duration=5400),
+            podcast_name='Show', episode_title='Ep')
+
+        assert out['chapters'] == [{'startTime': 1, 'title': 'Introduction'}]
+        assert gen.chapters_degraded is True
+        assert gen.chapters_degradation_reason == (
+            f'chapter topic detection failed; chapter title generation failed; '
+            f'{chapters_generator.CHAPTERS_AI_UNAVAILABLE}')
+
+    def test_missing_client_short_single_chapter_remains_healthy(self, monkeypatch):
+        gen = ChaptersGenerator()
+        monkeypatch.setattr(gen, '_initialize_client', lambda: None)
+        monkeypatch.setattr(gen, '_client_for', lambda _route: None)
+
+        out = gen.generate_chapters(
+            segments=[{'start': 0, 'end': 300, 'text': 'short episode'}],
+            podcast_name='Show', episode_title='Ep')
+
+        assert out['chapters'] == [{'startTime': 1, 'title': 'Introduction'}]
+        assert gen.chapters_degraded is False
+
+
+@pytest.mark.parametrize('error', [
+    ProviderAccountChangedError('account changed'),
+    ProcessingCancelled(),
+    ProcessingOwnershipLost(),
+])
+def test_topic_boundary_control_errors_propagate(monkeypatch, error):
+    gen = ChaptersGenerator(api_key='test')
+    monkeypatch.setattr(chapters_generator, 'call_llm', MagicMock(side_effect=error))
+
+    with pytest.raises(type(error)):
         gen._detect_topic_boundaries(
-            transcript='[00:00] x',
-            start_time=0.0,
-            end_time=1800.0,
-            num_splits=1,
-        )
-        assert stub.calls[-1].get('response_format') is None
+            transcript='[00:00] x', start_time=0, end_time=1800, num_splits=3)
+
+
+@pytest.mark.parametrize('error', [
+    ProviderAccountChangedError('account changed'),
+    ProcessingCancelled(),
+    ProcessingOwnershipLost(),
+])
+def test_title_generation_control_errors_propagate(monkeypatch, error):
+    gen = ChaptersGenerator(api_key='test')
+    monkeypatch.setattr(gen, '_call_claude_for_titles', MagicMock(side_effect=error))
+    chapters = [{'startTime': 0, 'title': None, 'needs_title': True}]
+
+    with pytest.raises(type(error)):
+        gen.generate_chapter_titles(chapters, [], 'Show', 'Ep')
+
+
+def test_chapter_calls_do_not_force_json_response_format():
+    gen, stub = _make_generator_with_stub(canned_text='05:30 Topic A\n')
+    gen._detect_topic_boundaries(
+        transcript='[00:00] x', start_time=0.0, end_time=1800.0, num_splits=1)
+    assert stub.calls[-1].get('response_format') is None
+
+
+@pytest.mark.parametrize('phase_call', ['boundaries', 'titles'])
+def test_chapter_calls_use_secondary_route_and_standby_model(monkeypatch, phase_call):
+    primary_error = openai.APIConnectionError(
+        request=httpx.Request('POST', 'https://example.com'))
+    primary = _RecordingClient()
+    primary.messages_create = MagicMock(side_effect=primary_error)
+    standby = _RecordingClient('05:00 Topic' if phase_call == 'boundaries' else 'Chapter One')
+    standby.messages_create = MagicMock(wraps=standby.messages_create)
+    fallback_route = llm_route.Route(
+        phase='chapters', provider_key='openai-compatible', model_id='standby-chapters',
+        base_url='http://127.0.0.1:11434/v1', slot='failover',
+        credential_slot='failover', account_id='standby-account')
+    live = SimpleNamespace(
+        route={'configured_model': 'configured-chapters', 'credential_slot': 'secondary'},
+        model='configured-chapters', provider='anthropic', credential_slot='secondary',
+        timeout=4.0, max_retries=0)
+    ledger_calls = []
+
+    def ledger(client, kwargs, model, **meta):
+        ledger_calls.append((client, model, meta))
+        kwargs['model'] = model
+        return client.messages_create(**kwargs)
+
+    monkeypatch.setattr(chapters_generator, 'live_route_params', lambda *_args: live)
+    gen = ChaptersGenerator(api_key='test')
+    monkeypatch.setattr(gen, '_client_for', lambda _route: primary)
+    monkeypatch.setattr(llm_call, '_ledger_call_once', ledger)
+    monkeypatch.setattr(llm_call, '_is_retryable', lambda _error: False)
+    monkeypatch.setattr(failover, 'llm_target_for_slot', lambda _slot: 'llm:b')
+    monkeypatch.setattr(failover, 'is_configured', lambda _target: True)
+    monkeypatch.setattr(failover, 'trigger', lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(llm_call, '_failover_route', lambda *_args, **_kwargs: fallback_route)
+    monkeypatch.setattr(llm_call, 'client_for_route', lambda _route: standby)
+    monkeypatch.setattr(llm_call, 'get_llm_max_retries', lambda *_args: 0)
+    monkeypatch.setattr(llm_call, 'get_llm_timeout', lambda *_args: 4.0)
+
+    if phase_call == 'boundaries':
+        result = gen._detect_topic_boundaries(
+            transcript='[00:00] Topic starts', start_time=0, end_time=1800, num_splits=1)
+        assert result == [{'original_time': 300, 'title': 'Topic'}]
+    else:
+        result = gen.generate_chapter_titles(
+            [{'startTime': 0, 'title': None, 'needs_title': True}],
+            [{'start': 0, 'end': 600, 'text': 'Topic'}], 'Show', 'Episode')
+        assert result[0]['title'] == 'Chapter One'
+
+    assert primary.messages_create.call_count == 1
+    assert standby.messages_create.call_count == 1
+    assert ledger_calls[0][1] == 'configured-chapters'
+    assert ledger_calls[0][2]['credential_slot'] == 'secondary'
+    assert ledger_calls[0][2]['provider_key'] == 'anthropic'
+    assert ledger_calls[1][1] == 'standby-chapters'
+    assert ledger_calls[1][2]['credential_slot'] == 'failover'
+    assert ledger_calls[0][2]['phase_key'] == ledger_calls[1][2]['phase_key'] == 'chapters'
+
+
+def test_chapter_transient_failure_without_standby_returns_fallback(monkeypatch):
+    primary_error = openai.APIConnectionError(
+        request=httpx.Request('POST', 'https://example.com'))
+    primary = _RecordingClient()
+    primary.messages_create = MagicMock(side_effect=primary_error)
+    gen = ChaptersGenerator(api_key='test')
+    monkeypatch.setattr(gen, '_client_for', lambda _route: primary)
+    monkeypatch.setattr(chapters_generator, 'live_route_params', lambda *_args: SimpleNamespace(
+        route={'configured_model': 'configured-chapters', 'credential_slot': 'secondary'},
+        model='configured-chapters', provider='anthropic', credential_slot='secondary',
+        timeout=4.0, max_retries=0))
+    monkeypatch.setattr(llm_call, '_ledger_call_once',
+                        lambda client, kwargs, model, **_meta: client.messages_create(**kwargs))
+    monkeypatch.setattr(llm_call, '_is_retryable', lambda _error: False)
+    monkeypatch.setattr(failover, 'llm_target_for_slot', lambda _slot: 'llm:b')
+    monkeypatch.setattr(failover, 'is_configured', lambda _target: True)
+    monkeypatch.setattr(failover, 'trigger', lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(llm_call, '_failover_route', lambda *_args, **_kwargs: None)
+
+    assert gen._detect_topic_boundaries(
+        transcript='[00:00] Topic starts', start_time=0, end_time=1800, num_splits=1) is None
+    assert primary.messages_create.call_count == 1
 
 
 # Same mixed remove+beep applied cut list as

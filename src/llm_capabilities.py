@@ -22,6 +22,9 @@ from config import (
     PROVIDER_OPENROUTER,
     PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OLLAMA,
+    anthropic_model_allows_disabled_thinking,
+    anthropic_model_requires_adaptive_thinking,
+    anthropic_model_supports_forced_tools as anthropic_model_supports_forced_tools,
 )
 
 logger = logging.getLogger(__name__)
@@ -114,21 +117,39 @@ def classify_reasoning_rejection(error: Exception) -> str | None:
 def translate_reasoning_effort(
     provider: str,
     value: Union[int, str] | None,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Map a per-stage reasoning value to provider-native request kwargs.
 
     Returns {} when the value should be omitted from the request.
     """
-    if value is None:
-        return {}
-
     provider = provider.lower()
 
     if provider == PROVIDER_ANTHROPIC:
+        if value is None:
+            return {}
+        if anthropic_model_requires_adaptive_thinking(model):
+            if isinstance(value, int):
+                return {}
+            if isinstance(value, str) and value.lower() == 'none':
+                if anthropic_model_allows_disabled_thinking(model):
+                    return {"thinking": {"type": "disabled"}}
+                return {
+                    "thinking": {"type": "adaptive"},
+                    "output_config": {"effort": "low"},
+                }
+            if isinstance(value, str) and value.lower() in ("low", "medium", "high"):
+                return {
+                    "thinking": {"type": "adaptive"},
+                    "output_config": {"effort": value.lower()},
+                }
+            return {}
         if isinstance(value, int):
             return {"thinking": {"type": "enabled", "budget_tokens": value}}
         return {}
 
+    if value is None:
+        return {}
     if not isinstance(value, str):
         return {}
     normalized = value.lower()
@@ -155,6 +176,7 @@ _ANTHROPIC_NO_SAMPLING_MODELS = (
     "claude-sonnet-5",
     "claude-fable-5",
     "claude-mythos-5",
+    "claude-haiku-5-5",
 )
 
 # Per-process memo of models discovered at runtime to reject temperature
@@ -200,11 +222,8 @@ def model_omits_temperature(
                for token in _ANTHROPIC_NO_SAMPLING_MODELS)
 
 
-# Anthropic is the only provider with a proven, enforced structured-output
-# path (json_schema response_format forces a tool_choice call in
-# AnthropicClient.messages_create, guaranteeing schema-matching output).
-# Other providers front arbitrary/inconsistent backends lacking strict JSON
-# schema mode; extend this set only after verifying a provider's actual contract.
+# Anthropic supports structured output through tool schemas. Extend this
+# set only after verifying another provider's schema-enforcement contract.
 _JSON_SCHEMA_SUPPORTED_PROVIDERS = frozenset({PROVIDER_ANTHROPIC})
 
 

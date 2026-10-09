@@ -17,8 +17,9 @@ from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    ProviderRateLimitedError,
+    ProviderAccountChangedError, ProviderRateLimitedError,
 )
+from cancel import ProcessingCancelled, ProcessingOwnershipLost
 from llm_route import client_for_route, live_route_params
 from run_context import route_for_phase
 from utils.llm_call import call_llm
@@ -27,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 # Episodes shorter than this skip AI topic detection entirely.
 MIN_DURATION_FOR_AI = 900.0
+CHAPTERS_AI_UNAVAILABLE = (
+    'Chapter AI is unavailable. Check Settings > AI Models, then try again.')
 
 # Two chapters whose start times are closer than this are merged during dedupe.
 MIN_DEDUP_WINDOW = 60.0
@@ -190,6 +193,7 @@ class ChaptersGenerator:
         # degraded run doesn't look like a normal short episode.
         self._topic_detection_failed: bool = False
         self._title_generation_failed: bool = False
+        self._missing_client_for_titles: bool = False
         # Set when get_chapters_model() raises; appended to the degradation
         # reason below instead of just the generic "... failed" text.
         self._model_not_configured_message: str | None = None
@@ -343,11 +347,12 @@ class ChaptersGenerator:
 
         try:
             live = live_route_params('chapters')
+            model = live.model if live.route else get_chapters_model()
             max_tokens, temperature, reasoning = resolve_stage_tunables(
-                'chapter_boundary', provider=live.provider)
+                'chapter_boundary', provider=live.provider, model=model)
             response, last_error = call_llm(
                 llm_client=self._client_for(live.route),
-                model=live.model if live.route else get_chapters_model(),
+                model=model,
                 system_prompt="",
                 prompt=prompt,
                 llm_timeout=live.timeout,
@@ -362,6 +367,7 @@ class ChaptersGenerator:
                 phase_key='chapters',
                 provider=live.provider,
                 credential_slot=live.credential_slot,
+                stage_tunable_prefix='chapter_boundary',
             )
             if response is None:
                 # A rate-limit hold is queue-wide state, not a degraded run.
@@ -371,7 +377,7 @@ class ChaptersGenerator:
                 return None
 
             result_text = response.content.strip()
-            logger.info(f"LLM topic detection response ({len(result_text)} chars):\n{result_text}")
+            logger.debug(f"LLM topic detection response ({len(result_text)} chars):\n{result_text}")
             chapters = []
 
             for line in result_text.split('\n'):
@@ -399,22 +405,23 @@ class ChaptersGenerator:
                                 'original_time': seconds,
                                 'title': title.strip()
                             })
-                            logger.info(f"Accepted topic: {timestamp_str} ({seconds}s) - {title.strip()}")
+                            logger.debug(f"Accepted topic: {timestamp_str} ({seconds}s) - {title.strip()}")
                         else:
-                            logger.info(f"Rejected outside range: {timestamp_str} ({seconds}s) not in {start_time}-{end_time}")
+                            logger.debug(f"Rejected outside range: {timestamp_str} ({seconds}s) not in {start_time}-{end_time}")
                     except (ValueError, IndexError) as e:
                         logger.warning(f"Failed to parse timestamp {timestamp_str}: {e}")
                 else:
-                    logger.info(f"Line didn't match pattern: {cleaned[:80]}")
+                    logger.debug(f"Line didn't match pattern: {cleaned[:80]}")
 
             logger.info(f"AI detected {len(chapters)} topic boundaries")
             return chapters
 
         except ModelNotConfiguredError as e:
             logger.warning(f"Chapter topic detection skipped: {e}")
-            self._model_not_configured_message = str(e)
+            self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
             return None
-        except ProviderRateLimitedError:
+        except (ProviderRateLimitedError, ProviderAccountChangedError,
+                ProcessingCancelled, ProcessingOwnershipLost):
             raise
         except Exception as e:
             logger.error(f"Failed to detect topic boundaries: {e}")
@@ -453,6 +460,9 @@ class ChaptersGenerator:
         self._initialize_client()
         if not self._llm_client:
             logger.warning("LLM client not available, using generic titles")
+            self._missing_client_for_titles = True
+            self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
+            self._title_generation_failed = True
             return self._apply_generic_titles(chapters)
 
         chapter_requests = []
@@ -482,10 +492,11 @@ class ChaptersGenerator:
 
         except ModelNotConfiguredError as e:
             logger.warning(f"Chapter title generation skipped: {e}")
-            self._model_not_configured_message = str(e)
+            self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
             self._title_generation_failed = True
             return self._apply_generic_titles(chapters)
-        except ProviderRateLimitedError:
+        except (ProviderRateLimitedError, ProviderAccountChangedError,
+                ProcessingCancelled, ProcessingOwnershipLost):
             raise
         except Exception as e:
             logger.error(f"Failed to generate chapter titles: {e}")
@@ -531,11 +542,12 @@ class ChaptersGenerator:
         prompt = "\n".join(prompt_parts)
 
         live = live_route_params('chapters')
+        model = live.model if live.route else get_chapters_model()
         max_tokens, temperature, reasoning = resolve_stage_tunables(
-            'chapter_title', provider=live.provider)
+            'chapter_title', provider=live.provider, model=model)
         response, last_error = call_llm(
             llm_client=self._client_for(live.route),
-            model=live.model if live.route else get_chapters_model(),
+            model=model,
             system_prompt="",
             prompt=prompt,
             llm_timeout=live.timeout,
@@ -550,6 +562,7 @@ class ChaptersGenerator:
             phase_key='chapters',
             provider=live.provider,
             credential_slot=live.credential_slot,
+            stage_tunable_prefix='chapter_title',
         )
         if response is None:
             # Caller (generate_chapter_titles) catches this and degrades to
@@ -559,6 +572,8 @@ class ChaptersGenerator:
         response_text = response.content.strip()
         titles = [line.strip() for line in response_text.split('\n') if line.strip()]
 
+        if len(titles) < len(chapter_requests):
+            self._title_generation_failed = True
         while len(titles) < len(chapter_requests):
             titles.append(f"Part {len(titles) + 1}")
 
@@ -787,6 +802,7 @@ class ChaptersGenerator:
         self._slug = slug
         self._topic_detection_failed = False
         self._title_generation_failed = False
+        self._missing_client_for_titles = False
         self._model_not_configured_message = None
         self.chapters_degraded = False
         self.chapters_degradation_reason = None
@@ -828,6 +844,9 @@ class ChaptersGenerator:
                         'source': 'ai',
                         'needs_title': not ch.get('title'),
                     })
+            else:
+                self._topic_detection_failed = True
+                self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
 
         chapters.sort(key=lambda x: x['startTime'])
 
@@ -843,6 +862,10 @@ class ChaptersGenerator:
         chapters = self.generate_chapter_titles(
             chapters, segments, podcast_name, episode_title
         )
+        if (episode_duration <= MIN_DURATION_FOR_AI and len(chapters) == 1
+                and self._missing_client_for_titles and not self._topic_detection_failed):
+            self._title_generation_failed = False
+            self._model_not_configured_message = None
 
         output_chapters = []
         for chapter in chapters:

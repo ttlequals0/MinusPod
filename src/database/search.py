@@ -50,7 +50,7 @@ _SHADOW_NAME_RE = re.compile(r'^search_index_new_[0-9]+_[0-9]+$')
 # (an FTS5 DROP walks and deletes the whole corpus); it is purged afterwards.
 _RETIRED_PREFIX = 'search_index_retired'
 _RETIRED_NAME_RE = re.compile(r'^search_index_retired_[0-9]+_[0-9]+$')
-_PURGE_CHUNK_ROWS = 500
+_PURGE_CHUNK_ROWS = _REBUILD_TX_ROWS
 
 
 @contextmanager

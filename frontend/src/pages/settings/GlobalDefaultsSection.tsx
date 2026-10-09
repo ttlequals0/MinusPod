@@ -4,6 +4,7 @@ import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
+import PodpingServersSection from './PodpingServersSection';
 
 interface GlobalDefaultsSectionProps {
   autoProcessEnabled: boolean;
@@ -145,6 +146,15 @@ function GlobalDefaultsSection({
           <p className="mt-2 text-sm text-muted-foreground">
             Listen for Podping publish notifications and refresh a feed as soon as its host announces a new episode. Only some hosts send Podping; feeds keep refreshing on the normal schedule either way.
           </p>
+          <div hidden={!podpingEnabled}>
+            <CollapsibleSection
+              title="Podping servers"
+              defaultOpen
+              variant="subsection"
+            >
+              <PodpingServersSection enabled={podpingEnabled} />
+            </CollapsibleSection>
+          </div>
         </div>
 
         {/* Max feed episodes */}

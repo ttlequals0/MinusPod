@@ -7,9 +7,9 @@ import {
   patternCleanupQueryKey, rejectCleanupSuggestion, undoCleanupSuggestion,
   type CleanupKind, type CleanupStatus, type FlagPayload, type PatternCleanupSuggestion,
   type RenamePayload, type RetirePayload, type SplitPayload, type TrimPayload,
+  type CategoryPayload,
 } from '../../api/patternCleanup';
 import { ApiError, getErrorMessage } from '../../api/client';
-import SegmentedToggle from '../../components/SegmentedToggle';
 import Checkbox from '../../components/Checkbox';
 import { ActiveBadge } from '../../components/ActiveBadge';
 import { ScopeBadge } from '../../components/ScopeBadge';
@@ -19,6 +19,7 @@ import { btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { cardActionBtn } from '../../components/rowActionStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { formatDate } from '../../utils/format';
+import { SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../../utils/segmentCategory';
 import { TrimDiff } from './TrimDiff';
 
 type KindFilter = CleanupKind | 'all';
@@ -30,6 +31,7 @@ const KIND_OPTIONS: Array<{ value: KindFilter; label: string }> = [
   { value: 'rename', label: 'Rename' },
   { value: 'retire', label: 'Retire' },
   { value: 'flag', label: 'Flag' },
+  { value: 'category', label: 'Category' },
 ];
 
 const KIND_BADGE: Record<CleanupKind, [string, string]> = {
@@ -38,6 +40,7 @@ const KIND_BADGE: Record<CleanupKind, [string, string]> = {
   rename: ['Rename', tint.blue],
   retire: ['Retire', tint.neutral],
   flag: ['Flag', tint.warning],
+  category: ['Category', tint.blue],
 };
 
 const STATUS_OPTIONS: Array<[CleanupStatus, string]> = [
@@ -86,6 +89,17 @@ function SponsorRename({ from, to, combined = false }: { from: string; to: strin
   );
 }
 
+function CategoryChange({ from, to }: { from?: SegmentCategory | null; to: SegmentCategory }) {
+  return (
+    <p className="text-sm">
+      <span className="text-muted-foreground">Category: </span>
+      <span className="text-muted-foreground">{from ? SEGMENT_CATEGORY_LABELS[from] : 'Uncategorized'}</span>
+      <ArrowRight className="mx-1 inline h-4 w-4 text-muted-foreground" aria-hidden="true" />
+      <span className="font-medium text-foreground">{SEGMENT_CATEGORY_LABELS[to]}</span>
+    </p>
+  );
+}
+
 // One renderer per kind, keyed like KIND_BADGE.
 const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, original: string) => ReactNode> = {
   trim: (s, original) => {
@@ -99,6 +113,7 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
             combined
           />
         )}
+        {payload.category && <CategoryChange from={s.before?.category} to={payload.category} />}
         <TrimDiff original={original} kept={payload.text} />
       </div>
     );
@@ -110,6 +125,9 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
         {pieces.map((piece, i) => (
           <div key={i} data-testid="split-piece" className="rounded border border-border bg-muted/40 p-3 min-w-0">
             <span className={`${badgeBase} ${tint.secondary}`}>{piece.sponsor}</span>
+            {piece.category && (
+              <CategoryChange from={s.before?.category} to={piece.category} />
+            )}
             <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-words">{piece.text}</p>
             <details className="mt-2 border-t border-border pt-2">
               <summary className="flex max-sm:min-h-11 cursor-pointer items-center text-sm text-muted-foreground">
@@ -124,7 +142,13 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
   },
   rename: (s) => {
     const from = s.before?.sponsor ?? s.pattern?.sponsor ?? '(Unknown)';
-    return <SponsorRename from={from} to={(s.payload as RenamePayload).sponsor} />;
+    const payload = s.payload as RenamePayload;
+    return (
+      <div className="space-y-2">
+        <SponsorRename from={from} to={payload.sponsor} />
+        {payload.category && <CategoryChange from={s.before?.category} to={payload.category} />}
+      </div>
+    );
   },
   retire: (s) => {
     const p = s.payload as RetirePayload;
@@ -161,11 +185,16 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
                 combined
               />
             )}
+            {p.category && <CategoryChange from={s.before?.category} to={p.category} />}
             <TrimDiff original={original} kept={p.trimText} />
           </div>
         )}
       </div>
     );
+  },
+  category: (s) => {
+    const payload = s.payload as CategoryPayload;
+    return <CategoryChange from={s.before?.category} to={payload.category} />;
   },
 };
 
@@ -370,34 +399,25 @@ export default function CleanupTab() {
 
   return (
     <div>
-      <div className="bg-card rounded-lg border border-border p-4 mb-6 flex flex-wrap gap-4 items-center">
-        <div className="w-full min-w-0 sm:w-auto">
-          <label htmlFor="cleanup-kind" className="sr-only">Kind</label>
+      <div className="bg-card rounded-lg border border-border p-4 mb-6 grid grid-cols-1 min-[375px]:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+        <div className="min-w-0">
+          <label htmlFor="cleanup-kind" className="mb-1 block text-sm text-muted-foreground">Kind</label>
           <select
             id="cleanup-kind"
             value={kind}
             onChange={(e) => changeFilter({ kind: e.target.value as KindFilter })}
-            className={`min-h-11 w-full sm:hidden ${selectBase}`}
+            className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
           >
             {KIND_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
           </select>
-          <div className="hidden sm:block">
-            <SegmentedToggle
-              variant="toolbar"
-              ariaLabel="Kind"
-              options={KIND_OPTIONS}
-              value={kind}
-              onChange={(v) => changeFilter({ kind: v })}
-            />
-          </div>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor="cleanup-status" className="text-sm text-muted-foreground shrink-0">Status</label>
+        <div className="min-w-0">
+          <label htmlFor="cleanup-status" className="mb-1 block text-sm text-muted-foreground">Status</label>
           <select
             id="cleanup-status"
             value={status}
             onChange={(e) => changeFilter({ status: e.target.value as CleanupStatus })}
-            className={`max-sm:min-h-11 flex-1 sm:flex-none min-w-0 ${selectBase}`}
+            className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>

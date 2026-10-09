@@ -1765,6 +1765,56 @@ describe('Thinking setting fallback', () => {
     await screen.findByText('Test Episode');
     expect(screen.queryByRole('status')).toBeNull();
   });
+
+  it('keeps audio verification and thinking notices when a chapter run is newer', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      processingRuns: [
+        {
+          runNumber: 1,
+          processedAt: '2026-01-01T00:00:00Z',
+          status: 'completed',
+          adsDetected: 1,
+          processingDurationSeconds: 30,
+          errorMessage: null,
+          inputTokens: 100,
+          outputTokens: 20,
+          llmCost: 0,
+          stats: {
+            mode: 'auto',
+            verificationAdsCut: 2,
+            thinkingNotices: [{
+              pass: 'ad_detection_pass_1',
+              provider: 'unknown',
+              model: 'redacted',
+              requested: 'high',
+              compatibility: 'unsupported',
+              fallback: { maxTokens: 4096, temperature: 0, reasoningEffort: null },
+            }],
+          },
+        },
+        {
+          runNumber: 2,
+          processedAt: '2026-01-02T00:00:00Z',
+          status: 'completed',
+          adsDetected: 0,
+          processingDurationSeconds: 5,
+          errorMessage: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          llmCost: 0,
+          stats: { mode: 'chapters' },
+        },
+      ],
+    }));
+
+    expect(await screen.findByText(
+      'Verified: a second scan of the output audio found 2 more ads and cut them.',
+    )).toBeTruthy();
+    expect((await screen.findByRole('status')).textContent).toContain(
+      'The requested thinking setting was not accepted for ad detection. This run used provider defaults.',
+    );
+  });
 });
 
 describe('Regenerate Chapters: progress and result feedback', () => {

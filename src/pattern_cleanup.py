@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
 
+from config import SEGMENT_CATEGORIES
 from rapidfuzz import fuzz
 
 from database import Database
@@ -57,7 +58,7 @@ TRIM_MIN_FRACTION = 0.10
 OVERLAP_TOLERANCE_CHARS = 2
 HIGH_FP_MIN = 2
 _MODEL_INPUT_FIELDS = (
-    'text_template', 'sponsor_id', 'sponsor', 'intro_variants', 'outro_variants', 'is_active',
+    'text_template', 'sponsor_id', 'sponsor', 'category', 'intro_variants', 'outro_variants', 'is_active',
 )
 _STATS_INPUT_FIELDS = (
     *_MODEL_INPUT_FIELDS, 'created_at', 'last_matched_at',
@@ -82,11 +83,15 @@ REVIEW_SCHEMA = {
         "action": {"type": "string", "enum": ["keep", "trim", "split", "rename"]},
         "text": {"type": ["string", "null"]},
         "sponsor": {"type": ["string", "null"]},
+        "category": {"type": ["string", "null"], "enum": [*SEGMENT_CATEGORIES, None]},
         "pieces": {
             "type": "array",
             "items": {
                 "type": "object",
-                "properties": {"text": {"type": "string"}, "sponsor": {"type": "string"}},
+                "properties": {
+                    "text": {"type": "string"}, "sponsor": {"type": "string"},
+                    "category": {"type": ["string", "null"], "enum": [*SEGMENT_CATEGORIES, None]},
+                },
                 "required": ["text", "sponsor"],
             },
         },
@@ -139,6 +144,7 @@ def _before_snapshot(pattern: dict, context: str | None = None) -> dict:
         'text_template': pattern.get('text_template'),
         'sponsor': pattern.get('sponsor'),
         'sponsor_id': pattern.get('sponsor_id'),
+        'category': pattern.get('category'),
         'intro_variants': _decode_list(pattern.get('intro_variants')),
         'outro_variants': _decode_list(pattern.get('outro_variants')),
         'is_active': pattern.get('is_active'),
@@ -165,6 +171,8 @@ def _suggestion_stale_fields(suggestion: dict) -> tuple[str, ...]:
     fields = ['text_template', 'sponsor_id', 'sponsor']
     kind = suggestion['kind']
     payload = suggestion.get('payload') or {}
+    if 'category' in (suggestion.get('before') or {}):
+        fields.append('category')
     if kind == 'retire':
         fields.extend(('created_at', 'last_matched_at'))
     if kind == 'flag':
@@ -180,11 +188,12 @@ def _suggestion_stale_fields(suggestion: dict) -> tuple[str, ...]:
 
 def _reject_stale_fields(suggestion: dict) -> tuple[str, ...]:
     """Reject only needs the fields that feed the review stamp; counters may have moved."""
-    fields = ['text_template', 'sponsor_id', 'sponsor']
-    payload = suggestion.get('payload') or {}
-    if suggestion['kind'] == 'trim' or payload.get('recommended') == 'trim':
-        fields.extend(('intro_variants', 'outro_variants'))
-    return tuple(fields)
+    ignored = {
+        'created_at', 'last_matched_at', 'false_positive_count',
+        'confirmation_count', 'is_active', 'disabled_at', 'disabled_reason',
+    }
+    return tuple(field for field in _suggestion_stale_fields(suggestion)
+                 if field not in ignored)
 
 
 def _matches_snapshot(pattern: dict, snapshot: dict, fields: tuple[str, ...]) -> bool:
@@ -198,13 +207,18 @@ def _suggestion_after_fields(suggestion: dict) -> tuple[str, ...]:
     kind = suggestion['kind']
     payload = suggestion.get('payload') or {}
     if kind == 'rename':
-        return ('sponsor_id', 'sponsor')
+        return ('sponsor_id', 'sponsor', 'category') if payload.get('category') else ('sponsor_id', 'sponsor')
+    if kind == 'category':
+        return ('category',)
     if kind in ('retire', 'split') or (
             kind == 'flag' and payload.get('recommended') != 'trim'):
         return ('is_active', 'disabled_at', 'disabled_reason')
+    fields = ['text_template', 'intro_variants', 'outro_variants']
     if payload.get('sponsor'):
-        return ('text_template', 'intro_variants', 'outro_variants', 'sponsor_id', 'sponsor')
-    return ('text_template', 'intro_variants', 'outro_variants')
+        fields.extend(('sponsor_id', 'sponsor'))
+    if payload.get('category'):
+        fields.append('category')
+    return tuple(fields)
 
 
 # Selection and stats
@@ -216,7 +230,8 @@ def select_candidates(db, *, force: bool, batch_size: int) -> list[dict]:
         if row.pop('has_pending_model', False) and not force:
             continue
         stamp = row.get('cleanup_reviewed_hash')
-        if stamp == INVALID_MARKER or stamp == review_hash(row.get('text_template'), row.get('sponsor')):
+        if stamp == INVALID_MARKER or stamp == review_hash(
+                row.get('text_template'), row.get('sponsor'), row.get('category')):
             continue
         out.append(row)
         if len(out) >= batch_size:
@@ -393,7 +408,8 @@ def _trim_keeps_sponsor(pattern: dict, original: str, kept: str, sponsors) -> bo
     return sponsors.find_sponsor_in_text(kept) is not None
 
 
-def _validate_pieces(pieces, original: str, pattern: dict | None = None) -> list[dict] | None:
+def _validate_pieces(pieces, original: str, pattern: dict | None = None,
+                     default_category: str | None = None) -> list[dict] | None:
     if not isinstance(pieces, list) or len(pieces) < 2:
         return None
     pattern = pattern or {}
@@ -406,7 +422,14 @@ def _validate_pieces(pieces, original: str, pattern: dict | None = None) -> list
         if (loc is None or sponsor is None or len(loc[2]) < MIN_TEXT_LENGTH
                 or not _has_phrase(sponsor, loc[2])):
             return None
-        located.append((loc[0], loc[1], {'text': loc[2], 'sponsor': sponsor}))
+        cleaned = {'text': loc[2], 'sponsor': sponsor}
+        raw_category = piece.get('category') or default_category or pattern.get('category')
+        if raw_category is not None:
+            if raw_category not in SEGMENT_CATEGORIES:
+                return None
+            if raw_category != pattern.get('category'):
+                cleaned['category'] = raw_category
+        located.append((loc[0], loc[1], cleaned))
     located.sort(key=lambda item: item[0])
     for prev, nxt in zip(located, located[1:], strict=False):
         if nxt[0] < prev[1] - OVERLAP_TOLERANCE_CHARS:
@@ -439,11 +462,19 @@ def validate_review(pattern: dict, raw: dict, sponsors=None) -> dict | None:
     raw_reasons = raw.get('reasons') if isinstance(raw.get('reasons'), list) else []
     reasons = [r for r in map(_short, raw_reasons) if r][:MAX_REASONS]
     verdict = {
-        'action': 'keep', 'text': None, 'sponsor': None, 'pieces': [],
+        'action': 'keep', 'text': None, 'sponsor': None, 'category': None, 'pieces': [],
         'contaminated': contaminated,
         'contamination_reason': _short(raw.get('contamination_reason')) if contaminated else None,
         'confidence': round(confidence, 3), 'reasons': reasons,
     }
+    proposed_category = raw.get('category')
+    if proposed_category is not None:
+        if proposed_category in SEGMENT_CATEGORIES:
+            if proposed_category != pattern.get('category'):
+                verdict['category'] = proposed_category
+        else:
+            logger.warning("pattern_cleanup: pattern %s review has invalid category %r",
+                           pid, proposed_category)
     action = str(raw.get('action') or '').strip().lower()
     if action == 'keep':
         return verdict
@@ -472,7 +503,8 @@ def validate_review(pattern: dict, raw: dict, sponsors=None) -> dict | None:
         verdict.update(action='trim', text=loc[2], sponsor=sponsor)
         return verdict
     if action == 'split':
-        pieces = _validate_pieces(raw.get('pieces'), original, pattern)
+        pieces = _validate_pieces(
+            raw.get('pieces'), original, pattern, default_category=verdict.get('category'))
         if pieces is None:
             logger.warning("pattern_cleanup: pattern %s split pieces failed validation", pid)
             return verdict if contaminated else None
@@ -492,7 +524,8 @@ def validate_review(pattern: dict, raw: dict, sponsors=None) -> dict | None:
 
 
 def _user_prompt(pattern: dict, context: str | None) -> str:
-    body = (f"Sponsor on record: {pattern.get('sponsor') or 'unknown'}\n\n"
+    body = (f"Sponsor on record: {pattern.get('sponsor') or 'unknown'}\n"
+            f"Category on record: {pattern.get('category') or 'uncategorized'}\n\n"
             f"Pattern text:\n<<<\n{pattern.get('text_template') or ''}\n>>>\n\n")
     if context:
         return body + f"Transcript context:\n<<<\n{context}\n>>>"
@@ -564,24 +597,36 @@ def _suggestions_for(pattern: dict, stats: list[dict], verdict: dict | None) -> 
                                    contamination_reason=verdict['contamination_reason'])
             flag['reasons'] += [reason for reason in reasons if reason not in flag['reasons']]
     action = verdict['action']
+    category = verdict.get('category')
     if action == 'trim' and verdict['contaminated']:
         return out
     if action == 'rename' and verdict['contaminated']:
+        return out
+    if action == 'keep' and verdict['contaminated']:
         return out
     if action == 'trim' and flag is not None:
         flag['payload'].update(recommended='trim', trim_text=verdict['text'])
         if verdict.get('sponsor'):
             flag['payload']['sponsor'] = verdict['sponsor']
+        if category:
+            flag['payload']['category'] = category
         flag['reasons'] += [r for r in reasons if r not in flag['reasons']]
     elif action == 'trim':
         payload = {'text': verdict['text']}
         if verdict.get('sponsor'):
             payload['sponsor'] = verdict['sponsor']
+        if category:
+            payload['category'] = category
         out.append(_suggestion('trim', verdict['confidence'], reasons, payload))
     elif action == 'split':
         out.append(_suggestion('split', verdict['confidence'], reasons, {'pieces': verdict['pieces']}))
     elif action == 'rename':
-        out.append(_suggestion('rename', verdict['confidence'], reasons, {'sponsor': verdict['sponsor']}))
+        payload = {'sponsor': verdict['sponsor']}
+        if category:
+            payload['category'] = category
+        out.append(_suggestion('rename', verdict['confidence'], reasons, payload))
+    elif category:
+        out.append(_suggestion('category', verdict['confidence'], reasons, {'category': category}))
     return out
 
 
@@ -625,9 +670,13 @@ def _same_suggestion_content(suggestion: dict, current: dict) -> bool:
 
 def _obsolete_model_version(suggestion: dict, current: dict) -> bool:
     before = suggestion.get('before') or {}
+    if 'category' not in before:
+        return ('text_template' in before and 'sponsor' in before
+                and review_hash(before.get('text_template'), before.get('sponsor'))
+                != review_hash(current.get('text_template'), current.get('sponsor')))
     return ('text_template' in before and 'sponsor' in before
-            and review_hash(before.get('text_template'), before.get('sponsor'))
-            != review_hash(current.get('text_template'), current.get('sponsor')))
+            and review_hash(before.get('text_template'), before.get('sponsor'), before.get('category'))
+            != review_hash(current.get('text_template'), current.get('sponsor'), current.get('category')))
 
 
 def _same_stats_input(expected: dict, current: dict) -> bool:
@@ -886,7 +935,8 @@ def _process_pattern(db, run_id: int, pattern: dict, unused_days: int, live: Liv
             _record_invalid(db, current, conn)
         else:
             db.stamp_pattern_cleanup_reviewed(
-                current['id'], review_hash(current.get('text_template'), current.get('sponsor')),
+                current['id'], review_hash(
+                    current.get('text_template'), current.get('sponsor'), current.get('category')),
                 conn=conn)
     return {item['kind'] for item in suggestions}, False
 
@@ -1114,7 +1164,8 @@ def _pattern_on(conn, pattern_id: int) -> dict | None:
     return dict(row) if row else None
 
 
-def _apply_trim(db, conn, pattern: dict, text: str, sponsor_name: str | None = None) -> dict:
+def _apply_trim(db, conn, pattern: dict, text: str, sponsor_name: str | None = None,
+                category: str | None = None) -> dict:
     intro, outro = derive_intro_outro(text)
     sponsor_id = pattern.get('sponsor_id')
     sponsor = pattern.get('sponsor')
@@ -1127,10 +1178,17 @@ def _apply_trim(db, conn, pattern: dict, text: str, sponsor_name: str | None = N
             raise SuggestionStateError(f'sponsor name {sponsor_name!r} is not valid')
         row = conn.execute("SELECT name FROM known_sponsors WHERE id = ?", (sponsor_id,)).fetchone()
         sponsor = row['name']
-    db._update_ad_pattern_conn(conn, pattern['id'], text_template=text,
-                               intro_variants=intro, outro_variants=outro,
-                               **({'sponsor_id': sponsor_id} if sponsor_name else {}))
-    db.stamp_pattern_cleanup_reviewed(pattern['id'], review_hash(text, sponsor), conn=conn)
+    updates = {'text_template': text, 'intro_variants': intro, 'outro_variants': outro}
+    if sponsor_name:
+        updates['sponsor_id'] = sponsor_id
+    if category is not None:
+        if category not in SEGMENT_CATEGORIES:
+            raise SuggestionStateError('the category is invalid')
+        updates['category'] = category
+    db._update_ad_pattern_conn(conn, pattern['id'], **updates)
+    db.stamp_pattern_cleanup_reviewed(
+        pattern['id'], review_hash(text, sponsor,
+                                  category if category is not None else pattern.get('category')), conn=conn)
     applied = {'new_pattern_ids': [], 'disabled_pattern_id': None, 'text': text}
     if sponsor_name:
         applied['sponsor_id'] = sponsor_id
@@ -1140,18 +1198,25 @@ def _apply_trim(db, conn, pattern: dict, text: str, sponsor_name: str | None = N
 def _apply_disable(db, conn, pattern: dict, reason: str) -> dict:
     db._update_ad_pattern_conn(conn, pattern['id'], is_active=0, disabled_reason=reason)
     db.stamp_pattern_cleanup_reviewed(
-        pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor')), conn=conn)
+        pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor'),
+                                   pattern.get('category')), conn=conn)
     return {'new_pattern_ids': [], 'disabled_pattern_id': pattern['id']}
 
 
-def _apply_rename(db, conn, pattern: dict, name: str) -> dict:
+def _apply_rename(db, conn, pattern: dict, name: str, category: str | None = None) -> dict:
     sponsor_id = get_or_create_known_sponsor(db, name, conn=conn)
     if sponsor_id is None:
         raise SuggestionStateError(f'sponsor name {name!r} is not valid')
-    db._update_ad_pattern_conn(conn, pattern['id'], sponsor_id=sponsor_id)
+    updates = {'sponsor_id': sponsor_id}
+    if category is not None:
+        if category not in SEGMENT_CATEGORIES:
+            raise SuggestionStateError('the category is invalid')
+        updates['category'] = category
+    db._update_ad_pattern_conn(conn, pattern['id'], **updates)
     canonical = conn.execute("SELECT name FROM known_sponsors WHERE id = ?", (sponsor_id,)).fetchone()
     db.stamp_pattern_cleanup_reviewed(
-        pattern['id'], review_hash(pattern.get('text_template'), canonical['name']), conn=conn)
+        pattern['id'], review_hash(pattern.get('text_template'), canonical['name'],
+                                   category if category is not None else pattern.get('category')), conn=conn)
     return {'new_pattern_ids': [], 'disabled_pattern_id': None, 'sponsor_id': sponsor_id}
 
 
@@ -1177,13 +1242,13 @@ def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
             created_by=pattern['created_by'] or 'auto',
             protected_from_sync=pattern['protected_from_sync'] or 0,
             source_language=pattern['source_language'],
-            category=pattern['category'],
+            category=piece.get('category', pattern['category']),
         )
         if not new_id:
             raise RuntimeError('split did not create every pattern')
         child = _pattern_on(conn, new_id)
         db.stamp_pattern_cleanup_reviewed(
-            new_id, review_hash(piece['text'], child['sponsor']), conn=conn)
+            new_id, review_hash(piece['text'], child['sponsor'], child.get('category')), conn=conn)
         new_ids.append(new_id)
         new_states.append({'id': new_id, 'fields': _snapshot_fields(child, _SPLIT_CHILD_FIELDS)})
     disabled_at = utc_now_iso()
@@ -1191,7 +1256,8 @@ def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
     db._update_ad_pattern_conn(conn, pattern['id'], is_active=0, disabled_at=disabled_at,
                                disabled_reason=disabled_reason)
     db.stamp_pattern_cleanup_reviewed(
-        pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor')), conn=conn)
+        pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor'),
+                                   pattern.get('category')), conn=conn)
     return {
         'new_pattern_ids': new_ids, 'new_pattern_states': new_states,
         'disabled_pattern_id': pattern['id'], 'disabled_at': disabled_at,
@@ -1201,11 +1267,21 @@ def _apply_split(db, conn, pattern: dict, pieces: list[dict]) -> dict:
 
 def _apply_kind(db, conn, kind: str, pattern: dict, payload: dict) -> dict:
     if kind == 'trim':
-        return _apply_trim(db, conn, pattern, payload['text'], payload.get('sponsor'))
+        return _apply_trim(db, conn, pattern, payload['text'], payload.get('sponsor'),
+                           payload.get('category'))
     if kind == 'rename':
-        return _apply_rename(db, conn, pattern, payload['sponsor'])
+        return _apply_rename(db, conn, pattern, payload['sponsor'], payload.get('category'))
     if kind == 'split':
         return _apply_split(db, conn, pattern, payload['pieces'])
+    if kind == 'category':
+        category = payload.get('category')
+        if category not in SEGMENT_CATEGORIES:
+            raise SuggestionStateError('the category is invalid')
+        db._update_ad_pattern_conn(conn, pattern['id'], category=category)
+        db.stamp_pattern_cleanup_reviewed(
+            pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor'), category),
+            conn=conn)
+        return {'category': category}
     if kind == 'retire':
         return _apply_disable(db, conn, pattern,
                               f"Cleanup: no matches in {payload.get('unused_days')} days")
@@ -1213,7 +1289,8 @@ def _apply_kind(db, conn, kind: str, pattern: dict, payload: dict) -> dict:
         if payload.get('recommended') == 'trim':
             if not payload.get('trim_text'):
                 raise SuggestionStateError('flag recommends a trim but has no trim text')
-            return _apply_trim(db, conn, pattern, payload['trim_text'], payload.get('sponsor'))
+            return _apply_trim(db, conn, pattern, payload['trim_text'], payload.get('sponsor'),
+                               payload.get('category'))
         reason = ('Cleanup: contaminated' if payload.get('contaminated')
                   else 'Cleanup: false positives')
         return _apply_disable(db, conn, pattern, reason)
@@ -1260,7 +1337,8 @@ def reject_suggestion(db, suggestion_id: int) -> dict:
         db.set_cleanup_suggestion_status(suggestion_id, 'rejected', conn=conn)
         if pattern is not None:
             db.stamp_pattern_cleanup_reviewed(
-                pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor')),
+                pattern['id'], review_hash(pattern.get('text_template'), pattern.get('sponsor'),
+                                           pattern.get('category')),
                 conn=conn)
     return db.get_cleanup_suggestion(suggestion_id)
 
@@ -1319,17 +1397,31 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
             fields = _suggestion_after_fields(suggestion)
             if not _matches_snapshot(pattern, expected, fields):
                 raise SuggestionStateError('the pattern changed after this suggestion was applied')
-            db._update_ad_pattern_conn(
-                conn, pattern['id'], text_template=before.get('text_template'),
-                intro_variants=before.get('intro_variants') or [],
-                outro_variants=before.get('outro_variants') or [],
-                **({'sponsor_id': before.get('sponsor_id')}
-                   if (suggestion.get('payload') or {}).get('sponsor') else {}))
+            updates = {
+                'text_template': before.get('text_template'),
+                'intro_variants': before.get('intro_variants') or [],
+                'outro_variants': before.get('outro_variants') or [],
+            }
+            payload = suggestion.get('payload') or {}
+            if payload.get('sponsor'):
+                updates['sponsor_id'] = before.get('sponsor_id')
+            if payload.get('category'):
+                updates['category'] = before.get('category')
+            db._update_ad_pattern_conn(conn, pattern['id'], **updates)
         elif suggestion['kind'] == 'rename':
             expected = applied.get('after')
-            if not _matches_snapshot(pattern, expected, ('sponsor_id', 'sponsor')):
+            fields = _suggestion_after_fields(suggestion)
+            if not _matches_snapshot(pattern, expected, fields):
                 raise SuggestionStateError('the sponsor changed after this suggestion was applied')
-            db._update_ad_pattern_conn(conn, pattern['id'], sponsor_id=before.get('sponsor_id'))
+            updates = {'sponsor_id': before.get('sponsor_id')}
+            if (suggestion.get('payload') or {}).get('category'):
+                updates['category'] = before.get('category')
+            db._update_ad_pattern_conn(conn, pattern['id'], **updates)
+        elif suggestion['kind'] == 'category':
+            expected = applied.get('after')
+            if not _matches_snapshot(pattern, expected, ('category',)):
+                raise SuggestionStateError('the category changed after this suggestion was applied')
+            db._update_ad_pattern_conn(conn, pattern['id'], category=before.get('category'))
         else:
             expected = applied.get('after')
             if not _matches_snapshot(
@@ -1338,7 +1430,8 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
             _restore_disabled_fields(db, conn, pattern['id'], before)
         restored = _pattern_on(conn, pattern['id'])
         db.stamp_pattern_cleanup_reviewed(
-            pattern['id'], review_hash(restored.get('text_template'), restored.get('sponsor')),
+            pattern['id'], review_hash(restored.get('text_template'), restored.get('sponsor'),
+                                       restored.get('category')),
             conn=conn)
         _acknowledge_stats_decision(db, conn, suggestion, pattern)
         db.set_cleanup_suggestion_status(suggestion_id, 'undone', conn=conn)

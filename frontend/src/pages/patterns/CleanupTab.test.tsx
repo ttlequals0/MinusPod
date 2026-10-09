@@ -53,8 +53,8 @@ function suggestion(
 const ALL_KINDS = [
   suggestion(1, 'trim', { text: KEPT }),
   suggestion(2, 'split', { pieces: [
-    { text: 'Brought to you by Acme.', sponsor: 'Acme' },
-    { text: 'Also by Widgetco.', sponsor: 'Widgetco' },
+    { text: 'Brought to you by Acme.', sponsor: 'Acme', category: 'cross_promo' },
+    { text: 'Also by Widgetco.', sponsor: 'Widgetco', category: 'self_promo' },
   ] }),
   suggestion(3, 'rename', { sponsor: 'Acme Corp' }),
   suggestion(4, 'retire', { unusedDays: 120, lastMatchedAt: '2026-06-01T00:00:00Z', confirmationCount: 7 }),
@@ -62,6 +62,7 @@ const ALL_KINDS = [
     falsePositiveCount: 4, confirmationCount: 1, contaminated: true,
     contaminationReason: 'Contains show banter', recommended: 'disable',
   }),
+  suggestion(6, 'category', { category: 'cross_promo' }),
 ];
 
 function renderTab() {
@@ -163,6 +164,22 @@ describe('CleanupTab', () => {
     expect(c.querySelector('[data-diff="kept"]')?.textContent).toBe(KEPT);
   });
 
+  it('renders category-only and combined category changes', async () => {
+    const categoryOnly = suggestion(6, 'category', { category: 'cross_promo' });
+    categoryOnly.before = { ...categoryOnly.before!, category: 'sponsor' };
+    mockList.mockResolvedValue([
+      suggestion(1, 'trim', { text: KEPT, category: 'cross_promo' }),
+      categoryOnly,
+    ]);
+    renderTab();
+    expect(await within(await screen.findByTestId('cleanup-suggestion-1')).findByText(/Category:/))
+      .toBeDefined();
+    const category = await screen.findByTestId('cleanup-suggestion-6');
+    expect(within(category).getByText('Category')).toBeDefined();
+    expect(within(category).getByText('Sponsor')).toBeDefined();
+    expect(within(category).getByText('Cross-promo')).toBeDefined();
+  });
+
   it('renders sponsor rename on a trim recommendation from a flag', async () => {
     mockList.mockResolvedValue([suggestion(1, 'flag', {
       falsePositiveCount: 4, confirmationCount: 1, contaminated: false,
@@ -232,6 +249,7 @@ describe('CleanupTab', () => {
     const pieces = within(card(2)).getAllByTestId('split-piece');
     expect(pieces).toHaveLength(2);
     expect(within(pieces[1]).getByText('Widgetco')).toBeDefined();
+    expect(within(pieces[1]).getByText('Self-promo')).toBeDefined();
     expect(within(pieces[1]).getAllByText('Also by Widgetco.')).toHaveLength(2);
     const user = userEvent.setup();
     await user.click(within(pieces[0]).getByText('Locate piece in original text'));
@@ -320,8 +338,8 @@ describe('CleanupTab', () => {
     const user = userEvent.setup();
     await screen.findByTestId('cleanup-suggestion-1');
     await user.click(screen.getByLabelText('Select all'));
-    await user.click(screen.getByRole('button', { name: 'Approve selected (5)' }));
-    await waitFor(() => expect(mockBulk).toHaveBeenCalledWith([1, 2, 3, 4, 5], 'approve'));
+    await user.click(screen.getByRole('button', { name: 'Approve selected (6)' }));
+    await waitFor(() => expect(mockBulk).toHaveBeenCalledWith([1, 2, 3, 4, 5, 6], 'approve'));
   });
 
   it('bulk rejects only the checked suggestions', async () => {

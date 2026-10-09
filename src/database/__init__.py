@@ -454,21 +454,24 @@ Transcript:
 
 
 # Pattern cleanup system prompt (Experiments > Pattern cleanup). The user
-# message carries the pattern text, its sponsor, and optional transcript context.
-DEFAULT_PATTERN_CLEANUP_PROMPT = """You review one learned podcast ad pattern. The pattern text was captured from a transcript of a sponsor read, so it can carry extra words from around the ad.
+# message carries pattern text, sponsor, category, and optional transcript context.
+DEFAULT_PATTERN_CLEANUP_PROMPT = """You review one learned podcast segment pattern. Its text may include unrelated words before or after the intended segment.
 
-Your job: return only the exact sponsor copy.
-- Drop host banter, show content, and transitions into or out of the break.
+Classify the intended segment first, then check its content.
+- Preserve content that belongs to an intro, outro, recap, self-promotion, or listener interaction. Those categories are not contamination by themselves.
+- For non-sponsor segments, use action "keep" with a category correction when needed. Do not invent a sponsor or force the segment into sponsor-copy trimming rules.
+- For sponsor reads, retain only the exact sponsor copy. Drop host banter, unrelated show content, and transitions into or out of the break.
 - If two or more sponsors are read back to back, return each read as a separate piece.
 - Name the sponsor as it is spoken in the read. For a trim, also return sponsor when the recorded sponsor is wrong and the corrected name appears in the kept text.
+- Return category when the recorded category is wrong. Use only sponsor, cross_promo, self_promo, interaction, intro, outro, or recap.
 - Do not invent, reword, or reorder words. Every text you return must be copied from the pattern text.
 - If the pattern is already clean, return action "keep".
-- Set contaminated to true when the pattern holds show content that a trim cannot fix, and say why in contamination_reason.
+- Set contaminated to true when the pattern holds unrelated main-show discussion that a trim cannot fix, and say why in contamination_reason.
 
-Transcript context, when given, shows the audio around the pattern with the pattern marked between [[ and ]]. Use it only to judge where the ad starts and ends; never copy words from outside the pattern text.
+Transcript context, when given, shows the audio around the pattern with the pattern marked between [[ and ]]. Use it only to judge where the intended segment starts and ends; never copy words from outside the pattern text.
 
 Return one JSON object:
-{"action": "keep" | "trim" | "split" | "rename", "text": string or null (trim only), "sponsor": string or null (rename, or optional with trim), "pieces": [{"text": string, "sponsor": string}] (split only), "contaminated": boolean, "contamination_reason": string or null, "confidence": number from 0 to 1, "reasons": [short strings]}"""
+{"action": "keep" | "trim" | "split" | "rename", "text": string or null (trim only), "sponsor": string or null (rename, or optional with trim), "category": string or null (optional category correction), "pieces": [{"text": string, "sponsor": string, "category": string or null}] (split only; category optional per piece), "contaminated": boolean, "contamination_reason": string or null, "confidence": number from 0 to 1, "reasons": [short strings]}"""
 
 
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,

@@ -13,7 +13,8 @@ bootstrap('provider_account_api_test_', passphrase='provider-account-test-pass')
 from main_app import app  # noqa: E402
 from api import get_database  # noqa: E402
 from llm_client import invalidate_provider_cache  # noqa: E402
-from llm_route import account_identity  # noqa: E402
+from config import ModelNotConfiguredError  # noqa: E402
+from llm_route import account_identity, resolve_route  # noqa: E402
 
 OLD_BASE = 'https://old.example/v1'
 NEW_BASE = 'https://new.example/v1'
@@ -62,6 +63,45 @@ def openai_primary(monkeypatch):
         else:
             db.set_setting(key, value, is_default=False)
     invalidate_provider_cache()
+
+
+@pytest.fixture
+def primary_stage_models(openai_primary):
+    db = openai_primary
+    keys = (
+        'claude_model', 'verification_model', 'chapters_model', 'review_model',
+        'pattern_cleanup_model', 'detection_provider', 'verification_provider',
+        'chapters_provider', 'review_provider', 'pattern_cleanup_provider',
+        'secondary_provider_enabled', 'secondary_provider', 'secondary_provider_base_url',
+    )
+    conn = db.get_connection()
+    saved = {
+        key: conn.execute(
+            'SELECT value, is_default FROM settings WHERE key = ?', (key,)).fetchone()
+        for key in keys
+    }
+    for key, value in {
+        'claude_model': 'detection-model',
+        'verification_model': 'verification-model',
+        'chapters_model': 'chapters-model',
+        'review_model': 'review-model',
+        'pattern_cleanup_model': 'cleanup-model',
+        'detection_provider': 'primary',
+        'verification_provider': 'secondary',
+        'chapters_provider': 'primary',
+        'review_provider': 'primary',
+        'pattern_cleanup_provider': 'primary',
+        'secondary_provider_enabled': 'true',
+        'secondary_provider': 'openai-compatible',
+        'secondary_provider_base_url': 'https://secondary.example/v1',
+    }.items():
+        db.set_setting(key, value, is_default=False)
+    yield db
+    for key, row in saved.items():
+        if row is None:
+            db.clear_setting(key)
+        else:
+            db.set_setting(key, row['value'], is_default=bool(row['is_default']))
 
 
 class TestAffectedRunsPreflight:
@@ -126,6 +166,94 @@ class TestSaveReportsAndResolvesAffectedRuns:
         assert 'accountChanged' not in body
         assert 'affectedRuns' not in body
         assert _persisted_snapshot(openai_primary) is not None
+
+    def test_key_only_rotation_preserves_primary_and_secondary_models(
+            self, client, primary_stage_models):
+        db = primary_stage_models
+
+        r = client.put('/api/v1/settings/providers/openai',
+                       json={'apiKey': 'sk-rotated-same-account'})
+
+        assert r.status_code == 200
+        assert db.get_setting('claude_model') == 'detection-model'
+        assert db.get_setting('verification_model') == 'verification-model'
+        assert db.get_setting('chapters_model') == 'chapters-model'
+        assert db.get_setting('review_model') == 'review-model'
+        assert db.get_setting('pattern_cleanup_model') == 'cleanup-model'
+
+    def test_endpoint_change_clears_models_bound_to_primary_only(
+            self, client, primary_stage_models):
+        db = primary_stage_models
+        with patch('api.settings.trigger_reviewer_calibration'):
+            r = client.put('/api/v1/settings/providers/openai', json={
+                'apiKey': 'sk-new-account-key', 'baseUrl': NEW_BASE,
+            })
+
+        assert r.status_code == 200
+        assert r.get_json()['accountChanged'] is True
+        assert db.get_secret('openai_api_key') == 'sk-new-account-key'
+        assert db.get_setting('claude_model') == ''
+        assert db.get_setting('verification_model') == 'verification-model'
+        assert db.get_setting('chapters_model') == ''
+        assert db.get_setting('review_model') == ''
+        assert db.get_setting('pattern_cleanup_model') == ''
+
+    def test_endpoint_change_preserves_review_inheritance_sentinel(
+            self, client, primary_stage_models):
+        db = primary_stage_models
+        db.set_setting('review_model', 'same_as_pass', is_default=False)
+        with patch('api.settings.trigger_reviewer_calibration'):
+            r = client.put('/api/v1/settings/providers/openai', json={'baseUrl': NEW_BASE})
+
+        assert r.status_code == 200
+        assert db.get_setting('claude_model') == ''
+        assert db.get_setting('review_model') == 'same_as_pass'
+
+    def test_endpoint_change_preserves_inherited_cleanup_model_row(
+            self, client, primary_stage_models):
+        db = primary_stage_models
+        db.clear_setting('pattern_cleanup_model')
+        with patch('api.settings.trigger_reviewer_calibration'):
+            r = client.put('/api/v1/settings/providers/openai',
+                           json={'baseUrl': NEW_BASE})
+
+        assert r.status_code == 200
+        assert db.get_setting('pattern_cleanup_model') is None
+
+    def test_mixed_slot_route_does_not_reuse_secondary_model_after_primary_change(
+            self, client, primary_stage_models):
+        db = primary_stage_models
+        db.set_setting('detection_provider', 'secondary', is_default=False)
+        db.set_setting('claude_model', 'secondary-detection-model', is_default=False)
+        db.set_setting('chapters_provider', 'primary', is_default=False)
+        db.set_setting('chapters_model', 'primary-chapter-model', is_default=False)
+        with patch('api.settings.trigger_reviewer_calibration'):
+            r = client.put('/api/v1/settings/providers/openai',
+                           json={'baseUrl': NEW_BASE})
+
+        assert r.status_code == 200
+        assert db.get_setting('claude_model') == 'secondary-detection-model'
+        assert db.get_setting('chapters_model') == ''
+        assert db.get_setting('pattern_cleanup_model') == ''
+        with pytest.raises(ModelNotConfiguredError, match='chapters_model'):
+            resolve_route('chapters')
+        with pytest.raises(ModelNotConfiguredError, match='pattern_cleanup_model'):
+            resolve_route('pattern_cleanup')
+
+    def test_delete_endpoint_clears_models_bound_to_primary(self, client, primary_stage_models):
+        db = primary_stage_models
+        with patch('api.settings.trigger_reviewer_calibration'):
+            r = client.delete('/api/v1/settings/providers/openai')
+
+        assert r.status_code == 200
+        assert r.get_json()['accountChanged'] is True
+        assert db.get_setting('openai_base_url') == ''
+        assert db.get_secret('openai_api_key') is None
+        assert db.get_setting('claude_model') == ''
+        assert db.get_setting('verification_model') == 'verification-model'
+        assert db.get_setting('chapters_model') == ''
+        assert db.get_setting('review_model') == ''
+        assert db.get_setting('pattern_cleanup_model') == ''
 
     def test_unknown_action_is_rejected(self, client, openai_primary):
         r = client.put('/api/v1/settings/providers/openai',

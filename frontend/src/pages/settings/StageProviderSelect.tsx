@@ -43,7 +43,7 @@ function StageProviderSelect({ id, label, value, options, onChange, secondaryEna
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full ${selectBase}`}
+        className={`w-full min-h-11 sm:min-h-0 ${selectBase}`}
       >
         {shownOptions.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>

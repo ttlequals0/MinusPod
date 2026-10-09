@@ -4795,10 +4795,12 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                 f"Preserved {len(remapped)} upstream JSON "
                                 f"chapter(s) (no AI call)")
                             return
-            chapters_gen = ChaptersGenerator()
-            clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
+            chapters_gen = None
+            chapter_setup_failed = False
             with _measure_run_stage('chapters'):
                 try:
+                    chapters_gen = ChaptersGenerator()
+                    clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
                     chapters = chapters_gen.generate_chapters(
                         segments,
                         episode_description=episode_description,
@@ -4824,9 +4826,23 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     chapters = None
                     chapters_gen.chapters_degraded = True
                     chapters_gen.chapters_degradation_reason = hold_message(hold_until, e)
-            if run_stats is not None and chapters_gen.chapters_degraded:
+                except (ProviderAccountChangedError, ProcessingCancelled,
+                        ProcessingOwnershipLost):
+                    raise
+                except Exception:
+                    audio_logger.exception(
+                        f"[{slug}:{episode_id}] Chapter generation setup failed")
+                    chapters = None
+                    chapter_setup_failed = True
+            chapters_degraded = chapter_setup_failed or bool(
+                chapters_gen and chapters_gen.chapters_degraded)
+            chapters_degraded_reason = (
+                'Chapter generation failed. Check Settings > AI Models and try again.'
+                if chapter_setup_failed else
+                chapters_gen.chapters_degradation_reason if chapters_gen else None)
+            if run_stats is not None and chapters_degraded:
                 run_stats['chapters_degraded'] = True
-                run_stats['chapters_degraded_reason'] = chapters_gen.chapters_degradation_reason
+                run_stats['chapters_degraded_reason'] = chapters_degraded_reason
             topic = (chapters or {}).get('chapters') or []
             merged = merge_ad_chapters(topic, markers, all_cuts or [],
                                        audio_duration, replacement_duration,
@@ -4836,6 +4852,8 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     slug, episode_id, chapters or {'version': '1.2.0'}, merged,
                     all_cuts, audio_path, audio_duration, True,
                     f"Generated {len(topic)} chapters")
+    except (ProviderAccountChangedError, ProcessingCancelled, ProcessingOwnershipLost):
+        raise
     except Exception as e:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to generate Podcasting 2.0 assets: {e}")
 

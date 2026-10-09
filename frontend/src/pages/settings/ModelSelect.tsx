@@ -16,6 +16,7 @@ interface ModelSelectProps {
   description?: ReactNode;
   // Labels the blank value when blank means "inherit" rather than unset.
   inheritLabel?: string;
+  inheritValue?: string;
 }
 
 // A saved model id the catalog does not list, or no catalog at all, would
@@ -27,11 +28,14 @@ function renderOrphan(value: string, models: ClaudeModel[] | undefined) {
   return <option value={value}>{value} (current, not in catalog)</option>;
 }
 
-function ModelSelect({ id, label, value, catalog, onChange, description, inheritLabel }: ModelSelectProps) {
+function ModelSelect({
+  id, label, value, catalog, onChange, description, inheritLabel, inheritValue = '',
+}: ModelSelectProps) {
   // Free-text toggle lets proxies, private deployments and new model ids in
   // despite the catalog only listing what the provider advertises.
   const [typed, setTyped] = useState(false);
-  const notConfigured = !value && !inheritLabel;
+  const notConfigured = !value && (!inheritLabel || inheritValue !== '');
+  const requiredMessageId = `${id}-required-message`;
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3 mb-2">
@@ -50,9 +54,13 @@ function ModelSelect({ id, label, value, catalog, onChange, description, inherit
         <input
           type="text"
           id={id}
-          value={value}
+          value={value === inheritValue ? '' : value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={inheritLabel ? `Blank: ${inheritLabel.toLowerCase()}` : "Provider's exact model ID"}
+          aria-invalid={notConfigured || undefined}
+          aria-describedby={notConfigured ? requiredMessageId : undefined}
+          placeholder={inheritLabel && inheritValue === ''
+            ? `Blank: ${inheritLabel.toLowerCase()}`
+            : "Provider's exact model ID"}
           spellCheck={false}
           autoComplete="off"
           className={`w-full min-h-[44px] px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
@@ -62,11 +70,13 @@ function ModelSelect({ id, label, value, catalog, onChange, description, inherit
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full ${selectBase}`}
+          aria-invalid={notConfigured || undefined}
+          aria-describedby={notConfigured ? requiredMessageId : undefined}
+          className={`w-full min-h-11 sm:min-h-0 ${selectBase}`}
         >
-          {inheritLabel && <option value="">{inheritLabel}</option>}
+          {inheritLabel && <option value={inheritValue}>{inheritLabel}</option>}
           {notConfigured && <option value="">Not configured</option>}
-          {renderOrphan(value, catalog.models)}
+          {value !== inheritValue && renderOrphan(value, catalog.models)}
           {catalog.models?.map((model) => (
             <option key={model.id} value={model.id}>
               {formatModelLabel(model)}
@@ -75,7 +85,9 @@ function ModelSelect({ id, label, value, catalog, onChange, description, inherit
         </select>
       )}
       {notConfigured && (
-        <p className="mt-1 text-sm text-muted-foreground">Pick a model before processing episodes.</p>
+        <p id={requiredMessageId} className="mt-1 text-sm text-destructive" role="status">
+          Pick a model before processing episodes.
+        </p>
       )}
       <CatalogStatus loading={catalog.isLoading} error={catalog.isError} />
       {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}

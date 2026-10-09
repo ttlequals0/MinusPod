@@ -3,6 +3,7 @@
 Covers single-transaction counter derivation: finalize_llm_attempt must be
 the only writer of token_usage/stats counters for ledgered calls.
 """
+import json
 from decimal import Decimal
 
 import pytest
@@ -69,6 +70,100 @@ class TestFinalizeLlmAttempt:
         assert Decimal(row['cost_usd']) == Decimal('18')
         assert row['finalized_at'] is not None
         assert row['returned_model'] == 'test-model-a'
+
+    @pytest.mark.parametrize(('model_id', 'read_multiplier'), [
+        ('claude-opus-5-5', Decimal('0.05')),
+        ('anthropic/claude-sonnet-5-5-20260929', Decimal('0.05')),
+        ('claude-sonnet-5-5-latest', Decimal('0.05')),
+        ('claude-fable-5-1', Decimal('0.025')),
+        ('claude-mythos-5-1', Decimal('0.025')),
+        ('claude-sonnet-5-50', Decimal('0.1')),
+        ('claude-sonnet-4-6', Decimal('0.1')),
+    ])
+    def test_anthropic_cache_cost_uses_inclusive_input_tokens_and_model_rates(
+            self, temp_db, model_id, read_multiplier):
+        _seed_price(temp_db, model_id, 2.0, 8.0)
+        attempt_id = _begin(temp_db, model_id)
+
+        cost = temp_db.finalize_llm_attempt(
+            attempt_id, state='success', returned_model=model_id,
+            input_tokens=1_000_000, output_tokens=0,
+            cache_read_tokens=400_000, cache_write_tokens=200_000)
+
+        expected = Decimal('2') * (
+            Decimal('1')
+            + Decimal('0.4') * (read_multiplier - Decimal('1'))
+            + Decimal('0.2') * Decimal('0.25'))
+        assert Decimal(str(cost)) == expected
+        summary = temp_db.get_token_usage_summary()
+        assert summary['totalInputTokens'] == 1_000_000
+        assert summary['totalCost'] == pytest.approx(float(expected))
+        row = temp_db.get_connection().execute(
+            "SELECT input_tokens, cache_read_tokens, cache_write_tokens, "
+            "cost_usd, rate_snapshot FROM llm_call_usage WHERE attempt_id = ?",
+            (attempt_id,),
+        ).fetchone()
+        assert row['input_tokens'] == 1_000_000
+        assert row['cache_read_tokens'] == 400_000
+        assert row['cache_write_tokens'] == 200_000
+        rates = json.loads(row['rate_snapshot'])
+        assert rates == {
+            'inputCostPerMtok': 2.0,
+            'outputCostPerMtok': 8.0,
+            'cacheReadCostPerMtok': float(Decimal('2') * read_multiplier),
+            'cacheWriteCostPerMtok': 2.5,
+        }
+
+    def test_returned_model_selects_cache_multiplier_over_configured_alias(self, temp_db):
+        _seed_price(temp_db, 'claude-fable-5-1', 2.0, 8.0)
+        attempt_id = _begin(temp_db, 'claude-fable-5-1')
+
+        cost = temp_db.finalize_llm_attempt(
+            attempt_id, state='success',
+            returned_model='anthropic/claude-sonnet-5-5-20260929',
+            input_tokens=1_000_000, output_tokens=0,
+            cache_read_tokens=400_000, cache_write_tokens=200_000)
+
+        expected = Decimal('2') * (
+            Decimal('1') + Decimal('0.4') * (Decimal('0.05') - Decimal('1'))
+            + Decimal('0.2') * Decimal('0.25'))
+        assert Decimal(str(cost)) == expected
+
+    def test_non_anthropic_cache_fields_do_not_change_catalog_pricing(self, temp_db):
+        _seed_price(temp_db, 'openrouter-model', 2.0, 8.0)
+        attempt_id = _begin(temp_db, 'openrouter-model', provider_key='openrouter')
+
+        cost = temp_db.finalize_llm_attempt(
+            attempt_id, state='success', input_tokens=1_000_000, output_tokens=0,
+            cache_read_tokens=400_000, cache_write_tokens=200_000)
+
+        assert cost == pytest.approx(2.0)
+        row = temp_db.get_connection().execute(
+            "SELECT cache_read_tokens, cache_write_tokens, rate_snapshot "
+            "FROM llm_call_usage WHERE attempt_id = ?", (attempt_id,)
+        ).fetchone()
+        assert row['cache_read_tokens'] == 400_000
+        assert row['cache_write_tokens'] == 200_000
+        assert json.loads(row['rate_snapshot']) == {
+            'inputCostPerMtok': 2.0,
+            'outputCostPerMtok': 8.0,
+        }
+
+    def test_unknown_anthropic_cache_rate_stays_unknown(self, temp_db):
+        attempt_id = _begin(temp_db, 'unpriced-claude-model')
+
+        cost = temp_db.finalize_llm_attempt(
+            attempt_id, state='success', input_tokens=1_000_000, output_tokens=0,
+            cache_read_tokens=400_000, cache_write_tokens=200_000)
+
+        assert cost == 0.0
+        row = temp_db.get_connection().execute(
+            "SELECT cost_source, cost_usd, rate_snapshot "
+            "FROM llm_call_usage WHERE attempt_id = ?", (attempt_id,)
+        ).fetchone()
+        assert row['cost_source'] == 'unknown'
+        assert row['cost_usd'] is None
+        assert row['rate_snapshot'] is None
 
     def test_two_attempts_same_model_are_not_deduped_and_both_sum(self, temp_db):
         _seed_price(temp_db, 'test-model-b', 1.0, 2.0)
@@ -217,14 +312,19 @@ class TestFinalizeLlmAttempt:
 
         cost = temp_db.finalize_llm_attempt(
             attempt_id, state='success', input_tokens=1000, output_tokens=500,
+            cache_read_tokens=100, cache_write_tokens=200,
             provider_reported_cost_usd=0.0042)
 
         assert cost == pytest.approx(0.0042)
         row = temp_db.get_connection().execute(
-            "SELECT cost_source, cost_usd FROM llm_call_usage WHERE attempt_id = ?", (attempt_id,)
+            "SELECT cost_source, cost_usd, rate_snapshot, cache_read_tokens, "
+            "cache_write_tokens FROM llm_call_usage WHERE attempt_id = ?", (attempt_id,)
         ).fetchone()
         assert row['cost_source'] == 'provider_reported'
         assert Decimal(row['cost_usd']) == Decimal('0.0042')
+        assert row['rate_snapshot'] is None
+        assert row['cache_read_tokens'] == 100
+        assert row['cache_write_tokens'] == 200
 
         summary = temp_db.get_token_usage_summary()
         assert summary['totalCost'] == pytest.approx(0.0042)

@@ -503,6 +503,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'podping_enabled': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='podpingEnabled', payload_kind='bool'),
+    'podping_nodes': SettingSpec(default=None, resettable=False),
     'only_expose_processed_default': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='onlyExposeProcessedDefault', payload_kind='bool'),

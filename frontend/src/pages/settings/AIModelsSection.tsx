@@ -98,10 +98,10 @@ function AIModelsSection({
         <RefreshModelsButton onClick={modelsRefresh.refresh} isPending={modelsRefresh.isPending} />
       )}
     >
-      {!detectionCatalog.isLoading && detectionCatalog.models?.length === 0 && (
+      {(!selectedModel || !verificationModel || !chaptersModel) && (
         <div className="mb-4 p-3 rounded-lg bg-warning/10 border border-warning/20">
           <p className="text-sm text-warning">
-            No models available from the LLM provider. Check that your provider is configured correctly and the endpoint is reachable.
+            No model selected from the provider.
           </p>
         </div>
       )}

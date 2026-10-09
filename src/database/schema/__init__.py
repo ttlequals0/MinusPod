@@ -42,6 +42,7 @@ from database.search import (
     SEARCH_INDEX_DDL,
 )
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
+from pattern_cleanup_hash import review_hash
 from config import (
     CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX, count_pending_review,
@@ -2235,6 +2236,94 @@ class SchemaMixin:
         except Exception as e:
             conn.rollback()
             logger.warning(f"ad_patterns cleanup review columns migration: {e}")
+
+        cleanup_category_gate = 'pattern_cleanup_category_kind'
+        if not conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE name = ?",
+                (cleanup_category_gate,)).fetchone():
+            def migrate_cleanup_review_hashes():
+                rows = conn.execute(
+                    "SELECT ap.id, ap.text_template, ap.sponsor_id, ap.category, "
+                    "ap.cleanup_reviewed_hash, ks.name "
+                    "FROM ad_patterns ap LEFT JOIN known_sponsors ks ON ks.id = ap.sponsor_id "
+                    "WHERE cleanup_reviewed_hash IS NOT NULL"
+                ).fetchall()
+                for row in rows:
+                    legacy = review_hash(row['text_template'], row['name'])
+                    if row['cleanup_reviewed_hash'] == legacy:
+                        conn.execute(
+                            "UPDATE ad_patterns SET cleanup_reviewed_hash = ? WHERE id = ?",
+                            (review_hash(row['text_template'], row['name'], row['category']), row['id']))
+
+            sql_row = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' "
+                "AND name = 'pattern_cleanup_suggestions'").fetchone()
+            if sql_row and "'category'" not in (sql_row['sql'] or ''):
+                conn.commit()
+                conn.execute('PRAGMA foreign_keys = OFF')
+                try:
+                    conn.execute('BEGIN IMMEDIATE')
+                    sequence_row = conn.execute(
+                        "SELECT seq FROM sqlite_sequence WHERE name = 'pattern_cleanup_suggestions'").fetchone()
+                    previous_sequence = sequence_row['seq'] if sequence_row else 0
+                    conn.execute("""
+                        CREATE TABLE pattern_cleanup_suggestions_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            run_id INTEGER REFERENCES pattern_cleanup_runs(id) ON DELETE SET NULL,
+                            pattern_id INTEGER NOT NULL REFERENCES ad_patterns(id) ON DELETE CASCADE,
+                            kind TEXT NOT NULL CHECK(kind IN ('trim', 'split', 'rename', 'retire', 'flag', 'category')),
+                            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'undone')),
+                            confidence REAL,
+                            reasons TEXT NOT NULL DEFAULT '[]',
+                            payload TEXT NOT NULL DEFAULT '{}',
+                            before TEXT,
+                            applied TEXT,
+                            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                            reviewed_at TEXT
+                        )""")
+                    conn.execute("""
+                        INSERT INTO pattern_cleanup_suggestions_new
+                            (id, run_id, pattern_id, kind, status, confidence, reasons,
+                             payload, before, applied, created_at, reviewed_at)
+                        SELECT id, run_id, pattern_id, kind, status, confidence, reasons,
+                               payload, before, applied, created_at, reviewed_at
+                        FROM pattern_cleanup_suggestions""")
+                    conn.execute('DROP TABLE pattern_cleanup_suggestions')
+                    conn.execute(
+                        'ALTER TABLE pattern_cleanup_suggestions_new '
+                        'RENAME TO pattern_cleanup_suggestions')
+                    rebuilt_sequence = conn.execute(
+                        "SELECT seq FROM sqlite_sequence WHERE name = 'pattern_cleanup_suggestions'").fetchone()
+                    sequence = max(
+                        previous_sequence,
+                        rebuilt_sequence['seq'] if rebuilt_sequence else 0,
+                    )
+                    if rebuilt_sequence:
+                        conn.execute(
+                            "UPDATE sqlite_sequence SET seq = ? WHERE name = 'pattern_cleanup_suggestions'",
+                            (sequence,))
+                    elif previous_sequence:
+                        conn.execute(
+                            "INSERT INTO sqlite_sequence (name, seq) VALUES ('pattern_cleanup_suggestions', ?)",
+                            (previous_sequence,))
+                    for index_sql in PATTERN_CLEANUP_INDEXES:
+                        conn.execute(index_sql)
+                    migrate_cleanup_review_hashes()
+                    conn.execute(
+                        'INSERT INTO schema_migrations (name) VALUES (?)',
+                        (cleanup_category_gate,))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+                finally:
+                    conn.execute('PRAGMA foreign_keys = ON')
+            else:
+                migrate_cleanup_review_hashes()
+                conn.execute(
+                    'INSERT INTO schema_migrations (name) VALUES (?)',
+                    (cleanup_category_gate,))
+                conn.commit()
 
         # Refresh the default review prompt with the PARTIAL SPAN contract:
         # when the reviewer concludes part of the span is not ad content, it

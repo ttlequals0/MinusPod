@@ -6,6 +6,8 @@ Uses the main_app boot pattern from test_rate_limit_hold.py.
 from datetime import timedelta
 from unittest.mock import patch
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('rate_limit_probe_test_')
@@ -21,6 +23,20 @@ USAGE_URL = 'https://example-provider.test/v1/usage'
 ISO = '%Y-%m-%dT%H:%M:%SZ'
 # A real seven-day provider window, well past the old 24h cap.
 WEEK_SECONDS = 460241
+
+
+@pytest.fixture(scope='module', autouse=True)
+def _configured_probe_model():
+    conn = db.get_connection()
+    row = conn.execute(
+        "SELECT value, is_default FROM settings WHERE key = 'claude_model'").fetchone()
+    if row is None or not row['value']:
+        db.set_setting('claude_model', 'test-model', is_default=True)
+    yield
+    if row is None:
+        db.clear_setting('claude_model')
+    else:
+        db.set_setting('claude_model', row['value'], is_default=bool(row['is_default']))
 
 
 def _set_hold(seconds_from_now: float) -> None:

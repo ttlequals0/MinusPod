@@ -280,11 +280,7 @@ def _is_text_content_type(content_type):
 
 
 def _plain_text_fallback(context):
-    """One readable line for a text body when a custom template can't render.
-
-    Built only from fields the event's context actually has, so it works for
-    episode events and alert events alike.
-    """
+    """Build a readable text fallback from fields present in the event context."""
     podcast = context.get('podcast')
     if isinstance(podcast, dict):
         podcast_name = podcast.get('name')
@@ -317,15 +313,12 @@ def _plain_text_fallback(context):
     detail = ' - '.join(str(d) for d in details if d)
     if detail:
         line = f"{line}: {detail}"
+    line = ' '.join(line.split())
     return f"[test] {line}" if context.get('test') else line
 
 
 def _render_body(webhook_config, context):
-    """Render the request body. Returns (body_str, fell_back).
-
-    `fell_back` is True when a custom template failed to render and the
-    default payload was sent instead.
-    """
+    """Render the body and report whether the default replaced a failed template."""
     template_str = webhook_config.get('payloadTemplate')
     if not template_str:
         return json.dumps(dict(context)), False
@@ -333,10 +326,7 @@ def _render_body(webhook_config, context):
     try:
         return _render_template(template_str, context), False
     except TemplateError as exc:
-        # Custom templates referencing episode/podcast fields raise on alert
-        # events lacking them; fall back to the default payload so alerts
-        # aren't silently dropped (webhooks-misc-2). A text body gets a
-        # readable line; JSON would be noise in a notification.
+        # Keep alert delivery when an episode-only template fails to render.
         if _is_text_content_type(webhook_config.get('contentType', 'application/json')):
             fallback_kind, body_str = 'plain-text line', _plain_text_fallback(context)
         else:
@@ -357,11 +347,7 @@ def _prepare_and_dispatch(webhook_config, context, add_test_flag=False,
 
 def _dispatch_webhook(webhook_config, context, add_test_flag=False,
                       max_attempts=2):
-    """Render and dispatch to a single webhook.
-
-    Returns (HTTP status or None, whether the default payload replaced a
-    template that failed to render).
-    """
+    """Send one webhook and return its status and template-fallback flag."""
     url = webhook_config.get('url')
     if not url:
         return None, False
@@ -400,12 +386,13 @@ def _dispatch_webhook(webhook_config, context, add_test_flag=False,
                 headers=headers,
             )
         except SSRFError as exc:
-            logger.warning("Webhook URL blocked by SSRF check: %s (%s)", safe_url_for_log(url), exc)
+            logger.warning("Webhook URL blocked by SSRF check: %s (%s)",
+                            safe_url_for_log(url), type(exc).__name__)
             return None, fell_back
         except Exception as exc:
             logger.warning(
-                "Webhook attempt %d/%d failed for %s: %s",
-                attempt + 1, max_attempts, url, exc,
+                "Webhook attempt %d/%d failed for %s (%s)",
+                attempt + 1, max_attempts, safe_url_for_log(url), type(exc).__name__,
             )
             continue
 
@@ -446,8 +433,9 @@ def _fire_event_sync(payload: WebhookPayload):
             continue
         try:
             _prepare_and_dispatch(wh, context)
-        except Exception:
-            logger.exception("Unexpected error dispatching webhook to %s", wh.get('url'))
+        except Exception as exc:
+            logger.error("Unexpected error dispatching webhook to %s (%s)",
+                         safe_url_for_log(wh.get('url')), type(exc).__name__)
 
     email_service.send_event_email(payload.event, context)
 
@@ -533,9 +521,9 @@ def _fire_alert_event(event, context, log_detail, dedup_key=None, dedup=True):
             try:
                 _prepare_and_dispatch(wh, context)
                 logger.info("%s webhook sent (%s)", event, log_detail)
-            except Exception:
-                logger.exception("Failed to send %s webhook to %s",
-                                 event, wh.get('url'))
+            except Exception as exc:
+                logger.error("Failed to send %s webhook to %s (%s)",
+                             event, safe_url_for_log(wh.get('url')), type(exc).__name__)
         email_service.send_event_email(event, context)
 
     thread = threading.Thread(target=_dispatch, daemon=True)
@@ -750,20 +738,7 @@ def _build_test_context(event):
 
 
 def fire_test_event(webhook_config):
-    """Fire one test payload per event the webhook is subscribed to.
-
-    Each payload matches the real shape for its event and is dispatched
-    through the same render/dispatch path as real events (`_build_context`/
-    `_dispatch_webhook`), with `test: true` set. Falls back to a single
-    Episode Processed sample when the webhook's event list is empty:
-    webhooks created through the API always save a non-empty list, so this
-    only covers legacy or hand-edited data.
-
-    Returns a list of {'event': ..., 'delivered': bool, 'templateFallback':
-    bool} dicts, one per event tested, in subscription order (duplicates
-    collapsed). `templateFallback` is True when the custom payload template
-    could not render for that event and the default payload was sent.
-    """
+    """Send one test payload per subscribed event and report delivery and fallback status."""
     events = list(dict.fromkeys(webhook_config.get('events') or [])) or [EVENT_EPISODE_PROCESSED]
 
     results = []

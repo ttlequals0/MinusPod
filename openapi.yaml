@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.98.2
+  version: 2.98.7
   contact:
     name: MinusPod
   license:
@@ -2209,6 +2209,9 @@ paths:
         frames so players that ignore podcast:chapters pick them up.
         The work runs in the background because the topic pass can outlast
         a reverse proxy's request timeout; the episode reports progress.
+        It starts on demand outside the processing queue. Each finished attempt
+        adds a processing-history entry with its own usage and a saved episode
+        log when log storage is enabled, including failed attempts.
       operationId: regenerateChapters
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -4249,7 +4252,7 @@ paths:
           schema: { type: string, enum: [pending, approved, rejected, undone] }
         - name: kind
           in: query
-          schema: { type: string, enum: [trim, split, rename, retire, flag] }
+          schema: { type: string, enum: [trim, split, rename, retire, flag, category] }
         - name: limit
           in: query
           schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
@@ -6694,11 +6697,11 @@ paths:
                   example: 4096
                 detectionReasoningBudget:
                   type: [integer, 'null']
-                  description: Anthropic extended-thinking token budget (1024-65536). Only valid when llmProvider is anthropic.
+                  description: Manual Anthropic thinking budget (1024-65536 tokens). Used only when the routed model accepts manual budgets; otherwise kept as a dormant setting.
                 detectionReasoningLevel:
                   type: [string, 'null']
                   enum: [none, low, medium, high, null]
-                  description: Reasoning effort level for non-Anthropic providers. Rejected when llmProvider is anthropic.
+                  description: Effort for adaptive-only Anthropic models and other providers. Null restores the default. none disables thinking where supported, or uses low effort on models that require thinking.
                 verificationTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for the verification (pass 2) LLM call.
@@ -6707,11 +6710,11 @@ paths:
                   description: Maximum response tokens (128-32768) for the verification pass.
                 verificationReasoningBudget:
                   type: [integer, 'null']
-                  description: Anthropic-only reasoning budget for verification pass.
+                  description: Manual Anthropic thinking budget for verification pass. Dormant when the routed model uses effort or another provider.
                 verificationReasoningLevel:
                   type: [string, 'null']
                   enum: [none, low, medium, high, null]
-                  description: Reasoning effort level for verification pass (non-Anthropic).
+                  description: Reasoning effort for verification pass, including adaptive-only Anthropic models. Dormant when the routed model uses a manual budget.
                 reviewerTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for both reviewer passes.
@@ -6720,11 +6723,11 @@ paths:
                   description: Maximum response tokens (128-32768) for the reviewer.
                 reviewerReasoningBudget:
                   type: [integer, 'null']
-                  description: Anthropic-only reasoning budget for the reviewer.
+                  description: Manual Anthropic thinking budget for the reviewer. Dormant when the routed model uses effort or another provider.
                 reviewerReasoningLevel:
                   type: [string, 'null']
                   enum: [none, low, medium, high, null]
-                  description: Reasoning effort level for the reviewer (non-Anthropic).
+                  description: Reasoning effort for the reviewer, including adaptive-only Anthropic models. Dormant when the routed model uses a manual budget.
                 chapterBoundaryTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for chapter boundary detection.
@@ -6733,11 +6736,11 @@ paths:
                   description: Maximum response tokens (128-32768) for chapter boundary detection.
                 chapterBoundaryReasoningBudget:
                   type: [integer, 'null']
-                  description: Anthropic-only reasoning budget for chapter boundary detection.
+                  description: Manual Anthropic thinking budget for chapter boundary detection. Dormant when the routed model uses effort or another provider.
                 chapterBoundaryReasoningLevel:
                   type: [string, 'null']
                   enum: [none, low, medium, high, null]
-                  description: Reasoning effort level for chapter boundary detection (non-Anthropic).
+                  description: Reasoning effort for chapter boundary detection, including adaptive-only Anthropic models. Dormant when the routed model uses a manual budget.
                 chapterTargetSeconds:
                   type: integer
                   description: >-
@@ -6768,11 +6771,11 @@ paths:
                   description: Maximum response tokens (128-32768) for chapter title generation.
                 chapterTitleReasoningBudget:
                   type: [integer, 'null']
-                  description: Anthropic-only reasoning budget for chapter title generation.
+                  description: Manual Anthropic thinking budget for chapter title generation. Dormant when the routed model uses effort or another provider.
                 chapterTitleReasoningLevel:
                   type: [string, 'null']
                   enum: [none, low, medium, high, null]
-                  description: Reasoning effort level for chapter title generation (non-Anthropic).
+                  description: Reasoning effort for chapter title generation, including adaptive-only Anthropic models. Dormant when the routed model uses a manual budget.
                 ollamaNumCtx:
                   type: [integer, 'null']
                   description: Ollama context window in tokens (512-131072). Only valid when llmProvider is ollama.
@@ -7801,6 +7804,104 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /system/config-backup:
+    get:
+      tags: [System]
+      summary: Download runtime configuration JSON
+      description: >-
+        Exports portable global and feed settings, including configured credentials.
+        Excludes the database, episodes, patterns, history, metrics, media, and administrator
+        sign-in credentials. Keep the downloaded file private. Limited to 5/hour.
+        The separate config-export endpoint produces a redacted diagnostic file.
+      operationId: downloadRuntimeConfig
+      responses:
+        '200':
+          description: Private configuration attachment with Cache-Control no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeConfigDocument'
+        '401':
+          description: Authentication required
+        '413':
+          description: Complete configuration exceeds the supported import request size
+        '500':
+          description: Configuration or credentials could not be exported
+
+  /system/config-import/preview:
+    post:
+      tags: [System]
+      summary: Preview runtime configuration changes
+      description: >-
+        Validates a configuration document and selected scope without writing settings.
+        Returns setting names and feed slugs, never credential values. Limited to 20/hour.
+      operationId: previewRuntimeConfigImport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuntimeConfigImportRequest'
+      responses:
+        '200':
+          description: Preview and destination-state token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuntimeConfigImportPreview'
+        '400':
+          description: Invalid configuration, scope, selection, or conflicting feed identity
+        '413':
+          description: Request exceeds 10 MiB
+
+  /system/config-import:
+    post:
+      tags: [System]
+      summary: Apply a previewed runtime configuration import
+      description: >-
+        Merges selected settings atomically and re-encrypts credentials for this installation.
+        Omitted settings and destination-only feeds remain unchanged. Does not restore a
+        database, episodes, history, metrics, patterns, or media. Limited to 5/hour.
+      operationId: applyRuntimeConfigImport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/RuntimeConfigImportRequest'
+                - type: object
+                  required: [previewToken]
+                  properties:
+                    previewToken:
+                      type: string
+                      description: Token from previewing the same document and selection
+      responses:
+        '200':
+          description: Applied configuration and any feed-refresh warnings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  addedFeeds:
+                    type: array
+                    items: {type: string}
+                  updatedFeeds:
+                    type: array
+                    items: {type: string}
+                  warnings:
+                    type: array
+                    items: {type: string}
+        '400':
+          description: Invalid configuration, selection, or destination compatibility
+        '409':
+          description: Preview is stale; preview the selected configuration again
+        '413':
+          description: Request exceeds 10 MiB
+
   /system/config-export:
     get:
       tags:
@@ -8574,7 +8675,7 @@ paths:
         - Settings
       summary: Test a webhook
       description: |
-        Send one test payload per event the webhook is subscribed to, matching each event's real payload shape (`test: true` set on every payload). Falls back to a single Episode Processed sample when the webhook's event list is empty. If a custom payload template cannot render for an event, the default payload is sent for it (a readable line for `text/*` content types, JSON otherwise) and the result is flagged `templateFallback`. Rate limited to 10/min.
+        Send one test payload per event the webhook is subscribed to, matching each event's real payload shape (`test: true` set on every payload). Falls back to a single Episode Processed sample when the webhook's event list is empty. If a custom payload template cannot render for an event, the default payload is used (a readable line for `text/*` content types, JSON otherwise) and the result is flagged `templateFallback`, regardless of delivery status. Rate limited to 10/min.
       operationId: testWebhook
       parameters:
         - $ref: '#/components/parameters/webhook_id'
@@ -8600,7 +8701,7 @@ paths:
                           type: boolean
                         templateFallback:
                           type: boolean
-                          description: 'true when the custom payload template could not render for this event and the default payload was sent instead'
+                          description: 'true when the custom payload template could not render for this event and the default payload was used, independent of delivery status'
                   message:
                     type: string
                     description: 'Summary, e.g. "3 of 3 test payloads delivered". Names the events whose template fell back, if any.'
@@ -9483,6 +9584,63 @@ paths:
                       properties:
                         tag:         { type: string }
                         description: { type: string }
+
+  /podping/nodes:
+    get:
+      summary: Get configured Podping RPC servers
+      operationId: getPodpingNodes
+      tags: [Settings]
+      responses:
+        '200':
+          description: Effective server list and shipped defaults
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodpingNodeSettings'
+    put:
+      summary: Replace the Podping RPC server list
+      operationId: updatePodpingNodes
+      tags: [Settings]
+      description: >-
+        Normalizes and deduplicates endpoint URLs. Changes apply to the running
+        listener without resetting its block position. URLs must use HTTP or
+        HTTPS and cannot contain credentials, query strings, or fragments.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nodes]
+              properties:
+                nodes:
+                  $ref: '#/components/schemas/PodpingNodeUrls'
+      responses:
+        '200':
+          description: Saved server list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodpingNodeSettings'
+        '400':
+          description: Invalid or empty server list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /podping/nodes/reset:
+    post:
+      summary: Restore the default Podping RPC servers
+      operationId: resetPodpingNodes
+      tags: [Settings]
+      responses:
+        '200':
+          description: Shipped server list restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodpingNodeSettings'
 
   /podping/hosts:
     get:
@@ -11300,6 +11458,102 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    RuntimeConfigDocument:
+      type: object
+      required: [format, formatVersion, settings, feeds]
+      properties:
+        format:
+          type: string
+          const: minuspod-runtime-config
+        formatVersion:
+          type: integer
+          const: 1
+        appVersion:
+          type: string
+        exportedAt:
+          type: string
+          format: date-time
+        containsSecrets:
+          type: boolean
+        settings:
+          type: object
+          additionalProperties: true
+          description: Portable runtime setting names and values. Null is allowed only for credentials, supported nullable overrides, and pattern_cleanup_model.
+        feeds:
+          type: array
+          items:
+            type: object
+            required: [slug, feedType, settings]
+            properties:
+              slug:
+                type: string
+              feedType:
+                type: string
+                enum: [subscribed, local, recents]
+              settings:
+                type: object
+                additionalProperties: true
+                description: Feed configuration only; no episodes or history.
+
+    RuntimeConfigImportRequest:
+      type: object
+      required: [document, scope]
+      properties:
+        document:
+          $ref: '#/components/schemas/RuntimeConfigDocument'
+        scope:
+          type: string
+          enum: [everything, global, feeds]
+          description: Everything means global and feed configuration only.
+        selectedFeeds:
+          type: array
+          uniqueItems: true
+          items: {type: string}
+          description: Feed slugs for feeds scope; omission selects all feeds in the document.
+
+    RuntimeConfigImportPreview:
+      type: object
+      properties:
+        previewToken:
+          type: string
+        scope:
+          type: string
+          enum: [everything, global, feeds]
+        settings:
+          type: array
+          items: {type: string}
+        changedSettings:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                const: setting
+              key:
+                type: string
+              secret:
+                type: boolean
+        addedFeeds:
+          type: array
+          items: {type: string}
+        updatedFeeds:
+          type: array
+          items: {type: string}
+        skippedUnknownSettings:
+          type: array
+          items: {type: string}
+        preservesTargetOnlyFeeds:
+          type: boolean
+        warning:
+          type: string
+        warnings:
+          type: array
+          items: {type: string}
+        selectedFeedSlugs:
+          type: array
+          items: {type: string}
+
     AddressingModeStats:
       type: object
       description: Compliance aggregate for one addressing mode (from addressing_log)
@@ -11733,6 +11987,23 @@ components:
           type: string
           description: ISO 8601 UTC timestamp when the backup completed.
 
+    PodpingNodeUrls:
+      type: array
+      minItems: 1
+      maxItems: 20
+      items:
+        type: string
+        format: uri
+        maxLength: 2048
+    PodpingNodeSettings:
+      type: object
+      required: [nodes, defaults]
+      properties:
+        nodes:
+          $ref: '#/components/schemas/PodpingNodeUrls'
+        defaults:
+          $ref: '#/components/schemas/PodpingNodeUrls'
+
     PatternCleanupSettings:
       type: object
       properties:
@@ -11765,6 +12036,9 @@ components:
         - $ref: '#/components/schemas/PatternCleanupSettings'
         - type: object
           properties:
+            modelMissing:
+              type: boolean
+              description: True when cleanup has an explicitly cleared model and needs a selection before a run. If false and model is blank, cleanup inherits from detection.
             inProgress:
               type: boolean
               description: Whether another run currently holds the cleanup lock.
@@ -11841,7 +12115,7 @@ components:
           type: integer
         kind:
           type: string
-          enum: [trim, split, rename, retire, flag]
+          enum: [trim, split, rename, retire, flag, category]
         status:
           type: string
           enum: [pending, approved, rejected, undone]
@@ -11856,18 +12130,24 @@ components:
         payload:
           type: object
           description: >-
-            Shape depends on kind: trim {text, sponsor?}; split {pieces: [{text,
-            sponsor}]}; rename {sponsor}; retire {unusedDays, lastMatchedAt,
+            Shape depends on kind: trim {text, sponsor?, category?}; split
+            {pieces: [{text, sponsor, category?}]}; rename {sponsor, category?};
+            category {category}; retire {unusedDays, lastMatchedAt,
             confirmationCount}; flag {falsePositiveCount, confirmationCount,
-            contaminated, contaminationReason, recommended, trimText?, sponsor?}.
-            A trim's optional sponsor applies a sponsor correction in the
-            same approval as the text edit.
+            contaminated, contaminationReason, recommended, trimText?, sponsor?, category?}.
+            Combined text, sponsor, and category edits apply in one approval.
+            Categories are sponsor, cross_promo, self_promo, interaction,
+            intro, outro, and recap.
         before:
           type: [object, 'null']
           description: Snapshot of the pattern at suggestion time, used to undo an approval.
           properties:
             textTemplate:
               type: [string, 'null']
+            category:
+              type: [string, 'null']
+              enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
+              description: Original category; absent in older suggestions.
             sponsor:
               type: [string, 'null']
             sponsorId:
@@ -13284,12 +13564,15 @@ components:
           description: Model id the provider reported serving, when it differs from the configured one.
         inputTokens:
           type: integer
+          description: Total input tokens, including Anthropic cache reads and writes.
         outputTokens:
           type: integer
         cacheReadTokens:
           type: integer
+          description: Input tokens read from a provider prompt cache. Included in Anthropic inputTokens.
         cacheWriteTokens:
           type: integer
+          description: Input tokens written to a provider prompt cache. Included in Anthropic inputTokens.
         reasoningTokens:
           type: integer
         costUsd:
@@ -13399,12 +13682,18 @@ components:
           properties:
             mode:
               type: string
-              description: auto, reprocess, full, or llm
+              description: auto, reprocess, full, or llm for processing runs; chapters for chapter-only regeneration
             detectionSkipped:
               type:
                 - boolean
                 - 'null'
               description: True when the run skipped ad detection because the feed has skipAdDetection set
+            chaptersDegraded:
+              type: boolean
+              description: Chapter generation used a fallback; absent on runs without this diagnostic.
+            chaptersDegradedReason:
+              type: string
+              description: Reason chapter generation used a fallback.
             verificationSkipped:
               type:
                 - boolean
@@ -16829,6 +17118,11 @@ components:
             - string
             - 'null'
           description: MinusPod version that produced this run. Null for runs recorded before 2.78.4.
+        mode:
+          type:
+            - string
+            - 'null'
+          description: Processing mode. Chapters-only regeneration uses chapters; older runs may omit it.
 
     Sponsor:
       type: object

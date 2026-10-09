@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Settings from './Settings';
 import type { Settings as SettingsShape, SettingValue } from '../api/types';
+import type { ReviewerState } from './settings/AdReviewerSection';
 
 vi.mock('react-router', () => ({
   useLocation: () => ({ hash: '', pathname: '/settings', search: '' }),
@@ -40,14 +41,51 @@ vi.mock('./settings/LLMProviderSection', () => ({
   default: (props: {
     onProviderChange: (provider: string) => void;
     onSecondaryProviderEnabledChange: (enabled: boolean) => void;
+    onSecondaryProviderChange: (provider: string) => void;
+    onBaseUrlChange: (url: string) => void;
   }) => (
     <div>
       <button onClick={() => props.onProviderChange('openai-compatible')}>change-primary-provider</button>
       <button onClick={() => props.onSecondaryProviderEnabledChange(true)}>enable-secondary</button>
+      <button onClick={() => props.onSecondaryProviderChange('ollama')}>change-secondary-provider</button>
+      <button onClick={() => props.onBaseUrlChange('https://proxy.example/v1')}>change-primary-endpoint</button>
     </div>
   ),
 }));
-vi.mock('./settings/AIModelsSection', () => ({ default: () => null }));
+vi.mock('./settings/AIModelsSection', () => ({
+  default: (props: {
+    selectedModel: string;
+    verificationModel: string;
+    chaptersModel: string;
+    onSelectedModelChange: (model: string) => void;
+    onVerificationProviderChange: (slot: string) => void;
+    onVerificationModelChange: (model: string) => void;
+  }) => (
+    <div>
+      <output data-testid="stage-models">{[
+        props.selectedModel, props.verificationModel, props.chaptersModel,
+      ].join('|')}</output>
+      <button onClick={() => props.onVerificationProviderChange('secondary')}>route-verification-secondary</button>
+      <button onClick={() => props.onSelectedModelChange('private/custom-model')}>replace-detection-model</button>
+    </div>
+  ),
+}));
+vi.mock('./settings/AdReviewerSection', () => ({
+  default: (props: {
+    reviewer: ReviewerState;
+    onChange: (next: ReviewerState) => void;
+  }) => (
+    <div>
+      <output data-testid="reviewer-model">{props.reviewer.model}</output>
+      <button onClick={() => props.onChange({ ...props.reviewer, provider: 'primary' })}>
+        route-review-primary
+      </button>
+      <button onClick={() => props.onChange({ ...props.reviewer, provider: 'secondary' })}>
+        route-review-secondary
+      </button>
+    </div>
+  ),
+}));
 vi.mock('./settings/StageTunablesSection', () => ({ default: () => null }));
 vi.mock('./settings/TranscriptionSection', () => ({ default: () => null }));
 vi.mock('./settings/AudioSection', () => ({ default: () => null }));
@@ -153,6 +191,12 @@ function makeSettings(overrides: Partial<Record<string, unknown>> = {}): Setting
     reviewPromptOverride: sv('', true),
     resurrectPromptOverride: sv('', true),
     llmProvider: sv('anthropic', false),
+    claudeModel: sv('claude-old', false),
+    verificationModel: sv('verification-old', false),
+    chaptersModel: sv('chapters-old', false),
+    detectionProvider: sv('primary', false),
+    verificationProvider: sv('same_as_detection', true),
+    chaptersProvider: sv('same_as_detection', true),
     secondaryProviderEnabled: { value: false, isDefault: true },
     secondaryProvider: sv('', true),
     secondaryProviderBaseUrl: sv('', true),
@@ -203,10 +247,110 @@ describe('Settings: one PUT per save', () => {
 
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledTimes(1));
 
-    expect(mockUpdateSettings.mock.calls[0][0]).toEqual({
+    expect(mockUpdateSettings.mock.calls[0][0]).toMatchObject({
       secondaryProviderEnabled: true,
       secondaryProvider: 'anthropic',
       llmProvider: 'openai-compatible',
+      claudeModel: '',
+      verificationModel: '',
+      chaptersModel: '',
     });
+  });
+
+  it('clears models on an affected account and preserves explicit off-catalog replacement models', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByText('change-primary-provider');
+
+    await user.click(screen.getByText('change-primary-provider'));
+    expect(screen.getByTestId('stage-models').textContent).toBe('||');
+    await user.click(screen.getByText('replace-detection-model'));
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledTimes(1));
+    expect(mockUpdateSettings.mock.calls[0][0]).toMatchObject({
+      llmProvider: 'openai-compatible',
+      claudeModel: 'private/custom-model',
+      verificationModel: '',
+      chaptersModel: '',
+    });
+  });
+
+  it('preserves a stage model routed to the unchanged secondary account', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      secondaryProviderEnabled: { value: true, isDefault: false },
+      secondaryProvider: sv('ollama', false),
+      verificationProvider: sv('secondary', false),
+    }));
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByText('change-primary-provider');
+
+    await user.click(screen.getByText('change-primary-provider'));
+
+    expect(screen.getByTestId('stage-models').textContent).toBe('|verification-old|');
+  });
+
+  it('clears models when a stage routing change moves inherited phases to another account', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      secondaryProviderEnabled: { value: true, isDefault: false },
+      secondaryProvider: sv('ollama', false),
+    }));
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByText('route-verification-secondary');
+
+    await user.click(screen.getByText('route-verification-secondary'));
+
+    expect(screen.getByTestId('stage-models').textContent).toBe('claude-old||chapters-old');
+  });
+
+  it('clears models for stages on Provider A when its endpoint changes', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      llmProvider: sv('openai-compatible', false),
+      openaiBaseUrl: sv('https://old.example/v1', false),
+    }));
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByText('change-primary-endpoint');
+
+    await user.click(screen.getByText('change-primary-endpoint'));
+
+    expect(screen.getByTestId('stage-models').textContent).toBe('||');
+  });
+
+  it('clears a dormant review model when same-as-pass moves from secondary to primary', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      secondaryProviderEnabled: { value: true, isDefault: false },
+      secondaryProvider: sv('ollama', false),
+      detectionProvider: sv('secondary', false),
+      reviewProvider: sv('same_as_pass', false),
+      reviewModel: sv('private/review-model', false),
+    }));
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByText('route-review-primary');
+
+    await user.click(screen.getByText('route-review-primary'));
+
+    expect(screen.getByTestId('reviewer-model').textContent).toBe('');
+  });
+
+  it('preserves a dormant review model when same-as-pass moves to the same secondary account', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      secondaryProviderEnabled: { value: true, isDefault: false },
+      secondaryProvider: sv('ollama', false),
+      detectionProvider: sv('secondary', false),
+      reviewProvider: sv('same_as_pass', false),
+      reviewModel: sv('private/review-model', false),
+    }));
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByText('route-review-secondary');
+
+    await user.click(screen.getByText('route-review-secondary'));
+
+    expect(screen.getByTestId('reviewer-model').textContent).toBe('private/review-model');
   });
 });

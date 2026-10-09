@@ -46,13 +46,17 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Chapters** - Chapter markers MinusPod generates for the processed audio, served as Podcasting 2.0 JSON and embedded in the MP3 as ID3 frames. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
 
+**Chapter regeneration** - Refreshing an episode's chapters on demand. Each attempt gets its own processing-history entry and usage record, plus an episode log when log storage is enabled. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
+
 **Cleanup** - The Patterns page tab for approving, rejecting, and undoing suggested edits to learned patterns. These decisions change the pattern library, not audio already published. [Pattern Cleanup](pattern-cleanup.md#approve-reject-undo)
 
 **Community patterns** - Opt-in sharing of learned ad patterns with other MinusPod users, and pulling theirs in return. [Configuration > Community Patterns](configuration.md#community-patterns-optional)
 
 **Confidence** - The detector's certainty (0-100%) that a flagged region is an ad. Only detections at or above the cut threshold are removed; the rest stay in the audio for review. [Configuration > Ad Detection Settings](configuration.md#ad-detection-settings)
 
-**Contaminated pattern** - A learned ad pattern that contains show content or other material that should not be matched as an ad. Pattern Cleanup can flag it for review; nothing changes until a suggestion is approved. [Pattern Cleanup](pattern-cleanup.md#the-five-kinds)
+**Configuration Import / Export** - Exporting and restoring runtime global settings and feed configuration. It preserves episodes, history, metrics, and media. [Configuration Import / Export](configuration-import-export.md)
+
+**Contaminated pattern** - A learned ad pattern that contains show content or other material that should not be matched as an ad. Pattern Cleanup can flag it for review; nothing changes until a suggestion is approved. [Pattern Cleanup](pattern-cleanup.md#suggestion-kinds)
 
 **Correction** - Your verdict on a detection: "Confirm ad" or "Not an ad". Corrections train future detection for that feed and can trigger a recut. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
 
@@ -144,6 +148,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## P
 
+**Prompt caching** - Reusing a static prompt prefix across LLM calls. MinusPod requests a 5-minute cache for Anthropic system prompts and records cache reads and writes in input-token usage. [LLM Providers > Prompt caching](llm-providers.md#prompt-caching)
+
 **Partial detection** - An episode published from pattern and cross-fetch cuts alone after the AI detection pass failed. Shows an amber badge and a Re-run detection banner on the episode page; one automatic low-priority re-detect is also queued. [How It Works > Partial Detection](how-it-works.md#partial-detection)
 
 **Pass-through** - One of the five presets on the per-feed Processing mode select. It turns processing off entirely: episodes are downloaded and relayed with no transcription or ad removal, though the audio may be transcoded for serving. The feed URL stays the same, so switching to another mode resumes processing later without touching your podcast app. [Configuration > Pass-through mode](configuration.md#pass-through-mode)
@@ -152,9 +158,9 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Pattern** - Anything MinusPod has learned from confirmed ads and reapplies to new episodes: text patterns from transcripts and audio fingerprints. Patterns catch repeat ads without spending LLM tokens. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
-**Pattern Cleanup** - An experiment that reviews learned text patterns with an LLM and suggests trims, splits, sponsor corrections, and disabling unused or unreliable patterns. It supports scheduled and manual runs, with a separate provider and model choice. [Pattern Cleanup](pattern-cleanup.md)
+**Pattern Cleanup** - An experiment that reviews learned text patterns with an LLM and suggests trims, splits, sponsor corrections, category changes, and disabling unused or unreliable patterns. It supports scheduled and manual runs, with a separate provider and model choice. [Pattern Cleanup](pattern-cleanup.md)
 
-**Podping** - An opt-in listener that watches the Hive blockchain for publish notifications and refreshes a matching feed immediately. System Health identifies the active RPC node, checks every fallback every five minutes, and can check them on demand. Scheduled feed polling continues either way. [Podcasting 2.0 > Podping](podcasting-2.0.md#podping)
+**Podping** - An opt-in listener that watches the Hive blockchain for publish notifications and refreshes a matching feed immediately. Its RPC server list is editable in settings and through the API. System Health identifies the active RPC node, checks every fallback every five minutes, and can check them on demand. Scheduled feed polling continues either way. [Podcasting 2.0 > Podping](podcasting-2.0.md#podping)
 
 **Processing mode** - The per-feed preset that decides what the pipeline does with each episode: standard ad removal, keep-content detection, skip ad detection (transcripts and chapters only), pass-through, or cue-only (cuts from cue pairs and previously learned ad patterns, no LLM call). One select in Feed Settings; the REST API also accepts the underlying per-field flags. [How It Works](how-it-works.md)
 
@@ -172,6 +178,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## R
 
+**Reasoning budget / effort** - Controls for how much thinking an LLM does before answering. Older Anthropic models use a token budget; adaptive-only models use an effort level. [LLM Providers > Reasoning settings](llm-providers.md#reasoning-settings)
+
 **Rate-limit hold** - An opt-in hold that puts an episode back in the queue when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming any work until that time passes. Unlike the offline queue it pauses everything, Play and Reprocess included. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 
 **Recut** - Re-cutting the retained original audio using the current ad markers, with no download, transcription, or LLM involved. What "Approve & Recut" does. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
@@ -180,7 +188,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Resurrected** - A detection the validator rejected that the Ad Reviewer overruled and put back in the cut list. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
 
-**Retired pattern** - A pattern disabled after an approved cleanup suggestion because it has gone unused. Its record is retained and the approval can be undone if it has not been changed afterward. [Pattern Cleanup > The five kinds](pattern-cleanup.md#the-five-kinds)
+**Retired pattern** - A pattern disabled after an approved cleanup suggestion because it has gone unused. Its record is retained and the approval can be undone if it has not been changed afterward. [Pattern Cleanup > Suggestion kinds](pattern-cleanup.md#suggestion-kinds)
 
 **Retention** - How long processed audio is kept before the episode resets to Discovered. The pre-cut original can have its own shorter window, and any feed can override the whole window on its own settings page. [Configuration > Per-feed retention](configuration.md#per-feed-retention)
 
@@ -241,5 +249,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Waveform Ad Editor** - The visual editor for a single detection: waveform, transcript context, and draggable boundaries, with the original audio for reference. [Web Interface > Waveform Ad Editor](web-interface.md#waveform-ad-editor)
 
 **Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet, Queue Held, Queue Resumed, Service Offline, Service Reachable, Failover Triggered, and Failover Cancelled. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
+
+**Webhook template fallback** - If a custom payload template cannot render for an event, MinusPod uses a default body. Webhook test results set a `templateFallback` flag whether or not delivery succeeds. Text content types get a readable line; other types get JSON. [API & Webhooks > Webhooks](api-and-webhooks.md#webhooks)
 
 [< Docs index](README.md) | [Project README](../README.md)

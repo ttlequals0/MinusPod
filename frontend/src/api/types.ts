@@ -440,6 +440,8 @@ export interface ProcessingRunStats {
   replacementSecondsAdded?: number | null;
   timings?: ProcessingRunTimings | null;
   transcriptDiff?: { status: UpstreamTranscriptStatus; coverage: number | null; spans: number };
+  chaptersDegraded?: boolean;
+  chaptersDegradedReason?: string | null;
   // Present only when this run retried a rejected thinking setting with
   // pass defaults. The backend deliberately excludes the provider error.
   thinkingNotices?: ThinkingCompatibilityNotice[];
@@ -1472,6 +1474,7 @@ export interface ProcessingHistoryEntry {
   processedAt: string;
   processingDurationSeconds: number;
   status: 'completed' | 'failed';
+  mode?: string | null;
   adsDetected: number;
   errorMessage?: string;
   reprocessNumber: number;

@@ -7,6 +7,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from database import Database  # noqa: E402
+from pattern_cleanup_hash import review_hash  # noqa: E402
 
 
 def _pattern(db, text='This episode is brought to you by Acme widgets today.',
@@ -101,6 +102,102 @@ def test_stats_column_migration_preserves_decisions_and_review_stamps(temp_dir):
     assert [(item['id'], item['status']) for item in decisions] == [
         (approved, 'approved'), (rejected, 'rejected'),
     ]
+
+
+def test_category_kind_migration_preserves_cleanup_suggestions(temp_dir):
+    db = _isolated(temp_dir)
+    pid = _pattern(db)
+    pattern = db.get_ad_pattern_by_id(pid)
+    db.update_ad_pattern(pid, category='sponsor')
+    legacy_hash = review_hash(pattern['text_template'], None)
+    db.get_connection().execute(
+        "UPDATE ad_patterns SET cleanup_reviewed_hash = ? WHERE id = ?", (legacy_hash, pid))
+    db.get_connection().commit()
+    run_id = db.create_cleanup_run(forced=False, trigger='manual')
+    sid = db.upsert_cleanup_suggestion(
+        run_id, pid, 'trim', 0.9, ['keep the read'], {'text': 'new text'},
+        {'text_template': 'old text', 'sponsor': 'Acme'})
+    db.set_cleanup_suggestion_status(sid, 'approved', applied={'text': 'new text'})
+    conn = db.get_connection()
+    conn.execute('PRAGMA foreign_keys = OFF')
+    conn.execute('BEGIN IMMEDIATE')
+    conn.execute('''
+        CREATE TABLE pattern_cleanup_suggestions_legacy (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER REFERENCES pattern_cleanup_runs(id) ON DELETE SET NULL,
+            pattern_id INTEGER NOT NULL REFERENCES ad_patterns(id) ON DELETE CASCADE,
+            kind TEXT NOT NULL CHECK(kind IN ('trim', 'split', 'rename', 'retire', 'flag')),
+            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'undone')),
+            confidence REAL,
+            reasons TEXT NOT NULL DEFAULT '[]',
+            payload TEXT NOT NULL DEFAULT '{}',
+            before TEXT,
+            applied TEXT,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+            reviewed_at TEXT
+        )''')
+    conn.execute('''INSERT INTO pattern_cleanup_suggestions_legacy
+        SELECT * FROM pattern_cleanup_suggestions''')
+    conn.execute('DROP TABLE pattern_cleanup_suggestions')
+    conn.execute('ALTER TABLE pattern_cleanup_suggestions_legacy RENAME TO pattern_cleanup_suggestions')
+    conn.execute("DELETE FROM schema_migrations WHERE name = 'pattern_cleanup_category_kind'")
+    conn.commit()
+    conn.close()
+
+    migrated = _isolated(temp_dir)
+    suggestion = migrated.get_cleanup_suggestion(sid)
+    assert suggestion['pattern_id'] == pid
+    assert suggestion['run_id'] == run_id
+    assert suggestion['kind'] == 'trim' and suggestion['status'] == 'approved'
+    assert suggestion['reasons'] == ['keep the read']
+    assert suggestion['payload'] == {'text': 'new text'}
+    assert suggestion['before']['text_template'] == 'old text'
+    assert suggestion['applied'] == {'text': 'new text'}
+    sql = migrated.get_connection().execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='pattern_cleanup_suggestions'").fetchone()[0]
+    assert "'category'" in sql
+    assert migrated.get_connection().execute('PRAGMA foreign_key_check').fetchall() == []
+    assert migrated.get_connection().execute(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_cleanup_suggestions_pending'").fetchone()
+    migrated_pattern = migrated.get_ad_pattern_by_id(pid)
+    assert migrated_pattern['cleanup_reviewed_hash'] == review_hash(
+        pattern['text_template'], None, 'sponsor')
+
+
+def test_category_kind_migration_preserves_deleted_id_high_water_mark(temp_dir):
+    db = _isolated(temp_dir)
+    pid = _pattern(db)
+    conn = db.get_connection()
+    conn.execute('PRAGMA foreign_keys = OFF')
+    conn.execute('DROP TABLE pattern_cleanup_suggestions')
+    conn.execute('''
+        CREATE TABLE pattern_cleanup_suggestions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER REFERENCES pattern_cleanup_runs(id) ON DELETE SET NULL,
+            pattern_id INTEGER NOT NULL REFERENCES ad_patterns(id) ON DELETE CASCADE,
+            kind TEXT NOT NULL CHECK(kind IN ('trim', 'split', 'rename', 'retire', 'flag')),
+            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'undone')),
+            confidence REAL,
+            reasons TEXT NOT NULL DEFAULT '[]',
+            payload TEXT NOT NULL DEFAULT '{}',
+            before TEXT,
+            applied TEXT,
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+            reviewed_at TEXT
+        )''')
+    conn.execute(
+        "INSERT INTO sqlite_sequence (name, seq) VALUES ('pattern_cleanup_suggestions', 900)")
+    conn.execute(
+        "DELETE FROM schema_migrations WHERE name = 'pattern_cleanup_category_kind'")
+    conn.commit()
+    conn.close()
+
+    migrated = _isolated(temp_dir)
+    run_id = migrated.create_cleanup_run(forced=False, trigger='manual')
+    suggestion_id = migrated.upsert_cleanup_suggestion(
+        run_id, pid, 'trim', 0.9, [], {'text': 'new'}, {})
+
+    assert suggestion_id > 900
 
 
 def test_run_lifecycle(temp_db):

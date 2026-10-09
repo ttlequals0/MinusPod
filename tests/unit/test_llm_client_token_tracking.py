@@ -158,7 +158,7 @@ def test_anthropic_usage_carries_cache_tokens_when_present():
     )
     assert result.usage["cache_write_tokens"] == 30
     assert result.usage["cache_read_tokens"] == 70
-    assert result.usage["input_tokens"] == 10
+    assert result.usage["input_tokens"] == 110
     assert result.usage["output_tokens"] == 5
     assert result.returned_model == "claude-response-model"
 
@@ -173,6 +173,32 @@ def test_anthropic_usage_omits_cache_keys_when_absent():
         messages=[{"role": "user", "content": "hi"}],
     )
     assert "cache_write_tokens" not in result.usage
+    assert "cache_read_tokens" not in result.usage
+
+
+def test_anthropic_usage_counts_zero_cache_fields_without_changing_input_total():
+    client = _anthropic_client_with_mock(
+        {"cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
+    )
+    result = client.messages_create(
+        model="claude-test", max_tokens=100, system="s",
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    assert result.usage["input_tokens"] == 10
+    assert result.usage["cache_write_tokens"] == 0
+    assert result.usage["cache_read_tokens"] == 0
+
+
+def test_anthropic_usage_adds_only_numeric_cache_fields():
+    client = _anthropic_client_with_mock(
+        {"cache_creation_input_tokens": 30, "cache_read_input_tokens": "unknown"}
+    )
+    result = client.messages_create(
+        model="claude-test", max_tokens=100, system="s",
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    assert result.usage["input_tokens"] == 40
+    assert result.usage["cache_write_tokens"] == 30
     assert "cache_read_tokens" not in result.usage
 
 

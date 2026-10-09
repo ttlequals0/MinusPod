@@ -392,7 +392,7 @@ TABLE_DDL['pattern_cleanup_suggestions'] = """CREATE TABLE IF NOT EXISTS pattern
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id INTEGER REFERENCES pattern_cleanup_runs(id) ON DELETE SET NULL,
     pattern_id INTEGER NOT NULL REFERENCES ad_patterns(id) ON DELETE CASCADE,
-    kind TEXT NOT NULL CHECK(kind IN ('trim', 'split', 'rename', 'retire', 'flag')),
+    kind TEXT NOT NULL CHECK(kind IN ('trim', 'split', 'rename', 'retire', 'flag', 'category')),
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'undone')),
     confidence REAL,
     reasons TEXT NOT NULL DEFAULT '[]',

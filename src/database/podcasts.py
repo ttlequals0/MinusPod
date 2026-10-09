@@ -311,13 +311,15 @@ class PodcastMixin:
         return float(val) if val is not None else None
 
     def create_podcast(self, slug: str, source_url: str, title: str = None,
-                        feed_type: str = 'subscribed') -> int:
+                        feed_type: str = 'subscribed', conn=None) -> int:
         """Create a new podcast. Returns podcast ID.
 
         New feeds get own_episode_guids=1 (#598); existing rows stay NULL.
         feed_type is immutable after creation (not in update_podcast's whitelist).
         """
-        conn = self.get_connection()
+        own_conn = conn is None
+        if own_conn:
+            conn = self.get_connection()
         cursor = conn.execute(
             """INSERT INTO podcasts
                (slug, source_url, title, own_episode_guids, feed_type,
@@ -325,7 +327,8 @@ class PodcastMixin:
                VALUES (?, ?, ?, 1, ?, NULL, NULL)""",
             (slug, source_url, title, feed_type)
         )
-        conn.commit()
+        if own_conn:
+            conn.commit()
         return cursor.lastrowid
 
     def update_podcast(self, slug: str, conn=None, **kwargs) -> bool:

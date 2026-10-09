@@ -153,6 +153,27 @@ def test_verification_model_falls_back_to_detection_model():
     assert route.model_id == 'claude-sonnet-5'
 
 
+@pytest.mark.parametrize(('phase', 'slot_key', 'model_key'), [
+    ('verification', 'verification_provider', 'verification_model'),
+    ('chapters', 'chapters_provider', 'chapters_model'),
+    ('pattern_cleanup', 'pattern_cleanup_provider', 'pattern_cleanup_model'),
+])
+def test_explicitly_cleared_stage_model_does_not_fall_back_to_detection(
+        phase, slot_key, model_key):
+    settings = {
+        'claude_model': 'secondary-detection-model',
+        'detection_provider': 'secondary',
+        'secondary_provider_enabled': 'true',
+        'secondary_provider': 'openrouter',
+        slot_key: 'primary',
+        model_key: '',
+    }
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
+        with pytest.raises(ModelNotConfiguredError, match=model_key):
+            resolve_route(phase)
+
+
 def test_chapters_inherits_detection_slot_by_default():
     settings = {
         'claude_model': 'claude-sonnet-5',
@@ -239,6 +260,7 @@ def test_review_explicit_secondary_disabled_falls_back_to_primary(caplog):
 def test_review_explicit_slot_with_same_as_pass_model_uses_pass_model():
     settings = {
         'review_provider': 'secondary',
+        'review_model': 'same_as_pass',
         'secondary_provider_enabled': 'true',
         'secondary_provider': 'openrouter',
     }
@@ -248,6 +270,25 @@ def test_review_explicit_slot_with_same_as_pass_model_uses_pass_model():
                                pass_model='claude-sonnet-5')
     assert route.provider_key == 'openrouter'
     assert route.model_id == 'claude-sonnet-5'
+
+
+def test_explicit_review_slot_with_cleared_model_does_not_use_other_slot_model():
+    settings = {
+        'claude_model': 'secondary-detection-model',
+        'detection_provider': 'secondary',
+        'secondary_provider_enabled': 'true',
+        'secondary_provider': 'openrouter',
+        'review_provider': 'primary',
+        'review_model': '',
+    }
+    with patch.object(llm_route.database, 'Database', return_value=_db(settings)), \
+            patch.object(llm_route.llm_client, 'get_effective_provider', return_value='anthropic'):
+        with pytest.raises(ModelNotConfiguredError, match='review_model'):
+            resolve_route(
+                'review', pass_provider='openrouter',
+                pass_model='secondary-detection-model',
+                pass_base_url='https://openrouter.ai/api/v1',
+                pass_credential_slot='secondary')
 
 
 def test_two_slots_same_type_different_base_yield_distinct_credential_slots():

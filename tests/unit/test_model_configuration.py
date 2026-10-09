@@ -147,7 +147,7 @@ class TestChaptersDegradeOnUnconfiguredModel:
         with patch.object(chapters_generator, 'get_chapters_model', side_effect=error):
             result = generator._detect_topic_boundaries('transcript text', 0.0, 100.0, 2)
         assert result is None
-        assert generator._model_not_configured_message == str(error)
+        assert generator._model_not_configured_message == chapters_generator.CHAPTERS_AI_UNAVAILABLE
 
     def test_chapter_titles_degrade_to_generic_and_record_message(self):
         generator = chapters_generator.ChaptersGenerator(api_key='test-key')
@@ -158,7 +158,7 @@ class TestChaptersDegradeOnUnconfiguredModel:
         with patch.object(chapters_generator, 'get_chapters_model', side_effect=error):
             result = generator.generate_chapter_titles(chapters, segments, 'Pod', 'Ep')
         assert generator._title_generation_failed is True
-        assert generator._model_not_configured_message == str(error)
+        assert generator._model_not_configured_message == chapters_generator.CHAPTERS_AI_UNAVAILABLE
         assert result[0]['title'] == 'Introduction'  # generic fallback, not a crash
 
     def test_generate_chapters_degrades_with_actionable_reason(self):
@@ -170,7 +170,7 @@ class TestChaptersDegradeOnUnconfiguredModel:
             result = generator.generate_chapters(segments, episode_id='ep1')
         assert result['chapters']  # episode still produces chapters, not a failure
         assert generator.chapters_degraded is True
-        assert str(error) in generator.chapters_degradation_reason
+        assert chapters_generator.CHAPTERS_AI_UNAVAILABLE in generator.chapters_degradation_reason
 
 
 class TestBootLogsMissingModelSettings:

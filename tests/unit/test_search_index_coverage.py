@@ -364,6 +364,51 @@ def test_rebuild_leaves_no_shadow_or_retired_table_and_search_still_works():
     assert _episode_hit(rows, ep_id)
 
 
+def test_retired_index_purge_releases_write_lock_between_small_batches(monkeypatch):
+    slug = _feed('purge-write-batches')
+    episodes = [_episode(_eid(), title='Retained search result') for _ in range(101)]
+    episodes[0]['title'] = 'Retained search sentinel'
+    db.bulk_upsert_discovered_episodes(slug, episodes)
+    conn = db.get_connection()
+    real_execute = conn.execute
+    real_commit = conn.commit
+    deleted = []
+    pending_delete = False
+    released_locks = []
+
+    def execute(sql, *args):
+        nonlocal pending_delete
+        cursor = real_execute(sql, *args)
+        if sql.startswith('DELETE FROM "search_index_retired_'):
+            deleted.append(cursor.rowcount)
+            pending_delete = cursor.rowcount > 0
+        return cursor
+
+    def commit():
+        nonlocal pending_delete
+        real_commit()
+        if pending_delete:
+            pending_delete = False
+            other = sqlite3.connect(str(db.db_path), timeout=0)
+            try:
+                other.execute('BEGIN IMMEDIATE')
+                released_locks.append(True)
+                other.rollback()
+            finally:
+                other.close()
+
+    monkeypatch.setattr(conn, 'execute', execute)
+    monkeypatch.setattr(conn, 'commit', commit)
+
+    db.rebuild_search_index()
+
+    assert sum(deleted) >= 101
+    assert max(deleted) <= 50
+    assert len(released_locks) == sum(count > 0 for count in deleted)
+    assert _leftover_search_tables(conn) == []
+    assert _episode_hit(db.search_grouped('sentinel')['episodes'], episodes[0]['id'])
+
+
 def test_a_purge_failure_after_a_committed_swap_is_cleaned_up_by_the_next_rebuild(monkeypatch):
     """A crash between the swap commit and the purge finishing must not lose
     the swap or fail the rebuild; the retired table is picked up next time."""

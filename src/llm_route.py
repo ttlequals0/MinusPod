@@ -386,17 +386,29 @@ def _detection_model(db) -> str:
 
 def _verification_model(db) -> str:
     model = db.get_setting('verification_model')
-    return model if model else _detection_model(db)
+    if model is None:
+        return _detection_model(db)
+    if not model:
+        raise ModelNotConfiguredError('verification_model')
+    return model
 
 
 def _chapters_model(db) -> str:
     model = db.get_setting('chapters_model')
-    return model if model else _detection_model(db)
+    if model is None:
+        return _detection_model(db)
+    if not model:
+        raise ModelNotConfiguredError('chapters_model')
+    return model
 
 
 def _pattern_cleanup_model(db) -> str:
     model = db.get_setting('pattern_cleanup_model')
-    return model if model else _detection_model(db)
+    if model is None:
+        return _detection_model(db)
+    if not model:
+        raise ModelNotConfiguredError('pattern_cleanup_model')
+    return model
 
 
 def _resolve_review_route_parts(
@@ -425,8 +437,10 @@ def _resolve_review_route_parts(
         configured_slot = SLOT_PRIMARY
     provider, base_url, credential_slot = _resolve_slot_config(db, configured_slot)
 
-    configured_model = review_model_setting or SAME_AS_PASS
-    if configured_model != SAME_AS_PASS:
+    if review_model_setting == '':
+        raise ModelNotConfiguredError('review_model')
+    configured_model = review_model_setting
+    if configured_model is not None and configured_model != SAME_AS_PASS:
         model = configured_model
     elif pass_model:
         model = pass_model

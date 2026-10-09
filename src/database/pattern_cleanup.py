@@ -247,6 +247,7 @@ class PatternCleanupMixin:
         """Active learned patterns needing model review, oldest review first."""
         conn = self.get_connection()
         conn.create_function('cleanup_review_hash', 2, review_hash)
+        conn.create_function('cleanup_review_hash', 3, review_hash)
         pending_model = """EXISTS (
             SELECT 1 FROM pattern_cleanup_suggestions s
             WHERE s.pattern_id = ap.id AND s.status = 'pending'
@@ -260,10 +261,16 @@ class PatternCleanupMixin:
               AND (
                     json_type(s.before, '$.text_template') IS NULL
                     OR json_type(s.before, '$.sponsor') IS NULL
-                    OR cleanup_review_hash(
+                    OR CASE WHEN json_type(s.before, '$.category') IS NULL THEN
+                        cleanup_review_hash(json_extract(s.before, '$.text_template'),
+                                            json_extract(s.before, '$.sponsor'))
+                        = cleanup_review_hash(ap.text_template, ks.name)
+                    ELSE cleanup_review_hash(
                         json_extract(s.before, '$.text_template'),
-                        json_extract(s.before, '$.sponsor'))
-                       = cleanup_review_hash(ap.text_template, ks.name)
+                        json_extract(s.before, '$.sponsor'),
+                        json_extract(s.before, '$.category'))
+                        = cleanup_review_hash(ap.text_template, ks.name, ap.category)
+                    END
               )
         )"""
         pending_filter = '' if force else ' AND NOT (' + pending_model + ')'
@@ -276,7 +283,8 @@ class PatternCleanupMixin:
                 WHERE {LEARNED_PATTERN_WHERE}
                   AND (ap.cleanup_reviewed_hash IS NULL
                        OR (ap.cleanup_reviewed_hash != ?
-                           AND ap.cleanup_reviewed_hash != cleanup_review_hash(ap.text_template, ks.name)))
+                           AND ap.cleanup_reviewed_hash != cleanup_review_hash(
+                               ap.text_template, ks.name, ap.category)))
                   {pending_filter}
                 ORDER BY ap.cleanup_reviewed_at IS NOT NULL, ap.cleanup_reviewed_at, ap.id
                 LIMIT ?""",  # noqa: S608

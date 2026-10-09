@@ -9,6 +9,8 @@ behavior unconditionally; 'off' skips the chapter step entirely.
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('chapters_mode_test_')
@@ -20,7 +22,8 @@ from config import (
     CHAPTERS_MODE_OFF,
     resolve_chapters_mode,
 )
-from llm_client import ProviderRateLimitedError
+from llm_client import ProviderAccountChangedError, ProviderRateLimitedError
+from cancel import ProcessingCancelled, ProcessingOwnershipLost
 from main_app import processing
 import rate_limit_hold
 from rate_limit_hold import hold_message
@@ -78,7 +81,7 @@ def _db(chapters_mode=None, chapters_enabled=None, upstream_chapters_url=None):
 
 def _run(monkeypatch, db, publisher_chapters, generator_chapters=None, podcast_row=None,
          original_duration=None, fetch_return=None, run_stats=None, markers=None,
-         generator_error=None):
+         generator_error=None, generator_setup_error=None):
     """Invoke the real _generate_assets with all IO seams mocked, returning
     (storage_mock, probe_mock, generator_class_mock, embed_mock, fetch_mock)."""
     storage_mock = MagicMock()
@@ -90,6 +93,7 @@ def _run(monkeypatch, db, publisher_chapters, generator_chapters=None, podcast_r
     transcript_gen_class.return_value.generate_text.return_value = None
 
     generator_class = MagicMock()
+    generator_class.side_effect = generator_setup_error
     generator_class.return_value.generate_chapters.side_effect = generator_error
     generator_class.return_value.generate_chapters.return_value = (
         generator_chapters if generator_chapters is not None
@@ -232,6 +236,29 @@ def test_provider_rate_limit_under_an_active_hold_does_not_alert_again(monkeypat
 
     fire.assert_not_called()
     assert run_stats['chapters_degraded_reason'] == hold_message(active_until, RATE_LIMIT_ERROR)
+
+
+@pytest.mark.parametrize('error', [
+    ProviderAccountChangedError('account changed'),
+    ProcessingCancelled(),
+    ProcessingOwnershipLost(),
+])
+def test_chapter_run_control_errors_escape_generate_assets(monkeypatch, error):
+    with pytest.raises(type(error)):
+        _run(monkeypatch, _db(chapters_mode='generate'), [], generator_error=error)
+
+
+def test_chapter_setup_failure_is_recorded_as_degraded(monkeypatch):
+    run_stats = {}
+    storage, _, generator, _, _ = _run(
+        monkeypatch, _db(chapters_mode='generate'), [], run_stats=run_stats,
+        generator_setup_error=RuntimeError('setup failed'))
+
+    assert run_stats['chapters_degraded'] is True
+    assert run_stats['chapters_degraded_reason'] == (
+        'Chapter generation failed. Check Settings > AI Models and try again.')
+    storage.save_chapters_and_applied_cuts.assert_not_called()
+    generator.assert_called_once()
 
 
 def test_auto_with_one_publisher_chapter_falls_back_to_generate(monkeypatch):

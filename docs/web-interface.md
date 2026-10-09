@@ -276,6 +276,8 @@ When the AI detection pass fails but pattern and cross-fetch evidence already pr
 
 Every processing run records what it actually worked with, and the episode page shows it in a "Processing stats" section at the bottom, collapsed by default. Each row shows when the run started, downloaded length, LLM detection window count, and hits per stage. It also reports the final cut / held / kept split, ad time removed, second-scan result, and token cost. Recuts omit detection details but retain timing for the work they perform.
 
+Completed runs show a chapter warning when generation used a fallback, with the recorded reason available in the run details. If manual chapter regeneration fails, existing chapters stay in place and the episode reports the regeneration error.
+
 Durations use clock formatting (`M:SS` or `H:MM:SS`). The total is elapsed wall-clock time through saving the episode and feed. Stage times can overlap, and FFmpeg runs inside those stages, so the timing columns are not meant to be added together. The FFmpeg total sums every FFmpeg task in the run, including retries. Transcription, detection, or verification configured not to run says Skipped. A missing time in another measured run says Unavailable; a run saved before timing was recorded says Timing unavailable.
 
 Two things make this table earn its place. First, feeds with dynamic ad insertion serve a different copy per download: the Downloaded column shows it directly, and a note calls out when the copy differs from the duration the feed declares. Second, when a run removes far less ad time than the feed's recent average, the episode header shows an amber "Low ad yield" badge with the numbers, so a lightly-filled download does not read as a detection failure.

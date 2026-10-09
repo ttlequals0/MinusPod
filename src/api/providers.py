@@ -12,7 +12,11 @@ from flask import request
 import failover
 import transcriber
 from api import api, error_response, json_response, limiter
-from api.settings import SLOT_ALIASES
+from api.settings import (
+    SLOT_ALIASES, _clear_models_for_identity_changes,
+    _model_identity_snapshot, calibration_revision,
+    finish_settings_payload_after_commit,
+)
 from config import (
     DEFAULT_OPENAI_BASE_URL, HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE,
     PROVIDER_ANTHROPIC, PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE,
@@ -177,28 +181,38 @@ def update_provider(provider):
                 return error_response('base URL failed SSRF validation', 400)
 
     before_identity = _primary_account_identity(provider)
+    previous_calibration = calibration_revision()
+    changed_stages = []
 
-    if 'apiKey' in body:
-        try:
-            set_or_clear_secret(db, cfg['secret'], body['apiKey'])
-        except SecretWriteRejected:
-            return error_response('provider_crypto_unavailable', 409)
-        credentials_changed = True
+    try:
+        with db.settings_transaction():
+            previous_model_identities = _model_identity_snapshot(db)
+            if 'apiKey' in body:
+                set_or_clear_secret(db, cfg['secret'], body['apiKey'])
+                credentials_changed = True
 
-    if cfg['base_url'] and 'baseUrl' in body:
-        url = body['baseUrl']
-        if url:
-            db.set_setting(cfg['base_url'], url)
-            credentials_changed = True
-        # Empty baseUrl ignored; clear via DELETE /providers/<name>. Issue #235.
+            if cfg['base_url'] and 'baseUrl' in body:
+                url = body['baseUrl']
+                if url:
+                    db.set_setting(cfg['base_url'], url)
+                    credentials_changed = True
+                # Empty baseUrl ignored; clear via DELETE /providers/<name>. Issue #235.
 
-    if cfg['model'] and 'model' in body:
-        model = body['model'] or ''
-        db.set_setting(cfg['model'], model)
+            if cfg['model'] and 'model' in body:
+                model = body['model'] or ''
+                db.set_setting(cfg['model'], model)
+
+            changed_stages = _clear_models_for_identity_changes(
+                db, previous_model_identities, {})
+    except SecretWriteRejected:
+        return error_response('provider_crypto_unavailable', 409)
 
     # Identity is read either side of the cache flush: before the write the
     # cache is still current, and after it the next read is fresh.
     payload = _finish_provider_write(db, provider, cfg, before_identity, action)
+
+    if changed_stages:
+        finish_settings_payload_after_commit(db, changed_stages, previous_calibration)
 
     if credentials_changed and provider in _LLM_PROVIDERS:
         clear_hold_for_provider_change(
@@ -242,10 +256,17 @@ def clear_provider(provider):
         return error_response(
             f'affectedRunsAction must be one of: {", ".join(_AFFECTED_RUNS_ACTIONS)}', 400)
     before_identity = _primary_account_identity(provider)
-    db.clear_secret(cfg['secret'])
-    if cfg['base_url']:
-        db.set_setting(cfg['base_url'], '')
+    previous_calibration = calibration_revision()
+    with db.settings_transaction():
+        previous_model_identities = _model_identity_snapshot(db)
+        db.clear_secret(cfg['secret'])
+        if cfg['base_url']:
+            db.set_setting(cfg['base_url'], '')
+        changed_stages = _clear_models_for_identity_changes(
+            db, previous_model_identities, {})
     payload = _finish_provider_write(db, provider, cfg, before_identity, action)
+    if changed_stages:
+        finish_settings_payload_after_commit(db, changed_stages, previous_calibration)
     if provider in _LLM_PROVIDERS:
         # Lift even with no key left: the next run fails for its own reason.
         clear_hold_for_provider_change(

@@ -85,7 +85,7 @@ _EXPORT_CSV_FIELDS = [
     'episode_title', 'processed_at', 'processing_duration_seconds',
     'status', 'ads_detected', 'error_message', 'reprocess_number',
     'input_tokens', 'output_tokens', 'llm_cost', 'downloaded_duration',
-    'app_version',
+    'app_version', 'mode',
 ]
 
 
@@ -110,6 +110,7 @@ def _row_to_json_entry(entry: dict) -> dict:
         # MinusPod version that produced this run; null for rows recorded
         # before 2.78.4.
         'appVersion': entry.get('app_version'),
+        'mode': entry.get('mode'),
     }
 
 

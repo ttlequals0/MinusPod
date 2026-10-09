@@ -1,4 +1,5 @@
 """Podping routes: /podping/* diagnostics for observed podping traffic."""
+import json
 import logging
 
 from flask import request
@@ -6,10 +7,48 @@ from flask import request
 from api import api, get_database, json_response, log_request
 from config import PODPING_HOST_ACTIVE_DAYS
 from podping_listener import (
-    get_node_health_summary, DEGRADED_SETTING, DEGRADED_SINCE_SETTING,
+    DEGRADED_SETTING, DEGRADED_SINCE_SETTING, PODPING_NODE_SETTING,
+    PODPING_NODES, get_node_health_summary, get_podping_nodes,
+    normalize_podping_nodes,
 )
 
 logger = logging.getLogger('podcast.api')
+
+
+@api.route('/podping/nodes', methods=['GET'])
+@log_request
+def get_podping_node_settings():
+    db = get_database()
+    return json_response({
+        'nodes': get_podping_nodes(db),
+        'defaults': list(PODPING_NODES),
+    })
+
+
+@api.route('/podping/nodes', methods=['PUT'])
+@log_request
+def update_podping_node_settings():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or 'nodes' not in payload:
+        return json_response({'error': 'nodes must be a list of HTTP(S) URLs'}, 400)
+    try:
+        nodes = normalize_podping_nodes(payload['nodes'])
+    except ValueError as exc:
+        return json_response({'error': str(exc)}, 400)
+    db = get_database()
+    db.set_setting(PODPING_NODE_SETTING, json.dumps(nodes))
+    return json_response({'nodes': nodes, 'defaults': list(PODPING_NODES)})
+
+
+@api.route('/podping/nodes/reset', methods=['POST'])
+@log_request
+def reset_podping_node_settings():
+    db = get_database()
+    db.clear_setting(PODPING_NODE_SETTING)
+    return json_response({
+        'nodes': list(PODPING_NODES),
+        'defaults': list(PODPING_NODES),
+    })
 
 
 @api.route('/podping/hosts', methods=['GET'])

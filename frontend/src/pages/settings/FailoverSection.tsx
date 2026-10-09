@@ -315,7 +315,10 @@ function FailoverSection({
                 baseUrlInputId="failoverLlmBaseUrl"
                 baseUrlLabel="Failover base URL"
                 baseUrl={llm.baseUrl}
-                onBaseUrlChange={(baseUrl) => onLlmChange({ baseUrl })}
+                onBaseUrlChange={(baseUrl) => onLlmChange(llm.baseUrl === baseUrl ? { baseUrl } : {
+                  baseUrl,
+                  detectionModel: '', reviewModel: '', verificationModel: '', chaptersModel: '',
+                })}
                 slotLabel={SLOT_LABELS.failover}
                 timeoutSeconds={llm.timeoutSeconds}
                 onTimeoutChange={(timeoutSeconds) => onLlmChange({ timeoutSeconds })}

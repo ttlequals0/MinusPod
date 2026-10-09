@@ -43,6 +43,15 @@ describe('EpisodeLogsCard', () => {
     expect(screen.getByText('Run 2')).toBeTruthy();
   });
 
+  it('labels chapter regeneration separately from audio processing', () => {
+    renderCard([
+      makeRun(),
+      makeRun({ runNumber: 2, stats: { mode: 'chapters' } }),
+    ]);
+    expect(screen.getByText('Audio processing')).toBeTruthy();
+    expect(screen.getByText('Chapter regeneration')).toBeTruthy();
+  });
+
   it('offers a view button only for runs that stored a log', () => {
     renderCard([makeRun(), makeRun({ runNumber: 2, hasLog: false })]);
     expect(screen.getAllByRole('button', { name: /View log/ })).toHaveLength(1);

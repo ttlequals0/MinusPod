@@ -1656,6 +1656,56 @@ PROVIDER_OPENAI_COMPATIBLE = 'openai-compatible'
 PROVIDER_OLLAMA = 'ollama'
 PROVIDERS_NON_ANTHROPIC = ('openai-compatible', 'ollama')
 
+_ANTHROPIC_ADAPTIVE_ONLY_MODELS = (
+    'claude-opus-4-7',
+    'claude-opus-4-8',
+    'claude-opus-5-5',
+    'claude-sonnet-5-5',
+    'claude-fable-5-1',
+    'claude-mythos-5-1',
+    'claude-opus-5',
+    'claude-sonnet-5',
+    'claude-fable-5',
+    'claude-mythos-5',
+    'claude-haiku-5-5',
+)
+_ANTHROPIC_DISABLED_THINKING_MODELS = (
+    'claude-opus-4-7',
+    'claude-opus-4-8',
+    'claude-sonnet-5',
+    'claude-opus-5',
+    'claude-haiku-5-5',
+)
+_ANTHROPIC_NO_FORCED_TOOL_MODELS = (
+    'claude-opus-5-5',
+    'claude-sonnet-5-5',
+    'claude-fable-5-1',
+    'claude-mythos-5-1',
+)
+
+
+def _anthropic_model_matches(model: str | None, tokens: tuple[str, ...]) -> bool:
+    if not model:
+        return False
+    lowered = model.lower()
+    suffix = r'(?=$|-(?:\d{8}|latest)(?:$|[/]))'
+    return any(re.search(re.escape(token) + suffix, lowered) for token in tokens)
+
+
+def anthropic_model_requires_adaptive_thinking(model: str | None) -> bool:
+    """Whether ``model`` rejects manual thinking budgets and uses adaptive effort."""
+    return _anthropic_model_matches(model, _ANTHROPIC_ADAPTIVE_ONLY_MODELS)
+
+
+def anthropic_model_allows_disabled_thinking(model: str | None) -> bool:
+    """Whether adaptive thinking can be disabled for ``model`` at low effort."""
+    return _anthropic_model_matches(model, _ANTHROPIC_DISABLED_THINKING_MODELS)
+
+
+def anthropic_model_supports_forced_tools(model: str | None) -> bool:
+    """Whether Anthropic accepts a forced tool choice for ``model``."""
+    return not _anthropic_model_matches(model, _ANTHROPIC_NO_FORCED_TOOL_MODELS)
+
 # ============================================================
 # Model Configuration Errors
 # ============================================================
@@ -2069,23 +2119,28 @@ def resolve_chapter_geometry(settings: dict | None = None):
     return target, window, max_boundaries, min_duration
 
 
-def resolve_stage_tunables(prefix: str, settings: dict | None = None,
-                           provider: str | None = None):
-    """Read (max_tokens, temperature, reasoning) for a stage prefix.
-
-    Reasoning picks the right key based on ``provider``, the provider this
-    stage's call is actually routed to: numeric budget for Anthropic, string
-    enum level for everyone else. Omitted, it falls back to the global
-    effective provider, which is wrong for a stage routed elsewhere. Stage
-    modules call this once at LLM-call time; the DB reads are cached.
-    """
+def resolve_stage_reasoning(prefix: str, settings: dict | None = None,
+                            provider: str | None = None, model: str | None = None):
+    """Resolve the stage's reasoning value for its routed provider and model."""
     from llm_client import get_effective_provider  # lazy: llm_client imports config
+    effective_provider = provider or get_effective_provider()
+    if effective_provider == PROVIDER_ANTHROPIC:
+        if model and anthropic_model_requires_adaptive_thinking(model):
+            key = f'{prefix}_reasoning_level'
+        else:
+            key = f'{prefix}_reasoning_budget'
+    else:
+        key = f'{prefix}_reasoning_level'
+    return get_stage_tunable(key, settings=settings)
+
+
+def resolve_stage_tunables(prefix: str, settings: dict | None = None,
+                           provider: str | None = None, model: str | None = None):
+    """Resolve stage tunables using the routed provider and model."""
     max_tokens = get_stage_tunable(f'{prefix}_max_tokens', settings=settings)
     temperature = get_stage_tunable(f'{prefix}_temperature', settings=settings)
-    if (provider or get_effective_provider()) == PROVIDER_ANTHROPIC:
-        reasoning = get_stage_tunable(f'{prefix}_reasoning_budget', settings=settings)
-    else:
-        reasoning = get_stage_tunable(f'{prefix}_reasoning_level', settings=settings)
+    reasoning = resolve_stage_reasoning(
+        prefix, settings=settings, provider=provider, model=model)
     return max_tokens, temperature, reasoning
 
 

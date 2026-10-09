@@ -6,6 +6,11 @@ from typing import Union
 
 import failover
 import run_context
+from config import (
+    PROVIDER_ANTHROPIC,
+    anthropic_model_requires_adaptive_thinking,
+    resolve_stage_reasoning,
+)
 from llm_capabilities import supports_json_schema
 from llm_client import (
     is_review_inconclusive_error,
@@ -73,15 +78,7 @@ def schema_format_for(model, name: str, schema: dict,
                       description: str | None = None,
                       allow_provider_schema: bool = False,
                       provider: str | None = None) -> dict:
-    """json_schema response_format when `model` supports it, else json_object.
-
-    ``allow_provider_schema`` additionally accepts a provider with a proven
-    schema path (Anthropic). Only for call sites that send no reasoning
-    budget: see supports_json_schema_for_calls for why the two gates differ.
-
-    ``provider``, when given, is the resolved route's provider for this
-    call; omitted, this falls back to the global effective provider.
-    """
+    """Use a model-probed schema or an explicitly allowed provider schema."""
     if supports_json_schema_for_calls(model) or (
             allow_provider_schema
             and supports_json_schema(provider or get_effective_provider())):
@@ -295,10 +292,21 @@ def _finalize_attempt(db, attempt_id, state, response, ctx) -> None:
     ctx.tokens.add(usage.get('input_tokens') or 0, usage.get('output_tokens') or 0, cost)
 
 
-def _apply_reasoning_fallback(llm_kwargs, *, slug, episode_id, call_label) -> None:
-    """Turn reasoning off before the retry an exhausted budget earns. An unset
-    effort flips too: the model reasoned unasked, so 'none' is a different
-    request; an effort already at 'none' retries the same request."""
+def _apply_reasoning_fallback(
+    llm_kwargs, *, slug, episode_id, call_label, model=None, provider=None,
+) -> None:
+    """Reduce reasoning before the retry an exhausted budget earns."""
+    if (provider == 'anthropic'
+            and anthropic_model_requires_adaptive_thinking(model)):
+        current = llm_kwargs.get('reasoning_effort')
+        if current in ('low', 'none'):
+            return
+        llm_kwargs['reasoning_effort'] = 'low'
+        logger.warning(
+            f"[{slug}:{episode_id}] {call_label} reasoning exhausted the output budget; "
+            "retrying with low adaptive effort"
+        )
+        return
     if llm_kwargs.get('reasoning_effort') in ('', 'none'):
         return
     llm_kwargs['reasoning_effort'] = 'none'
@@ -596,7 +604,8 @@ def _failover_result_error(fo_error, original_error):
 
 
 def _dispatch_on_failover(run_ladder, llm_kwargs, last_error, *, target, phase, provider_key,
-                         credential_slot, model, slug, episode_id, call_label):
+                         credential_slot, model, slug, episode_id, call_label,
+                         stage_tunable_prefix=None, reasoning_retried=False):
     """Retry on standby and return its effective response or error."""
     try:
         failover.trigger(target, f"{call_label}: {type(last_error).__name__}: {str(last_error)[:200]}",
@@ -609,8 +618,22 @@ def _dispatch_on_failover(run_ladder, llm_kwargs, last_error, *, target, phase, 
         return None, last_error
     fo_kwargs = {**llm_kwargs, 'model': route.model_id,
                  'timeout': get_llm_timeout(route.provider_key, SLOT_FAILOVER)}
+    if stage_tunable_prefix:
+        stage_reasoning = resolve_stage_reasoning(
+            stage_tunable_prefix, provider=route.provider_key, model=route.model_id)
+        if reasoning_retried:
+            reasoning = llm_kwargs.get('reasoning_effort')
+            if (route.provider_key == PROVIDER_ANTHROPIC
+                    and not anthropic_model_requires_adaptive_thinking(route.model_id)
+                    and reasoning not in (None, 'none')):
+                reasoning = 'none'
+        else:
+            reasoning = stage_reasoning
+        fo_kwargs['reasoning_effort'] = reasoning
     rf = llm_kwargs.get('response_format') or {}
-    if rf.get('type') == 'json_schema' and not supports_json_schema_for_calls(route.model_id):
+    if (rf.get('type') == 'json_schema'
+            and not supports_json_schema(route.provider_key)
+            and not supports_json_schema_for_calls(route.model_id)):
         fo_kwargs['response_format'] = {'type': 'json_object'}
     logger.warning(f"[{slug}:{episode_id}] {call_label} switching to failover provider "
                    f"{route.provider_key} model {route.model_id}")
@@ -647,6 +670,7 @@ def call_llm(
     blank_json_is_failure: bool = False,
     is_window: bool = False,
     route_phase: str | None = None,
+    stage_tunable_prefix: str | None = None,
 ) -> tuple[object | None, Exception | None]:
     """Return (response, last_error) after account-scoped retries and eligible standby dispatch.
     route_phase selects standby model; phase_key labels usage; is_window logs coverage loss.
@@ -698,8 +722,9 @@ def call_llm(
                     )
                     raise
                 reasoning_retried = True
-                _apply_reasoning_fallback(llm_kwargs, slug=slug, episode_id=episode_id,
-                                          call_label=call_label)
+                _apply_reasoning_fallback(
+                    llm_kwargs, slug=slug, episode_id=episode_id,
+                    call_label=call_label, model=model, provider=provider_key)
             held = _manual_rate_limit_error(provider_key, credential_slot, slug,
                                             episode_id, phase=phase_key)
             if held is not None:
@@ -835,7 +860,9 @@ def call_llm(
             response, last_error = _dispatch_on_failover(
                 _run_ladder, llm_kwargs, last_error, target=target, phase=phase,
                 provider_key=provider_key, credential_slot=credential_slot, model=model,
-                slug=slug, episode_id=episode_id, call_label=call_label)
+                slug=slug, episode_id=episode_id, call_label=call_label,
+                stage_tunable_prefix=stage_tunable_prefix,
+                reasoning_retried=reasoning_retried)
         except Exception as e:
             logger.warning(f"[{slug}:{episode_id}] {call_label} failover dispatch errored: {e}")
             last_error = _failover_result_error(e, last_error)

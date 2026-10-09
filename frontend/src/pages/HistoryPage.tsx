@@ -238,6 +238,9 @@ function HistoryPage() {
                 >
                   {entry.episodeTitle}
                 </Link>
+                {entry.mode === 'chapters' && (
+                  <p className="text-xs text-muted-foreground">Chapter regeneration</p>
+                )}
                 {entry.status !== 'completed' && entry.errorMessage && (
                   <p
                     className="text-xs text-destructive truncate cursor-help mt-1"
@@ -255,7 +258,7 @@ function HistoryPage() {
                     Audio: {formatDurationPrecise(entry.downloadedDuration)}
                   </span>
                 )}
-                <span>Ads: {entry.adsDetected}</span>
+                <span>Ads: {entry.mode === 'chapters' ? '-' : entry.adsDetected}</span>
                 {entry.llmCost != null && entry.llmCost > 0 && <span>${entry.llmCost.toFixed(2)}</span>}
                 {entry.reprocessNumber > 1 && <span>#{entry.reprocessNumber}</span>}
               </div>
@@ -320,6 +323,9 @@ function HistoryPage() {
                       >
                         {entry.episodeTitle}
                       </Link>
+                      {entry.mode === 'chapters' && (
+                        <span className="block text-xs text-muted-foreground">Chapter regeneration</span>
+                      )}
                       {entry.status !== 'completed' && entry.errorMessage && (
                         <span
                           className="block text-xs text-destructive truncate max-w-[200px] cursor-help mt-1"
@@ -341,7 +347,7 @@ function HistoryPage() {
                         : '-'}
                     </td>
                     <td className="px-4 py-3 text-sm text-foreground">
-                      {entry.adsDetected}
+                      {entry.mode === 'chapters' ? '-' : entry.adsDetected}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
                       {entry.llmCost != null && entry.llmCost > 0 ? `$${entry.llmCost.toFixed(2)}` : '-'}

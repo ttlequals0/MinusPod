@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FailoverSection from './FailoverSection';
@@ -203,6 +203,24 @@ describe('FailoverSection LLM failover', () => {
     await userEvent.selectOptions(screen.getByLabelText('Failover provider type'), 'anthropic');
     expect(onLlmChange).toHaveBeenCalledWith({
       provider: 'anthropic', baseUrl: '',
+      detectionModel: '', reviewModel: '', verificationModel: '', chaptersModel: '',
+    });
+  });
+
+  it('clears failover models when the base URL changes', async () => {
+    const onLlmChange = vi.fn();
+    renderSection({ onLlmChange, llm: {
+      ...baseLlm, enabled: true, provider: 'ollama', baseUrl: 'http://old.example/v1',
+      detectionModel: 'old-detection', verificationModel: 'old-verification',
+    } });
+    await openSection();
+
+    fireEvent.change(screen.getByLabelText('Failover base URL'), {
+      target: { value: 'http://new.example/v1' },
+    });
+
+    expect(onLlmChange).toHaveBeenCalledWith({
+      baseUrl: 'http://new.example/v1',
       detectionModel: '', reviewModel: '', verificationModel: '', chaptersModel: '',
     });
   });

@@ -12,6 +12,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('settings_test_', passphrase='settings-validation-test-passphrase')
 
 import database
+from api import settings as settings_api
 from main_app import app
 from rate_limit_hold import (
     clear_hold, get_hold_until, is_queue_paused, record_hold_until,
@@ -416,8 +417,7 @@ class TestWebhookUrlValidation:
 
 
 class TestWebhookTestEndpointMessage:
-    """The Test button's summary names the events whose payload template
-    could not render (the default payload was sent for them)."""
+    """The Test summary lists events that used a fallback payload."""
 
     @staticmethod
     def _post_test(client, results):
@@ -437,7 +437,7 @@ class TestWebhookTestEndpointMessage:
         assert data['success'] is True
         assert data['message'] == (
             '3 of 3 test payloads delivered; template could not render for 2 events '
-            '(default payload sent): Auth Failure, Limit Exceeded'
+            '(default payload used): Auth Failure, Limit Exceeded'
         )
         assert data['results'][1]['templateFallback'] is True
 
@@ -447,7 +447,17 @@ class TestWebhookTestEndpointMessage:
         ])
         assert data['message'] == (
             '1 of 1 test payload delivered; template could not render for 1 event '
-            '(default payload sent): Auth Failure'
+            '(default payload used): Auth Failure'
+        )
+
+    def test_fallback_message_is_independent_of_delivery_failure(self, client):
+        data = self._post_test(client, [
+            {'event': 'Auth Failure', 'delivered': False, 'templateFallback': True},
+        ])
+        assert data['success'] is False
+        assert data['message'] == (
+            '0 of 1 test payload delivered; template could not render for 1 event '
+            '(default payload used): Auth Failure'
         )
 
     def test_message_unchanged_without_fallback(self, client):
@@ -506,15 +516,10 @@ class TestPartialUpdatePreservesOtherFields:
         assert db.get_setting('whisper_api_model') == 'whisper-1'
 
 
-class TestProviderChangeModelPruning:
-    """Provider-change pruning at _apply_provider_fields must NOT reset saved
-    model IDs when the new provider's catalog probe came back empty -- that
-    means the lookup failed (bad key, network 5xx, unreachable), not that
-    every prior model is invalid. Issue #266: changing the provider with a
-    misconfigured key was wiping claude_model / verification_model /
-    chapters_model on every save."""
+class TestProviderChangeModelIdentity:
+    """Provider identity changes clear stale models without a catalog request."""
 
-    def test_empty_catalog_preserves_existing_model_selections(self, client):
+    def test_empty_catalog_does_not_preserve_old_provider_models(self, client):
         db = database.Database()
         db.set_setting('llm_provider', 'anthropic', is_default=False)
         db.set_setting('claude_model', 'claude-sonnet-4-5-20250929', is_default=False)
@@ -534,11 +539,15 @@ class TestProviderChangeModelPruning:
             )
         assert response.status_code == 200, response.data
         assert db.get_setting('llm_provider') == 'openai-compatible'
-        assert db.get_setting('claude_model') == 'claude-sonnet-4-5-20250929'
-        assert db.get_setting('verification_model') == 'claude-sonnet-4-5-20250929'
-        assert db.get_setting('chapters_model') == 'claude-haiku-4-5-20251001'
+        assert db.get_setting('claude_model') == ''
+        assert db.get_setting('verification_model') == ''
+        assert db.get_setting('chapters_model') == ''
+        settings_response = client.get('/api/v1/settings')
+        settings_payload = json.loads(settings_response.data)
+        assert settings_payload['claudeModel']['value'] == ''
+        assert settings_payload['claudeModel']['isDefault'] is False
 
-    def test_list_models_raises_preserves_existing_model_selections(self, client):
+    def test_identity_clearing_does_not_depend_on_catalog_request_success(self, client):
         db = database.Database()
         db.set_setting('llm_provider', 'anthropic', is_default=False)
         db.set_setting('claude_model', 'claude-sonnet-4-5-20250929', is_default=False)
@@ -553,13 +562,9 @@ class TestProviderChangeModelPruning:
                 content_type='application/json',
             )
         assert response.status_code == 200, response.data
-        assert db.get_setting('claude_model') == 'claude-sonnet-4-5-20250929'
+        assert db.get_setting('claude_model') == ''
 
-    def test_populated_catalog_still_prunes_stale_selections(self, client):
-        """The prune is the original feature -- a model not in the new
-        provider's catalog still gets cleared (unset, not rewritten to a
-        literal). Regression guard so the empty-list fix above does not
-        over-correct into never-pruning."""
+    def test_same_provider_save_does_not_clear_models_by_catalog_membership(self, client):
         db = database.Database()
         db.set_setting('llm_provider', 'anthropic', is_default=False)
         db.set_setting('claude_model', 'openai/gpt-stale', is_default=False)
@@ -577,14 +582,10 @@ class TestProviderChangeModelPruning:
                 content_type='application/json',
             )
         assert response.status_code == 200, response.data
-        assert db.get_setting('claude_model') is None
+        assert db.get_setting('claude_model') == 'openai/gpt-stale'
         assert db.get_setting('chapters_model') == 'claude-haiku-4-5-20251001'
 
-    def test_model_typed_in_the_same_request_survives_the_prune(self, client):
-        """An off-catalog ID sent in the same PUT as the provider change is
-        operator intent (the typed-model-ID entry exists for proxies and
-        private deployments), not stale carryover, and must not be cleared.
-        A stale setting the request did not touch is still pruned."""
+    def test_explicit_off_catalog_model_survives_identity_change(self, client):
         db = database.Database()
         db.set_setting('llm_provider', 'anthropic', is_default=False)
         db.set_setting('chapters_model', 'openai/gpt-stale', is_default=False)
@@ -605,12 +606,10 @@ class TestProviderChangeModelPruning:
         assert response.status_code == 200, response.data
         # Typed in this request: survives despite being off-catalog.
         assert db.get_setting('claude_model') == 'my-proxy-model'
-        # Untouched stale selection: still pruned.
-        assert db.get_setting('chapters_model') is None
+        # Untouched selection: cleared with the old provider identity.
+        assert db.get_setting('chapters_model') == ''
 
-    def test_stale_review_model_is_pruned_and_falls_back_to_pass_model(self, client):
-        """review_model was missing from the prune map, so a reviewer model
-        saved against the old provider kept billing after a switch."""
+    def test_stale_review_model_is_cleared_with_the_pass_provider_identity(self, client):
         db = database.Database()
         db.set_setting('llm_provider', 'openai-compatible', is_default=False)
         db.set_setting('claude_model', 'z-ai/glm-5.3-flash', is_default=False)
@@ -627,7 +626,7 @@ class TestProviderChangeModelPruning:
                 content_type='application/json',
             )
         assert response.status_code == 200, response.data
-        assert db.get_setting('review_model') is None
+        assert db.get_setting('review_model') == ''
 
         from ad_reviewer import AdReviewer
         reviewer = AdReviewer.__new__(AdReviewer)
@@ -636,9 +635,9 @@ class TestProviderChangeModelPruning:
 
         get_response = client.get('/api/v1/settings')
         assert get_response.status_code == 200, get_response.data
-        assert json.loads(get_response.data)['reviewModel']['value'] == 'same_as_pass'
+        assert json.loads(get_response.data)['reviewModel']['value'] == ''
 
-    def test_review_model_written_by_the_same_request_survives_the_prune(self, client):
+    def test_review_model_written_by_the_same_request_survives_identity_change(self, client):
         db = database.Database()
         db.set_setting('llm_provider', 'anthropic', is_default=False)
         db.set_setting('review_model', 'claude-opus-5', is_default=False)
@@ -659,7 +658,7 @@ class TestProviderChangeModelPruning:
         assert response.status_code == 200, response.data
         assert db.get_setting('review_model') == 'my-proxy-reviewer'
 
-    def test_empty_catalog_preserves_review_model(self, client):
+    def test_identity_change_clears_review_model_without_catalog(self, client):
         db = database.Database()
         db.set_setting('llm_provider', 'anthropic', is_default=False)
         db.set_setting('review_model', 'claude-opus-5', is_default=False)
@@ -674,14 +673,9 @@ class TestProviderChangeModelPruning:
                 content_type='application/json',
             )
         assert response.status_code == 200, response.data
-        assert db.get_setting('review_model') == 'claude-opus-5'
+        assert db.get_setting('review_model') == ''
 
-    def test_stage_with_explicit_provider_override_is_not_pruned_by_global_change(self, client):
-        """verification_provider='secondary' routes verification away from
-        the global (primary) provider, so its saved model must survive a
-        global llmProvider change even though it is not in the new global
-        provider's catalog. An un-overridden stage (claude_model, still
-        following global) prunes as before."""
+    def test_stage_on_unchanged_secondary_account_survives_primary_change(self, client):
         db = database.Database()
         db.set_setting('llm_provider', 'anthropic', is_default=False)
         db.set_setting('claude_model', 'openai/gpt-stale', is_default=False)
@@ -702,16 +696,110 @@ class TestProviderChangeModelPruning:
             )
         try:
             assert response.status_code == 200, response.data
-            # Routed to ollama, never checked against the new global catalog.
+            # Its provider slot did not change.
             assert db.get_setting('verification_model') == 'llama3'
-            # Still following the global provider: pruned as before.
-            assert db.get_setting('claude_model') is None
+            assert db.get_setting('claude_model') == ''
         finally:
             db.clear_setting('secondary_provider_enabled')
             db.clear_setting('secondary_provider')
             db.clear_setting('verification_provider')
 
-    def test_same_as_pass_sentinel_is_not_pruned(self, client):
+    def test_stage_routing_change_clears_only_that_stage_model(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+        db.set_setting('secondary_provider', 'ollama', is_default=False)
+        db.set_setting('claude_model', 'claude-sonnet-4-5-20250929', is_default=False)
+        db.set_setting('verification_model', 'claude-haiku-4-5-20251001', is_default=False)
+        db.set_setting('chapters_model', 'claude-haiku-4-5-20251001', is_default=False)
+
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'verificationProvider': 'secondary'}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200, response.data
+        assert db.get_setting('claude_model') == 'claude-sonnet-4-5-20250929'
+        assert db.get_setting('verification_model') == ''
+        assert db.get_setting('chapters_model') == 'claude-haiku-4-5-20251001'
+
+    def test_explicit_replacement_models_survive_route_change(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+        db.set_setting('secondary_provider', 'ollama', is_default=False)
+        db.set_setting('verification_model', 'old-model', is_default=False)
+
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'verificationProvider': 'secondary',
+                'verificationModel': 'private/verification-model',
+            }),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200, response.data
+        assert db.get_setting('verification_model') == 'private/verification-model'
+
+    def test_primary_key_only_update_keeps_model_selection(self, client, monkeypatch):
+        db = database.Database()
+        db.set_setting('llm_provider', 'openrouter', is_default=False)
+        db.set_setting('claude_model', 'private/openrouter-model', is_default=False)
+        monkeypatch.setattr('api.settings.set_or_clear_secret', lambda *_args: None)
+        fake_client = MagicMock()
+        fake_client.probe_json_format_support.return_value = None
+
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'openrouterApiKey': 'sk-or-new-key'}),
+                content_type='application/json',
+            )
+
+        assert response.status_code == 200, response.data
+        assert db.get_setting('claude_model') == 'private/openrouter-model'
+
+    def test_failover_endpoint_change_clears_only_unsupplied_models(self, client):
+        db = database.Database()
+        db.set_setting('failover_llm_provider', 'openai-compatible', is_default=False)
+        db.set_setting('failover_llm_base_url', 'https://old.example/v1', is_default=False)
+        db.set_setting('failover_llm_detection_model', 'old-detection', is_default=False)
+        db.set_setting('failover_llm_review_model', '', is_default=False)
+        db.set_setting('failover_llm_verification_model', 'old-verification', is_default=False)
+        db.set_setting('failover_llm_chapters_model', 'old-chapters', is_default=False)
+
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'failoverLlmBaseUrl': 'https://new.example/v1',
+                'failoverLlmDetectionModel': 'private/new-model',
+            }),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200, response.data
+        assert db.get_setting('failover_llm_detection_model') == 'private/new-model'
+        assert db.get_setting('failover_llm_review_model') == ''
+        assert db.get_setting('failover_llm_verification_model') == ''
+        assert db.get_setting('failover_llm_chapters_model') == ''
+
+    def test_global_provider_change_clears_cleanup_model(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('pattern_cleanup_model', 'old-cleanup-model', is_default=False)
+
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'llmProvider': 'openrouter'}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200, response.data
+        assert db.get_setting('pattern_cleanup_model') == ''
+
+    def test_same_as_pass_sentinel_survives_identity_change(self, client):
         db = database.Database()
         db.set_setting('llm_provider', 'anthropic', is_default=False)
         db.set_setting('review_model', 'same_as_pass', is_default=False)
@@ -731,9 +819,7 @@ class TestProviderChangeModelPruning:
 
 
     def test_single_put_routing_detection_to_secondary_keeps_its_model(self, client):
-        """One PUT that enables the secondary slot and routes detection to it
-        must not prune claude_model against the new global catalog: after the
-        save, detection no longer follows the global provider."""
+        """Changing the detection route changes its model account identity."""
         db = database.Database()
         previous = (db.get_setting('llm_provider'), db.get_setting('claude_model'))
         db.set_setting('llm_provider', 'anthropic', is_default=False)
@@ -756,7 +842,7 @@ class TestProviderChangeModelPruning:
                     content_type='application/json',
                 )
             assert response.status_code == 200, response.data
-            assert db.get_setting('claude_model') == 'llama3'
+            assert db.get_setting('claude_model') == ''
         finally:
             db.clear_setting('secondary_provider_enabled')
             db.clear_setting('secondary_provider')
@@ -1012,6 +1098,93 @@ class TestPerPhaseProviderSettings:
 
 
 class TestOpenaiBaseUrlValidation:
+    def test_pure_settings_validator_checks_url_syntax_without_dns(self, monkeypatch):
+        db = database.Database()
+        monkeypatch.setattr(
+            settings_api, 'validate_base_url',
+            lambda *_args: pytest.fail('pure settings validation must not resolve provider URLs'))
+
+        assert settings_api.validate_settings_payload(
+            db, {'openaiBaseUrl': 'https://provider.example/v1'}) is None
+        assert settings_api.validate_settings_payload(
+            db, {'openaiBaseUrl': 'file:///etc/passwd'}) == (
+                "Invalid base URL: Blocked URL scheme: 'file'", 400)
+
+    def test_provider_endpoint_security_validation_runs_before_write_transaction(
+            self, client, monkeypatch):
+        db = database.Database()
+
+        def validate_outside_transaction(value):
+            assert not db.in_settings_transaction()
+
+        monkeypatch.setattr(settings_api, 'validate_base_url', validate_outside_transaction)
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'secondaryProviderBaseUrl': 'https://provider.example/v1'}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200, response.data
+
+    @pytest.mark.parametrize(('payload', 'expected'), [
+        ({'providerRequestsPerMin': -1}, 'providerRequestsPerMin must be at least 0'),
+        ({'detectionProvider': 'unknown'}, 'detectionProvider must be one of:'),
+        ({'adAddressingMode': 'invalid'}, 'adAddressingMode must be'),
+        ({'queueManualBoost': 101}, 'queueManualBoost must be between 0 and 100'),
+        ({'adChapterTitleFormat': '{invalid}'}, 'adChapterTitleFormat must be text'),
+        ({'audioCueFreqMinHz': 500, 'audioCueFreqMaxHz': 400},
+         'audioCueFreqMinHz must be below audioCueFreqMaxHz'),
+        ({'maxAdDurationSeconds': 901}, 'maxAdDurationSeconds cannot exceed'),
+    ])
+    def test_shared_validator_rejects_invalid_values_without_writes(self, payload, expected):
+        db = database.Database()
+        before = db.get_all_settings()
+
+        issue = settings_api.validate_settings_payload(db, payload)
+
+        assert issue is not None
+        assert issue[0].startswith(expected)
+        assert db.get_all_settings() == before
+
+    def test_stage_reset_validation_uses_environment_default(self, preserve_setting, monkeypatch):
+        db = database.Database()
+        for key in ('window_size_seconds', 'window_overlap_seconds',
+                    'chapter_target_seconds', 'chapter_window_seconds',
+                    'chapter_min_duration_seconds'):
+            preserve_setting(key)
+        monkeypatch.setenv('WINDOW_SIZE_SECONDS', '600')
+        monkeypatch.setenv('CHAPTER_TARGET_SECONDS', '600')
+        db.set_setting('window_size_seconds', '3600')
+        db.set_setting('window_overlap_seconds', '1500')
+        db.set_setting('chapter_target_seconds', '900')
+        db.set_setting('chapter_window_seconds', '2700')
+        db.set_setting('chapter_min_duration_seconds', '700')
+
+        window_issue = settings_api.validate_settings_payload(
+            db, {'windowSizeSeconds': None})
+        chapter_issue = settings_api.validate_settings_payload(
+            db, {'chapterTargetSeconds': None})
+
+        assert window_issue == (
+            'windowOverlapSeconds must be less than windowSizeSeconds', 400)
+        assert chapter_issue == (
+            'chapterMinDurationSeconds must not exceed chapterTargetSeconds', 400)
+
+    def test_resetting_related_stage_values_validates_their_defaults(
+            self, preserve_setting, monkeypatch):
+        db = database.Database()
+        for key in ('window_size_seconds', 'window_overlap_seconds'):
+            preserve_setting(key)
+        monkeypatch.setenv('WINDOW_SIZE_SECONDS', '600')
+        monkeypatch.setenv('WINDOW_OVERLAP_SECONDS', '300')
+        db.set_setting('window_size_seconds', '3600')
+        db.set_setting('window_overlap_seconds', '1500')
+
+        assert settings_api.validate_settings_payload(db, {
+            'windowSizeSeconds': None,
+            'windowOverlapSeconds': None,
+        }) is None
+
     def test_put_rejects_userinfo_base_url(self, client):
         db = database.Database()
         before = db.get_setting('openai_base_url')

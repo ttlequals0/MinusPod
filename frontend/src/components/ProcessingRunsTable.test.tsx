@@ -158,6 +158,28 @@ describe('ProcessingRunsTable', () => {
     expect(table.getByText('clean')).toBeTruthy();
   });
 
+  it('labels chapter regeneration runs without exposing the raw mode', () => {
+    const chapterRun = { ...statsRun, stats: { ...statsRun.stats!, mode: 'chapters' } };
+    const table = renderTable([chapterRun]);
+    expect(table.getByText('(Chapter regeneration)')).toBeTruthy();
+    expect(table.queryByText('(chapters)')).toBeNull();
+    const row = table.getByText('(Chapter regeneration)').closest('tr');
+    expect(row?.querySelectorAll('td')[8].textContent).toBe('-');
+  });
+
+  it('marks non-chapter timing stages as not applicable for chapter regeneration', () => {
+    const chapterRun: EpisodeProcessingRun = {
+      ...statsRun,
+      runNumber: 9,
+      stats: { mode: 'chapters', timings: { chaptersSeconds: 12, ffmpegSeconds: 2 } },
+    };
+    const table = renderTable([chapterRun]);
+    fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #9/i }));
+    expect(table.getByText('Detection').nextSibling?.textContent).toBe('Not applicable');
+    expect(table.getByText('Chapters').nextSibling?.textContent).toBe('0:12');
+    expect(table.getByText('FFmpeg').nextSibling?.textContent).toBe('0:02');
+  });
+
   it('shows the source time cut next to the net time when beeps were inserted', () => {
     const beepRun = {
       ...statsRun,
@@ -396,5 +418,37 @@ describe('failed run error disclosure', () => {
     render(<ProcessingRunsTable runs={[{ ...failedRun, errorMessage: null }]} />);
     expect(screen.queryByRole('button', { name: /failed/i })).toBeNull();
     expect(screen.getAllByText('failed').length).toBeGreaterThan(0);
+  });
+});
+
+describe('chapter degradation result', () => {
+  it('warns for a completed fallback in the desktop table and mobile card', () => {
+    const degradedRun: EpisodeProcessingRun = {
+      ...statsRun,
+      stats: {
+        ...statsRun.stats!,
+        chaptersDegraded: true,
+        chaptersDegradedReason: 'Chapter AI is unavailable. Check Settings > AI Models, then try again.',
+      },
+    };
+    render(<ProcessingRunsTable runs={[degradedRun]} />);
+
+    expect(screen.getAllByText('completed with chapter warning')).toHaveLength(2);
+    expect(screen.getAllByText(degradedRun.stats!.chaptersDegradedReason!)).toHaveLength(2);
+    expect(screen.getAllByText(/regenerate chapters after recovery/i)).toHaveLength(2);
+  });
+
+  it('keeps legacy and failed runs on their existing result labels', () => {
+    render(<ProcessingRunsTable runs={[legacyRun, {
+      ...legacyRun,
+      runNumber: 8,
+      status: 'failed',
+      errorMessage: 'Audio processing failed',
+      stats: { chaptersDegraded: true, chaptersDegradedReason: 'Chapter warning' },
+    }]} />);
+
+    expect(screen.getAllByText('completed')).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /failed/i })).toHaveLength(2);
+    expect(screen.queryByText('completed with chapter warning')).toBeNull();
   });
 });

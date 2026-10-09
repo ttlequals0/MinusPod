@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('feed_304_test_')
-from main_app.feeds import refresh_rss_feed
+from main_app.feeds import refresh_rss_feed, _rss_cache_stale
 import main_app.feeds as _feeds_module
 
 
@@ -153,6 +153,58 @@ class TestFeed304Refresh(unittest.TestCase):
         self.assertEqual(rss_parser.fetch_feed_conditional.call_count, 2)
         second_call = rss_parser.fetch_feed_conditional.call_args_list[1]
         self.assertIsNone(second_call[1].get('etag'))
+
+
+class TestRSSCacheStale(unittest.TestCase):
+    def test_hidden_processed_episode_does_not_make_cache_stale(self):
+        with patch('main_app.feeds.storage.get_rss', return_value='<rss><item>visible</item></rss>'), \
+                patch('main_app.feeds.db.get_processed_episodes_for_feed', return_value=[{
+                    'episode_id': 'hidden-id', 'title': 'Weekly Sponsor Message',
+                }]):
+            podcast = {
+                'id': 1,
+                'title_skip_action': 'hide',
+                'title_skip_patterns': '["weekly sponsor*"]',
+            }
+            self.assertFalse(_rss_cache_stale('example-podcast', podcast))
+
+    def test_hidden_match_still_makes_cache_stale_for_other_actions(self):
+        for action in (None, 'serve_original'):
+            with self.subTest(action=action), \
+                    patch('main_app.feeds.storage.get_rss', return_value='<rss><item>visible</item></rss>'), \
+                    patch('main_app.feeds.db.get_processed_episodes_for_feed', return_value=[{
+                        'episode_id': 'hidden-id', 'title': 'Weekly Sponsor Message',
+                    }]):
+                podcast = {
+                    'id': 1,
+                    'title_skip_action': action,
+                    'title_skip_patterns': '["weekly sponsor*"]',
+                }
+                self.assertTrue(_rss_cache_stale('example-podcast', podcast))
+
+    def test_missing_visible_processed_episode_makes_cache_stale(self):
+        with patch('main_app.feeds.storage.get_rss', return_value='<rss><item>other</item></rss>'), \
+                patch('main_app.feeds.db.get_processed_episodes_for_feed', return_value=[{
+                    'episode_id': 'visible-id', 'title': 'Interview',
+                }]):
+            podcast = {
+                'id': 1,
+                'title_skip_action': 'hide',
+                'title_skip_patterns': '["weekly sponsor*"]',
+            }
+            self.assertTrue(_rss_cache_stale('example-podcast', podcast))
+
+    def test_missing_cache_is_stale_even_when_only_episode_is_hidden(self):
+        with patch('main_app.feeds.storage.get_rss', return_value=None), \
+                patch('main_app.feeds.db.get_processed_episodes_for_feed', return_value=[{
+                    'episode_id': 'hidden-id', 'title': 'Weekly Sponsor Message',
+                }]):
+            podcast = {
+                'id': 1,
+                'title_skip_action': 'hide',
+                'title_skip_patterns': '["weekly sponsor*"]',
+            }
+            self.assertTrue(_rss_cache_stale('example-podcast', podcast))
 
 
 if __name__ == '__main__':

@@ -88,6 +88,29 @@ describe('AdReviewerSection: per-prompt reset', () => {
   });
 });
 
+describe('AdReviewerSection: provider-specific model selection', () => {
+  it('marks an empty explicit review model as required accessibly', () => {
+    renderSection({
+      reviewer: { ...baseReviewer(), provider: 'primary', model: '' },
+      catalog: catalog([{ id: 'gpt-5', name: 'GPT-5' }]),
+    });
+
+    const select = screen.getByLabelText('Review model');
+    expect(select.getAttribute('aria-invalid')).toBe('true');
+    expect(select.getAttribute('aria-describedby')).toBe('reviewModel-required-message');
+    expect(screen.getByText('Choose a model for the selected review provider.')).toBeDefined();
+  });
+
+  it('keeps same-as-pass inheritance valid without a separate model warning', () => {
+    renderSection({
+      reviewer: { ...baseReviewer(), provider: 'primary', model: 'same_as_pass' },
+      catalog: catalog([]),
+    });
+
+    expect(screen.queryByText('Choose a model for the selected review provider.')).toBeNull();
+  });
+});
+
 describe('AdReviewerSection: not framed as experimental', () => {
   it('carries no experimental badge', () => {
     renderSection();

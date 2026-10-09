@@ -6,10 +6,12 @@ import json
 INVALID_MARKER = 'invalid'
 
 
-def review_hash(text: str | None, sponsor: str | None) -> str:
-    """Hash of normalized text plus sponsor; a match means already reviewed."""
+def review_hash(text: str | None, sponsor: str | None, category: str | None = None) -> str:
+    """Hash of normalized review inputs; a match means already reviewed."""
     norm = ' '.join((text or '').lower().split())
     raw = f"{norm}\x1f{(sponsor or '').strip().lower()}"
+    if category is not None:
+        raw += f"\x1f{category}"
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 

@@ -11,6 +11,7 @@ import { copyText } from '../../utils/clipboard';
 import { BYTES_PER_MB, formatStorage } from './settingsUtils';
 import { btnSecondary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
+import ConfigurationTransferSection from './ConfigurationTransferSection';
 
 
 type ActionStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -204,6 +205,8 @@ function DataManagementSection({
         </div>
 
       </div>
+
+      <ConfigurationTransferSection />
 
       <div className="mt-4 pt-4 border-t border-border">
         <label htmlFor="maxRssMb" className="block text-sm font-medium text-foreground mb-2">

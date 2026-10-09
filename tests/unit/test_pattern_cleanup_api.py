@@ -69,9 +69,23 @@ def test_status_shape_with_defaults(app_client, podcast):
     assert body['batchSize'] == 25
     assert body['unusedDays'] == 90
     assert body['provider'] == '' and body['model'] == ''
+    assert body['modelMissing'] is False
     assert body['inProgress'] is False
     assert body['lastRun'] is None and body['lastError'] is None and body['lastSummary'] is None
     assert body['pending'] == {'total': 0, 'byKind': {}}
+
+
+def test_status_marks_explicitly_cleared_cleanup_model_as_missing(app_client, podcast):
+    db = api.get_database()
+    db.set_setting('pattern_cleanup_model', '', is_default=False)
+
+    try:
+        body = app_client.get('/api/v1/patterns/cleanup').get_json()
+    finally:
+        db.clear_setting('pattern_cleanup_model')
+
+    assert body['model'] == ''
+    assert body['modelMissing'] is True
 
 
 def test_status_reflects_lock_and_pending(app_client, podcast):
@@ -408,7 +422,20 @@ def test_put_settings_updates_and_echoes(app_client, podcast, reset_cleanup_sett
     assert r.status_code == 200
     body = r.get_json()
     assert body == {'enabled': True, 'cron': '0 5 * * 1', 'batchSize': 40, 'unusedDays': 120,
-                    'provider': 'secondary', 'model': 'claude-opus'}
+                    'provider': 'secondary', 'model': 'claude-opus', 'modelMissing': False}
+
+
+def test_put_blank_model_selects_inheritance_by_clearing_the_row(
+        app_client, podcast, reset_cleanup_settings):
+    db = api.get_database()
+    db.set_setting('pattern_cleanup_model', 'custom-model', is_default=False)
+
+    response = app_client.put('/api/v1/settings/pattern-cleanup', json={'model': ''})
+
+    assert response.status_code == 200
+    assert db.get_setting('pattern_cleanup_model') is None
+    assert response.get_json()['model'] == ''
+    assert response.get_json()['modelMissing'] is False
 
 
 def test_put_settings_accepts_slot_aliases(app_client, podcast, reset_cleanup_settings):

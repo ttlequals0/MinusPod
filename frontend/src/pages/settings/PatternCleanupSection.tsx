@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import CollapsibleSection, { useCollapsibleOpen, useSectionVisible } from '../../components/CollapsibleSection';
@@ -30,6 +30,9 @@ interface PatternCleanupSectionProps {
   secondaryProvider: string;
   secondaryEnabled: boolean;
   detectionSlot: ProviderSlot;
+  primaryBaseUrl?: string;
+  secondaryBaseUrl?: string;
+  providerIdentityHasUnsavedChanges?: boolean;
 }
 
 const STORAGE_KEY = 'settings-section-pattern-cleanup';
@@ -43,6 +46,8 @@ function runErrorMessage(e: unknown): string {
 
 function PatternCleanupSection({
   primaryProvider, secondaryProvider, secondaryEnabled, detectionSlot,
+  primaryBaseUrl = '', secondaryBaseUrl = '',
+  providerIdentityHasUnsavedChanges = false,
 }: PatternCleanupSectionProps) {
   const qc = useQueryClient();
   // Fetch only while the card is on screen; it sits in the collapsed Experiments group.
@@ -59,6 +64,9 @@ function PatternCleanupSection({
   const [draft, setDraft] = useState<Partial<PatternCleanupSettings>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmForce, setConfirmForce] = useState(false);
+  const modelSelection = draft.model ?? (
+    data?.modelMissing ? '' : data?.model || SAME_AS_DETECTION
+  );
 
   const settings: PatternCleanupSettings = {
     enabled: draft.enabled ?? data?.enabled ?? false,
@@ -66,22 +74,49 @@ function PatternCleanupSection({
     batchSize: draft.batchSize ?? data?.batchSize ?? 25,
     unusedDays: draft.unusedDays ?? data?.unusedDays ?? 90,
     provider: draft.provider ?? (data?.provider || SAME_AS_DETECTION),
-    model: draft.model ?? data?.model ?? '',
+    model: modelSelection === SAME_AS_DETECTION ? '' : modelSelection,
   };
+  const cleanupSlot = settings.provider === SLOT_SECONDARY
+    ? (secondaryProvider ? SLOT_SECONDARY : SLOT_PRIMARY)
+    : settings.provider === SLOT_PRIMARY ? SLOT_PRIMARY : detectionSlot;
+  const accountIdentity = (slot: ProviderSlot, provider: string, baseUrl: string) =>
+    `${slot}:${provider}:${provider === 'ollama' || provider === 'openai-compatible' ? baseUrl.trim() : ''}`;
+  const identityForSlot = (slot: ProviderSlot) => slot === SLOT_SECONDARY
+    ? accountIdentity(slot, secondaryProvider, secondaryBaseUrl)
+    : accountIdentity(slot, primaryProvider, primaryBaseUrl);
+  const cleanupIdentity = identityForSlot(cleanupSlot);
+  const previousCleanupIdentity = useRef<string | null>(null);
   const hasUnsavedChanges = !!data && (
     settings.enabled !== data.enabled
     || settings.cron !== data.cron
     || settings.batchSize !== data.batchSize
     || settings.unusedDays !== data.unusedDays
     || settings.provider !== (data.provider || SAME_AS_DETECTION)
-    || settings.model !== data.model
+    || modelSelection !== (data.modelMissing ? '' : data.model || SAME_AS_DETECTION)
   );
   const update = (patch: Partial<PatternCleanupSettings>) => setDraft((d) => ({ ...d, ...patch }));
 
+  useEffect(() => {
+    if (!data) return;
+    if (providerIdentityHasUnsavedChanges
+        && previousCleanupIdentity.current !== null
+        && previousCleanupIdentity.current !== cleanupIdentity
+        && settings.model !== '') update({ model: '' });
+    previousCleanupIdentity.current = cleanupIdentity;
+  }, [cleanupIdentity, data, providerIdentityHasUnsavedChanges, settings.model]);
+
+  const changeProvider = (provider: string) => {
+    const nextSlot = provider === SLOT_SECONDARY
+      ? (secondaryProvider ? SLOT_SECONDARY : SLOT_PRIMARY)
+      : provider === SLOT_PRIMARY ? SLOT_PRIMARY : detectionSlot;
+    update({
+      provider,
+      ...(identityForSlot(nextSlot) !== cleanupIdentity && settings.model !== '' ? { model: '' } : {}),
+    });
+  };
+
   // Mirrors llm_route: an unusable secondary falls back to the primary.
-  const slot: ProviderSlot = settings.provider === SLOT_SECONDARY
-    ? (secondaryProvider ? SLOT_SECONDARY : SLOT_PRIMARY)
-    : settings.provider === SLOT_PRIMARY ? SLOT_PRIMARY : detectionSlot;
+  const slot = cleanupSlot;
   const catalog = useModelCatalog(
     slot === SLOT_SECONDARY ? secondaryProvider : primaryProvider, slot, visible && !!data,
   );
@@ -105,7 +140,7 @@ function PatternCleanupSection({
   });
 
   const running = run.isPending || !!data?.inProgress;
-  const runDisabled = running || save.isPending || hasUnsavedChanges;
+  const runDisabled = running || save.isPending || hasUnsavedChanges || !!data?.modelMissing;
   const summary = data?.lastSummary;
 
   return (
@@ -160,16 +195,17 @@ function PatternCleanupSection({
               label="Cleanup Provider"
               value={settings.provider}
               options={inheritedSlotOptions(secondaryEnabled)}
-              onChange={(v) => update({ provider: v })}
+              onChange={changeProvider}
               secondaryEnabled={secondaryEnabled}
             />
             <ModelSelect
               id="patternCleanupModel"
               label="Cleanup Model"
-              value={settings.model}
+              value={modelSelection}
               catalog={catalog}
               onChange={(v) => update({ model: v })}
               inheritLabel="Same as detection model"
+              inheritValue={SAME_AS_DETECTION}
               description="A higher quality model gives better trims and splits"
             />
           </div>
@@ -224,7 +260,7 @@ function PatternCleanupSection({
             <button
               type="button"
               onClick={() => save.mutate()}
-              disabled={save.isPending}
+              disabled={save.isPending || modelSelection === ''}
               className={`${actionButton} ${btnPrimary}`}
             >
               {save.isPending ? 'Saving...' : 'Save'}

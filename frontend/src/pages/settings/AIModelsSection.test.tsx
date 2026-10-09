@@ -56,7 +56,9 @@ describe('AIModelsSection: not-configured state', () => {
 
   it('shows the helper line under an unconfigured select', () => {
     renderSection({ selectedModel: '' });
+    const select = screen.getByLabelText('Ad Detection Model');
     expect(screen.getByText('Pick a model before processing episodes.')).toBeDefined();
+    expect(select.getAttribute('aria-invalid')).toBe('true');
   });
 
   it('renders a configured value with no placeholder option and no helper line', () => {
@@ -86,15 +88,17 @@ describe('AIModelsSection: orphaned saved value', () => {
   });
 });
 
-describe('AIModelsSection: empty catalog banner', () => {
-  it('still shows the empty-catalog banner when no models are available', () => {
-    renderSection({
-      detectionCatalog: catalog({ models: [] }),
-      selectedModel: '', verificationModel: '', chaptersModel: '',
-    });
-    expect(
-      screen.getByText('No models available from the LLM provider. Check that your provider is configured correctly and the endpoint is reachable.')
-    ).toBeDefined();
+describe('AIModelsSection: missing selection banner', () => {
+  it.each(['selectedModel', 'verificationModel', 'chaptersModel'] as const)(
+    'shows the banner when %s is blank even with a populated catalog', (field) => {
+      renderSection({ [field]: '' });
+      expect(screen.getByText('No model selected from the provider.')).toBeDefined();
+    },
+  );
+
+  it('does not mistake an empty catalog for a missing model selection', () => {
+    renderSection({ detectionCatalog: catalog({ models: [] }), selectedModel: 'private-model' });
+    expect(screen.queryByText('No model selected from the provider.')).toBeNull();
   });
 });
 
@@ -122,6 +126,18 @@ describe('AIModelsSection: typing a model ID', () => {
     await user.type(screen.getByLabelText('Ad Detection Model'), 'x');
 
     expect(onSelectedModelChange).toHaveBeenCalledWith('x');
+  });
+
+  it('marks a blank typed model ID as invalid and links the accessible requirement message', async () => {
+    const user = userEvent.setup();
+    renderSection({ selectedModel: '' });
+
+    await user.click(screen.getAllByRole('button', { name: 'Type a model ID' })[0]);
+
+    const input = screen.getByLabelText('Ad Detection Model');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')).toBe('model-required-message');
+    expect(screen.getByText('Pick a model before processing episodes.')).toBeDefined();
   });
 
   it('switches only the field whose button was clicked', async () => {

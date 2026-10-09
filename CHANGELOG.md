@@ -9,6 +9,47 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.98.7] - 2026-10-08
+
+### Fixed
+- Feed refreshes no longer force a full download when processed episodes are intentionally hidden by title rules.
+- Anthropic models that reject forced tool calls use compatible structured output. Per-stage reasoning settings support adaptive effort while preserving token budgets for older models. (#827)
+- Anthropic calls cache static system prompts for 5 minutes. Usage totals include cached input, and cost estimates account for cache reads and writes. (#828)
+
+## [2.98.6] - 2026-10-08
+
+### Fixed
+- Notification and webhook controls meet the 44px mobile touch target.
+
+## [2.98.5] - 2026-10-08
+
+### Fixed
+- Filters across all Patterns tabs use aligned, equal-width controls. The Notifications section groups Email and Webhooks into collapsible subsections. Podping server settings appear only while Podping is enabled and use compact node controls.
+- The Settings page and documentation use Configuration Import / Export for runtime configuration backup and restore.
+
+## [2.98.4] - 2026-10-08
+
+### Added
+- When a webhook template fails, MinusPod uses a readable text body for `text/*` endpoints and JSON otherwise; test results identify each affected event. (#826)
+
+### Fixed
+- Email notifications and Webhook notifications collapse independently. Webhook cards display full URLs and keep event labels on one line.
+- Webhook test summaries show template fallbacks separately from delivery status and wrap on narrow screens. Text fallbacks collapse whitespace, and dispatch error logs redact URL credentials and exception details.
+- The ntfy template example handles error messages on both failed episodes and alert events.
+- Regenerating chapters records a separate processing-history entry and episode log, including failed attempts, without changing the previous audio run's results or token totals.
+
+## [2.98.3] - 2026-10-08
+
+### Added
+- Pattern Cleanup can suggest category changes alongside text and sponsor edits, including separate categories for split patterns.
+- Podping settings let users add, edit, remove, and reset RPC servers through the UI and API.
+- Export and restore runtime configuration for global settings, all feeds, or selected feeds. Preview configuration changes before applying them; episodes, history, and unselected feeds are preserved. (#823)
+
+### Fixed
+- Retired search-index cleanup uses smaller write batches so it releases the database lock more often.
+- Processing history shows chapter-generation warnings. Failed chapter regeneration keeps existing chapters and reports the failure. Chapter generation respects cancellation and provider changes, and detailed response text is logged only at debug level.
+- Changing a provider, endpoint, or stage route clears affected model selections and shows a reminder to choose a model. Changing an API key keeps model selections. API requests can set replacement models in the same update.
+
 ## [2.98.2] - 2026-10-07
 
 ### Fixed

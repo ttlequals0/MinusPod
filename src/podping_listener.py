@@ -11,6 +11,7 @@ import logging
 import random
 import re
 import time
+import unicodedata
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -29,6 +30,10 @@ PODPING_NODES = [
     'https://api.deathwing.me',
     'https://techcoderx.com',
 ]
+MAX_PODPING_NODES = 20
+MAX_PODPING_NODE_URL_LENGTH = 2048
+PODPING_NODE_SETTING = 'podping_nodes'
+PODPING_PROBE_WORKERS = 4
 
 ACTIONABLE_REASONS = {'update', 'live'}
 COOLDOWN_SECONDS = 300
@@ -69,6 +74,54 @@ NODE_CHECK_LEASE_SECONDS = 60
 _QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)\?\S+')
 
 
+def normalize_podping_nodes(nodes) -> list[str]:
+    if not isinstance(nodes, list) or not 1 <= len(nodes) <= MAX_PODPING_NODES:
+        raise ValueError(f'Provide between 1 and {MAX_PODPING_NODES} node URLs.')
+    normalized = []
+    seen = set()
+    for node in nodes:
+        if not isinstance(node, str) or not node.strip():
+            raise ValueError('Each node must be an HTTP(S) URL.')
+        value = node.strip()
+        if len(value) > MAX_PODPING_NODE_URL_LENGTH:
+            raise ValueError('Node URLs must be 2048 characters or fewer.')
+        if any(char.isspace() or unicodedata.category(char) == 'Cc' for char in value):
+            raise ValueError('Node URLs cannot contain whitespace or control characters.')
+        try:
+            parsed = urlparse(value)
+            hostname = parsed.hostname
+            # Accessing port validates malformed and out-of-range values.
+            parsed.port
+        except ValueError as exc:
+            raise ValueError('Each node must be a valid HTTP(S) URL.') from exc
+        if (parsed.scheme.lower() not in {'http', 'https'} or not parsed.netloc
+                or not hostname or parsed.username is not None or parsed.password is not None
+                or parsed.query or parsed.fragment):
+            raise ValueError('Each node must be an HTTP(S) URL without credentials, query, or fragment.')
+        canonical = urlunparse((
+            parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip('/'),
+            parsed.params, '', ''))
+        if canonical not in seen:
+            normalized.append(canonical)
+            seen.add(canonical)
+    if not normalized:
+        raise ValueError('Provide at least one unique node URL.')
+    return normalized
+
+
+def get_podping_nodes(db=None) -> list[str]:
+    if db is not None:
+        try:
+            raw = db.get_setting(PODPING_NODE_SETTING)
+            if raw:
+                return normalize_podping_nodes(json.loads(raw))
+        except (TypeError, ValueError):
+            logger.warning("Stored Podping node list is invalid; using defaults")
+        except Exception:
+            logger.debug("Could not load Podping node list; using defaults")
+    return list(PODPING_NODES)
+
+
 def _sanitize_failure_reason(message: str) -> str:
     """Short, credential-free reason for durable storage and logs: strips any
     URL query string (where a token would live) and caps the length."""
@@ -89,7 +142,8 @@ def _new_node_health_entry() -> dict:
 
 def get_node_health_summary(db) -> list[dict]:
     """Per-node durable health for API/status display, one entry per node in
-    PODPING_NODES order (unseen nodes default to a blank healthy record)."""
+    the configured order (unseen nodes default to a blank healthy record)."""
+    nodes = get_podping_nodes(db)
     try:
         raw = db.get_setting(NODE_HEALTH_SETTING)
         data = json.loads(raw) if raw else {}
@@ -106,7 +160,7 @@ def get_node_health_summary(db) -> list[dict]:
         active_raw = db.get_setting(ACTIVE_CONNECTION_SETTING)
         active = json.loads(active_raw) if active_raw else {}
         observed_at = parse_iso_utc(active.get('observedAt'))
-        if (isinstance(active, dict) and active.get('node') in PODPING_NODES
+        if (isinstance(active, dict) and active.get('node') in nodes
                 and observed_at is not None
                 and (utc_now() - observed_at).total_seconds()
                 <= ACTIVE_CONNECTION_STALE_SECONDS):
@@ -115,7 +169,7 @@ def get_node_health_summary(db) -> list[dict]:
         pass
 
     summary = []
-    for node in PODPING_NODES:
+    for node in nodes:
         entry = data.get(node) or {}
         summary.append({
             'node': node,
@@ -327,6 +381,7 @@ class PodpingListener:
         self.now = now or utc_now
         self.node_probe = node_probe or self._default_node_probe
         self.monotonic = monotonic or time.monotonic
+        self.nodes = get_podping_nodes(db)
 
         self.node_index = 0
         self._backoff_step = 0
@@ -337,14 +392,17 @@ class PodpingListener:
         # each node's failure streak instead of re-escalating from zero.
         self._node_health = self._load_node_health()
         self._selected_node = self._load_selected_node()
+        if self._selected_node not in self.nodes:
+            self._clear_selected_node()
         # Node -> time its last success was written, for the persist cadence.
         self._success_persisted_at = {}
         self._last_rpc_status_code = None
         self._last_health_probe_at = None
-        self._node_health_revision = {node: 0 for node in PODPING_NODES}
+        self._node_health_revision = {node: 0 for node in self.nodes}
         self._probe_executor = ThreadPoolExecutor(
-            max_workers=len(PODPING_NODES), thread_name_prefix='podping-health')
+            max_workers=PODPING_PROBE_WORKERS, thread_name_prefix='podping-health')
         self._probe_futures = {}
+        self._probe_nodes = ()
         self._probe_revisions = {}
         self._probe_discard = False
         self._probe_manual_id = None
@@ -370,7 +428,7 @@ class PodpingListener:
     def _default_rpc(self, method, params):
         """Default rpc: POST to the currently-selected node. Returns the
         unwrapped 'result' payload (dict or list depending on method)."""
-        url = PODPING_NODES[self.node_index]
+        url = self.nodes[self.node_index]
         response = requests.post(
             url,
             json={'jsonrpc': '2.0', 'method': method, 'params': params, 'id': 1},
@@ -436,19 +494,20 @@ class PodpingListener:
     def _start_node_probes(self, manual_id=None, claim_id=None):
         self._last_health_probe_at = self.monotonic()
         self._probe_revisions = dict(self._node_health_revision)
+        self._probe_nodes = tuple(self.nodes)
         self._probe_manual_id = manual_id
         self._probe_claim_id = claim_id
         self._probe_discard = False
         self._probe_futures = {
             node: self._probe_executor.submit(self.node_probe, node)
-            for node in PODPING_NODES
+            for node in self._probe_nodes
         }
 
     def _finish_node_probes(self):
         if not self._probe_futures or not all(
                 future.done() for future in self._probe_futures.values()):
             return
-        error = None
+        error = 'Node list changed during the check.' if self._probe_discard else None
         healthy_nodes = 0
         try:
             if not self._probe_discard:
@@ -457,9 +516,11 @@ class PodpingListener:
                         result = future.result()
                     except Exception as exc:
                         result = (None, 'unreachable', str(exc))
+                    if node not in self.nodes:
+                        continue
                     if result[1] == 'healthy':
                         healthy_nodes += 1
-                    if self._node_health_revision[node] != self._probe_revisions[node]:
+                    if self._node_health_revision.get(node) != self._probe_revisions.get(node):
                         continue
                     self._apply_node_probe(node, *result)
                 if not self._persist_node_health():
@@ -477,7 +538,7 @@ class PodpingListener:
                 completed['status'] = 'error' if error else 'completed'
                 completed['completedAt'] = utc_now_iso()
                 completed['healthyNodes'] = healthy_nodes
-                completed['totalNodes'] = len(PODPING_NODES)
+                completed['totalNodes'] = len(self._probe_nodes)
                 completed.pop('leaseUntil', None)
                 completed.pop('claimId', None)
                 if error:
@@ -487,6 +548,7 @@ class PodpingListener:
         self._probe_futures = {}
         self._probe_manual_id = None
         self._probe_claim_id = None
+        self._probe_nodes = ()
         self._probe_discard = False
 
     def _manual_check_request(self):
@@ -531,6 +593,7 @@ class PodpingListener:
 
     def update_node_probes(self, enabled):
         """Harvest probes and schedule enabled or explicitly requested checks."""
+        nodes_changed = self.refresh_nodes()
         if enabled != self._monitoring_enabled:
             self._monitoring_enabled = enabled
             if enabled:
@@ -551,16 +614,48 @@ class PodpingListener:
                 self._probe_claim_id = claimed.get('claimId')
                 self._renew_manual_check(json.dumps(claimed), claimed)
         if self._probe_futures:
-            return
+            return nodes_changed
         if manual_id is not None:
             claimed = self._claim_manual_check(raw, manual)
             if claimed is not None:
                 self._start_node_probes(manual_id, claimed.get('claimId'))
-            return
+            return nodes_changed
         now = self.monotonic()
         if (enabled and (self._last_health_probe_at is None
                          or now - self._last_health_probe_at >= NODE_HEALTH_PROBE_SECONDS)):
             self._start_node_probes()
+        return nodes_changed
+
+    def refresh_nodes(self):
+        """Apply stored endpoints while retaining listener progress and feed state."""
+        nodes = get_podping_nodes(self.db)
+        if nodes == self.nodes:
+            return False
+        current = self.nodes[self.node_index] if self.nodes else None
+        if self._probe_futures:
+            self._probe_discard = True
+            for future in self._probe_futures.values():
+                future.cancel()
+        self.nodes = nodes
+        self.node_index = nodes.index(current) if current in nodes else 0
+        for node in nodes:
+            self._node_health_revision.setdefault(node, 0)
+        self._failed_nodes.intersection_update(nodes)
+        if self._selected_node not in nodes:
+            self._clear_selected_node()
+        if self._active_node not in nodes:
+            self._clear_active_connection()
+        self._last_health_probe_at = None
+        self._set_degraded(bool(self._failed_nodes) and len(self._failed_nodes) >= len(nodes))
+        return True
+
+    def _clear_selected_node(self):
+        self._selected_node = None
+        if self.db is not None:
+            try:
+                self.db.clear_setting(SELECTED_NODE_SETTING)
+            except Exception as exc:
+                logger.debug("Could not clear removed selected Podping node: %s", exc)
 
     def close(self):
         self._probe_discard = True
@@ -588,7 +683,8 @@ class PodpingListener:
             remaining -= chunk
             try:
                 self.persist_monitor_heartbeat()
-                self.update_node_probes(self._monitoring_enabled)
+                if self.update_node_probes(self._monitoring_enabled) is True:
+                    return
             except Exception:
                 logger.exception("Podping monitor service failed during backoff")
 
@@ -787,16 +883,16 @@ class PodpingListener:
         transition into losing every node (when pings are missed) is an ERROR;
         a success clears the state so the next total outage escalates again.
         """
-        node = PODPING_NODES[self.node_index]
+        node = self.nodes[self.node_index]
         if self._active_node == node:
             self._clear_active_connection()
         first_failure = node not in self._failed_nodes
         self._failed_nodes.add(node)
-        all_down = len(self._failed_nodes) >= len(PODPING_NODES)
+        all_down = len(self._failed_nodes) >= len(self.nodes)
         if first_failure and all_down:
             logger.error(
                 "All %d podping nodes failed; pings are being missed. Last: %s: %s",
-                len(PODPING_NODES), node, message)
+                len(self.nodes), node, message)
         elif first_failure:
             logger.warning("Podping node %s failed: %s", node, message)
         else:
@@ -806,7 +902,7 @@ class PodpingListener:
         if all_down:
             self._set_degraded(True)
 
-        self.node_index = (self.node_index + 1) % len(PODPING_NODES)
+        self.node_index = (self.node_index + 1) % len(self.nodes)
         step = self._backoff_step
         self._backoff_step = min(self._backoff_step + 1, NODE_BACKOFF_MAX_STEP)
         self.wait_with_monitor(self._backoff_seconds(step))
@@ -824,9 +920,9 @@ class PodpingListener:
         now = self.now()
         soonest_index = self.node_index
         soonest_at = None
-        for offset in range(len(PODPING_NODES)):
-            index = (self.node_index + offset) % len(PODPING_NODES)
-            retry_at = self._node_retry_at(PODPING_NODES[index])
+        for offset in range(len(self.nodes)):
+            index = (self.node_index + offset) % len(self.nodes)
+            retry_at = self._node_retry_at(self.nodes[index])
             if retry_at is None or retry_at <= now:
                 return index
             if soonest_at is None or retry_at < soonest_at:
@@ -839,7 +935,7 @@ class PodpingListener:
         timeout, or shape mismatch is treated as a node failure (logged,
         node rotated, backoff applied) and returns None."""
         self.node_index = self._select_node()
-        node = PODPING_NODES[self.node_index]
+        node = self.nodes[self.node_index]
         self._last_rpc_status_code = None
         try:
             result = self.rpc(method, params)
@@ -857,7 +953,7 @@ class PodpingListener:
                 f"{method} returned an invalid response shape", 'invalid_response')
             return None
         self._backoff_step = 0
-        was_all_down = len(self._failed_nodes) >= len(PODPING_NODES)
+        was_all_down = len(self._failed_nodes) >= len(self.nodes)
         self._failed_nodes.clear()
         self._record_node_success(node)
         if was_all_down:
@@ -1051,6 +1147,7 @@ def podping_listener_loop():
         try:
             listener.persist_monitor_heartbeat()
             enabled = background_module.db.get_setting_bool('podping_enabled', False)
+            listener.refresh_nodes()
             listener.update_node_probes(enabled)
             if enabled != was_enabled:
                 logger.info(
