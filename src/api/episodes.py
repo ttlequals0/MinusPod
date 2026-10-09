@@ -137,7 +137,7 @@ def _same_cut(a, b, tol=0.05) -> bool:
 
 def chapters_only_decisions(markers, applied_cuts, original_duration,
                             actions=None, false_positives=(), confirmed=(),
-                            keep_override=None):
+                            keep_override=None, replacement_sound_enabled=True):
     """True when cutting the current markers reproduces the applied cuts.
 
     The decisions then changed only which ad chapters the audio should carry,
@@ -149,6 +149,8 @@ def chapters_only_decisions(markers, applied_cuts, original_duration,
     safe fallback.
     """
     if applied_cuts is None or not original_duration:
+        return False
+    if not replacement_sound_enabled and any('replacement_duration' not in cut for cut in applied_cuts):
         return False
     # A marker without bounds cannot be compared; dropping it shortens the
     # wanted list, which answers False rather than guessing.
@@ -164,7 +166,7 @@ def chapters_only_decisions(markers, applied_cuts, original_duration,
                 for m, action in resolved]
     protected = [*(m for m, action in resolved if is_keep_like(action)),
                  *user_trimmed_keep_ranges(list(confirmed))]
-    wanted = AudioProcessor().compute_applied_cuts(
+    wanted = AudioProcessor(replacement_sound_enabled=replacement_sound_enabled).compute_applied_cuts(
         [dict(m, beep=(action == 'beep')) for m, action in resolved
          if _marker_wants_cut(m, action, false_positives, confirmed)],
         original_duration, cut_barriers=protected, hard_barriers=protected,
@@ -190,6 +192,7 @@ def _apply_needs_chapters_only(db, slug, episode_id, episode, markers) -> bool:
             episode['podcast_id'], episode_id),
         confirmed=db.get_confirmed_corrections(
             episode['podcast_id'], episode_id),
+        replacement_sound_enabled=db.resolve_audio_output(slug)['replacement_sound_enabled'],
         keep_override=lambda m: _keep_overridden(dict(m), differential_override))
 
 

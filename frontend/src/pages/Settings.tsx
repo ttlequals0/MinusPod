@@ -222,6 +222,8 @@ function Settings() {
   const [episodeLogRetentionDays, setEpisodeLogRetentionDays] = useState(30);
   const [episodeLogLevel, setEpisodeLogLevel] = useState<EpisodeLogLevel>('debug');
   const [audioBitrate, setAudioBitrate] = useState('');
+  const [audioReplacementSoundEnabled, setAudioReplacementSoundEnabled] = useState(true);
+  const [audioMp3StreamCopyEnabled, setAudioMp3StreamCopyEnabled] = useState(false);
   const [audioNormalizeEnabled, setAudioNormalizeEnabled] = useState(false);
   const [audioNormalizeIntensity, setAudioNormalizeIntensity] = useState('normal');
   const [skipFlacCompression, setSkipFlacCompression] = useState(false);
@@ -840,6 +842,8 @@ function Settings() {
     { key: 'whisperPoolMaxEpisodes', kind: 'val', useDefault: true, literal: 1, value: whisperPoolMaxEpisodes, set: setWhisperPoolMaxEpisodes },
     // Audio output
     { key: 'audioBitrate', kind: 'str', useDefault: true, value: audioBitrate, set: setAudioBitrate },
+    { key: 'audioReplacementSoundEnabled', kind: 'val', useDefault: true, value: audioReplacementSoundEnabled, set: setAudioReplacementSoundEnabled },
+    { key: 'audioMp3StreamCopyEnabled', kind: 'val', useDefault: true, value: audioMp3StreamCopyEnabled, set: setAudioMp3StreamCopyEnabled },
     { key: 'audioNormalizeEnabled', kind: 'val', useDefault: true, value: audioNormalizeEnabled, set: setAudioNormalizeEnabled },
     { key: 'audioNormalizeIntensity', kind: 'str', useDefault: true, value: audioNormalizeIntensity, set: setAudioNormalizeIntensity },
     { key: 'skipFlacCompression', kind: 'val', useDefault: true, value: skipFlacCompression, set: setSkipFlacCompression },
@@ -1633,6 +1637,10 @@ function Settings() {
       <AudioSection
         audioBitrate={audioBitrate}
         onAudioBitrateChange={setAudioBitrate}
+        audioReplacementSoundEnabled={audioReplacementSoundEnabled}
+        onAudioReplacementSoundEnabledChange={setAudioReplacementSoundEnabled}
+        audioMp3StreamCopyEnabled={audioMp3StreamCopyEnabled}
+        onAudioMp3StreamCopyEnabledChange={setAudioMp3StreamCopyEnabled}
         audioNormalizeEnabled={audioNormalizeEnabled}
         onAudioNormalizeEnabledChange={setAudioNormalizeEnabled}
         audioNormalizeIntensity={audioNormalizeIntensity}

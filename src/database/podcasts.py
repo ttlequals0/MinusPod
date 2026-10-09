@@ -3,7 +3,10 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from config import coerce_bool_setting, resolve_segment_category_actions_map
+from config import (
+    DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED, DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED,
+    coerce_bool_setting, resolve_segment_category_actions_map,
+)
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
 
@@ -372,6 +375,7 @@ class PodcastMixin:
                 'queue_priority', 'title_skip_patterns', 'title_skip_action',
                 'low_ad_yield_action', 'episode_logs',
                 'retention_days_override', 'keep_original_audio_override',
+                'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
                 'p20_channel_json', 'author', 'explicit', 'categories',
                 'artwork_failure_state',
             ):
@@ -760,6 +764,20 @@ class PodcastMixin:
         per_feed = podcast.get('keep_original_audio_override') if podcast else None
         global_keep = (self.get_setting('keep_original_audio') or 'true').lower() != 'false'
         return effective_keep_original(per_feed, global_keep)
+
+    def resolve_audio_output(self, slug: str, podcast: dict | None = None) -> dict:
+        """Resolve sound and stream-copy choices for one feed."""
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
+        resolved = {}
+        for name, default in (
+                ('replacement_sound', DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED),
+                ('mp3_stream_copy', DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED)):
+            override = (podcast or {}).get(f'audio_{name}_override')
+            resolved[f'{name}_enabled'] = (
+                bool(override) if override is not None
+                else self.get_setting_bool(f'audio_{name}_enabled', default))
+        return resolved
 
     def resolve_segment_actions(self, slug: str, podcast: dict | None = None,
                                 global_actions: dict[str, str] | None = None) -> dict[str, str]:

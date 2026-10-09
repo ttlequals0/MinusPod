@@ -27,18 +27,25 @@ FIXED_PROVIDER_PROBES = {
 }
 
 
-def _fixed_response_usable(provider: str, body) -> bool:
+def _model_catalog_usable(body) -> bool:
     if not isinstance(body, dict):
         return False
     data = body.get('data', body.get('models'))
+    return isinstance(data, list) and all(
+        isinstance(model, dict)
+        and isinstance(model.get('id') or model.get('name'), str)
+        and bool(model.get('id') or model.get('name'))
+        for model in data
+    )
+
+
+def _fixed_response_usable(provider: str, body) -> bool:
+    if not isinstance(body, dict):
+        return False
     if provider in ('anthropic', PROVIDER_TYPESAFE):
-        return isinstance(data, list) and all(
-            isinstance(model, dict)
-            and isinstance(model.get('id') or model.get('name'), str)
-            and bool(model.get('id') or model.get('name'))
-            for model in data
-        )
+        return _model_catalog_usable(body)
     if provider == 'openrouter':
+        data = body.get('data', body.get('models'))
         if not isinstance(data, dict):
             return False
         numeric_fields = ('usage', 'limit', 'limit_remaining')
@@ -121,6 +128,42 @@ def probe_models_endpoint(base_url: str, api_key: str) -> dict:
                             'usually ends in /v1.')
     else:
         result['detail'] = rejected_detail(status, body_bytes)
+    return result
+
+
+def probe_systemone_connection(provider: str, base_url: str | None, api_key: str) -> dict:
+    """Check native model discovery without making an inference request."""
+    result = {'ok': False, 'reachable': False,
+              'validation': 'model_catalog', 'inferenceChecked': False}
+    if provider == PROVIDER_TYPESAFE:
+        if not api_key:
+            return {**result, 'detail': 'Save a TypeSafe API key for the selected slot before testing.'}
+        base_url = TYPESAFE_BASE_URL
+    elif not isinstance(base_url, str) or not base_url.strip():
+        return {**result, 'detail': 'Enter a base URL first.'}
+    url, headers = models_request(base_url, api_key)
+    error, status, body_bytes = run_probe(
+        lambda: safe_get(
+            url, trust=URLTrust.OPERATOR_CONFIGURED,
+            timeout=HTTP_TIMEOUT_PROBE, max_redirects=HTTP_MAX_REDIRECTS_API,
+            headers=headers, stream=True,
+        ), HTTP_TIMEOUT_PROBE, log_context=safe_url_for_log(url),
+    )
+    if error:
+        return {**result, **error}
+    result.update(reachable=True, status=status)
+    if 200 <= status < 300:
+        if _model_catalog_usable(parse_probe_json(body_bytes)):
+            result.update(ok=True, detail='Connection successful. Inference not tested.')
+        else:
+            result['detail'] = 'The server did not return a model list.'
+    elif status in (401, 403):
+        result['detail'] = (f'The server rejected the saved API key (HTTP {status}).'
+                            if api_key else f'The endpoint requires an API key (HTTP {status}).')
+    elif status == 404:
+        result['detail'] = 'The model list endpoint was not found (HTTP 404).'
+    else:
+        result['detail'] = rejected_detail(status, b'')
     return result
 
 

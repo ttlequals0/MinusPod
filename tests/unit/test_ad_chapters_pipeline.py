@@ -6,6 +6,7 @@ _generate_assets branches (generate, publisher-preserve) and the manual
 regenerate-chapters endpoint.
 """
 import json
+import shutil
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -14,13 +15,15 @@ import pytest
 
 from tests.app_bootstrap import bootstrap
 from tests.unit.thread_fakes import SyncThread
+from tests.unit.test_id3_chapter_preservation import _long_fixture
 
 _test_data_dir = bootstrap('ad_chapters_pipeline_test_', reset_storage=True)
 
 import chapters_generator
 import run_context
 from api import get_storage
-from ad_chapters import AdChapterConfig, public_chapters
+from ad_chapters import AdChapterConfig, ID3_CHAPTER_SOURCE_KEY, public_chapters
+from id3_chapters import chapter_frames, read_tag
 from llm_client import ProviderRateLimitedError, clear_settings_cache
 from main_app import processing
 from rate_limit_hold import hold_message
@@ -101,8 +104,8 @@ def _run(monkeypatch, db, publisher_chapters, generator_chapters=None,
     return storage_mock, embed_mock, generator_class
 
 
-def _saved_chapters(storage_mock):
-    return storage_mock.save_chapters_and_applied_cuts.call_args.args[2]['chapters']
+def _saved_chapters():
+    return processing.db.save_processing_assets.call_args.args[2]['chapters']['chapters']
 
 
 def _assert_embedded(embed_mock, merged):
@@ -119,7 +122,7 @@ def test_generate_path_appends_ad_chapters_and_embeds(monkeypatch):
         markers=MARKED_SPONSOR)
 
     generator_class.return_value.generate_chapters.assert_called_once()
-    merged = _saved_chapters(storage_mock)
+    merged = _saved_chapters()
     assert merged == [{'startTime': 1, 'title': 'Intro'}, AD_ENTRY, RESUME_ENTRY]
     _assert_embedded(embed_mock, merged)
     assert all(set(ch) == {'startTime', 'title'}
@@ -132,7 +135,7 @@ def test_generate_path_with_empty_generation_still_saves_ad_only_list(monkeypatc
         generator_chapters={'version': '1.2.0', 'chapters': []},
         markers=MARKED_SPONSOR)
 
-    merged = _saved_chapters(storage_mock)
+    merged = _saved_chapters()
     assert merged == [AD_ENTRY, RESUME_ENTRY]
     _assert_embedded(embed_mock, merged)
 
@@ -142,7 +145,7 @@ def test_generate_path_without_ads_saves_topics_only(monkeypatch):
         monkeypatch, _db(chapters_mode='generate'), publisher_chapters=[],
         markers=[])
 
-    assert _saved_chapters(storage_mock) == [{'startTime': 1, 'title': 'Intro'}]
+    assert _saved_chapters() == [{'startTime': 1, 'title': 'Intro'}]
     embed_mock.assert_called_once()
 
 
@@ -151,7 +154,7 @@ def test_generate_path_disabled_config_saves_topics_only(monkeypatch):
         monkeypatch, _db(chapters_mode='generate'), publisher_chapters=[],
         markers=MARKED_SPONSOR, ad_config=None)
 
-    assert _saved_chapters(storage_mock) == [{'startTime': 1, 'title': 'Intro'}]
+    assert _saved_chapters() == [{'startTime': 1, 'title': 'Intro'}]
 
 
 # ---------- publisher-preserve path ----------
@@ -167,7 +170,7 @@ def test_publisher_preserve_path_merges_and_embeds_when_ads_added(monkeypatch):
         markers=MARKED_SPONSOR)
 
     generator_class.return_value.generate_chapters.assert_not_called()
-    merged = _saved_chapters(storage_mock)
+    merged = _saved_chapters()
     assert merged == [{'startTime': 1, 'title': 'Intro'},
                       {'startTime': 300, 'title': 'Body'},
                       AD_ENTRY, RESUME_ENTRY,
@@ -182,7 +185,7 @@ def test_publisher_preserve_path_unchanged_when_no_ads(monkeypatch):
         monkeypatch, _db(chapters_mode='auto'), publisher_chapters=PUBLISHER,
         markers=[])
 
-    assert _saved_chapters(storage_mock) == [{'startTime': 1, 'title': 'Intro'},
+    assert _saved_chapters() == [{'startTime': 1, 'title': 'Intro'},
                                              {'startTime': 300, 'title': 'Body'},
                                              {'startTime': 1500, 'title': 'Outro'}]
     embed_mock.assert_not_called()
@@ -193,7 +196,7 @@ def test_chapters_mode_off_writes_nothing_even_with_ads(monkeypatch):
         monkeypatch, _db(chapters_mode='off'), publisher_chapters=PUBLISHER,
         markers=MARKED_SPONSOR)
 
-    storage_mock.save_chapters_and_applied_cuts.assert_not_called()
+    assert 'chapters' not in processing.db.save_processing_assets.call_args.args[2]
     embed_mock.assert_not_called()
 
 
@@ -213,7 +216,7 @@ def test_upstream_json_path_merges_and_embeds(monkeypatch):
         original_duration=3600.0)
 
     generator_class.return_value.generate_chapters.assert_not_called()
-    merged = _saved_chapters(storage_mock)
+    merged = _saved_chapters()
     assert merged == [{'startTime': 1, 'title': 'Cold Open'},
                       {'startTime': 300, 'title': 'Body'},
                       AD_ENTRY, RESUME_ENTRY,
@@ -298,6 +301,37 @@ def test_regenerate_endpoint_merges_ad_chapters(app_client, seeded):
         {'startTime': 960, 'title': 'Show'}]
     assert row['chapters_regen_started_at'] is None
     assert row['chapters_regen_error'] is None
+
+
+@pytest.mark.skipif(not shutil.which('ffmpeg'), reason='ffmpeg is unavailable')
+def test_manual_regeneration_clears_publisher_choice_and_recut_keeps_generated_topics(app_client, seeded, monkeypatch, tmp_path):
+    storage = get_storage()
+    storage.save_chapters_json(SLUG, EPISODE_ID, {
+        'version': '1.2.0', ID3_CHAPTER_SOURCE_KEY: 'id3',
+        'chapters': [{'startTime': 1, 'title': 'Publisher', '_id3_id': '6669727374'}],
+    })
+    seeded.save_applied_cuts(SLUG, EPISODE_ID, [])
+    chosen = {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Generated'}]}
+    response = _post_regenerate(app_client, chosen, ad_config=None)
+    assert response.status_code == 202
+    assert storage.get_chapters_json(SLUG, EPISODE_ID) == chosen
+    monkeypatch.setattr(processing, 'db', seeded)
+    monkeypatch.setattr(processing, 'storage', storage)
+    monkeypatch.setattr(processing, 'resolve_ad_chapter_config', lambda *args: None)
+    source, _ = _long_fixture(tmp_path, 4)
+    assert set(chapter_frames(read_tag(source))[0]) == {b'first', b'ad', b'last'}
+    probe = MagicMock()
+    embed = MagicMock(wraps=processing.embed_chapters)
+    monkeypatch.setattr(processing, 'probe_chapters', probe)
+    monkeypatch.setattr(processing, 'embed_chapters', embed)
+    pending = {}
+    processing._remap_stored_chapters(SLUG, EPISODE_ID, [], 1, [], 60,
+                                     audio_path=source, audio_duration=60,
+                                     pending_assets=pending)
+    probe.assert_not_called()
+    assert pending['chapters'] == chosen
+    embed.assert_called_once_with(str(source), chosen['chapters'], duration=60)
+    assert set(chapter_frames(read_tag(source))[0]).isdisjoint({b'first', b'ad', b'last'})
 
 
 def test_degraded_manual_regeneration_keeps_existing_chapters_and_recovers(app_client, seeded):
@@ -718,7 +752,7 @@ def test_chapter_step_publishes_ad_chapters_when_the_hold_write_fails(monkeypatc
         generator_error=ProviderRateLimitedError('resets in 900s',
                                                  retry_after_seconds=900.0))
 
-    merged = _saved_chapters(storage_mock)
+    merged = _saved_chapters()
     assert merged == [AD_ENTRY, RESUME_ENTRY]
     _assert_embedded(embed_mock, merged)
 

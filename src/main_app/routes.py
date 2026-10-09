@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
+from urllib.parse import urlencode
 
 import requests
 import requests.exceptions
@@ -25,7 +26,8 @@ from config import (
     title_matches_skip_patterns,
     user_agent_is_jit_blocked,
 )
-from ad_chapters import public_chapters
+from ad_chapters import ID3_CHAPTER_SOURCE_KEY, public_chapters
+from storage import is_chapter_image_filename
 from database.podcasts import has_upstream, is_local_feed
 from database.queue import compute_queue_priority
 from rss_parser import (
@@ -111,6 +113,7 @@ PUBLIC_FEED_ENDPOINTS = frozenset({
     'serve_episode',
     'serve_transcript_vtt',
     'serve_chapters_json',
+    'serve_chapter_image',
     'serve_episode_artwork',
     'serve_opml',
     'serve_minuspod_cover',
@@ -797,8 +800,36 @@ def register_routes(app):
         # Podcasting 2.0 chapters.json is fetched cross-origin by
         # podcast players; the wildcard Access-Control-Allow-Origin
         # is intentional. No credentials travel with the request.
-        body = {**chapters, 'chapters': public_chapters(chapters.get('chapters'))}
+        entries = public_chapters(chapters.get('chapters'))
+        image_prefix = f'/episodes/{slug}/{episode_id}/chapter-images/'
+        supplied_key = request.args.get('key') if feed_auth_enabled(db) else None
+        for chapter in entries:
+            image = chapter.get('img')
+            if (isinstance(image, str)
+                    and image.startswith(image_prefix)
+                    and is_chapter_image_filename(image[len(image_prefix):])):
+                chapter['img'] = rss_parser._resolved_base_url().rstrip('/') + image
+                if supplied_key:
+                    chapter['img'] += '?' + urlencode({'key': supplied_key})
+        body = {key: value for key, value in chapters.items() if key != ID3_CHAPTER_SOURCE_KEY}
+        body['chapters'] = entries
         response = Response(json.dumps(body), mimetype='application/json+chapters')
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
+
+    @app.route('/episodes/<slug>/<episode_id>/chapter-images/<filename>')
+    @validate_slug_and_episode_params
+    @require_feed_key
+    @log_request_detailed
+    def serve_chapter_image(slug, episode_id, filename):
+        """Serve a local JPEG/PNG extracted from an embedded chapter."""
+        result = storage.get_chapter_image(slug, episode_id, filename)
+        if not result:
+            abort(404)
+        image_data, content_type = result
+        response = Response(image_data, mimetype=content_type)
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Content-Security-Policy'] = "default-src 'none'"
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response
 

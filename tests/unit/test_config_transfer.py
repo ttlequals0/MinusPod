@@ -787,3 +787,39 @@ def test_phase_less_settings_are_validated_before_preview(temp_db, key, value, m
     document = _document({key: value})
     with pytest.raises(ConfigTransferError, match=message):
         config_transfer.build_preview(temp_db, document, 'global')
+
+
+@pytest.mark.parametrize('feed_type', ['subscribed', 'local'])
+def test_audio_output_import_preserves_missing_and_resets_null(temp_db, monkeypatch, feed_type):
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    source = 'local://example-feed' if feed_type == 'local' else 'https://example.com/feed.xml'
+    temp_db.create_podcast('example-feed', source, feed_type=feed_type)
+    temp_db.set_setting('audio_replacement_sound_enabled', 'false')
+    temp_db.set_setting('audio_mp3_stream_copy_enabled', 'true')
+    temp_db.update_podcast('example-feed', audio_replacement_sound_override=False,
+                           audio_mp3_stream_copy_override=True)
+    original = config_transfer.export_config(temp_db, '2.99.0')
+    assert original['settings']['audio_replacement_sound_enabled'] is False
+    assert original['settings']['audio_mp3_stream_copy_enabled'] is True
+    feed = next(f for f in original['feeds'] if f['slug'] == 'example-feed')
+    assert feed['settings']['audio_replacement_sound_override'] is False
+    assert feed['settings']['audio_mp3_stream_copy_override'] is True
+    document = _document(feeds=[{
+        'slug': 'example-feed', 'feedType': feed_type,
+        'settings': {'source_url': source, 'title': 'Updated title'},
+    }])
+    preview = config_transfer.build_preview(temp_db, document, 'everything')
+    config_transfer.apply_config(temp_db, document, 'everything', None, preview['previewToken'])
+    assert temp_db.get_setting_bool('audio_replacement_sound_enabled') is False
+    assert temp_db.get_setting_bool('audio_mp3_stream_copy_enabled') is True
+    assert temp_db.resolve_audio_output('example-feed') == {
+        'replacement_sound_enabled': False, 'mp3_stream_copy_enabled': True,
+    }
+    document['settings'] = {'audio_replacement_sound_enabled': None, 'audio_mp3_stream_copy_enabled': None}
+    document['feeds'][0]['settings'].update(audio_replacement_sound_override=None,
+                                          audio_mp3_stream_copy_override=None)
+    preview = config_transfer.build_preview(temp_db, document, 'everything')
+    config_transfer.apply_config(temp_db, document, 'everything', None, preview['previewToken'])
+    assert temp_db.resolve_audio_output('example-feed') == {
+        'replacement_sound_enabled': True, 'mp3_stream_copy_enabled': False,
+    }

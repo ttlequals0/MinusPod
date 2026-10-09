@@ -523,6 +523,10 @@ def _build_settings_payload():
         'differential_hold_min_seconds', registry_get_default('differential_hold_min_seconds'))
 
     audio_bitrate = _setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
+    audio_replacement_sound_enabled = coerce_bool_setting(_setting_value(
+        settings, 'audio_replacement_sound_enabled', registry_default('audio_replacement_sound_enabled')))
+    audio_mp3_stream_copy_enabled = coerce_bool_setting(_setting_value(
+        settings, 'audio_mp3_stream_copy_enabled', registry_default('audio_mp3_stream_copy_enabled')))
     audio_normalize_enabled_raw = _setting_value(
         settings, 'audio_normalize_enabled', registry_default('audio_normalize_enabled'))
     audio_normalize_enabled = str(audio_normalize_enabled_raw).lower() in ('true', '1', 'yes')
@@ -914,6 +918,8 @@ def _build_settings_payload():
         'spliceVetoEnabled': _sv('splice_veto_enabled', splice_veto_enabled),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
+        'audioReplacementSoundEnabled': _sv('audio_replacement_sound_enabled', audio_replacement_sound_enabled),
+        'audioMp3StreamCopyEnabled': _sv('audio_mp3_stream_copy_enabled', audio_mp3_stream_copy_enabled),
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
         'audioNormalizeIntensity': _sv('audio_normalize_intensity', audio_normalize_intensity),
         'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
@@ -2139,18 +2145,29 @@ def _min_cut_confidence_value(data):
 
 
 def _apply_audio_fields(db, data):
-    """Persist the audio output bitrate, restricted to the allowed encode set."""
+    """Persist validated audio output settings."""
     writes, issue = _audio_field_writes(data)
     if issue is not None:
         return error_response(*issue)
     for db_key, value in writes:
-        db.set_setting(db_key, str(value), is_default=False)
+        if value is None:
+            db.reset_setting(db_key)
+        else:
+            db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
     return None
 
 
 def _audio_field_writes(data):
     writes = []
+    for payload_key, db_key in (
+            ('audioReplacementSoundEnabled', 'audio_replacement_sound_enabled'),
+            ('audioMp3StreamCopyEnabled', 'audio_mp3_stream_copy_enabled')):
+        if payload_key in data:
+            value = data[payload_key]
+            if value is not None and not isinstance(value, bool):
+                return None, (f'{payload_key} must be boolean or null', 400)
+            writes.append((db_key, None if value is None else str(value).lower()))
     if 'audioBitrate' in data:
         val = str(data['audioBitrate']).strip()
         if val not in ALLOWED_AUDIO_BITRATES:

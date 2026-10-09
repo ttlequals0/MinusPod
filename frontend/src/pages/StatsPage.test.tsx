@@ -524,6 +524,20 @@ describe('StatsPage ledger filters', () => {
     expect(await screen.findByText('Pattern cleanup activity')).toBeTruthy();
     expect(await screen.findByText('Tracked pattern checks')).toBeTruthy();
     expect(screen.getByRole('row', { name: /Sponsor renames/ })).toBeTruthy();
+    for (const [action, label] of Object.entries({
+      trim: 'Trims', split: 'Splits', rename: 'Sponsor renames',
+      retire: 'Retirements', flag: 'Flags', category: 'Category changes',
+    })) {
+      const card = screen.getByRole('heading', { name: label }).parentElement!;
+      const values = card.querySelectorAll('dd');
+      const counts = CLEANUP_STATS.actions[action as keyof typeof CLEANUP_STATS.actions];
+      expect(within(card).getAllByRole('term').map((term) => term.textContent)).toEqual([
+        'Proposed', 'Accepted', 'Applied', 'Reverted',
+      ]);
+      expect(Array.from(values, (value) => value.textContent)).toEqual([
+        String(counts.proposed), String(counts.accepted), String(counts.applied), String(counts.reverted),
+      ]);
+    }
     expect(screen.getByText('Cleanup request usage')).toBeTruthy();
     expect(screen.getByText(/Proposal history is complete since 2026-01-01/)).toBeTruthy();
 
@@ -536,6 +550,9 @@ describe('StatsPage ledger filters', () => {
 
     await waitFor(() => {
       expect(mockGetCleanupStats).toHaveBeenLastCalledWith({
+        from: '2026-01-01', to: '2026-01-31', podcastSlug: 'a-show', provider: 'anthropic', model: 'claude-sonnet',
+      });
+      expect(mockGetSystemOneStats).toHaveBeenLastCalledWith({
         from: '2026-01-01', to: '2026-01-31', podcastSlug: 'a-show', provider: 'anthropic', model: 'claude-sonnet',
       });
     });
@@ -638,7 +655,9 @@ describe('StatsPage ledger filters', () => {
     mockGetSystemOneStats.mockResolvedValue({ ...SYSTEMONE_STATS, calls: 1, outcomes: { completed: 0, failed: 1, inconclusive: 0 } });
     renderPage();
     expect((await screen.findAllByText('No recorded requests')).length).toBe(2);
-    expect(screen.getByText('Logical calls').parentElement?.parentElement?.textContent).not.toContain('All requests priced');
+    const nativeStats = within(document.getElementById('stats-systemone')!);
+    expect(nativeStats.getByText('Calls').parentElement?.parentElement?.textContent).not.toContain('All requests priced');
+    expect(nativeStats.getByText('Average call time')).toBeTruthy();
   });
 });
 
@@ -831,6 +850,14 @@ describe('StatsPage with populated spend data', () => {
 
     const spend = within(index).getByRole('link', { name: 'Spend' });
     expect(spend.getAttribute('href')).toBe('#stats-spend');
+    const native = container.querySelector('#stats-systemone')!;
+    const spendCard = container.querySelector('#stats-spend')!;
+    expect(native.parentElement).toBe(spendCard.parentElement);
+    expect(spendCard.contains(native)).toBe(false);
+    expect(container.querySelectorAll('#stats-systemone')).toHaveLength(1);
+    expect(within(native as HTMLElement).getByRole('heading', { level: 2, name: 'System One calls' })).toBeTruthy();
+    expect(within(native as HTMLElement).getByText(/Uses the LLM spend filters above/)).toBeTruthy();
+    expect(within(index).getByRole('link', { name: 'System One' }).getAttribute('href')).toBe('#stats-systemone');
     // Every listed anchor exists on the page.
     for (const link of within(index).getAllByRole('link')) {
       const id = (link.getAttribute('href') ?? '').slice(1);

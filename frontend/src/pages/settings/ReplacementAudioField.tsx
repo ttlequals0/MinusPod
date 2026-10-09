@@ -174,7 +174,7 @@ function ReplacementAudioField() {
       </div>
 
       <p className="mt-2 text-sm text-muted-foreground">
-        Plays wherever an ad was cut. Every cut becomes exactly this long.
+        Used for replacement sound and beep actions.
       </p>
 
       {isCustom && data?.channels === 1 && (

@@ -109,6 +109,39 @@ function renderPanel(feed: Feed) {
 
 const SELECT_NAME = 'Fetch each episode twice to find inserted ads';
 
+describe('Feed audio output inheritance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({
+      audioReplacementSoundEnabled: { value: false, isDefault: false },
+      audioMp3StreamCopyEnabled: { value: true, isDefault: false },
+    });
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('shows inherited global choices and preserves explicit false', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ audioReplacementSoundOverride: null, audioMp3StreamCopyOverride: null }));
+    const sound = await screen.findByLabelText('Replacement sound');
+    const copy = screen.getByLabelText('MP3 stream copy');
+    await waitFor(() => expect(within(sound).getByRole('option', { name: 'Use global (off)' })).toBeDefined());
+    expect(within(copy).getByRole('option', { name: 'Use global (on)' })).toBeDefined();
+    await user.selectOptions(copy, 'off');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { audioMp3StreamCopyOverride: false }));
+    await user.selectOptions(sound, 'on');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { audioReplacementSoundOverride: true }));
+  });
+
+  it('restores inheritance with null for each override', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ audioReplacementSoundOverride: false, audioMp3StreamCopyOverride: true }));
+    await user.selectOptions(screen.getByLabelText('Replacement sound'), '');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { audioReplacementSoundOverride: null }));
+    await user.selectOptions(screen.getByLabelText('MP3 stream copy'), '');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { audioMp3StreamCopyOverride: null }));
+  });
+});
+
 describe('FeedSettingsPanel processing mode preset', () => {
   beforeEach(() => {
     vi.clearAllMocks();

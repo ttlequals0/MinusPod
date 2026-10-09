@@ -44,7 +44,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## C
 
-**Chapters** - Chapter markers MinusPod generates for the processed audio, served as Podcasting 2.0 JSON and embedded in the MP3 as ID3 frames. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
+**Chapters** - Chapter markers MinusPod preserves or generates for the processed audio, served as Podcasting 2.0 JSON and embedded in the MP3 as ID3 frames. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
 
 **Chapter regeneration** - Refreshing an episode's chapters on demand. Each attempt gets its own processing-history entry and usage record, plus an episode log when log storage is enabled. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
 
@@ -128,6 +128,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## M
 
+**MP3 stream copy** - An opt-in cut path that preserves source-coded MP3 audio outside splice transitions and falls back to re-encoding when the cut is incompatible or fails validation. [Configuration > Output audio](configuration.md#output-audio)
+
 **Mark action** - A segment action that leaves the audio intact and publishes a skippable chapter when chapters are enabled. Keep leaves the audio intact without an ad chapter. [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 
 **Multi-span Mark ad** - Selecting several transcript spans under one sponsor and saving each as a separate missed-ad correction. Each span must pass the minimum text length before saving starts. [Web Interface > Adding a New Ad](web-interface.md#adding-a-new-ad)
@@ -177,6 +179,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Queue priority** - A per-feed High/Normal/Low processing-order preference, with automatic boosts for episodes published in the last 48 hours and for manual reprocesses. [Configuration > Queue priority](configuration.md#queue-priority)
 
 ## R
+
+**Replacement sound** - The clip inserted for Remove actions, enabled by default. Turning it off omits the clip on both copy and re-encode paths; Beep actions still use the replacement clip. [Configuration > Output audio](configuration.md#output-audio)
 
 **Reasoning budget / effort** - Controls for how much thinking an LLM does before answering. Older Anthropic models use a token budget; adaptive-only models use an effort level. [LLM Providers > Reasoning settings](llm-providers.md#reasoning-settings)
 

@@ -32,6 +32,7 @@ from pathlib import Path
 from config import MIN_PRESERVED_CHAPTERS
 from database.queue import compute_queue_priority
 from embedded_chapters import probe_chapters
+from id3_chapters import ChapterTagError
 from storage import _detect_image_mime, _safe_join_under
 from utils.atomic_json import write_json_atomic
 from utils.audio import extract_embedded_artwork, get_audio_duration
@@ -1090,7 +1091,11 @@ def _commit_entry(slug: str, entry: dict, db, storage,
     # leave a committed row the batched index pass would otherwise skip.
     upserted.append(episode_id)
 
-    chapters = probe_chapters(str(final_path))
+    try:
+        chapters = probe_chapters(str(final_path))
+    except ChapterTagError as error:
+        logger.warning('Publisher chapter read failed: %s', error)
+        chapters = None
     if chapters and len(chapters) >= MIN_PRESERVED_CHAPTERS:
         storage.save_chapters_json(slug, episode_id, {
             'version': '1.2.0',

@@ -628,6 +628,9 @@ def _stub_assets_io(monkeypatch, counters):
     monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
                         lambda *a, **k: counters.__setitem__('save_chapters', counters.get('save_chapters', 0) + 1))
     monkeypatch.setattr(processing.db, 'save_episode_details', lambda *a, **k: None)
+    monkeypatch.setattr(processing.db, 'save_processing_assets',
+                        lambda s, e, assets: counters.__setitem__(
+                            'save_chapters', counters.get('save_chapters', 0) + 1) if 'chapters' in assets else None)
 
 
 def _stub_recut_db(monkeypatch, ads, fp=None, confirmed=None, overrides=None):
@@ -1301,8 +1304,8 @@ def test_recut_episode_keeps_rejects_out_of_saved_markers_and_applied_cuts(tmp_p
         storage.get_episode_path.return_value = str(tmp_path / 'final.mp3')
         storage.save_combined_ads.side_effect = (
             lambda s, e, markers: saved.__setitem__('markers', json.loads(json.dumps(markers))))
-        storage.save_chapters_and_applied_cuts.side_effect = (
-            lambda s, e, chapters, cuts: saved.__setitem__('cuts', cuts))
+        db.save_processing_assets.side_effect = (
+            lambda s, e, assets: saved.__setitem__('cuts', assets['applied_cuts']))
 
         assert processing._recut_episode(
             'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
@@ -1420,8 +1423,8 @@ def test_manual_approve_reject_and_adjust_recut_twice_is_identical(tmp_path, ret
             storage.get_episode_path.return_value = str(tmp_path / 'final.mp3')
             storage.save_combined_ads.side_effect = (
                 lambda s, e, m: saved.__setitem__('markers', json.loads(json.dumps(m))))
-            storage.save_chapters_and_applied_cuts.side_effect = (
-                lambda s, e, chapters, cuts: saved.__setitem__('cuts', cuts))
+            db.save_processing_assets.side_effect = (
+                lambda s, e, assets: saved.__setitem__('cuts', assets['applied_cuts']))
             assert processing._recut_episode(
                 'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
         return saved
@@ -1596,8 +1599,8 @@ def test_approval_fold_recut_keeps_reviewer_reject_conflict_hold(tmp_path, retai
         storage.get_episode_path.return_value = str(tmp_path / 'final.mp3')
         storage.save_combined_ads.side_effect = (
             lambda s, e, markers: saved.__setitem__('markers', json.loads(json.dumps(markers))))
-        storage.save_chapters_and_applied_cuts.side_effect = (
-            lambda s, e, chapters, cuts: saved.__setitem__('cuts', cuts))
+        db.save_processing_assets.side_effect = (
+            lambda s, e, assets: saved.__setitem__('cuts', assets['applied_cuts']))
 
         assert processing._recut_episode(
             'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time(),

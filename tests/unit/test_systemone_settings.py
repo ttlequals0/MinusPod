@@ -4,7 +4,6 @@ import pytest
 
 import llm_client
 import provider_probe
-import api.providers as providers_api
 import failover
 import api.settings as settings_api
 import config_transfer
@@ -206,11 +205,6 @@ def test_native_probes_resolve_each_slots_configured_stage_and_freeze_health_mod
               'secondary_provider_base_url': 'https://example.com/b'}
     for key, value in values.items():
         temp_db.set_setting(key, value, is_default=False)
-    assert providers_api._systemone_probe_model(temp_db, provider='systemone-compatible') == 'jev-latest'
-    assert providers_api._systemone_probe_model(
-        temp_db, provider='systemone-compatible', credential_slot='secondary') == 'jev-preview'
-    assert providers_api._systemone_probe_model(
-        temp_db, {'model': 'selected-model'}, provider='systemone-compatible', credential_slot='secondary') == 'selected-model'
     primary = failover._capture_probe_context(temp_db, 'llm:primary')
     secondary = failover._capture_probe_context(temp_db, 'llm:secondary')
     assert primary['request_config']['model'] == 'jev-latest'
@@ -219,8 +213,6 @@ def test_native_probes_resolve_each_slots_configured_stage_and_freeze_health_mod
     assert secondary['request_config']['model'] == 'jev-preview'
     assert secondary['config_identity'] != failover._capture_probe_context(temp_db, 'llm:secondary')['config_identity']
     temp_db.set_setting('verification_provider', 'primary', is_default=False)
-    assert providers_api._systemone_probe_model(
-        temp_db, provider='systemone-compatible', credential_slot='secondary') is None
     monkeypatch.setattr(provider_probe, 'probe_systemone_endpoint',
                         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError('missing model cannot probe')))
     config = failover._capture_probe_context(temp_db, 'llm:secondary')['request_config']
@@ -240,10 +232,9 @@ def test_probe_can_select_explicit_review_slot_model_without_pass_models(temp_db
     for key, value in {'llm_provider': 'typesafe', 'claude_model': '', 'verification_model': '',
                        'review_provider': 'primary', 'review_model': 'jev-preview'}.items():
         temp_db.set_setting(key, value, is_default=False)
-    assert providers_api._systemone_probe_model(temp_db, provider='typesafe') == 'jev-preview'
     assert failover._capture_probe_context(temp_db, 'llm:primary')['request_config']['model'] == 'jev-preview'
     temp_db.set_setting('review_provider', 'same_as_pass', is_default=False)
-    assert providers_api._systemone_probe_model(temp_db, provider='typesafe') is None
+    assert failover._capture_probe_context(temp_db, 'llm:primary')['request_config']['model'] is None
 
 
 def test_fractional_native_timeout_export_and_preview_preserve_value(temp_db):

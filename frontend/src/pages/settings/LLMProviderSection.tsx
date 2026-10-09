@@ -354,7 +354,11 @@ function LLMProviderSection({
               onProviderKeyClear={() => onSecondaryProviderKeyClear()}
               onProviderKeyTest={async () => {
                 const result = await onSecondaryConnectionTest(secondaryProvider);
-                return { ok: result.ok, error: result.ok ? undefined : result.detail };
+                return {
+                  ok: result.ok, detail: result.detail,
+                  error: result.ok ? undefined : result.detail,
+                  validation: result.validation, inferenceChecked: result.inferenceChecked,
+                };
               }}
               onConnectionTest={(baseUrl) => onSecondaryConnectionTest(secondaryProvider, baseUrl)}
             />

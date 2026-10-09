@@ -72,6 +72,7 @@ PATTERN_CLEANUP_SETTINGS = frozenset({
 })
 RAW_TRANSFER_SETTINGS = PATTERN_CLEANUP_SETTINGS | {'notification_timezone'}
 NULLABLE_OPTIONAL_SETTINGS = frozenset({
+    'audio_replacement_sound_enabled', 'audio_mp3_stream_copy_enabled',
     'verification_model', 'chapters_model', 'pattern_cleanup_model',
     'secondary_provider', 'failover_llm_provider',
     'llm_timeout_seconds', 'llm_max_retries',
@@ -134,6 +135,7 @@ FEED_COLUMNS = (
     'queue_priority', 'title_skip_patterns', 'title_skip_action',
     'low_ad_yield_action', 'episode_logs', 'retention_days_override',
     'keep_original_audio_override', 'user_tags', 'author', 'explicit',
+    'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
     'categories', 'p20_channel_json',
 )
 FEED_JSON_COLUMNS = frozenset({
@@ -147,6 +149,7 @@ FEED_BOOL_COLUMNS = frozenset({
     'skip_second_pass', 'transcript_differential', 'skip_transcription',
     'explicit', 'cue_create_from_pairs_override', 'differential_fetch_enabled',
     'keep_original_audio_override',
+    'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
 })
 
 
@@ -967,7 +970,8 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                 raise ConfigTransferError('user_tags must be an array of strings or null')
             value = _canonical_json(value)
         elif key in ('cue_create_from_pairs_override', 'differential_fetch_enabled',
-                     'keep_original_audio_override'):
+                     'keep_original_audio_override', 'audio_replacement_sound_override',
+                     'audio_mp3_stream_copy_override'):
             value, error = feed_api._normalize_cue_bool_override(value, key)
             if error:
                 raise ConfigTransferError(error)

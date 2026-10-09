@@ -25,19 +25,19 @@ from config import (
 )
 from database import Database
 from llm_client import (
-    get_effective_base_url, get_effective_provider_from_snapshot, get_effective_failover_llm_api_key,
+    get_effective_base_url, get_effective_failover_llm_api_key,
     get_effective_secondary_provider_api_key, _normalize_base_url_for_provider,
 )
 from llm_route import (
     SLOT_PRIMARY, VALID_SLOTS, account_identity_for_primary_provider,
-    account_identity_for_slot, systemone_probe_model,
+    account_identity_for_slot,
 )
 from provider_probe import (
     FIXED_PROVIDER_PROBES as _FIXED_PROVIDER_PROBES,
     models_request as _models_request,
     probe_fixed_endpoint as _probe_fixed_endpoint,
     probe_models_endpoint as _probe_models_endpoint,
-    probe_systemone_endpoint as _probe_systemone_endpoint,
+    probe_systemone_connection as _probe_systemone_connection,
     same_server as _same_server,
 )
 from rate_limit_hold import clear_hold_for_provider_change
@@ -345,9 +345,7 @@ def test_provider(provider):
             except SSRFError:
                 return json_response(
                     {'ok': False, 'error': 'base URL failed SSRF validation'}, 200)
-        result = _probe_systemone_endpoint(
-            provider, base, api_key or '', _systemone_probe_model(db, provider=provider),
-            credential_slot='primary', db=db)
+        result = _probe_systemone_connection(provider, base, api_key or '')
         return json_response(result, 200)
 
     if provider in _FIXED_PROVIDER_PROBES:
@@ -415,16 +413,6 @@ def _health_detail(health: dict) -> str:
     return f"{hedge}{count} {noun} reporting {model}." if model else f"{hedge}{count} {noun}."
 
 
-def _systemone_probe_model(db, body=None, *, provider=None, credential_slot='primary'):
-    requested = (body or {}).get('model')
-    if isinstance(requested, str) and requested.strip():
-        return requested.strip()
-    settings = {key: entry['value'] for key, entry in db.get_all_settings().items()}
-    settings['llm_provider'] = get_effective_provider_from_snapshot(settings)
-    provider = provider or settings.get('llm_provider')
-    return systemone_probe_model(settings, provider, credential_slot)
-
-
 def _whisper_connection_test(saved: dict, body: dict):
     """Shared whisper-shaped connection probe (#544, #806); resolves against
     `saved`, so the primary and failover whisper routes stay byte-for-byte identical."""
@@ -485,10 +473,7 @@ def test_provider_connection(provider):
         # body, saved key only.
         api_key = _resolve_key(Database(), _PROVIDERS[provider]) or ''
         if provider == PROVIDER_TYPESAFE:
-            db = Database()
-            return json_response(_probe_systemone_endpoint(
-                provider, None, api_key, _systemone_probe_model(db, body, provider=provider),
-                credential_slot='primary', db=db), 200)
+            return json_response(_probe_systemone_connection(provider, None, api_key), 200)
         return json_response(_probe_fixed_endpoint(provider, api_key), 200)
 
     if provider == 'whisper':
@@ -516,9 +501,7 @@ def test_provider_connection(provider):
                                   'detail': 'Base URL failed SSRF validation.'}, 200)
         saved_key = _resolve_key(db, cfg) or ''
         api_key = saved_key if _same_server(base, saved_base) else ''
-        return json_response(_probe_systemone_endpoint(
-            provider, base, api_key, _systemone_probe_model(db, body, provider=provider),
-            credential_slot='primary', db=db), 200)
+        return json_response(_probe_systemone_connection(provider, base, api_key), 200)
 
     # Resolve the default like the real LLM client (DB, then env, then default);
     # the key gate below only ever sees an explicitly saved URL, never that default.
@@ -639,10 +622,7 @@ def _llm_slot_connection_test(saved_type, gate_base: str, saved_key_fn, body: di
             api_key = saved_key if _same_server(base, gate_base) else ''
         else:
             api_key = saved_key
-        db = Database()
-        return json_response(_probe_systemone_endpoint(
-            provider, base, api_key, _systemone_probe_model(db, body, provider=provider, credential_slot='secondary'),
-            credential_slot='secondary', db=db), 200)
+        return json_response(_probe_systemone_connection(provider, base, api_key), 200)
 
     if provider in _FIXED_PROVIDER_PROBES:
         return json_response(_probe_fixed_endpoint(provider, saved_key), 200)

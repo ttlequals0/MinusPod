@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.99.0
+  version: 2.99.1
   contact:
     name: MinusPod
   license:
@@ -427,6 +427,12 @@ paths:
                   minimum: 0
                   maximum: 3650
                   description: Per-feed retention override. Null falls back to the global retentionDays setting; 0 archives the feed so processed audio is never deleted, including by the force-all cleanup; 1-3650 keeps it for that many days.
+                audioReplacementSoundOverride:
+                  type: [boolean, 'null']
+                  description: Override replacement sound for this feed; null inherits the global choice.
+                audioMp3StreamCopyOverride:
+                  type: [boolean, 'null']
+                  description: Override MP3 stream copy for this feed; null inherits the global choice.
                 keepOriginalAudioOverride:
                   type:
                     - boolean
@@ -627,6 +633,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /episodes/{slug}/{episode_id}/chapter-images/{filename}:
+    servers:
+      - url: /
+        description: Host root on the public feed domain (not under /api/v1)
+    get:
+      tags:
+        - Episodes
+      summary: Get a local embedded chapter image
+      description: |
+        Serves extracted JPEG or PNG bytes without a remote fetch. When feed
+        authentication is enabled, requires a valid global or scoped subscriber
+        key. Served chapters JSON includes the supplied key on local image URLs.
+        HEAD is also supported. Responses prevent content sniffing and allow
+        cross-origin podcast players.
+      operationId: getEmbeddedChapterImage
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{64}\.(jpg|png)$'
+        - name: key
+          in: query
+          description: Required when feed authentication is enabled
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Stored chapter image
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Missing or invalid feed key
+        '404':
+          description: Missing, invalid or unsupported chapter image
 
   /opml/{mode}.opml:
     servers:
@@ -1036,6 +1096,12 @@ paths:
                   minimum: 0
                   maximum: 3650
                   description: Per-feed retention override. Null falls back to the global retentionDays setting; 0 archives the feed so processed audio is never deleted, including by the force-all cleanup; 1-3650 keeps it for that many days.
+                audioReplacementSoundOverride:
+                  type: [boolean, 'null']
+                  description: Override replacement sound for this feed; null inherits the global choice.
+                audioMp3StreamCopyOverride:
+                  type: [boolean, 'null']
+                  description: Override MP3 stream copy for this feed; null inherits the global choice.
                 keepOriginalAudioOverride:
                   type:
                     - boolean
@@ -5662,6 +5728,9 @@ paths:
       tags:
         - Settings
       summary: Test a provider connection
+      description: >-
+        Native System One providers check model discovery without a stage model.
+        Success confirms the catalog connection, not inference.
       operationId: testProvider
       parameters:
         - in: path
@@ -5680,11 +5749,16 @@ paths:
                 properties:
                   ok:    { type: boolean }
                   error: { type: string }
+                  detail: { type: string }
+                  reachable: { type: boolean }
+                  status: { type: integer }
+                  validation: { type: string, enum: [model_catalog] }
+                  inferenceChecked: { type: boolean, description: 'False for native model-catalog checks' }
   /settings/providers/{provider}/test-connection:
     post:
       tags:
         - Settings
-      summary: Test a configured endpoint connection end to end
+      summary: Test a configured endpoint connection
       description: |
         Connection probe for providers with a configurable endpoint.
         `whisper` uploads a one-second generated audio sample through the
@@ -5703,11 +5777,12 @@ paths:
         fixed public endpoints with the saved key; the request body is
         ignored for them, distinguishing an unreachable network from a
         rejected or missing key.
-        `typesafe` and `systemone-compatible` send a native System One inference
-        request using the selected model and account every actual POST. TypeSafe
-        requires its own saved key. Compatible endpoints can omit a key; a saved
-        key is sent only to the same saved scheme, host and port. Native probes
-        share whole-operation admission and the selected profile deadline.
+        `typesafe` and `systemone-compatible` check their `/models` endpoint
+        without a stage model. Success confirms model discovery, not inference;
+        public catalogs may not validate keys. TypeSafe requires its own saved
+        key. Compatible endpoints can omit a key; a saved key is sent only to
+        the same saved scheme, host and port. Native probes use
+        the bounded connection-probe timeout.
       operationId: testProviderConnection
       parameters:
         - in: path
@@ -5724,7 +5799,7 @@ paths:
               type: object
               properties:
                 baseUrl: { type: string, description: 'Base URL to test; when the key is absent the saved value is used' }
-                model:   { type: string, description: 'Whisper or native System One model to test. Native probes use a selected supported-stage model on the target slot when omitted, and require a model if no such route exists' }
+                model:   { type: string, description: 'Whisper model to test; ignored for native System One catalog checks' }
                 skipFlacCompression: { type: boolean, description: 'whisper only: upload WAV (true) or FLAC (false); falls back to the saved setting' }
       responses:
         '200':
@@ -5739,7 +5814,7 @@ paths:
     post:
       tags:
         - Settings
-      summary: Test the secondary provider connection end to end
+      summary: Test the secondary provider connection
       description: |
         Same staged probe as `/settings/providers/{provider}/test-connection`,
         but targets the optional secondary provider slot: its key comes from
@@ -6437,6 +6512,14 @@ paths:
                   maximum: 1
                   description: Minimum marker confidence required before a segment becomes an ad chapter.
                   example: 0.9
+                audioReplacementSoundEnabled:
+                  type: [boolean, 'null']
+                  description: Insert the replacement clip for Remove actions. Null resets to the default.
+                  default: true
+                audioMp3StreamCopyEnabled:
+                  type: [boolean, 'null']
+                  description: Try compatible MP3 cuts; otherwise re-encode. Null resets to the default.
+                  default: false
                 audioBitrate:
                   type: string
                   enum: ['64k', '96k', '128k', '192k', '256k']
@@ -12224,6 +12307,8 @@ components:
         reachable: { type: boolean, description: 'The server returned any HTTP response' }
         status:    { type: integer, description: 'HTTP status code, when a response was received' }
         detail:    { type: string, description: 'Human-readable outcome' }
+        validation: { type: string, enum: [model_catalog], description: 'Native System One checks validate model discovery only' }
+        inferenceChecked: { type: boolean, description: 'False for native model-catalog checks' }
         health:
           allOf:
             - $ref: '#/components/schemas/WhisperHealthProbe'
@@ -13329,6 +13414,12 @@ components:
           minimum: 0
           maximum: 3650
           description: Per-feed retention override. Null falls back to the global retentionDays setting; 0 archives the feed so processed audio is never deleted, including by the force-all cleanup; 1-3650 keeps it for that many days.
+        audioReplacementSoundOverride:
+          type: [boolean, 'null']
+          description: Override replacement sound for this feed; null inherits the global choice.
+        audioMp3StreamCopyOverride:
+          type: [boolean, 'null']
+          description: Override MP3 stream copy for this feed; null inherits the global choice.
         keepOriginalAudioOverride:
           type:
             - boolean
@@ -15623,6 +15714,20 @@ components:
               format: float
             isDefault:
               type: boolean
+        audioReplacementSoundEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        audioMp3StreamCopyEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
         audioBitrate:
           type: object
           properties:
@@ -16614,6 +16719,12 @@ components:
             vadGapTailMinSeconds:
               type: number
               format: float
+            audioReplacementSoundEnabled:
+              type: boolean
+              default: true
+            audioMp3StreamCopyEnabled:
+              type: boolean
+              default: false
             audioBitrate:
               type: string
               enum: ['64k', '96k', '128k', '192k', '256k']

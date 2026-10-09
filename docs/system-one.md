@@ -15,6 +15,8 @@ Open Settings > AI & Processing > LLM Provider to choose a provider for each cre
 
 System One compatible model discovery uses `<base-url>/models`. Provider A uses its saved compatible base URL or `SYSTEMONE_BASE_URL`; Provider B uses its saved slot base URL. A compatible base URL is required and does not inherit `OPENAI_BASE_URL`. TypeSafe uses its fixed endpoint and does not need a configurable base URL. The slots have separate credentials and endpoints. Use the provider's model catalog or enter a model ID supported by that endpoint.
 
+Test and Test connection check the model catalog and need no stage model. Success confirms the catalog connection, not inference; a public catalog may accept any key. Automatic inference health checks still need a model selected for a supported stage on that slot.
+
 The existing `openai-compatible` route remains supported for explicitly recognized Jev model IDs: `jev-latest`, `jev-preview`, and `typesafe/jev`. MinusPod does not infer System One behavior from an unknown model name. Existing installations that route one of these IDs through an OpenAI-compatible proxy can keep that detection and review route. The proxy does not make chapters or Pattern Cleanup supported.
 
 ## Supported phases

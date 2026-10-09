@@ -153,7 +153,7 @@ function GlobalOverrideRow({
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value === '' ? null : e.target.value as 'on' | 'off')}
           disabled={disabled}
-          className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+          className={`self-start w-full sm:w-auto min-h-11 sm:min-h-0 min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
           aria-label={ariaLabel}
         >
           <option value="">Use global ({globalOn ? 'on' : 'off'})</option>
@@ -1135,6 +1135,26 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             storageKey={`feed-output-${slug}`}
           >
             <div className="space-y-4 pt-1">
+              <GlobalOverrideRow
+                label="Replacement sound"
+                ariaLabel="Replacement sound"
+                value={feed.audioReplacementSoundOverride == null ? null : feed.audioReplacementSoundOverride ? 'on' : 'off'}
+                globalOn={settings?.audioReplacementSoundEnabled?.value ?? true}
+                disabled={updateMutation.isPending}
+                onChange={(value) => updateMutation.mutate({ audioReplacementSoundOverride: value === null ? null : value === 'on' })}
+              >
+                Insert a sound where audio is removed.
+              </GlobalOverrideRow>
+              <GlobalOverrideRow
+                label="MP3 stream copy"
+                ariaLabel="MP3 stream copy"
+                value={feed.audioMp3StreamCopyOverride == null ? null : feed.audioMp3StreamCopyOverride ? 'on' : 'off'}
+                globalOn={settings?.audioMp3StreamCopyEnabled?.value ?? false}
+                disabled={updateMutation.isPending}
+                onChange={(value) => updateMutation.mutate({ audioMp3StreamCopyOverride: value === null ? null : value === 'on' })}
+              >
+                Tries compatible MP3 cuts; otherwise re-encodes.
+              </GlobalOverrideRow>
               {/* Hide unprocessed episodes from the served feed. Meaningless for a
                   local feed: nothing is served until it finishes processing. */}
               {!isLocal && (
@@ -1145,7 +1165,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     value={feed.onlyExposeProcessedEpisodes}
                     onChange={(next) => updateMutation.mutate({ onlyExposeProcessedEpisodes: next })}
                     disabled={updateMutation.isPending}
-                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
+                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded w-full sm:w-auto min-h-11 sm:min-h-0 sm:flex-none min-w-0"
                   />
                   {feed.onlyExposeProcessedEpisodes !== null && feed.onlyExposeProcessedEpisodes !== undefined && (
                     <span className={`${badgeBase} font-medium ${
@@ -1195,7 +1215,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         ? null : (e.target.value as EpisodeLogsOverride),
                     })}
                     disabled={updateMutation.isPending}
-                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    className={`self-start w-full sm:w-auto min-h-11 sm:min-h-0 min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Run log storage"
                   >
                     <option value="">Use global ({globalEpisodeLogsLabel})</option>
@@ -1230,7 +1250,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         });
                       }}
                       disabled={updateMutation.isPending}
-                      className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                      className={`self-start w-full sm:w-auto min-h-11 sm:min-h-0 min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                       aria-label="Retention"
                     >
                       <option value="global">Use global ({globalStorageRetentionLabel})</option>
@@ -1284,7 +1304,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                           ? null : e.target.value === 'on',
                       })}
                       disabled={updateMutation.isPending}
-                      className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                      className={`self-start w-full sm:w-auto min-h-11 sm:min-h-0 min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                       aria-label="Keep original audio"
                     >
                       <option value="">Use global ({globalKeepOriginalLabel})</option>

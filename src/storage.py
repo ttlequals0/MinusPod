@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -80,6 +81,7 @@ _ARTWORK_EXTENSIONS = (
 
 # Per-feed episode covers live here, one file per episode id (issue #617).
 _EPISODE_ARTWORK_DIR = "episode-artwork"
+_CHAPTER_IMAGE_NAME_RE = re.compile(r'[0-9a-f]{64}\.(jpg|png)')
 # Per-feed ceiling on that directory. Publisher episode covers run large (a
 # 3000x3000 JPEG is ~600 KB), and a long back catalogue would otherwise grow
 # without limit, so the least recently served files are dropped past this.
@@ -92,6 +94,10 @@ _WATERMARK_VARIANT = "artwork-minuspod.jpg"
 # without it an upgrade can keep serving the old badge at the new cache-busted
 # URL forever.
 _WATERMARK_SALT = "artwork-minuspod.salt"
+
+
+def is_chapter_image_filename(value: str) -> bool:
+    return bool(_CHAPTER_IMAGE_NAME_RE.fullmatch(value))
 
 
 def _detect_image_mime(data: bytes) -> str | None:
@@ -616,6 +622,89 @@ class Storage:
                     return f.read(), content_type
 
         return None
+
+    def _chapter_images_dir(self, slug: str, episode_id: str,
+                            create: bool = False) -> Path | None:
+        """Resolve one episode's contained chapter-image directory."""
+        if not is_valid_episode_id(episode_id):
+            return None
+        podcast_dir = (self.get_podcast_dir(slug) if create
+                       else self.podcast_dir_if_exists(slug))
+        if not podcast_dir:
+            return None
+        path = _safe_join_under(podcast_dir, 'chapter-images', episode_id)
+        if create:
+            path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def save_chapter_image(self, slug: str, episode_id: str,
+                           image_data: bytes) -> str | None:
+        """Store a bounded JPEG/PNG chapter image without replacing older assets."""
+        if len(image_data) > _max_artwork_bytes():
+            return None
+        content_type = _detect_image_mime(image_data)
+        if content_type not in ('image/jpeg', 'image/png'):
+            return None
+        filename = hashlib.sha256(image_data).hexdigest() + _EXTENSION_BY_TYPE[content_type]
+        tmp_path = None
+        try:
+            image_dir = self._chapter_images_dir(slug, episode_id, create=True)
+            if image_dir is None:
+                return None
+            path = _safe_join_under(image_dir, filename)
+            if not path.exists():
+                with tempfile.NamedTemporaryFile(mode='wb', delete=False,
+                                                 dir=image_dir, suffix='.tmp') as tmp:
+                    tmp_path = Path(tmp.name)
+                    tmp.write(image_data)
+                os.replace(tmp_path, path)
+        except (OSError, PathContainmentError):
+            logger.warning(f'[{slug}:{episode_id}] Could not store chapter image')
+            return None
+        finally:
+            if tmp_path is not None:
+                tmp_path.unlink(missing_ok=True)
+        return f'/episodes/{slug}/{episode_id}/chapter-images/{filename}'
+
+    def get_chapter_image(self, slug: str, episode_id: str,
+                          filename: str) -> tuple[bytes, str] | None:
+        """Read only contained, correctly named JPEG/PNG chapter images."""
+        if not is_chapter_image_filename(filename):
+            return None
+        try:
+            image_dir = self._chapter_images_dir(slug, episode_id)
+            if image_dir is None:
+                return None
+            path = _safe_join_under(image_dir, filename)
+            if not path.is_file():
+                return None
+            limit = _max_artwork_bytes()
+            with path.open('rb') as image_file:
+                data = image_file.read(limit + 1)
+            if len(data) > limit:
+                return None
+        except (OSError, PathContainmentError):
+            return None
+        content_type = _detect_image_mime(data)
+        if (content_type not in ('image/jpeg', 'image/png')
+                or not filename.endswith(_EXTENSION_BY_TYPE[content_type])
+                or hashlib.sha256(data).hexdigest() != filename.split('.')[0]):
+            return None
+        return data, content_type
+
+    def remove_chapter_images(self, slug: str, episode_id: str) -> int:
+        """Remove an episode's chapter images and return freed bytes."""
+        try:
+            image_dir = self._chapter_images_dir(slug, episode_id)
+            if image_dir is None or not image_dir.is_dir():
+                return 0
+            freed = sum(path.stat().st_size for path in image_dir.iterdir()
+                        if path.is_file() and not path.is_symlink())
+            shutil.rmtree(image_dir)
+            return freed
+        except (OSError, PathContainmentError):
+            logger.warning(f'[{slug}:{episode_id}] Could not remove chapter images')
+            return 0
 
     # ---------- Episode covers (issue #617) ----------
 
@@ -1284,6 +1373,7 @@ class Storage:
                 except Exception as e:
                     logger.warning(f"Failed to delete {path}: {e}")
 
+        freed += self.remove_chapter_images(slug, episode_id)
         return freed
 
     def cleanup_podcast_dir(self, slug: str) -> bool:

@@ -31,6 +31,7 @@ from cancel import request_cancellation, wait_for_cancellation
 from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
 from embedded_chapters import probe_chapters
+from id3_chapters import ChapterTagError
 from local_import import (
     _release_import_lock, _try_acquire_import_lock, build_import_plan,
     bump_staging_generation, get_import_status, plan_hash,
@@ -351,7 +352,11 @@ def upload_local_episode(slug):
             raise
         db.cleanup_published_upload_backup(reservation_id)
 
-        chapters = probe_chapters(str(final_path))
+        try:
+            chapters = probe_chapters(str(final_path))
+        except ChapterTagError as error:
+            logger.warning('Publisher chapter read failed: %s', error)
+            chapters = None
         if chapters and len(chapters) >= MIN_PRESERVED_CHAPTERS:
             storage.save_chapters_json(slug, episode_id, {
                 'version': '1.2.0',

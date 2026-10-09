@@ -378,6 +378,8 @@ def _stub_chapters_assets_io(monkeypatch, counters, chapters_enabled=True):
     monkeypatch.setattr(processing.storage, 'save_final_segments', lambda *a, **k: None)
     monkeypatch.setattr(processing.storage, 'save_transcript_vtt', lambda *a, **k: None)
     monkeypatch.setattr(processing.db, 'save_episode_details', lambda *a, **k: None)
+    monkeypatch.setattr(processing.db, 'save_processing_assets',
+                        lambda s, e, assets: counters.__setitem__('assets', assets))
     monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts', lambda *a, **k: None)
     monkeypatch.setattr(processing.storage, 'save_chapters_json', lambda *a, **k: None)
     monkeypatch.setattr(processing, 'get_audio_duration', lambda p: None)

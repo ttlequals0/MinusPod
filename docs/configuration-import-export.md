@@ -14,10 +14,15 @@ System One tuning profiles are imported as partial field updates. Fields absent 
 - `llm_timeout_seconds`, `llm_max_retries`, `secondary_llm_timeout_seconds`, `secondary_llm_max_retries`, `failover_llm_timeout_seconds`, `failover_llm_max_retries`, and `failover_whisper_max_attempts`
 - `detection_reasoning_budget` and `detection_reasoning_level`, with corresponding `verification_`, `reviewer_`, `chapter_boundary_`, and `chapter_title_` settings
 - `ollama_num_ctx`
+- `audio_replacement_sound_enabled` and `audio_mp3_stream_copy_enabled`
 
 `pattern_cleanup_model` has three states: null inherits the detection model, an empty string means the model was explicitly cleared and must be selected before a run, and a nonempty string selects that model. Stage tunables export their effective values, using null only when the effective value is null. Nullable feed overrides can still inherit global defaults. Credentials set through environment variables may remain active after a database credential is cleared.
 
 Configuration import and export do not copy files that a setting may reference, such as locally stored media. Preview and import do not dispatch test webhooks or email notifications.
+
+Audio output choices include their nullable feed overrides. Null resets a global
+choice to its default or clears a feed override back to inheritance. Omitted
+fields preserve the destination values, including imports from older exports.
 
 ## UI and API
 

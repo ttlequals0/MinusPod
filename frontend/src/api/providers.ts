@@ -35,6 +35,9 @@ export interface ProviderUpdatePayload {
 export interface ProviderTestResult {
   ok: boolean;
   error?: string;
+  detail?: string;
+  validation?: 'model_catalog';
+  inferenceChecked?: boolean;
 }
 
 export function listProviders() {
@@ -91,6 +94,8 @@ export interface ConnectionTestResult {
   reachable: boolean;
   status?: number;
   detail: string;
+  validation?: 'model_catalog';
+  inferenceChecked?: boolean;
   // whisper only, present when ok is true.
   health?: WhisperHealthProbe;
 }

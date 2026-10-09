@@ -9,6 +9,7 @@
 - [Configuration](#configuration)
 - [Global feed defaults](#global-feed-defaults)
 - [Audio leveling](#audio-leveling)
+- [Output audio](#output-audio)
 - [Experiments](#experiments)
 - [Reprocessing](#reprocessing)
 - [Community Patterns (Optional)](#community-patterns-optional)
@@ -382,6 +383,35 @@ Matching is case-insensitive, and a bare pattern matches anywhere in the agent s
 
 API: `jitBlockedUserAgents` (array of strings) on `PUT /api/v1/settings/ad-detection`.
 
+## Output audio
+
+Settings > Output > Audio has independent **Replacement sound** and **MP3 stream
+copy** choices. Replacement sound is on by default; stream copy is off. Feed
+Settings > Served feed and storage can override either choice or inherit it.
+Turning replacement sound off omits the clip even when a cut falls back to
+re-encoding. Explicit Beep actions still use the replacement clip.
+
+Stream copy tries compatible, unprotected MPEG-1 Layer III MP3 cuts, preserving
+source-coded audio outside splice transitions. When replacement sound is on, its clip is
+encoded to match the source. The copy path repairs frame packing around joins
+and validates the output before publishing it.
+
+Cuts snap to the nearest MP3 frame. Chapters and transcript timing use those
+actual cuts and the encoded replacement duration. Validation uses temporary
+decoded-audio files, limited to 4 GiB each, and checks free disk space. Unsupported
+headers or gapless tags, protected boundaries and failed resource checks fall
+back to re-encoding.
+
+Leveling, Beep actions, unsupported audio, cuts at the start or end, unsafe joins
+or failed validation use the existing encoder. Output Bitrate applies to that
+re-encoded output. Bitrate and leveling remain configurable with stream copy on.
+
+API: `audioReplacementSoundEnabled` and `audioMp3StreamCopyEnabled` on
+`PUT /api/v1/settings/ad-detection`; null resets the global choice to its default.
+Feed `audioReplacementSoundOverride` and `audioMp3StreamCopyOverride` accept
+true, false or null on `PATCH /api/v1/feeds/{slug}`; null means inherit.
+These settings are stored in the database, without environment variables.
+
 ## Experiments
 
 The Experiments section in Settings holds opt-in features that are still being evaluated. Everything here is disabled by default. Turning a feature on does not change behavior on existing processed episodes; it applies only to subsequent processing runs.
@@ -449,7 +479,7 @@ Reprocessing an episode re-runs detection without re-fetching it from the source
 
 - **Reprocess** (default) - uses the learned pattern database plus the LLM. Fastest option for routine re-detection.
 - **Full Analysis** - skips the pattern database for a fresh LLM-only pass.
-- **Recut Audio** - re-cuts the retained original from the episode's current ad list and re-times the saved transcript, without re-transcribing or calling the LLM. Use it after editing ads by hand to regenerate the output file. Because no LLM runs, generated chapters are not refreshed: the rebuilt file carries the source feed's own chapters remapped to the new cut, and the podcast:chapters JSON keeps its old timestamps. Run Regenerate Chapters afterward if chapters matter for the episode.
+- **Recut Audio** - re-cuts the retained original from the episode's current ad list and re-times the saved transcript, without re-transcribing or calling the LLM. Use it after editing ads by hand to regenerate the output file. Because no LLM runs, chapter topics are not regenerated. The MP3 and chapter JSON are kept in sync when their timestamps are remapped.
 - **Re-detect Ads** - reruns detection and re-cuts using the transcript already saved for the episode, skipping the transcription step that dominates processing time on local hardware. Requires an existing transcript; episodes without one are skipped, and it is also offered for failed episodes that still have a transcript. Use it to iterate on detection settings or models without paying for transcription each time. Not available on a feed set to Pass-through, skip ad detection, or `cue_only` mode (returns a 409): none of those modes has a detection LLM call to rerun, so **Recut Audio** is the equivalent action after editing ad markers by hand.
 
 ## Community Patterns (Optional)

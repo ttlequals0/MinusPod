@@ -16,6 +16,7 @@ from config import (
     SYSTEMONE_TUNABLE_DEFAULTS,
     SYSTEMONE_TUNABLE_PROFILE_KEYS,
     DEFAULT_OPENAI_BASE_URL,
+    DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED, DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED,
     SYSTEMONE_COMPATIBLE_BASE_URL,
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OLLAMA,
@@ -610,6 +611,14 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         payload_key='positionalPriorEnabled', payload_kind='bool'),
 
     # -- Audio output --
+    'audio_replacement_sound_enabled': SettingSpec(
+        default=str(DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED).lower(),
+        seeded=True, in_ad_reset=True,
+        payload_key='audioReplacementSoundEnabled', payload_kind='bool'),
+    'audio_mp3_stream_copy_enabled': SettingSpec(
+        default=str(DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED).lower(),
+        seeded=True, in_ad_reset=True,
+        payload_key='audioMp3StreamCopyEnabled', payload_kind='bool'),
     'audio_normalize_enabled': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='audioNormalizeEnabled', payload_kind='bool'),

@@ -15,6 +15,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from embedded_chapters import probe_chapters
+from id3_chapters import ChapterTagError
+from storage import Storage
+from tests.unit.test_id3_chapter_preservation import _fixture
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='local-episode-api-test-'))
@@ -453,6 +457,27 @@ def test_upload_persists_embedded_chapters(app_client, local_feed, chaptered_mp3
     chapters = json.loads(episode['chapters_json'])
     assert chapters['version'] == '1.2.0'
     assert [c['title'] for c in chapters['chapters']] == ['One', 'Two']
+
+
+@requires_ffmpeg
+def test_upload_retains_unsupported_chapter_source_without_exposing_chapters(app_client, local_feed, tmp_path):
+    source, _, _ = _fixture(tmp_path, 4)
+    content = bytearray(source.read_bytes())
+    content[content.index(b'CHAP') + 9] = 8
+    source.write_bytes(content)
+    with pytest.raises(ChapterTagError, match='Encrypted or compressed'):
+        probe_chapters(str(source))
+    _authed(app_client)
+    response = app_client.post(
+        f"/api/v1/feeds/{local_feed['slug']}/episodes",
+        data={'audio': (io.BytesIO(content), 'chaptered.mp3')},
+        headers=_csrf_headers(app_client), content_type='multipart/form-data')
+    assert response.status_code == 201
+    episode_id = response.get_json()['episodeId']
+    episode = local_feed['db'].get_episode(local_feed['slug'], episode_id)
+    assert episode['status'] == 'discovered'
+    assert episode['chapters_json'] is None
+    assert Storage().get_original_path(local_feed['slug'], episode_id).read_bytes() == content
 
 
 @requires_ffmpeg

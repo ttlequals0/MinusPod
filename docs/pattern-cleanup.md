@@ -152,9 +152,11 @@ that pending suggestions will be replaced.
 
 The Stats page's Pattern Cleanup section separates run totals, pattern checks, suggestions, action kinds, and request usage. `GET /api/v1/stats/cleanup` accepts the shared Stats filters: `from`, `to`, `podcastSlug`, `provider`, and `model`. Date ranges include whole UTC days.
 
+Suggested and applied actions use a table on wider screens and stacked cards on mobile. Both show Proposed, Accepted, Applied, and Reverted counts.
+
 Runs, checks, proposals, and linked usage use the cleanup run's start date. Unlinked Pattern Cleanup requests are grouped by request time and appear only when All Podcasts is selected; their spend is not assigned to a feed. Legacy runs have unknown spend rather than an estimated value. Historical per-pattern checks are unavailable. Historical suggestion scope is unknown when the original feed scope was not saved, so those suggestions are not attributed to a selected feed.
 
-Checks count run/pattern pairs; distinct checks count unique patterns in the selected run cohort. Suggestions and changed patterns count distinct pattern IDs. Action rows group by the action kind stored for each proposal, not every field that an action changed. Accepted includes actions later reverted. Applied means currently approved, and the accepted and applied columns overlap. Reverted counts approved actions later undone. These counts are not independent totals.
+Checks count run/pattern pairs; distinct checks count unique patterns in the selected run cohort. Suggestions and changed patterns count distinct pattern IDs. Action rows group by the action kind stored for each proposal, not every field that an action changed. Proposed counts each run/pattern pair once per action type, regardless of suggestion status. Accepted includes actions later reverted. Applied means currently approved, and the accepted and applied columns overlap. Reverted counts approved actions later undone. These counts are not independent totals.
 
 Pending actions await a decision. Approved actions are applied. Rejected actions were declined, while undone actions were approved and later reverted. Superseded counts pending actions replaced by a later proposal; those records retain their rejected status and a superseded timestamp. Deleting a pattern preserves its action counts in a compact history record without retaining its text or suggestion payload.
 

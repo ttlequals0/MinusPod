@@ -717,6 +717,42 @@ class EpisodeMixin:
         conn.commit()
         logger.debug(f"[{slug}:{episode_id}] Saved {len(segments)} original segments to database")
 
+    def save_processing_assets(self, slug, episode_id, assets):
+        """Publish a validated asset set in one episode-details update."""
+        fields = {
+            'final_segments': 'final_segments_json', 'chapters': 'chapters_json',
+            'applied_cuts': 'applied_cuts_json', 'transcript_vtt': 'transcript_vtt',
+            'transcript_text': 'transcript_text',
+        }
+        if not assets or any(key not in fields for key in assets):
+            raise ValueError('Invalid processing asset fields')
+        identifier = self._get_episode_db_id(slug, episode_id)
+        if identifier is None:
+            raise ValueError('Episode not found for asset publication')
+        keys = tuple(fields)
+        normalized = {**assets}
+        if normalized.get('applied_cuts') is not None:
+            normalized['applied_cuts'] = [_serialize_applied_cut(cut) for cut in normalized['applied_cuts']]
+        values = [None if normalized.get(key) is None else
+                  json.dumps(normalized[key]) if key in ('final_segments', 'chapters', 'applied_cuts')
+                  else assets[key] for key in keys]
+        present = [key in assets for key in keys]
+        conn = self.get_connection()
+        conn.execute(
+            """INSERT INTO episode_details
+               (episode_id, final_segments_json, chapters_json, applied_cuts_json,
+                transcript_vtt, transcript_text)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(episode_id) DO UPDATE SET
+               final_segments_json = CASE WHEN ? THEN excluded.final_segments_json ELSE final_segments_json END,
+               chapters_json = CASE WHEN ? THEN excluded.chapters_json ELSE chapters_json END,
+               applied_cuts_json = CASE WHEN ? THEN excluded.applied_cuts_json ELSE applied_cuts_json END,
+               transcript_vtt = CASE WHEN ? THEN excluded.transcript_vtt ELSE transcript_vtt END,
+               transcript_text = CASE WHEN ? THEN excluded.transcript_text ELSE transcript_text END""",
+            (identifier, *values, *present),
+        )
+        conn.commit()
+
     def save_final_segments(self, slug: str, episode_id: str, segments: list[dict]):
         """Save final (post-cut) segments as JSON. Overwrites on reprocess."""
         conn = self.get_connection()
@@ -1779,6 +1815,9 @@ class EpisodeMixin:
 
         if ids_to_reset:
             self.batch_clear_episode_details(slug, ids_to_reset)
+            if keep_original:
+                for episode_id in ids_to_reset:
+                    freed_bytes += storage.remove_chapter_images(slug, episode_id)
             self.batch_reset_episodes_to_discovered(slug, ids_to_reset)
 
         freed_mb = freed_bytes / (1024 * 1024)

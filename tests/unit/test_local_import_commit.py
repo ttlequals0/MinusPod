@@ -35,8 +35,11 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='local-import
 # the app_client fixture importing `from main_app import app`.
 import main_app  # noqa: E402,F401
 import local_import  # noqa: E402
+from embedded_chapters import probe_chapters
+from id3_chapters import ChapterTagError
 from local_import import build_import_plan  # noqa: E402
 from tests.unit.thread_fakes import SyncThread  # noqa: E402
+from tests.unit.test_id3_chapter_preservation import _fixture
 
 requires_ffmpeg = pytest.mark.skipif(
     shutil.which('ffmpeg') is None or shutil.which('ffprobe') is None,
@@ -349,6 +352,33 @@ def test_commit_three_entries_into_empty_feed(db_storage, local_feed, real_mp3_b
     # The import-dir audio was consumed by the move.
     for name in names:
         assert not (src_dir / name).exists()
+
+
+@requires_ffmpeg
+def test_import_retains_unsupported_chapter_source_and_commits_metadata(db_storage, local_feed, tmp_path):
+    db, storage = db_storage
+    source, _, _ = _fixture(tmp_path, 4)
+    content = bytearray(source.read_bytes())
+    content[content.index(b'CHAP') + 9] = 8
+    source.write_bytes(content)
+    with pytest.raises(ChapterTagError, match='Encrypted or compressed'):
+        probe_chapters(str(source))
+    directory = storage.import_source_dir(local_feed)
+    directory.mkdir(parents=True)
+    entry = directory / 'S01E01 - One.mp3'
+    entry.write_bytes(content)
+    plan = build_import_plan(local_feed, [entry], existing_ids=set(), overwrite=False, now_iso=NOW_ISO)
+    started, reason, rebuild = _commit_synchronously(local_feed, plan, db, storage)
+    assert started and reason == 'started'
+    status = local_import.get_import_status(local_feed, storage)
+    assert status['state'] == 'done'
+    assert status['report']['failed'] == []
+    assert _committed_ids(status['report']) == ['s01e01']
+    episode = db.get_episode(local_feed, 's01e01')
+    assert episode['status'] == 'discovered'
+    assert episode['chapters_json'] is None
+    assert storage.get_original_path(local_feed, 's01e01').read_bytes() == content
+    rebuild.assert_called_once_with(local_feed)
 
 
 @requires_ffmpeg

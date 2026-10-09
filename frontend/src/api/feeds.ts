@@ -454,6 +454,8 @@ export interface UpdateFeedPayload {
   onlyExposeProcessedEpisodes?: boolean | null;
   retentionDaysOverride?: number | null;
   keepOriginalAudioOverride?: boolean | null;
+  audioReplacementSoundOverride?: boolean | null;
+  audioMp3StreamCopyOverride?: boolean | null;
   titleSkipPatterns?: string[];
   titleSkipAction?: 'serve_original' | 'hide' | null;
   // Per-feed segment-action overrides (issue #565). The backend replaces

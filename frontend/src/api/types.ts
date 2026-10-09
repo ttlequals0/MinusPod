@@ -133,6 +133,8 @@ export interface Feed {
   retentionDaysOverride?: number | null;
   // Per-feed pre-cut original audio: null inherits the global setting.
   keepOriginalAudioOverride?: boolean | null;
+  audioReplacementSoundOverride?: boolean | null;
+  audioMp3StreamCopyOverride?: boolean | null;
   // Per-feed episode title blacklist: fnmatch glob patterns matched against
   // episode titles. A match is never queued or JIT-processed.
   titleSkipPatterns?: string[];
@@ -855,6 +857,8 @@ export interface Settings {
   opmlModifiedUrl: string | null;
   opmlOriginalUrl: string | null;
   audioBitrate: SettingValue;
+  audioReplacementSoundEnabled: SettingValueBoolean;
+  audioMp3StreamCopyEnabled: SettingValueBoolean;
   audioNormalizeEnabled: SettingValueBoolean;
   audioNormalizeIntensity: SettingValue;
   skipFlacCompression: SettingValueBoolean;
@@ -1047,6 +1051,8 @@ export interface Settings {
     whisperLanguage: string;
     whisperComputeType: string;
     audioBitrate: string;
+    audioReplacementSoundEnabled: boolean;
+    audioMp3StreamCopyEnabled: boolean;
     audioNormalizeEnabled: boolean;
     audioNormalizeIntensity: string;
     skipFlacCompression: boolean;
@@ -1172,6 +1178,8 @@ export interface UpdateSettingsPayload {
   feedAuthEnabled?: boolean;
   jitBlockedUserAgents?: string[];
   audioBitrate?: string;
+  audioReplacementSoundEnabled?: boolean | null;
+  audioMp3StreamCopyEnabled?: boolean | null;
   audioNormalizeEnabled?: boolean;
   audioNormalizeIntensity?: string;
   skipFlacCompression?: boolean;

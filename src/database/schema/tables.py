@@ -118,6 +118,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Per-feed pre-cut original audio override: NULL = follow the global
     -- keep_original_audio setting, 0 = never keep, 1 = always keep.
     keep_original_audio_override INTEGER,
+    audio_replacement_sound_override INTEGER,
+    audio_mp3_stream_copy_override INTEGER,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
     tags TEXT NOT NULL DEFAULT '[]',

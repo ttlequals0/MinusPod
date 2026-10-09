@@ -291,7 +291,7 @@ The episode header carries up to three spend readouts: **Active run** while a ru
 
 ### Filters and date ranges
 
-Stats has jump links for System One calls and Pattern Cleanup activity. Both use the LLM spend filters: date range, podcast, provider, and model. The summary cards and charts have a separate podcast filter.
+System One calls and Pattern Cleanup activity have separate Stats cards and jump links. Both use the LLM spend filters: date range, podcast, provider, and model. The summary cards and charts have a separate podcast filter.
 
 Filter labels sit above controls in aligned columns on Stats, History, Sponsors, and Patterns. From and To stay on the same row on narrow screens. Clearing either date removes only that bound; both dates select whole UTC days, including the endpoints. An invalid range is flagged when From is later than To.
 
@@ -309,7 +309,7 @@ Above the tables, a line states what the figures cover: "Lifetime spend (all rec
 
 Those filters, both tables' sort columns and directions, and both page numbers live in the page's URL. Reloading restores the view, and the address bar is a shareable link to a specific cost question. Nothing secret is written there: only filter values, sort keys and page numbers, and a value left at its default is omitted rather than spelled out.
 
-A row of section links sits under the Stats heading and jumps straight to Overview, Charts, Reviewer, Addressing, Audio cues, Spend or Podcasts, so the ledger is one tap away on a phone instead of a long scroll. Links are listed only for sections on the page.
+A row of section links sits under the Stats heading and jumps straight to Overview, Charts, Reviewer, Addressing, Audio cues, Spend, System One, Cleanup or Podcasts, so the ledger is one tap away on a phone instead of a long scroll. Links are listed only for sections on the page.
 
 **Provider and model usage** lists one row per provider and model combination, so a model id served by two providers stays two rows. Each row carries call count, distinct episodes, input and output tokens, cost, and a **Coverage** column. Coverage reads "Fully priced" when every call in the row had a resolvable price, and "3 of 12 unpriced" when some did not, which is the same condition the episode page marks as Incomplete. Expanding a row shows its detail. Every column is sortable, server-side, so sorting spans the whole result rather than the current page.
 

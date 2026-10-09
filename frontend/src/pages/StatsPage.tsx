@@ -29,6 +29,11 @@ import { badgeBase, tint } from '../components/badgeStyles';
 import { getErrorMessage } from '../api/client';
 import { CleanupStatsUsage, EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat, SpendAttempt } from '../api/types';
 
+const CLEANUP_ACTION_LABELS: Record<string, string> = {
+  trim: 'Trims', split: 'Splits', rename: 'Sponsor renames',
+  retire: 'Retirements', flag: 'Flags', category: 'Category changes',
+};
+
 interface SpendDateFieldProps {
   id: string;
   label: string;
@@ -1254,57 +1259,6 @@ export default function StatsPage() {
         {invalidSpendRange && <p role="alert" className="mb-3 text-sm text-destructive">From date must be on or before To date.</p>}
         <p className="text-sm text-muted-foreground mb-6">{spendLabel}</p>
 
-        <h3 id="stats-systemone" className="scroll-mt-28 text-base font-medium text-foreground mb-3">System One calls</h3>
-        <p className="text-sm text-muted-foreground mb-3">
-          One call may send several requests.
-        </p>
-        {systemOneLoading && <SkeletonRows count={2} />}
-        {systemOneError && (
-          <QueryErrorPanel
-            message={`Could not load System One call stats: ${getErrorMessage(systemOneError)}.`}
-            onRetry={() => { void refetchSystemOne(); }}
-            retryLabel="Retry System One stats"
-          />
-        )}
-        {systemOneStats && (
-          systemOneStats.calls === 0 ? (
-            <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">No System One calls recorded for this filter.</p>
-          ) : (
-            <div className="mb-6 rounded-lg border border-border p-3 sm:p-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <StatCard label="Logical calls" value={String(systemOneStats.calls)} />
-                <StatCard label="HTTP requests" value={String(systemOneStats.requests)} />
-                <StatCard label="Completed / failed / inconclusive" value={`${systemOneStats.outcomes.completed} / ${systemOneStats.outcomes.failed} / ${systemOneStats.outcomes.inconclusive}`} />
-                <StatCard label="Average logical time" value={systemOneStats.logicalLatencyMsAverage === null ? 'Unknown' : formatDuration(systemOneStats.logicalLatencyMsAverage / 1000)} />
-                <StatCard label="Token usage" value={`${formatTokenCount(systemOneStats.tokens.input)} in / ${formatTokenCount(systemOneStats.tokens.output)} out`} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.tokens.unknownRequestCount ? `Usage unavailable for ${systemOneStats.tokens.unknownRequestCount} requests` : undefined} />
-                <StatCard label="Known cost" value={formatKnownCallCost(systemOneStats.costUsd)} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.unknownCostRequestCount ? `${systemOneStats.unknownCostRequestCount} requests unpriced` : undefined} />
-                <StatCard label="HTTP dispatch time" value={formatDuration(systemOneStats.dispatchLatencyMsTotal / 1000)} details="Sum across requests" />
-                <StatCard label="Review refinements" value={`${systemOneStats.refinements.completed} / ${systemOneStats.refinements.attempted}`} details={`${systemOneStats.refinements.skipped} skipped, ${systemOneStats.refinements.inconclusive} inconclusive, ${systemOneStats.refinements.upstream_error} upstream errors`} />
-              </div>
-              {Object.keys(systemOneStats.reviewReasons).length > 0 && (
-                <div className="mt-4 border-t border-border pt-3">
-                  <h4 className="text-sm font-medium text-foreground mb-2">Review outcomes by reason</h4>
-                  <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                    {Object.entries(systemOneStats.reviewReasons).map(([reason, count]) => (
-                      <li key={reason}>{reason}: <span className="tabular-nums text-foreground">{count}</span></li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {Object.keys(systemOneStats.refinementSkipReasons).length > 0 && (
-                <div className="mt-4 border-t border-border pt-3">
-                  <h4 className="text-sm font-medium text-foreground mb-2">Refinement skips by reason</h4>
-                  <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                    {Object.entries(systemOneStats.refinementSkipReasons).map(([reason, count]) => (
-                      <li key={reason}>{reason}: <span className="tabular-nums text-foreground">{count}</span></li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )
-        )}
-
         {filterOptionsError && (
           <QueryErrorPanel
             message={`Could not load the provider and model filter options: ${getErrorMessage(filterOptionsError)}. The lists below may not offer every value.`}
@@ -1367,6 +1321,59 @@ export default function StatsPage() {
         )}
       </div>
 
+      <div id="stats-systemone" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+        <h2 className="text-lg font-semibold text-foreground mb-1">System One calls</h2>
+        <p className="text-sm text-muted-foreground mb-3">
+          Uses the LLM spend filters above. One call may send several requests.
+        </p>
+        {systemOneLoading && <SkeletonRows count={2} />}
+        {systemOneError && (
+          <QueryErrorPanel
+            message={`Could not load System One call stats: ${getErrorMessage(systemOneError)}.`}
+            onRetry={() => { void refetchSystemOne(); }}
+            retryLabel="Retry System One stats"
+          />
+        )}
+        {systemOneStats && (
+          systemOneStats.calls === 0 ? (
+            <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">No System One calls recorded for this filter.</p>
+          ) : (
+            <div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatCard label="Calls" value={String(systemOneStats.calls)} />
+                <StatCard label="HTTP requests" value={String(systemOneStats.requests)} />
+                <StatCard label="Completed / failed / inconclusive" value={`${systemOneStats.outcomes.completed} / ${systemOneStats.outcomes.failed} / ${systemOneStats.outcomes.inconclusive}`} />
+                <StatCard label="Average call time" value={systemOneStats.logicalLatencyMsAverage === null ? 'Unknown' : formatDuration(systemOneStats.logicalLatencyMsAverage / 1000)} />
+                <StatCard label="Token usage" value={`${formatTokenCount(systemOneStats.tokens.input)} in / ${formatTokenCount(systemOneStats.tokens.output)} out`} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.tokens.unknownRequestCount ? `Usage unavailable for ${systemOneStats.tokens.unknownRequestCount} requests` : undefined} />
+                <StatCard label="Known cost" value={formatKnownCallCost(systemOneStats.costUsd)} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.unknownCostRequestCount ? `${systemOneStats.unknownCostRequestCount} requests unpriced` : undefined} />
+                <StatCard label="HTTP dispatch time" value={formatDuration(systemOneStats.dispatchLatencyMsTotal / 1000)} details="Sum across requests" />
+                <StatCard label="Review refinements" value={`${systemOneStats.refinements.completed} / ${systemOneStats.refinements.attempted}`} details={`${systemOneStats.refinements.skipped} skipped, ${systemOneStats.refinements.inconclusive} inconclusive, ${systemOneStats.refinements.upstream_error} upstream errors`} />
+              </div>
+              {Object.keys(systemOneStats.reviewReasons).length > 0 && (
+                <div className="mt-4 border-t border-border pt-3">
+                  <h4 className="text-sm font-medium text-foreground mb-2">Review outcomes by reason</h4>
+                  <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                    {Object.entries(systemOneStats.reviewReasons).map(([reason, count]) => (
+                      <li key={reason}>{reason}: <span className="tabular-nums text-foreground">{count}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {Object.keys(systemOneStats.refinementSkipReasons).length > 0 && (
+                <div className="mt-4 border-t border-border pt-3">
+                  <h4 className="text-sm font-medium text-foreground mb-2">Refinement skips by reason</h4>
+                  <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                    {Object.entries(systemOneStats.refinementSkipReasons).map(([reason, count]) => (
+                      <li key={reason}>{reason}: <span className="tabular-nums text-foreground">{count}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )
+        )}
+      </div>
+
       <div id="stats-cleanup" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-semibold text-foreground mb-1">Pattern cleanup activity</h2>
         <p className="text-sm text-muted-foreground mb-3">
@@ -1398,20 +1405,37 @@ export default function StatsPage() {
               <StatCard label="Legacy reported reviews" value={String(cleanupStats.patterns.legacyReportedReviews)} details="Older run records without exact check history" />
             </div>
 
-            <div className="mt-5 overflow-x-auto">
+            <div className="mt-5">
               <h4 className="text-sm font-medium text-foreground mb-2">Suggested and applied actions</h4>
               <p className="text-xs text-muted-foreground mb-2">Counts by action type. Accepted includes reverted actions.</p>
-              <table className="w-full min-w-[620px] text-sm">
-                <thead><tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="py-2 pr-3 font-medium">Action</th><th className="py-2 px-3 font-medium">Proposed</th><th className="py-2 px-3 font-medium">Accepted</th><th className="py-2 px-3 font-medium">Applied</th><th className="py-2 pl-3 font-medium">Reverted</th>
-                </tr></thead>
-                <tbody>{Object.entries(cleanupStats.actions).map(([action, counts]) => (
-                  <tr key={action} className="border-b border-border last:border-0">
-                    <th scope="row" className="py-2 pr-3 text-left font-medium">{{ trim: 'Trims', split: 'Splits', rename: 'Sponsor renames', retire: 'Retirements', flag: 'Flags', category: 'Category changes' }[action] ?? action}</th>
-                    <td className="py-2 px-3 tabular-nums">{counts.proposed}</td><td className="py-2 px-3 tabular-nums">{counts.accepted}</td><td className="py-2 px-3 tabular-nums">{counts.applied}</td><td className="py-2 pl-3 tabular-nums">{counts.reverted}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
+              <div className="hidden sm:block">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-border text-left text-muted-foreground">
+                    <th className="py-2 pr-3 font-medium">Action</th><th className="py-2 px-3 font-medium">Proposed</th><th className="py-2 px-3 font-medium">Accepted</th><th className="py-2 px-3 font-medium">Applied</th><th className="py-2 pl-3 font-medium">Reverted</th>
+                  </tr></thead>
+                  <tbody>{Object.entries(cleanupStats.actions).map(([action, counts]) => (
+                    <tr key={action} className="border-b border-border last:border-0">
+                      <th scope="row" className="py-2 pr-3 text-left font-medium">{CLEANUP_ACTION_LABELS[action] ?? action}</th>
+                      <td className="py-2 px-3 tabular-nums">{counts.proposed}</td><td className="py-2 px-3 tabular-nums">{counts.accepted}</td><td className="py-2 px-3 tabular-nums">{counts.applied}</td><td className="py-2 pl-3 tabular-nums">{counts.reverted}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <div className="sm:hidden space-y-3">
+                {Object.entries(cleanupStats.actions).map(([action, counts]) => (
+                  <div key={action} className="rounded border border-border/40 p-3">
+                    <h5 className="text-sm font-medium text-foreground mb-2">{CLEANUP_ACTION_LABELS[action] ?? action}</h5>
+                    <dl className="text-sm space-y-1">
+                      {(['proposed', 'accepted', 'applied', 'reverted'] as const).map((kind) => (
+                        <div key={kind} className="flex justify-between gap-2">
+                          <dt className="text-muted-foreground">{kind[0].toUpperCase() + kind.slice(1)}</dt>
+                          <dd className="text-foreground tabular-nums">{counts[kind]}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <CleanupUsageCards title="Cleanup request usage" usage={cleanupStats.usage} />

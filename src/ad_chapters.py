@@ -12,7 +12,8 @@ from database.settings import registry_current_value, registry_default
 from utils.time import adjust_timestamp
 
 # Keys the merge adds for its own bookkeeping; never served or embedded.
-INTERNAL_CHAPTER_KEYS = ('kind', 'category', 'held', 'hidden')
+INTERNAL_CHAPTER_KEYS = ('kind', 'category', 'held', 'hidden', '_id3_id', '_id3_end', '_id3_image')
+ID3_CHAPTER_SOURCE_KEY = '_minuspod_chapter_source'
 
 
 @dataclass(frozen=True)
@@ -86,11 +87,12 @@ def strip_ad_chapters(chapters) -> list[dict]:
             for ch in (chapters or []) if ch.get('kind') not in AD_CHAPTER_KINDS]
 
 
-def public_chapters(entries) -> list[dict]:
+def public_chapters(entries, *, for_embedding=False) -> list[dict]:
     """Spec-clean chapters for serving and embedding: hidden entries and the
     internal bookkeeping keys dropped."""
-    return [{k: v for k, v in ch.items() if k not in INTERNAL_CHAPTER_KEYS}
-            for ch in (entries or []) if not ch.get('hidden')]
+    return [{k: v for k, v in ch.items()
+             if k not in INTERNAL_CHAPTER_KEYS or (for_embedding and k == '_id3_id')}
+            for ch in (entries or []) if not ch.get('hidden') or (for_embedding and ch.get('_id3_id'))]
 
 
 def _marker_confidence(marker) -> float:

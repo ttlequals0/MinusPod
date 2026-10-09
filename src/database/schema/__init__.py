@@ -644,6 +644,8 @@ class SchemaMixin:
             # Per-feed pre-cut original audio override; NULL = follow the
             # global keep_original_audio setting, 0 = off, 1 = on.
             ('keep_original_audio_override', 'INTEGER'),
+            ('audio_replacement_sound_override', 'INTEGER'),
+            ('audio_mp3_stream_copy_override', 'INTEGER'),
             # Local feeds: 'subscribed' (upstream RSS) or 'local' (imported
             # archive with no upstream). Immutable after creation.
             ('feed_type', "TEXT NOT NULL DEFAULT 'subscribed'"),

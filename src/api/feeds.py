@@ -535,6 +535,8 @@ def _normalize_cue_float_override(value, field_name, lo, hi):
 # are independent columns (issue #537) for legacy per-field writes; a
 # processingMode preset write canonicalizes all three instead.
 _NULLABLE_BOOL_FIELDS = [
+    ('audioReplacementSoundOverride', 'audio_replacement_sound_override'),
+    ('audioMp3StreamCopyOverride', 'audio_mp3_stream_copy_override'),
     ('silenceSnapEnabled',       'silence_snap_enabled'),
     ('transitionSnapEnabled',    'transition_snap_enabled'),
     ('spliceVetoEnabled',        'splice_veto_enabled'),
@@ -1418,10 +1420,22 @@ def add_feed():
         if keep_err:
             return error_response(keep_err, 400)
 
+    audio_output_overrides = {}
+    for json_key, db_key in (
+            ('audioReplacementSoundOverride', 'audio_replacement_sound_override'),
+            ('audioMp3StreamCopyOverride', 'audio_mp3_stream_copy_override')):
+        if json_key in data:
+            value, error = _normalize_cue_bool_override(data[json_key], json_key)
+            if error:
+                return error_response(error, 400)
+            audio_output_overrides[db_key] = value
+
     # Create podcast
     try:
         db.create_podcast(slug, source_url)
         logger.info(f"Created new feed: {slug} -> {source_url}")
+        if audio_output_overrides:
+            db.update_podcast(slug, **audio_output_overrides)
 
         # Apply auto-process override if provided (before initial refresh)
         auto_process_override = data.get('autoProcessOverride')

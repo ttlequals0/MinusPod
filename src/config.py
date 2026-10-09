@@ -2200,6 +2200,8 @@ def resolve_stage_tunables(prefix: str, settings: dict | None = None,
 # frontend/src/pages/settings/AudioSection.tsx.
 ALLOWED_AUDIO_BITRATES = ('64k', '96k', '128k', '192k', '256k')
 DEFAULT_AUDIO_BITRATE = '128k'
+DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED = True
+DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED = False
 
 
 # Ad-detection parallelism. Bounded ceiling protects against accidental

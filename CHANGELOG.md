@@ -9,6 +9,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.99.1] - 2026-10-09
+
+### Added
+- Optional MP3 stream copy for compatible cuts, with a separate replacement-sound toggle and per-feed overrides.
+
+### Fixed
+- Cleanup action statistics use stacked cards on mobile.
+- System One statistics have a separate card and navigation link, using the LLM spend filters.
+- Embedded chapter images and links survive audio cuts. Supported images are served locally under the episode's feed access rules.
+- Provider connection tests work before stage models are selected and distinguish connection checks from inference tests.
+
 ## [2.99.0] - 2026-10-09
 
 ### Added

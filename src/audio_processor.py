@@ -7,11 +7,15 @@ import shutil
 from pathlib import Path
 
 from utils.audio import AudioMetadata, get_audio_duration, probe_render_input
-from embedded_chapters import parse_chapters, remap_chapters, render_ffmetadata
+from embedded_chapters import (
+    parse_chapters, remap_chapters, render_ffmetadata,
+    restore_chapter_tag, source_chapter_tag,
+)
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.paths import resolve_data_dir
 from utils.markers import precise_edge, subtract_spans
+from mp3_stream_copy import copy_mp3
 from config import (
     FFMPEG_LONG_TIMEOUT,
     MIN_AD_DURATION_FOR_REMOVAL, POST_ROLL_TRIM_THRESHOLD, MERGE_GAP_SECONDS,
@@ -91,9 +95,13 @@ DEFAULT_NORMALIZE_INTENSITY = 'normal'
 
 
 class AudioProcessor:
-    def __init__(self, replace_audio_path: str = None, bitrate: str = '128k'):
+    def __init__(self, replace_audio_path: str = None, bitrate: str = '128k', *,
+                 replacement_sound_enabled: bool = True,
+                 mp3_stream_copy_enabled: bool = False):
         self.replace_audio_path = replace_audio_path or get_replace_audio_path()
         self.bitrate = bitrate
+        self.replacement_sound_enabled = replacement_sound_enabled
+        self.mp3_stream_copy_enabled = mp3_stream_copy_enabled
 
     def get_audio_duration(self, audio_path: str) -> float | None:
         """Get duration of audio file in seconds.
@@ -129,15 +137,19 @@ class AudioProcessor:
 
         success = False
         try:
-            duration = self.get_audio_duration(input_path) or 0
+            source_info = probe_render_input(input_path)
+            source_tag = source_chapter_tag(input_path, source_info.chapters if source_info else False)
+            duration = source_info.duration if source_info else 0
             cmd = [
                 'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
                 '-i', input_path,
                 '-vn',
                 '-acodec', 'libmp3lame',
                 '-ab', self.bitrate,
-                output_path,
             ]
+            if source_tag is not None:
+                cmd += ['-id3v2_version', str(source_tag.version)]
+            cmd.append(output_path)
             timeout = FFMPEG_LONG_TIMEOUT + int(duration / 12)
             logger.info("Running FFMPEG convert-to-mp3")
             result = tracked_run(cmd, capture_output=True, timeout=timeout)
@@ -150,10 +162,12 @@ class AudioProcessor:
                 logger.error(f"FFMPEG convert failed: {stderr_text}")
                 return None
 
-            if not self.get_audio_duration(output_path):
+            output_duration = self.get_audio_duration(output_path)
+            if not output_duration:
                 logger.error("Convert output unreadable")
                 return None
 
+            restore_chapter_tag(output_path, source_tag, [], 0, output_duration)
             success = True
             return output_path
 
@@ -195,15 +209,19 @@ class AudioProcessor:
 
         success = False
         try:
-            duration = self.get_audio_duration(input_path) or 0
+            source_info = probe_render_input(input_path)
+            source_tag = source_chapter_tag(input_path, source_info.chapters if source_info else False)
+            duration = source_info.duration if source_info else 0
             cmd = [
                 'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
                 '-i', input_path,
                 '-filter:a', filter_str,
                 '-acodec', 'libmp3lame',
                 '-ab', self.bitrate,
-                output_path,
             ]
+            if source_tag is not None:
+                cmd += ['-id3v2_version', str(source_tag.version)]
+            cmd.append(output_path)
             timeout = FFMPEG_LONG_TIMEOUT + int(duration / 12)
             logger.info(f"Running FFMPEG normalize (intensity={intensity})")
             result = tracked_run(cmd, capture_output=True, timeout=timeout)
@@ -216,11 +234,13 @@ class AudioProcessor:
                 logger.error(f"FFMPEG normalize failed: {stderr_text}")
                 return None
 
-            if not self.get_audio_duration(output_path):
+            output_duration = self.get_audio_duration(output_path)
+            if not output_duration:
                 logger.error("Normalize output unreadable")
                 return None
 
             logger.info("FFMPEG normalize complete")
+            restore_chapter_tag(output_path, source_tag, [], 0, output_duration)
             success = True
             return output_path
 
@@ -388,11 +408,14 @@ class AudioProcessor:
         # Stamp each ad with 'replacement_duration', the length remove_ads
         # will render it with: 'remove' gets the fixed beep clip; 'beep' is
         # padded to its own span length (or the clip's, if that's longer).
-        beep_duration = self.get_beep_duration()
+        beep_duration = (self.get_beep_duration()
+                         if self.replacement_sound_enabled or any(ad.get('beep') for ad in ads)
+                         else 0.0)
         for ad in ads:
             span_len = ad['end'] - ad['start']
             ad['replacement_duration'] = (
-                max(span_len, beep_duration) if ad.get('beep') else beep_duration
+                max(span_len, beep_duration) if ad.get('beep')
+                else beep_duration if self.replacement_sound_enabled else 0.0
             )
 
         applied_total = sum(a['end'] - a['start'] for a in ads)
@@ -415,13 +438,15 @@ class AudioProcessor:
         empty when nothing was cut -- or None on failure.
         """
         if not ad_segments:
+            source_chapter_tag(input_path, False)
             # No ads to remove, just copy file
             logger.info("No ads to remove, copying original file")
             shutil.copy2(input_path, output_path)
             return []
 
         replace_audio_path = self.resolve_replace_audio_path()
-        if not os.path.exists(replace_audio_path):
+        needs_sound = self.replacement_sound_enabled or any(ad.get('beep') for ad in ad_segments)
+        if needs_sound and not os.path.exists(replace_audio_path):
             logger.error(f"Replace audio not found: {replace_audio_path}")
             return None
 
@@ -429,6 +454,7 @@ class AudioProcessor:
         try:
             # One probe for the input's duration, format and chapters.
             render_input = probe_render_input(input_path)
+            source_tag = source_chapter_tag(input_path, render_input.chapters if render_input else False)
             total_duration = render_input.duration if render_input else None
             if not total_duration:
                 logger.error("Could not get audio duration")
@@ -446,6 +472,22 @@ class AudioProcessor:
                 shutil.copy2(input_path, output_path)
                 return []
 
+            locked_edges = any((ad.get('validation') or {}).get('user_confirmed')
+                               or precise_edge(ad, 'start') or precise_edge(ad, 'end')
+                               for ad in ad_segments)
+            if self.mp3_stream_copy_enabled and not locked_edges and not any(ad.get('beep') for ad in ads):
+                copied = copy_mp3(
+                    input_path, output_path, ads,
+                    barriers=[*(cut_barriers or []), *(hard_barriers or [])],
+                    replacement_path=replace_audio_path if self.replacement_sound_enabled else None)
+                if copied is not None:
+                    copied_duration = self.get_audio_duration(output_path)
+                    if not copied_duration:
+                        return None
+                    restore_chapter_tag(output_path, source_tag, copied, 0, copied_duration)
+                    logger.info('MP3 stream copy complete: %d cut(s)', len(copied))
+                    return copied
+
             # Build complex filter for FFMPEG
             # Strategy: Split audio into segments, replace ad segments with beep
             filter_parts = []
@@ -454,10 +496,10 @@ class AudioProcessor:
             segment_idx = 0
 
             # Fade durations in seconds for smooth ad transitions
-            fade_out_duration = 0.5  # Content fade-out before beep
-            fade_in_duration = 0.8   # Content fade-in after beep (longer ease back)
+            fade_out_duration = 0.5 if needs_sound else 0.0
+            fade_in_duration = 0.8 if needs_sound else 0.0
             beep_fade_duration = 0.5  # Beep fades stay short
-            beep_duration = self.get_beep_duration()
+            beep_duration = self.get_beep_duration() if needs_sound else 0.0
             # Render model: 'remove' gets the fixed-length beep clip; 'beep'
             # gets that clip padded to the span's own length, so duration
             # doesn't shrink there. 'replacement_duration' holds this filler
@@ -477,9 +519,9 @@ class AudioProcessor:
                     conform += f":channel_layouts={layout}"
 
             # Split beep input into N copies (one per ad) - ffmpeg streams can only be used once
-            num_ads = len(ads)
-            if num_ads > 1:
-                beep_split = f"[1:a]asplit={num_ads}" + "".join(f"[beep_in{i}]" for i in range(num_ads))
+            sound_ads = [i for i, ad in enumerate(ads) if ad['replacement_duration'] > 0]
+            if len(sound_ads) > 1:
+                beep_split = f"[1:a]asplit={len(sound_ads)}" + "".join(f"[beep_in{i}]" for i in sound_ads)
                 filter_parts.append(beep_split)
 
             for i, ad in enumerate(ads):
@@ -489,28 +531,26 @@ class AudioProcessor:
                 # Add content before ad (with fades at boundaries)
                 if ad_start > current_time:
                     content_duration = ad_start - current_time
-                    # First segment: only fade-out at end
-                    # Subsequent segments: fade-in at start, fade-out at end
-                    if i == 0:
-                        # First content segment - just fade out before ad
-                        if content_duration > fade_out_duration:
-                            filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS,afade=t=out:st={content_duration - fade_out_duration}:d={fade_out_duration}[s{segment_idx}]")
-                        else:
-                            filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS[s{segment_idx}]")
-                    else:
-                        # Content between ads - fade in at start, fade out at end
-                        if content_duration > fade_in_duration + fade_out_duration:
-                            filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS,afade=t=in:d={fade_in_duration},afade=t=out:st={content_duration - fade_out_duration}:d={fade_out_duration}[s{segment_idx}]")
-                        else:
-                            filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS[s{segment_idx}]")
+                    fade_in = fade_in_duration if i and ads[i - 1]['replacement_duration'] > 0 else 0.0
+                    fade_out = fade_out_duration if ad['replacement_duration'] > 0 else 0.0
+                    chain = f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS"
+                    if content_duration > fade_in + fade_out:
+                        if fade_in:
+                            chain += f",afade=t=in:d={fade_in}"
+                        if fade_out:
+                            chain += f",afade=t=out:st={content_duration - fade_out}:d={fade_out}"
+                    filter_parts.append(f"{chain}[s{segment_idx}]")
                     concat_parts.append(f"[s{segment_idx}]")
                     segment_idx += 1
 
                 # Add single replacement audio with fades and volume reduction to 40%
+                if ad['replacement_duration'] == 0:
+                    current_time = ad_end
+                    continue
                 # Calculate fade-out start time (beep_duration - beep_fade_duration, minimum 0)
                 beep_fade_out_start = max(0, beep_duration - beep_fade_duration)
                 # Use split copy if multiple ads, otherwise use original input
-                beep_input = f"[beep_in{i}]" if num_ads > 1 else "[1:a]"
+                beep_input = f"[beep_in{i}]" if len(sound_ads) > 1 else "[1:a]"
                 beep_chain = (f"{beep_input}afade=t=in:d={beep_fade_duration},"
                              f"afade=t=out:st={beep_fade_out_start}:d={beep_fade_duration},"
                              f"volume=0.4")
@@ -532,14 +572,16 @@ class AudioProcessor:
             # and no short post-roll residue can reach here.
             if current_time < total_duration:
                 content_duration = total_duration - current_time
-                if content_duration > fade_in_duration:
-                    filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS,afade=t=in:d={fade_in_duration}[s{segment_idx}]")
-                    concat_parts.append(f"[s{segment_idx}]")
-                else:
-                    filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS[s{segment_idx}]")
-                    concat_parts.append(f"[s{segment_idx}]")
+                chain = f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS"
+                if ads[-1]['replacement_duration'] > 0 and content_duration > fade_in_duration:
+                    chain += f",afade=t=in:d={fade_in_duration}"
+                filter_parts.append(f"{chain}[s{segment_idx}]")
+                concat_parts.append(f"[s{segment_idx}]")
 
             # Concatenate all parts
+            if not concat_parts:
+                logger.error("No audio remains after cuts")
+                return None
             filter_str = ';'.join(filter_parts)
             if filter_str:
                 filter_str += ';'
@@ -570,10 +612,12 @@ class AudioProcessor:
             cmd = [
                 'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
                 '-i', input_path,
-                '-i', replace_audio_path,
             ]
+            if sound_ads:
+                cmd += ['-i', replace_audio_path]
             if chapters_meta_path:
-                cmd += ['-f', 'ffmetadata', '-i', chapters_meta_path, '-map_chapters', '2']
+                cmd += ['-f', 'ffmetadata', '-i', chapters_meta_path,
+                        '-map_chapters', '2' if sound_ads else '1']
             else:
                 cmd += ['-map_chapters', '-1']
             cmd += [
@@ -581,8 +625,10 @@ class AudioProcessor:
                 '-map', '[out]',
                 '-acodec', 'libmp3lame',
                 '-ab', self.bitrate,
-                output_path
             ]
+            if source_tag is not None:
+                cmd += ['-id3v2_version', str(source_tag.version)]
+            cmd.append(output_path)
 
             logger.info("Running FFMPEG to remove ads")
             # Scale timeout: 5 min base + 5 sec per minute of audio
@@ -609,6 +655,7 @@ class AudioProcessor:
             # render diverged from marker arithmetic (spec 1.5 overshoot forensics).
             new_duration = self.get_audio_duration(output_path)
             if new_duration:
+                restore_chapter_tag(output_path, source_tag, ads, beep_duration, new_duration)
                 removed_time = total_duration - new_duration
                 drift = new_duration - expected_duration
                 beep_action_count = sum(1 for a in ads if a.get('beep'))

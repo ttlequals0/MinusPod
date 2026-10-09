@@ -52,6 +52,8 @@ SEED_SNAPSHOT = {
     'chapter_prompt': ('sha256', 'ba78ae10ed245f1b215407d2980358cdf6aff6b5f64dfc1662c6f6848cb418b4'),
     'pattern_cleanup_prompt': ('sha256', '9afdc1f10e265d421a8d39f04ff0a13e00275ac436aa51517c2b3a7d2213f145'),
     'audio_normalize_enabled': 'false',
+    'audio_replacement_sound_enabled': 'true',
+    'audio_mp3_stream_copy_enabled': 'false',
     'audio_normalize_intensity': 'normal',
     'auto_process_enabled': 'true',
     'chapters_enabled': 'true',
@@ -178,6 +180,7 @@ EXPECTED_AD_RESET_KEYS = {
     'ad_chapter_min_confidence',
     'min_cut_confidence', 'auto_process_enabled', 'audio_bitrate',
     'audio_normalize_enabled', 'audio_normalize_intensity',
+    'audio_replacement_sound_enabled', 'audio_mp3_stream_copy_enabled',
     'whisper_api_timeout_seconds',
     'transcribe_max_chunk_seconds', 'transcribe_concurrent_chunks',
     'transcribe_chunk_overlap_seconds',
@@ -451,6 +454,8 @@ class TestGetDefaults:
             'audioCueProminenceDb': 9.0,
             'silenceSnapNoiseDb': -50.0,
             'audioBitrate': '128k',
+            'audioReplacementSoundEnabled': True,
+            'audioMp3StreamCopyEnabled': False,
             'audioNormalizeEnabled': False,
             'audioNormalizeIntensity': 'normal',
             'skipFlacCompression': False,
@@ -533,7 +538,7 @@ class TestGetDefaults:
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 163
+        assert len(payload_keys) == 165
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
