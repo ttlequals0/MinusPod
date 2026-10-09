@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.99.2] - 2026-10-09
+
+### Fixed
+- Custom pricing shows configured model routes and keeps inactive prices saved.
+
 ## [2.99.1] - 2026-10-09
 
 ### Added

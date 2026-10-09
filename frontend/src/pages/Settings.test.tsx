@@ -155,6 +155,7 @@ vi.mock('../api/failover', async (importOriginal) => ({
 
 vi.mock('../api/feeds', () => ({
   refreshAllArtwork: vi.fn(),
+  feedsQueryOptions: { queryKey: ['feeds'], queryFn: vi.fn().mockResolvedValue({ feeds: [] }) },
 }));
 
 // Fields not set explicitly fall back to a neutral SettingValue so the

@@ -10,6 +10,7 @@ import StageProviderSelect, { detectionSlotOptions, inheritedSlotOptions } from 
 import { btnSecondary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 import { isSystemOneRoute } from './systemoneWarnings';
+import { pricingOverrideKey } from './modelPricing';
 
 interface AIModelsSectionProps {
   // Each stage carries its own catalog and its own fetch state. No fallback
@@ -40,7 +41,7 @@ interface AIModelsSectionProps {
   // is off.
   secondaryProviderEnabled?: boolean;
   modelPricingOverrides?: ModelPricingOverrides;
-  additionalModelIds?: string[];
+  pricingModelIds: string[];
   onPricingOverrideUpdate?: (
     modelId: string,
     override: ModelPricingOverride | null,
@@ -68,7 +69,7 @@ function AIModelsSection({
   onChaptersProviderChange,
   secondaryProviderEnabled = false,
   modelPricingOverrides = {},
-  additionalModelIds = [],
+  pricingModelIds,
   onPricingOverrideUpdate,
   pricingOverrideSavingModel = null,
 }: AIModelsSectionProps) {
@@ -80,13 +81,7 @@ function AIModelsSection({
     ...(verificationCatalog.models ?? []),
     ...(chaptersCatalog.models ?? []),
   ];
-  const configuredModelIds = Array.from(new Set([
-    selectedModel,
-    verificationModel,
-    chaptersModel,
-    ...additionalModelIds,
-    ...Object.keys(modelPricingOverrides),
-  ].filter(Boolean)));
+  const configuredModelIds = [...new Set(pricingModelIds.filter(Boolean))];
 
   // Detection picks primary or secondary directly; verification/chapters
   // also inherit detection's resolved slot via "Same as detection".
@@ -184,15 +179,16 @@ function AIModelsSection({
               </p>
             </div>
             {configuredModelIds.map((modelId, index) => {
-              const override = modelPricingOverrides[modelId];
+              const overrideKey = pricingOverrideKey(modelId, modelPricingOverrides);
+              const override = modelPricingOverrides[overrideKey];
               return <ModelPricingFields
-                key={`${modelId}:${override?.inputCostPerMtok ?? ''}:${override?.outputCostPerMtok ?? ''}`}
+                key={`${modelId}:${overrideKey}:${override?.inputCostPerMtok ?? ''}:${override?.outputCostPerMtok ?? ''}`}
                 fieldId={`modelPricing-${index}`}
                 modelId={modelId}
                 override={override}
                 catalogModel={allCatalogModels.find((model) => model.id === modelId)}
-                saving={pricingOverrideSavingModel === modelId}
-                onUpdate={onPricingOverrideUpdate}
+                saving={pricingOverrideSavingModel === overrideKey}
+                onUpdate={(_modelId, value) => onPricingOverrideUpdate(overrideKey, value)}
               />;
             })}
           </div>

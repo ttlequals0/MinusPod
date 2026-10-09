@@ -140,6 +140,7 @@ vi.mock('../api/providers', () => ({
 
 vi.mock('../api/feeds', () => ({
   refreshAllArtwork: vi.fn(),
+  feedsQueryOptions: { queryKey: ['feeds'], queryFn: vi.fn().mockResolvedValue({ feeds: [] }) },
 }));
 
 function sv(value: string, isDefault: boolean): SettingValue {

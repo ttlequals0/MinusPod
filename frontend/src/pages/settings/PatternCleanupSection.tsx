@@ -133,6 +133,7 @@ function PatternCleanupSection({
       setSaveError(null);
       setDraft({});
       qc.invalidateQueries({ queryKey: patternCleanupQueryKey });
+      qc.invalidateQueries({ queryKey: ['settings'] });
     },
     onError: (e: unknown) => setSaveError(getErrorMessage(e, 'Save failed')),
   });

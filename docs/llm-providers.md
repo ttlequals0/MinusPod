@@ -314,7 +314,9 @@ MinusPod tracks token usage and cost for every LLM call. The Settings page and `
 
 ### Custom model pricing
 
-Settings > AI & Processing > AI Models shows pricing fields for each configured model ID, including IDs you type. Enter input and output rates in USD per 1 million tokens. An operator override wins over catalog pricing and appears as `pricingSource: "operator"`. Leave both fields blank to use the catalog. Save both as `0` to mark a model explicitly free; missing pricing is different.
+Settings > AI & Processing > AI Models shows pricing fields for configured routes, including enabled standby and supported manual chapter and Cleanup models. Enter input and output rates in USD per 1 million tokens. An operator override wins over catalog pricing and appears as `pricingSource: "operator"`. Leave both fields blank to use the catalog. Save both as `0` to mark a model explicitly free; missing pricing is different.
+
+Inactive prices stay saved and reappear when those models are selected again. Recorded call costs stay unchanged.
 
 ### Where pricing data comes from
 

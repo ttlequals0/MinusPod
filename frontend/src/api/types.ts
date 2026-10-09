@@ -807,6 +807,8 @@ export interface Settings {
   resurrectPrompt: SettingValue;
   chapterPrompt: SettingValue;
   patternCleanupPrompt: SettingValue;
+  patternCleanupProvider?: { value: string | null; isDefault: boolean };
+  patternCleanupModel?: { value: string | null; isDefault: boolean };
   systemPromptOverride: SettingValue;
   verificationPromptOverride: SettingValue;
   reviewPromptOverride: SettingValue;

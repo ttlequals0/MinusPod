@@ -49,7 +49,8 @@ import { effectiveReviewModels, effectiveStageModel, isSystemOneRoute, systemOne
 import TranscriptionSection from './settings/TranscriptionSection';
 import AudioSection from './settings/AudioSection';
 import CoverArtSection from './settings/CoverArtSection';
-import { refreshAllArtwork } from '../api/feeds';
+import { feedsQueryOptions, refreshAllArtwork } from '../api/feeds';
+import { activePricingModelIds, verificationPricingEnabled } from './settings/modelPricing';
 import AdDetectionSection from './settings/AdDetectionSection';
 import TranscriptNormalizationSection from './settings/TranscriptNormalizationSection';
 import SeedSponsorsSection from './settings/SeedSponsorsSection';
@@ -415,6 +416,7 @@ function Settings() {
     queryKey: ['reviewerSettings'],
     queryFn: getReviewerSettings,
   });
+  const { data: pricingFeeds } = useQuery({ ...feedsQueryOptions, select: (response) => response.feeds });
 
   // Per-phase model catalogs. detection/verification/chaptersProvider and
   // reviewer.provider store a SLOT ('primary'/'secondary', plus
@@ -485,6 +487,22 @@ function Settings() {
     [selectedModel, effectiveVerificationModel],
   );
   const reviewUsesSystemOne = reviewProviders.some((provider, index) => isSystemOneRoute(provider, reviewModels[index]));
+  const cleanupProvider = settings?.patternCleanupProvider?.value;
+  const cleanupSlot = cleanupProvider === SLOT_SECONDARY && secondaryProviderEnabled && secondaryProvider
+    ? SLOT_SECONDARY : cleanupProvider === SLOT_PRIMARY || cleanupProvider === SLOT_SECONDARY
+      ? SLOT_PRIMARY : detectionSlot;
+  const pricingModelIds = activePricingModelIds({
+    detection: { provider: effectiveDetectionProvider, model: selectedModel },
+    verification: { provider: effectiveVerificationProvider, model: effectiveVerificationModel },
+    verificationEnabled: verificationPricingEnabled(settings?.skipSecondPass?.value ?? false, pricingFeeds),
+    reviewer,
+    chapters: { provider: effectiveChaptersProvider, model: effectiveChaptersModel },
+    cleanup: {
+      provider: cleanupSlot === SLOT_SECONDARY ? secondaryProvider : llmProvider,
+      model: settings?.patternCleanupModel?.value ?? selectedModel,
+    },
+    standby: failoverLlm,
+  });
 
   const identityForSlot = (
     slot: ProviderSlot,
@@ -1377,9 +1395,7 @@ function Settings() {
         onChaptersProviderChange={(slot) => changeStageRoute('chapters', slot)}
         secondaryProviderEnabled={secondaryProviderEnabled}
         modelPricingOverrides={settings?.modelPricingOverrides?.value ?? {}}
-        additionalModelIds={[
-          reviewer.model && reviewer.model !== 'same_as_pass' ? reviewer.model : '',
-        ]}
+        pricingModelIds={pricingModelIds}
         onPricingOverrideUpdate={(modelId, override) =>
           modelPricingMutation.mutateAsync({ modelId, override })}
         pricingOverrideSavingModel={
