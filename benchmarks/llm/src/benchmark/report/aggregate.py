@@ -68,6 +68,24 @@ def _is_moderation_block(err) -> bool:
     return any(k in low for k in _MODERATION_MARKERS)
 
 
+def _max_tokens_summary(calls: list[dict]) -> str:
+    """Budgets present in ``calls``, as a human string. Missing field -> 4096
+    (the harness default before this field was recorded)."""
+    counts: dict[int, int] = defaultdict(int)
+    for c in calls:
+        counts[int(c.get("max_tokens") or 4096)] += 1
+    if not counts:
+        return "n/a"
+    if len(counts) == 1:
+        return str(next(iter(counts)))
+    total = sum(counts.values())
+    parts = []
+    for i, (value, n) in enumerate(sorted(counts.items())):
+        pct = f"{n * 100.0 / total:.0f}%"
+        parts.append(f"{value} ({pct} of calls)" if i == 0 else f"{value} ({pct})")
+    return ", ".join(parts)
+
+
 def _group_by_unit(calls: list[dict]) -> dict[tuple, list[dict]]:
     """Rows per work unit (model, episode_id, trial, window_index), in file
     order. calls.jsonl is append-only, so the last row per unit is its final

@@ -170,7 +170,7 @@ def render(
     if deprecated:
         sections.append(_render_deprecated(deprecated))
     sections += [
-        _render_methodology(cfg, episodes, pricing_snapshot=pricing_snapshot),
+        _render_methodology(cfg, episodes, calls_active, pricing_snapshot=pricing_snapshot),
         _render_transcript_source(),
         _render_run_metadata(
             calls, pricing_snapshot=pricing_snapshot, raw_calls=raw_calls,

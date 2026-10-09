@@ -149,6 +149,35 @@ def test_compare_header_notes_cost_per_episode_divergence_from_per_cell_report(
     assert "not directly comparable" in text
 
 
+def test_compare_header_notes_max_tokens_per_cell(
+    tmp_path, minimal_cfg, pricing_snapshot, write_corpus_episode,
+):
+    """Segmentation ran with a larger max_tokens budget than detection; the
+    comparison header must surface that split per cell, not the config's
+    single value."""
+    ep_dir = write_corpus_episode(tmp_path / "corpus", segments=SEGMENTS)
+    ep = corpus.load_episode(ep_dir)
+    append_call(tmp_path, {
+        **CALL_TEMPLATE, "call_id": "c1", "episode_id": ep.ep_id,
+        "prompt_variant": "detection", "addressing_mode": "timestamps", "max_tokens": 4096,
+        "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
+    })
+    append_call(tmp_path, {
+        **CALL_TEMPLATE, "call_id": "c2", "episode_id": ep.ep_id,
+        "prompt_variant": "segmentation", "addressing_mode": "segment_ids", "max_tokens": 16384,
+        "parsed_ads": [{"start": 0.0, "end": 30.0}],
+    })
+
+    out = tmp_path / "comparison.md"
+    compare_mod.render(
+        cfg=minimal_cfg, episodes=[ep], raw_dir=tmp_path,
+        pricing_snapshot=pricing_snapshot, output_path=out,
+    )
+    text = out.read_text()
+    assert "detection/timestamps 4096" in text
+    assert "segmentation/segment_ids 16384" in text
+
+
 def test_compare_excludes_deprecated_models(
     tmp_path, minimal_cfg, pricing_snapshot, write_corpus_episode,
 ):

@@ -6,6 +6,7 @@ real provider APIs, which is out of scope for the offline unit suite.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 
 import pytest
 
@@ -118,6 +119,24 @@ def test_run_writes_v2_records_and_response_shards(tmp_path, minimal_cfg, make_e
     assert {b["call_id"] for b in bodies} == {r["call_id"] for r in records}
     assert all(b["body"] == '[{"start_time": 0.0, "end_time": 30.0}]' for b in bodies)
     assert not paths.prompts_dir.exists()
+
+
+def test_run_records_configured_max_tokens(tmp_path, minimal_cfg, make_episode, pricing_snapshot, monkeypatch):
+    """Call record carries cfg.run.max_tokens, not a hardcoded default."""
+    async def fake_call(**kwargs):
+        return LLMResponse(
+            text="[]", input_tokens=10, output_tokens=5,
+            json_format_used="native", underlying_provider="openrouter", stop_reason="stop",
+        )
+
+    monkeypatch.setattr(runner.llm, "call_with_retry", fake_call)
+    cfg = dataclasses.replace(minimal_cfg, run=dataclasses.replace(minimal_cfg.run, max_tokens=16384))
+    ep = make_episode(n_windows=1)
+    paths = runner.RunPaths.for_root(tmp_path)
+    asyncio.run(runner.run(cfg, [ep], paths=paths, pricing_snapshot=pricing_snapshot, system_prompt="S"))
+
+    records = list(read_calls(paths.raw))
+    assert records and all(r["max_tokens"] == 16384 for r in records)
 
 
 def test_reconstruct_user_prompt_matches_runtime_prompt(tmp_path, write_corpus_episode):

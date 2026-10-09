@@ -99,6 +99,8 @@ benchmark run --retry-errors               # also retry calls recorded with erro
 
 `benchmark run` reads `[[models]]` from `benchmark.toml` and all episodes in `data/corpus/`, scheduling everything unless narrowed. Repeatable `--model <id>` and `--episode <ep-id>` options restrict a run to exact-match model ids or episode directory names; an unknown name exits 2 and lists what it didn't recognize. Without these flags, restrict scope by editing the config (set `deprecated = true`) or moving episode directories.
 
+The output-token budget is recorded per call as `max_tokens`; pass `--config` with a different `[run] max_tokens` to change it for a run.
+
 ### Regenerate the report from existing data
 
 ```sh

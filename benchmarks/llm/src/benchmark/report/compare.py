@@ -17,7 +17,7 @@ from .. import pricing
 from ..corpus import Episode
 from ..storage import read_calls
 from ..variants import ADDRESSING_MODES, PROMPT_VARIANTS, record_cell
-from .aggregate import ModelStats, _aggregate, _dedup_last_write_wins, _paired_t_pvalue
+from .aggregate import ModelStats, _aggregate, _dedup_last_write_wins, _max_tokens_summary, _paired_t_pvalue
 
 _BASELINE_CELL = ("detection", "timestamps")
 _CANDIDATE_CELL = ("segmentation", "segment_ids")
@@ -54,6 +54,7 @@ def render(
     cells: dict[tuple[str, str], dict[str, ModelStats]] = {}
     cell_episode_ids: dict[tuple[str, str], list[str]] = {}
     cell_cost_episode_counts: dict[tuple[str, str], dict[str, int]] = {}
+    cell_calls: dict[tuple[str, str], list[dict]] = {}
     for variant in PROMPT_VARIANTS:
         for mode in ADDRESSING_MODES:
             raw = calls_by_cell.get((variant, mode), [])
@@ -64,6 +65,7 @@ def render(
             cells[(variant, mode)] = {mid: s for mid, s in by_model.items() if mid not in deprecated_ids}
             cell_episode_ids[(variant, mode)] = sorted({c["episode_id"] for c in calls if c.get("episode_id")})
             cell_cost_episode_counts[(variant, mode)] = _episode_cost_counts_per_model(calls)
+            cell_calls[(variant, mode)] = calls
 
     if not cells:
         output_path.write_text(
@@ -97,6 +99,10 @@ def render(
         "cell's total cost divided by this cell's own episode count, while the "
         "per-cell report's 'Cost / episode' column prints the corpus-wide total "
         "cost unchanged, so the two are not directly comparable.",
+        "",
+        "Max_tokens per cell (derived from that cell's own call records): "
+        + "; ".join(f"{_cell_label(v, m)} {_max_tokens_summary(cell_calls[(v, m)])}" for v, m in cell_order)
+        + ".",
         "",
     ]
 

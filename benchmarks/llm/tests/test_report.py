@@ -4,7 +4,7 @@ from __future__ import annotations
 from benchmark import report
 from benchmark.report import charts
 from benchmark.report.aggregate import ModelStats
-from benchmark.report.sections import _error_bucket, _render_fp_windows
+from benchmark.report.sections import _error_bucket, _render_fp_windows, _render_methodology
 from benchmark.storage import append_call
 
 
@@ -57,6 +57,28 @@ def test_render_with_one_call(tmp_path, minimal_cfg, make_episode, pricing_snaps
     assert "m1" in text
     assert "Per-Episode Detail" in text
     assert "Run Metadata" in text
+
+
+def test_methodology_reports_single_max_tokens_value(minimal_cfg, make_episode, pricing_snapshot):
+    calls = [{**CALL_RECORD_TEMPLATE, "max_tokens": 4096}]
+    text = _render_methodology(minimal_cfg, [make_episode()], calls, pricing_snapshot=pricing_snapshot)
+    assert "- max_tokens: 4096" in text
+
+
+def test_methodology_reports_mixed_max_tokens_split(minimal_cfg, make_episode, pricing_snapshot):
+    calls = [{**CALL_RECORD_TEMPLATE, "max_tokens": 4096} for _ in range(5)]
+    calls += [{**CALL_RECORD_TEMPLATE, "max_tokens": 16384} for _ in range(2)]
+    text = _render_methodology(minimal_cfg, [make_episode()], calls, pricing_snapshot=pricing_snapshot)
+    assert "4096 (71% of calls)" in text
+    assert "16384 (29%)" in text
+
+
+def test_methodology_treats_missing_max_tokens_as_legacy_default(minimal_cfg, make_episode, pricing_snapshot):
+    """Records written before max_tokens existed default to 4096 (the harness's old hardcoded value)."""
+    calls = [dict(CALL_RECORD_TEMPLATE)]
+    assert "max_tokens" not in calls[0]
+    text = _render_methodology(minimal_cfg, [make_episode()], calls, pricing_snapshot=pricing_snapshot)
+    assert "- max_tokens: 4096" in text
 
 
 def test_per_model_detail_reports_verbosity_and_truncation(tmp_path, minimal_cfg, make_episode, pricing_snapshot):

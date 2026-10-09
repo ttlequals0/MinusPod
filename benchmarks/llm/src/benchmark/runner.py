@@ -335,6 +335,7 @@ async def run(
                 "trial": unit.trial,
                 "window_index": unit.window_index,
                 "temperature": cfg.run.temperature,
+                "max_tokens": cfg.run.max_tokens,
                 "addressing_mode": addressing_mode,
                 "prompt_variant": prompt_variant,
                 "prompt_hash": ph,

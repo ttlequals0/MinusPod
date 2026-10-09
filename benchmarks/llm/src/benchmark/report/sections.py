@@ -19,6 +19,7 @@ from .aggregate import (
     _ci_half_width,
     _error_message,
     _is_moderation_block,
+    _max_tokens_summary,
     _per_model_alignment,
 )
 
@@ -484,14 +485,14 @@ def _render_deprecated(stats: dict[str, ModelStats]) -> str:
     return "\n".join(lines)
 
 
-def _render_methodology(cfg, episodes, *, pricing_snapshot: pricing.PricingSnapshot) -> str:
+def _render_methodology(cfg, episodes, calls: list[dict], *, pricing_snapshot: pricing.PricingSnapshot) -> str:
     lines = [
         "## Methodology",
         "",
         "Reproducibility settings used for this run. The benchmark sends the same prompts MinusPod sends in production (same system prompt, same sponsor list, same windowing) so the F1 numbers here are directly relevant to production accuracy decisions. Cost is recomputed at report time from token counts against the active pricing snapshot, so all rows compare at the same prices regardless of when the actual call ran.",
         "",
         f"- Trials per (model, episode): **{cfg.run.trials}**, temperature {cfg.run.temperature}",
-        "- max_tokens: 4096 (matches MinusPod production)",
+        f"- max_tokens: {_max_tokens_summary(calls)}",
         f"- response_format: {cfg.run.response_format} (with prompt-injection fallback when provider rejects native)",
         "- Window size: 10 min, overlap: 3 min (imported from MinusPod's create_windows)",
         f"- Pricing snapshot: {pricing_snapshot.captured_at}",

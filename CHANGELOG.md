@@ -15,6 +15,7 @@ release notes.
 - The LLM benchmark can run and report two ad-detection prompt variants side by side via `--prompt-variant` (`detection`, the production prompt, or `segmentation`, an alternative that segments the whole episode). `benchmark compare` renders a paired comparison between them.
 - `benchmark run` and `benchmark report` accept `--model`/`--episode` filters, and community segmentation-prompt results from PR #801 are importable via `scripts/import_calls.py`.
 - Benchmark call records now live in per-model shards under `results/raw/calls/` (schema v3); `benchmark migrate-calls` converts an existing checkout.
+- Benchmark call records carry the output-token budget (`max_tokens`) used for that call; methodology and the prompt-variant comparison report now summarize the budgets actually present instead of printing the config's single value.
 
 ## [2.98.2] - 2026-10-07
 
