@@ -59,9 +59,7 @@ function AudioSection({
             <span className="text-sm font-medium text-foreground">Audio Leveling (loudness normalization)</span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground ml-14">
-            Runs a second ffmpeg pass (dynaudnorm) on the final audio to even out
-            the volume between quiet and loud passages, so the episode plays at a
-            more consistent level. Adds ~3-5s per episode.
+            Even out quiet and loud passages.
           </p>
         </div>
 

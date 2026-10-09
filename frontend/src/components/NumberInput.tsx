@@ -3,12 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 interface NumberInputProps {
   value: number;
   min: number;
-  max: number;
+  max?: number;
   fallback: number;
   onCommit: (value: number) => void;
   id?: string;
   ariaLabel?: string;
-  step?: number;
+  step?: number | 'any';
   parse?: (s: string) => number;
   className?: string;
   disabled?: boolean;
@@ -44,7 +44,7 @@ export default function NumberInput({
     if (!focused.current) setText(String(value));
   }, [value]);
 
-  const clamp = (v: number) => Math.max(min, Math.min(max, v));
+  const clamp = (v: number) => Math.max(min, Math.min(max ?? Infinity, v));
 
   return (
     <input

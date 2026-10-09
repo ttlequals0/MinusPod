@@ -123,8 +123,7 @@ export default function PatternMergeSuggestions({ onMerged }: { onMerged: () => 
     <div className="bg-card rounded-lg border border-border p-4 mb-6">
       <h2 className="text-sm font-medium text-foreground mb-1">Merge suggestions</h2>
       <p className="text-xs text-muted-foreground mb-3">
-        Same-sponsor patterns that look like the same ad read. Folding keeps one row
-        and adds the others as intro/outro variants.
+        Merge duplicate ad reads into one pattern with intro/outro variants.
       </p>
       <div className="space-y-3">
         {suggestions.map((s) => (

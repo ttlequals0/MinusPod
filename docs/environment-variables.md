@@ -19,9 +19,12 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | _(none)_ | Claude API key (required when `LLM_PROVIDER=anthropic`, not needed for Ollama) |
-| `LLM_PROVIDER` | `anthropic` | LLM backend: `anthropic`, `openrouter`, `openai-compatible`, or `ollama` |
+| `LLM_PROVIDER` | `anthropic` | Default LLM provider: `anthropic`, `openrouter`, `openai-compatible`, `ollama`, `typesafe`, or `systemone-compatible` |
 | `OPENROUTER_API_KEY` | _(none)_ | OpenRouter API key (required when `LLM_PROVIDER=openrouter`) |
 | `OPENAI_BASE_URL` | `http://localhost:8000/v1` | Base URL for OpenAI-compatible API (only used with non-anthropic providers) |
+| `TYPESAFE_API_KEY` | _(none)_ | Provider A TypeSafe API key. Provider B uses its saved slot key. |
+| `SYSTEMONE_API_KEY` | _(none)_ | Provider A System One-compatible API key. Provider B uses its saved slot key. |
+| `SYSTEMONE_BASE_URL` | _(none)_ | Provider A compatible base URL. Provider B uses its saved slot base URL. Requests use `/systemone`; model discovery uses `/models`. Does not inherit `OPENAI_BASE_URL`. |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter API base URL. Override for private proxies or regional endpoints. |
 | `ANTHROPIC_BASE_URL` | _(anthropic default)_ | Anthropic API base URL. Override for private proxies. |
 | `OPENAI_API_KEY` | `not-needed` | API key for OpenAI-compatible endpoint (not required for Ollama or local wrappers) |

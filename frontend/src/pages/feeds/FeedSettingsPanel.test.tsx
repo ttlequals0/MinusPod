@@ -202,6 +202,24 @@ describe('FeedSettingsPanel chapters mode control', () => {
     expect(select.value).toBe('');
   });
 
+  it.each([
+    { enabled: true, mode: 'off', autoBlocked: true },
+    { enabled: false, mode: 'auto', autoBlocked: false },
+  ])('allows disabled inherited native configuration (%j)', async ({ enabled, mode, autoBlocked }) => {
+    mockGetSettings.mockResolvedValue({
+      llmProvider: { value: 'typesafe' }, claudeModel: { value: 'jev-latest' },
+      chaptersEnabled: { value: enabled }, chaptersMode: { value: mode },
+    });
+    renderPanel(makeFeed({ chaptersMode: 'off' }));
+    await screen.findByText('System One cannot generate chapters. Select a chat provider and model.');
+    const select = screen.getByRole('combobox', { name: CHAPTERS_SELECT_NAME });
+    expect((within(select).getByRole('option', { name: /Inherit global/ }) as HTMLOptionElement).disabled).toBe(false);
+    expect((within(select).getByRole('option', { name: 'Auto' }) as HTMLOptionElement).disabled).toBe(autoBlocked);
+    await userEvent.selectOptions(select, '');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersMode: null });
+    mockGetSettings.mockResolvedValue({});
+  });
+
   it('renders the current value when chaptersMode is set', () => {
     renderPanel(makeFeed({ chaptersMode: 'generate' }));
     const select = screen.getByRole('combobox', { name: CHAPTERS_SELECT_NAME }) as HTMLSelectElement;

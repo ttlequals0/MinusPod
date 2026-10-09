@@ -105,10 +105,7 @@ function DatabaseBackupSection() {
             </span>
           </label>
           <p className="text-sm text-muted-foreground -mt-2">
-            Copies the SQLite database to the destination on a schedule so you
-            can restore after a bad upgrade or a lost volume. The copies are not
-            encrypted, so pick a destination you trust. Back up now works even
-            with scheduling off.
+            Backups are unencrypted. Choose a trusted destination. Back up now works with scheduling off.
           </p>
 
           {enabled && (

@@ -21,7 +21,7 @@ import chapters_generator
 import run_context
 from api import get_storage
 from ad_chapters import AdChapterConfig, public_chapters
-from llm_client import ProviderRateLimitedError
+from llm_client import ProviderRateLimitedError, clear_settings_cache
 from main_app import processing
 from rate_limit_hold import hold_message
 from utils.time import utc_now_iso
@@ -860,3 +860,38 @@ def test_successful_regeneration_respects_disabled_episode_logs(app_client, seed
     assert rows[-1]['status'] == 'completed'
     assert rows[-1]['log_file'] is None
     assert run_context.current() is None
+
+
+@pytest.mark.parametrize('provider,model', [('typesafe', 'configured-model'),
+                                          ('systemone-compatible', 'configured-model'),
+                                          ('openai-compatible', 'typesafe/jev')])
+def test_manual_native_chapters_reject_before_claim_thread_or_log_mutation(app_client, seeded, provider, model):
+    keys = ('llm_provider', 'chapters_model', 'chapters_provider', 'chapters_enabled')
+    original = {key: seeded.get_setting(key) for key in keys}
+    before = seeded.get_episode(SLUG, EPISODE_ID)
+    try:
+        seeded.set_setting('llm_provider', provider)
+        seeded.set_setting('chapters_model', model)
+        seeded.set_setting('chapters_provider', 'primary')
+        seeded.set_setting('chapters_enabled', 'false')
+        clear_settings_cache()
+        headers = _authed(app_client)
+        thread = MagicMock()
+        with patch.object(seeded, 'claim_chapters_regen') as claim, \
+                patch('api.episodes.threading', SimpleNamespace(Thread=thread)):
+            response = app_client.post(
+                f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters', headers=headers)
+        assert response.status_code == 400
+        assert 'supported chat provider and model' in response.get_json()['error']
+        claim.assert_not_called()
+        thread.assert_not_called()
+        after = seeded.get_episode(SLUG, EPISODE_ID)
+        assert after['chapters_regen_started_at'] == before['chapters_regen_started_at']
+        assert after['chapters_regen_error'] == before['chapters_regen_error']
+    finally:
+        for key, value in original.items():
+            if value is None:
+                seeded.clear_setting(key)
+            else:
+                seeded.set_setting(key, value)
+        clear_settings_cache()

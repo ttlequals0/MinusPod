@@ -5,18 +5,21 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import StatsPage from './StatsPage';
 import type {
-  AddressingStats, DashboardStats, EpisodeCostResponse, Feed, LedgerFilterOptions,
+  AddressingStats, CleanupStats, DashboardStats, EpisodeCostResponse, Feed, LedgerFilterOptions,
   ModelUsageResponse, ReviewerStats,
+  SystemOneStats,
 } from '../api/types';
 
 // vi.mock factories are hoisted above module-scope const declarations, so
 // fixture data referenced inside them has to be built via vi.hoisted too.
 const {
-  DASHBOARD, REVIEWER_STATS, FEED, FILTER_OPTIONS,
+  DASHBOARD, REVIEWER_STATS, FEED, FILTER_OPTIONS, CLEANUP_STATS, SYSTEMONE_STATS,
   mockGetAddressingStats, mockGetDashboardStats, mockGetStatsByDay,
   mockGetModelUsageStats, mockGetEpisodeCostStats, mockGetLedgerFilterOptions,
   mockGetEpisodeCostRuns, mockGetStatsByPodcast, mockGetSpendAttempts,
   mockGetReviewerStats,
+  mockGetCleanupStats,
+  mockGetSystemOneStats,
 } = vi.hoisted(() => {
   const dashboard: DashboardStats = {
     totalEpisodesProcessed: 0,
@@ -78,6 +81,35 @@ const {
   };
   const emptyModelUsage: ModelUsageResponse = { items: [], total: 0, totalPages: 1, page: 1, limit: 20 };
   const emptyEpisodeCosts: EpisodeCostResponse = { items: [], total: 0, totalPages: 1, page: 1, limit: 20 };
+  const cleanupStats: CleanupStats = {
+    runs: { total: 1, running: 0, completed: 1, failed: 0, exactAccounting: 1, legacy: 0 },
+    patterns: { checked: 3, distinctChecked: 2, modelReviewed: 2, proposed: 1, changed: 1, legacyReportedReviews: 0 },
+    actions: {
+      trim: { proposed: 1, accepted: 1, applied: 1, reverted: 0 },
+      split: { proposed: 1, accepted: 1, applied: 1, reverted: 0 },
+      rename: { proposed: 1, accepted: 1, applied: 1, reverted: 0 },
+      retire: { proposed: 1, accepted: 1, applied: 1, reverted: 0 },
+      flag: { proposed: 1, accepted: 1, applied: 1, reverted: 0 },
+      category: { proposed: 1, accepted: 1, applied: 1, reverted: 0 },
+    },
+    usage: { requests: 2, inputTokens: 10, outputTokens: 5, knownCostUsd: '0.1', unknownUsageRequestCount: 0, unknownCostRequestCount: 0 },
+    unattributedUsage: null,
+    coverage: {
+      historicalRunCountWithUnknownSpend: 0, historicalChecksAvailable: false,
+      proposalHistoryCompleteSince: '2026-01-01', historicalScopeAvailable: false,
+      unattributedProposalCount: 1,
+    },
+  };
+  const systemOneStats: SystemOneStats = {
+    calls: 0, requests: 0, dispatchLatencyMsTotal: 0, logicalLatencyMsTotal: 0,
+    logicalLatencyMsAverage: null,
+    tokens: { input: 0, output: 0, unknownRequestCount: 0 },
+    costUsd: '0', unknownCostRequestCount: 0,
+    outcomes: { completed: 0, failed: 0, inconclusive: 0 },
+    reviewReasons: {},
+    refinements: { attempted: 0, completed: 0, skipped: 0, inconclusive: 0, upstream_error: 0 },
+    refinementSkipReasons: {},
+  };
   const filterOptions: LedgerFilterOptions = {
     providers: ['anthropic', 'openrouter'],
     pairs: [
@@ -90,6 +122,8 @@ const {
     REVIEWER_STATS: reviewerStats,
     FEED: feed,
     FILTER_OPTIONS: filterOptions,
+    CLEANUP_STATS: cleanupStats,
+    SYSTEMONE_STATS: systemOneStats,
     mockGetAddressingStats: vi.fn().mockResolvedValue(addressingStats),
     mockGetDashboardStats: vi.fn().mockResolvedValue(dashboard),
     mockGetStatsByDay: vi.fn().mockResolvedValue({ days: [] }),
@@ -103,6 +137,8 @@ const {
       unknownCostCount: 0, knownCostUsd: '0', truncated: false,
     }),
     mockGetReviewerStats: vi.fn().mockResolvedValue(reviewerStats),
+    mockGetCleanupStats: vi.fn().mockResolvedValue(cleanupStats),
+    mockGetSystemOneStats: vi.fn().mockResolvedValue(systemOneStats),
   };
 });
 
@@ -117,6 +153,8 @@ vi.mock('../api/stats', () => ({
   getEpisodeCostRuns: (...args: unknown[]) => mockGetEpisodeCostRuns(...args),
   getLedgerFilterOptions: (...args: unknown[]) => mockGetLedgerFilterOptions(...args),
   getSpendAttempts: (...args: unknown[]) => mockGetSpendAttempts(...args),
+  getCleanupStats: (...args: unknown[]) => mockGetCleanupStats(...args),
+  getSystemOneStats: (...args: unknown[]) => mockGetSystemOneStats(...args),
 }));
 vi.mock('../api/cueDetections', () => ({
   getCueAggregateStats: vi.fn().mockResolvedValue({
@@ -282,6 +320,10 @@ describe('StatsPage LLM cost ledger', () => {
     mockGetEpisodeCostStats.mockResolvedValue(EPISODE_COST_PAGE);
     mockGetLedgerFilterOptions.mockReset();
     mockGetLedgerFilterOptions.mockResolvedValue(FILTER_OPTIONS);
+    mockGetCleanupStats.mockReset();
+    mockGetCleanupStats.mockResolvedValue(CLEANUP_STATS);
+    mockGetSystemOneStats.mockReset();
+    mockGetSystemOneStats.mockResolvedValue(SYSTEMONE_STATS);
   });
 
   it('paginates and sorts the model-usage list server-side, keyed by its params', async () => {
@@ -476,6 +518,53 @@ describe('StatsPage ledger filters', () => {
     expect(within(models).getByRole('option', { name: 'llama-3' })).toBeTruthy();
   });
 
+  it('shows cleanup accounting separately and applies all spend filters', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByText('Pattern cleanup activity')).toBeTruthy();
+    expect(await screen.findByText('Tracked pattern checks')).toBeTruthy();
+    expect(screen.getByRole('row', { name: /Sponsor renames/ })).toBeTruthy();
+    expect(screen.getByText('Cleanup request usage')).toBeTruthy();
+    expect(screen.getByText(/Proposal history is complete since 2026-01-01/)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } });
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-01-31' } });
+    fireEvent.blur(screen.getByLabelText('From'));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter spend by podcast' }), 'a-show');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter spend by provider' }), 'anthropic');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter spend by model' }), 'claude-sonnet');
+
+    await waitFor(() => {
+      expect(mockGetCleanupStats).toHaveBeenLastCalledWith({
+        from: '2026-01-01', to: '2026-01-31', podcastSlug: 'a-show', provider: 'anthropic', model: 'claude-sonnet',
+      });
+    });
+  });
+
+  it('shows a positive known cost below display precision as nonzero', async () => {
+    mockGetCleanupStats.mockResolvedValue({
+      ...CLEANUP_STATS,
+      usage: { ...CLEANUP_STATS.usage, knownCostUsd: '0.000000042' },
+    });
+    renderPage();
+    expect(await screen.findByText('<$0.0001')).toBeTruthy();
+  });
+
+  it('shows tiny System One costs as nonzero and keeps refinement outcomes distinct', async () => {
+    mockGetSystemOneStats.mockResolvedValue({
+      ...SYSTEMONE_STATS,
+      calls: 1,
+      costUsd: '0.000000042',
+      refinements: { attempted: 3, completed: 1, skipped: 1, inconclusive: 1, upstream_error: 0 },
+      refinementSkipReasons: { no_candidate: 1 },
+    });
+    renderPage();
+    expect(await screen.findByText(/Review refinements/)).toBeTruthy();
+    expect(screen.getByText(/1 skipped, 1 inconclusive, 0 upstream errors/)).toBeTruthy();
+    expect(screen.getByText((_, element) => element?.tagName === 'LI' && element.textContent?.includes('no_candidate') === true)).toBeTruthy();
+    expect(screen.getAllByText('<$0.0001')).toHaveLength(2);
+  });
+
   it('narrows the model list to the selected provider', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -505,6 +594,51 @@ describe('StatsPage ledger filters', () => {
       expect(calls[calls.length - 1][0]).toMatchObject({ from: '2026-01-01', to: '2026-01-31' });
     });
     expect(screen.getByText(/UTC days, both included/)).toBeTruthy();
+  });
+
+  it('clears either date bound without changing the other', async () => {
+    renderPage();
+    const from = await screen.findByLabelText('From') as HTMLInputElement;
+    const to = screen.getByLabelText('To') as HTMLInputElement;
+    fireEvent.change(from, { target: { value: '2026-01-01' } });
+    fireEvent.change(to, { target: { value: '2026-01-31' } });
+    fireEvent.change(from, { target: { value: '' } });
+    fireEvent.blur(from);
+    expect(to.value).toBe('2026-01-31');
+    await waitFor(() => expect(mockGetCleanupStats).toHaveBeenLastCalledWith(expect.objectContaining({ from: undefined, to: '2026-01-31' })));
+    fireEvent.change(to, { target: { value: '' } });
+    fireEvent.blur(to);
+    await waitFor(() => expect(mockGetCleanupStats).toHaveBeenLastCalledWith(expect.objectContaining({ from: undefined, to: undefined })));
+    expect(screen.getByText('Lifetime spend (all recorded runs)')).toBeTruthy();
+  });
+
+  it('flags reversed dates while keeping each URL bound separate', async () => {
+    renderPage();
+    const from = await screen.findByLabelText('From') as HTMLInputElement;
+    const to = screen.getByLabelText('To') as HTMLInputElement;
+    fireEvent.change(from, { target: { value: '2026-01-31' } });
+    fireEvent.change(to, { target: { value: '2026-01-01' } });
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'From date must be on or before To date.');
+    expect(from.max).toBe('2026-01-01');
+    expect(to.min).toBe('2026-01-31');
+    await waitFor(() => expect(mockGetCleanupStats).toHaveBeenLastCalledWith(expect.objectContaining({ from: '2026-01-31', to: '2026-01-01' })));
+    fireEvent.change(to, { target: { value: '2026-02-01' } });
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  });
+
+  it('associates visible labels with each spend dropdown', async () => {
+    renderPage();
+    for (const [name, label] of [['podcast', 'Podcast'], ['provider', 'Provider'], ['model', 'Model']]) {
+      const select = await screen.findByRole('combobox', { name: `Filter spend by ${name}` });
+      expect(document.querySelector(`label[for="${select.id}"]`)?.textContent).toBe(label);
+    }
+  });
+
+  it('does not imply measured usage when a logical call sends no HTTP request', async () => {
+    mockGetSystemOneStats.mockResolvedValue({ ...SYSTEMONE_STATS, calls: 1, outcomes: { completed: 0, failed: 1, inconclusive: 0 } });
+    renderPage();
+    expect((await screen.findAllByText('No recorded requests')).length).toBe(2);
+    expect(screen.getByText('Logical calls').parentElement?.parentElement?.textContent).not.toContain('All requests priced');
   });
 });
 
@@ -609,20 +743,8 @@ describe('StatsPage spend section: copy, labels and table chrome', () => {
     expect(screen.getByLabelText('To').getAttribute('type')).toBe('date');
     expect(from.id).toBeTruthy();
     expect(document.querySelector(`label[for="${from.id}"]`)?.textContent).toBe('From');
-    expect(screen.getByRole('button', { name: 'Open from date picker' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Open to date picker' })).toBeTruthy();
-  });
-
-  it('opens the native picker from the calendar button', async () => {
-    const showPicker = vi.fn();
-    Object.defineProperty(HTMLInputElement.prototype, 'showPicker', {
-      configurable: true,
-      value: showPicker,
-    });
-    renderPage();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Open from date picker' }));
-    expect(showPicker).toHaveBeenCalledOnce();
-    delete (HTMLInputElement.prototype as unknown as { showPicker?: unknown }).showPicker;
+    expect(screen.queryByRole('button', { name: 'Open from date picker' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Open to date picker' })).toBeNull();
   });
 
   it('sizes the spend-table placeholders to rows, not to a chart', async () => {

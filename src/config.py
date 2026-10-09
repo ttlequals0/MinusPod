@@ -1654,7 +1654,59 @@ PROVIDER_ANTHROPIC = 'anthropic'
 PROVIDER_OPENROUTER = 'openrouter'
 PROVIDER_OPENAI_COMPATIBLE = 'openai-compatible'
 PROVIDER_OLLAMA = 'ollama'
-PROVIDERS_NON_ANTHROPIC = ('openai-compatible', 'ollama')
+PROVIDER_TYPESAFE = 'typesafe'
+PROVIDER_SYSTEMONE_COMPATIBLE = 'systemone-compatible'
+TYPESAFE_BASE_URL = 'https://api.typesafe.ai/v1'
+TYPESAFE_SYSTEMONE_URL = 'https://api.typesafe.ai/v1/systemone'
+SYSTEMONE_COMPATIBLE_BASE_URL = ''
+SYSTEMONE_PROVIDERS = (PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE)
+PROVIDERS_NON_ANTHROPIC = ('openai-compatible', 'ollama', *SYSTEMONE_PROVIDERS)
+SYSTEMONE_TUNABLE_DEFAULTS = {
+    PROVIDER_TYPESAFE: {
+        'detectionEnter': 0.95,
+        'detectionStay': 0.40,
+        'categoryPass': True,
+        'categoryContext': 2,
+        'defaultCategory': 'sponsor',
+        'refineBoundaries': False,
+        'reviewEvidenceEnter': None,
+        'reviewChoiceEnter': None,
+        'reviewProgrammeVeto': 0.85,
+        'reviewBoundaryCapSeconds': 60.0,
+        'reviewContextSeconds': 30.0,
+        'requestDeadlineSeconds': 75.0,
+        'maxConcurrentOperations': 4,
+        'retryAfterMaxSeconds': 5.0,
+        'maxQuestionsPerRequest': None,
+        'maxRequestBytes': None,
+        'maxChoiceOptions': 255,
+    },
+    PROVIDER_SYSTEMONE_COMPATIBLE: {
+        'detectionEnter': 0.95,
+        'detectionStay': 0.40,
+        'categoryPass': True,
+        'categoryContext': 2,
+        'defaultCategory': 'sponsor',
+        'refineBoundaries': False,
+        'reviewEvidenceEnter': None,
+        'reviewChoiceEnter': None,
+        'reviewProgrammeVeto': 0.85,
+        'reviewBoundaryCapSeconds': 60.0,
+        'reviewContextSeconds': 30.0,
+        'requestDeadlineSeconds': 75.0,
+        'maxConcurrentOperations': 4,
+        'retryAfterMaxSeconds': 5.0,
+        'maxQuestionsPerRequest': None,
+        'maxRequestBytes': None,
+        'maxChoiceOptions': None,
+    },
+}
+SYSTEMONE_TUNABLE_PROFILE_KEYS = {
+    ('primary', PROVIDER_TYPESAFE): 'systemone_tunables_primary_typesafe',
+    ('primary', PROVIDER_SYSTEMONE_COMPATIBLE): 'systemone_tunables_primary_compatible',
+    ('secondary', PROVIDER_TYPESAFE): 'systemone_tunables_secondary_typesafe',
+    ('secondary', PROVIDER_SYSTEMONE_COMPATIBLE): 'systemone_tunables_secondary_compatible',
+}
 
 _ANTHROPIC_ADAPTIVE_ONLY_MODELS = (
     'claude-opus-4-7',
@@ -2323,7 +2375,8 @@ def _validate_llm_provider(value: str) -> bool:
     """Reject an unrecognized LLM_PROVIDER so a typo falls back safely
     instead of being adopted verbatim into the stored setting."""
     return value in (PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
-                      PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA)
+                      PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+                      PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE)
 
 
 def _validate_positive_int(value: str) -> bool:

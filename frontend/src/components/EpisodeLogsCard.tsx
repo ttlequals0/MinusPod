@@ -19,8 +19,7 @@ function EpisodeLogsCard({ slug, episodeId, runs }: EpisodeLogsCardProps) {
     <div>
       {!anyStored && (
         <p className="text-sm text-muted-foreground mb-3">
-          No run has stored a log yet. Turn on log storage in Settings, or in this feed's own
-          settings.
+          No stored logs. Enable log storage in Settings or this feed&apos;s settings.
         </p>
       )}
 

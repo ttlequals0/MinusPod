@@ -90,6 +90,35 @@ def test_patch_invalid_value_rejected_and_column_unchanged(app_client, seeded_fe
     assert seeded_feed['db'].get_podcast_by_slug(slug)['chapters_mode'] == 'generate'
 
 
+def test_patch_generate_override_rejected_for_systemone_chapter_route(
+        app_client, seeded_feed):
+    db = seeded_feed['db']
+    original = {key: db.get_setting(key) for key in (
+        'llm_provider', 'claude_model', 'chapters_enabled', 'chapters_mode')}
+    try:
+        db.set_setting('llm_provider', 'typesafe')
+        db.set_setting('claude_model', 'jev-latest')
+        db.set_setting('chapters_enabled', 'true')
+        db.set_setting('chapters_mode', 'off')
+        _authed(app_client)
+        response = app_client.patch(
+            f"/api/v1/feeds/{seeded_feed['slug']}",
+            json={'chaptersMode': 'generate'}, headers=_csrf_headers(app_client))
+        assert response.status_code == 400
+        assert 'chapters is unsupported' in response.get_json()['error']
+
+        response = app_client.patch(
+            f"/api/v1/feeds/{seeded_feed['slug']}",
+            json={'chaptersMode': 'off'}, headers=_csrf_headers(app_client))
+        assert response.status_code == 200
+    finally:
+        for key, value in original.items():
+            if value is None:
+                db.clear_setting(key)
+            else:
+                db.set_setting(key, value)
+
+
 def test_a_reject_override_above_the_global_ceiling_is_rejected(app_client, seeded_feed):
     """The validator clamps it back, so the feed would show a value it never
     uses. The global hard ceiling defaults to 900s."""
@@ -629,3 +658,29 @@ def test_patch_null_resets_transcript_differential(app_client, seeded_feed):
     assert resp.status_code == 200
     assert resp.get_json()['transcriptDifferential'] is None
     assert seeded_feed['db'].get_podcast_by_slug(slug)['transcript_differential'] is None
+
+
+@pytest.mark.parametrize('provider', ['typesafe', 'systemone-compatible'])
+def test_env_only_native_primary_rejects_feed_chapters_override(app_client, seeded_feed, monkeypatch, provider):
+    db = seeded_feed['db']
+    keys = ('llm_provider', 'claude_model', 'chapters_model', 'chapters_enabled', 'chapters_mode')
+    original = {key: db.get_setting(key) for key in keys}
+    try:
+        db.clear_setting('llm_provider')
+        monkeypatch.setenv('LLM_PROVIDER', provider)
+        db.set_setting('claude_model', 'configured-model')
+        db.set_setting('chapters_model', 'configured-model')
+        db.set_setting('chapters_enabled', 'true')
+        db.set_setting('chapters_mode', 'off')
+        _authed(app_client)
+        response = app_client.patch(f"/api/v1/feeds/{seeded_feed['slug']}",
+                                    json={'chaptersMode': 'generate'}, headers=_csrf_headers(app_client))
+        assert response.status_code == 400
+        assert 'chapters is unsupported' in response.get_json()['error']
+        assert db.get_podcast_by_slug(seeded_feed['slug'])['chapters_mode'] is None
+    finally:
+        for key, value in original.items():
+            if value is None:
+                db.clear_setting(key)
+            else:
+                db.set_setting(key, value)

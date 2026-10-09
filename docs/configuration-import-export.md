@@ -8,6 +8,8 @@ Import offers three scopes: global settings and feeds, global settings only, or 
 
 The file format is versioned independently of the MinusPod application version. Unknown setting names are shown in preview and skipped. Newer unsupported file formats are rejected. Missing settings leave the destination unchanged. Null clears credentials or resets a supported nullable override; it is invalid for other non-nullable settings. Nullable overrides are:
 
+System One tuning profiles are imported as partial field updates. Fields absent from an older export keep their destination values, and provider profiles not present in the import are retained. A profile-level null resets that profile to its defaults; nullable threshold or limit fields with null keep their documented inherited or unlimited meaning. See [System One](system-one.md#independent-tuning-profiles).
+
 - `verification_model`, `chapters_model`, `secondary_provider`, and `failover_llm_provider`
 - `llm_timeout_seconds`, `llm_max_retries`, `secondary_llm_timeout_seconds`, `secondary_llm_max_retries`, `failover_llm_timeout_seconds`, `failover_llm_max_retries`, and `failover_whisper_max_attempts`
 - `detection_reasoning_budget` and `detection_reasoning_level`, with corresponding `verification_`, `reviewer_`, `chapter_boundary_`, and `chapter_title_` settings

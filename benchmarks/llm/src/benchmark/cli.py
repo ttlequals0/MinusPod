@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 # regardless of where the user invokes `benchmark` from. Shell-exported vars still win.
 load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / ".env", override=False)
 
-from . import auth, capture as capture_mod, corpus as corpus_mod, migrate as migrate_mod, parsing, pricing, report as report_mod, runner as runner_mod
+from . import auth, capture as capture_mod, corpus as corpus_mod, jev, migrate as migrate_mod, parsing, pricing, report as report_mod, runner as runner_mod
 from .config import BenchmarkConfig, load as load_config
 from .runner import build_work_list, precompute_prompt_hashes
 from .storage import find_call, hash_prompt, read_response, scan_calls
@@ -446,6 +446,225 @@ def rotate_raw_cmd(
         shutil.move(str(src), str(dst))
         (_root() / "results" / "raw" / "responses").mkdir(parents=True, exist_ok=True)
     typer.echo(f"rotated {size_mb:.0f} MB to {dst}" + (" (original kept)" if keep else ""))
+
+
+@app.command("jev-spike")
+def jev_spike_cmd(
+    oracle: str = typer.Option(
+        "overlap", "--oracle",
+        help="Score a perfect judge instead of calling the API: "
+             "'overlap', 'majority', or 'off' for live calls."),
+    enter: float = typer.Option(jev.ENTER_THRESHOLD, "--enter"),
+    stay: float = typer.Option(jev.STAY_THRESHOLD, "--stay"),
+    passes: int = typer.Option(
+        1, "--passes",
+        help="Independent draws per window, averaged. Only meaningful live."),
+    confirm: bool = typer.Option(
+        False, "--confirm",
+        help="Pass B: treat Pass A as a recall-first candidate generator and "
+             "confirm each span with a second span-level request."),
+    guidance: str = typer.Option(
+        "full", "--guidance",
+        help="'basic' (one paragraph) or 'full' (MinusPod's whole rulebook)."),
+    metadata: bool = typer.Option(
+        True, "--metadata/--no-metadata",
+        help="Include podcast name, episode title, and synopsis in state."),
+    corpus_dir: Path | None = typer.Option(None, "--corpus-dir"),
+) -> None:
+    """Evaluate per-segment Jev answers or an offline overlap oracle."""
+    _setup_logging()
+    root = corpus_dir or (_root() / "data" / "corpus")
+    ep_ids = corpus_mod.list_episodes(root)
+    if not ep_ids:
+        typer.echo(f"no corpus episodes under {root}", err=True)
+        raise typer.Exit(1)
+
+    if guidance not in ("basic", "full"):
+        typer.echo("--guidance must be 'basic' or 'full'", err=True)
+        raise typer.Exit(2)
+    guidance_text = jev.GUIDANCE if guidance == "basic" else jev.GUIDANCE_FULL
+    episode_metadata = (lambda ep: ep.metadata) if metadata else (lambda ep: None)
+
+    cache = None
+    api_key = None
+    if oracle == "off":
+        cache = jev.ProbabilityCache(_root() / "results" / "raw" / "jev_cache.json")
+        api_key = jev.api_key_from_env()
+
+    scores: list[jev.EpisodeScore] = []
+    est_tokens = 0
+    for ep_id in ep_ids:
+        episode = corpus_mod.load_episode(root / ep_id)
+        windows = jev.episode_windows(episode)
+        est_tokens += jev.estimate_input_tokens(windows)
+
+        if oracle == "off":
+            def source(segs, _cache=cache, _key=api_key, _n=passes,
+                       _g=guidance_text, _m=episode_metadata(episode)):
+                return jev.aggregate_passes([
+                    _cache.get_or_call(
+                        segs, api_key=_key, guidance=_g, metadata=_m,
+                        uid=None if _n == 1 else f"pass-{i}")
+                    for i in range(_n)
+                ])
+        else:
+            def source(segs, _policy=oracle, _ep=episode):
+                return jev.WindowResult(
+                    probabilities=jev.oracle_probabilities(
+                        segs, _ep.truth.ads, policy=_policy))
+
+        confirm_fn = None
+        if confirm:
+            if cache is None:
+                typer.echo("--confirm needs live probabilities; drop --oracle.", err=True)
+                raise typer.Exit(2)
+
+            def confirm_fn(ads, all_segs, _cache=cache, _key=api_key):
+                return jev.confirm_spans(
+                    ads, all_segs,
+                    lambda payload: _cache.nouls(
+                        payload, api_key=_key)["probabilities"],
+                    policy=jev.ConfirmPolicy())
+
+        try:
+            scores.append(jev.score_episode(
+                episode, windows, source, enter=enter, stay=stay,
+                confirm=confirm_fn))
+        except KeyError as e:
+            if cache:
+                cache.save()
+            typer.echo(f"{e}\nSet TYPESAFE_API_KEY to populate the cache.", err=True)
+            raise typer.Exit(1) from e
+
+    if cache:
+        cache.save()
+        typer.echo(f"cache: {cache.hits} hit, {cache.misses} fetched "
+                   f"-> {cache.path.relative_to(_root())}")
+
+    _echo_jev_table(scores, est_tokens=est_tokens, oracle=oracle,
+                    variant=f"guidance={guidance} metadata={metadata}")
+
+
+@app.command("jev-cv")
+def jev_cv_cmd(
+    fold_size: int = typer.Option(2, "--fold-size"),
+    guidance: str = typer.Option("full", "--guidance"),
+    metadata: bool = typer.Option(True, "--metadata/--no-metadata"),
+    corpus_dir: Path | None = typer.Option(None, "--corpus-dir"),
+) -> None:
+    """Cross-validate detection thresholds from cached answers."""
+    _setup_logging()
+    if fold_size < 1:
+        raise typer.BadParameter("fold-size must be positive")
+    root = corpus_dir or (_root() / "data" / "corpus")
+    cache = jev.ProbabilityCache(_root() / "results" / "raw" / "jev_cache.json")
+    guidance_text = jev.GUIDANCE if guidance == "basic" else jev.GUIDANCE_FULL
+
+    episodes, windows = {}, {}
+    for ep_id in corpus_mod.list_episodes(root):
+        ep = corpus_mod.load_episode(root / ep_id)
+        episodes[ep_id] = ep
+        windows[ep_id] = jev.episode_windows(ep)
+
+    def score_fn(ep_id, enter, stay):
+        ep = episodes[ep_id]
+        meta = ep.metadata if metadata else None
+        return jev.score_episode(
+            ep, windows[ep_id],
+            lambda s: cache.get_or_call(
+                s, api_key=None, guidance=guidance_text, metadata=meta),
+            enter=enter, stay=stay)
+
+    ad_ids = [e for e in episodes if not episodes[e].truth.is_no_ad_episode]
+    try:
+        folds = jev.cross_validate(ad_ids, score_fn, fold_size=fold_size)
+    except KeyError as e:
+        typer.echo(f"{e}\nRun `benchmark jev-spike --oracle off` first.", err=True)
+        raise typer.Exit(1) from e
+
+    typer.echo(f"\n{len(folds)} folds of {fold_size}, guidance={guidance} "
+               f"metadata={metadata}")
+    typer.echo(f"{'held out':44}{'enter':>6}{'stay':>6}{'train':>8}"
+               f"{'test':>8}{'fixed':>8}")
+    for f in folds:
+        held = ", ".join(h.replace("ep-", "")[:18] for h in f.held_out)
+        typer.echo(f"{held[:44]:44}{f.enter:6.2f}{f.stay:6.2f}"
+                   f"{f.train_f05:8.3f}{f.test_f05:8.3f}{f.fixed_f05:8.3f}")
+
+    n = len(folds)
+    if not n:
+        typer.echo("no ad-bearing corpus episodes available", err=True)
+        raise typer.Exit(1)
+    mean = lambda k: sum(getattr(f, k) for f in folds) / n  # noqa: E731
+    typer.echo(f"\n{'MEAN':44}{'':12}{mean('train_f05'):8.3f}"
+               f"{mean('test_f05'):8.3f}{mean('fixed_f05'):8.3f}")
+    typer.echo(f"\nin-sample minus held-out: {mean('train_f05') - mean('test_f05'):+.3f}"
+               "   (the optimism in a tuned-on-everything number)")
+    typer.echo(f"per-fold tuning vs shipped defaults on the same episodes: "
+               f"{mean('test_f05') - mean('fixed_f05'):+.3f}")
+
+
+@app.command("combined-report")
+def combined_report_cmd(
+    config_path: Path = typer.Option(Path("benchmark.toml"), "--config"),
+    snapshot: Path | None = typer.Option(
+        None, "--snapshot", help="Same prompt snapshot label as `benchmark report`."),
+    addressing_mode: str = typer.Option("timestamps", "--addressing-mode"),
+    output: Path | None = typer.Option(None, "--output"),
+    jev_passes: int = typer.Option(
+        1, "--jev-passes",
+        help="Repeats the jev cache was filled with; must match the jev-spike run."),
+) -> None:
+    """Full report-style Markdown with Jev rows merged into every table."""
+    _setup_logging()
+    cfg = _load(config_path)
+    _, prompt_source = _resolve_prompt(snapshot)
+    episodes = [corpus_mod.load_episode(cfg.corpus.path / e)
+                for e in corpus_mod.list_episodes(cfg.corpus.path)]
+    paths = runner_mod.RunPaths.for_root(_root() / "results")
+    snap = pricing.latest_snapshot(_root() / "data" / "pricing_snapshots")
+    if snap is None:
+        typer.echo("combined-report needs a cached pricing snapshot", err=True)
+        raise typer.Exit(1)
+    out = output or (_root() / "results" / "report-combined.md")
+    report_mod.render(
+        cfg=cfg, episodes=episodes, calls_path=paths.calls_jsonl,
+        pricing_snapshot=snap,
+        output_path=out, assets_dir=_root() / "results" / "report_assets",
+        prompt_source=prompt_source, addressing_mode=addressing_mode, include_jev=True,
+        jev_passes=jev_passes)
+    typer.echo(f"combined report written: {out}")
+
+
+def _echo_jev_table(scores, *, est_tokens: int, oracle: str,
+                    variant: str = "") -> None:
+    ad_eps = [s for s in scores if not s.is_no_ad]
+    typer.echo(f"\nmode: {'oracle=' + oracle if oracle != 'off' else 'live jev'}   "
+               f"episodes: {len(scores)}   {variant}")
+    typer.echo(f"{'episode':38}{'F1':>7}{'F0.5':>7}{'prec':>7}{'rec':>7}"
+               f"{'startMAE':>10}{'endMAE':>9}")
+    for s in sorted(ad_eps, key=lambda s: s.f1):
+        smae = f"{s.start_mae:.1f}" if s.start_mae is not None else "-"
+        emae = f"{s.end_mae:.1f}" if s.end_mae is not None else "-"
+        typer.echo(f"{s.ep_id[:38]:38}{s.f1:7.3f}{s.f05:7.3f}"
+                   f"{s.precision:7.3f}{s.recall:7.3f}{smae:>10}{emae:>9}")
+
+    if ad_eps:
+        mean = lambda xs: sum(xs) / len(xs)
+        typer.echo(f"\n{'MEAN':38}{mean([s.f1 for s in ad_eps]):7.3f}"
+                   f"{mean([s.f05 for s in ad_eps]):7.3f}"
+                   f"{mean([s.precision for s in ad_eps]):7.3f}"
+                   f"{mean([s.recall for s in ad_eps]):7.3f}")
+
+    for s in scores:
+        if s.is_no_ad:
+            verdict = "PASS" if s.no_ad_passed else f"FAIL ({s.no_ad_fps} FP)"
+            typer.echo(f"no-ad control {s.ep_id[:30]:32} {verdict}")
+
+    cost = est_tokens * jev.INPUT_COST_PER_MTOK / 1e6
+    typer.echo(f"\nestimated input tokens/pass (all episodes): {est_tokens:,}")
+    typer.echo(f"estimated cost/pass (all episodes): ${cost:.4f}")
+
 
 
 def _preview(cfg, episodes, *, paths, system_prompt, include_errored=False, addressing_mode="timestamps"):

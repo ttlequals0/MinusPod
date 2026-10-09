@@ -128,7 +128,10 @@ def run_pattern_cleanup():
     if not isinstance(force, bool):
         return error_response('force must be a boolean', 400)
     db = get_database()
-    run_id = pattern_cleanup.start_cleanup_run(db, force=force, trigger='manual')
+    try:
+        run_id = pattern_cleanup.start_cleanup_run(db, force=force, trigger='manual')
+    except pattern_cleanup.UnsupportedCleanupRouteError as error:
+        return error_response(str(error), 400)
     if run_id is None:
         return error_response('cleanup_in_progress', 409)
     return json_response({'runId': run_id}, 202)

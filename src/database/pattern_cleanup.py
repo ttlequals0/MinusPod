@@ -27,7 +27,8 @@ class PatternCleanupMixin:
     def create_cleanup_run(self, *, forced: bool, trigger: str, started_at: str | None = None) -> int:
         conn = self.get_connection()
         cursor = conn.execute(
-            "INSERT INTO pattern_cleanup_runs (forced, trigger, started_at) VALUES (?, ?, ?)",
+            "INSERT INTO pattern_cleanup_runs (forced, trigger, started_at, accounting_version) "
+            "VALUES (?, ?, ?, 1)",
             (1 if forced else 0, trigger, started_at or utc_now_iso()))
         conn.commit()
         return cursor.lastrowid
@@ -76,23 +77,27 @@ class PatternCleanupMixin:
                 return self.upsert_cleanup_suggestion(run_id, pattern_id, kind, confidence,
                                                       reasons, payload, before, conn=own)
         conn.execute(
-            "DELETE FROM pattern_cleanup_suggestions "
-            "WHERE pattern_id = ? AND kind = ? AND status = 'pending'",
-            (pattern_id, kind))
+            "UPDATE pattern_cleanup_suggestions SET superseded_at = ? "
+            "WHERE pattern_id = ? AND kind = ? AND status = 'pending' AND superseded_at IS NULL",
+            (utc_now_iso(), pattern_id, kind))
         cursor = conn.execute(
             """INSERT INTO pattern_cleanup_suggestions
-               (run_id, pattern_id, kind, confidence, reasons, payload, before, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (run_id, pattern_id, kind, confidence, reasons, payload, before, created_at,
+                pattern_scope, podcast_slug)
+               SELECT ?, ?, ?, ?, ?, ?, ?, ?, scope,
+                      CASE WHEN scope = 'podcast' THEN podcast_id END
+               FROM ad_patterns WHERE id = ?""",
             (run_id, pattern_id, kind, confidence, json.dumps(reasons or []),
-             json.dumps(payload or {}), json.dumps(before or {}), utc_now_iso()))
+             json.dumps(payload or {}), json.dumps(before or {}), utc_now_iso(), pattern_id))
         return cursor.lastrowid
 
     def supersede_pending(self, pattern_id: int, conn=None) -> int:
         """Drop every pending suggestion of any kind for a pattern."""
         target = conn or self.get_connection()
         cursor = target.execute(
-            "DELETE FROM pattern_cleanup_suggestions WHERE pattern_id = ? AND status = 'pending'",
-            (pattern_id,))
+            "UPDATE pattern_cleanup_suggestions SET superseded_at = ? "
+            "WHERE pattern_id = ? AND status = 'pending' AND superseded_at IS NULL",
+            (utc_now_iso(), pattern_id))
         if conn is None:
             target.commit()
         return cursor.rowcount
@@ -105,7 +110,8 @@ class PatternCleanupMixin:
 
     def get_cleanup_suggestion(self, suggestion_id: int, conn=None) -> dict | None:
         row = (conn or self.get_connection()).execute(
-            "SELECT * FROM pattern_cleanup_suggestions WHERE id = ?", (suggestion_id,)).fetchone()
+            "SELECT * FROM pattern_cleanup_suggestions WHERE id = ? AND superseded_at IS NULL",
+            (suggestion_id,)).fetchone()
         return _decode_suggestion(row) if row else None
 
     def get_cleanup_suggestions(self, status: str | None = None, kind: str | None = None,
@@ -119,7 +125,7 @@ class PatternCleanupMixin:
             JOIN ad_patterns ap ON ap.id = s.pattern_id
             LEFT JOIN known_sponsors ks ON ks.id = ap.sponsor_id
             LEFT JOIN podcasts pc ON pc.slug = ap.podcast_id
-            WHERE 1=1"""  # noqa: S608
+            WHERE s.superseded_at IS NULL"""  # noqa: S608
         params: list = []
         if status:
             query += " AND s.status = ?"
@@ -151,7 +157,7 @@ class PatternCleanupMixin:
     def get_cleanup_pending_counts(self) -> dict:
         rows = self.get_connection().execute(
             "SELECT kind, COUNT(*) AS n FROM pattern_cleanup_suggestions "
-            "WHERE status = 'pending' GROUP BY kind").fetchall()
+            "WHERE status = 'pending' AND superseded_at IS NULL GROUP BY kind").fetchall()
         by_kind = {row['kind']: row['n'] for row in rows}
         return {'total': sum(by_kind.values()), 'byKind': by_kind}
 
@@ -173,7 +179,7 @@ class PatternCleanupMixin:
 
     def has_pending_cleanup_suggestion(self, pattern_id: int, kind: str | None = None) -> bool:
         query = ("SELECT 1 FROM pattern_cleanup_suggestions "
-                 "WHERE pattern_id = ? AND status = 'pending'")
+                 "WHERE pattern_id = ? AND status = 'pending' AND superseded_at IS NULL")
         params: list = [pattern_id]
         if kind:
             query += " AND kind = ?"
@@ -198,9 +204,10 @@ class PatternCleanupMixin:
             "cleanup_stats_reviewed = '{}' "
             "WHERE created_by = 'auto' AND source = 'local' AND is_active = 1")
         conn.execute(
-            "DELETE FROM pattern_cleanup_suggestions WHERE status = 'pending' AND pattern_id IN ("
+            "UPDATE pattern_cleanup_suggestions SET superseded_at = ? "
+            "WHERE status = 'pending' AND superseded_at IS NULL AND pattern_id IN ("
             "SELECT id FROM ad_patterns WHERE created_by = 'auto' AND source = 'local' "
-            "AND is_active = 1)")
+            "AND is_active = 1)", (utc_now_iso(),))
         return cursor.rowcount
 
     def get_cleanup_stats_rows(self, conn=None) -> list[dict]:
@@ -250,7 +257,7 @@ class PatternCleanupMixin:
         conn.create_function('cleanup_review_hash', 3, review_hash)
         pending_model = """EXISTS (
             SELECT 1 FROM pattern_cleanup_suggestions s
-            WHERE s.pattern_id = ap.id AND s.status = 'pending'
+            WHERE s.pattern_id = ap.id AND s.status = 'pending' AND s.superseded_at IS NULL
               AND (
                     s.kind NOT IN ('retire', 'flag')
                     OR (s.kind = 'flag' AND (
@@ -290,3 +297,20 @@ class PatternCleanupMixin:
                 LIMIT ?""",  # noqa: S608
             (INVALID_MARKER, batch_size + CANDIDATE_ROW_MARGIN))
         return [dict(row) for row in cursor.fetchall()]
+
+
+    def record_cleanup_check(self, run_id, pattern, *, stats_checked=False,
+                             model_status=None):
+        if run_id is None:
+            return
+        conn = self.get_connection()
+        conn.execute("""INSERT INTO pattern_cleanup_checks
+            (run_id, pattern_id, pattern_scope, podcast_slug, stats_checked, model_status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(run_id, pattern_id) DO UPDATE SET
+                stats_checked = MAX(stats_checked, excluded.stats_checked),
+                model_status = COALESCE(excluded.model_status, model_status)""",
+            (run_id, pattern['id'], pattern['scope'],
+             pattern.get('podcast_id') if pattern['scope'] == 'podcast' else None,
+             int(stats_checked), model_status))
+        conn.commit()

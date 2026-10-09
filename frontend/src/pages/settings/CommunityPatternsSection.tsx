@@ -113,9 +113,7 @@ function CommunityPatternsSection() {
             </span>
           </label>
           <p className="text-sm text-muted-foreground -mt-2">
-            Pulls a curated list of common-sponsor patterns from the MinusPod
-            GitHub repository so a fresh install gets coverage without having
-            to build a library from scratch. Off by default; opt in here.
+            Sync curated sponsor patterns from the MinusPod repository.
           </p>
 
           {enabled && (

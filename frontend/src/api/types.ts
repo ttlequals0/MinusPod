@@ -697,7 +697,7 @@ export interface WhisperCapacity {
   health: WhisperHealthProbe;
 }
 
-export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter';
+export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter' | 'typesafe' | 'systemone-compatible';
 // Corner the MinusPod cover-art badge renders in (issue #600).
 export type BadgePosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 // Automatic response to a run that removed far less ad time than the feed
@@ -718,6 +718,8 @@ export const LLM_PROVIDERS = {
   OPENAI_COMPATIBLE: 'openai-compatible' as const,
   OLLAMA: 'ollama' as const,
   OPENROUTER: 'openrouter' as const,
+  TYPESAFE: 'typesafe' as const,
+  SYSTEMONE_COMPATIBLE: 'systemone-compatible' as const,
 };
 
 // Display order and labels shared by the global provider select and every
@@ -727,14 +729,48 @@ export const LLM_PROVIDER_OPTIONS: LlmProvider[] = [
   LLM_PROVIDERS.OPENROUTER,
   LLM_PROVIDERS.OPENAI_COMPATIBLE,
   LLM_PROVIDERS.OLLAMA,
+  LLM_PROVIDERS.TYPESAFE,
+  LLM_PROVIDERS.SYSTEMONE_COMPATIBLE,
 ];
+
+export const FAILOVER_LLM_PROVIDER_OPTIONS: LlmProvider[] = LLM_PROVIDER_OPTIONS.filter(
+  (provider) => provider !== LLM_PROVIDERS.TYPESAFE && provider !== LLM_PROVIDERS.SYSTEMONE_COMPATIBLE,
+);
 
 export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
   [LLM_PROVIDERS.ANTHROPIC]: 'Anthropic',
   [LLM_PROVIDERS.OPENROUTER]: 'OpenRouter',
   [LLM_PROVIDERS.OPENAI_COMPATIBLE]: 'OpenAI Compatible',
   [LLM_PROVIDERS.OLLAMA]: 'Ollama',
+  [LLM_PROVIDERS.TYPESAFE]: 'TypeSafe',
+  [LLM_PROVIDERS.SYSTEMONE_COMPATIBLE]: 'System One compatible',
 };
+
+export type SystemOneProvider = 'typesafe' | 'systemone-compatible';
+export type SystemOneCredentialSlot = 'primary' | 'secondary';
+
+export interface SystemOneProfile {
+  detectionEnter: number;
+  detectionStay: number;
+  categoryPass: boolean;
+  categoryContext: number;
+  defaultCategory: string;
+  refineBoundaries: boolean;
+  reviewEvidenceEnter: number | null;
+  reviewChoiceEnter: number | null;
+  reviewProgrammeVeto: number;
+  reviewBoundaryCapSeconds: number;
+  reviewContextSeconds: number;
+  requestDeadlineSeconds: number;
+  maxConcurrentOperations: number;
+  retryAfterMaxSeconds: number;
+  maxQuestionsPerRequest: number | null;
+  maxRequestBytes: number | null;
+  maxChoiceOptions: number | null;
+}
+
+export type SystemOneProfiles = Record<SystemOneCredentialSlot, Record<SystemOneProvider, SystemOneProfile>>;
+export type SystemOneProfileDefaults = Record<SystemOneCredentialSlot, Record<SystemOneProvider, boolean>>;
 
 // Sentinel stored in review_provider (and only there): the reviewer inherits
 // both the provider and model of whichever pass it is reviewing.
@@ -895,6 +931,12 @@ export interface Settings {
   omitTemperature: SettingValueBoolean;
   llmJsonSchemaEnabled: SettingValueBoolean;
   openaiBaseUrl: SettingValue;
+  systemoneBaseUrl: SettingValue;
+  typesafeApiKeyConfigured: boolean;
+  systemoneApiKeyConfigured: boolean;
+  systemOneTunables: SystemOneProfiles;
+  systemOneTunablesIsDefault: SystemOneProfileDefaults;
+  systemOneTunableDefaults: SystemOneProfiles;
   // Optional second provider config; stage/reviewer settings can route to
   // it via the 'secondary' slot (see ProviderSlot above).
   secondaryProviderEnabled: SettingValueBoolean;
@@ -1199,6 +1241,10 @@ export interface UpdateSettingsPayload {
   minCutConfidence?: number;
   llmProvider?: LlmProvider;
   openaiBaseUrl?: string;
+  systemoneBaseUrl?: string;
+  typesafeApiKey?: string | null;
+  systemoneApiKey?: string | null;
+  systemOneTunables?: Partial<Record<SystemOneCredentialSlot, Partial<Record<SystemOneProvider, Partial<SystemOneProfile> | null>>>>;
   secondaryProviderEnabled?: boolean;
   secondaryProvider?: LlmProvider | '';
   secondaryProviderBaseUrl?: string;
@@ -1661,6 +1707,64 @@ export interface ModelUsageResponse {
   totalPages: number;
   page: number;
   limit: number;
+}
+
+export interface SystemOneStats {
+  calls: number;
+  requests: number;
+  dispatchLatencyMsTotal: number;
+  logicalLatencyMsTotal: number;
+  logicalLatencyMsAverage: number | null;
+  tokens: { input: number; output: number; unknownRequestCount: number };
+  costUsd: string;
+  unknownCostRequestCount: number;
+  outcomes: Record<'completed' | 'failed' | 'inconclusive', number>;
+  reviewReasons: Record<string, number>;
+  refinements: { attempted: number; completed: number; skipped: number; inconclusive: number; upstream_error: number };
+  refinementSkipReasons: Record<string, number>;
+}
+
+export interface CleanupStatsUsage {
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  knownCostUsd: string;
+  unknownUsageRequestCount: number;
+  unknownCostRequestCount: number;
+}
+
+export interface CleanupStats {
+  runs: {
+    total: number;
+    running: number;
+    completed: number;
+    failed: number;
+    exactAccounting: number;
+    legacy: number;
+  };
+  patterns: {
+    checked: number;
+    distinctChecked: number;
+    modelReviewed: number;
+    proposed: number;
+    changed: number;
+    legacyReportedReviews: number;
+  };
+  actions: Record<'trim' | 'split' | 'rename' | 'retire' | 'flag' | 'category', {
+    proposed: number;
+    accepted: number;
+    applied: number;
+    reverted: number;
+  }>;
+  usage: CleanupStatsUsage;
+  unattributedUsage: CleanupStatsUsage | null;
+  coverage: {
+    historicalRunCountWithUnknownSpend: number;
+    historicalChecksAvailable: false;
+    proposalHistoryCompleteSince: string | null;
+    historicalScopeAvailable: false;
+    unattributedProposalCount: number;
+  };
 }
 
 // Paginated per-episode cost row from GET /stats/episode-costs. latestRunCostUsd

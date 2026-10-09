@@ -13,6 +13,7 @@ to primary (fail-safe) and logs once per stage.
 from __future__ import annotations
 import hashlib
 import logging
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -20,11 +21,14 @@ import failover
 from config import (
     ModelNotConfiguredError, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
     PROVIDERS_NON_ANTHROPIC, OPENROUTER_BASE_URL, DEFAULT_OPENAI_BASE_URL,
+    PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE,
+    TYPESAFE_SYSTEMONE_URL,
     coerce_bool_setting,
 )
 import database
 import llm_client
 import run_context
+from llm_capabilities import systemone_supported_phases
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +217,11 @@ def _base_url_for_primary(provider: str) -> str | None:
         return None
     if provider == PROVIDER_OPENROUTER:
         return OPENROUTER_BASE_URL
+    if provider == PROVIDER_TYPESAFE:
+        return TYPESAFE_SYSTEMONE_URL
+    if provider == PROVIDER_SYSTEMONE_COMPATIBLE:
+        return (llm_client._get_cached_setting('systemone_base_url')
+                or os.getenv('SYSTEMONE_BASE_URL') or '')
     if provider in PROVIDERS_NON_ANTHROPIC:
         return llm_client._normalize_base_url_for_provider(provider, llm_client.get_effective_base_url())
     return None
@@ -224,6 +233,10 @@ def _base_url_for_secondary(db, provider: str) -> str | None:
         return None
     if provider == PROVIDER_OPENROUTER:
         return OPENROUTER_BASE_URL
+    if provider == PROVIDER_TYPESAFE:
+        return TYPESAFE_SYSTEMONE_URL
+    if provider == PROVIDER_SYSTEMONE_COMPATIBLE:
+        return db.get_setting('secondary_provider_base_url') or ''
     if provider in PROVIDERS_NON_ANTHROPIC:
         raw = db.get_setting('secondary_provider_base_url') or DEFAULT_OPENAI_BASE_URL
         return llm_client._normalize_base_url_for_provider(provider, raw)
@@ -248,6 +261,8 @@ def _failover_route(phase: str | None, credential_slot: str) -> Route | None:
     if not failover.is_configured(target, cfg):
         return None
     model = cfg['models'].get(phase) or cfg['models']['detection']
+    if systemone_supported_phases(cfg['provider'], model) is not None:
+        return None
     base_url = _failover_base_url(cfg['provider'], cfg['base_url'])
     account_id = account_identity(cfg['provider'], base_url)
     ctx = run_context.current()
@@ -375,6 +390,44 @@ def resolved_stage_slot(db, stage: str) -> str:
     if slot == SLOT_SECONDARY and not db.get_setting('secondary_provider'):
         return SLOT_PRIMARY
     return slot
+
+
+def systemone_probe_model(settings, provider, credential_slot):
+    """Choose a configured supported-stage model from a frozen settings map."""
+    class Snapshot:
+        def get_setting(self, key):
+            return settings.get(key)
+
+    view = Snapshot()
+    providers = {SLOT_PRIMARY: settings.get('llm_provider'),
+                 SLOT_SECONDARY: settings.get('secondary_provider')}
+    passes = []
+    for phase, model_getter in (('detection', _detection_model), ('verification', _verification_model)):
+        try:
+            model = model_getter(view)
+        except ModelNotConfiguredError:
+            continue
+        slot = resolved_stage_slot(view, phase)
+        passes.append((slot, model))
+        if slot == credential_slot and providers.get(slot) == provider:
+            return model
+    configured_review_slot = settings.get('review_provider') or SAME_AS_PASS
+    configured_review_model = settings.get('review_model')
+    if (configured_review_slot != SAME_AS_PASS
+            and configured_review_model not in (None, '', SAME_AS_PASS)):
+        slot = resolved_stage_slot(view, 'review')
+        if slot == credential_slot and providers.get(slot) == provider:
+            return configured_review_model
+    for pass_slot, pass_model in passes:
+        if (settings.get('review_provider') or SAME_AS_PASS) == SAME_AS_PASS:
+            slot, model = pass_slot, pass_model
+        else:
+            slot = resolved_stage_slot(view, 'review')
+            configured = settings.get('review_model')
+            model = pass_model if configured in (None, SAME_AS_PASS) else configured
+        if model and slot == credential_slot and providers.get(slot) == provider:
+            return model
+    return None
 
 
 def _detection_model(db) -> str:

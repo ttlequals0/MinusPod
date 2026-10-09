@@ -5,7 +5,7 @@ import type { LlmProvider, ProviderSlot, WhisperHealthProbe } from './types';
 // /settings/providers/<name> REST surface (unlike the others): their keys
 // save/clear through PUT /settings and their tests hit test-connection directly.
 export type ProviderName =
-  | 'anthropic' | 'openai' | 'openrouter' | 'whisper' | 'ollama' | 'secondary'
+  | 'anthropic' | 'openai' | 'openrouter' | 'whisper' | 'ollama' | 'typesafe' | 'systemone-compatible' | 'secondary'
   | 'failover' | 'failover-whisper';
 
 export interface ProviderStatus {
@@ -22,6 +22,8 @@ export interface ProvidersResponse {
   openrouter: ProviderStatus;
   whisper: ProviderStatus;
   ollama: ProviderStatus;
+  typesafe: ProviderStatus;
+  'systemone-compatible': ProviderStatus;
 }
 
 export interface ProviderUpdatePayload {
@@ -106,7 +108,7 @@ export function testWhisperConnection(baseUrl: string, model: string, skipFlacCo
 // baseUrl applies to the configurable providers (openai, ollama); anthropic
 // and openrouter have fixed public endpoints and ignore the body.
 export function testLlmConnection(
-  name: 'openai' | 'ollama' | 'anthropic' | 'openrouter',
+  name: 'openai' | 'ollama' | 'anthropic' | 'openrouter' | 'typesafe' | 'systemone-compatible',
   baseUrl?: string,
 ) {
   return apiRequest<ConnectionTestResult>(`/settings/providers/${name}/test-connection`, {

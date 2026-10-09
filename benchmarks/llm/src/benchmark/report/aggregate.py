@@ -5,12 +5,14 @@ import math
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 from .. import metrics, parsing, pricing
 from ..corpus import Episode
 
 
 DEFAULT_IOU_THRESHOLD = 0.5
+STRICT_IOU_THRESHOLD = 0.8
 
 
 # Confidence bins used by the calibration heatmap. (lo, hi) half-open, plus a
@@ -86,6 +88,13 @@ class ModelStats:
     f1_stdev_per_episode: dict[str, float] = field(default_factory=dict)
     precision_per_episode: dict[str, float] = field(default_factory=dict)
     recall_per_episode: dict[str, float] = field(default_factory=dict)
+    f05_strict_per_episode: dict[str, float] = field(default_factory=dict)
+    avg_f05_strict: float | None = None
+    cost_episodes: int = 0
+    native_known_cost_usd: str | None = None
+    native_unknown_cost_requests: int = 0
+    native_unknown_usage_requests: int = 0
+    native_request_count: int = 0
     tp_total: int = 0
     fp_total: int = 0
     fn_total: int = 0
@@ -387,7 +396,8 @@ def _aggregate(
     # Sorted so downstream tables render in a stable order: set iteration
     # varies per process under hash randomization, and stable sorts preserve
     # this order for rows that tie on the sort key.
-    models_seen: set[str] = set(me_by_model) | set(response_times_per_model)
+    native_models = {row['model'] for row in calls if row.get('native_accounting') is not None}
+    models_seen: set[str] = set(me_by_model) | set(response_times_per_model) | native_models
     for model in sorted(models_seen):
         ms = ModelStats(model=model)
         all_start_maes: list[float] = []
@@ -426,6 +436,25 @@ def _aggregate(
         if all_start_biases:
             ms.boundary_start_bias = statistics.fmean(all_start_biases)
             ms.boundary_end_bias = statistics.fmean(all_end_biases)
+        native_records = [row for row in calls if row['model'] == model
+                          and row.get('native_accounting') is not None]
+        if native_records:
+            totals = defaultdict(lambda: Decimal('0'))
+            for row in native_records:
+                usage = row['native_accounting']
+                totals[(row['episode_id'], row['trial'])] += Decimal(usage['known_cost_usd'])
+                ms.native_unknown_cost_requests += usage['unknown_cost_request_count']
+                ms.native_unknown_usage_requests += usage['unknown_usage_request_count']
+                ms.native_request_count += usage['request_count']
+            ms.native_known_cost_usd = str(sum(totals.values(), Decimal('0')))
+            by_episode = defaultdict(list)
+            for (episode_id, _trial), cost in totals.items():
+                by_episode[episode_id].append(float(cost))
+            ms.total_episode_cost = statistics.fmean(
+                statistics.fmean(costs) for costs in by_episode.values())
+            if all(row['native_accounting']['cost_source'] == 'estimated' for row in native_records):
+                ms.input_episode_cost = ms.total_episode_cost
+                ms.output_episode_cost = 0.0
         rts = sorted(response_times_per_model[model])
         if rts:
             ms.p50_call_latency_ms = _percentile(rts, 50)
@@ -473,6 +502,7 @@ def _aggregate(
 
 def _recompute_costs(records: list[dict], snap: pricing.PricingSnapshot) -> tuple[float, float]:
     """(input_cost, output_cost) at snapshot prices across the records."""
+    records = [record for record in records if record.get('native_accounting') is None]
     if not records:
         return 0.0, 0.0
     price = snap.lookup(records[0]["model"])

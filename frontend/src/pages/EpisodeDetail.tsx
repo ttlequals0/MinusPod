@@ -7,6 +7,8 @@ import {
 } from '../api/feeds';
 import type { LocalEpisodePatch } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
+import { getSettings } from '../api/settings';
+import { isSystemOneChapterRoute } from './settings/systemoneWarnings';
 import { getErrorMessage, jobStateOf } from '../api/client';
 import { SegmentCategoryBadge, KeptBadge } from '../components/SegmentCategoryBadge';
 import PrevNextLink from '../components/PrevNextLink';
@@ -393,6 +395,16 @@ function EpisodeDetail() {
     queryFn: () => getFeed(slug!),
     enabled: !!slug,
   });
+  const { data: settings, isPending: chapterSettingsPending, error: chapterSettingsError, refetch: reloadChapterSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+    enabled: !!episode?.transcriptVttAvailable,
+  });
+  const unsupportedChapterRoute = isSystemOneChapterRoute(settings);
+  const chapterRouteWarning = 'System One cannot generate chapters. Select a chat provider and model.';
+  const chapterActionTooltip = chapterSettingsError ? 'Load chapter settings before regenerating chapters.'
+    : chapterSettingsPending ? 'Loading chapter settings...'
+      : unsupportedChapterRoute ? chapterRouteWarning : 'Regenerate chapters from existing transcript';
 
   const reprocessMutation = useMutation({
     mutationFn: (mode: 'reprocess' | 'full' | 'llm' | 'recut') => reprocessEpisode(slug!, episodeId!, mode),
@@ -958,8 +970,8 @@ function EpisodeDetail() {
                     onClick: () => handleReprocess('llm') }] : []),
                   ...(episode.transcriptVttAvailable ? [{
                     title: 'Regenerate Chapters', subtitle: 'Use existing transcript',
-                    disabled: chaptersRegenerating,
-                    tooltip: 'Regenerate chapters from existing transcript',
+                    disabled: chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute,
+                    tooltip: chapterActionTooltip,
                     onClick: () => regenerateChaptersMutation.mutate() }] : []),
                   { title: passthroughToggleLabel, subtitle: 'Served unmodified, no ad processing',
                     disabled: passthroughToggleDisabled,
@@ -971,6 +983,18 @@ function EpisodeDetail() {
           </div>
         </div>
 
+        {episode.transcriptVttAvailable && unsupportedChapterRoute && (
+          <p role="status" className="mt-2 text-sm text-warning">
+            {chapterRouteWarning}{' '}
+            <Link to="/settings" className={`underline ${focusRing}`}>Open settings</Link>
+          </p>
+        )}
+        {episode.transcriptVttAvailable && chapterSettingsError && (
+          <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-sm text-destructive">
+            <span>{getErrorMessage(chapterSettingsError, 'Could not load chapter settings.')}</span>
+            <button type="button" onClick={() => void reloadChapterSettings()} className={`min-h-11 px-4 py-2 rounded-lg ${btnSecondary} ${focusRing}`}>Retry chapter settings</button>
+          </div>
+        )}
         {verificationVerdict && (
           <p className="mt-2 text-xs text-muted-foreground">{verificationVerdict}</p>
         )}
@@ -1511,8 +1535,8 @@ function EpisodeDetail() {
             {episode.transcriptVttAvailable && (
               <button
                 onClick={() => { setHeldReviewCleared(false); regenerateChaptersMutation.mutate(); }}
-                disabled={chaptersRegenerating}
-                title="Regenerate chapters from existing transcript"
+                disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute}
+                title={chapterActionTooltip}
                 data-testid="regenerate-chapters-after-review"
                 className={`w-full sm:w-auto ${rowActionBtn} ${btnSecondary} ${focusRing}`}
               >

@@ -7,6 +7,8 @@ import logging
 import math
 import re
 import threading
+
+import run_context
 import time
 from contextlib import contextmanager
 from datetime import timedelta
@@ -17,9 +19,11 @@ from rapidfuzz import fuzz
 
 from database import Database
 from database.settings import registry_default, registry_get_default
-from llm_client import ProviderRateLimitedError
+from llm_client import ProviderRateLimitedError, get_effective_provider_from_snapshot
+from llm_capabilities import systemone_supported_phases
 from llm_route import (
     LiveRoute, apply_failover, client_for_route, live_route_from, resolve_route,
+    resolved_stage_slot, SLOT_SECONDARY,
 )
 from pattern_cleanup_hash import INVALID_MARKER, review_hash, stats_evidence_hash
 from pattern_variants import derive_intro_outro
@@ -106,6 +110,10 @@ REVIEW_SCHEMA = {
 
 class CleanupInProgressError(Exception):
     """Another cleanup run holds the lock."""
+
+
+class UnsupportedCleanupRouteError(ValueError):
+    pass
 
 
 class PatternCleanupCallError(Exception):
@@ -545,7 +553,7 @@ def review_pattern(pattern: dict, context: str | None, *, live: LiveRoute,
         llm_timeout=live.timeout,
         max_retries=live.max_retries,
         max_tokens=MAX_TOKENS,
-        slug=None,
+        slug=pattern.get('podcast_id') if pattern.get('scope') == 'podcast' else None,
         episode_id=None,
         call_label=f"pattern cleanup {pattern.get('id')}",
         phase_key=PHASE,
@@ -762,7 +770,7 @@ def _stats_only_suggestion(suggestion: dict) -> bool:
 
 def _pending_pattern_suggestions(conn, pattern_id: int) -> list[dict]:
     rows = conn.execute(
-        "SELECT * FROM pattern_cleanup_suggestions WHERE pattern_id = ? AND status = 'pending'",
+        "SELECT * FROM pattern_cleanup_suggestions WHERE pattern_id = ? AND status = 'pending' AND superseded_at IS NULL",
         (pattern_id,)).fetchall()
     return _decode_pending_rows(rows)
 
@@ -771,8 +779,8 @@ def _supersede_obsolete_model_pending(conn, pattern: dict) -> None:
     for suggestion in _pending_pattern_suggestions(conn, pattern['id']):
         if (not _stats_only_suggestion(suggestion)
                 and _obsolete_model_version(suggestion, pattern)):
-            conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?",
-                         (suggestion['id'],))
+            conn.execute("UPDATE pattern_cleanup_suggestions SET superseded_at = ? WHERE id = ?",
+                         (utc_now_iso(), suggestion['id']))
 
 
 def _is_false_positive_reason(reason: str) -> bool:
@@ -785,6 +793,7 @@ def _run_stats_sweep(db, run_id: int, unused_days: int, segments_cache: dict) ->
     changed = set()
     for scanned in db.get_cleanup_stats_rows():
         try:
+            db.record_cleanup_check(run_id, scanned, stats_checked=True)
             changed |= _sweep_one_pattern(db, run_id, scanned, unused_days, segments_cache)
         except Exception:
             logger.exception("pattern_cleanup: stats sweep failed for pattern %s", scanned.get('id'))
@@ -889,7 +898,8 @@ def _sweep_one_pattern(db, run_id: int, scanned: dict, unused_days: int,
         all_pending = _pending_pattern_suggestions(conn, current['id'])
         to_delete, flag_merge, to_write = _plan_stats_sweep(current, candidates, all_pending, acknowledgments)
         for suggestion_id in to_delete:
-            conn.execute("DELETE FROM pattern_cleanup_suggestions WHERE id = ?", (suggestion_id,))
+            conn.execute("UPDATE pattern_cleanup_suggestions SET superseded_at = ? WHERE id = ?",
+                         (utc_now_iso(), suggestion_id))
         if flag_merge is not None:
             before = _before_snapshot(current, flag_merge['source_context'])
             db.upsert_cleanup_suggestion(
@@ -910,8 +920,9 @@ def _process_pattern(db, run_id: int, pattern: dict, unused_days: int, live: Liv
                      segments_cache: dict | None = None) -> tuple[set[str], bool]:
     """Return stored kinds and whether the review became stale."""
     context = source_context(db, pattern, segments_cache)
-    verdict = review_pattern(pattern, context, live=live, system_prompt=system_prompt,
-                             sponsors=sponsors)
+    with run_context.cleanup_review(run_id, pattern['id']):
+        verdict = review_pattern(pattern, context, live=live, system_prompt=system_prompt,
+                                 sponsors=sponsors)
     with db.transaction(immediate=True) as conn:
         current = _pattern_on(conn, pattern['id'])
         if current is None:
@@ -976,8 +987,27 @@ def is_cleanup_running(db) -> bool:
         return False
 
 
+def ensure_cleanup_supported(db, original_route=None):
+    try:
+        original_route = original_route or resolve_route(PHASE)
+        provider, model = original_route.provider_key, original_route.model_id
+    except Exception:
+        slot = resolved_stage_slot(db, PHASE)
+        provider = (db.get_setting('secondary_provider') if slot == SLOT_SECONDARY
+                    else get_effective_provider_from_snapshot({'llm_provider': db.get_setting('llm_provider')}))
+        model = db.get_setting('pattern_cleanup_model')
+        if model is None:
+            model = db.get_setting('claude_model')
+    supported = systemone_supported_phases(provider or '', model)
+    if supported is not None and PHASE not in supported:
+        raise UnsupportedCleanupRouteError(
+            'Pattern cleanup requires a supported chat provider and model; System One does not support pattern cleanup')
+    return original_route
+
+
 def _begin_run(db, force: bool, trigger: str):
-    """(lock fd, run id, started_at) with the lock held, or None when another run holds it."""
+    """Return the lock, run identity, start time, and frozen route, or None if busy."""
+    original_route = ensure_cleanup_supported(db)
     with _lock_gate(db):
         fd = _try_run_lock(db)
     if fd is None:
@@ -990,7 +1020,7 @@ def _begin_run(db, force: bool, trigger: str):
     except Exception:
         fd.close()
         raise
-    return fd, run_id, started_at
+    return fd, run_id, started_at, original_route
 
 
 def _finish(db, run_id: int, summary: dict, live: LiveRoute | None) -> None:
@@ -1014,7 +1044,7 @@ def _finish(db, run_id: int, summary: dict, live: LiveRoute | None) -> None:
             logger.warning("pattern_cleanup: run %s could not be marked failed: %s", run_id, again)
 
 
-def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str) -> dict:
+def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str, original_route=None) -> dict:
     """Body of a run; the caller holds the lock and created the run row."""
     start = time.monotonic()
     counts = {'reviewed': 0, 'suggested': 0, 'skipped': 0, 'errors': 0}
@@ -1022,35 +1052,42 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str)
     original_live = None
     status, error = 'completed', None
     try:
+        ensure_cleanup_supported(db, original_route)
         if force:
             db.reset_cleanup_force_state()
         batch_size = _clamped_int(db, 'pattern_cleanup_batch_size', BATCH_SIZE_RANGE)
         unused_days = _clamped_int(db, 'pattern_cleanup_unused_days', UNUSED_DAYS_RANGE)
         segments_cache: dict = {}
         suggestion_keys.update(_run_stats_sweep(db, run_id, unused_days, segments_cache))
-        original_route = resolve_route(PHASE)
+        if original_route is None:
+            original_route = resolve_route(PHASE)
         original_live = live_route_from(original_route)
         system_prompt = _system_prompt(db)
         sponsors = SponsorService(db)
         call_errors = 0
         for pattern in select_candidates(db, force=force, batch_size=batch_size):
             live = _live_route(original_route)
+            db.record_cleanup_check(run_id, pattern, model_status='running')
             try:
                 stored, skipped = _process_pattern(
                     db, run_id, pattern, unused_days, live, system_prompt,
                     sponsors=sponsors, segments_cache=segments_cache)
             except ProviderRateLimitedError:
+                db.clear_leaked_transaction(logger, 'pattern cleanup')
+                db.record_cleanup_check(run_id, pattern, model_status='failed')
                 raise
             except Exception as e:
                 counts['errors'] += 1
                 logger.warning("pattern_cleanup: pattern %s review failed: %s", pattern['id'], e)
                 db.clear_leaked_transaction(logger, 'pattern cleanup')
+                db.record_cleanup_check(run_id, pattern, model_status='failed')
                 _record_failure(db, pattern)
                 call_errors = call_errors + 1 if isinstance(e, PatternCleanupCallError) else 0
                 if call_errors >= MAX_CONSECUTIVE_CALL_ERRORS:
                     raise PatternCleanupCallError(
                         f'{call_errors} review calls failed in a row: {e}') from e
                 continue
+            db.record_cleanup_check(run_id, pattern, model_status='stale' if skipped else 'completed')
             call_errors = 0
             counts['reviewed'] += 1
             suggestion_keys.update((pattern['id'], kind) for kind in stored)
@@ -1079,9 +1116,10 @@ def run_cleanup(db, *, force: bool = False, trigger: str = 'schedule') -> dict:
     begun = _begin_run(db, force, trigger)
     if begun is None:
         raise CleanupInProgressError('a pattern cleanup run is already in progress')
-    fd, run_id, started_at = begun
+    fd, run_id, started_at, original_route = begun
     try:
-        return _execute_run(db, run_id, started_at, force=force, trigger=trigger)
+        return _execute_run(db, run_id, started_at, force=force, trigger=trigger,
+                            original_route=original_route)
     finally:
         fd.close()
 
@@ -1091,11 +1129,12 @@ def start_cleanup_run(db, *, force: bool = False, trigger: str = 'schedule') -> 
     begun = _begin_run(db, force, trigger)
     if begun is None:
         return None
-    fd, run_id, started_at = begun
+    fd, run_id, started_at, original_route = begun
 
     def work():
         try:
-            _execute_run(db, run_id, started_at, force=force, trigger=trigger)
+            _execute_run(db, run_id, started_at, force=force, trigger=trigger,
+                            original_route=original_route)
         except Exception:
             logger.exception("pattern_cleanup: run %s crashed", run_id)
         finally:

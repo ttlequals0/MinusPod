@@ -126,7 +126,7 @@ function ProviderKeyField({
             type="button"
             disabled={busy !== null || testBlocked}
             onClick={handleTest}
-            title={testBlocked ? 'Click Save first -- Test reads the saved key, not the unsaved draft.' : undefined}
+            title={testBlocked ? 'Save the key before testing.' : undefined}
             className={`px-3 py-1.5 rounded-md ${btnOutline} text-sm font-medium transition-colors disabled:opacity-50 ${focusRing}`}
           >
             {busy === 'test' ? 'Testing...' : 'Test'}
@@ -148,7 +148,7 @@ function ProviderKeyField({
           )}
           {savedNotice && (
             <span className="text-sm text-success">
-              Saved -- input cleared because keys are stored encrypted
+              Key saved.
             </span>
           )}
         </div>

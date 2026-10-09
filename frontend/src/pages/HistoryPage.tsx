@@ -16,8 +16,7 @@ import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { btnSecondary } from '../components/buttonStyles';
-import { selectBase } from '../components/fieldStyles';
-import { focusRing } from '../components/fieldStyles';
+import { selectBase, focusRing, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
@@ -162,26 +161,33 @@ function HistoryPage() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className={`${filterGrid} w-full sm:flex-1`}>
+          <div className="min-w-0">
+          <label htmlFor="history-status" className={filterLabel}>Status</label>
           <select
+            id="history-status"
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value as StatusFilter);
               setPage(1);
             }}
-            className={`w-full sm:w-auto ${selectBase}`}
+            className={`${filterControl} ${selectBase}`}
           >
             <option value="all">All Status</option>
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
           </select>
+          </div>
+          <div className="min-w-0">
+          <label htmlFor="history-podcast" className={filterLabel}>Podcast</label>
           <select
+            id="history-podcast"
             value={podcastFilter}
             onChange={(e) => {
               setPodcastFilter(e.target.value);
               setPage(1);
             }}
-            className={`w-full sm:w-auto ${selectBase}`}
+            className={`${filterControl} ${selectBase}`}
           >
             <option value="">All Podcasts</option>
             {[...(feeds ?? [])]
@@ -192,6 +198,7 @@ function HistoryPage() {
                 </option>
               ))}
           </select>
+          </div>
         </div>
         {stats && (
           <div className="text-sm text-muted-foreground self-center">

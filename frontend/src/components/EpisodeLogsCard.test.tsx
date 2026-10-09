@@ -73,6 +73,6 @@ describe('EpisodeLogsCard', () => {
 
   it('says so when no run stored a log', () => {
     renderCard([makeRun({ hasLog: false })]);
-    expect(screen.getByText(/No run has stored a log yet/)).toBeTruthy();
+    expect(screen.getByText("No stored logs. Enable log storage in Settings or this feed's settings.")).toBeTruthy();
   });
 });

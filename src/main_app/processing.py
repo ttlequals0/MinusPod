@@ -477,6 +477,8 @@ def _cleanup_cancelled_processing_output(slug, episode_id, run_id, queue,
 def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None, cancel_event=None, run_id=None):
     """Background thread wrapper for process_episode with queue management."""
     ctx = run_context.begin(slug, episode_id, run_id=run_id)
+    ctx.llm_cancel_check = lambda: _check_cancel(cancel_event, slug, episode_id, run_id)
+    ctx.llm_cancel_exceptions = (ProcessingCancelled, ProcessingOwnershipLost)
     queue = ProcessingQueue()
     start_time = time.time()
     # The run log is bracketed here, not inside process_episode: the fallback

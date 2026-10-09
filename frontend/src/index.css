@@ -4,6 +4,7 @@
 @layer base {
   /* Slate-inspired light mode */
   :root {
+    color-scheme: light;
     --background: 210 17% 95%;
     --foreground: 213 10% 17%;
     --card: 0 0% 100%;
@@ -50,6 +51,7 @@
 
   /* Bootswatch Slate dark mode */
   .dark {
+    color-scheme: dark;
     --background: 213 10% 17%;
     --foreground: 0 0% 67%;
     --card: 210 8% 25%;
@@ -94,12 +96,6 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
-  }
-  input[type="date"] {
-    color-scheme: light;
-  }
-  .dark input[type="date"] {
-    color-scheme: dark;
   }
   /* Suppress native pull-to-refresh so pulltorefreshjs is the only handler. */
   html {

@@ -97,7 +97,7 @@ function StorageRetentionSection({
             </span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
-            Retains the pre-cut audio alongside the processed output. The ad editor plays it back to show what was removed, and the audio cue tools and reprocessing rely on it too. Roughly doubles per-episode audio storage. Only applies to new episodes processed after this is enabled.
+            Keep pre-cut audio for the ad editor, audio cues and reprocessing. Roughly doubles audio storage. Applies to newly processed episodes.
           </p>
 
           <div className="mt-4 flex items-center gap-3">

@@ -15,6 +15,7 @@ Experimental. Off by default. Nothing it suggests changes a pattern until you ap
 - [Suggestion kinds](#suggestion-kinds)
 - [Approve, reject, undo](#approve-reject-undo)
 - [Force recheck](#force-recheck)
+- [Statistics](#statistics)
 - [API](#api)
 - [Settings reference](#settings-reference)
 
@@ -146,6 +147,18 @@ Click Force once, then use **Run now** or leave scheduling enabled to process
 the remaining batches. Progress survives a server restart. Clicking Force
 again starts another sweep from the beginning. The confirmation dialog warns
 that pending suggestions will be replaced.
+
+## Statistics
+
+The Stats page's Pattern Cleanup section separates run totals, pattern checks, suggestions, action kinds, and request usage. `GET /api/v1/stats/cleanup` accepts the shared Stats filters: `from`, `to`, `podcastSlug`, `provider`, and `model`. Date ranges include whole UTC days.
+
+Runs, checks, proposals, and linked usage use the cleanup run's start date. Unlinked Pattern Cleanup requests are grouped by request time and appear only when All Podcasts is selected; their spend is not assigned to a feed. Legacy runs have unknown spend rather than an estimated value. Historical per-pattern checks are unavailable. Historical suggestion scope is unknown when the original feed scope was not saved, so those suggestions are not attributed to a selected feed.
+
+Checks count run/pattern pairs; distinct checks count unique patterns in the selected run cohort. Suggestions and changed patterns count distinct pattern IDs. Action rows group by the action kind stored for each proposal, not every field that an action changed. Accepted includes actions later reverted. Applied means currently approved, and the accepted and applied columns overlap. Reverted counts approved actions later undone. These counts are not independent totals.
+
+Pending actions await a decision. Approved actions are applied. Rejected actions were declined, while undone actions were approved and later reverted. Superseded counts pending actions replaced by a later proposal; those records retain their rejected status and a superseded timestamp. Deleting a pattern preserves its action counts in a compact history record without retaining its text or suggestion payload.
+
+See [System One statistics](system-one.md#statistics) for logical calls, HTTP attempts, diagnostics, and usage accounting.
 
 ## API
 

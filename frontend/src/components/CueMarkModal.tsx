@@ -820,7 +820,7 @@ function CueMarkModal({
               )}
               {regionDurationValid && !isNonAd && regionDuration > DEFAULT_CAPTURE_WARN_AD_SECONDS && (
                 <span className="ml-1.5 text-[10px] text-warning">
-                  long -- aim for 1.5-2.5s
+                  Long capture. Aim for 1.5-2.5 seconds.
                 </span>
               )}
             </span>

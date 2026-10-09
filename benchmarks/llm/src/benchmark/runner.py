@@ -252,6 +252,8 @@ async def run(
             json_format_used = "n/a"
             underlying_provider = unit.provider_name
             stop_reason: str | None = None
+            native_accounting = None
+            cancelled = None
             parsed_ads: list[dict] = []
             extraction_method: str | None = None
             comp = 0.0
@@ -276,8 +278,17 @@ async def run(
                 json_format_used = resp.json_format_used
                 underlying_provider = resp.underlying_provider
                 stop_reason = resp.stop_reason
+                native_accounting = resp.native_accounting
+            except asyncio.CancelledError as e:
+                cancelled = e
+                error_payload = sanitize_error(e)
+                native_accounting = getattr(e, 'native_accounting', None)
             except Exception as e:
                 error_payload = sanitize_error(e)
+                native_accounting = getattr(e, 'native_accounting', None)
+            if native_accounting is not None:
+                input_tokens = native_accounting['input_tokens']
+                output_tokens = native_accounting['output_tokens']
 
             elapsed_ms = int((time.perf_counter() - t0) * 1000)
             id_contract_miss = False
@@ -288,7 +299,7 @@ async def run(
                     parsed_ads, extraction_method = _parse_response(response_text)
                 comp = compliance_score(extraction_method)
                 cost_lookup = pricing_snapshot.lookup(unit.model_id)
-                if cost_lookup is not None:
+                if cost_lookup is not None and native_accounting is None:
                     in_cost, out_cost, total_cost = pricing.cost_usd(
                         cost_lookup, input_tokens=input_tokens, output_tokens=output_tokens
                     )
@@ -340,12 +351,25 @@ async def run(
                 "windows_stale": False,
                 "error": error_payload,
             }
+            if native_accounting is not None:
+                record['native_accounting'] = native_accounting
+                record['known_total_cost_usd_at_runtime'] = native_accounting['known_cost_usd']
+                record['total_cost_usd_at_runtime'] = (
+                    native_accounting['known_cost_usd']
+                    if native_accounting['unknown_cost_request_count'] == 0 else None)
+                record['input_cost_usd_at_runtime'] = (
+                    native_accounting['known_cost_usd']
+                    if native_accounting['cost_source'] == 'estimated' else None)
+                record['output_cost_usd_at_runtime'] = (
+                    0 if native_accounting['cost_source'] == 'estimated' else None)
             try:
                 append_jsonl(paths.calls_jsonl, record)
             except Exception as write_e:
                 logger.exception("failed to append calls.jsonl record %s: %s", call_id, write_e)
                 return
 
+            if cancelled is not None:
+                raise cancelled
             if error_payload:
                 stats.errored += 1
             else:

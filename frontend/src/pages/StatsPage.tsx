@@ -6,9 +6,9 @@ import {
   ResponsiveContainer, Cell,
 } from 'recharts';
 import {
-  getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats, getAddressingStats,
+  getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats, getAddressingStats, getCleanupStats,
   getModelUsageStats, getEpisodeCostStats, getEpisodeCostRuns, getLedgerFilterOptions,
-  getSpendAttempts, ModelUsageQueryParams, EpisodeCostQueryParams,
+  getSpendAttempts, getSystemOneStats, ModelUsageQueryParams, EpisodeCostQueryParams,
 } from '../api/stats';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import { getCueAggregateStats } from '../api/cueDetections';
@@ -22,23 +22,24 @@ import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import DisclosureButton from '../components/DisclosureButton';
 import CostAmount from '../components/CostAmount';
-import { selectBase, inputBase, focusRing } from '../components/fieldStyles';
+import { selectBase, inputBase, focusRing, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
 import { SLOT_LABELS } from '../api/types';
 import { btnSecondary } from '../components/buttonStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 import { getErrorMessage } from '../api/client';
-import { EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat, SpendAttempt } from '../api/types';
-import { CalendarDays } from 'lucide-react';
+import { CleanupStatsUsage, EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat, SpendAttempt } from '../api/types';
 
 interface SpendDateFieldProps {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
+  min?: string;
+  max?: string;
 }
 
 function SpendDateField({
-  id, label, value, onChange,
+  id, label, value, onChange, min, max,
 }: SpendDateFieldProps): ReactNode {
   const inputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
@@ -47,20 +48,16 @@ function SpendDateField({
       inputRef.current.value = value;
     }
   }, [editing, value]);
-  function openPicker(): void {
-    const input = inputRef.current;
-    if (!input) return;
-    if (typeof input.showPicker === 'function') input.showPicker();
-    else input.focus();
-  }
   return (
     <div className="min-w-0">
-      <label htmlFor={id} className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
+      <label htmlFor={id} className={filterLabel}>{label}</label>
       <div className="flex items-center gap-1">
         <input
           ref={inputRef}
           type="date"
           id={id}
+          min={min}
+          max={max}
           defaultValue={value}
           onFocus={() => setEditing(true)}
           onChange={(event) => onChange(event.target.value)}
@@ -68,16 +65,8 @@ function SpendDateField({
             setEditing(false);
             onChange(inputRef.current?.value ?? '');
           }}
-          className={`min-w-0 ${inputBase}`}
+          className={`${filterControl} ${inputBase} max-sm:px-0 max-sm:text-base [&::-webkit-date-and-time-value]:text-left [&::-webkit-datetime-edit]:min-w-0 [&::-webkit-datetime-edit]:p-0`}
         />
-        <button
-          type="button"
-          aria-label={`Open ${label.toLowerCase()} date picker`}
-          onClick={openPicker}
-          className={`shrink-0 rounded p-2 text-muted-foreground hover:bg-accent hover:text-foreground ${focusRing}`}
-        >
-          <CalendarDays size={16} aria-hidden="true" />
-        </button>
       </div>
     </div>
   );
@@ -170,16 +159,16 @@ function formatCoverage(calls: number, unknownCostCount: number): string {
 }
 
 // Failed list query: an empty table would otherwise read as "no spend".
-function QueryErrorPanel({ message, onRetry }: { message: string; onRetry: () => void }) {
+function QueryErrorPanel({ message, onRetry, retryLabel = 'Retry' }: { message: string; onRetry: () => void; retryLabel?: string }) {
   return (
     <div role="alert" className="bg-destructive/10 text-destructive rounded-lg p-3 mb-3 flex flex-wrap items-center justify-between gap-3">
       <span className="text-sm">{message}</span>
       <button
         type="button"
         onClick={onRetry}
-        className={`px-3 py-1.5 text-sm ${btnSecondary} rounded transition-colors ${focusRing}`}
+        className={`px-3 py-1.5 max-sm:min-h-11 text-sm ${btnSecondary} rounded transition-colors ${focusRing}`}
       >
-        Retry
+        {retryLabel}
       </button>
     </div>
   );
@@ -780,6 +769,7 @@ export default function StatsPage() {
   // The bare YYYY-MM-DD from <input type="date"> goes through as-is: the
   // backend reads from/to as whole UTC days, both ends included.
   const isIntervalSpend = !!ledgerFrom || !!ledgerTo;
+  const invalidSpendRange = !!ledgerFrom && !!ledgerTo && ledgerFrom > ledgerTo;
   const spendLabel = !isIntervalSpend
     ? 'Lifetime spend (all recorded runs)'
     : ledgerFrom && ledgerTo
@@ -803,6 +793,30 @@ export default function StatsPage() {
     provider: ledgerProvider || undefined,
     model: ledgerModel || undefined,
   };
+  const systemOneParams = {
+    ...ledgerScope,
+    provider: ledgerProvider || undefined,
+    model: ledgerModel || undefined,
+  };
+  const {
+    data: systemOneStats, isLoading: systemOneLoading,
+    error: systemOneError, refetch: refetchSystemOne,
+  } = useQuery({
+    queryKey: ['stats-systemone', systemOneParams],
+    queryFn: () => getSystemOneStats(systemOneParams),
+  });
+  const cleanupStatsParams = {
+    ...ledgerScope,
+    provider: ledgerProvider || undefined,
+    model: ledgerModel || undefined,
+  };
+  const {
+    data: cleanupStats, isLoading: cleanupStatsLoading,
+    error: cleanupStatsError, refetch: refetchCleanupStats,
+  } = useQuery({
+    queryKey: ['stats-cleanup', cleanupStatsParams],
+    queryFn: () => getCleanupStats(cleanupStatsParams),
+  });
   const {
     data: modelUsageData, isLoading: modelUsageLoading,
     error: modelUsageError, refetch: refetchModelUsage,
@@ -862,6 +876,8 @@ export default function StatsPage() {
     { id: 'stats-cues', label: 'Audio cues',
       show: !!cueStats && (cueStats.total > 0 || cueStats.nearMissTotal > 0) },
     { id: 'stats-spend', label: 'Spend', show: true },
+    { id: 'stats-systemone', label: 'System One', show: true },
+    { id: 'stats-cleanup', label: 'Cleanup', show: true },
     { id: 'stats-podcasts', label: 'Podcasts', show: sortedPodcasts.length > 0 },
   ].filter((entry) => entry.show);
 
@@ -869,12 +885,15 @@ export default function StatsPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold text-foreground">Stats</h1>
+        <div className="w-full sm:w-64 min-w-0">
+        <label htmlFor="stats-summary-podcast" className={filterLabel}>Podcast</label>
         <select
+          id="stats-summary-podcast"
           aria-label="Filter summary cards, charts, reviewer and addressing sections by podcast"
           title="Applies to the summary cards, charts, reviewer and addressing sections. The LLM spend section has its own podcast filter."
           value={podcastFilter}
           onChange={(e) => setPodcastFilter(e.target.value)}
-          className={`w-full sm:w-auto ${selectBase}`}
+          className={`${filterControl} ${selectBase}`}
         >
           <option value="">All Podcasts</option>
           {feeds?.map((feed) => (
@@ -883,6 +902,7 @@ export default function StatsPage() {
             </option>
           ))}
         </select>
+        </div>
       </div>
 
       <nav aria-label="Stats sections" className="mb-6 flex gap-2 overflow-x-auto no-scrollbar">
@@ -1159,27 +1179,34 @@ export default function StatsPage() {
         <h2 className="text-lg font-semibold text-foreground mb-1">LLM spend</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Spend by provider, model, and episode, including failed or cancelled runs that incurred cost.
-          The filters below apply to this section only, and dates select whole UTC days.
+          The filters below apply to LLM spend, System One calls, and pattern cleanup activity. Dates select whole UTC days.
         </p>
 
-        <div className="flex flex-wrap items-end gap-3 mb-3">
+        <div className={`${filterGrid} lg:grid-cols-5 mb-3`}>
+          <div className="grid grid-cols-2 gap-2 sm:gap-4 min-w-0 min-[375px]:col-span-2">
           <SpendDateField
             id="spendFrom"
             label="From"
             value={ledgerFrom}
+            max={ledgerTo || undefined}
             onChange={(value) => write({ from: value, muPage: '1', ecPage: '1' })}
           />
           <SpendDateField
             id="spendTo"
             label="To"
             value={ledgerTo}
+            min={ledgerFrom || undefined}
             onChange={(value) => write({ to: value, muPage: '1', ecPage: '1' })}
           />
+          </div>
+          <div className="min-w-0">
+          <label htmlFor="spendPodcast" className={filterLabel}>Podcast</label>
           <select
+            id="spendPodcast"
             aria-label="Filter spend by podcast"
             value={ledgerPodcast}
             onChange={(e) => write({ podcast: e.target.value, muPage: '1', ecPage: '1' })}
-            className={`w-full sm:w-auto ${selectBase}`}
+            className={`${filterControl} ${selectBase}`}
           >
             <option value="">All Podcasts</option>
             {feeds?.map((feed) => (
@@ -1188,11 +1215,15 @@ export default function StatsPage() {
               </option>
             ))}
           </select>
+          </div>
+          <div className="min-w-0">
+          <label htmlFor="spendProvider" className={filterLabel}>Provider</label>
           <select
+            id="spendProvider"
             aria-label="Filter spend by provider"
             value={ledgerProvider}
             onChange={(e) => write({ provider: e.target.value, model: '', muPage: '1', ecPage: '1' })}
-            className={`w-full sm:w-auto ${selectBase}`}
+            className={`${filterControl} ${selectBase}`}
           >
             <option value="">All Providers</option>
             {providerOptions.map(({ value, inScope }) => (
@@ -1201,11 +1232,15 @@ export default function StatsPage() {
               </option>
             ))}
           </select>
+          </div>
+          <div className="min-w-0">
+          <label htmlFor="spendModel" className={filterLabel}>Model</label>
           <select
+            id="spendModel"
             aria-label="Filter spend by model"
             value={ledgerModel}
             onChange={(e) => write({ model: e.target.value, muPage: '1', ecPage: '1' })}
-            className={`w-full sm:w-auto ${selectBase}`}
+            className={`${filterControl} ${selectBase}`}
           >
             <option value="">All Models</option>
             {modelOptions.map(({ value, inScope }) => (
@@ -1214,8 +1249,61 @@ export default function StatsPage() {
               </option>
             ))}
           </select>
+          </div>
         </div>
+        {invalidSpendRange && <p role="alert" className="mb-3 text-sm text-destructive">From date must be on or before To date.</p>}
         <p className="text-sm text-muted-foreground mb-6">{spendLabel}</p>
+
+        <h3 id="stats-systemone" className="scroll-mt-28 text-base font-medium text-foreground mb-3">System One calls</h3>
+        <p className="text-sm text-muted-foreground mb-3">
+          One call may send several requests.
+        </p>
+        {systemOneLoading && <SkeletonRows count={2} />}
+        {systemOneError && (
+          <QueryErrorPanel
+            message={`Could not load System One call stats: ${getErrorMessage(systemOneError)}.`}
+            onRetry={() => { void refetchSystemOne(); }}
+            retryLabel="Retry System One stats"
+          />
+        )}
+        {systemOneStats && (
+          systemOneStats.calls === 0 ? (
+            <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">No System One calls recorded for this filter.</p>
+          ) : (
+            <div className="mb-6 rounded-lg border border-border p-3 sm:p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatCard label="Logical calls" value={String(systemOneStats.calls)} />
+                <StatCard label="HTTP requests" value={String(systemOneStats.requests)} />
+                <StatCard label="Completed / failed / inconclusive" value={`${systemOneStats.outcomes.completed} / ${systemOneStats.outcomes.failed} / ${systemOneStats.outcomes.inconclusive}`} />
+                <StatCard label="Average logical time" value={systemOneStats.logicalLatencyMsAverage === null ? 'Unknown' : formatDuration(systemOneStats.logicalLatencyMsAverage / 1000)} />
+                <StatCard label="Token usage" value={`${formatTokenCount(systemOneStats.tokens.input)} in / ${formatTokenCount(systemOneStats.tokens.output)} out`} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.tokens.unknownRequestCount ? `Usage unavailable for ${systemOneStats.tokens.unknownRequestCount} requests` : undefined} />
+                <StatCard label="Known cost" value={formatKnownCallCost(systemOneStats.costUsd)} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.unknownCostRequestCount ? `${systemOneStats.unknownCostRequestCount} requests unpriced` : undefined} />
+                <StatCard label="HTTP dispatch time" value={formatDuration(systemOneStats.dispatchLatencyMsTotal / 1000)} details="Sum across requests" />
+                <StatCard label="Review refinements" value={`${systemOneStats.refinements.completed} / ${systemOneStats.refinements.attempted}`} details={`${systemOneStats.refinements.skipped} skipped, ${systemOneStats.refinements.inconclusive} inconclusive, ${systemOneStats.refinements.upstream_error} upstream errors`} />
+              </div>
+              {Object.keys(systemOneStats.reviewReasons).length > 0 && (
+                <div className="mt-4 border-t border-border pt-3">
+                  <h4 className="text-sm font-medium text-foreground mb-2">Review outcomes by reason</h4>
+                  <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                    {Object.entries(systemOneStats.reviewReasons).map(([reason, count]) => (
+                      <li key={reason}>{reason}: <span className="tabular-nums text-foreground">{count}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {Object.keys(systemOneStats.refinementSkipReasons).length > 0 && (
+                <div className="mt-4 border-t border-border pt-3">
+                  <h4 className="text-sm font-medium text-foreground mb-2">Refinement skips by reason</h4>
+                  <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                    {Object.entries(systemOneStats.refinementSkipReasons).map(([reason, count]) => (
+                      <li key={reason}>{reason}: <span className="tabular-nums text-foreground">{count}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )
+        )}
 
         {filterOptionsError && (
           <QueryErrorPanel
@@ -1277,6 +1365,75 @@ export default function StatsPage() {
             />
           </>
         )}
+      </div>
+
+      <div id="stats-cleanup" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+        <h2 className="text-lg font-semibold text-foreground mb-1">Pattern cleanup activity</h2>
+        <p className="text-sm text-muted-foreground mb-3">
+          Uses the LLM spend filters above.
+        </p>
+        {cleanupStatsLoading && <SkeletonRows count={2} />}
+        {cleanupStatsError && (
+          <QueryErrorPanel
+            message={`Could not load pattern cleanup stats: ${getErrorMessage(cleanupStatsError)}.`}
+            onRetry={() => { void refetchCleanupStats(); }}
+            retryLabel="Retry pattern cleanup stats"
+          />
+        )}
+        {cleanupStats && (
+          <div>
+            <h4 className="text-sm font-medium text-foreground mb-3">Runs</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard label="Total runs" value={String(cleanupStats.runs.total)} />
+              <StatCard label="Running / completed / failed" value={`${cleanupStats.runs.running} / ${cleanupStats.runs.completed} / ${cleanupStats.runs.failed}`} />
+              <StatCard label="Exact / legacy runs" value={`${cleanupStats.runs.exactAccounting} / ${cleanupStats.runs.legacy}`} />
+              <StatCard label="Runs with unknown spend" value={String(cleanupStats.coverage.historicalRunCountWithUnknownSpend)} />
+            </div>
+
+            <h4 className="text-sm font-medium text-foreground mt-5 mb-3">Patterns</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <StatCard label="Tracked pattern checks" value={String(cleanupStats.patterns.checked)} details={`${cleanupStats.patterns.distinctChecked} distinct patterns`} />
+              <StatCard label="Tracked model reviews" value={String(cleanupStats.patterns.modelReviewed)} />
+              <StatCard label="Patterns with suggestions / changed" value={`${cleanupStats.patterns.proposed} / ${cleanupStats.patterns.changed}`} />
+              <StatCard label="Legacy reported reviews" value={String(cleanupStats.patterns.legacyReportedReviews)} details="Older run records without exact check history" />
+            </div>
+
+            <div className="mt-5 overflow-x-auto">
+              <h4 className="text-sm font-medium text-foreground mb-2">Suggested and applied actions</h4>
+              <p className="text-xs text-muted-foreground mb-2">Counts by action type. Accepted includes reverted actions.</p>
+              <table className="w-full min-w-[620px] text-sm">
+                <thead><tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="py-2 pr-3 font-medium">Action</th><th className="py-2 px-3 font-medium">Proposed</th><th className="py-2 px-3 font-medium">Accepted</th><th className="py-2 px-3 font-medium">Applied</th><th className="py-2 pl-3 font-medium">Reverted</th>
+                </tr></thead>
+                <tbody>{Object.entries(cleanupStats.actions).map(([action, counts]) => (
+                  <tr key={action} className="border-b border-border last:border-0">
+                    <th scope="row" className="py-2 pr-3 text-left font-medium">{{ trim: 'Trims', split: 'Splits', rename: 'Sponsor renames', retire: 'Retirements', flag: 'Flags', category: 'Category changes' }[action] ?? action}</th>
+                    <td className="py-2 px-3 tabular-nums">{counts.proposed}</td><td className="py-2 px-3 tabular-nums">{counts.accepted}</td><td className="py-2 px-3 tabular-nums">{counts.applied}</td><td className="py-2 pl-3 tabular-nums">{counts.reverted}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+
+            <CleanupUsageCards title="Cleanup request usage" usage={cleanupStats.usage} />
+            {cleanupStats.unattributedUsage && (
+              <CleanupUsageCards title="Unattributed cleanup requests" usage={cleanupStats.unattributedUsage} />
+            )}
+            <p className="mt-4 text-xs text-muted-foreground">
+              {cleanupStats.coverage.historicalChecksAvailable
+                ? 'Historical check details are available.'
+                : cleanupStats.coverage.proposalHistoryCompleteSince
+                  ? `Exact check history is unavailable. Proposal history is complete since ${cleanupStats.coverage.proposalHistoryCompleteSince}.`
+                  : 'Exact historical check and proposal history is unavailable.'}
+              {!cleanupStats.coverage.historicalScopeAvailable && (
+                <> {ledgerPodcast
+                  ? 'Older unlinked suggestions are excluded from this feed; historical attribution is unavailable.'
+                  : `Historical feed attribution is unavailable for ${cleanupStats.coverage.unattributedProposalCount} proposals.`}</>
+              )}
+              {' '}Global and network pattern costs are not allocated to feeds.
+            </p>
+          </div>
+        )}
+
       </div>
 
       {/* Podcast Stats Table */}
@@ -1356,12 +1513,31 @@ export default function StatsPage() {
   );
 }
 
-function StatCard({ label, value, details }: { label: string; value: string; details: ReactNode }) {
+function CleanupUsageCards({ title, usage }: { title: string; usage: CleanupStatsUsage }) {
+  return (
+    <>
+      <h4 className="text-sm font-medium text-foreground mt-5 mb-3">{title}</h4>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard label="HTTP requests" value={String(usage.requests)} />
+        <StatCard label="Token usage" value={`${formatTokenCount(usage.inputTokens)} in / ${formatTokenCount(usage.outputTokens)} out`} details={!usage.requests ? 'No recorded requests' : usage.unknownUsageRequestCount ? `Usage unavailable for ${usage.unknownUsageRequestCount} requests` : undefined} />
+        <StatCard label="Known cost" value={formatKnownCallCost(usage.knownCostUsd)} details={!usage.requests ? 'No recorded requests' : usage.unknownCostRequestCount ? `${usage.unknownCostRequestCount} requests unpriced` : undefined} />
+        <StatCard label="Unknown usage / cost requests" value={`${usage.unknownUsageRequestCount} / ${usage.unknownCostRequestCount}`} />
+      </div>
+    </>
+  );
+}
+
+function StatCard({ label, value, details }: { label: string; value: string; details?: ReactNode }) {
   return (
     <div className="row-span-3 grid grid-rows-subgrid gap-y-0 bg-card rounded-lg border border-border p-3 sm:p-4">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="text-xl font-bold tabular-nums text-foreground">{value}</p>
-      <p className="flex flex-wrap content-start gap-x-2 text-xs text-muted-foreground mt-1 [&>span]:whitespace-nowrap">{details}</p>
+      {details && <p className="flex flex-wrap content-start gap-x-2 text-xs text-muted-foreground mt-1 [&>span]:whitespace-nowrap">{details}</p>}
     </div>
   );
+}
+
+function formatKnownCallCost(amount: string): string {
+  const value = Number(amount);
+  return value > 0 && formatCost(value) === '$0.0000' ? '<$0.0001' : formatCost(value);
 }

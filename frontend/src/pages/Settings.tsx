@@ -44,6 +44,8 @@ import { sectionVisible, useCollapsibleOpen } from '../components/CollapsibleSec
 
 const FAILOVER_STORAGE_KEY = 'settings-section-failover';
 import StageTunablesSection from './settings/StageTunablesSection';
+import SystemOneTunablesSection from './settings/SystemOneTunablesSection';
+import { effectiveReviewModels, effectiveStageModel, isSystemOneRoute, systemOneRouteLabel } from './settings/systemoneWarnings';
 import TranscriptionSection from './settings/TranscriptionSection';
 import AudioSection from './settings/AudioSection';
 import CoverArtSection from './settings/CoverArtSection';
@@ -137,7 +139,9 @@ function providerAccountIdentity(
   urls: { primary: string; secondary: string },
 ): string {
   const provider = slot === SLOT_SECONDARY ? providers.secondary : providers.primary;
-  const baseUrl = provider === LLM_PROVIDERS.OLLAMA || provider === LLM_PROVIDERS.OPENAI_COMPATIBLE
+  const baseUrl = provider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE
+    ? (slot === SLOT_SECONDARY ? urls.secondary : urls.primary).trim()
+    : provider === LLM_PROVIDERS.OLLAMA || provider === LLM_PROVIDERS.OPENAI_COMPATIBLE
     ? (slot === SLOT_SECONDARY ? urls.secondary : urls.primary).trim()
     : '';
   return `${slot}:${provider}:${baseUrl}`;
@@ -253,6 +257,7 @@ function Settings() {
   // Neutral placeholder (cast); replaced by hydration before the form renders.
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('' as LlmProvider);
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
+  const [systemoneBaseUrl, setSystemoneBaseUrl] = useState('');
   // Optional second provider config; off by default (single-provider
   // installs never see these fields diverge from their neutral placeholders).
   const [secondaryProviderEnabled, setSecondaryProviderEnabled] = useState(false);
@@ -333,6 +338,7 @@ function Settings() {
     // Co-persist base URL with the key (#234). Skip if empty so a pre-hydration save doesn't clear it (#235).
     const body: { apiKey: string; baseUrl?: string } = { apiKey };
     if (provider === 'openai' && openaiBaseUrl) body.baseUrl = openaiBaseUrl;
+    if (provider === 'systemone-compatible' && systemoneBaseUrl) body.baseUrl = systemoneBaseUrl;
     else if (provider === 'whisper' && whisperApiConfig.baseUrl) body.baseUrl = whisperApiConfig.baseUrl;
     await updateProvider(provider, body);
     await reloadProviders();
@@ -456,18 +462,34 @@ function Settings() {
   const effectiveDetectionProvider = detectionSlot === SLOT_SECONDARY ? secondaryProvider : llmProvider;
   const effectiveVerificationProvider = verificationSlot === SLOT_SECONDARY ? secondaryProvider : llmProvider;
   const effectiveChaptersProvider = chaptersSlot === SLOT_SECONDARY ? secondaryProvider : llmProvider;
+  const effectiveVerificationModel = effectiveStageModel(selectedModel, settings?.verificationModel?.value, verificationModel);
+  const effectiveChaptersModel = effectiveStageModel(selectedModel, settings?.chaptersModel?.value, chaptersModel);
+  const chapterModel = effectiveChaptersModel;
+  const unsupportedChaptersRoute = isSystemOneRoute(effectiveChaptersProvider, chapterModel)
+    ? systemOneRouteLabel(effectiveChaptersProvider, chapterModel)
+    : null;
   const effectiveReviewProvider = reviewer.provider === SLOT_SECONDARY || reviewer.provider === SLOT_PRIMARY
     ? (reviewSlot === SLOT_SECONDARY ? secondaryProvider : llmProvider)
     // same_as_pass (or an unset/legacy value): inherits the pass's own
     // provider, so no separate catalog is fetched. Callers fall back
     // to the detection catalog.
     : null;
+  const reviewProviders = reviewer.provider === SAME_AS_PASS || !reviewer.provider
+    ? [effectiveDetectionProvider, effectiveVerificationProvider]
+    : [effectiveReviewProvider ?? '', effectiveReviewProvider ?? ''];
+  const reviewModels = effectiveReviewModels(
+    reviewer.provider,
+    reviewer.model,
+    [selectedModel, effectiveVerificationModel],
+  );
+  const reviewUsesSystemOne = reviewProviders.some((provider, index) => isSystemOneRoute(provider, reviewModels[index]));
 
   const identityForSlot = (
     slot: ProviderSlot,
     overrides: Partial<{
       llmProvider: LlmProvider;
       openaiBaseUrl: string;
+      systemoneBaseUrl: string;
       secondaryProvider: LlmProvider | '';
       secondaryProviderBaseUrl: string;
     }> = {},
@@ -475,7 +497,9 @@ function Settings() {
     primary: overrides.llmProvider ?? llmProvider,
     secondary: overrides.secondaryProvider ?? secondaryProvider,
   }, {
-    primary: overrides.openaiBaseUrl ?? openaiBaseUrl,
+    primary: (overrides.llmProvider ?? llmProvider) === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE
+      ? overrides.systemoneBaseUrl ?? systemoneBaseUrl
+      : overrides.openaiBaseUrl ?? openaiBaseUrl,
     secondary: overrides.secondaryProviderBaseUrl ?? secondaryProviderBaseUrl,
   });
 
@@ -484,6 +508,7 @@ function Settings() {
     overrides: Partial<{
       llmProvider: LlmProvider;
       openaiBaseUrl: string;
+      systemoneBaseUrl: string;
       secondaryProvider: LlmProvider | '';
       secondaryProviderBaseUrl: string;
     }> = {},
@@ -554,6 +579,10 @@ function Settings() {
       setSecondaryProviderBaseUrl(url);
       setSecondaryBaseUrlDirty(true);
     }
+  };
+  const handleSystemOneBaseUrlChange = (url: string) => {
+    clearModelsForMovedStages(stageSlots, { systemoneBaseUrl: url });
+    setSystemoneBaseUrl(url);
   };
 
   const changeStageRoute = (stage: StageKey, slot: string) => {
@@ -756,6 +785,7 @@ function Settings() {
     { key: 'llmProvider', kind: 'str', useDefault: true, value: llmProvider, set: (v) => setLlmProvider(v as LlmProvider) },
     { key: 'podcastSearchProvider', kind: 'str', value: podcastSearchProvider, set: setPodcastSearchProvider },
     { key: 'openaiBaseUrl', kind: 'str', useDefault: true, value: openaiBaseUrl, set: setOpenaiBaseUrl },
+    { key: 'systemoneBaseUrl', kind: 'str', value: systemoneBaseUrl, set: setSystemoneBaseUrl },
     // Secondary provider (off by default; the key itself saves separately,
     // like the primary keys, not through this batch).
     { key: 'secondaryProviderEnabled', kind: 'val', literal: false, value: secondaryProviderEnabled, set: setSecondaryProviderEnabled },
@@ -980,10 +1010,10 @@ function Settings() {
   // account, so the save carries the operator's decision about that work.
   const changedFields = computeChangedFields();
   const providerIdentityHasUnsavedChanges = [
-    'llmProvider', 'openaiBaseUrl', 'secondaryProviderEnabled',
+    'llmProvider', 'openaiBaseUrl', 'systemoneBaseUrl', 'secondaryProviderEnabled',
     'secondaryProvider', 'secondaryProviderBaseUrl', 'detectionProvider',
   ].some((key) => key in changedFields);
-  const primaryAccountChanged = 'llmProvider' in changedFields || 'openaiBaseUrl' in changedFields;
+  const primaryAccountChanged = 'llmProvider' in changedFields || 'openaiBaseUrl' in changedFields || 'systemoneBaseUrl' in changedFields;
   const secondaryAccountChanged =
     'secondaryProvider' in changedFields || 'secondaryProviderBaseUrl' in changedFields;
 
@@ -1272,9 +1302,11 @@ function Settings() {
       <LLMProviderSection
         llmProvider={llmProvider}
         openaiBaseUrl={openaiBaseUrl}
+        systemoneBaseUrl={systemoneBaseUrl}
         pricingSourceMode={pricingSourceMode}
         onProviderChange={handlePrimaryProviderChange}
         onBaseUrlChange={(url) => handleAccountBaseUrlChange(SLOT_PRIMARY, url)}
+        onSystemOneBaseUrlChange={handleSystemOneBaseUrlChange}
         onPricingSourceModeChange={setPricingSourceMode}
         providersState={providersState}
         onProviderKeySave={handleProviderKeySave}
@@ -1335,6 +1367,7 @@ function Settings() {
         detectionProvider={detectionProvider}
         verificationProvider={verificationProvider}
         chaptersProvider={chaptersProvider}
+        effectiveChaptersProvider={effectiveChaptersProvider}
         onDetectionProviderChange={(slot) => changeStageRoute('detection', slot)}
         onVerificationProviderChange={(slot) => changeStageRoute('verification', slot)}
         onChaptersProviderChange={(slot) => changeStageRoute('chapters', slot)}
@@ -1396,6 +1429,12 @@ function Settings() {
           verificationProvider={effectiveVerificationProvider}
           chaptersProvider={effectiveChaptersProvider}
           reviewProvider={effectiveReviewProvider ?? ''}
+          detectionModel={selectedModel}
+          verificationModel={effectiveVerificationModel}
+          chaptersModel={effectiveChaptersModel}
+          reviewModels={reviewModels}
+          reviewRoutes={reviewProviders.map((provider, index) => ({ provider, model: reviewModels[index] }))}
+          reviewEnabled={reviewer.enabled}
           onSave={(payload) => stageTunablesMutation.mutate(payload)}
           saveIsPending={stageTunablesMutation.isPending}
           saveIsSuccess={stageTunablesMutation.isSuccess}
@@ -1403,6 +1442,23 @@ function Settings() {
           parallelWindows={settings.adDetectionParallelWindows?.value ?? settings.defaults?.adDetectionParallelWindows ?? 4}
           parallelWindowsDefault={settings.defaults?.adDetectionParallelWindows ?? 4}
           omitTemperature={settings.omitTemperature?.value ?? settings.defaults?.omitTemperature ?? false}
+        />
+      )}
+
+      {settings?.systemOneTunables?.primary?.typesafe && settings?.systemOneTunables?.primary?.['systemone-compatible']
+        && settings?.systemOneTunables?.secondary?.typesafe && settings?.systemOneTunables?.secondary?.['systemone-compatible']
+        && settings?.systemOneTunableDefaults?.primary?.typesafe && settings?.systemOneTunableDefaults?.primary?.['systemone-compatible']
+        && settings?.systemOneTunableDefaults?.secondary?.typesafe && settings?.systemOneTunableDefaults?.secondary?.['systemone-compatible']
+        && settings?.systemOneTunablesIsDefault?.primary?.typesafe !== undefined && settings?.systemOneTunablesIsDefault?.primary?.['systemone-compatible'] !== undefined
+        && settings?.systemOneTunablesIsDefault?.secondary?.typesafe !== undefined && settings?.systemOneTunablesIsDefault?.secondary?.['systemone-compatible'] !== undefined && (
+        <SystemOneTunablesSection
+          connections={{ primary: llmProvider, secondary: secondaryProvider }}
+          profiles={settings.systemOneTunables}
+          defaults={settings.systemOneTunableDefaults}
+          isDefault={settings.systemOneTunablesIsDefault}
+          onSave={(payload) => tunableMutation.mutateAsync(payload)}
+          pending={tunableMutation.isPending}
+          error={tunableMutation.error ? (tunableMutation.error as Error).message : null}
         />
       )}
 
@@ -1498,6 +1554,7 @@ function Settings() {
       <AdReviewerSection
         reviewer={reviewer}
         onChange={handleReviewerChange}
+        systemOneReview={reviewUsesSystemOne}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
         secondaryProviderEnabled={secondaryProviderEnabled}
@@ -1562,9 +1619,10 @@ function Settings() {
 
       <PatternCleanupSection
         primaryProvider={llmProvider}
-        primaryBaseUrl={openaiBaseUrl}
+        primaryBaseUrl={llmProvider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE ? systemoneBaseUrl : openaiBaseUrl}
         secondaryProvider={secondaryProviderEnabled && secondaryProvider ? secondaryProvider : ''}
         secondaryBaseUrl={secondaryProviderBaseUrl}
+        detectionModel={selectedModel}
         secondaryEnabled={secondaryProviderEnabled}
         detectionSlot={detectionSlot}
         providerIdentityHasUnsavedChanges={providerIdentityHasUnsavedChanges}
@@ -1591,6 +1649,7 @@ function Settings() {
         onChaptersEnabledChange={setChaptersEnabled}
         onChaptersInNotesChange={setChaptersInNotes}
         chaptersMode={(settings?.chaptersMode?.value ?? settings?.defaults?.chaptersMode ?? 'auto') as 'auto' | 'generate' | 'off'}
+        unsupportedChaptersRoute={unsupportedChaptersRoute}
         onChaptersModeChange={(v) => tunableMutation.mutate({ chaptersMode: v })}
         adChapters={{
           chaptersEnabled,

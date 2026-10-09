@@ -10,6 +10,7 @@ import pytest
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('background_maintenance_test_')
+import main_app
 from main_app import background
 from utils.time import parse_iso_utc
 
@@ -165,3 +166,12 @@ class TestSearchIndexRebuildBackoff:
         assert stamp == pytest.approx(time.time(), abs=5)
         db = self._run_cleanup(monkeypatch, rebuild=lambda: None, last=stamp)
         db.rebuild_search_index.assert_not_called()
+
+
+@pytest.mark.parametrize('value, expected', [('0', False), ('1', True), (None, False)])
+def test_background_thread_flag_honors_explicit_disable(monkeypatch, value, expected):
+    if value is None:
+        monkeypatch.delenv('MINUSPOD_BACKGROUND_THREADS', raising=False)
+    else:
+        monkeypatch.setenv('MINUSPOD_BACKGROUND_THREADS', value)
+    assert main_app._background_threads_enabled() is expected

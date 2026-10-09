@@ -797,7 +797,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
                   type="button"
                   onClick={() => rescanStagingMutation.mutate(overwriteExisting)}
                   disabled={stagingBusy}
-                  title="Rescan what's already staged, without uploading anything or clearing it first."
+                  title="Rescan staged files without clearing them."
                   className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
                 >
                   {rescanStagingMutation.isPending ? 'Rescanning...' : 'Rescan staged files'}
@@ -806,7 +806,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
                   type="button"
                   onClick={() => addFilesInputRef.current?.click()}
                   disabled={stagingBusy}
-                  title="Upload more files into what's already staged, without clearing it first (for example, a corrected sidecar for a file the last run left behind)."
+                  title="Add files without clearing staging, such as a corrected sidecar."
                   className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
                 >
                   {addFilesToStagingMutation.isPending ? 'Uploading...' : 'Add files to staged set'}

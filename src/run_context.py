@@ -132,6 +132,7 @@ _FORBIDDEN_ROUTE_KEYS = {'api_key', 'apikey', 'authorization', 'headers', 'secre
 # Ledger attempt the calling thread is dispatching under, so a compatibility
 # retry inside a provider adapter can be counted against it.
 _dispatch = threading.local()
+_llm_call = threading.local()
 
 
 def begin_dispatch(attempt_id: str) -> None:
@@ -149,6 +150,32 @@ def current_dispatch_attempt() -> str | None:
     return getattr(_dispatch, 'attempt_id', None)
 
 
+def begin_llm_dispatch_context(metadata: dict) -> None:
+    """Expose secret-free logical-call metadata to a per-request transport."""
+    _llm_call.metadata = dict(metadata)
+    _llm_call.first_attempt_id = None
+
+
+def current_llm_dispatch_context() -> dict | None:
+    """Current logical-call metadata for a provider transport callback."""
+    return getattr(_llm_call, 'metadata', None)
+
+
+def note_llm_dispatch(attempt_id: str) -> None:
+    """Remember the first request row for the logical-call latency value."""
+    if getattr(_llm_call, 'first_attempt_id', None) is None:
+        _llm_call.first_attempt_id = attempt_id
+
+
+def first_llm_dispatch_attempt() -> str | None:
+    return getattr(_llm_call, 'first_attempt_id', None)
+
+
+def end_llm_dispatch_context() -> None:
+    _llm_call.metadata = None
+    _llm_call.first_attempt_id = None
+
+
 class RunContext:
     def __init__(self, slug: str, episode_id: str, run_id: str | None = None):
         self.slug = slug
@@ -164,6 +191,8 @@ class RunContext:
         self._llm_failover_used = set()
         self._failover_usage_lock = threading.Lock()
         self._failover_account_id = None
+        self.llm_cancel_check = lambda: None
+        self.llm_cancel_exceptions = ()
         self._thinking_notices = {}
         self._thinking_notice_lock = threading.Lock()
 
@@ -296,3 +325,20 @@ def run_in_worker_thread(fn):
                 if _by_thread.get(ident) is ctx:
                     del _by_thread[ident]
     return bound
+
+
+_cleanup_review = threading.local()
+
+
+@contextmanager
+def cleanup_review(run_id, pattern_id):
+    previous = getattr(_cleanup_review, 'attribution', None)
+    _cleanup_review.attribution = {'cleanup_run_id': run_id, 'cleanup_pattern_id': pattern_id}
+    try:
+        yield
+    finally:
+        _cleanup_review.attribution = previous
+
+
+def current_cleanup_review():
+    return getattr(_cleanup_review, 'attribution', None) or {}

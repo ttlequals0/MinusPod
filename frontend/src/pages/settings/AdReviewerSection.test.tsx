@@ -116,6 +116,18 @@ describe('AdReviewerSection: not framed as experimental', () => {
     renderSection();
     expect(screen.queryByText(/experimental/i)).toBeNull();
   });
+
+  it('describes native request behavior while review is off, without an active-review warning', () => {
+    renderSection({ systemOneReview: true });
+    expect(screen.getByText(/Reviews each detected ad and may send several requests/)).toBeDefined();
+    expect(screen.queryByText(/Adds one LLM call/)).toBeNull();
+    expect(screen.queryByText('Ad review with System One models is experimental.')).toBeNull();
+  });
+
+  it('shows the generic warning when review is enabled on a native route', () => {
+    renderSection({ systemOneReview: true, reviewer: { ...baseReviewer(), enabled: true } });
+    expect(screen.getByText('Ad review with System One models is experimental.')).toBeDefined();
+  });
 });
 
 describe('AdReviewerSection: review model select', () => {

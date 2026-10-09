@@ -1,8 +1,11 @@
 """Provider connection probes shared by API handlers and background failover checks."""
 from urllib.parse import urlparse
+import time
 
 import llm_client
 from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
+from config import PROVIDER_TYPESAFE, TYPESAFE_BASE_URL
+from provider_budget import manual_rate_limit_caps, request_token_estimate
 from utils.connection_probe import parse_probe_json, rejected_detail, run_probe
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_get
@@ -17,18 +20,22 @@ FIXED_PROVIDER_PROBES = {
         'https://openrouter.ai/api/v1/key',
         lambda key: {'Authorization': f'Bearer {key}'} if key else {},
     ),
+    PROVIDER_TYPESAFE: (
+        f'{TYPESAFE_BASE_URL}/models',
+        lambda key: {'Authorization': f'Bearer {key}'} if key else {},
+    ),
 }
 
 
 def _fixed_response_usable(provider: str, body) -> bool:
     if not isinstance(body, dict):
         return False
-    data = body.get('data')
-    if provider == 'anthropic':
+    data = body.get('data', body.get('models'))
+    if provider in ('anthropic', PROVIDER_TYPESAFE):
         return isinstance(data, list) and all(
             isinstance(model, dict)
-            and isinstance(model.get('id'), str)
-            and bool(model['id'])
+            and isinstance(model.get('id') or model.get('name'), str)
+            and bool(model.get('id') or model.get('name'))
             for model in data
         )
     if provider == 'openrouter':
@@ -115,6 +122,82 @@ def probe_models_endpoint(base_url: str, api_key: str) -> dict:
     else:
         result['detail'] = rejected_detail(status, body_bytes)
     return result
+
+
+def probe_systemone_endpoint(provider: str, base_url: str | None, api_key: str,
+                             model: str, *, credential_slot='primary', db) -> dict:
+    """Send one native inference probe and account its actual POST."""
+    if not isinstance(model, str) or not model.strip():
+        return {'ok': False, 'reachable': False,
+                'detail': 'Select a model for a supported stage on this slot before testing.'}
+    if provider == PROVIDER_TYPESAFE and not api_key:
+        return {'ok': False, 'reachable': False,
+                'detail': 'Save a TypeSafe API key for the selected slot before testing.'}
+    client = llm_client.create_client_for_provider(
+        provider, credential_slot=credential_slot, base_url=base_url,
+        api_key_override=api_key)
+    if client is None:
+        return {'ok': False, 'reachable': False, 'detail': 'Provider unavailable.'}
+    started = time.monotonic()
+    refused = False
+
+    def reserve(payload):
+        nonlocal refused
+        reservation = db.reserve_llm_attempt(
+            run_id=None, podcast_id=None, episode_id=None, phase_key='probe',
+            invoking_pass=None, provider_key=provider,
+            credential_slot=credential_slot, configured_model=model,
+            window_label='connection_probe', dispatch_count=0,
+            reserved_tokens=request_token_estimate(payload),
+            caps=manual_rate_limit_caps(credential_slot),
+        )
+        if reservation['attempt_id'] is None:
+            refused = True
+            raise RuntimeError('provider request budget reached')
+        return reservation['attempt_id']
+
+    try:
+        probe_result = client.probe_once(model, reserve_request=reserve,
+                                         note_dispatch=db.bump_llm_attempt_dispatches)
+        attempts = probe_result['attempts']
+        if not attempts:
+            raise RuntimeError('probe did not dispatch a request')
+        for index, (attempt_id, response, dispatch_latency_ms) in enumerate(attempts):
+            db.finalize_llm_attempt_from_response(
+                attempt_id, 'success', response,
+                dispatch_latency_ms=dispatch_latency_ms,
+                call_latency_ms=(round((time.monotonic() - started) * 1000)
+                                 if index == 0 else None),
+            )
+        return {'ok': True, 'reachable': True,
+                'detail': 'Connected. The System One request completed.'}
+    except Exception as error:
+        for index, (attempt_id, response, dispatch_latency_ms) in enumerate(
+                getattr(error, 'systemone_probe_attempts', [])):
+            db.finalize_llm_attempt_from_response(
+                attempt_id, 'failure', response,
+                dispatch_latency_ms=dispatch_latency_ms,
+                call_latency_ms=(round((time.monotonic() - started) * 1000)
+                                 if index == 0 else None),
+            )
+        response = getattr(error, 'response', None)
+        ledger_response = getattr(error, 'usage_response', None)
+        status = (getattr(response, 'status_code', None)
+                  or getattr(ledger_response, 'status_code', None))
+        result = {'ok': False, 'reachable': status is not None,
+                  'status': status}
+        if refused:
+            result['detail'] = 'The account request limit has been reached.'
+            return result
+        if status in (401, 403):
+            result['detail'] = f'The server rejected the saved API key (HTTP {status}).'
+        elif status:
+            result['detail'] = rejected_detail(status, b'')
+        else:
+            result['detail'] = 'The System One request could not be completed.'
+        return result
+    finally:
+        client.close()
 
 
 def probe_fixed_endpoint(provider: str, api_key: str) -> dict:

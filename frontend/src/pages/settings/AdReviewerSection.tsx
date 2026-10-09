@@ -43,6 +43,7 @@ interface AdReviewerSectionProps {
   // Per-prompt reset (issue #626); the override fields have no button of
   // their own since resetting the base prompt clears its override too.
   reviewPromptIsDefault?: boolean;
+  systemOneReview?: boolean;
   resurrectPromptIsDefault?: boolean;
   onResetReviewPrompt?: () => void;
   onResetResurrectPrompt?: () => void;
@@ -57,6 +58,7 @@ function AdReviewerSection({
   modelsRefresh,
   secondaryProviderEnabled = false,
   reviewPromptIsDefault,
+  systemOneReview = false,
   resurrectPromptIsDefault,
   onResetReviewPrompt,
   onResetResurrectPrompt,
@@ -82,7 +84,12 @@ function AdReviewerSection({
       title="Ad Reviewer"
       subtitle="Reviews each detected ad and decides confirm, adjust, or reject before the cut. Off by default."
     >
-      <div className="space-y-6">
+      <div className="space-y-6 max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
+        {reviewer.enabled && systemOneReview && (
+          <div role="status" className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+            Ad review with System One models is experimental.
+          </div>
+        )}
         {/* Reviewer behavior */}
         <div className="space-y-6">
           <div>
@@ -97,7 +104,7 @@ function AdReviewerSection({
               </span>
             </label>
             <p className="mt-2 text-sm text-muted-foreground ml-14">
-              Adds one LLM call per detected ad. Worth it on comedy, fiction, and sponsor-adjacent news podcasts where the detector struggles with editorial mentions.
+              {systemOneReview ? 'Reviews each detected ad and may send several requests.' : 'Adds one LLM call per detected ad.'} Worth it on comedy, fiction, and sponsor-adjacent news podcasts where the detector struggles with editorial mentions.
             </p>
           </div>
 
@@ -222,7 +229,7 @@ function AdReviewerSection({
               <span className="text-sm text-muted-foreground">ads at a time (1-32)</span>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              How many ads the reviewer asks the LLM about at once. 1 is sequential (the original behavior). Higher values cut review time but add concurrent load on your LLM provider. Default 4.
+              Higher values increase provider load.
             </p>
           </div>
         </div>

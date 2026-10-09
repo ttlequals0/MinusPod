@@ -17,6 +17,7 @@ flask-compress>=1.25
 flask-limiter>=3.5.0
 gunicorn==26.2.0
 requests>=2.34.2
+httpx==0.28.1
 
 # HTML parsing (pricepertoken.com pricing scraper)
 beautifulsoup4>=4.15.0

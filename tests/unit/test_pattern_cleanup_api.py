@@ -4,7 +4,8 @@ import os
 import sys
 import tempfile
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 
 import pytest
 
@@ -13,9 +14,11 @@ from tests.app_bootstrap import authenticate_test_client
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='pattern-cleanup-api-test-'))
 
+import config_transfer  # noqa: E402
 import api  # noqa: E402
 import api.settings as api_settings  # noqa: E402
 import pattern_cleanup  # noqa: E402
+from llm_client import clear_settings_cache  # noqa: E402
 from utils.time import ISO_FORMAT, utc_now  # noqa: E402
 
 
@@ -553,3 +556,96 @@ def test_disable_then_reenable_waits_for_the_next_slot(app_client, podcast, rese
         app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': False})
         app_client.put('/api/v1/settings/pattern-cleanup', json={'enabled': True})
         assert _tick_fires(db) is False
+
+
+@pytest.mark.parametrize('provider,model', [('typesafe', 'configured-model'),
+                                          ('systemone-compatible', 'configured-model'),
+                                          ('openai-compatible', 'typesafe/jev')])
+def test_manual_native_cleanup_rejects_before_force_history_run_or_thread(
+        app_client, podcast, hdr, provider, model):
+    db = podcast
+    original = {key: db.get_setting(key) for key in ('llm_provider', 'pattern_cleanup_model',
+                                                     'pattern_cleanup_enabled', 'pattern_cleanup_provider')}
+    pattern = _pattern(db)
+    db.stamp_pattern_cleanup_reviewed(pattern['id'], pattern_cleanup.review_hash(pattern['text_template'], pattern['sponsor']))
+    suggestion_id = _suggest(db, pattern)
+    stamp = db.get_ad_pattern_by_id(pattern['id'])['cleanup_reviewed_hash']
+    before_runs = db.get_cleanup_runs()
+    try:
+        db.set_setting('llm_provider', provider)
+        db.set_setting('pattern_cleanup_model', model)
+        db.set_setting('pattern_cleanup_enabled', 'false')
+        db.set_setting('pattern_cleanup_provider', 'primary')
+        clear_settings_cache()
+        thread = MagicMock()
+        with patch.object(pattern_cleanup, 'threading', SimpleNamespace(Thread=thread)), \
+                patch.object(db, 'reset_cleanup_force_state') as reset, \
+                patch.object(pattern_cleanup, '_run_stats_sweep') as sweep:
+            response = app_client.post('/api/v1/patterns/cleanup/run', json={'force': True}, headers=hdr)
+            assert response.status_code == 400
+            assert 'supported chat provider and model' in response.get_json()['error']
+            for invoke in [pattern_cleanup.run_cleanup, pattern_cleanup.start_cleanup_run]:
+                with pytest.raises(pattern_cleanup.UnsupportedCleanupRouteError):
+                    invoke(db, force=True, trigger='schedule')
+            thread.assert_not_called()
+            reset.assert_not_called()
+            sweep.assert_not_called()
+        assert db.get_cleanup_runs() == before_runs
+        assert db.get_cleanup_suggestion(suggestion_id)['status'] == 'pending'
+        assert db.get_ad_pattern_by_id(pattern['id'])['cleanup_reviewed_hash'] == stamp
+    finally:
+        for key, value in original.items():
+            if value is None:
+                db.clear_setting(key)
+            else:
+                db.set_setting(key, value)
+        clear_settings_cache()
+
+
+@pytest.mark.parametrize('write_path', ['settings-api', 'config-import'])
+def test_real_provider_change_invalidates_cache_before_manual_cleanup(app_client, podcast, hdr, write_path):
+    db = podcast
+    keys = ('llm_provider', 'claude_model', 'pattern_cleanup_model', 'pattern_cleanup_provider',
+            'chapters_enabled', 'pattern_cleanup_enabled', 'reviewer_calibration_on_change')
+    original = {key: db.get_setting(key) for key in keys}
+    try:
+        db.set_setting('llm_provider', 'anthropic')
+        db.set_setting('claude_model', 'configured-model')
+        db.set_setting('pattern_cleanup_model', 'configured-model')
+        db.set_setting('pattern_cleanup_provider', 'primary')
+        db.set_setting('chapters_enabled', 'false')
+        db.set_setting('pattern_cleanup_enabled', 'false')
+        db.set_setting('reviewer_calibration_on_change', 'false')
+        clear_settings_cache()
+        assert pattern_cleanup.resolve_route('pattern_cleanup').provider_key == 'anthropic'
+        if write_path == 'settings-api':
+            result = app_client.put('/api/v1/settings/ad-detection', json={'llmProvider': 'typesafe'}, headers=hdr)
+            assert result.status_code == 200
+        else:
+            document = config_transfer.export_config(db, '2.98.7')
+            document['settings'] = {'llm_provider': 'typesafe'}
+            preview = app_client.post('/api/v1/system/config-import/preview',
+                                      json={'document': document, 'scope': 'global'}, headers=hdr)
+            assert preview.status_code == 200, preview.get_json()
+            result = app_client.post('/api/v1/system/config-import',
+                                     json={'document': document, 'scope': 'global',
+                                           'previewToken': preview.get_json()['previewToken']}, headers=hdr)
+            assert result.status_code == 200
+        before_runs = db.get_cleanup_runs()
+        thread = MagicMock()
+        with patch.object(pattern_cleanup, 'threading', SimpleNamespace(Thread=thread)), \
+                patch.object(db, 'reset_cleanup_force_state') as reset, \
+                patch.object(pattern_cleanup, '_run_stats_sweep') as sweep:
+            response = app_client.post('/api/v1/patterns/cleanup/run', json={'force': True}, headers=hdr)
+        assert response.status_code == 400
+        thread.assert_not_called()
+        reset.assert_not_called()
+        sweep.assert_not_called()
+        assert db.get_cleanup_runs() == before_runs
+    finally:
+        for key, value in original.items():
+            if value is None:
+                db.clear_setting(key)
+            else:
+                db.set_setting(key, value)
+        clear_settings_cache()

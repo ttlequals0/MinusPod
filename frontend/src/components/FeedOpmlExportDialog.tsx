@@ -68,7 +68,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
       <div className="p-6 pb-3 border-b border-border">
         <h2 id="feed-opml-export-title" className="text-lg font-semibold mb-1">Export OPML</h2>
         <p className="text-sm text-muted-foreground">
-          Pick the feeds to include. The file uses MinusPod&apos;s ad-free feed URLs, ready to import into a podcast app.
+          Select feeds to export as ad-free subscription URLs.
         </p>
       </div>
 

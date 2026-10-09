@@ -10,6 +10,7 @@
 - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
 - [Using OpenRouter](#using-openrouter)
+- [Using System One](#using-system-one)
 - [Per-Stage Providers](#per-stage-providers)
 - [LLM Pricing](#llm-pricing)
 - [Custom model pricing](#custom-model-pricing)
@@ -254,6 +255,22 @@ The `openrouter/free` and `openrouter/auto` aliases are not in OpenRouter's `/ap
 
 All of these can be changed at runtime from the Settings UI. No container restart needed.
 
+## Using System One
+
+Select TypeSafe or System One compatible under Settings > AI & Processing > LLM Provider. Each slot keeps its own credentials, endpoint, and tuning profiles. TypeSafe uses a fixed endpoint. Compatible endpoints require their own base URL; `OPENAI_BASE_URL` is not reused. See [System One](system-one.md) for setup and manual migration from the Jev proxy.
+
+Detection, verification, and the ad category pass are supported. Review is experimental, including both passes when the reviewer inherits the pass route. Chapter generation and Pattern Cleanup require a chat provider. Disabled unsupported routes remain editable, but enabling or manually running them is blocked until the route is repaired. Failover supports chat providers only.
+
+### System One request limits
+
+System One tuning retains four profiles: TypeSafe and compatible settings for each credential slot. The logical request deadline covers every adapter stage, queue wait, retry, and upstream request. Each HTTP request also uses the slot timeout. The default logical deadline is 75 seconds; the default HTTP timeout is 60 seconds. Blank protocol caps remove local limits, but do not prevent upstream truncation. Truncated responses are rejected.
+
+The per-slot retry setting controls retries after the initial request; TypeSafe and compatible providers default to two retries. Retries use the shared backoff policy. The first retry can honor a rate-limit reset or Retry-After hint, capped by the selected profile's maximum Retry-After wait. That cap defaults to 5 seconds and accepts zero, within the remaining logical deadline. Each actual HTTP attempt has its own usage record. Missing usage stays unknown.
+
+The maximum concurrent operations setting defaults to 4 operations per process. Operations sharing a normalized endpoint and credential share capacity across slots and provider types. Conflicting profile limits use the stricter active or queued limit. This is not a cluster-wide limit. A local queue timeout sends no HTTP request and does not trigger the provider circuit breaker or chat failover.
+
+System One preserves caller prompts, policy, and context in its structured questions. It ignores saved temperature, thinking budgets, token caps, JSON-schema settings, and Ollama context settings. Those values are retained for later chat routes. Use the dedicated System One controls for supported adapter tuning.
+
 ## Per-Stage Providers
 
 MinusPod supports up to two full provider configurations: Provider A, and one optional Provider B with its own type, base URL, and API key. Provider B is off by default (see [Provider B](configuration.md#provider-b)). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI & Processing > AI Models shows a slot selector next to each model selector:
@@ -283,6 +300,8 @@ The one time a stage's slot changes on its own, outside failover, is at configur
 
 A separate feature, failover, does move work between providers at runtime: a dedicated standby provider (and transcriber) takes over a slot when the active one is unreachable, times out, or rejects the key, model, or billing, then switches back once it recovers. See [Failover](failover.md) for triggers, mid-run behavior, health probes, and manual control.
 
+System One routes do not participate in chat failover. Choose a supported chat provider for the standby account.
+
 A run's routes are frozen when it starts. Each phase's provider, model, and endpoint are snapshotted at run start and reused for the whole run, so editing a provider or a stage's model mid-run does not re-route work already underway. The change applies to the next run. Credentials are the exception: they are read when the client is built, so a rotated key is picked up without a restart. See [Rotating a provider key](configuration.md#rotating-or-clearing-a-provider-key).
 
 ### Staying under an account's limits
@@ -307,6 +326,8 @@ Pricing is fetched automatically based on your configured provider:
 | OpenRouter | OpenRouter API (`/api/v1/models`) | JSON API |
 | OpenAI, Groq, Mistral, DeepSeek, xAI, Together, Fireworks, Perplexity, Google | [pricepertoken.com](https://pricepertoken.com) | HTML scrape |
 | Ollama / localhost | N/A | Always $0 |
+| TypeSafe | Fixed official Jev pricing | $0.042 USD per 1 million input tokens; output tokens are free |
+| System One compatible | Operator pricing override | Unknown unless configured |
 
 Pricing refreshes once every 24 hours in the background. You can also force a refresh from the API:
 

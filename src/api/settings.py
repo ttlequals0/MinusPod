@@ -21,9 +21,12 @@ from api import (
 )
 from config import (
     WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
+    SYSTEMONE_TUNABLE_DEFAULTS,
     WHISPER_COMPUTE_TYPES,
     OPENROUTER_BASE_URL, OPENROUTER_ROUTER_ALIASES,
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+    SYSTEMONE_PROVIDERS,
+    PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE,
     PROVIDERS_NON_ANTHROPIC, DEFAULT_OPENAI_BASE_URL,
     ALLOWED_AUDIO_BITRATES, DEFAULT_AUDIO_BITRATE,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
@@ -52,6 +55,10 @@ from config import (
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
 )
+from systemone.tuning import (
+    SystemOneSettingsError, merge_profile, profile_from_snapshot,
+    profile_key, profile_payload,
+)
 # Only cross-submodule import; safe because podcast_search does not import
 # settings back. Keep it that way: a top-level dependency the other way would
 # break boot (api/__init__ imports settings before podcast_search).
@@ -79,7 +86,7 @@ from pricing_fetcher import force_refresh_pricing
 from transcriber import _get_chunk_settings, probe_whisper_health
 from whisper_pool import get_pool
 from llm_client import (
-    get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
+    get_effective_provider, get_effective_provider_from_snapshot, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
     get_llm_client, create_client_for_provider, get_client_for_provider,
     _JSON_FORMAT_SETTING_KEY, _JSON_SCHEMA_SETTING_KEY,
     invalidate_provider_cache, reset_schema_probe_memo,
@@ -88,6 +95,7 @@ from llm_route import (
     ALL_CREDENTIAL_SLOTS, VALID_SLOTS, SAME_AS_DETECTION, SAME_AS_PASS,
     SLOT_FAILOVER, SLOT_PRIMARY, SLOT_SECONDARY, resolved_stage_slot,
 )
+from llm_capabilities import systemone_supported_phases
 import failover
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
 from tools.reviewer_calibration import (
@@ -119,8 +127,10 @@ from fx_rates import FxRateError, get_currencies, get_usd_rate
 # Every LLM provider the settings API accepts.
 VALID_LLM_PROVIDERS = (
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
-    PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+    PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA, *SYSTEMONE_PROVIDERS,
 )
+VALID_FAILOVER_LLM_PROVIDERS = tuple(
+    provider for provider in VALID_LLM_PROVIDERS if provider not in SYSTEMONE_PROVIDERS)
 PRICING_SOURCE_MODES = ('auto', 'litellm', 'free')
 
 # Provider B payload keys accepted as aliases of the stored secondary_* keys
@@ -408,6 +418,13 @@ def _build_settings_payload():
         raw = _setting_value(settings, db_key)
         return int(raw) if raw else None
 
+    def _number_or_blank(db_key):
+        raw = _setting_value(settings, db_key)
+        if not raw:
+            return None
+        number = float(raw)
+        return int(number) if number.is_integer() else number
+
     failover_llm_enabled = coerce_bool_setting(_setting_value(
         settings, 'failover_llm_enabled', registry_default('failover_llm_enabled')))
     failover_llm_provider = _setting_value(settings, 'failover_llm_provider')
@@ -445,9 +462,9 @@ def _build_settings_payload():
     failover_probe_interval_minutes = _int_setting('failover_probe_interval_minutes')
     failover_recovery_probes = _int_setting('failover_recovery_probes')
 
-    provider_a_timeout_seconds = _int_or_blank('llm_timeout_seconds')
+    provider_a_timeout_seconds = _number_or_blank('llm_timeout_seconds')
     provider_a_max_retries = _int_or_blank('llm_max_retries')
-    provider_b_timeout_seconds = _int_or_blank('secondary_llm_timeout_seconds')
+    provider_b_timeout_seconds = _number_or_blank('secondary_llm_timeout_seconds')
     provider_b_max_retries = _int_or_blank('secondary_llm_max_retries')
     whisper_max_attempts = _int_setting('whisper_max_attempts')
 
@@ -784,6 +801,11 @@ def _build_settings_payload():
         'modelPricingOverrides': _sv(
             'model_pricing_overrides', model_pricing_overrides),
         'openrouterApiKeyConfigured': openrouter_api_key_configured,
+        'typesafeApiKeyConfigured': bool(
+            db.get_secret('typesafe_api_key') or os.environ.get('TYPESAFE_API_KEY')),
+        'systemoneApiKeyConfigured': bool(
+            db.get_secret('systemone_api_key') or os.environ.get('SYSTEMONE_API_KEY')),
+        'systemoneBaseUrl': _sv('systemone_base_url', ''),
         'secondaryProviderEnabled': _sv('secondary_provider_enabled', secondary_provider_enabled),
         'secondaryProvider': _sv('secondary_provider', secondary_provider),
         'secondaryProviderBaseUrl': _sv('secondary_provider_base_url', secondary_provider_base_url),
@@ -915,6 +937,10 @@ def _build_settings_payload():
             for payload_key, db_key, _ in STAGE_TUNABLE_PAYLOAD_KEYS
         },
     }
+    systemone_profiles, systemone_defaults, systemone_shipped = profile_payload(settings)
+    payload['systemOneTunables'] = systemone_profiles
+    payload['systemOneTunablesIsDefault'] = systemone_defaults
+    payload['systemOneTunableDefaults'] = systemone_shipped
 
     # Provider A/B rename (#806): emit the Provider B alias spellings as
     # copies of the secondary_* values for one release.
@@ -1093,6 +1119,7 @@ def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=F
         _apply_failover_whisper_fields,
         _apply_failover_policy_fields,
         _apply_provider_timeout_fields,
+        _apply_systemone_connection_fields,
         _apply_provider_fields,
         _apply_whisper_fields,
         _apply_vad_gap_fields,
@@ -1102,6 +1129,7 @@ def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=F
         _apply_transcribe_chunk_fields,
         lambda target_db, payload: _apply_stage_tunables(
             target_db, payload, allow_inactive_tunables=allow_inactive_tunables),
+        _apply_systemone_tunables,
         _apply_opening_exclusion_fields,
         _apply_ad_merge_fields,
         _apply_max_ad_duration_fields,
@@ -2295,6 +2323,9 @@ def _validate_provider_payload(data):
         key = (data['openrouterApiKey'] or '').strip()
         if key and not key.startswith('sk-or-'):
             return 'OpenRouter API key must start with sk-or-', 400
+    for key in ('typesafeApiKey', 'systemoneApiKey'):
+        if key in data and data[key] is not None and not isinstance(data[key], str):
+            return f'{key} must be a string or null', 400
     if 'openaiBaseUrl' in data:
         error = _base_url_syntax_error(data['openaiBaseUrl'], 'base URL')
         if error is not None:
@@ -2310,13 +2341,18 @@ def _validate_provider_payload(data):
                 value, 'secondary provider base URL', allow_blank=True)
             if error is not None:
                 return error
+    if 'systemoneBaseUrl' in data:
+        error = _base_url_syntax_error(
+            data['systemoneBaseUrl'], 'System One base URL', allow_blank=True)
+        if error is not None:
+            return error
     if 'whisperApiBaseUrl' in data and data['whisperApiBaseUrl'] is not None:
         error = _base_url_syntax_error(
             data['whisperApiBaseUrl'], 'whisper API base URL', allow_blank=True)
         if error is not None:
             return error
-    if data.get('failoverLlmProvider') and data['failoverLlmProvider'] not in VALID_LLM_PROVIDERS:
-        return f'failoverLlmProvider must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400
+    if data.get('failoverLlmProvider') and data['failoverLlmProvider'] not in VALID_FAILOVER_LLM_PROVIDERS:
+        return f'failoverLlmProvider must be one of: {", ".join(VALID_FAILOVER_LLM_PROVIDERS)}', 400
     if 'failoverLlmBaseUrl' in data:
         value = data['failoverLlmBaseUrl']
         if not isinstance(value, str):
@@ -2343,6 +2379,7 @@ def validate_provider_endpoint_security(data):
     for key, label, allow_blank in (
         ('openaiBaseUrl', 'base URL', False),
         ('secondaryProviderBaseUrl', 'secondary provider base URL', True),
+        ('systemoneBaseUrl', 'System One base URL', True),
         ('whisperApiBaseUrl', 'whisper API base URL', True),
         ('failoverLlmBaseUrl', 'failover LLM base URL', True),
         ('failoverWhisperApiBaseUrl', 'failover whisper API base URL', True),
@@ -2359,11 +2396,12 @@ def validate_provider_endpoint_security(data):
     return None
 
 
-def validate_settings_payload(db, data, *, allow_inactive_tunables=False):
+def validate_settings_payload(
+        db, data, *, allow_inactive_tunables=False, prospective_feed_modes=None):
     """Return a payload validation issue without writes, network access, or Flask context."""
     for validate in (
         _validate_processing_defaults_payload,
-        _validate_failover_settings_payload,
+        lambda payload: _validate_failover_settings_payload(payload, db),
         _validate_provider_payload,
         _validate_review_payload,
         _validate_provider_routing_payload,
@@ -2414,11 +2452,168 @@ def validate_settings_payload(db, data, *, allow_inactive_tunables=False):
     issue = _validate_ad_chapter_payload(db, data)
     if issue is not None:
         return issue
-    return _validate_stage_tunables_payload(
+    issue = _validate_systemone_phase_enables(db, data, prospective_feed_modes)
+    if issue is not None:
+        return issue
+    issue = _validate_systemone_tunables_payload(db, data)
+    if issue is not None:
+        return issue
+    issue = _validate_stage_tunables_payload(
         db, data, allow_inactive_tunables=allow_inactive_tunables)
+    if issue is not None:
+        return issue
+    return None
 
 
-def _validate_failover_settings_payload(data):
+def _validate_systemone_phase_enables(db, data, prospective_feed_modes=None):
+    projected = {key: entry.get('value') for key, entry in db.get_all_settings().items()}
+    field_map = {
+        'llmProvider': 'llm_provider',
+        'secondaryProviderEnabled': 'secondary_provider_enabled',
+        'secondaryProvider': 'secondary_provider',
+        'detectionProvider': 'detection_provider',
+        'verificationProvider': 'verification_provider',
+        'chaptersProvider': 'chapters_provider',
+        'reviewProvider': 'review_provider',
+        'patternCleanupProvider': 'pattern_cleanup_provider',
+        'claudeModel': 'claude_model',
+        'verificationModel': 'verification_model',
+        'chaptersModel': 'chapters_model',
+        'patternCleanupModel': 'pattern_cleanup_model',
+        'failoverLlmEnabled': 'failover_llm_enabled',
+        'failoverLlmProvider': 'failover_llm_provider',
+        'failoverLlmDetectionModel': 'failover_llm_detection_model',
+        'failoverLlmVerificationModel': 'failover_llm_verification_model',
+        'failoverLlmReviewModel': 'failover_llm_review_model',
+        'failoverLlmChaptersModel': 'failover_llm_chapters_model',
+        'chaptersEnabled': 'chapters_enabled',
+        'chaptersMode': 'chapters_mode',
+        'patternCleanupEnabled': 'pattern_cleanup_enabled',
+    }
+    for payload_key, db_key in field_map.items():
+        if payload_key not in data:
+            continue
+        value = data[payload_key]
+        if payload_key in ('secondaryProviderEnabled', 'failoverLlmEnabled',
+                           'chaptersEnabled', 'patternCleanupEnabled'):
+            value = 'true' if value else 'false'
+        projected[db_key] = value
+
+    projected['llm_provider'] = get_effective_provider_from_snapshot(projected)
+
+    class ProjectedSettings:
+        def get_setting(self, key):
+            return projected.get(key)
+
+    view = ProjectedSettings()
+    chapters_enabled = coerce_bool_setting(projected.get('chapters_enabled'))
+    global_mode = projected.get('chapters_mode') or 'auto'
+    has_active_feed_mode = global_mode != 'off'
+    if chapters_enabled and global_mode == 'off':
+        current_modes = {row.get('slug'): row.get('chapters_mode')
+                         for row in db.get_all_podcasts()}
+        current_modes.update(prospective_feed_modes or {})
+        has_active_feed_mode = any(mode in ('auto', 'generate') for mode in current_modes.values())
+    if chapters_enabled and has_active_feed_mode:
+        slot = resolved_stage_slot(view, 'chapters')
+        provider_key = (projected.get('secondary_provider') if slot == SLOT_SECONDARY
+                        else projected.get('llm_provider'))
+        model = projected.get('chapters_model')
+        if model is None:
+            model = projected.get('claude_model')
+        supported = systemone_supported_phases(provider_key or '', model)
+        if supported is not None and 'chapters' not in supported:
+            return (f"chapters is unsupported for effective provider {provider_key!r} and "
+                    f"model {model!r}; choose a supported chat provider and model", 400)
+
+    if coerce_bool_setting(projected.get('pattern_cleanup_enabled')):
+        slot = resolved_stage_slot(view, 'pattern_cleanup')
+        provider_key = (projected.get('secondary_provider') if slot == SLOT_SECONDARY
+                        else projected.get('llm_provider'))
+        model = projected.get('pattern_cleanup_model')
+        if model is None:
+            model = projected.get('claude_model')
+        supported = systemone_supported_phases(provider_key or '', model)
+        if supported is not None and 'pattern_cleanup' not in supported:
+            return (f"pattern_cleanup is unsupported for effective provider {provider_key!r} and "
+                    f"model {model!r}; choose a supported chat provider and model", 400)
+
+    if coerce_bool_setting(projected.get('failover_llm_enabled')):
+        provider = projected.get('failover_llm_provider') or ''
+        if systemone_supported_phases(provider, None) is not None:
+            return (f"failover LLM is chat-only and cannot use effective provider {provider!r}", 400)
+        for model_key in (
+            'failover_llm_detection_model', 'failover_llm_verification_model',
+            'failover_llm_review_model', 'failover_llm_chapters_model',
+        ):
+            model = projected.get(model_key)
+            if model is not None and systemone_supported_phases(provider, model) is not None:
+                return (f"failover LLM is chat-only and cannot use effective provider {provider!r} "
+                        f"with model {model!r}", 400)
+    return None
+
+
+def _systemone_tunable_values(db, data):
+    patch = data.get('systemOneTunables')
+    if patch is None:
+        return {}, None
+    if not isinstance(patch, dict):
+        return None, ('systemOneTunables must be an object', 400)
+    if set(patch) - {'primary', 'secondary'}:
+        return None, ('systemOneTunables contains an unsupported slot', 400)
+    snapshot = db.get_all_settings()
+    values = {}
+    try:
+        for slot, providers in patch.items():
+            if not isinstance(providers, dict):
+                return None, (f'systemOneTunables.{slot} must be an object', 400)
+            if set(providers) - {'typesafe', 'systemone-compatible'}:
+                return None, (f'systemOneTunables.{slot} contains an unsupported provider', 400)
+            for provider, profile_patch in providers.items():
+                key = profile_key(slot, provider)
+                current = profile_from_snapshot(snapshot, slot, provider)
+                defaults = SYSTEMONE_TUNABLE_DEFAULTS[provider]
+                if profile_patch is None:
+                    merged = dict(defaults)
+                    is_default = True
+                else:
+                    merged = merge_profile(defaults, current, profile_patch)
+                    is_default = merged == defaults
+                values[key] = (merged, is_default)
+    except SystemOneSettingsError as exc:
+        return None, (str(exc), 400)
+    return values, None
+
+
+def _validate_systemone_tunables_payload(db, data):
+    _values, issue = _systemone_tunable_values(db, data)
+    return issue
+
+
+def _apply_systemone_tunables(db, data):
+    values, issue = _systemone_tunable_values(db, data)
+    if issue is not None:
+        return error_response(*issue)
+    for key, (profile, is_default) in values.items():
+        db.set_setting(
+            key, json.dumps(profile, separators=(',', ':'), sort_keys=True),
+            is_default=is_default)
+    return None
+
+
+def _native_timeout_field(db, data, key):
+    provider_key = {'providerATimeoutSeconds': ('llmProvider', 'llm_provider'),
+                    'providerBTimeoutSeconds': ('secondaryProvider', 'secondary_provider')}.get(key)
+    if provider_key is None:
+        return False
+    payload_key, setting_key = provider_key
+    provider = data.get(payload_key, db.get_setting(setting_key) if db else None)
+    if provider is None and setting_key == 'llm_provider':
+        provider = os.environ.get('LLM_PROVIDER')
+    return provider in SYSTEMONE_PROVIDERS
+
+
+def _validate_failover_settings_payload(data, db=None):
     for key in ('failoverLlmEnabled', 'failoverWhisperEnabled'):
         if key in data and not isinstance(data[key], bool):
             return f'{key} must be a boolean', 400
@@ -2432,7 +2627,11 @@ def _validate_failover_settings_payload(data):
     for key in optional_integers:
         if key not in data or data[key] is None or data[key] == '':
             continue
-        if type(data[key]) is not int:
+        if _native_timeout_field(db, data, key):
+            value = data[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                return f'{key} must be a finite number greater than zero or blank', 400
+        elif type(data[key]) is not int:
             return f'{key} must be an integer or blank', 400
 
     for key in ('failoverWhisperApiTimeoutSeconds',
@@ -2498,6 +2697,7 @@ def _validate_failover_settings_payload(data):
         ('whisperMaxAttempts', 1, 10),
     ):
         if (key in data and data[key] is not None and data[key] != ''
+                and not _native_timeout_field(db, data, key)
                 and not low <= data[key] <= high):
             return f'{key} must be between {low} and {high}', 400
     if 'whisperBackend' in data and data['whisperBackend'] not in (
@@ -2670,6 +2870,11 @@ def _apply_int_or_blank(db, data, payload_key):
     if value is None or value == '':
         db.clear_setting(db_key)
         return None
+    if _native_timeout_field(db, data, payload_key):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            return error_response(f'{payload_key} must be a finite number greater than zero or blank', 400)
+        db.set_setting(db_key, str(value), is_default=False)
+        return None
     if type(value) is not int:
         return error_response(f'{payload_key} must be an integer or blank', 400)
     n = value
@@ -2687,6 +2892,41 @@ def _apply_provider_timeout_fields(db, data):
             err = _apply_int_or_blank(db, data, payload_key)
             if err is not None:
                 return err
+    return None
+
+
+def _apply_systemone_connection_fields(db, data):
+    changed = False
+    changed_providers = set()
+    for payload_key, setting_key in (
+        ('typesafeApiKey', 'typesafe_api_key'),
+        ('systemoneApiKey', 'systemone_api_key'),
+    ):
+        if payload_key not in data:
+            continue
+        try:
+            set_or_clear_secret(db, setting_key, data[payload_key])
+        except SecretWriteRejected:
+            return error_response('provider_crypto_unavailable', 409)
+        changed = True
+        changed_providers.add(
+            PROVIDER_TYPESAFE if payload_key == 'typesafeApiKey'
+            else PROVIDER_SYSTEMONE_COMPATIBLE)
+    if 'systemoneBaseUrl' in data:
+        value = (data['systemoneBaseUrl'] or '').strip()
+        if value:
+            db.set_setting('systemone_base_url', value, is_default=False)
+        else:
+            db.clear_setting('systemone_base_url')
+        changed = True
+        changed_providers.add(PROVIDER_SYSTEMONE_COMPATIBLE)
+    if changed:
+        _after_commit(invalidate_provider_cache)
+        _after_commit(
+            lambda: clear_holds_for_provider_change(
+                db, 'System One provider settings changed', changed_providers,
+                credential_slot=SLOT_PRIMARY),
+            bucket='holds')
     return None
 
 
@@ -3764,6 +4004,8 @@ def get_available_models():
             return error_response(
                 f'provider must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400
             )
+        if slot == SLOT_FAILOVER and provider_override in SYSTEMONE_PROVIDERS:
+            return error_response('Failover LLM is chat-only', 400)
         if slot == SLOT_SECONDARY:
             db = get_database()
             client = create_client_for_provider(

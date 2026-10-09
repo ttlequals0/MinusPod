@@ -267,7 +267,7 @@ def test_review_call_uses_pattern_cleanup_phase(temp_db):
     _, calls = _review(p, _reply())
     kw = calls[0]
     assert kw['phase_key'] == 'pattern_cleanup' and kw['route_phase'] == 'pattern_cleanup'
-    assert kw['slug'] is None and kw['episode_id'] is None
+    assert kw['slug'] == p['podcast_id'] and kw['episode_id'] is None
     assert kw['provider'] == 'anthropic' and kw['credential_slot'] == 'primary'
     assert kw['model'] == 'test-model' and kw['system_prompt'] == 'sys'
     assert kw['response_format']['type'] in ('json_schema', 'json_object')
@@ -1243,7 +1243,7 @@ def test_tick_returns_promptly_while_run_works_in_background(temp_db):
     release = threading.Event()
     entered = threading.Event()
 
-    def slow_run(db, run_id, started_at, *, force, trigger):
+    def slow_run(db, run_id, started_at, *, force, trigger, original_route=None):
         entered.set()
         release.wait(10)
         return {}
@@ -2043,3 +2043,40 @@ def test_status_write_failure_marks_run_failed(temp_db, live_route):
     assert summary['status'] == 'failed'
     run = temp_db.get_cleanup_runs(limit=1)[0]
     assert run['status'] == 'failed' and 'disk full' in run['error']
+
+
+@pytest.mark.parametrize('provider', ['typesafe', 'systemone-compatible'])
+def test_configured_native_cleanup_cannot_use_chat_standby_to_bypass_preflight(temp_db, provider):
+    route = Route(phase='pattern_cleanup', provider_key=provider,
+                  model_id='configured-model', base_url='https://example.test',
+                  slot='primary', credential_slot='primary')
+    standby = Route(phase='pattern_cleanup', provider_key='openai-compatible',
+                    model_id='standby-model', base_url='https://standby.example/v1',
+                    slot='primary', credential_slot='failover')
+    with patch.object(pattern_cleanup, 'resolve_route', return_value=route), \
+            patch.object(pattern_cleanup, 'apply_failover', return_value=standby) as failover_route, \
+            patch.object(temp_db, 'reset_cleanup_force_state') as reset, \
+            patch.object(pattern_cleanup, '_run_stats_sweep') as sweep:
+        with pytest.raises(pattern_cleanup.UnsupportedCleanupRouteError):
+            run_cleanup(temp_db, force=True)
+    failover_route.assert_not_called()
+    reset.assert_not_called()
+    sweep.assert_not_called()
+    assert temp_db.get_cleanup_runs() == []
+
+
+def test_configured_chat_cleanup_allows_active_chat_standby(temp_db):
+    route = Route(phase='pattern_cleanup', provider_key='anthropic',
+                  model_id='configured-model', base_url=None, slot='primary', credential_slot='primary')
+    standby = Route(phase='pattern_cleanup', provider_key='openai-compatible',
+                    model_id='standby-model', base_url='https://standby.example/v1',
+                    slot='primary', credential_slot='failover')
+    _pattern(temp_db)
+    with patch.object(pattern_cleanup, 'resolve_route', return_value=route), \
+            patch.object(pattern_cleanup, 'apply_failover', return_value=standby), \
+            patch.object(pattern_cleanup, 'client_for_route', return_value=None), \
+            patch.object(pattern_cleanup, 'call_llm', return_value=(_reply(), None)) as call:
+        summary = run_cleanup(temp_db)
+    assert summary['status'] == 'completed'
+    assert call.call_args.kwargs['provider'] == 'openai-compatible'
+    assert call.call_args.kwargs['credential_slot'] == 'failover'

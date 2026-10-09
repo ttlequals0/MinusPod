@@ -8,6 +8,7 @@
 
 - [Configuration](#configuration)
 - [Global feed defaults](#global-feed-defaults)
+- [Audio leveling](#audio-leveling)
 - [Experiments](#experiments)
 - [Reprocessing](#reprocessing)
 - [Community Patterns (Optional)](#community-patterns-optional)
@@ -33,6 +34,10 @@ Settings > Global Defaults controls verification and cross-fetch differential. V
 New feeds use each global choice. A feed set to Inherit continues using that choice; an explicit Feed Settings value overrides it. The same controls are available through `PUT /api/v1/settings/ad-detection` and `PATCH /api/v1/feeds/{slug}`; see the [OpenAPI specification](../openapi.yaml) for fields and accepted values.
 
 Upgrades preserve existing feed choices instead of switching them to inheritance. The earlier cross-fetch enabled flag becomes an explicit On or Off, while an unset legacy flag becomes explicit Auto.
+
+### Audio leveling
+
+Audio Leveling evens out quiet and loud passages in the processed audio. It runs an additional ffmpeg pass using the `dynaudnorm` filter after ad removal, with Gentle, Normal, Aggressive, Extreme, and Maximum intensity presets. The additional pass adds processing time; it does not change detection or ad-cut boundaries.
 
 ### Ad Detection Settings
 

@@ -46,6 +46,28 @@ class TestBeginLlmAttempt:
 
 
 class TestFinalizeLlmAttempt:
+    def test_typesafe_estimate_is_provider_scoped(self, temp_db):
+        native_id = _begin(temp_db, 'jev-latest', provider_key='typesafe')
+        generic_id = _begin(
+            temp_db, 'jev-latest', provider_key='systemone-compatible')
+
+        native_cost = temp_db.finalize_llm_attempt(
+            native_id, state='success', input_tokens=1_000_000,
+            output_tokens=2_000_000)
+        generic_cost = temp_db.finalize_llm_attempt(
+            generic_id, state='success', input_tokens=1_000_000,
+            output_tokens=2_000_000)
+
+        rows = temp_db.get_connection().execute(
+            'SELECT provider_key, cost_source, rate_snapshot, cost_usd '
+            'FROM llm_call_usage ORDER BY rowid').fetchall()
+        assert native_cost == pytest.approx(0.042)
+        assert generic_cost == 0.0
+        assert rows[0]['cost_source'] == 'estimated'
+        assert '0.042' in rows[0]['rate_snapshot']
+        assert rows[1]['cost_source'] == 'unknown'
+        assert rows[1]['cost_usd'] is None
+
     def test_success_increments_counters_once(self, temp_db):
         _seed_price(temp_db, 'test-model-a', 3.0, 15.0)
         attempt_id = _begin(temp_db, 'test-model-a')

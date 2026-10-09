@@ -178,6 +178,7 @@ class SchemaMixin:
         'ad_reviewer_log',
         'podping_hosts',
         'llm_call_usage',
+        'systemone_call_diagnostics',
         'addressing_log',
         'processing_runs',
         'upload_reservations',
@@ -186,6 +187,8 @@ class SchemaMixin:
         'failover_events',
         'pattern_cleanup_runs',
         'pattern_cleanup_suggestions',
+        'pattern_cleanup_checks',
+        'pattern_cleanup_deleted_actions',
     )
 
     def _create_new_tables_only(self, conn):
@@ -221,6 +224,7 @@ class SchemaMixin:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_model ON llm_call_usage(provider_key, configured_model)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_created ON llm_call_usage(created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_state ON llm_call_usage(state)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_systemone_call_diagnostics_created ON systemone_call_diagnostics(created_at DESC)")
         # The provider/credential_slot index is created in _run_schema_migrations,
         # after the ALTER that adds credential_slot to pre-existing tables.
         conn.execute(
@@ -479,6 +483,17 @@ class SchemaMixin:
             )
         """)
         conn.commit()
+
+        ledger_cols = self._get_table_columns(conn, 'llm_call_usage')
+        self._add_column_if_missing(
+            conn, 'llm_call_usage', 'logical_call_id', 'TEXT', ledger_cols)
+        self._add_column_if_missing(
+            conn, 'llm_call_usage', 'dispatch_latency_ms', 'INTEGER', ledger_cols)
+        self._add_column_if_missing(
+            conn, 'llm_call_usage', 'call_latency_ms', 'INTEGER', ledger_cols)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_llm_call_usage_logical "
+            "ON llm_call_usage(logical_call_id)")
 
         # -- Episodes table columns --
         self._add_episode_columns(conn)
@@ -2324,6 +2339,43 @@ class SchemaMixin:
                     'INSERT INTO schema_migrations (name) VALUES (?)',
                     (cleanup_category_gate,))
                 conn.commit()
+
+        cleanup_ledger_cols = self._get_table_columns(conn, 'llm_call_usage')
+        for name in ('cleanup_run_id', 'cleanup_pattern_id'):
+            self._add_column_if_missing(conn, 'llm_call_usage', name, 'INTEGER', cleanup_ledger_cols)
+        cleanup_run_cols = self._get_table_columns(conn, 'pattern_cleanup_runs')
+        self._add_column_if_missing(conn, 'pattern_cleanup_runs', 'accounting_version',
+                                    'INTEGER', cleanup_run_cols)
+        cleanup_suggestion_cols = self._get_table_columns(conn, 'pattern_cleanup_suggestions')
+        for name in ('superseded_at', 'pattern_scope', 'podcast_slug'):
+            self._add_column_if_missing(conn, 'pattern_cleanup_suggestions', name,
+                                        'TEXT', cleanup_suggestion_cols)
+        cleanup_accounting_gate = 'pattern_cleanup_accounting_v1'
+        if not conn.execute('SELECT 1 FROM schema_migrations WHERE name = ?',
+                            (cleanup_accounting_gate,)).fetchone():
+            conn.execute('DROP INDEX IF EXISTS idx_cleanup_suggestions_pending')
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_cleanup_suggestions_pending "
+                         "ON pattern_cleanup_suggestions(pattern_id, kind) "
+                         "WHERE status = 'pending' AND superseded_at IS NULL")
+            conn.execute("""UPDATE pattern_cleanup_suggestions
+                SET pattern_scope = json_extract(before, '$.scope'),
+                    podcast_slug = CASE WHEN json_extract(before, '$.scope') = 'podcast'
+                                        AND json_type(before, '$.podcast_id') = 'text'
+                                   THEN json_extract(before, '$.podcast_id') END
+                WHERE pattern_scope IS NULL AND json_valid(before)
+                  AND json_extract(before, '$.scope') IN ('podcast', 'network', 'global')""")
+            conn.execute('INSERT INTO schema_migrations (name) VALUES (?)',
+                         (cleanup_accounting_gate,))
+        conn.execute("""CREATE TRIGGER IF NOT EXISTS archive_cleanup_actions_on_pattern_delete
+            BEFORE DELETE ON ad_patterns BEGIN
+                INSERT INTO pattern_cleanup_deleted_actions
+                    (suggestion_id, run_id, pattern_id, pattern_scope, podcast_slug, kind, status)
+                SELECT id, run_id, pattern_id, pattern_scope, podcast_slug, kind, status
+                FROM pattern_cleanup_suggestions WHERE pattern_id = OLD.id;
+                DELETE FROM pattern_cleanup_suggestions WHERE pattern_id = OLD.id;
+            END""")
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_llm_usage_cleanup_run '
+                     'ON llm_call_usage(cleanup_run_id, cleanup_pattern_id)')
 
         # Refresh the default review prompt with the PARTIAL SPAN contract:
         # when the reviewer concludes part of the span is not ad content, it

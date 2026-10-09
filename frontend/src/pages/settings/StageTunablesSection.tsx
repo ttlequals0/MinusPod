@@ -13,6 +13,7 @@ import SavedBadge from './SavedBadge';
 import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { isSystemOneRoute } from './systemoneWarnings';
 
 // Which per-phase provider override (see llm_route.py) governs a stage block.
 // Both chapter blocks route through chaptersProvider.
@@ -28,6 +29,12 @@ interface StageTunablesSectionProps {
   verificationProvider: string;
   chaptersProvider: string;
   reviewProvider: string;
+  detectionModel?: string;
+  verificationModel?: string;
+  chaptersModel?: string;
+  reviewModels?: string[];
+  reviewRoutes?: { provider: string; model: string }[];
+  reviewEnabled?: boolean;
   onSave: (payload: UpdateSettingsPayload) => void;
   saveIsPending: boolean;
   saveIsSuccess: boolean;
@@ -283,6 +290,7 @@ function StageBlockEditor({
   defaults,
   draft,
   stageProvider,
+  chatControlsDisabled,
   omitTemperature,
   setField,
 }: {
@@ -291,6 +299,7 @@ function StageBlockEditor({
   defaults: Record<keyof StageTunables, number | string | null>;
   draft: DraftRecord;
   stageProvider: LlmProvider;
+  chatControlsDisabled: boolean;
   omitTemperature: boolean;
   setField: (key: string, value: DraftValue) => void;
 }) {
@@ -311,6 +320,7 @@ function StageBlockEditor({
       <div>
         <h4 className="text-sm font-semibold text-foreground">{block.label}</h4>
         <p className="text-xs text-muted-foreground mt-0.5">{block.description}</p>
+        {chatControlsDisabled && <p className="mt-1 text-xs text-warning">Chat settings do not apply to System One.</p>}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -331,7 +341,7 @@ function StageBlockEditor({
             return Number.isFinite(v) ? v : null;
           }}
           onChange={(parsed) => setField(block.temperatureKey, parsed)}
-          disabled={omitTemperature}
+          disabled={omitTemperature || chatControlsDisabled}
           help={
             omitTemperature
               ? 'Not sent: "Do not send temperature" is on.'
@@ -353,6 +363,7 @@ function StageBlockEditor({
           step={128}
           parse={parseIntField}
           onChange={(parsed) => setField(block.maxTokensKey, parsed)}
+          disabled={chatControlsDisabled}
           help={maxEnv ? `Default from ${maxEnv}.` : 'Response cap. Too low cuts off mid-JSON.'}
         />
       </div>
@@ -361,7 +372,7 @@ function StageBlockEditor({
         <NumberFieldRow
           label="Reasoning budget (legacy Anthropic models)"
           id={String(block.budgetKey)}
-          resetDisabled={budgetDraft === null}
+          resetDisabled={budgetDraft === null || chatControlsDisabled}
           onReset={() => setField(block.budgetKey, null)}
           value={budgetDraft}
           fallback={null}
@@ -371,6 +382,7 @@ function StageBlockEditor({
           placeholder="Leave blank for the model default"
           parse={parseIntField}
           onChange={(parsed) => setField(block.budgetKey, parsed)}
+          disabled={chatControlsDisabled}
           help={
             budgetEnv
               ? `Default from ${budgetEnv}.`
@@ -384,7 +396,7 @@ function StageBlockEditor({
             {useAnthropic ? 'Reasoning effort (adaptive Anthropic models)' : 'Reasoning effort'}
           </label>
           <ResetButton
-            disabled={levelDraft === null}
+            disabled={levelDraft === null || chatControlsDisabled}
             onClick={() => setField(block.levelKey, null)}
           />
         </div>
@@ -396,6 +408,7 @@ function StageBlockEditor({
             setField(block.levelKey, v === '' ? null : (v as ReasoningLevel));
           }}
           className={`w-full min-h-11 sm:min-h-0 ${selectBase}`}
+          disabled={chatControlsDisabled}
         >
           <option value="">Default (provider decides)</option>
           {REASONING_LEVEL_OPTIONS.map((opt) => (
@@ -572,6 +585,12 @@ function StageTunablesSection({
   verificationProvider,
   chaptersProvider,
   reviewProvider,
+  detectionModel = '',
+  verificationModel = '',
+  chaptersModel = '',
+  reviewModels = [],
+  reviewRoutes,
+  reviewEnabled = false,
   onSave,
   saveIsPending,
   saveIsSuccess,
@@ -594,22 +613,32 @@ function StageTunablesSection({
       : null;
   const omitTemperatureDraft = draft[OMIT_TEMPERATURE_KEY] as boolean;
 
-  // Effective provider per stage (mirrors llm_route.py): verification and
-  // chapters fall back to detection, review falls back to detection too
-  // when same_as_pass/unset (the reviewer block has no single pass to
-  // inherit from here, so it uses detection's provider like same_as_pass
-  // does for pass 1).
+  // Mixed inherited review routes retain controls for their chat pass.
   const effectiveDetectionProvider = (detectionProvider || llmProvider) as LlmProvider;
   const effectiveVerificationProvider = (verificationProvider || effectiveDetectionProvider) as LlmProvider;
   const effectiveChaptersProvider = (chaptersProvider || effectiveDetectionProvider) as LlmProvider;
-  const effectiveReviewProvider = (
+  const fallbackReviewProvider = (
     reviewProvider && reviewProvider !== 'same_as_pass' ? reviewProvider : effectiveDetectionProvider
   ) as LlmProvider;
+  const effectiveReviewRoutes = reviewRoutes ?? [
+    { provider: fallbackReviewProvider, model: reviewModels[0] ?? detectionModel },
+    { provider: reviewProvider && reviewProvider !== 'same_as_pass' ? reviewProvider : effectiveVerificationProvider,
+      model: reviewModels[1] ?? verificationModel },
+  ];
+  const reviewIsNative = effectiveReviewRoutes.map(({ provider, model }) => isSystemOneRoute(provider, model));
+  const effectiveReviewProvider = (effectiveReviewRoutes.find((route) => !isSystemOneRoute(route.provider, route.model))?.provider
+    ?? fallbackReviewProvider) as LlmProvider;
   const providerByStage: Record<ProviderStage, LlmProvider> = {
     detection: effectiveDetectionProvider,
     verification: effectiveVerificationProvider,
     review: effectiveReviewProvider,
     chapters: effectiveChaptersProvider,
+  };
+  const modelsByStage: Record<ProviderStage, string[]> = {
+    detection: [detectionModel],
+    verification: [verificationModel],
+    chapters: [chaptersModel],
+    review: reviewModels.length ? reviewModels : [detectionModel],
   };
 
   return (
@@ -618,6 +647,11 @@ function StageTunablesSection({
         Temperature, max tokens, reasoning, detection-window geometry, and parallelism. Applies on the next episode.
       </p>
       <div className="space-y-3">
+        {reviewEnabled && reviewIsNative.some(Boolean) && (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+            Ad review with System One models is experimental.
+          </div>
+        )}
         <OmitTemperatureToggle
           checked={omitTemperatureDraft}
           onChange={(checked) => setField(OMIT_TEMPERATURE_KEY, checked)}
@@ -630,6 +664,10 @@ function StageTunablesSection({
             defaults={defaults}
             draft={draft}
             stageProvider={providerByStage[block.providerStage]}
+            chatControlsDisabled={block.providerStage === 'review'
+              ? reviewIsNative.every(Boolean)
+              : modelsByStage[block.providerStage].some((model) =>
+                isSystemOneRoute(providerByStage[block.providerStage], model))}
             omitTemperature={omitTemperatureDraft}
             setField={setField}
           />

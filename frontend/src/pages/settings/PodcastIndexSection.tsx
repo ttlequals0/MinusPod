@@ -111,7 +111,7 @@ function PodcastIndexSection({
                 onTest={onConnectionTest}
                 disabled={draftsPending || !podcastIndexApiKeyConfigured}
                 disabledReason={draftsPending
-                  ? 'Save changes first -- the test uses the saved credentials.'
+                  ? 'Save credentials before testing.'
                   : 'Enter and save API credentials first.'}
               />
             </div>

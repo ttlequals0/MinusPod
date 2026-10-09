@@ -34,6 +34,7 @@ function renderSection(overrides: Partial<Parameters<typeof AIModelsSection>[0]>
       detectionProvider="primary"
       verificationProvider="same_as_detection"
       chaptersProvider="same_as_detection"
+      effectiveChaptersProvider="anthropic"
       onDetectionProviderChange={() => {}}
       onVerificationProviderChange={() => {}}
       onChaptersProviderChange={() => {}}
@@ -46,6 +47,10 @@ function renderSection(overrides: Partial<Parameters<typeof AIModelsSection>[0]>
 }
 
 describe('AIModelsSection: not-configured state', () => {
+  it('warns about an inherited native chapter route independently of the model name', () => {
+    renderSection({ effectiveChaptersProvider: 'systemone-compatible', chaptersModel: 'gpt-5' });
+    expect(screen.getByText(/System One cannot generate chapters/)).toBeTruthy();
+  });
   it('renders a selected "Not configured" placeholder for an empty model value', () => {
     renderSection({ selectedModel: '' });
     const select = screen.getByLabelText('Ad Detection Model') as HTMLSelectElement;

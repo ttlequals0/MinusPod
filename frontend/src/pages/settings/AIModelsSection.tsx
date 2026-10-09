@@ -9,6 +9,7 @@ import ModelSelect from './ModelSelect';
 import StageProviderSelect, { detectionSlotOptions, inheritedSlotOptions } from './StageProviderSelect';
 import { btnSecondary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
+import { isSystemOneRoute } from './systemoneWarnings';
 
 interface AIModelsSectionProps {
   // Each stage carries its own catalog and its own fetch state. No fallback
@@ -30,6 +31,7 @@ interface AIModelsSectionProps {
   detectionProvider: string;
   verificationProvider: string;
   chaptersProvider: string;
+  effectiveChaptersProvider: string;
   onDetectionProviderChange: (provider: string) => void;
   onVerificationProviderChange: (provider: string) => void;
   onChaptersProviderChange: (provider: string) => void;
@@ -60,6 +62,7 @@ function AIModelsSection({
   detectionProvider,
   verificationProvider,
   chaptersProvider,
+  effectiveChaptersProvider,
   onDetectionProviderChange,
   onVerificationProviderChange,
   onChaptersProviderChange,
@@ -106,8 +109,14 @@ function AIModelsSection({
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-4 max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
         <CatalogStatus refreshError={modelsRefresh.error} />
+
+        {isSystemOneRoute(effectiveChaptersProvider, chaptersModel) && (
+          <div role="status" className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+            System One cannot generate chapters. Select a chat provider and model.
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <StageProviderSelect
@@ -124,7 +133,7 @@ function AIModelsSection({
             value={selectedModel}
             catalog={detectionCatalog}
             onChange={onSelectedModelChange}
-            description="Primary model for analyzing transcripts and detecting ads. Set the model here; the OPENAI_MODEL env var only seeds this value while it is unset."
+            description="Model used to analyze transcripts and detect ads."
           />
         </div>
 
@@ -304,7 +313,7 @@ function ModelPricingFields({
       </div>
       {!override && !catalogAvailable && (
         <p className="text-xs text-warning">
-          No price is available. Calls record zero cost and log a warning until you set both prices.
+          Set both prices to estimate cost when the provider does not report it.
         </p>
       )}
       {message && (

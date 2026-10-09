@@ -589,6 +589,12 @@ class PodcastMixin:
             "DELETE FROM ad_reviewer_log WHERE podcast_id = ?", (slug,))
         conn.execute(
             "DELETE FROM addressing_log WHERE podcast_slug = ?", (slug,))
+        conn.execute(
+            "UPDATE pattern_cleanup_checks SET podcast_slug = NULL WHERE podcast_slug = ?",
+            (slug,))
+        conn.execute(
+            "UPDATE pattern_cleanup_deleted_actions SET podcast_slug = NULL WHERE podcast_slug = ?",
+            (slug,))
 
         cursor = conn.execute(
             "DELETE FROM podcasts WHERE slug = ?", (slug,)

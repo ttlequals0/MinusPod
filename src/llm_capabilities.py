@@ -20,8 +20,10 @@ from typing import Any, Union
 from config import (
     PROVIDER_ANTHROPIC,
     PROVIDER_OPENROUTER,
-    PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OLLAMA,
+    PROVIDER_OPENAI_COMPATIBLE,
+    PROVIDER_TYPESAFE,
+    PROVIDER_SYSTEMONE_COMPATIBLE,
     anthropic_model_allows_disabled_thinking,
     anthropic_model_requires_adaptive_thinking,
     anthropic_model_supports_forced_tools as anthropic_model_supports_forced_tools,
@@ -233,6 +235,19 @@ STAGE_MODEL_SETTING_KEYS = (
     'claude_model', 'verification_model', 'review_model', 'chapters_model',
 )
 SAME_AS_PASS = 'same_as_pass'
+
+_SYSTEMONE_PROXY_MODELS = frozenset({'jev-latest', 'jev-preview', 'typesafe/jev'})
+_SYSTEMONE_PHASES = frozenset({'detection', 'verification', 'review'})
+
+
+def systemone_supported_phases(provider: str, model: str | None) -> frozenset[str] | None:
+    """Return Jev-supported phases for explicit System One provider/model IDs."""
+    provider = (provider or '').lower()
+    if provider in (PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE):
+        return _SYSTEMONE_PHASES
+    if (model or '').strip().casefold() in _SYSTEMONE_PROXY_MODELS:
+        return _SYSTEMONE_PHASES
+    return None
 
 
 def configured_stage_models(get_setting) -> list[str]:

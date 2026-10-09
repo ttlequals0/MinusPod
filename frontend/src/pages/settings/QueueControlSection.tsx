@@ -527,14 +527,7 @@ function QueueControlSection({
               ariaLabel: 'Offline queue toggle',
               ttlInputId: 'offline-queue-ttl',
               loadErrorText: 'Could not load offline queue settings.',
-              description: (
-                <>
-                  For self-hosted LLMs or Whisper servers that only run part of the
-                  day. Episodes that fail because the endpoint is unreachable wait
-                  in a queue and process on their own once it is back, instead of
-                  erroring out until you reprocess them by hand.
-                </>
-              ),
+              description: 'Retry episodes automatically when the endpoint is reachable.',
               status: (data) => {
                 const count = Number(data.deferredCount ?? 0);
                 return count > 0

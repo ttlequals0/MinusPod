@@ -216,6 +216,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Staging area** - The per-feed holding folder for a local feed's uploaded archive-import batch, `<data>/import-staging/<slug>/`. Unlike the import directory, MinusPod fully manages it: it is populated by the upload endpoint and cleared out as the import commits. [Local Feeds > Bulk import](local-feeds.md#bulk-import)
 
+**System One** - A structured question protocol used by the native TypeSafe and System One-compatible providers. Detection, verification, and ad categorization are supported; review is experimental. Profiles are independent for each credential slot and provider type. Stats separate logical adapter calls from actual HTTP attempts. [System One](system-one.md)
+
 **Synthesized publish date** - The publish date MinusPod assigns a local-feed episode when none was given explicitly: episodes are sorted by season and episode, the newest anchors at import time, and earlier ones step back a day each (or space evenly between two explicit dates). [Local Feeds > Publish dates](local-feeds.md#publish-dates)
 
 ## T

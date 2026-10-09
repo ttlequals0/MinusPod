@@ -15,8 +15,8 @@ interface DraftNumberInputProps {
   value: number | null;
   fallback: number | null;
   min: number;
-  max: number;
-  step: number;
+  max?: number;
+  step: number | 'any';
   placeholder?: string;
   parse: (raw: string) => number | null;
   onChange: (parsed: number | null) => void;

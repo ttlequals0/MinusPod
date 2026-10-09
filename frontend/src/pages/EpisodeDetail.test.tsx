@@ -14,8 +14,9 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EpisodeDetail, { KeyedEpisodeDetail } from './EpisodeDetail';
 import EpisodeList from '../components/EpisodeList';
-import type { Episode, EpisodeDetail as EpisodeDetailType } from '../api/types';
+import type { Episode, EpisodeDetail as EpisodeDetailType, Settings } from '../api/types';
 import { formatTimestamp } from '../utils/format';
+import { getSettings } from '../api/settings';
 
 // react-router stubs. Mutable so a test can move the view to another episode.
 const routeParams = vi.hoisted(() => ({ slug: 'test-feed', episodeId: 'ep-1' }));
@@ -143,6 +144,13 @@ function makeEpisode(overrides: Partial<EpisodeDetailType> = {}): EpisodeDetailT
 
 // Wrap getEpisode to return a resolved episode; getFeed returns minimal data.
 import { getEpisode, getFeed } from '../api/feeds';
+
+vi.mock('../api/settings', () => ({ getSettings: vi.fn() }));
+beforeEach(() => {
+  vi.mocked(getSettings).mockResolvedValue({
+    llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' },
+  } as Settings);
+});
 
 function setupEpisodeMock(ep: EpisodeDetailType) {
   (getEpisode as ReturnType<typeof vi.fn>).mockResolvedValue(ep);
@@ -483,6 +491,24 @@ describe('Held for Review: re-detect offer once every held marker is rejected', 
       expect(mockRegenerateChapters).toHaveBeenCalledWith('test-feed', 'ep-1');
     });
     expect(screen.queryByTestId('held-review-cleared')).toBeNull();
+  });
+
+  it('keeps the post-review chapter action disabled for an inherited native route', async () => {
+    mockRegenerateChapters.mockReset();
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, secondaryProvider: { value: 'systemone-compatible' },
+      secondaryProviderEnabled: { value: true }, detectionProvider: { value: 'secondary' },
+      chaptersProvider: { value: 'same_as_detection' }, chaptersModel: { value: 'custom-native-model' },
+    } as Settings);
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true, pendingReviewMarkers: [] }));
+    await user.click(screen.getByTestId('dismiss-0'));
+    const button = await screen.findByTestId('regenerate-chapters-after-review');
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    await user.click(button);
+    expect(mockRegenerateChapters).not.toHaveBeenCalled();
   });
 
   it('omits Regenerate Chapters without a VTT transcript', async () => {
@@ -1827,6 +1853,50 @@ describe('Regenerate Chapters: progress and result feedback', () => {
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
     await user.click(screen.getByText('Regenerate Chapters'));
   }
+
+  it('disables native chapter regeneration and offers the settings route', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'typesafe' }, claudeModel: { value: 'jev-latest' },
+    } as Settings);
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true }));
+    await screen.findByText('System One cannot generate chapters. Select a chat provider and model.');
+    expect(screen.getByRole('link', { name: 'Open settings' }).getAttribute('href')).toBe('/settings');
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    expect((screen.getByText('Regenerate Chapters').closest('button') as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByText('Regenerate Chapters'));
+    expect(mockRegenerateChapters).not.toHaveBeenCalled();
+  });
+
+  it('keeps manual regeneration disabled while chapter settings load', async () => {
+    let resolveSettings!: (value: Settings) => void;
+    vi.mocked(getSettings).mockReturnValue(new Promise((resolve) => { resolveSettings = resolve; }));
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptVttAvailable: true }));
+    await screen.findByText('Test Episode');
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    const item = screen.getByText('Regenerate Chapters').closest('button') as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    expect(item.title).toBe('Loading chapter settings...');
+    resolveSettings({ llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' } } as Settings);
+    await waitFor(() => expect(item.disabled).toBe(false));
+  });
+
+  it('explains failed chapter settings and recovers through Retry', async () => {
+    vi.mocked(getSettings).mockRejectedValue(new Error('Chapter settings unavailable'));
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptVttAvailable: true }));
+    await screen.findByRole('alert');
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    const item = screen.getByText('Regenerate Chapters').closest('button') as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    expect(item.title).toBe('Load chapter settings before regenerating chapters.');
+    vi.mocked(getSettings).mockResolvedValue({ llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' } } as Settings);
+    await user.click(screen.getByRole('button', { name: 'Retry chapter settings' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    expect((screen.getByText('Regenerate Chapters').closest('button') as HTMLButtonElement).disabled).toBe(false);
+  });
 
   it('shows the progress text once the menu closes while the call is pending', async () => {
     const user = userEvent.setup();

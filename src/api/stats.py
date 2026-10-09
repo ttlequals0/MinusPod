@@ -148,6 +148,37 @@ def get_model_usage_stats():
     })
 
 
+@api.route('/stats/systemone', methods=['GET'])
+@log_request
+def get_systemone_stats():
+    """Separate logical native calls from their actual request rows."""
+    db = get_database()
+    params = {
+        **_date_scope_params(),
+        'provider': request.args.get('provider'),
+        'model': request.args.get('model'),
+    }
+    invalid = _invalid_date_param(params)
+    if invalid:
+        return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
+    return json_response(db.get_systemone_stats(**params))
+
+
+@api.route('/stats/cleanup', methods=['GET'])
+@log_request
+def get_cleanup_stats():
+    """Cleanup attribution and proposal outcomes for selected run cohorts."""
+    params = {
+        **_date_scope_params(),
+        'provider': request.args.get('provider'),
+        'model': request.args.get('model'),
+    }
+    invalid = _invalid_date_param(params)
+    if invalid:
+        return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
+    return json_response(get_database().get_cleanup_stats(**params))
+
+
 @api.route('/stats/episode-costs', methods=['GET'])
 @log_request
 def get_episode_cost_stats():

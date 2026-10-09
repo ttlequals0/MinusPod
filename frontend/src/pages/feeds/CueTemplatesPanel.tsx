@@ -630,8 +630,8 @@ function CueTemplatesPanel({ slug }: Props) {
                     {h.label || `Template ${h.templateId}`}: {h.rejected} rejected
                     {h.confirmed > 0 && `, ${h.confirmed} confirmed`}
                     {h.hint === 'raise_threshold'
-                      ? ' -- rejections sit just above the current threshold'
-                      : ' -- rejections spread across the score range; the capture matches the wrong audio'}
+                      ? '. Rejections sit just above the current threshold.'
+                      : '. Rejections span the score range; this capture matches the wrong audio.'}
                   </p>
                 ))}
               </div>

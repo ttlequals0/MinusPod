@@ -177,8 +177,7 @@ function CueCandidatesSection({
       storageKey={`episode-cue-candidates-${episodeId}`}
     >
       <p className="text-sm text-muted-foreground mb-3">
-        Scan for audio cues: ad-break stings that repeat within the episode, plus
-        intros and outros shared with other episodes of this feed.
+        Scan for recurring ad-break cues, intros and outros.
       </p>
 
       {!scanned && (

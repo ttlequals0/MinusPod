@@ -17,6 +17,7 @@ import webhook_service
 from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
 from config import (
     PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS,
+    SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
     PROCESSING_MODE_CUE_ONLY, cue_only_missing_roles,
     get_stage_tunable, resolve_community_sync_categories,
     resolve_feed_processing_mode, resolve_jit_blocked_user_agents,
@@ -28,6 +29,7 @@ from db_backup_service import (
     KEEP_COUNT_MAX, KEEP_COUNT_MIN, validate_backup_dest,
 )
 from database.settings import SETTINGS_REGISTRY, registry_default
+from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
 from fx_rates import FxRateError, get_usd_rate
 from llm_route import SAME_AS_DETECTION, VALID_SLOTS
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
@@ -90,11 +92,14 @@ STRUCTURED_SETTING_TYPES = {
     'segment_category_actions': dict,
     'community_sync_categories': list,
     'webhooks': list,
+    **{key: dict for key in SYSTEMONE_TUNABLE_PROFILE_KEYS.values()},
 }
 
 SECRET_ENV = {
     'anthropic_api_key': 'ANTHROPIC_API_KEY',
     'openai_api_key': 'OPENAI_API_KEY',
+    'systemone_api_key': 'SYSTEMONE_API_KEY',
+    'typesafe_api_key': 'TYPESAFE_API_KEY',
     'openrouter_api_key': 'OPENROUTER_API_KEY',
     'ollama_api_key': 'OLLAMA_API_KEY',
     'secondary_provider_api_key': 'SECONDARY_PROVIDER_API_KEY',
@@ -287,6 +292,14 @@ def _portable_value(key, value):
     if not isinstance(value, str):
         return value
     spec = SETTINGS_REGISTRY.get(key)
+    if key in {'llm_timeout_seconds', 'secondary_llm_timeout_seconds'}:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            raise ConfigTransferError(f'{key} has an invalid stored timeout', 409) from None
+        if not math.isfinite(number) or number <= 0:
+            raise ConfigTransferError(f'{key} has an invalid stored timeout', 409)
+        return int(number) if number.is_integer() else number
     structured_type = STRUCTURED_SETTING_TYPES.get(key)
     if structured_type:
         try:
@@ -507,7 +520,8 @@ def _validate_setting_value(key, value):
         _validate_json_tree(value, key)
     if value is None:
         if (key not in SECRET_SETTING_KEYS and key != 'feed_auth_key'
-                and key not in NULLABLE_OPTIONAL_SETTINGS):
+                and key not in NULLABLE_OPTIONAL_SETTINGS
+                and key not in SYSTEMONE_TUNABLE_PROFILE_KEYS.values()):
             raise ConfigTransferError(f'{key} cannot be null')
         return
     spec = SETTINGS_REGISTRY.get(key)
@@ -754,10 +768,21 @@ def _resolve_scope(plan, scope, selected_feeds):
     return settings, feeds
 
 
-def _normalize_import_settings(settings):
+def _normalize_import_settings(settings, db=None):
     from api import settings as settings_api
 
     normalized = dict(settings)
+    snapshot = db.get_all_settings() if db is not None else {}
+    for (slot, provider), key in SYSTEMONE_TUNABLE_PROFILE_KEYS.items():
+        if key not in normalized:
+            continue
+        try:
+            value = normalized[key]
+            defaults = SYSTEMONE_TUNABLE_DEFAULTS[provider]
+            normalized[key] = (dict(defaults) if value is None else merge_profile(
+                defaults, profile_from_snapshot(snapshot, slot, provider), value))
+        except SystemOneSettingsError as exc:
+            raise ConfigTransferError(f'{key} is invalid: {exc}') from None
     if 'model_pricing_overrides' in normalized:
         pricing, issue = settings_api._model_pricing_patch(normalized['model_pricing_overrides'])
         if issue:
@@ -802,7 +827,7 @@ def build_preview(db, document, scope, selected_feeds=None):
     _validate_request_envelope(document, scope, selected_feeds)
     plan = _validate_document(document)
     settings, feeds = _resolve_scope(plan, scope, selected_feeds)
-    settings = _normalize_import_settings(settings)
+    settings = _normalize_import_settings(settings, db)
     _validate_retention_pair(db, settings)
     if any(key.startswith('provider_budget_') for key in settings):
         enabled = settings.get('provider_budget_enabled', db.get_setting('provider_budget_enabled'))
@@ -811,7 +836,7 @@ def build_preview(db, document, scope, selected_feeds=None):
                                db.get_setting('provider_budget_unknown_reserve_microusd') or '0')
         if str(enabled).lower() == 'true' and action == 'reserve' and int(reserve) == 0:
             raise ConfigTransferError('provider_budget_unknown_reserve_microusd must be positive for reserve')
-    issue = _settings_validation_error(db, _setting_payload(settings))
+    issue = _settings_validation_error(db, _setting_payload(settings), feeds)
     if issue:
         raise issue
     if 'db_backup_dest' in settings:
@@ -1054,6 +1079,8 @@ def _setting_payload(settings):
                 and not (value is None and key in ('verification_model', 'chapters_model'))):
             payload[spec.payload_key] = value
     secret_payload_keys = {
+        'typesafe_api_key': 'typesafeApiKey',
+        'systemone_api_key': 'systemoneApiKey',
         'openrouter_api_key': 'openrouterApiKey',
         'secondary_provider_api_key': 'secondaryProviderApiKey',
         'whisper_api_key': 'whisperApiKey',
@@ -1075,15 +1102,26 @@ def _setting_payload(settings):
     for payload_key, setting_key, _kind in STAGE_TUNABLE_PAYLOAD_KEYS:
         if setting_key in settings:
             payload[payload_key] = settings[setting_key]
+    profiles = {}
+    for (slot, provider), key in SYSTEMONE_TUNABLE_PROFILE_KEYS.items():
+        if key in settings:
+            profiles.setdefault(slot, {})[provider] = settings[key]
+    if profiles:
+        payload['systemOneTunables'] = profiles
     return payload
 
 
-def _settings_validation_error(db, payload):
-    if not payload:
-        return None
+def _settings_validation_error(db, payload, feeds=None):
     from api import settings as settings_api
+    feed_modes = {
+        feed['slug']: feed.get('settings', {}).get('chapters_mode')
+        for feed in (feeds or ()) if 'chapters_mode' in feed.get('settings', {})
+    }
+    if not payload and not feed_modes:
+        return None
     issue = settings_api.validate_settings_payload(
-        db, payload, allow_inactive_tunables=True)
+        db, payload, allow_inactive_tunables=True,
+        prospective_feed_modes=feed_modes)
     if issue is not None:
         return ConfigTransferError(*issue)
     return None
@@ -1127,6 +1165,9 @@ def _phase_applied_setting_keys(settings):
         key for key in settings
         if SETTINGS_REGISTRY.get(key) and SETTINGS_REGISTRY[key].stage_tunable
     })
+    managed.update(key for key in settings if key in SYSTEMONE_TUNABLE_PROFILE_KEYS.values())
+    managed.update(key for key in settings if key in (
+        'systemone_base_url', 'typesafe_api_key', 'systemone_api_key'))
     return managed
 
 
@@ -1136,10 +1177,13 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
     plan = _validate_document(document)
     settings, feeds = _resolve_scope(plan, scope, selected_feeds)
     _validate_request_envelope(document, scope, selected_feeds)
-    settings = _normalize_import_settings(settings)
+    reset_profiles = {key for key in SYSTEMONE_TUNABLE_PROFILE_KEYS.values()
+                      if key in settings and settings[key] is None}
+    settings = _normalize_import_settings(settings, db)
     _validate_import_feed_urls(feeds)
-    payload = _setting_payload(settings)
-    issue = _settings_validation_error(db, payload)
+    payload = _setting_payload({key: None if key in reset_profiles else value
+                                for key, value in settings.items()})
+    issue = _settings_validation_error(db, payload, feeds)
     if issue:
         raise issue
     endpoint_issue = settings_api.validate_provider_endpoint_security(payload)
@@ -1189,6 +1233,8 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                 'anthropic_api_key': 'anthropic',
                 'openai_api_key': 'openai-compatible',
                 'ollama_api_key': 'ollama',
+                'typesafe_api_key': 'typesafe',
+                'systemone_api_key': 'systemone-compatible',
             }
             for key, value in settings.items():
                 if key in phase_applied_setting_keys:
@@ -1226,14 +1272,16 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                     else:
                         db.set_setting(key, value, is_default=False)
             if any(key in settings for key in (
-                    'anthropic_api_key', 'openai_api_key', 'ollama_api_key')):
+                    'anthropic_api_key', 'openai_api_key', 'ollama_api_key',
+                    'typesafe_api_key', 'systemone_api_key', 'systemone_base_url')):
                 settings_api._after_commit(settings_api.invalidate_provider_cache)
             null_keys = {key for key, value in settings.items() if value is None}
             if null_keys & {'llm_provider', 'openai_base_url', 'claude_model',
                             'verification_model', 'review_model', 'chapters_model',
                             'detection_provider', 'verification_provider', 'chapters_provider',
                             'anthropic_api_key', 'openai_api_key', 'openrouter_api_key',
-                            'ollama_api_key', 'secondary_provider_api_key', 'failover_llm_api_key'}:
+                            'ollama_api_key', 'secondary_provider_api_key', 'failover_llm_api_key',
+                            'typesafe_api_key', 'systemone_api_key', 'systemone_base_url'}:
                 settings_api._after_commit(settings_api.invalidate_provider_cache)
             if null_keys & {'whisper_model', 'whisper_backend', 'whisper_api_base_url',
                             'whisper_api_key', 'whisper_api_model', 'failover_whisper_api_key'}:

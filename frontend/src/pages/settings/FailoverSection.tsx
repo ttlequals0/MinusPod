@@ -337,6 +337,7 @@ function FailoverSection({
                   return { ok: result.ok, error: result.ok ? undefined : result.detail };
                 }}
                 onConnectionTest={(baseUrl) => testFailoverProviderConnection(llm.provider, baseUrl)}
+                allowSystemOne={false}
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

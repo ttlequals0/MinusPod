@@ -35,6 +35,7 @@ type RetentionMode = 'global' | 'archive' | 'custom';
 import { focusRing } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { RemovableChip } from '../../components/RemovableChip';
+import { isSystemOneChapterRoute } from '../settings/systemoneWarnings';
 
 interface Props {
   feed: Feed;
@@ -202,6 +203,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     queryKey: ['settings'],
     queryFn: getSettings,
   });
+  const unsupportedChapterRoute = isSystemOneChapterRoute(settings);
+  const nativeChapterGenerationBlocked = unsupportedChapterRoute
+    && (settings?.chaptersEnabled?.value ?? settings?.defaults?.chaptersEnabled ?? true);
+  const inheritedChapterMode = settings?.chaptersMode?.value ?? 'auto';
 
   // Cue-only mode needs at least one enabled ad-break-start and ad-break-end
   // template; fetched here to gray out the option before the user picks it.
@@ -1037,7 +1042,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     <p className="text-xs text-destructive">{titleSkipPatternError}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Patterns match the whole episode title, case-insensitively. Use * as a wildcard: Bonus Episode * skips titles starting with Bonus Episode. Without a wildcard the whole title must match.
+                    Match the whole title, ignoring case. Use * as a wildcard, for example Bonus Episode *.
                   </p>
                 </div>
               </div>
@@ -1078,21 +1083,25 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             defaultOpen
             storageKey={`feed-chapters-${slug}`}
           >
-            <div className="space-y-4 pt-1">
+            <div className="space-y-4 pt-1 max-sm:[&_select]:min-h-11">
               {/* Per-feed chapter mode */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chapters:</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.chaptersMode ?? ''}
-                    onChange={(e) => updateMutation.mutate({ chaptersMode: e.target.value === '' ? null : e.target.value as 'auto' | 'generate' | 'off' })}
+                    onChange={(e) => {
+                      const next = e.target.value === '' ? null : e.target.value as 'auto' | 'generate' | 'off';
+                      if (nativeChapterGenerationBlocked && (next ?? inheritedChapterMode) !== 'off') return;
+                      updateMutation.mutate({ chaptersMode: next });
+                    }}
                     disabled={updateMutation.isPending}
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Chapters"
                   >
-                    <option value="">Inherit global ({settings?.chaptersMode?.value ?? 'auto'})</option>
-                    <option value="auto">Auto</option>
-                    <option value="generate">Always generate</option>
+                    <option value="" disabled={nativeChapterGenerationBlocked && inheritedChapterMode !== 'off'}>Inherit global ({inheritedChapterMode})</option>
+                    <option value="auto" disabled={nativeChapterGenerationBlocked}>Auto</option>
+                    <option value="generate" disabled={nativeChapterGenerationBlocked}>Always generate</option>
                     <option value="off">Off</option>
                   </select>
                   <p className="text-xs text-muted-foreground">
@@ -1100,6 +1109,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     the ad-free audio, and generates chapters when an episode has too
                     few. Always generate replaces them; Off leaves them untouched.
                   </p>
+                  {unsupportedChapterRoute && <p role="status" className="text-xs text-warning">System One cannot generate chapters. Select a chat provider and model.</p>}
                 </div>
               </div>
 
@@ -1255,7 +1265,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     How long processed audio for this feed stays on disk. Archive keeps every
-                    episode indefinitely, and survives the &ldquo;Clear all processed audio&rdquo;
+                    episode indefinitely, and survives the "Clear all processed audio"
                     action in Settings.
                   </p>
                 </div>

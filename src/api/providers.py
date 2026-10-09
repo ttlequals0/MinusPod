@@ -21,21 +21,23 @@ from config import (
     DEFAULT_OPENAI_BASE_URL, HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE,
     PROVIDER_ANTHROPIC, PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OPENROUTER,
+    PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE,
 )
 from database import Database
 from llm_client import (
-    get_effective_base_url, get_effective_failover_llm_api_key,
+    get_effective_base_url, get_effective_provider_from_snapshot, get_effective_failover_llm_api_key,
     get_effective_secondary_provider_api_key, _normalize_base_url_for_provider,
 )
 from llm_route import (
     SLOT_PRIMARY, VALID_SLOTS, account_identity_for_primary_provider,
-    account_identity_for_slot,
+    account_identity_for_slot, systemone_probe_model,
 )
 from provider_probe import (
     FIXED_PROVIDER_PROBES as _FIXED_PROVIDER_PROBES,
     models_request as _models_request,
     probe_fixed_endpoint as _probe_fixed_endpoint,
     probe_models_endpoint as _probe_models_endpoint,
+    probe_systemone_endpoint as _probe_systemone_endpoint,
     same_server as _same_server,
 )
 from rate_limit_hold import clear_hold_for_provider_change
@@ -54,11 +56,14 @@ _PROVIDERS = {
     'openrouter': {'secret': 'openrouter_api_key', 'base_url': None,                  'base_env': None,                 'model': None,                'env': 'OPENROUTER_API_KEY'},
     'whisper':    {'secret': 'whisper_api_key',    'base_url': 'whisper_api_base_url','base_env': 'WHISPER_API_BASE_URL','model': 'whisper_api_model', 'env': 'WHISPER_API_KEY'},
     'ollama':     {'secret': 'ollama_api_key',     'base_url': 'openai_base_url',     'base_env': 'OPENAI_BASE_URL',    'model': None,                'env': 'OLLAMA_API_KEY'},
+    'typesafe':   {'secret': 'typesafe_api_key',    'base_url': None,                  'base_env': None,                 'model': None,                'env': 'TYPESAFE_API_KEY'},
+    'systemone-compatible': {'secret': 'systemone_api_key', 'base_url': 'systemone_base_url', 'base_env': 'SYSTEMONE_BASE_URL', 'model': None, 'env': 'SYSTEMONE_API_KEY'},
 }
 
 # Providers whose key or endpoint feeds the LLM client, so a write here can
 # invalidate a rate-limit hold. Whisper is a separate service (#696).
-_LLM_PROVIDERS = ('anthropic', 'openai', 'openrouter', 'ollama')
+_LLM_PROVIDERS = ('anthropic', 'openai', 'openrouter', 'ollama',
+                  'typesafe', 'systemone-compatible')
 
 # This endpoint's provider names ('openai') differ from the internal
 # provider_key hold markers are keyed by ('openai-compatible'); map to the
@@ -68,6 +73,8 @@ _HOLD_PROVIDER_KEY = {
     'openai': PROVIDER_OPENAI_COMPATIBLE,
     'openrouter': PROVIDER_OPENROUTER,
     'ollama': PROVIDER_OLLAMA,
+    'typesafe': PROVIDER_TYPESAFE,
+    'systemone-compatible': PROVIDER_SYSTEMONE_COMPATIBLE,
 }
 
 
@@ -126,8 +133,12 @@ def _source_for(db, cfg) -> str:
 
 def _provider_status(db, cfg):
     source = _source_for(db, cfg)
+    configured = source != 'none' or bool(
+        cfg['secret'] == 'systemone_api_key'
+        and ((db.get_setting(cfg['base_url']) if cfg['base_url'] else None)
+             or (os.environ.get(cfg['base_env']) if cfg['base_env'] else None)))
     entry = {
-        'configured': source != 'none',
+        'configured': configured,
         'source': source,
     }
     if cfg['base_url']:
@@ -320,8 +331,24 @@ def test_provider(provider):
     cfg = _PROVIDERS[provider]
     db = Database()
     api_key = _resolve_key(db, cfg)
-    if not api_key:
+    if not api_key and provider != 'systemone-compatible':
         return json_response({'ok': False, 'error': 'no key configured'}, 200)
+
+    if provider in (PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE):
+        base = (db.get_setting(cfg['base_url']) or os.environ.get(cfg['base_env'], '')
+                if cfg['base_url'] else None)
+        if provider == PROVIDER_SYSTEMONE_COMPATIBLE:
+            if not base:
+                return json_response({'ok': False, 'error': 'base URL not configured'}, 200)
+            try:
+                validate_base_url(base)
+            except SSRFError:
+                return json_response(
+                    {'ok': False, 'error': 'base URL failed SSRF validation'}, 200)
+        result = _probe_systemone_endpoint(
+            provider, base, api_key or '', _systemone_probe_model(db, provider=provider),
+            credential_slot='primary', db=db)
+        return json_response(result, 200)
 
     if provider in _FIXED_PROVIDER_PROBES:
         url, header_fn = _FIXED_PROVIDER_PROBES[provider]
@@ -363,7 +390,8 @@ def test_provider(provider):
 # the configurable endpoint (accepting unsaved base URLs), fixed-endpoint
 # providers probe their public URLs (no baseUrl input).
 _CONNECTION_TEST_PROVIDERS = (
-    ('whisper', 'openai', 'ollama') + tuple(_FIXED_PROVIDER_PROBES))
+    ('whisper', 'openai', 'ollama', 'systemone-compatible')
+    + tuple(_FIXED_PROVIDER_PROBES))
 
 
 def _health_detail(health: dict) -> str:
@@ -385,6 +413,16 @@ def _health_detail(health: dict) -> str:
         return f"{hedge}{count} {noun}, disagreeing on {fields}."
     model = instances[0].get('model')
     return f"{hedge}{count} {noun} reporting {model}." if model else f"{hedge}{count} {noun}."
+
+
+def _systemone_probe_model(db, body=None, *, provider=None, credential_slot='primary'):
+    requested = (body or {}).get('model')
+    if isinstance(requested, str) and requested.strip():
+        return requested.strip()
+    settings = {key: entry['value'] for key, entry in db.get_all_settings().items()}
+    settings['llm_provider'] = get_effective_provider_from_snapshot(settings)
+    provider = provider or settings.get('llm_provider')
+    return systemone_probe_model(settings, provider, credential_slot)
 
 
 def _whisper_connection_test(saved: dict, body: dict):
@@ -440,13 +478,18 @@ def test_provider_connection(provider):
     if provider not in _CONNECTION_TEST_PROVIDERS:
         return error_response('unknown provider', 404)
 
+    body = request.get_json(silent=True) or {}
+
     if provider in _FIXED_PROVIDER_PROBES:
         # Fixed public endpoint: nothing configurable to accept from the
         # body, saved key only.
         api_key = _resolve_key(Database(), _PROVIDERS[provider]) or ''
+        if provider == PROVIDER_TYPESAFE:
+            db = Database()
+            return json_response(_probe_systemone_endpoint(
+                provider, None, api_key, _systemone_probe_model(db, body, provider=provider),
+                credential_slot='primary', db=db), 200)
         return json_response(_probe_fixed_endpoint(provider, api_key), 200)
-
-    body = request.get_json(silent=True) or {}
 
     if provider == 'whisper':
         # Saved values come from the same resolver the real transcription
@@ -454,6 +497,28 @@ def test_provider_connection(provider):
         # would do. Its base URL is empty when unconfigured, so the key
         # gate inside the helper fails closed.
         return _whisper_connection_test(transcriber._get_whisper_settings(), body)
+
+    if provider == PROVIDER_SYSTEMONE_COMPATIBLE:
+        db = Database()
+        cfg = _PROVIDERS[provider]
+        saved_base = db.get_setting(cfg['base_url']) or os.environ.get(cfg['base_env'], '')
+        base = body['baseUrl'] if 'baseUrl' in body else saved_base
+        if not isinstance(base, str) or not base.strip():
+            return json_response({'ok': False, 'reachable': False,
+                                  'detail': 'Enter a base URL first.'}, 200)
+        base = base.strip()
+        if url_has_userinfo(base):
+            return error_response(BASE_URL_USERINFO_ERROR, 400)
+        try:
+            validate_base_url(base)
+        except SSRFError:
+            return json_response({'ok': False, 'reachable': False,
+                                  'detail': 'Base URL failed SSRF validation.'}, 200)
+        saved_key = _resolve_key(db, cfg) or ''
+        api_key = saved_key if _same_server(base, saved_base) else ''
+        return json_response(_probe_systemone_endpoint(
+            provider, base, api_key, _systemone_probe_model(db, body, provider=provider),
+            credential_slot='primary', db=db), 200)
 
     # Resolve the default like the real LLM client (DB, then env, then default);
     # the key gate below only ever sees an explicitly saved URL, never that default.
@@ -493,7 +558,8 @@ def test_provider_connection(provider):
 # Provider types the secondary slot accepts, matching VALID_LLM_PROVIDERS
 # in api/settings.py (not importable here without a circular import).
 _SECONDARY_PROVIDER_TYPES = (
-    PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA)
+    PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE,
+    PROVIDER_OLLAMA, PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE)
 
 
 @api.route('/settings/providers/secondary/test-connection', methods=['POST'])
@@ -528,11 +594,11 @@ def test_failover_provider_connection():
         failover.failover_llm_config()['provider'],
         Database().get_setting('failover_llm_base_url') or '',
         get_effective_failover_llm_api_key, request.get_json(silent=True) or {},
-        'Configure a failover provider type first.')
+        'Configure a failover provider type first.', allow_systemone=False)
 
 
 def _llm_slot_connection_test(saved_type, gate_base: str, saved_key_fn, body: dict,
-                              missing_type_detail: str):
+                              missing_type_detail: str, allow_systemone=True):
     """Test a provider slot, reusing its saved key only for the saved provider type."""
     provider = body['provider'] if 'provider' in body else saved_type
     if provider is not None and not isinstance(provider, str):
@@ -543,6 +609,8 @@ def _llm_slot_connection_test(saved_type, gate_base: str, saved_key_fn, body: di
     if provider not in _SECONDARY_PROVIDER_TYPES:
         return error_response(
             f'provider must be one of: {", ".join(_SECONDARY_PROVIDER_TYPES)}', 400)
+    if not allow_systemone and provider in (PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE):
+        return error_response('System One providers cannot be used for failover', 400)
 
     # The stored key was entered for the saved type, so an unsaved type
     # override must not borrow it: that would ship the key to a vendor the
@@ -550,6 +618,31 @@ def _llm_slot_connection_test(saved_type, gate_base: str, saved_key_fn, body: di
     saved_key = ''
     if provider == (saved_type or ''):
         saved_key = saved_key_fn() or ''
+
+    if provider in (PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE):
+        base = (body['baseUrl'] if 'baseUrl' in body else gate_base) \
+            if provider == PROVIDER_SYSTEMONE_COMPATIBLE else None
+        if provider == PROVIDER_SYSTEMONE_COMPATIBLE:
+            if not isinstance(base, str) or not base.strip():
+                return json_response(
+                    {'ok': False, 'reachable': False,
+                     'detail': 'Enter a base URL first.'}, 200)
+            base = base.strip()
+            if url_has_userinfo(base):
+                return error_response(BASE_URL_USERINFO_ERROR, 400)
+            try:
+                validate_base_url(base)
+            except SSRFError:
+                return json_response(
+                    {'ok': False, 'reachable': False,
+                     'detail': 'Base URL failed SSRF validation.'}, 200)
+            api_key = saved_key if _same_server(base, gate_base) else ''
+        else:
+            api_key = saved_key
+        db = Database()
+        return json_response(_probe_systemone_endpoint(
+            provider, base, api_key, _systemone_probe_model(db, body, provider=provider, credential_slot='secondary'),
+            credential_slot='secondary', db=db), 200)
 
     if provider in _FIXED_PROVIDER_PROBES:
         return json_response(_probe_fixed_endpoint(provider, saved_key), 200)

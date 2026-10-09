@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.98.7
+  version: 2.99.0
   contact:
     name: MinusPod
   license:
@@ -3105,6 +3105,75 @@ paths:
         '400':
           $ref: '#/components/responses/LedgerDateBadRequest'
 
+  /stats/systemone:
+    get:
+      tags:
+      - Stats
+      summary: Get native System One call statistics
+      description: Logical calls include failures before HTTP dispatch. Requests count actual reserved dispatches;
+        logical latency and dispatch latency are measured separately in milliseconds. Known cost is a decimal
+        USD sum; unknown usage and cost counts include failed and cancelled requests.
+        Only allowlisted diagnostic evidence is included; prompts, transcripts, and credentials are excluded.
+        Statistics are retained for the ledger lifetime. Deleting a feed removes its associated diagnostics.
+      parameters: &id001
+      - name: from
+        in: query
+        schema:
+          type: string
+        description: Start of the selected UTC date range; accepts a date or ISO 8601 timestamp.
+      - name: to
+        in: query
+        schema:
+          type: string
+        description: Inclusive final UTC day; accepts a date or ISO 8601 timestamp.
+      - name: podcastSlug
+        in: query
+        schema:
+          type: string
+        description: Filter by exact podcast scope.
+      - name: provider
+        in: query
+        schema:
+          type: string
+        description: Filter by provider key.
+      - name: model
+        in: query
+        schema:
+          type: string
+        description: Filter by configured model ID.
+      responses:
+        '200':
+          description: Native logical-call and request aggregates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemOneStats'
+        '400':
+          $ref: '#/components/responses/LedgerDateBadRequest'
+  /stats/cleanup:
+    get:
+      tags:
+      - Stats
+      summary: Get Pattern Cleanup accounting and actions
+      description: Attributed usage, checks, and proposals use the cleanup run start date. Separate unattributedUsage
+        uses request time for older unlinked ledger rows and is absent under a podcastSlug filter. Only
+        podcast-scoped patterns have exact feed allocation; global, network, and historical unknown scopes
+        are unallocated. Provider/model filters require exact attempt attribution. Checked counts are attempts,
+        including failed or stale checks. Historical reported reviews are separate from exact checks; historical
+        per-run spend is unavailable. Superseded proposals and compact records of deleted patterns preserve
+        action totals. Applied means approved and not undone, including actions on subsequently deleted
+        patterns; it does not mean the pattern remains active.
+      parameters: *id001
+      responses:
+        '200':
+          description: Exact cleanup cohorts and historical coverage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanupStats'
+        '400':
+          $ref: '#/components/responses/LedgerDateBadRequest'
+
   /stats/episode-costs:
     get:
       tags:
@@ -5467,7 +5536,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [anthropic, openai, openrouter, whisper, ollama]
+            enum: [anthropic, openai, openrouter, whisper, ollama, typesafe, systemone-compatible]
       requestBody:
         required: true
         content:
@@ -5509,7 +5578,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [anthropic, openai, openrouter, whisper, ollama]
+            enum: [anthropic, openai, openrouter, whisper, ollama, typesafe, systemone-compatible]
       requestBody:
         required: false
         content:
@@ -5600,7 +5669,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [anthropic, openai, openrouter, whisper, ollama]
+            enum: [anthropic, openai, openrouter, whisper, ollama, typesafe, systemone-compatible]
       responses:
         '200':
           description: Test result (always 200; see `ok` field)
@@ -5634,6 +5703,11 @@ paths:
         fixed public endpoints with the saved key; the request body is
         ignored for them, distinguishing an unreachable network from a
         rejected or missing key.
+        `typesafe` and `systemone-compatible` send a native System One inference
+        request using the selected model and account every actual POST. TypeSafe
+        requires its own saved key. Compatible endpoints can omit a key; a saved
+        key is sent only to the same saved scheme, host and port. Native probes
+        share whole-operation admission and the selected profile deadline.
       operationId: testProviderConnection
       parameters:
         - in: path
@@ -5641,7 +5715,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [whisper, openai, ollama, anthropic, openrouter]
+            enum: [whisper, openai, ollama, anthropic, openrouter, typesafe, systemone-compatible]
       requestBody:
         required: false
         content:
@@ -5650,7 +5724,7 @@ paths:
               type: object
               properties:
                 baseUrl: { type: string, description: 'Base URL to test; when the key is absent the saved value is used' }
-                model:   { type: string, description: 'whisper only: model name to send; falls back to the saved value' }
+                model:   { type: string, description: 'Whisper or native System One model to test. Native probes use a selected supported-stage model on the target slot when omitted, and require a model if no such route exists' }
                 skipFlacCompression: { type: boolean, description: 'whisper only: upload WAV (true) or FLAC (false); falls back to the saved setting' }
       responses:
         '200':
@@ -5684,7 +5758,7 @@ paths:
               properties:
                 provider:
                   type: string
-                  enum: [anthropic, openrouter, openai-compatible, ollama]
+                  enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible]
                   description: Provider type to test; when absent the saved secondaryProvider is used
                 baseUrl:
                   type: string
@@ -5720,7 +5794,7 @@ paths:
               properties:
                 provider:
                   type: string
-                  enum: [anthropic, openrouter, openai-compatible, ollama]
+                  enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible]
                   description: Provider type to test; when absent the saved failoverLlmProvider is used
                 baseUrl:
                   type: string
@@ -6426,8 +6500,8 @@ paths:
                   example: 500
                 llmProvider:
                   type: string
-                  description: LLM provider to use (anthropic, openrouter, openai-compatible, ollama)
-                  enum: [anthropic, openai-compatible, ollama, openrouter]
+                  description: LLM provider for detection and verification; System One review is experimental. Chapters and Pattern Cleanup require a chat provider when enabled.
+                  enum: [anthropic, openai-compatible, ollama, openrouter, typesafe, systemone-compatible]
                   example: anthropic
                 omitTemperature:
                   type: boolean
@@ -6444,6 +6518,20 @@ paths:
                     category-repair, and trim-recovery calls to OpenAI-compatible endpoints,
                     for each model that passes the probe. Support is tracked per model, not
                     per endpoint; unsupported models fall back to json_object. Off by default.
+                typesafeApiKey:
+                  type: [string, 'null']
+                  writeOnly: true
+                  description: Primary TypeSafe key. Omit to preserve; null or empty clears the stored key and restores TYPESAFE_API_KEY fallback. Separate from chat-provider credentials.
+                systemoneApiKey:
+                  type: [string, 'null']
+                  writeOnly: true
+                  description: Optional primary compatible key. Omit to preserve; null or empty clears the stored key and restores SYSTEMONE_API_KEY fallback.
+                systemoneBaseUrl:
+                  type: [string, 'null']
+                  description: Primary compatible API base URL; MinusPod appends /systemone. Empty or null clears the saved endpoint and restores SYSTEMONE_BASE_URL fallback. Default empty. TypeSafe always uses its canonical endpoint.
+                  example: https://example.com/v1
+                systemOneTunables:
+                  $ref: '#/components/schemas/SystemOneProfilesPatch'
                 openaiBaseUrl:
                   type: string
                   description: Base URL for OpenAI-compatible API endpoint (only used when provider is not anthropic)
@@ -6478,7 +6566,7 @@ paths:
                 secondaryProvider:
                   type: [string, 'null']
                   description: Secondary provider type. Empty or null clears it.
-                  enum: [anthropic, openai-compatible, ollama, openrouter, '', null]
+                  enum: [anthropic, openai-compatible, ollama, openrouter, typesafe, systemone-compatible, '', null]
                   example: openai-compatible
                 secondaryProviderBaseUrl:
                   type: string
@@ -6559,13 +6647,12 @@ paths:
                   description: Alias of secondaryProviderTokensPerMin.
                 providerATimeoutSeconds:
                   anyOf:
-                    - type: integer
-                      minimum: 10
-                      maximum: 3600
+                    - type: number
+                      exclusiveMinimum: 0
                     - type: 'null'
                     - type: string
                       const: ''
-                  description: Request timeout for Provider A. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
+                  description: Request timeout for Provider A. Null or blank clears it to the provider-type default; omitted leaves it unchanged. Native providers accept positive finite fractional seconds; chat providers require integer seconds from 10 to 3600.
                 providerAMaxRetries:
                   anyOf:
                     - type: integer
@@ -6577,13 +6664,12 @@ paths:
                   description: Max retries for Provider A. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
                 providerBTimeoutSeconds:
                   anyOf:
-                    - type: integer
-                      minimum: 10
-                      maximum: 3600
+                    - type: number
+                      exclusiveMinimum: 0
                     - type: 'null'
                     - type: string
                       const: ''
-                  description: Request timeout for Provider B. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
+                  description: Request timeout for Provider B. Null or blank clears it to the provider-type default; omitted leaves it unchanged. Native providers accept positive finite fractional seconds; chat providers require integer seconds from 10 to 3600.
                 providerBMaxRetries:
                   anyOf:
                     - type: integer
@@ -6984,10 +7070,10 @@ paths:
         - name: provider
           in: query
           required: false
-          description: Preview models for this provider without saving settings. Valid values are anthropic, openrouter, openai-compatible, ollama.
+          description: Preview models for this provider without saving settings. Valid values are anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible.
           schema:
             type: string
-            enum: [anthropic, openrouter, openai-compatible, ollama]
+            enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible]
         - name: slot
           in: query
           required: false
@@ -11458,6 +11544,439 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    SystemOneTuning:
+      type: object
+      additionalProperties: false
+      properties:
+        maxConcurrentOperations:
+          type: integer
+          minimum: 1
+          default: 4
+          description: Whole native operations per process. Profiles with the same endpoint and credential share the strictest active or queued limit; queue waits consume the operation deadline.
+        retryAfterMaxSeconds:
+          type: number
+          minimum: 0
+          default: 5
+          description: Maximum first-retry upstream hint wait in seconds, including jitter. Zero permits no hint wait; the operation deadline also bounds waits.
+        detectionEnter:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.95
+        detectionStay:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.4
+          description: Must not exceed detectionEnter.
+        categoryPass:
+          type: boolean
+          default: true
+        categoryContext:
+          type: integer
+          minimum: 0
+          default: 2
+          description: Transcript segments on each side of a classified span.
+        defaultCategory:
+          type: string
+          enum:
+          - sponsor
+          - cross_promo
+          - self_promo
+          - interaction
+          - intro
+          - outro
+          - recap
+          default: sponsor
+        refineBoundaries:
+          type: boolean
+          default: false
+        reviewEvidenceEnter:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 1
+          default: null
+          description: Null selects the model evidence threshold.
+        reviewChoiceEnter:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 1
+          default: null
+          description: Null selects the model choice threshold.
+        reviewProgrammeVeto:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.85
+        reviewBoundaryCapSeconds:
+          type: number
+          exclusiveMinimum: 0
+          default: 60.0
+          description: Maximum boundary movement in seconds.
+        reviewContextSeconds:
+          type: number
+          exclusiveMinimum: 0
+          default: 30.0
+          description: Focused review context window in seconds.
+        requestDeadlineSeconds:
+          type: number
+          exclusiveMinimum: 0
+          default: 75.0
+          description: Absolute logical-operation deadline in seconds, shared by requests and retry waits.
+        maxQuestionsPerRequest:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          default: null
+          description: Null disables the configured question-count cap.
+        maxRequestBytes:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          default: null
+          description: Serialized UTF-8 request byte cap; null disables the configured byte cap. This is not
+            a token limit.
+        maxChoiceOptions:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          description: Compatible backend Choice option cap, or null. TypeSafe uses a fixed cap of 255 options.
+    SystemOneTypeSafeTuning:
+      allOf:
+      - $ref: '#/components/schemas/SystemOneTuning'
+      - type: object
+        properties:
+          maxChoiceOptions:
+            type: integer
+            const: 255
+    SystemOneProfiles:
+      type: object
+      additionalProperties: false
+      properties:
+        primary:
+          type: object
+          additionalProperties: false
+          properties:
+            typesafe:
+              $ref: '#/components/schemas/SystemOneTypeSafeTuning'
+            systemone-compatible:
+              $ref: '#/components/schemas/SystemOneTuning'
+        secondary:
+          type: object
+          additionalProperties: false
+          properties:
+            typesafe:
+              $ref: '#/components/schemas/SystemOneTypeSafeTuning'
+            systemone-compatible:
+              $ref: '#/components/schemas/SystemOneTuning'
+    SystemOneProfileDefaults:
+      type: object
+      properties:
+        primary:
+          type: object
+          properties:
+            typesafe:
+              type: boolean
+            systemone-compatible:
+              type: boolean
+        secondary:
+          type: object
+          properties:
+            typesafe:
+              type: boolean
+            systemone-compatible:
+              type: boolean
+    SystemOneProfilesPatch:
+      type: object
+      additionalProperties: false
+      description: Partial nested merge by credential slot and provider type. Unspecified slots, providers,
+        and fields retain saved values. Null resets one complete profile to shipped defaults. Values survive
+        provider type switches. TypeSafe and compatible profiles are independent for both slots. Unsupported
+        keys and invalid cross-field combinations return 400. Bulk ad-detection reset restores all profiles.
+      properties:
+        primary:
+          type: object
+          additionalProperties: false
+          properties:
+            typesafe:
+              oneOf:
+              - $ref: '#/components/schemas/SystemOneTypeSafeTuning'
+              - type: 'null'
+            systemone-compatible:
+              oneOf:
+              - $ref: '#/components/schemas/SystemOneTuning'
+              - type: 'null'
+        secondary:
+          type: object
+          additionalProperties: false
+          properties:
+            typesafe:
+              oneOf:
+              - $ref: '#/components/schemas/SystemOneTypeSafeTuning'
+              - type: 'null'
+            systemone-compatible:
+              oneOf:
+              - $ref: '#/components/schemas/SystemOneTuning'
+              - type: 'null'
+      example:
+        primary:
+          typesafe:
+            detectionEnter: 0.98
+        secondary:
+          systemone-compatible: null
+    CleanupUsage:
+      type: object
+      required:
+      - requests
+      - inputTokens
+      - outputTokens
+      - knownCostUsd
+      - unknownUsageRequestCount
+      - unknownCostRequestCount
+      properties:
+        requests:
+          type: integer
+          minimum: 0
+        inputTokens:
+          type: integer
+          minimum: 0
+        outputTokens:
+          type: integer
+          minimum: 0
+        knownCostUsd:
+          type: string
+          description: Exact decimal USD sum of known attempt costs; partial known spend remains visible.
+        unknownUsageRequestCount:
+          type: integer
+          minimum: 0
+        unknownCostRequestCount:
+          type: integer
+          minimum: 0
+    CleanupActionCounts:
+      type: object
+      required:
+      - proposed
+      - accepted
+      - applied
+      - reverted
+      properties:
+        proposed:
+          type: integer
+          minimum: 0
+          description: Distinct run/pattern/kind proposal count, including superseded records.
+        accepted:
+          type: integer
+          minimum: 0
+          description: Approved or undone actions.
+        applied:
+          type: integer
+          minimum: 0
+          description: Approved actions not undone; includes deleted patterns.
+        reverted:
+          type: integer
+          minimum: 0
+          description: Undone actions.
+    SystemOneStats:
+      type: object
+      required:
+      - calls
+      - requests
+      - dispatchLatencyMsTotal
+      - logicalLatencyMsTotal
+      - logicalLatencyMsAverage
+      - tokens
+      - costUsd
+      - unknownCostRequestCount
+      - outcomes
+      - reviewReasons
+      - refinements
+      - refinementSkipReasons
+      properties:
+        calls:
+          type: integer
+          minimum: 0
+        requests:
+          type: integer
+          minimum: 0
+        dispatchLatencyMsTotal:
+          type: integer
+          minimum: 0
+        logicalLatencyMsTotal:
+          type: integer
+          minimum: 0
+        logicalLatencyMsAverage:
+          type:
+          - number
+          - 'null'
+          description: Mean of measured logical-call durations in milliseconds; null when no duration is available.
+        tokens:
+          type: object
+          properties:
+            input:
+              type: integer
+              minimum: 0
+            output:
+              type: integer
+              minimum: 0
+            unknownRequestCount:
+              type: integer
+              minimum: 0
+        costUsd:
+          type: string
+          description: Exact decimal sum in USD, including reported or provider-scoped estimated costs.
+        unknownCostRequestCount:
+          type: integer
+          minimum: 0
+        outcomes:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+          properties:
+            completed:
+              type: integer
+              minimum: 0
+            failed:
+              type: integer
+              minimum: 0
+            inconclusive:
+              type: integer
+              minimum: 0
+        reviewReasons:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+        refinements:
+          type: object
+          properties:
+            attempted:
+              type: integer
+              minimum: 0
+            completed:
+              type: integer
+              minimum: 0
+            skipped:
+              type: integer
+              minimum: 0
+            inconclusive:
+              type: integer
+              minimum: 0
+            upstream_error:
+              type: integer
+              minimum: 0
+        refinementSkipReasons:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+    CleanupStats:
+      type: object
+      required:
+      - runs
+      - patterns
+      - actions
+      - usage
+      - unattributedUsage
+      - coverage
+      properties:
+        runs:
+          type: object
+          properties:
+            total:
+              type: integer
+              minimum: 0
+            running:
+              type: integer
+              minimum: 0
+            completed:
+              type: integer
+              minimum: 0
+            failed:
+              type: integer
+              minimum: 0
+            exactAccounting:
+              type: integer
+              minimum: 0
+            legacy:
+              type: integer
+              minimum: 0
+        patterns:
+          type: object
+          properties:
+            checked:
+              type: integer
+              minimum: 0
+            distinctChecked:
+              type: integer
+              minimum: 0
+            modelReviewed:
+              type: integer
+              minimum: 0
+            proposed:
+              type: integer
+              minimum: 0
+            changed:
+              type: integer
+              minimum: 0
+            legacyReportedReviews:
+              type: integer
+              minimum: 0
+          description: checked is one attempt per pattern per run; distinctChecked/proposed/changed count
+            distinct pattern IDs. modelReviewed includes completed and stale reviews. legacyReportedReviews
+            preserves old run counters without claiming exact checks.
+        actions:
+          type: object
+          properties:
+            trim:
+              $ref: '#/components/schemas/CleanupActionCounts'
+            split:
+              $ref: '#/components/schemas/CleanupActionCounts'
+            rename:
+              $ref: '#/components/schemas/CleanupActionCounts'
+            retire:
+              $ref: '#/components/schemas/CleanupActionCounts'
+            flag:
+              $ref: '#/components/schemas/CleanupActionCounts'
+            category:
+              $ref: '#/components/schemas/CleanupActionCounts'
+          description: Stored action kinds. Rename means a sponsor rename. Composite trim/split/flag actions
+            may also change sponsors or categories; these are counted once under their actual kind.
+        usage:
+          $ref: '#/components/schemas/CleanupUsage'
+        unattributedUsage:
+          oneOf:
+          - $ref: '#/components/schemas/CleanupUsage'
+          - type: 'null'
+        coverage:
+          type: object
+          properties:
+            historicalRunCountWithUnknownSpend:
+              type: integer
+              minimum: 0
+            historicalChecksAvailable:
+              type: boolean
+              const: false
+            historicalScopeAvailable:
+              type: boolean
+              const: false
+            unattributedProposalCount:
+              type: integer
+              minimum: 0
+            proposalHistoryCompleteSince:
+              type:
+              - string
+              - 'null'
+              format: date-time
+              description: Start of durable proposal tracking; older deleted proposals cannot be reconstructed.
+
     RuntimeConfigDocument:
       type: object
       required: [format, formatVersion, settings, feeds]
@@ -15577,7 +16096,7 @@ components:
           properties:
             value:
               type: string
-              description: Active LLM provider (anthropic, openrouter, openai-compatible, ollama)
+              description: Active LLM provider (anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible)
             isDefault:
               type: boolean
         omitTemperature:
@@ -15599,6 +16118,25 @@ components:
               type: boolean
             isDefault:
               type: boolean
+        typesafeApiKeyConfigured:
+          type: boolean
+          readOnly: true
+          description: Effective primary stored or environment key exists; no key material is returned.
+        systemoneApiKeyConfigured:
+          type: boolean
+          readOnly: true
+          description: Effective primary compatible stored or environment key exists; no key material is returned.
+        systemoneBaseUrl:
+          type: object
+          properties:
+            value: {type: string}
+            isDefault: {type: boolean}
+        systemOneTunables:
+          $ref: '#/components/schemas/SystemOneProfiles'
+        systemOneTunablesIsDefault:
+          $ref: '#/components/schemas/SystemOneProfileDefaults'
+        systemOneTunableDefaults:
+          $ref: '#/components/schemas/SystemOneProfiles'
         openaiBaseUrl:
           type: object
           properties:
@@ -15785,10 +16323,10 @@ components:
               type: boolean
         providerATimeoutSeconds:
           type: object
-          description: Request timeout for Provider A. Null value means the provider-type default.
+          description: Request timeout for Provider A. Null value means the provider-type default. Native providers accept positive finite fractional seconds; chat providers require integer seconds from 10 to 3600.
           properties:
             value:
-              type: [integer, 'null']
+              type: [number, 'null']
             isDefault:
               type: boolean
         providerAMaxRetries:
@@ -15801,10 +16339,10 @@ components:
               type: boolean
         providerBTimeoutSeconds:
           type: object
-          description: Request timeout for Provider B. Null value means the provider-type default.
+          description: Request timeout for Provider B. Null value means the provider-type default. Native providers accept positive finite fractional seconds; chat providers require integer seconds from 10 to 3600.
           properties:
             value:
-              type: [integer, 'null']
+              type: [number, 'null']
             isDefault:
               type: boolean
         providerBMaxRetries:
@@ -16108,11 +16646,11 @@ components:
             secondaryProviderTokensPerMin:
               type: integer
             providerATimeoutSeconds:
-              type: [integer, 'null']
+              type: [number, 'null']
             providerAMaxRetries:
               type: [integer, 'null']
             providerBTimeoutSeconds:
-              type: [integer, 'null']
+              type: [number, 'null']
             providerBMaxRetries:
               type: [integer, 'null']
             failoverLlmEnabled:
@@ -16250,6 +16788,9 @@ components:
               maximum: 3600
             llmProvider:
               type: string
+            systemoneBaseUrl:
+              type: string
+              default: ''
             openaiBaseUrl:
               type: string
             pricingSourceMode:

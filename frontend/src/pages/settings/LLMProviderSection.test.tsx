@@ -12,6 +12,8 @@ const providersState: ProvidersResponse = {
   openrouter: { configured: false, source: 'none' },
   whisper: { configured: false, source: 'none' },
   ollama: { configured: false, source: 'none' },
+  typesafe: { configured: false, source: 'none' },
+  'systemone-compatible': { configured: false, source: 'none' },
 };
 
 function renderSection(overrides: Partial<Parameters<typeof LLMProviderSection>[0]> = {}) {
@@ -21,9 +23,11 @@ function renderSection(overrides: Partial<Parameters<typeof LLMProviderSection>[
     <LLMProviderSection
       llmProvider="anthropic"
       openaiBaseUrl=""
+      systemoneBaseUrl=""
       pricingSourceMode="auto"
       onProviderChange={vi.fn()}
       onBaseUrlChange={vi.fn()}
+      onSystemOneBaseUrlChange={vi.fn()}
       onPricingSourceModeChange={vi.fn()}
       providersState={providersState}
       onProviderKeySave={vi.fn().mockResolvedValue(undefined)}
@@ -89,6 +93,20 @@ describe('LLMProviderSection: Provider A / Provider B labeling', () => {
     expect((screen.getByLabelText('Provider B request timeout (seconds)') as HTMLInputElement).placeholder).toBe('600');
     expect((screen.getByLabelText('Provider B max retries') as HTMLInputElement).placeholder).toBe('2');
     expect(screen.getAllByText('Blank uses the provider default. 0 sends one request with no retries.')).toHaveLength(2);
+  });
+
+  it('accepts fractional native timeouts without imposing chat timeout limits', async () => {
+    const onProviderATimeoutSecondsChange = vi.fn();
+    renderSection({ llmProvider: 'typesafe', secondaryProviderEnabled: true, secondaryProvider: 'anthropic', onProviderATimeoutSecondsChange });
+    const native = screen.getByLabelText('Provider A request timeout (seconds)') as HTMLInputElement;
+    await userEvent.setup().type(native, '0.25');
+    expect(onProviderATimeoutSecondsChange).toHaveBeenLastCalledWith(0.25);
+    expect(native.validity.valid).toBe(true);
+    expect(native.max).toBe('');
+    const chat = screen.getByLabelText('Provider B request timeout (seconds)') as HTMLInputElement;
+    expect(chat.min).toBe('10');
+    expect(chat.max).toBe('3600');
+    expect(chat.step).toBe('1');
   });
 });
 

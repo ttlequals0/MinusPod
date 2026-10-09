@@ -9,6 +9,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.99.0] - 2026-10-09
+
+### Added
+- Native TypeSafe and System One-compatible providers for ad detection and verification, with supported ad categorization and experimental review. Each credential slot retains independent profiles, including request limits and shared per-process concurrency controls. Chapter generation, Pattern Cleanup, and chat failover enforce provider capabilities.
+- System One statistics distinguish logical calls from actual HTTP attempts, with diagnostics, retries, latency, and usage coverage. Pattern Cleanup statistics separate runs, checks, suggestions, accepted actions, currently applied actions, and reversions, while identifying unavailable historical accounting and feed attribution.
+- System One setup and manual proxy migration documentation. Configuration import and export preserve independent profiles and encrypted credentials.
+
+### Changed
+- Stats links to System One and Cleanup activity. Filters use aligned controls across Stats, History, Sponsors, and Patterns, with paired date fields on mobile.
+- Shorter guidance across pages, settings and dialogs. Detailed behavior stays in documentation, following the design guide.
+
 ## [2.98.7] - 2026-10-08
 
 ### Fixed
