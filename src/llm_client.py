@@ -20,6 +20,7 @@ Configuration via environment variables:
         OPENAI_API_KEY: API key if required (default: "not-needed")
 """
 
+import copy
 import json
 import logging
 import os
@@ -68,6 +69,7 @@ from config import (
 )
 from llm_capabilities import (
     classify_reasoning_rejection,
+    anthropic_model_supports_forced_tools,
     get_pass_defaults,
     is_fallback_eligible_error,
     is_fallback_set,
@@ -156,6 +158,23 @@ _JSON_FORMAT_SYSTEM_INSTRUCTION = (
     "4. Use null for missing values (not None)\n"
     "Malformed JSON causes parsing failures.</output_format>"
 )
+
+_STRUCTURED_TOOL_SYSTEM_INSTRUCTION = (
+    "\n\nWhen a structured-output tool is provided, call that expected tool "
+    "and return its object. Do not answer with free text."
+)
+
+
+def _strict_anthropic_schema(schema):
+    """Copy a schema and close every object without changing its fields."""
+    if isinstance(schema, list):
+        return [_strict_anthropic_schema(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+    result = {key: _strict_anthropic_schema(value) for key, value in schema.items()}
+    if result.get('type') == 'object':
+        result['additionalProperties'] = False
+    return result
 
 # Substrings seen in 400s from endpoints that reject response_format / structured outputs.
 _JSON_MODE_REJECTIONS = ("response_format", "structured-outputs", "structured outputs",
@@ -353,14 +372,7 @@ def _omit_temperature_override() -> bool:
 
 
 def supports_json_schema_for_calls(model: str | None = None) -> bool:
-    """Structured-output gate for OpenAI-compatible endpoints (#693/#694).
-
-    Deliberately narrower than llm_capabilities.supports_json_schema, which
-    answers for Anthropic: a json_schema request on the Anthropic path forces
-    a tool_choice call, and Anthropic rejects that alongside the extended
-    thinking a configured reasoning budget turns on. Only the category-repair
-    site, which sends no reasoning budget, ORs the two. Do not merge them.
-    """
+    """Return the configured schema-probe result for the active OpenAI endpoint."""
     if get_effective_provider() != PROVIDER_OPENAI_COMPATIBLE:
         return False
     if not coerce_bool_setting(_get_cached_setting('llm_json_schema_enabled')):
@@ -598,7 +610,7 @@ def _record_reasoning_fallback_notice(
     compatibility = classify_reasoning_rejection(error)
     requested_value = _safe_reasoning_value(requested)
     if (compatibility is None or requested_value == 'redacted'
-            or not translate_reasoning_effort(provider, requested)):
+            or not translate_reasoning_effort(provider, requested, model)):
         return
     ctx = run_context.current()
     if (ctx is None or not ctx.run_id
@@ -821,30 +833,7 @@ class LLMClient(ABC):
         episode_id: str | None = None,
         pass_name: str | None = None,
     ) -> LLMResponse:
-        """Send a completion request (synchronous).
-
-        Args:
-            model: Model identifier
-            max_tokens: Maximum tokens in response
-            system: System prompt
-            messages: List of message dicts with 'role' and 'content'
-            temperature: Sampling temperature (0.0 = deterministic)
-            timeout: Request timeout in seconds
-            response_format: Optional format specification (e.g., {"type": "json_object"})
-                           Used by OpenAI-compatible APIs to enforce JSON output
-            reasoning_effort: Provider-aware reasoning control. Integer token budget
-                for Anthropic (extended thinking), string enum ("none"|"low"|"medium"|"high")
-                for other providers, or None to omit reasoning configuration.
-            episode_id: Episode identifier for per-pass fallback flag scoping.
-            pass_name: Pass identifier (e.g. "ad_detection_pass_1") for per-pass
-                fallback flag scoping. When both episode_id and pass_name are set,
-                a 4xx from the provider sets a fallback flag and the call is retried
-                with built-in defaults; remaining calls in the same pass use the
-                defaults too. Cleared explicitly by the orchestrator between passes.
-
-        Returns:
-            LLMResponse with content, model, and usage info
-        """
+        """Send a completion request with provider-compatible response settings."""
         pass
 
     @abstractmethod
@@ -901,19 +890,14 @@ class AnthropicClient(LLMClient):
         self._check_circuit_breaker()
         self._ensure_client()
 
-        # Anthropic doesn't support response_format natively; inject JSON
-        # instructions into the system prompt when requested. A 'json_schema'
-        # request forces a tool call below instead; the two are mutually exclusive.
+        # Anthropic uses prompt instructions for json_object and tools for json_schema.
         effective_system = system
         if response_format and response_format.get('type') == 'json_object':
             if '<output_format>' not in system:
                 effective_system = system + _JSON_FORMAT_SYSTEM_INSTRUCTION
                 logger.debug("Added JSON format instructions to system prompt")
 
-        # 'json_schema' forces a tool call so the Messages API validates the
-        # response against the tool's input_schema (gated by
-        # llm_capabilities.supports_json_schema): a real guarantee instead of
-        # prompt-injected instructions the model can ignore.
+        # Structured responses use tools, with strict auto choice when required.
         tool_spec = None
         if response_format and response_format.get('type') == 'json_schema':
             schema_cfg = response_format.get('json_schema') or {}
@@ -921,7 +905,8 @@ class AnthropicClient(LLMClient):
                 "name": schema_cfg.get('name', 'structured_output'),
                 "description": schema_cfg.get(
                     'description', 'Return the structured result.'),
-                "input_schema": schema_cfg.get('schema', {"type": "object"}),
+                "input_schema": copy.deepcopy(
+                    schema_cfg.get('schema', {"type": "object"})),
             }
 
         # If a previous call in this pass already tripped the fallback flag,
@@ -929,6 +914,23 @@ class AnthropicClient(LLMClient):
         eff_max, eff_temp, eff_reasoning, started_in_fallback = _apply_pass_fallback(
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
+
+        structured_tool_auto = tool_spec is not None and (
+            not anthropic_model_supports_forced_tools(model)
+            or translate_reasoning_effort(
+                PROVIDER_ANTHROPIC, eff_reasoning, model).get('thinking', {}).get('type')
+            == 'enabled'
+        )
+        if structured_tool_auto:
+            effective_system += _STRUCTURED_TOOL_SYSTEM_INSTRUCTION
+
+        system_blocks = None
+        if effective_system:
+            system_blocks = [{
+                "type": "text",
+                "text": effective_system,
+                "cache_control": {"type": "ephemeral", "ttl": "5m"},
+            }]
 
         # Operator override (settings.omit_temperature) takes priority over
         # the static list / learned memo; see model_omits_temperature().
@@ -941,7 +943,7 @@ class AnthropicClient(LLMClient):
             kw = dict(
                 model=model,
                 max_tokens=tok,
-                system=effective_system,
+                system=system_blocks if system_blocks is not None else "",
                 messages=messages,
                 timeout=timeout,
             )
@@ -953,10 +955,26 @@ class AnthropicClient(LLMClient):
             # 400 for no-sampling models is unchanged.
             if not model_omits_temperature(model, omit_temp_override):
                 kw["extra_body"] = {"temperature": tmp}
-            kw.update(translate_reasoning_effort(PROVIDER_ANTHROPIC, reasoning))
+            reasoning_kwargs = translate_reasoning_effort(
+                PROVIDER_ANTHROPIC, reasoning, model)
+            kw.update(reasoning_kwargs)
             if tool_spec is not None:
-                kw["tools"] = [tool_spec]
-                kw["tool_choice"] = {"type": "tool", "name": tool_spec["name"]}
+                use_auto = (
+                    not anthropic_model_supports_forced_tools(model)
+                    or reasoning_kwargs.get('thinking', {}).get('type') == 'enabled'
+                )
+                active_tool = tool_spec
+                if use_auto:
+                    active_tool = {
+                        **tool_spec,
+                        "input_schema": _strict_anthropic_schema(tool_spec["input_schema"]),
+                        "strict": True,
+                    }
+                kw["tools"] = [active_tool]
+                kw["tool_choice"] = (
+                    {"type": "auto"} if use_auto
+                    else {"type": "tool", "name": tool_spec["name"]}
+                )
             # 429 is throttling, not a provider failure; 4xx tunable rejections
             # also skip the breaker because the _send_with_fallback wrapper is
             # about to retry. Both are handled in the wrapper.
@@ -979,12 +997,12 @@ class AnthropicClient(LLMClient):
             for block in blocks
         )
         if tool_spec is not None:
-            # Forced tool_choice guarantees exactly one tool_use block; its
-            # `input` is the schema-validated answer. Re-serialize to JSON
-            # text since downstream parsing expects a JSON string.
+            # Only the requested object is a valid structured response.
             content = ""
             for block in blocks:
-                if getattr(block, 'type', None) == 'tool_use':
+                if (getattr(block, 'type', None) == 'tool_use'
+                        and getattr(block, 'name', None) == tool_spec['name']
+                        and isinstance(getattr(block, 'input', None), dict)):
                     content = json.dumps(block.input)
                     break
         else:
@@ -1003,8 +1021,9 @@ class AnthropicClient(LLMClient):
 
         usage = None
         if response.usage:
+            input_tokens = response.usage.input_tokens
             usage = {
-                'input_tokens': response.usage.input_tokens,
+                'input_tokens': input_tokens,
                 'output_tokens': response.usage.output_tokens
             }
             cache_write = _numeric_usage_value(
@@ -1015,6 +1034,9 @@ class AnthropicClient(LLMClient):
                 usage['cache_write_tokens'] = cache_write
             if cache_read is not None:
                 usage['cache_read_tokens'] = cache_read
+            if cache_write is not None or cache_read is not None:
+                raw_input = _numeric_usage_value(input_tokens)
+                usage['input_tokens'] = (raw_input or 0) + (cache_write or 0) + (cache_read or 0)
 
         llm_response = LLMResponse(
             content=content,

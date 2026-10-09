@@ -6697,11 +6697,11 @@ paths:
                   example: 4096
                 detectionReasoningBudget:
                   type: [integer, 'null']
-                  description: Anthropic extended-thinking token budget (1024-65536). Only valid when llmProvider is anthropic.
+                  description: Manual Anthropic thinking budget (1024-65536 tokens). Used only when the routed model accepts manual budgets; otherwise kept as a dormant setting.
                 detectionReasoningLevel:
                   type: [string, 'null']
                   enum: [none, low, medium, high, null]
-                  description: Reasoning effort level for non-Anthropic providers. Rejected when llmProvider is anthropic.
+                  description: Effort for adaptive-only Anthropic models and other providers. Null restores the default. none disables thinking where supported, or uses low effort on models that require thinking.
                 verificationTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for the verification (pass 2) LLM call.
@@ -6710,11 +6710,11 @@ paths:
                   description: Maximum response tokens (128-32768) for the verification pass.
                 verificationReasoningBudget:
                   type: [integer, 'null']
-                  description: Anthropic-only reasoning budget for verification pass.
+                  description: Manual Anthropic thinking budget for verification pass. Dormant when the routed model uses effort or another provider.
                 verificationReasoningLevel:
                   type: [string, 'null']
                   enum: [none, low, medium, high, null]
-                  description: Reasoning effort level for verification pass (non-Anthropic).
+                  description: Reasoning effort for verification pass, including adaptive-only Anthropic models. Dormant when the routed model uses a manual budget.
                 reviewerTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for both reviewer passes.
@@ -6723,11 +6723,11 @@ paths:
                   description: Maximum response tokens (128-32768) for the reviewer.
                 reviewerReasoningBudget:
                   type: [integer, 'null']
-                  description: Anthropic-only reasoning budget for the reviewer.
+                  description: Manual Anthropic thinking budget for the reviewer. Dormant when the routed model uses effort or another provider.
                 reviewerReasoningLevel:
                   type: [string, 'null']
                   enum: [none, low, medium, high, null]
-                  description: Reasoning effort level for the reviewer (non-Anthropic).
+                  description: Reasoning effort for the reviewer, including adaptive-only Anthropic models. Dormant when the routed model uses a manual budget.
                 chapterBoundaryTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for chapter boundary detection.
@@ -6736,11 +6736,11 @@ paths:
                   description: Maximum response tokens (128-32768) for chapter boundary detection.
                 chapterBoundaryReasoningBudget:
                   type: [integer, 'null']
-                  description: Anthropic-only reasoning budget for chapter boundary detection.
+                  description: Manual Anthropic thinking budget for chapter boundary detection. Dormant when the routed model uses effort or another provider.
                 chapterBoundaryReasoningLevel:
                   type: [string, 'null']
                   enum: [none, low, medium, high, null]
-                  description: Reasoning effort level for chapter boundary detection (non-Anthropic).
+                  description: Reasoning effort for chapter boundary detection, including adaptive-only Anthropic models. Dormant when the routed model uses a manual budget.
                 chapterTargetSeconds:
                   type: integer
                   description: >-
@@ -6771,11 +6771,11 @@ paths:
                   description: Maximum response tokens (128-32768) for chapter title generation.
                 chapterTitleReasoningBudget:
                   type: [integer, 'null']
-                  description: Anthropic-only reasoning budget for chapter title generation.
+                  description: Manual Anthropic thinking budget for chapter title generation. Dormant when the routed model uses effort or another provider.
                 chapterTitleReasoningLevel:
                   type: [string, 'null']
                   enum: [none, low, medium, high, null]
-                  description: Reasoning effort level for chapter title generation (non-Anthropic).
+                  description: Reasoning effort for chapter title generation, including adaptive-only Anthropic models. Dormant when the routed model uses a manual budget.
                 ollamaNumCtx:
                   type: [integer, 'null']
                   description: Ollama context window in tokens (512-131072). Only valid when llmProvider is ollama.
@@ -13564,12 +13564,15 @@ components:
           description: Model id the provider reported serving, when it differs from the configured one.
         inputTokens:
           type: integer
+          description: Total input tokens, including Anthropic cache reads and writes.
         outputTokens:
           type: integer
         cacheReadTokens:
           type: integer
+          description: Input tokens read from a provider prompt cache. Included in Anthropic inputTokens.
         cacheWriteTokens:
           type: integer
+          description: Input tokens written to a provider prompt cache. Included in Anthropic inputTokens.
         reasoningTokens:
           type: integer
         costUsd:

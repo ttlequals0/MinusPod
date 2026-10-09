@@ -3304,8 +3304,8 @@ def _stage_tunable_values(db, data, *, allow_inactive_tunables=False):
     kind_rules = {
         'float': (coerce_float, 'a number', None, True),
         'int': (coerce_int, 'an integer', None, True),
-        'budget': (coerce_int, 'an integer', 'anthropic', True),
-        'level': (coerce_level, None, 'not_anthropic', False),
+        'budget': (coerce_int, 'an integer', None, True),
+        'level': (coerce_level, None, None, False),
         'ollama_ctx': (coerce_int, 'an integer', 'ollama', True),
     }
     provider = None

@@ -10,6 +10,8 @@ from llm_capabilities import (
     PASS_REVIEWER_2,
     clear_fallback,
     get_pass_defaults,
+    anthropic_model_requires_adaptive_thinking,
+    anthropic_model_supports_forced_tools,
     is_fallback_eligible_error,
     is_fallback_set,
     is_temperature_rejection_error,
@@ -129,6 +131,44 @@ class TestTranslateReasoningEffort:
             "extra_body": {"reasoning": {"effort": "high"}}
         }
 
+    def test_adaptive_only_models_use_effort_and_ignore_budgets(self):
+        assert anthropic_model_requires_adaptive_thinking(
+            "anthropic/claude-sonnet-5-5-20250929")
+        assert translate_reasoning_effort(
+            "anthropic", 8192, "claude-sonnet-5-5") == {}
+        assert translate_reasoning_effort(
+            "anthropic", "HIGH", "claude-sonnet-5-5") == {
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "high"},
+            }
+        assert translate_reasoning_effort(
+            "anthropic", None, "claude-opus-5-5") == {}
+
+    def test_adaptive_optional_disabled_and_model_boundaries(self):
+        assert translate_reasoning_effort(
+            "anthropic", "none", "claude-opus-5") == {
+                "thinking": {"type": "disabled"}}
+        assert translate_reasoning_effort(
+            "anthropic", "none", "claude-sonnet-5-5") == {
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "low"},
+            }
+        assert translate_reasoning_effort(
+            "anthropic", None, "claude-opus-5") == {}
+        assert translate_reasoning_effort(
+            "anthropic", "none", "claude-sonnet-5") == {
+                "thinking": {"type": "disabled"}}
+        assert not anthropic_model_requires_adaptive_thinking("claude-opus-4-6")
+        assert anthropic_model_requires_adaptive_thinking("claude-opus-4-7")
+        assert anthropic_model_requires_adaptive_thinking("claude-opus-5-5")
+        assert not anthropic_model_requires_adaptive_thinking("claude-opus-5-50")
+
+    def test_forced_tool_capability_is_model_specific(self):
+        assert not anthropic_model_supports_forced_tools("claude-sonnet-5-5")
+        assert not anthropic_model_supports_forced_tools("claude-mythos-5-1")
+        assert anthropic_model_supports_forced_tools("claude-haiku-5-5")
+        assert anthropic_model_supports_forced_tools("claude-opus-5")
+
 
 class _StatusError(Exception):
     def __init__(self, status_code, message="max_tokens is invalid"):
@@ -190,6 +230,7 @@ class TestModelOmitsTemperature:
         "claude-opus-4-7",
         "claude-opus-4-8",
         "claude-opus-5",
+        "claude-haiku-5-5",
         "anthropic/claude-opus-5",
         "anthropic/claude-sonnet-5",
         "claude-opus-4-8-20260101",

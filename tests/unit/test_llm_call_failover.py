@@ -11,6 +11,7 @@ bootstrap('llm_call_failover_test_')
 import ad_detector
 import run_context
 from ad_detector import AdDetector, PASS_AD_DETECTION_1
+from config import PROVIDER_ANTHROPIC, resolve_stage_tunables
 import failover
 import llm_route
 from cancel import ProcessingCancelled
@@ -67,6 +68,120 @@ def test_trigger_error_redispatches_on_failover(no_sleep):
     trig.assert_called_once()
     assert trig.call_args.args[0] == 'llm:primary'
     assert fo_client.create_message.call_args.kwargs['model'] == 'qwen3:8b'
+
+
+def test_stage_tunable_resolution_tracks_anthropic_model_family():
+    settings = {
+        'detection_reasoning_budget': 8192,
+        'detection_reasoning_level': 'high',
+        'chapter_boundary_reasoning_level': 'medium',
+        'chapter_title_reasoning_level': 'high',
+    }
+    assert resolve_stage_tunables(
+        'detection', settings=settings, provider=PROVIDER_ANTHROPIC,
+        model='claude-opus-4-6')[2] == 8192
+    assert resolve_stage_tunables(
+        'detection', settings=settings, provider=PROVIDER_ANTHROPIC,
+        model='claude-opus-5-5')[2] == 'high'
+    assert resolve_stage_tunables(
+        'chapter_boundary', settings=settings, provider=PROVIDER_ANTHROPIC,
+        model='claude-opus-5-5')[2] == 'medium'
+    assert resolve_stage_tunables(
+        'chapter_title', settings=settings, provider=PROVIDER_ANTHROPIC,
+        model='claude-opus-5-5')[2] == 'high'
+
+
+@pytest.mark.parametrize(('source_model', 'source_reasoning', 'standby_model', 'standby_reasoning'), [
+    ('claude-opus-4-6', 8192, 'claude-opus-5-5', 'high'),
+    ('claude-opus-5-5', 'high', 'claude-opus-4-6', 8192),
+])
+def test_failover_resolves_stage_reasoning_for_standby_model(
+        no_sleep, source_model, source_reasoning, standby_model, standby_reasoning):
+    primary = MagicMock()
+    primary.create_message.side_effect = _outage()
+    standby = MagicMock()
+    standby.create_message.return_value = {'content': 'ok'}
+    route = llm_route.Route(
+        phase='detection', provider_key=PROVIDER_ANTHROPIC, model_id=standby_model,
+        base_url=None, slot='failover', credential_slot='failover',
+        account_id=llm_route.account_identity(PROVIDER_ANTHROPIC, None))
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(llm_call, '_failover_route', return_value=route), \
+            patch.object(llm_call, 'client_for_route', return_value=standby), \
+            patch.object(llm_call, 'resolve_stage_reasoning', return_value=standby_reasoning) as resolve, \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, error = _call(
+            primary, model=source_model, reasoning_effort=source_reasoning,
+            stage_tunable_prefix='detection')
+
+    assert response == {'content': 'ok'} and error is None
+    resolve.assert_called_once_with(
+        'detection', provider=PROVIDER_ANTHROPIC, model=standby_model)
+    assert standby.create_message.call_args.kwargs['reasoning_effort'] == standby_reasoning
+    assert standby.create_message.call_args.kwargs['max_tokens'] == 10
+    assert standby.create_message.call_args.kwargs['temperature'] == 0.0
+
+
+def test_chapter_failover_keeps_boundary_and_title_profiles_distinct(no_sleep):
+    primary = MagicMock()
+    primary.create_message.side_effect = _outage()
+    standby = MagicMock()
+    standby.create_message.return_value = {'content': 'ok'}
+    route = llm_route.Route(
+        phase='chapters', provider_key=PROVIDER_ANTHROPIC, model_id='claude-sonnet-5-5',
+        base_url=None, slot='failover', credential_slot='failover',
+        account_id=llm_route.account_identity(PROVIDER_ANTHROPIC, None))
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(llm_call, '_failover_route', return_value=route), \
+            patch.object(llm_call, 'client_for_route', return_value=standby), \
+            patch.object(llm_call, 'resolve_stage_reasoning', return_value='medium') as resolve, \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, error = _call(
+            primary, model='claude-opus-4-6', phase_key='chapters',
+            stage_tunable_prefix='chapter_title')
+
+    assert response == {'content': 'ok'} and error is None
+    resolve.assert_called_once_with(
+        'chapter_title', provider=PROVIDER_ANTHROPIC, model='claude-sonnet-5-5')
+    assert standby.create_message.call_args.kwargs['reasoning_effort'] == 'medium'
+
+
+@pytest.mark.parametrize(('source_model', 'source_reasoning', 'standby_model', 'expected'), [
+    ('claude-opus-4-6', 'high', 'claude-sonnet-5-5', 'none'),
+    ('claude-sonnet-5-5', 'high', 'claude-opus-4-6', 'none'),
+])
+def test_failover_preserves_reasoning_reduction_after_exhaustion(
+        no_sleep, source_model, source_reasoning, standby_model, expected):
+    primary = MagicMock()
+    primary.create_message.side_effect = _outage()
+    standby = MagicMock()
+    standby.create_message.return_value = {'content': 'ok'}
+    route = llm_route.Route(
+        phase='detection', provider_key=PROVIDER_ANTHROPIC, model_id=standby_model,
+        base_url=None, slot='failover', credential_slot='failover',
+        account_id=llm_route.account_identity(PROVIDER_ANTHROPIC, None))
+    first = {'seen': False}
+
+    def ledger(client, kwargs, model, **_):
+        if client is primary and not first['seen']:
+            first['seen'] = True
+            raise llm_call.ReasoningExhaustedError('budget exhausted')
+        return client.create_message(**kwargs)
+
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(llm_call, '_failover_route', return_value=route), \
+            patch.object(llm_call, 'client_for_route', return_value=standby), \
+            patch.object(llm_call, 'resolve_stage_reasoning', return_value='high'), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=ledger):
+        response, error = _call(
+            primary, model=source_model, reasoning_effort=source_reasoning,
+            stage_tunable_prefix='detection')
+
+    assert response == {'content': 'ok'} and error is None
+    assert standby.create_message.call_args.kwargs['reasoning_effort'] == expected
 
 
 def test_no_redispatch_when_already_on_failover(no_sleep):
@@ -273,6 +388,29 @@ def test_failover_downgrades_json_schema_when_model_lacks_support(no_sleep):
         _call(primary, response_format=schema)
     assert primary.create_message.call_args.kwargs['response_format'] == schema
     assert fo_client.create_message.call_args.kwargs['response_format'] == {'type': 'json_object'}
+
+
+def test_anthropic_failover_keeps_existing_json_schema(no_sleep):
+    primary = MagicMock()
+    primary.create_message.side_effect = _outage()
+    standby = MagicMock()
+    standby.create_message.return_value = {'content': 'ok'}
+    route = llm_route.Route(
+        phase='detection', provider_key=PROVIDER_ANTHROPIC,
+        model_id='claude-sonnet-5-5', base_url=None, slot='failover',
+        credential_slot='failover',
+        account_id=llm_route.account_identity(PROVIDER_ANTHROPIC, None))
+    schema = llm_call.json_schema_format('segments', {'type': 'object'})
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(llm_call, '_failover_route', return_value=route), \
+            patch.object(llm_call, 'client_for_route', return_value=standby), \
+            patch.object(llm_call, 'get_effective_provider', return_value='openai-compatible'), \
+            patch.object(llm_call, '_ledger_call_once', side_effect=lambda c, kw, m, **k: c.create_message(**kw)):
+        response, error = _call(primary, response_format=schema)
+
+    assert response == {'content': 'ok'} and error is None
+    assert standby.create_message.call_args.kwargs['response_format'] == schema
 
 
 def test_detector_switches_model_and_slot_mid_pass():

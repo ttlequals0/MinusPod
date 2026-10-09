@@ -8,15 +8,14 @@ import type {
 import { LLM_PROVIDERS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import { btnPrimary } from '../../components/buttonStyles';
+import { btnPrimary, touchTarget } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
 import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
 import { focusRing } from '../../components/fieldStyles';
 
-// Which per-phase provider override (see llm_route.py) governs a stage
-// block's own effective provider, for the Anthropic-vs-generic reasoning
-// control below. Both chapter blocks route through chaptersProvider.
+// Which per-phase provider override (see llm_route.py) governs a stage block.
+// Both chapter blocks route through chaptersProvider.
 type ProviderStage = 'detection' | 'verification' | 'review' | 'chapters';
 
 interface StageTunablesSectionProps {
@@ -210,7 +209,7 @@ export function ResetButton({
       onClick={onClick}
       disabled={disabled}
       title="Reset to default"
-      className={`ml-2 text-xs text-muted-foreground hover:text-foreground underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed ${focusRing}`}
+      className={`ml-2 ${touchTarget} px-2 text-xs text-muted-foreground hover:text-foreground underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed ${focusRing}`}
     >
       Reset
     </button>
@@ -220,6 +219,7 @@ export function ResetButton({
 // Standard field row: label + Reset + number input + help text.
 export function NumberFieldRow({
   label,
+  id,
   labelMuted,
   resetDisabled,
   onReset,
@@ -235,6 +235,7 @@ export function NumberFieldRow({
   help,
 }: {
   label: string;
+  id?: string;
   labelMuted?: boolean;
   resetDisabled: boolean;
   onReset: () => void;
@@ -249,15 +250,17 @@ export function NumberFieldRow({
   disabled?: boolean;
   help: string;
 }) {
+  const inputId = id ?? label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label className={`block text-xs font-medium ${labelMuted ? 'text-muted-foreground' : 'text-foreground'}`}>
+        <label htmlFor={inputId} className={`block text-xs font-medium ${labelMuted ? 'text-muted-foreground' : 'text-foreground'}`}>
           {label}
         </label>
         <ResetButton disabled={resetDisabled} onClick={onReset} />
       </div>
       <DraftNumberInput
+        id={inputId}
         value={value}
         fallback={fallback}
         min={min}
@@ -266,7 +269,7 @@ export function NumberFieldRow({
         placeholder={placeholder}
         parse={parse}
         onChange={onChange}
-        className={DRAFT_NUMBER_INPUT_CLASS}
+        className={`${DRAFT_NUMBER_INPUT_CLASS} min-h-11 sm:min-h-0`}
         disabled={disabled}
       />
       <p className="mt-1 text-xs text-muted-foreground">{help}</p>
@@ -313,6 +316,7 @@ function StageBlockEditor({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <NumberFieldRow
           label="Temperature"
+          id={String(block.temperatureKey)}
           labelMuted={omitTemperature}
           resetDisabled={tempDraft === null || omitTemperature}
           onReset={() => setField(block.temperatureKey, null)}
@@ -339,6 +343,7 @@ function StageBlockEditor({
 
         <NumberFieldRow
           label="Max tokens"
+          id={String(block.maxTokensKey)}
           resetDisabled={maxDraft === null}
           onReset={() => setField(block.maxTokensKey, null)}
           value={maxDraft}
@@ -352,9 +357,10 @@ function StageBlockEditor({
         />
       </div>
 
-      {useAnthropic ? (
+      {useAnthropic && (
         <NumberFieldRow
-          label="Reasoning budget (Anthropic)"
+          label="Reasoning budget (legacy Anthropic models)"
+          id={String(block.budgetKey)}
           resetDisabled={budgetDraft === null}
           onReset={() => setField(block.budgetKey, null)}
           value={budgetDraft}
@@ -362,46 +368,48 @@ function StageBlockEditor({
           min={1024}
           max={65536}
           step={512}
-          placeholder="Leave blank to disable extended thinking"
+          placeholder="Leave blank for the model default"
           parse={parseIntField}
           onChange={(parsed) => setField(block.budgetKey, parsed)}
           help={
             budgetEnv
               ? `Default from ${budgetEnv}.`
-              : 'Anthropic thinking budget (1024-65536). Blank = off.'
+              : 'Manual thinking budget (1024-65536 tokens). Adaptive-only models use the effort setting below.'
           }
         />
-      ) : (
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-xs font-medium text-foreground">
-              Reasoning effort
-            </label>
-            <ResetButton
-              disabled={levelDraft === null}
-              onClick={() => setField(block.levelKey, null)}
-            />
-          </div>
-          <select
-            value={levelDraft ?? ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              setField(block.levelKey, v === '' ? null : (v as ReasoningLevel));
-            }}
-            className={`w-full ${selectBase}`}
-          >
-            <option value="">Default (provider decides)</option>
-            {REASONING_LEVEL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {levelEnv
-              ? `Default from ${levelEnv}.`
-              : 'How hard the model thinks. Higher = slower but better.'}
-          </p>
-        </div>
       )}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label htmlFor={String(block.levelKey)} className="block text-xs font-medium text-foreground">
+            {useAnthropic ? 'Reasoning effort (adaptive Anthropic models)' : 'Reasoning effort'}
+          </label>
+          <ResetButton
+            disabled={levelDraft === null}
+            onClick={() => setField(block.levelKey, null)}
+          />
+        </div>
+        <select
+          id={String(block.levelKey)}
+          value={levelDraft ?? ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            setField(block.levelKey, v === '' ? null : (v as ReasoningLevel));
+          }}
+          className={`w-full min-h-11 sm:min-h-0 ${selectBase}`}
+        >
+          <option value="">Default (provider decides)</option>
+          {REASONING_LEVEL_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {levelEnv
+            ? `Default from ${levelEnv}.`
+            : useAnthropic
+              ? 'Blank uses the provider default. None disables thinking when supported; models that require thinking use low effort. Legacy models use the budget above.'
+              : 'How hard the model thinks. Higher = slower but better.'}
+        </p>
+      </div>
     </div>
   );
 }
@@ -437,6 +445,7 @@ function WindowConfigBlock({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <NumberFieldRow
           label="Window size (seconds)"
+          id="windowSizeSeconds"
           resetDisabled={sizeDraft === null}
           onReset={() => setField('windowSizeSeconds', null)}
           value={sizeDraft}
@@ -455,6 +464,7 @@ function WindowConfigBlock({
 
         <NumberFieldRow
           label="Overlap (seconds)"
+          id="windowOverlapSeconds"
           resetDisabled={overlapDraft === null}
           onReset={() => setField('windowOverlapSeconds', null)}
           value={overlapDraft}
@@ -501,6 +511,7 @@ function ConcurrencyConfigBlock({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <NumberFieldRow
           label="Parallel ad-detection windows"
+          id="adDetectionParallelWindows"
           resetDisabled={value === defaultValue}
           onReset={() => setField(PARALLEL_KEY, defaultValue)}
           value={value}
@@ -641,7 +652,7 @@ function StageTunablesSection({
             type="button"
             onClick={() => onSave(buildPayload())}
             disabled={!dirty || saveIsPending || !!crossFieldError}
-            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+            className={`${touchTarget} px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
           >
             {saveIsPending ? 'Saving...' : 'Save LLM Tunables'}
           </button>

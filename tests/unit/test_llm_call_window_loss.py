@@ -419,6 +419,34 @@ class TestExhaustedOutputBudget:
         assert client.kwargs[0]['reasoning_effort'] == 'high'
         assert client.kwargs[1]['reasoning_effort'] == 'none'
 
+    def test_adaptive_model_reduces_effort_instead_of_disabling_thinking(
+            self, run_ctx, monkeypatch):
+        monkeypatch.setattr('utils.llm_call.time.sleep', lambda s: None)
+        client = _FakeLLMClient([
+            self._truncated_blank(),
+            LLMResponse(content='[{"start": 1, "end": 2}]', model='m',
+                        finish_reason='stop'),
+        ])
+
+        response, error = _window_call(
+            client, model='claude-sonnet-5-5', reasoning_effort='high')
+
+        assert error is None
+        assert response.content == '[{"start": 1, "end": 2}]'
+        assert client.kwargs[0]['reasoning_effort'] == 'high'
+        assert client.kwargs[1]['reasoning_effort'] == 'low'
+
+    def test_adaptive_low_default_keeps_bounded_retry_without_disabling_thinking(
+            self, run_ctx, monkeypatch):
+        monkeypatch.setattr('utils.llm_call.time.sleep', lambda s: None)
+        client = _FakeLLMClient([self._truncated_blank()] * 2)
+
+        _response, error = _window_call(
+            client, model='claude-sonnet-5-5', reasoning_effort=None)
+
+        assert isinstance(error, ReasoningExhaustedError)
+        assert client.calls == 2
+
     def test_a_second_exhaustion_with_reasoning_off_stops_the_window(
             self, run_ctx, monkeypatch):
         monkeypatch.setattr('utils.llm_call.time.sleep', lambda s: None)

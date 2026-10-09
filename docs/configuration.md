@@ -135,13 +135,13 @@ Controls available on each:
 |---|---|---|
 | Temperature | 0.0 - 2.0 | 0.0 is fully reproducible. Keep detection and chapter boundaries low. |
 | Max tokens | 128 - 32768 | Response cap. Truncated JSON fails parsing; the salvage helper only recovers single-ad cases. |
-| Reasoning | Provider-aware | Anthropic takes a numeric token budget (1024-65536) for the `thinking` block. OpenAI, OpenRouter, and Ollama take an effort level (`none`, `low`, `medium`, `high`). |
+| Reasoning | Provider-aware | Older Anthropic models use a token budget (1024-65536 tokens). Adaptive-only Anthropic models, OpenAI, OpenRouter, and Ollama use an effort level (`none`, `low`, `medium`, `high`). |
 
-Defaults match what the code used before this feature, so existing installs behave identically until you touch a control.
+Anthropic stages expose both controls. The stage's model determines which setting applies; the other value stays saved for later use. Leave effort blank to use the configured default; without an environment default, the provider decides. `none` disables thinking when supported and selects low effort on models that require thinking. See [Anthropic reasoning](llm-providers.md#reasoning-settings).
 
 #### Fallback when the provider rejects a value
 
-If a provider rejects temperature, reasoning, or thinking settings, that in-flight call can retry once with a compatible fallback. A concurrent call that records the same incompatibility does not consume the retry. Reasoning exhaustion retries with reasoning disabled. Processing history stores a sanitized notice for each pass whose reasoning or thinking value was rejected. The notice includes requested and fallback values but no provider error text. The episode page shows notices from the latest completed run. A later pass tries its configured values again.
+If a provider rejects temperature, reasoning, or thinking settings, that in-flight call can retry once with a compatible fallback. A concurrent call that records the same incompatibility does not consume the retry. Reasoning exhaustion can retry with low effort on adaptive-only Anthropic models, or with reasoning disabled on other models. Processing history stores a sanitized notice for each pass whose reasoning or thinking value was rejected. The notice includes requested and fallback values but no provider error text. The episode page shows notices from the latest completed run. A later pass tries its configured values again.
 
 #### Env-var defaults
 

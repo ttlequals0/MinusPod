@@ -1748,7 +1748,7 @@ class AdReviewer:
         live = live_route_from(self._live_route(), model)
         provider, credential_slot, model = live.provider, live.credential_slot, live.model
         max_tokens, temperature, reasoning = resolve_stage_tunables(
-            'reviewer', provider=provider)
+            'reviewer', provider=provider, model=model)
         t0 = time.monotonic()
         response, error = call_llm_for_window(
             llm_client=self._client_for(live.route),
@@ -1767,6 +1767,7 @@ class AdReviewer:
             phase_key='review',
             provider=provider,
             credential_slot=credential_slot,
+            stage_tunable_prefix='reviewer',
             response_format=schema_format_for(
                 model, 'ad_review', AD_REVIEW_JSON_SCHEMA,
                 'Review verdicts for the candidate ad.', provider=provider),

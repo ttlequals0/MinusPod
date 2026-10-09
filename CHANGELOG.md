@@ -13,6 +13,8 @@ release notes.
 
 ### Fixed
 - Feed refreshes no longer force a full download when processed episodes are intentionally hidden by title rules.
+- Anthropic models that reject forced tool calls use compatible structured output. Per-stage reasoning settings support adaptive effort while preserving token budgets for older models. (#827)
+- Anthropic calls cache static system prompts for 5 minutes. Usage totals include cached input, and cost estimates account for cache reads and writes. (#828)
 
 ## [2.98.6] - 2026-10-08
 

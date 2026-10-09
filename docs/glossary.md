@@ -148,6 +148,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## P
 
+**Prompt caching** - Reusing a static prompt prefix across LLM calls. MinusPod requests a 5-minute cache for Anthropic system prompts and records cache reads and writes in input-token usage. [LLM Providers > Prompt caching](llm-providers.md#prompt-caching)
+
 **Partial detection** - An episode published from pattern and cross-fetch cuts alone after the AI detection pass failed. Shows an amber badge and a Re-run detection banner on the episode page; one automatic low-priority re-detect is also queued. [How It Works > Partial Detection](how-it-works.md#partial-detection)
 
 **Pass-through** - One of the five presets on the per-feed Processing mode select. It turns processing off entirely: episodes are downloaded and relayed with no transcription or ad removal, though the audio may be transcoded for serving. The feed URL stays the same, so switching to another mode resumes processing later without touching your podcast app. [Configuration > Pass-through mode](configuration.md#pass-through-mode)
@@ -175,6 +177,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Queue priority** - A per-feed High/Normal/Low processing-order preference, with automatic boosts for episodes published in the last 48 hours and for manual reprocesses. [Configuration > Queue priority](configuration.md#queue-priority)
 
 ## R
+
+**Reasoning budget / effort** - Controls for how much thinking an LLM does before answering. Older Anthropic models use a token budget; adaptive-only models use an effort level. [LLM Providers > Reasoning settings](llm-providers.md#reasoning-settings)
 
 **Rate-limit hold** - An opt-in hold that puts an episode back in the queue when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming any work until that time passes. Unlike the offline queue it pauses everything, Play and Reprocess included. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 

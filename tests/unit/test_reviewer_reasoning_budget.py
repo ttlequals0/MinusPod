@@ -61,8 +61,8 @@ def test_the_review_call_passes_the_effort_resolved_for_its_route(anthropic_rout
                 'reviewer_reasoning_level': 'high'}
 
     with patch('ad_reviewer.resolve_stage_tunables',
-               side_effect=lambda prefix, provider=None: config.resolve_stage_tunables(
-                   prefix, settings=settings, provider=provider)), \
+               side_effect=lambda prefix, provider=None, model=None: config.resolve_stage_tunables(
+                   prefix, settings=settings, provider=provider, model=model)), \
             patch('ad_reviewer.call_llm_for_window',
                   return_value=(_LLMResp('[]'), None)) as call:
         reviewer.review(
@@ -106,5 +106,25 @@ class TestTheRouteDecidesWhichReasoningKeyIsRead:
                    return_value=PROVIDER_ANTHROPIC):
             _tokens, _temp, reasoning = config.resolve_stage_tunables(
                 'reviewer', settings=self.SETTINGS)
+
+        assert reasoning == 2048
+
+    def test_adaptive_anthropic_model_reads_effort_instead_of_legacy_budget(self):
+        settings = {
+            'reviewer_reasoning_level': 'high',
+            'reviewer_reasoning_budget': '2048',
+        }
+        _tokens, _temp, reasoning = config.resolve_stage_tunables(
+            'reviewer', settings=settings, provider=PROVIDER_ANTHROPIC,
+            model='claude-sonnet-5',
+        )
+
+        assert reasoning == 'high'
+
+    def test_legacy_anthropic_model_keeps_numeric_budget(self):
+        _tokens, _temp, reasoning = config.resolve_stage_tunables(
+            'reviewer', settings=self.SETTINGS, provider=PROVIDER_ANTHROPIC,
+            model='claude-3-7-sonnet-latest',
+        )
 
         assert reasoning == 2048

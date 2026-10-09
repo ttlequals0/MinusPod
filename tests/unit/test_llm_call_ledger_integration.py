@@ -3,11 +3,11 @@
 Covers the contract that begin_llm_attempt/finalize_llm_attempt
 are the single writer of billed LLM calls.
 """
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import run_context
 from llm_route import Route
-from llm_client import LLMResponse, ProviderRateLimitedError
+from llm_client import AnthropicClient, LLMResponse, ProviderRateLimitedError
 from utils.llm_call import EmptyCompletionError, call_llm
 from utils import llm_call
 
@@ -164,6 +164,62 @@ def test_empty_completion_records_the_billed_usage_on_the_failure_row(temp_db, m
         assert all(r['input_tokens'] == 7 for r in rows)
         totals = temp_db.get_run_usage_totals('run-empty')
         assert totals['input_tokens'] == 7 * len(rows)
+    finally:
+        run_context.end(ctx)
+
+
+def test_missing_structured_tool_retries_with_usage_on_each_ledger_attempt(
+        temp_db, monkeypatch):
+    monkeypatch.setattr('utils.llm_call.time.sleep', lambda s: None)
+    monkeypatch.setattr('utils.llm_call._sleep_before_retry', lambda d: True)
+    temp_db.create_podcast('show-tool-retry', 'https://example.com/tool.xml', 'Show')
+    ctx = run_context.begin('show-tool-retry', 'ep-tool-retry', run_id='run-tool-retry')
+    try:
+        client = AnthropicClient(api_key='test-key')
+        client._client = MagicMock()
+
+        def response(content, input_tokens):
+            value = MagicMock()
+            value.content = content
+            value.usage = MagicMock(input_tokens=input_tokens, output_tokens=2)
+            value.stop_reason = 'end_turn'
+            value.model = 'claude-sonnet-5-5'
+            return value
+
+        text = MagicMock(type='text', text='no tool call')
+        tool = MagicMock()
+        tool.type = 'tool_use'
+        tool.name = 'segments'
+        tool.input = {'segments': []}
+        client._client.messages.create.side_effect = [
+            response([text], 11), response([tool], 13),
+        ]
+
+        result, error = call_llm(
+            llm_client=client, model='claude-sonnet-5-5', system_prompt='s', prompt='p',
+            llm_timeout=30, max_retries=0, max_tokens=100,
+            slug='show-tool-retry', episode_id='ep-tool-retry',
+            call_label='structured output', phase_key='detection',
+            pass_name='ad_detection_pass_1', provider='anthropic',
+            response_format={
+                'type': 'json_schema',
+                'json_schema': {'name': 'segments', 'schema': {'type': 'object'}},
+            },
+        )
+
+        assert error is None
+        assert result.content == '{"segments": []}'
+        rows = temp_db.get_connection().execute(
+            "SELECT * FROM llm_call_usage WHERE episode_id = ? ORDER BY rowid",
+            ('ep-tool-retry',),
+        ).fetchall()
+        assert len(rows) == 2
+        assert [row['state'] for row in rows] == ['failure', 'success']
+        assert [row['input_tokens'] for row in rows] == [11, 13]
+        assert [row['output_tokens'] for row in rows] == [2, 2]
+        totals = temp_db.get_run_usage_totals('run-tool-retry')
+        assert totals['input_tokens'] == 24
+        assert totals['output_tokens'] == 4
     finally:
         run_context.end(ctx)
 

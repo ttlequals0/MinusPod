@@ -77,7 +77,7 @@ class TestAnthropicReasoningTranslation:
         client._client = mock_sdk
 
         client.messages_create(
-            model="claude-opus-4-7",
+            model="claude-opus-4-6",
             max_tokens=4096,
             system="sys",
             messages=[{"role": "user", "content": "hi"}],
@@ -95,7 +95,7 @@ class TestAnthropicReasoningTranslation:
         client._client = mock_sdk
 
         client.messages_create(
-            model="claude-opus-4-7",
+            model="claude-opus-4-6",
             max_tokens=4096,
             system="sys",
             messages=[{"role": "user", "content": "hi"}],
@@ -682,6 +682,7 @@ class TestAnthropicJsonSchemaStructuredOutput:
         mock_sdk = MagicMock()
         tool_block = MagicMock()
         tool_block.type = "tool_use"
+        tool_block.name = "seg"
         tool_block.input = {"categories": [{"index": 0, "category": "sponsor"}]}
         response = MagicMock()
         response.content = [tool_block]
@@ -710,6 +711,10 @@ class TestAnthropicJsonSchemaStructuredOutput:
         assert kwargs["tool_choice"] == {"type": "tool", "name": "seg"}
         assert json.loads(result.content) == {
             "categories": [{"index": 0, "category": "sponsor"}]}
+        assert kwargs["system"] == [{
+            "type": "text", "text": "sys",
+            "cache_control": {"type": "ephemeral", "ttl": "5m"},
+        }]
 
     def test_missing_tool_use_block_yields_empty_content_not_a_crash(self):
         from llm_client import AnthropicClient
@@ -734,6 +739,141 @@ class TestAnthropicJsonSchemaStructuredOutput:
         )
 
         assert result.content == ""
+
+    def test_incompatible_model_uses_auto_strict_closed_schema(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        tool_block = MagicMock()
+        tool_block.type = "tool_use"
+        tool_block.name = "seg"
+        tool_block.input = {"outer": {"value": "ok"}}
+        response = MagicMock(content=[tool_block], stop_reason="tool_use")
+        response.usage = MagicMock(input_tokens=10, output_tokens=5)
+        mock_sdk.messages.create.return_value = response
+        client._client = mock_sdk
+        schema = {
+            "type": "object",
+            "properties": {"outer": {
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+            }},
+            "required": ["outer"],
+        }
+
+        result = client.messages_create(
+            model="claude-sonnet-5-5", max_tokens=512, system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "seg", "schema": schema},
+            },
+        )
+
+        kwargs = mock_sdk.messages.create.call_args.kwargs
+        assert kwargs["tool_choice"] == {"type": "auto"}
+        assert kwargs["tools"][0]["strict"] is True
+        assert kwargs["tools"][0]["input_schema"] == {
+            "type": "object", "additionalProperties": False,
+            "properties": {"outer": {
+                "type": "object", "additionalProperties": False,
+                "properties": {"value": {"type": "string"}},
+            }},
+            "required": ["outer"],
+        }
+        assert "additionalProperties" not in schema
+        assert "additionalProperties" not in schema["properties"]["outer"]
+        assert json.loads(result.content) == {"outer": {"value": "ok"}}
+        assert "expected tool" in kwargs["system"][0]["text"]
+
+    def test_manual_thinking_uses_auto_strict_schema_on_legacy_model(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        tool_block = MagicMock()
+        tool_block.type = "tool_use"
+        tool_block.name = "seg"
+        tool_block.input = {"value": "ok"}
+        response = MagicMock(content=[tool_block], stop_reason="tool_use")
+        response.usage = MagicMock(input_tokens=10, output_tokens=5)
+        mock_sdk.messages.create.return_value = response
+        client._client = mock_sdk
+
+        client.messages_create(
+            model="claude-opus-4-6", max_tokens=512, system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            reasoning_effort=8192,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "seg", "schema": {"type": "object"}},
+            },
+        )
+
+        kwargs = mock_sdk.messages.create.call_args.kwargs
+        assert kwargs["thinking"] == {"type": "enabled", "budget_tokens": 8192}
+        assert kwargs["tool_choice"] == {"type": "auto"}
+        assert kwargs["tools"][0]["strict"] is True
+
+    def test_expected_tool_with_non_object_input_is_empty(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        tool_block = MagicMock()
+        tool_block.type = "tool_use"
+        tool_block.name = "seg"
+        tool_block.input = ["not", "an", "object"]
+        response = MagicMock(content=[tool_block], stop_reason="tool_use")
+        response.usage = MagicMock(input_tokens=10, output_tokens=5)
+        mock_sdk.messages.create.return_value = response
+        client._client = mock_sdk
+
+        result = client.messages_create(
+            model="claude-opus-5-5", max_tokens=512, system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "seg", "schema": {"type": "object"}},
+            },
+        )
+
+        assert result.content == ""
+        assert result.usage == {"input_tokens": 10, "output_tokens": 5}
+
+    def test_wrong_tool_response_is_empty_but_keeps_usage(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        tool_block = MagicMock(type="tool_use", name="other", input={"x": 1})
+        response = MagicMock(content=[tool_block], stop_reason="tool_use")
+        response.usage = MagicMock(input_tokens=10, output_tokens=5)
+        mock_sdk.messages.create.return_value = response
+        client._client = mock_sdk
+
+        result = client.messages_create(
+            model="claude-opus-5-5", max_tokens=512, system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "seg", "schema": {"type": "object"}},
+            },
+        )
+
+        assert result.content == ""
+        assert result.usage == {"input_tokens": 10, "output_tokens": 5}
+
+    def test_empty_system_skips_cache_block(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = _make_anthropic_response()
+        client._client = mock_sdk
+
+        client.messages_create(
+            model="claude-haiku-5-5", max_tokens=512, system="",
+            messages=[{"role": "user", "content": "hi"}],
+        )
+
+        assert mock_sdk.messages.create.call_args.kwargs["system"] == ""
 
     def test_json_object_request_never_sets_tools(self):
         from llm_client import AnthropicClient

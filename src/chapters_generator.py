@@ -347,11 +347,12 @@ class ChaptersGenerator:
 
         try:
             live = live_route_params('chapters')
+            model = live.model if live.route else get_chapters_model()
             max_tokens, temperature, reasoning = resolve_stage_tunables(
-                'chapter_boundary', provider=live.provider)
+                'chapter_boundary', provider=live.provider, model=model)
             response, last_error = call_llm(
                 llm_client=self._client_for(live.route),
-                model=live.model if live.route else get_chapters_model(),
+                model=model,
                 system_prompt="",
                 prompt=prompt,
                 llm_timeout=live.timeout,
@@ -366,6 +367,7 @@ class ChaptersGenerator:
                 phase_key='chapters',
                 provider=live.provider,
                 credential_slot=live.credential_slot,
+                stage_tunable_prefix='chapter_boundary',
             )
             if response is None:
                 # A rate-limit hold is queue-wide state, not a degraded run.
@@ -540,11 +542,12 @@ class ChaptersGenerator:
         prompt = "\n".join(prompt_parts)
 
         live = live_route_params('chapters')
+        model = live.model if live.route else get_chapters_model()
         max_tokens, temperature, reasoning = resolve_stage_tunables(
-            'chapter_title', provider=live.provider)
+            'chapter_title', provider=live.provider, model=model)
         response, last_error = call_llm(
             llm_client=self._client_for(live.route),
-            model=live.model if live.route else get_chapters_model(),
+            model=model,
             system_prompt="",
             prompt=prompt,
             llm_timeout=live.timeout,
@@ -559,6 +562,7 @@ class ChaptersGenerator:
             phase_key='chapters',
             provider=live.provider,
             credential_slot=live.credential_slot,
+            stage_tunable_prefix='chapter_title',
         )
         if response is None:
             # Caller (generate_chapter_titles) catches this and degrades to

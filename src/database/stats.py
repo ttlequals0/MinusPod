@@ -29,6 +29,19 @@ _PROCESSED_EPISODE_EXISTS_SQL = (
 )
 
 
+def _anthropic_cache_read_multiplier(model_id: str | None) -> Decimal:
+    """Return the Anthropic cache-read multiplier for a normalized model ID."""
+    model_name = (model_id or '').rsplit('/', 1)[-1].lower()
+    if model_name.endswith('-latest'):
+        model_name = model_name[:-7]
+    model_key = normalize_model_key(model_name)
+    if model_key in ('claudeopus55', 'claudesonnet55'):
+        return Decimal('0.05')
+    if model_key in ('claudefable51', 'claudemythos51'):
+        return Decimal('0.025')
+    return Decimal('0.1')
+
+
 def _ledger_row_is_billable(state: str, input_tokens, output_tokens, cost: float) -> bool:
     """Whether a finalized ledger row contributes to usage totals."""
     tokens_known = input_tokens is not None and output_tokens is not None
@@ -572,7 +585,7 @@ class StatsMixin:
         """
         conn = self.get_connection()
         row = conn.execute(
-            "SELECT configured_model FROM llm_call_usage WHERE attempt_id = ?",
+            "SELECT configured_model, provider_key FROM llm_call_usage WHERE attempt_id = ?",
             (attempt_id,)
         ).fetchone()
         if row is None:
@@ -605,14 +618,31 @@ class StatsMixin:
                 else:
                     cost_source = 'estimated'
                     mtok = Decimal(1_000_000)
-                    cost_dec = (
-                        Decimal(input_tokens) / mtok * Decimal(str(input_per_mtok))
-                        + Decimal(output_tokens) / mtok * Decimal(str(output_per_mtok))
-                    )
-                    rate_snapshot = json.dumps({
+                    billed_input = Decimal(input_tokens)
+                    rates = {
                         'inputCostPerMtok': input_per_mtok,
                         'outputCostPerMtok': output_per_mtok,
-                    })
+                    }
+                    if row['provider_key'] == 'anthropic' and (
+                            cache_read_tokens or cache_write_tokens):
+                        read_multiplier = _anthropic_cache_read_multiplier(
+                            returned_model or configured_model)
+                        write_multiplier = Decimal('1.25')
+                        read_tokens = Decimal(cache_read_tokens or 0)
+                        write_tokens = Decimal(cache_write_tokens or 0)
+                        billed_input += (
+                            read_tokens * (read_multiplier - 1)
+                            + write_tokens * (write_multiplier - 1)
+                        )
+                        rates['cacheReadCostPerMtok'] = float(
+                            Decimal(str(input_per_mtok)) * read_multiplier)
+                        rates['cacheWriteCostPerMtok'] = float(
+                            Decimal(str(input_per_mtok)) * write_multiplier)
+                    cost_dec = (
+                        billed_input / mtok * Decimal(str(input_per_mtok))
+                        + Decimal(output_tokens) / mtok * Decimal(str(output_per_mtok))
+                    )
+                    rate_snapshot = json.dumps(rates)
                     pricing_revision = revision
                 cost_usd = str(cost_dec)
                 cost = float(cost_dec)
