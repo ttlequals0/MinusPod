@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import stat
 import tempfile
 import time
@@ -164,6 +165,14 @@ def dest_writable(path: Path) -> bool:
     return ancestor.is_dir() and os.access(ancestor, os.W_OK)
 
 
+def _sweep_stale_staging_dirs(dest_path: Path) -> None:
+    """Remove leftover staging dirs from a backup that crashed mid-snapshot (caller holds the backup lock)."""
+    for entry in dest_path.iterdir():
+        if entry.is_dir() and entry.name.startswith('.minuspod-backup-'):
+            shutil.rmtree(entry, ignore_errors=True)
+            logger.info('db_backup: removed stale staging directory %s', entry.name)
+
+
 def _ensure_dest_dir(dest: Path) -> int:
     """Pin the destination, creating missing directories privately without following symlinks."""
     flags = os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW
@@ -273,6 +282,7 @@ def backup_now(db) -> dict[str, Any]:
             dest_fd = _ensure_dest_dir(dest)
             flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
             dest_path = Path(f'/proc/self/fd/{dest_fd}')
+            _sweep_stale_staging_dirs(dest_path)
             stage_name = Path(tempfile.mkdtemp(prefix='.minuspod-backup-', dir=dest_path)).name
             stage_fd = os.open(stage_name, flags, dir_fd=dest_fd)
             stage_stat = os.fstat(stage_fd)

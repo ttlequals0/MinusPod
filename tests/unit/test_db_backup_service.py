@@ -217,6 +217,25 @@ def test_failed_snapshot_preserves_prior_backup_and_removes_staging(db, tmp_path
     assert list(dest.iterdir()) == [dest / FIXED_BACKUP_NAME]
 
 
+def test_stale_staging_dir_is_removed_before_backup_runs(db, tmp_path, caplog):
+    import logging
+    dest = tmp_path / 'backups'
+    db.set_setting('db_backup_dest', str(dest))
+    backup_now(db)
+
+    stale = dest / '.minuspod-backup-leftover'
+    stale.mkdir()
+    (stale / TEMP_BACKUP_NAME).write_bytes(b'partial')
+
+    with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
+        summary = backup_now(db)
+
+    assert not stale.exists()
+    assert summary['mode'] == 'overwrite'
+    assert (dest / FIXED_BACKUP_NAME).exists()
+    assert any('removed stale staging directory' in r.message for r in caplog.records)
+
+
 @pytest.mark.parametrize('unsafe_stage', ['permissions', 'owner'])
 def test_untrusted_staging_preserves_prior_backup_and_closes_descriptors(
         db, tmp_path, monkeypatch, unsafe_stage):

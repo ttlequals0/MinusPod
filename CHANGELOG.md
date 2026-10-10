@@ -33,6 +33,7 @@ release notes.
 - Container images build pinned media security backports and SRT 1.5.6, retaining patched source and build provenance.
 - Container images also backport fixes in core, graphics, and utility packages; native CPU builds verify runtime imports, media processing, and application health before publication.
 - Scheduled backups prevent temporary-file symlink races and preserve the previous backup when the destination changes during a snapshot.
+- Scheduled backups remove a staging directory left behind by a crash mid-snapshot before starting the next run.
 
 ## [2.99.2] - 2026-10-09
 
