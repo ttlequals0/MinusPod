@@ -950,6 +950,16 @@ paths:
                     maxLength: 200
                   maxItems: 50
                   description: Per-feed episode title blacklist. Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; requests for a skipped episode's audio redirect to the upstream enclosure instead. Null or an empty array clears the blacklist.
+                descriptionSkipPatterns:
+                  type:
+                    - array
+                    - 'null'
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                  maxItems: 50
+                  description: Per-feed episode description blacklist (issue 835). Each pattern is matched against the plain-text description (HTML tags removed, whitespace collapsed), case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. '*This is a preview. To hear the entire episode*'. Without a wildcard the whole description must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; requests for a skipped episode's audio redirect to the upstream enclosure instead. Null or an empty array clears the blacklist.
                 titleSkipAction:
                   type:
                     - string
@@ -958,7 +968,7 @@ paths:
                     - serve_original
                     - hide
                     - null
-                  description: Served-RSS handling for an episode skipped by title or duration. 'serve_original' (default, null) keeps original audio available; 'hide' removes the entry.
+                  description: Served-RSS handling for an episode skipped by title, description, or duration. 'serve_original' (default, null) keeps original audio available; 'hide' removes the entry.
                 minDurationSeconds:
                   type: [number, 'null']
                   minimum: 0
@@ -13319,6 +13329,11 @@ components:
           items:
             type: string
           description: Per-feed episode title blacklist, always an array (empty when unset). Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued or JIT-processed.
+        descriptionSkipPatterns:
+          type: array
+          items:
+            type: string
+          description: Per-feed episode description blacklist (issue 835), always an array (empty when unset). Each pattern is matched against the plain-text description (HTML tags removed, whitespace collapsed), case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. '*This is a preview. To hear the entire episode*'. A matching episode is never queued or JIT-processed.
         minDurationSeconds:
           type: [number, 'null']
           minimum: 0
@@ -13332,7 +13347,7 @@ components:
           enum:
             - serve_original
             - hide
-          description: Served-RSS handling for episodes skipped by title or duration. Always resolves to serve_original or hide; serve_original is the default.
+          description: Served-RSS handling for episodes skipped by title, description, or duration. Always resolves to serve_original or hide; serve_original is the default.
         processingMode:
           type: string
           enum:
@@ -13604,6 +13619,9 @@ components:
         titleSkipped:
           type: boolean
           description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
+        descriptionSkipped:
+          type: boolean
+          description: Whether the episode description matches this feed's description-skip patterns (issue 835) and is ineligible for the bulk Process action.
         durationSkipped:
           type: boolean
           description: Publisher RSS duration is outside the feed's inclusive limits, making the episode ineligible for the bulk Process action. Unknown or zero durations return false.
@@ -13618,7 +13636,7 @@ components:
 
     EpisodeSelection:
       type: object
-      required: [id, status, jobState, titleSkipped, durationSkipped]
+      required: [id, status, jobState, titleSkipped, descriptionSkipped, durationSkipped]
       description: Lightweight action state returned for every matching episode when selection=true.
       properties:
         id:
@@ -13630,6 +13648,8 @@ components:
           type: string
           enum: [idle, queued, processing]
         titleSkipped:
+          type: boolean
+        descriptionSkipped:
           type: boolean
         durationSkipped:
           type: boolean
@@ -13682,6 +13702,9 @@ components:
         titleSkipped:
           type: boolean
           description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
+        descriptionSkipped:
+          type: boolean
+          description: Whether the episode description matches this feed's description-skip patterns (issue 835) and is ineligible for the bulk Process action.
         durationSkipped:
           type: boolean
           description: Publisher RSS duration is outside the feed's inclusive limits, making the episode ineligible for the bulk Process action. Unknown or zero durations return false.

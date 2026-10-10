@@ -632,6 +632,9 @@ class SchemaMixin:
             # case-insensitively; title_skip_action controls served-RSS
             # visibility (NULL/'serve_original' keep, 'hide' drops it).
             ('title_skip_patterns', 'TEXT'),
+            # Episode description blacklist (#835): same glob semantics as
+            # title_skip_patterns, matched against the plain-text description.
+            ('description_skip_patterns', 'TEXT'),
             ('title_skip_action', 'TEXT'),
             ('min_duration_seconds', 'REAL'),
             ('max_duration_seconds', 'REAL'),

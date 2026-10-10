@@ -253,6 +253,15 @@ class PodcastMixin:
         row = cursor.fetchone()
         return row['title_skip_patterns'] if row else None
 
+    def get_podcast_description_skip_patterns(self, slug: str) -> str | None:
+        """Per-feed description_skip_patterns column only: a cheap single-row
+        lookup for the JIT serve gate (#835)."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "SELECT description_skip_patterns FROM podcasts WHERE slug = ?", (slug,))
+        row = cursor.fetchone()
+        return row['description_skip_patterns'] if row else None
+
     _CUE_OVERRIDE_COLS = (
         'cue_create_from_pairs_override',
         'cue_pair_min_break_override',
@@ -373,8 +382,8 @@ class PodcastMixin:
                 'segment_category_actions', 'detect_show_segments',
                 'skip_second_pass', 'transcript_differential',
                 'skip_transcription', 'cue_only_safety',
-                'queue_priority', 'title_skip_patterns', 'title_skip_action',
-                'min_duration_seconds', 'max_duration_seconds',
+                'queue_priority', 'title_skip_patterns', 'description_skip_patterns',
+                'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
                 'low_ad_yield_action', 'episode_logs',
                 'retention_days_override', 'keep_original_audio_override',
                 'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',

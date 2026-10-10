@@ -11,7 +11,10 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('title_blacklist_test_')
 
-from config import title_matches_skip_patterns, duration_outside_feed_range
+from config import (
+    title_matches_skip_patterns, description_matches_skip_patterns,
+    duration_outside_feed_range,
+)
 from api.episodes import _episode_base_json
 import main_app.feeds as feeds_mod
 from main_app import app, background
@@ -65,6 +68,65 @@ class TestTitleMatchesSkipPatterns:
             episode,
             title_skip_patterns=json.dumps(['weekly sponsor*']),
         )['titleSkipped']
+
+
+class TestDescriptionMatchesSkipPatterns:
+    def test_glob_star_matches(self):
+        assert description_matches_skip_patterns(
+            'This is a preview. To hear the entire episode, subscribe.',
+            json.dumps(['*This is a preview. To hear the entire episode*']))
+
+    def test_case_insensitive(self):
+        assert description_matches_skip_patterns(
+            'THIS IS A PREVIEW', json.dumps(['*this is a preview*']))
+
+    def test_substring_needs_stars(self):
+        assert not description_matches_skip_patterns(
+            'A preview of the show', json.dumps(['preview']))
+        assert description_matches_skip_patterns(
+            'A preview of the show', json.dumps(['*preview*']))
+
+    def test_strips_html_before_matching(self):
+        assert description_matches_skip_patterns(
+            '<p>This is a <b>preview</b>.</p>',
+            json.dumps(['*This is a preview.*']))
+
+    def test_collapses_whitespace_before_matching(self):
+        assert description_matches_skip_patterns(
+            'This is a\n\npreview.', json.dumps(['*This is a preview.*']))
+
+    def test_no_match_returns_false(self):
+        assert not description_matches_skip_patterns(
+            'Full episode notes', json.dumps(['*preview*']))
+
+    def test_invalid_json_is_safe(self):
+        assert not description_matches_skip_patterns('Episode notes', 'not-json')
+
+    def test_empty_list_returns_false(self):
+        assert not description_matches_skip_patterns('Episode notes', json.dumps([]))
+
+    def test_none_patterns_returns_false(self):
+        assert not description_matches_skip_patterns('Episode notes', None)
+
+    def test_none_description_returns_false(self):
+        assert not description_matches_skip_patterns(None, json.dumps(['*']))
+
+    def test_episode_summary_reports_description_skip(self):
+        episode = {
+            'episode_id': 'episode-1',
+            'title': 'Episode One',
+            'description': 'This is a preview. To hear the entire episode, subscribe.',
+            'status': 'discovered',
+            'created_at': '2026-09-12T00:00:00Z',
+            'processed_at': None,
+            'original_duration': None,
+            'new_duration': None,
+            'ads_removed': 0,
+        }
+        assert _episode_base_json(
+            episode,
+            description_skip_patterns=json.dumps(['*this is a preview*']),
+        )['descriptionSkipped']
 
 
 class TestRssGateSkipsBlacklistedTitles:
@@ -148,6 +210,27 @@ class TestOnDemandServeGate:
             'original_url': 'https://example.com/ep.mp3',
         }
         mock_db.get_podcast_title_skip_patterns.return_value = json.dumps(['Blacklisted*'])
+
+        resp = client.get(f'/episodes/{self.SLUG}/{self.EP}.mp3')
+
+        assert resp.status_code == 302
+        assert resp.headers['Location'] == 'https://example.com/ep.mp3'
+        mock_start.assert_not_called()
+
+    @patch('main_app.processing.start_background_processing')
+    @patch('main_app.routes._lookup_episode', return_value=LOOKUP)
+    @patch('main_app.routes.status_service')
+    @patch('main_app.routes.db')
+    @patch('main_app.routes.get_feed_map',
+           return_value={SLUG: {'in': 'https://example.com/f.xml', 'out': SLUG}})
+    def test_matching_description_serves_original_without_processing(
+            self, _feed_map, mock_db, _status, _lookup, mock_start, client):
+        mock_db.get_episode.return_value = {
+            'episode_id': self.EP, 'status': 'discovered',
+            'original_url': 'https://example.com/ep.mp3',
+        }
+        mock_db.get_podcast_title_skip_patterns.return_value = None
+        mock_db.get_podcast_description_skip_patterns.return_value = json.dumps(['desc'])
 
         resp = client.get(f'/episodes/{self.SLUG}/{self.EP}.mp3')
 
@@ -296,6 +379,35 @@ class TestHideModeFiltersMatchingIds:
 
         assert 'Episode A' in result
         assert 'Blacklisted Episode' in result
+
+    def test_hide_description_patterns_excludes_matching_entries(self):
+        parser = RSSParser(base_url="https://podsrv.example.test")
+        items = "\n".join(f"""
+            <item>
+                <title>Episode {i}</title>
+                <description>{desc}</description>
+                <guid>guid-{i}</guid>
+                <pubDate>Wed, 01 Jan 2025 00:00:00 +0000</pubDate>
+                <enclosure url="https://cdn.example.com/{i}.mp3" type="audio/mpeg" length="100" />
+            </item>
+            """ for i, desc in enumerate(
+                ['Normal show notes', 'This is a preview. Subscribe for more.']))
+        feed_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+    <channel>
+        <title>Test Podcast</title>
+        <link>https://example.com</link>
+        <description>For testing</description>
+        {items}
+    </channel>
+</rss>
+"""
+        result = parser.modify_feed(
+            feed_content, "test-pod",
+            hide_description_patterns=json.dumps(['*This is a preview*']))
+
+        assert 'Episode 0' in result
+        assert 'Episode 1' not in result
 
     def test_hide_title_patterns_excludes_db_appended_extra_episodes(self):
         parser = RSSParser(base_url="https://podsrv.example.test")

@@ -14,6 +14,8 @@ import string
 from typing import Any
 from urllib.parse import urlparse
 
+from utils.prompt import strip_html
+
 _tunable_logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -409,6 +411,25 @@ def title_matches_skip_patterns(title, patterns_json):
     return any(fnmatch.fnmatch(low, str(p).lower()) for p in patterns if p)
 
 
+def _description_plain_text(description):
+    """Description HTML reduced to lowercase-ready plain text for matching."""
+    return re.sub(r'\s+', ' ', strip_html(description)).strip()
+
+
+def description_matches_skip_patterns(description, patterns_json):
+    """Case-insensitive fnmatch against the feed's description skip list, HTML stripped."""
+    if not description or not patterns_json:
+        return False
+    try:
+        patterns = json.loads(patterns_json)
+    except (ValueError, TypeError):
+        return False
+    plain = _description_plain_text(description).lower()
+    if not plain:
+        return False
+    return any(fnmatch.fnmatch(plain, str(p).lower()) for p in patterns if p)
+
+
 def duration_outside_feed_range(duration, podcast):
     """Compare known RSS duration against inclusive per-feed bounds."""
     if not isinstance(duration, (int, float)) or isinstance(duration, bool):
@@ -423,9 +444,10 @@ def duration_outside_feed_range(duration, podcast):
 
 
 def episode_matches_feed_filters(episode, podcast):
-    """Apply title and RSS-duration exclusions without downloading audio."""
+    """Apply title, description, and RSS-duration exclusions without downloading audio."""
     podcast = podcast or {}
     return (title_matches_skip_patterns(episode.get('title'), podcast.get('title_skip_patterns'))
+            or description_matches_skip_patterns(episode.get('description'), podcast.get('description_skip_patterns'))
             or duration_outside_feed_range(episode.get('rss_duration'), podcast))
 
 # Ad evidence thresholds

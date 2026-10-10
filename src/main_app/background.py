@@ -362,7 +362,7 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
                         or podcast.get('max_duration_seconds') is not None):
             episode_row = db.get_episode(slug, episode_id)
         feed_filtered = episode_matches_feed_filters(
-            {**(episode_row or {}), 'title': title}, podcast)
+            {**(episode_row or {}), 'title': title, 'description': description}, podcast)
 
         # An explicit user reprocess bypasses both gates below; only
         # fetched when a gate would otherwise skip this claim.

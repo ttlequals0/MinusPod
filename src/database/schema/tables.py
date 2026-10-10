@@ -105,6 +105,9 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Episode title blacklist: JSON array of case-insensitive glob patterns.
     -- A matching episode is never queued or JIT-processed.
     title_skip_patterns TEXT,
+    -- Episode description blacklist (#835): same glob semantics as
+    -- title_skip_patterns, matched against the plain-text description.
+    description_skip_patterns TEXT,
     -- Served-RSS handling for a blacklisted episode: NULL/'serve_original'
     -- keeps it in the feed untouched, 'hide' drops it from the served feed.
     title_skip_action TEXT,

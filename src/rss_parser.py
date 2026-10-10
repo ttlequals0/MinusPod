@@ -1048,7 +1048,8 @@ class RSSParser:
                     hide_title_patterns: str | None = None,
                     chapter_notes: dict[str, str] | None = None,
                     hide_min_duration_seconds: float | None = None,
-                    hide_max_duration_seconds: float | None = None) -> str:
+                    hide_max_duration_seconds: float | None = None,
+                    hide_description_patterns: str | None = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -1086,6 +1087,8 @@ class RSSParser:
             hide_title_patterns: JSON array of glob patterns (title_skip_action
                 'hide'). Entries whose title matches are dropped from the
                 served feed, both upstream and DB-appended.
+            hide_description_patterns: Same as hide_title_patterns, matched
+                against the plain-text description instead (#835).
         """
         feed = (parsed_feed if parsed_feed is not None
                 else self.parse_feed(feed_content, source=slug))
@@ -1174,6 +1177,7 @@ class RSSParser:
         # Process each episode from RSS
         hide_filters = {
             'title_skip_patterns': hide_title_patterns,
+            'description_skip_patterns': hide_description_patterns,
             'min_duration_seconds': hide_min_duration_seconds,
             'max_duration_seconds': hide_max_duration_seconds,
         }
@@ -1219,6 +1223,7 @@ class RSSParser:
                 continue
             if episode_matches_feed_filters({
                     'title': entry.get('title'),
+                    'description': entry.get('description'),
                     'rss_duration': self._parse_itunes_duration(entry.get('itunes_duration')),
             }, hide_filters):
                 continue

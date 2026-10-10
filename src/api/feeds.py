@@ -416,8 +416,8 @@ def _validate_duration_range(podcast):
     return None
 
 
-def _normalize_title_skip_patterns(value):
-    """Validate the per-feed titleSkipPatterns glob list.
+def _normalize_skip_patterns(value, field):
+    """Validate a per-feed glob-pattern list (titleSkipPatterns / descriptionSkipPatterns).
 
     Returns (db_value, error). None or an empty list clears the blacklist
     (stored NULL). Each pattern must be a 1-200 char string; max 50 patterns.
@@ -425,15 +425,23 @@ def _normalize_title_skip_patterns(value):
     if value is None:
         return None, None
     if not isinstance(value, list):
-        return None, 'titleSkipPatterns must be an array of strings or null'
+        return None, f'{field} must be an array of strings or null'
     if len(value) > _TITLE_SKIP_PATTERNS_MAX_COUNT:
-        return None, f'titleSkipPatterns must have at most {_TITLE_SKIP_PATTERNS_MAX_COUNT} patterns'
+        return None, f'{field} must have at most {_TITLE_SKIP_PATTERNS_MAX_COUNT} patterns'
     for p in value:
         if not isinstance(p, str) or not (1 <= len(p) <= _TITLE_SKIP_PATTERN_MAX_LEN):
-            return None, f'titleSkipPatterns entries must be strings of 1-{_TITLE_SKIP_PATTERN_MAX_LEN} characters'
+            return None, f'{field} entries must be strings of 1-{_TITLE_SKIP_PATTERN_MAX_LEN} characters'
     if not value:
         return None, None
     return json.dumps(value), None
+
+
+def _normalize_title_skip_patterns(value):
+    return _normalize_skip_patterns(value, 'titleSkipPatterns')
+
+
+def _normalize_description_skip_patterns(value):
+    return _normalize_skip_patterns(value, 'descriptionSkipPatterns')
 
 
 def _normalize_title_skip_action(value):
@@ -500,8 +508,8 @@ def _translate_ad_chapter_compat_for_feed(db, pending_override_raw, data):
     return json.dumps(override), None
 
 
-def _deserialize_title_skip_patterns(raw):
-    """Parse the stored title_skip_patterns JSON back for API responses.
+def _deserialize_skip_patterns(raw):
+    """Parse a stored skip-patterns JSON column back for API responses.
 
     Always returns a list, empty when unset or unparsable.
     """
@@ -956,7 +964,8 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
         'lowAdYieldAction': podcast.get('low_ad_yield_action'),
         'episodeLogs': podcast.get('episode_logs'),
-        'titleSkipPatterns': _deserialize_title_skip_patterns(podcast.get('title_skip_patterns')),
+        'titleSkipPatterns': _deserialize_skip_patterns(podcast.get('title_skip_patterns')),
+        'descriptionSkipPatterns': _deserialize_skip_patterns(podcast.get('description_skip_patterns')),
         'titleSkipAction': podcast.get('title_skip_action') or 'serve_original',
         'minDurationSeconds': podcast.get('min_duration_seconds'),
         'maxDurationSeconds': podcast.get('max_duration_seconds'),
@@ -1106,7 +1115,8 @@ def _sort_podcasts(podcasts: list[dict], sort_by: str, sort_dir: str) -> list[di
 
 
 def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
-                          title_skip_patterns=None, duration_filters=None) -> dict:
+                          title_skip_patterns=None, description_skip_patterns=None,
+                          duration_filters=None) -> dict:
     """Bounded per-feed episode projection for the /feeds listing.
 
     Reuses the episode-list serializer so the grouped dashboard view matches
@@ -1116,7 +1126,9 @@ def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
     """
     base = _episode_base_json(
         ep, slug=slug, is_local=is_local, storage=storage,
-        title_skip_patterns=title_skip_patterns, duration_filters=duration_filters)
+        title_skip_patterns=title_skip_patterns,
+        description_skip_patterns=description_skip_patterns,
+        duration_filters=duration_filters)
     description = ep.get('description')
     return {
         'id': base['id'],
@@ -1131,6 +1143,7 @@ def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
         'error': base['error'],
         'pendingReviewCount': base['pendingReviewCount'],
         'titleSkipped': base['titleSkipped'],
+        'descriptionSkipped': base['descriptionSkipped'],
         'durationSkipped': base['durationSkipped'],
         'passthroughEnabled': base['passthroughEnabled'],
         'hasBeenProcessed': base['hasBeenProcessed'],
@@ -1213,7 +1226,9 @@ def list_feeds():
                 _episode_summary_json(
                     ep, slug=podcast['slug'], is_local=is_local_feed(podcast),
                     storage=storage, job_states=job_states,
-                    title_skip_patterns=podcast.get('title_skip_patterns'), duration_filters=podcast)
+                    title_skip_patterns=podcast.get('title_skip_patterns'),
+                    description_skip_patterns=podcast.get('description_skip_patterns'),
+                    duration_filters=podcast)
                 for ep in latest_by_podcast.get(podcast['id'], [])
             ]
         feeds.append(feed_json)
@@ -2056,6 +2071,13 @@ def update_feed(slug):
             return error_response(patterns_err, 400)
         updates['title_skip_patterns'] = patterns_val
 
+    if 'descriptionSkipPatterns' in data:
+        desc_patterns_val, desc_patterns_err = _normalize_description_skip_patterns(
+            data['descriptionSkipPatterns'])
+        if desc_patterns_err:
+            return error_response(desc_patterns_err, 400)
+        updates['description_skip_patterns'] = desc_patterns_val
+
     if 'titleSkipAction' in data:
         action_val, action_err = _normalize_title_skip_action(data['titleSkipAction'])
         if action_err:
@@ -2224,6 +2246,7 @@ def update_feed(slug):
         if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
                 or 'title_override' in updates or 'source_url' in updates
                 or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
+                or 'description_skip_patterns' in updates
                 or 'title_skip_action' in updates
                 or 'min_duration_seconds' in updates or 'max_duration_seconds' in updates
                 or 'title' in updates or 'author' in updates

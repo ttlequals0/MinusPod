@@ -531,6 +531,22 @@ def test_local_p20_json_object_survives_export_import_round_trip(temp_db, monkey
     assert json.loads(restored['segment_category_actions']) == {'sponsor': 'remove'}
 
 
+def test_description_skip_patterns_survives_export_import_round_trip(temp_db, monkeypatch):
+    db = temp_db
+    db.create_podcast('description-skip-feed', 'https://example.com/feed.xml', 'Show')
+    db.update_podcast('description-skip-feed',
+                      description_skip_patterns='["*This is a preview*"]')
+    exported = config_transfer.export_config(db, '2.98.2')
+    preview = config_transfer.build_preview(db, exported, 'everything')
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+
+    config_transfer.apply_config(
+        db, exported, 'everything', None, preview['previewToken'])
+
+    restored = db.get_podcast_by_slug('description-skip-feed')
+    assert json.loads(restored['description_skip_patterns']) == ['*This is a preview*']
+
+
 @pytest.mark.parametrize('secret_key', [
     'openrouter_api_key', 'secondary_provider_api_key', 'whisper_api_key',
     'failover_llm_api_key', 'failover_whisper_api_key', 'podcast_index_api_key',

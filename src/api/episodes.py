@@ -18,7 +18,8 @@ from api import (
 )
 from config import (
     is_keep_like, is_pending_review, normalize_segment_category, resolve_chapters_in_notes,
-    title_matches_skip_patterns, duration_outside_feed_range, episode_matches_feed_filters,
+    title_matches_skip_patterns, description_matches_skip_patterns,
+    duration_outside_feed_range, episode_matches_feed_filters,
     resolve_processing_mode, DEFAULT_SEGMENT_ACTION,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
@@ -329,6 +330,9 @@ def list_episodes(slug):
                 'titleSkipped': title_matches_skip_patterns(
                     ep.get('title'), ep.get('source_title_skip_patterns')
                     if source_slug else podcast.get('title_skip_patterns')),
+                'descriptionSkipped': description_matches_skip_patterns(
+                    ep.get('description'), ep.get('source_description_skip_patterns')
+                    if source_slug else podcast.get('description_skip_patterns')),
                 'durationSkipped': duration_outside_feed_range(ep.get('rss_duration'), filters),
             })
             continue
@@ -338,6 +342,8 @@ def list_episodes(slug):
             storage=storage,
             title_skip_patterns=(ep.get('source_title_skip_patterns')
                                  if source_slug else podcast.get('title_skip_patterns')),
+            description_skip_patterns=(ep.get('source_description_skip_patterns')
+                                       if source_slug else podcast.get('description_skip_patterns')),
             duration_filters=({
                 'min_duration_seconds': ep.get('source_min_duration_seconds'),
                 'max_duration_seconds': ep.get('source_max_duration_seconds'),
@@ -415,7 +421,8 @@ def _episode_job_state(db, slug, episode_id, status):
 
 
 def _episode_base_json(ep, *, slug=None, is_local=False, storage=None,
-                       title_skip_patterns=None, duration_filters=None):
+                       title_skip_patterns=None, description_skip_patterns=None,
+                       duration_filters=None):
     """Shared camelCase fields for the episode list and detail serializers.
 
     Status is mapped for frontend compatibility: 'processed' -> 'completed';
@@ -459,6 +466,8 @@ def _episode_base_json(ep, *, slug=None, is_local=False, storage=None,
         'pendingReviewCount': ep.get('pending_review_count', 0),
         'titleSkipped': title_matches_skip_patterns(
             ep.get('title'), title_skip_patterns),
+        'descriptionSkipped': description_matches_skip_patterns(
+            ep.get('description'), description_skip_patterns),
         'durationSkipped': duration_outside_feed_range(ep.get('rss_duration'), duration_filters),
         'passthroughEnabled': bool(ep.get('passthrough_enabled')),
         # Stable Process/Reprocess eligibility: a completed episode that is
@@ -778,7 +787,9 @@ def get_episode(slug, episode_id):
 
     base = _episode_base_json(
         episode, slug=slug, is_local=is_local, storage=storage,
-        title_skip_patterns=podcast.get('title_skip_patterns'), duration_filters=podcast)
+        title_skip_patterns=podcast.get('title_skip_patterns'),
+        description_skip_patterns=podcast.get('description_skip_patterns'),
+        duration_filters=podcast)
     # Separate from description: the local-episode editor round-trips that
     # field, and the block must never be written back (#720).
     base['chapterNotes'] = (format_chapter_block(episode.get('chapters_json'))

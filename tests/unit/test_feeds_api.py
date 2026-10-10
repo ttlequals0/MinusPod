@@ -463,6 +463,62 @@ def test_patch_invalid_title_skip_action_rejected(app_client, seeded_feed):
     assert seeded_feed['db'].get_podcast_by_slug(slug)['title_skip_action'] is None
 
 
+# -- descriptionSkipPatterns (issue #835) --
+
+def test_get_feed_defaults_description_skip_patterns(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+
+    resp = app_client.get(f'/api/v1/feeds/{slug}')
+    assert resp.status_code == 200
+    assert resp.get_json()['descriptionSkipPatterns'] == []
+
+
+def test_patch_sets_description_skip_patterns(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'descriptionSkipPatterns': ['*This is a preview*']},
+                            headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['descriptionSkipPatterns'] == ['*This is a preview*']
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['description_skip_patterns'] == \
+        '["*This is a preview*"]'
+
+
+def test_patch_null_resets_description_skip_patterns(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}',
+                     json={'descriptionSkipPatterns': ['*Ad*']}, headers=headers)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'descriptionSkipPatterns': None}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['descriptionSkipPatterns'] == []
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['description_skip_patterns'] is None
+
+
+@pytest.mark.parametrize('patterns', [
+    'not-a-list',
+    ['x' * 201],
+    [''],
+    ['ok'] * 51,
+])
+def test_patch_invalid_description_skip_patterns_rejected(app_client, seeded_feed, patterns):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'descriptionSkipPatterns': patterns}, headers=headers)
+    assert resp.status_code == 400
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['description_skip_patterns'] is None
+
+
 # -- lowAdYieldAction per-feed override --
 
 def test_get_feed_echoes_null_low_ad_yield_action(app_client, seeded_feed):
@@ -733,7 +789,7 @@ def test_feed_episode_search_filters_full_dataset_and_returns_all_selection(app_
     assert selection.status_code == 200
     assert len(selection.get_json()['selection']) == 30
     assert set(selection.get_json()['selection'][0]) == {
-        'id', 'status', 'jobState', 'titleSkipped', 'durationSkipped'}
+        'id', 'status', 'jobState', 'titleSkipped', 'descriptionSkipped', 'durationSkipped'}
     literal = app_client.get(f'/api/v1/feeds/{slug}/episodes?search=%25')
     assert literal.get_json()['total'] == 1
     assert literal.get_json()['episodes'][0]['durationSkipped'] is True

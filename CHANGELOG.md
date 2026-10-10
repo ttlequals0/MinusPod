@@ -18,6 +18,7 @@ release notes.
 - Per-feed RSS User-Agent overrides apply to that feed's own fetches, alongside the existing download override. (#836)
 - Audio Encoder Compression Level setting controls ffmpeg's libmp3lame `-compression_level` for processed audio; default leaves ffmpeg's own encoding behavior unchanged. (#830)
 - Episode filters group title rules with optional RSS duration limits. Skipped episodes can keep their original audio or be hidden from the served feed. (#833)
+- Episode filters can also skip by description, matching the plain-text description against glob patterns so sponsor copy in the body (not just the title) can be filtered. (#835)
 - Live episode title search covers the full feed, with selection across pages and an explicit limit of 500 episodes per bulk action.
 - Episode selection fetches cap at 501 matching rows and report a `truncated` flag when the match count overflows the cap.
 - Benchmark tooling (not shipped in the runtime image): `jev-spike` and `jev-cv` commands score System One/TypeSafe against the corpus with cached per-window probabilities and threshold sweeps.

@@ -394,7 +394,8 @@ def upload_local_episode(slug):
     # of which pass these) would then show the artwork the 201 body missed.
     response = _episode_base_json(
         episode, slug=slug, is_local=True, storage=storage,
-        title_skip_patterns=podcast.get('title_skip_patterns'))
+        title_skip_patterns=podcast.get('title_skip_patterns'),
+        description_skip_patterns=podcast.get('description_skip_patterns'))
     response['episodeNumber'] = episode.get('episode_number')
     response['seasonNumber'] = episode.get('season_number')
     response['queued'] = queued
@@ -441,7 +442,8 @@ def patch_local_episode(slug, episode_id):
     # shows artworkUrl null, even for an episode with a cached cover.
     response = _episode_base_json(
         updated, slug=slug, is_local=True, storage=storage,
-        title_skip_patterns=podcast.get('title_skip_patterns'))
+        title_skip_patterns=podcast.get('title_skip_patterns'),
+        description_skip_patterns=podcast.get('description_skip_patterns'))
     response['episodeNumber'] = updated.get('episode_number')
     response['seasonNumber'] = updated.get('season_number')
     return json_response(response, 200)

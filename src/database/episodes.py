@@ -1178,6 +1178,7 @@ class EpisodeMixin:
                             "COALESCE(NULLIF(p.title_override, ''), NULLIF(p.title, ''), p.slug) AS source_title, "
                             "p.feed_type AS source_feed_type, p.chapters_in_notes AS source_chapters_in_notes, "
                             "p.title_skip_patterns AS source_title_skip_patterns, "
+                            "p.description_skip_patterns AS source_description_skip_patterns, "
                             "p.min_duration_seconds AS source_min_duration_seconds, "
                             "p.max_duration_seconds AS source_max_duration_seconds")
 

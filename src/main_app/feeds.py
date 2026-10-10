@@ -779,6 +779,7 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           feed_auth_key=feed_auth_key,
                                           own_episode_guids=(podcast or {}).get('own_episode_guids'),
                                           hide_title_patterns=hide_filters.get('title_skip_patterns'),
+                                          hide_description_patterns=hide_filters.get('description_skip_patterns'),
                                           hide_min_duration_seconds=hide_filters.get('min_duration_seconds'),
                                           hide_max_duration_seconds=hide_filters.get('max_duration_seconds'),
                                           chapter_notes=chapter_notes)

@@ -342,9 +342,19 @@ Each feed can list glob patterns under **Episode filters > Skip episodes by titl
 
 Matching is against the whole title, case-insensitive. `*` is a wildcard; a pattern with no wildcard must match the entire title exactly, so a substring match needs `*` on both sides. For example `Bonus Episode *` skips any title starting with "Bonus Episode", and `*live show*` skips any title containing "live show" anywhere.
 
-The shared **Skipped episodes** choice applies to title and duration filters. **Keep in feed with original audio** (default) serves the episode unmodified. **Hide from feed** removes it from served RSS. Either way the episode is unaffected by the blacklist if you reprocess it manually: a manual reprocess always overrides the blacklist and processes the episode normally.
+The shared **Skipped episodes** choice applies to title, description, and duration filters. **Keep in feed with original audio** (default) serves the episode unmodified. **Hide from feed** removes it from served RSS. Either way the episode is unaffected by the blacklist if you reprocess it manually: a manual reprocess always overrides the blacklist and processes the episode normally.
 
 API: `titleSkipPatterns` (array of strings, max 50 patterns, 200 characters each) and `titleSkipAction` (`serve_original` or `hide`) on `PATCH /api/v1/feeds/{slug}`.
+
+### Skip episodes by description
+
+Each feed can also list glob patterns under **Episode filters > Skip episodes by description**. This catches shows that put sponsor copy only in the description, not the title, for example "This is a preview. To hear the entire episode, become a supporter on Patreon." (#835). An episode whose description matches any pattern is skipped the same way a title match is: never queued for automatic processing, and just-in-time processing does not detect or cut it.
+
+Matching is against the description's plain text, with HTML tags removed, as a single whole-text string, case-insensitive. `*` is a wildcard, so a phrase needs `*` on both sides, for example `*This is a preview. To hear the entire episode*`.
+
+The shared **Skipped episodes** choice applies to title, description, and duration filters.
+
+API: `descriptionSkipPatterns` (array of strings, max 50 patterns, 200 characters each) on `PATCH /api/v1/feeds/{slug}`; `titleSkipAction` governs served-RSS visibility for all three filters.
 
 ### Episode duration filters
 
@@ -352,7 +362,7 @@ The feed's **Episode filters** section has optional **Minimum (minutes)** and **
 
 Limits include their endpoints and use the publisher's RSS duration, before any download or ad removal. Episodes with missing, invalid, or zero duration stay eligible. The minimum cannot exceed the maximum.
 
-An episode outside the range skips automatic and just-in-time processing. **Skipped episodes** decides whether it stays in the served feed with original audio or is hidden. Manual reprocessing overrides both duration and title filters. Local feeds ignore these upstream filters.
+An episode outside the range skips automatic and just-in-time processing. **Skipped episodes** decides whether it stays in the served feed with original audio or is hidden. Manual reprocessing overrides duration, title, and description filters. Local feeds ignore these upstream filters.
 
 API: `minDurationSeconds` and `maxDurationSeconds` on `PATCH /api/v1/feeds/{slug}` accept finite, nonnegative numbers in seconds. Null clears a limit; omitted fields keep their saved values. Configuration Import / Export preserves both limits.
 
