@@ -25,8 +25,10 @@ import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonSty
 import { ConfirmModal } from '../../components/Modal';
 import SavedBadge from '../settings/SavedBadge';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { inputBase, selectBase } from '../../components/fieldStyles';
+import { selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
+import { SkipPatternsField } from './SkipPatternsField';
+import { UserAgentOverrideField } from './UserAgentOverrideField';
 
 // Matches MAX_RETENTION_DAYS_OVERRIDE in src/api/feeds.py.
 const MAX_RETENTION_DAYS = 3650;
@@ -34,7 +36,6 @@ const MAX_RETENTION_DAYS = 3650;
 type RetentionMode = 'global' | 'archive' | 'custom';
 import { focusRing } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
-import { RemovableChip } from '../../components/RemovableChip';
 import { isSystemOneChapterRoute } from '../settings/systemoneWarnings';
 
 interface Props {
@@ -184,12 +185,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [confirmRerender, setConfirmRerender] = useState(false);
   const [rerenderError, setRerenderError] = useState<string | null>(null);
   const [segmentActionError, setSegmentActionError] = useState<string | null>(null);
-  const [addingTitleSkipPattern, setAddingTitleSkipPattern] = useState(false);
-  const [titleSkipPatternInput, setTitleSkipPatternInput] = useState('');
-  const [titleSkipPatternError, setTitleSkipPatternError] = useState<string | null>(null);
-  const [addingDescriptionSkipPattern, setAddingDescriptionSkipPattern] = useState(false);
-  const [descriptionSkipPatternInput, setDescriptionSkipPatternInput] = useState('');
-  const [descriptionSkipPatternError, setDescriptionSkipPatternError] = useState<string | null>(null);
   const [durationFilterError, setDurationFilterError] = useState<string | null>(null);
   const minDurationField = useDraftField(feed, (f) =>
     f.minDurationSeconds == null ? '' : String(f.minDurationSeconds / 60));
@@ -271,10 +266,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const maxAdDurField = useDraftField(feed, (f) => s(f.maxAdDurationOverride));
   const maxAdDurRejectField = useDraftField(feed, (f) => s(f.maxAdDurationRejectOverride));
   const introExclusionField = useDraftField(feed, (f) => s(f.adDetectionExcludeStartOverride));
-  const downloadUaField = useDraftField(feed, (f) => f.downloadUserAgentOverride ?? '', (v) => v.trim());
-  const [downloadUaError, setDownloadUaError] = useState<string | null>(null);
-  const feedUaField = useDraftField(feed, (f) => f.feedUserAgentOverride ?? '', (v) => v.trim());
-  const [feedUaError, setFeedUaError] = useState<string | null>(null);
   // Notes commit on Save, not blur: markClean runs in the mutation's onSuccess so
   // the button/badge update instantly. Dirty compare trims, so a whitespace-only edit isn't dirty.
   const notesField = useDraftField(feed, (f) => f.detectionNotes ?? '', (v) => v.trim());
@@ -432,24 +423,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     }
   }
 
-  const saveDownloadUa = (value: string) => {
-    const next = value.trim() || null;
-    setDownloadUaError(null);
-    updateMutation.mutate({ downloadUserAgentOverride: next }, {
-      onSuccess: () => downloadUaField.markClean(next ?? ''),
-      onError: (e) => setDownloadUaError(getErrorMessage(e, 'Failed to save download User-Agent')),
-    });
-  };
-
-  const saveFeedUa = (value: string) => {
-    const next = value.trim() || null;
-    setFeedUaError(null);
-    updateMutation.mutate({ feedUserAgentOverride: next }, {
-      onSuccess: () => feedUaField.markClean(next ?? ''),
-      onError: (e) => setFeedUaError(getErrorMessage(e, 'Failed to save RSS User-Agent')),
-    });
-  };
-
   const saveDetectionNotes = () => {
     const next = notesField.value.trim() || null;
     setDetectionNotesError(null);
@@ -514,62 +487,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       daiPlatform: editDaiPlatform || undefined,
       autoProcessOverride: autoProcessOverride,
       maxEpisodes,
-    });
-  };
-
-  const addTitleSkipPattern = () => {
-    const pattern = titleSkipPatternInput.trim();
-    if (!pattern) return;
-    const current = feed.titleSkipPatterns ?? [];
-    if (current.includes(pattern)) {
-      setTitleSkipPatternInput('');
-      setAddingTitleSkipPattern(false);
-      return;
-    }
-    setTitleSkipPatternError(null);
-    updateMutation.mutate({ titleSkipPatterns: [...current, pattern] }, {
-      onSuccess: () => {
-        setTitleSkipPatternInput('');
-        setAddingTitleSkipPattern(false);
-      },
-      onError: (e) => setTitleSkipPatternError(getErrorMessage(e, 'Failed to add pattern')),
-    });
-  };
-
-  const removeTitleSkipPattern = (pattern: string) => {
-    setTitleSkipPatternError(null);
-    updateMutation.mutate({
-      titleSkipPatterns: (feed.titleSkipPatterns ?? []).filter((p) => p !== pattern),
-    }, {
-      onError: (e) => setTitleSkipPatternError(getErrorMessage(e, 'Failed to remove pattern')),
-    });
-  };
-
-  const addDescriptionSkipPattern = () => {
-    const pattern = descriptionSkipPatternInput.trim();
-    if (!pattern) return;
-    const current = feed.descriptionSkipPatterns ?? [];
-    if (current.includes(pattern)) {
-      setDescriptionSkipPatternInput('');
-      setAddingDescriptionSkipPattern(false);
-      return;
-    }
-    setDescriptionSkipPatternError(null);
-    updateMutation.mutate({ descriptionSkipPatterns: [...current, pattern] }, {
-      onSuccess: () => {
-        setDescriptionSkipPatternInput('');
-        setAddingDescriptionSkipPattern(false);
-      },
-      onError: (e) => setDescriptionSkipPatternError(getErrorMessage(e, 'Failed to add pattern')),
-    });
-  };
-
-  const removeDescriptionSkipPattern = (pattern: string) => {
-    setDescriptionSkipPatternError(null);
-    updateMutation.mutate({
-      descriptionSkipPatterns: (feed.descriptionSkipPatterns ?? []).filter((p) => p !== pattern),
-    }, {
-      onError: (e) => setDescriptionSkipPatternError(getErrorMessage(e, 'Failed to remove pattern')),
     });
   };
 
@@ -1032,150 +949,28 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             storageKey={`feed-filters-${slug}`}
           >
             <div className="space-y-4 pt-1">
-              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
-                  Skip episodes by title:
-                </span>
-                <div className="flex flex-col gap-1 flex-1 min-w-0">
-                  {(feed.titleSkipPatterns ?? []).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-1">
-                      {feed.titleSkipPatterns!.map((p) => (
-                        <RemovableChip key={p} label={p} onRemove={() => removeTitleSkipPattern(p)}
-                          disabled={updateMutation.isPending} />
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    {!addingTitleSkipPattern ? (
-                      <button
-                        type="button"
-                        onClick={() => setAddingTitleSkipPattern(true)}
-                        disabled={updateMutation.isPending}
-                        className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
-                      >
-                        + Add pattern
-                      </button>
-                    ) : (
-                      <>
-                        <input
-                          type="text"
-                          autoFocus
-                          value={titleSkipPatternInput}
-                          onChange={(e) => setTitleSkipPatternInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              addTitleSkipPattern();
-                            }
-                          }}
-                          placeholder="Bonus Episode *"
-                          aria-label="New title pattern"
-                          maxLength={200}
-                          className="px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0"
-                        />
-                        <button
-                          type="button"
-                          onClick={addTitleSkipPattern}
-                          disabled={updateMutation.isPending || !titleSkipPatternInput.trim()}
-                          className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
-                        >
-                          Add
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAddingTitleSkipPattern(false);
-                            setTitleSkipPatternInput('');
-                            setTitleSkipPatternError(null);
-                          }}
-                          className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {titleSkipPatternError && (
-                    <p className="text-xs text-destructive">{titleSkipPatternError}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Match the whole title, ignoring case. Use * as a wildcard, for example Bonus Episode *.
-                  </p>
-                </div>
-              </div>
+              <SkipPatternsField
+                label="Skip episodes by title:"
+                patterns={feed.titleSkipPatterns}
+                inputAriaLabel="New title pattern"
+                placeholder="Bonus Episode *"
+                hint="Match the whole title, ignoring case. Use * as a wildcard, for example Bonus Episode *."
+                disabled={updateMutation.isPending}
+                onAdd={(next, callbacks) => updateMutation.mutate({ titleSkipPatterns: next }, callbacks)}
+                onRemove={(next, callbacks) => updateMutation.mutate({ titleSkipPatterns: next }, callbacks)}
+              />
 
-              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
-                  Skip episodes by description:
-                </span>
-                <div className="flex flex-col gap-1 flex-1 min-w-0">
-                  {(feed.descriptionSkipPatterns ?? []).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-1">
-                      {feed.descriptionSkipPatterns!.map((p) => (
-                        <RemovableChip key={p} label={p} onRemove={() => removeDescriptionSkipPattern(p)}
-                          disabled={updateMutation.isPending} />
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    {!addingDescriptionSkipPattern ? (
-                      <button
-                        type="button"
-                        aria-label="Add description pattern"
-                        onClick={() => setAddingDescriptionSkipPattern(true)}
-                        disabled={updateMutation.isPending}
-                        className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
-                      >
-                        + Add pattern
-                      </button>
-                    ) : (
-                      <>
-                        <input
-                          type="text"
-                          autoFocus
-                          value={descriptionSkipPatternInput}
-                          onChange={(e) => setDescriptionSkipPatternInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              addDescriptionSkipPattern();
-                            }
-                          }}
-                          placeholder="*This is a preview*"
-                          aria-label="New description pattern"
-                          maxLength={200}
-                          className="px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0"
-                        />
-                        <button
-                          type="button"
-                          onClick={addDescriptionSkipPattern}
-                          disabled={updateMutation.isPending || !descriptionSkipPatternInput.trim()}
-                          className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
-                        >
-                          Add
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAddingDescriptionSkipPattern(false);
-                            setDescriptionSkipPatternInput('');
-                            setDescriptionSkipPatternError(null);
-                          }}
-                          className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {descriptionSkipPatternError && (
-                    <p className="text-xs text-destructive">{descriptionSkipPatternError}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Match the whole description text, HTML removed, ignoring case. Use * as a wildcard, for example *This is a preview. To hear the entire episode*.
-                  </p>
-                </div>
-              </div>
+              <SkipPatternsField
+                label="Skip episodes by description:"
+                patterns={feed.descriptionSkipPatterns}
+                addButtonAriaLabel="Add description pattern"
+                inputAriaLabel="New description pattern"
+                placeholder="*This is a preview*"
+                hint="Match the whole description text, HTML removed, ignoring case. Use * as a wildcard, for example *This is a preview. To hear the entire episode*."
+                disabled={updateMutation.isPending}
+                onAdd={(next, callbacks) => updateMutation.mutate({ descriptionSkipPatterns: next }, callbacks)}
+                onRemove={(next, callbacks) => updateMutation.mutate({ descriptionSkipPatterns: next }, callbacks)}
+              />
 
               <div className="space-y-2 text-sm">
                 <div className="grid grid-cols-2 gap-3 max-w-xs">
@@ -1727,74 +1522,32 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             storageKey={`feed-advanced-${slug}`}
           >
             <div className="flex flex-col gap-3 pt-1">
-              <div className="flex flex-col gap-2 text-sm min-w-0">
-                <label htmlFor={`download-ua-${slug}`} className="text-muted-foreground">Download User-Agent</label>
-                <input
-                  id={`download-ua-${slug}`}
-                  value={downloadUaField.value}
-                  onChange={(e) => {
-                    downloadUaField.setValue(e.target.value);
-                    setDownloadUaError(null);
-                  }}
-                  placeholder={String(settings?.downloadUserAgent?.value ?? 'Use global')}
-                  maxLength={512}
-                  disabled={updateMutation.isPending}
-                  aria-describedby={`download-ua-hint-${slug}`}
-                  className={`w-full min-w-0 min-h-11 font-mono ${inputBase}`}
-                />
-                <p id={`download-ua-hint-${slug}`} className="text-xs text-muted-foreground">
-                  Audio, artwork, and chapters for this feed. Blank uses global. Cross-fetch uses a different client.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => saveDownloadUa(downloadUaField.value)}
-                    disabled={!downloadUaField.dirty || updateMutation.isPending}
-                    aria-label="Save download User-Agent"
-                    className={`${btnPrimary} min-h-11 px-3 py-2 text-xs rounded ${focusRing}`}
-                  >Save</button>
-                  <button
-                    onClick={() => saveDownloadUa('')}
-                    disabled={(feed.downloadUserAgentOverride == null && downloadUaField.value === '') || updateMutation.isPending}
-                    aria-label="Use global download User-Agent"
-                    className={`${btnOutline} min-h-11 px-3 py-2 text-xs rounded ${focusRing}`}
-                  >Use global</button>
-                </div>
-                {downloadUaError && <p role="alert" className="text-xs text-destructive">{downloadUaError}</p>}
-              </div>
-              <div className="flex flex-col gap-2 text-sm min-w-0">
-                <label htmlFor={`feed-ua-${slug}`} className="text-muted-foreground">RSS User-Agent</label>
-                <input
-                  id={`feed-ua-${slug}`}
-                  value={feedUaField.value}
-                  onChange={(e) => {
-                    feedUaField.setValue(e.target.value);
-                    setFeedUaError(null);
-                  }}
-                  placeholder={String(settings?.feedUserAgent?.value ?? 'Use global')}
-                  maxLength={512}
-                  disabled={updateMutation.isPending}
-                  aria-describedby={`feed-ua-hint-${slug}`}
-                  className={`w-full min-w-0 min-h-11 font-mono ${inputBase}`}
-                />
-                <p id={`feed-ua-hint-${slug}`} className="text-xs text-muted-foreground">
-                  This feed's own RSS fetch. Blank uses global.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => saveFeedUa(feedUaField.value)}
-                    disabled={!feedUaField.dirty || updateMutation.isPending}
-                    aria-label="Save RSS User-Agent"
-                    className={`${btnPrimary} min-h-11 px-3 py-2 text-xs rounded ${focusRing}`}
-                  >Save</button>
-                  <button
-                    onClick={() => saveFeedUa('')}
-                    disabled={(feed.feedUserAgentOverride == null && feedUaField.value === '') || updateMutation.isPending}
-                    aria-label="Use global RSS User-Agent"
-                    className={`${btnOutline} min-h-11 px-3 py-2 text-xs rounded ${focusRing}`}
-                  >Use global</button>
-                </div>
-                {feedUaError && <p role="alert" className="text-xs text-destructive">{feedUaError}</p>}
-              </div>
+              <UserAgentOverrideField
+                id={`download-ua-${slug}`}
+                label="Download User-Agent"
+                feed={feed}
+                field="downloadUserAgentOverride"
+                globalValue={settings?.downloadUserAgent?.value}
+                hint="Audio, artwork, and chapters for this feed. Blank uses global. Cross-fetch uses a different client."
+                saveAriaLabel="Save download User-Agent"
+                useGlobalAriaLabel="Use global download User-Agent"
+                errorFallback="Failed to save download User-Agent"
+                disabled={updateMutation.isPending}
+                onSave={(next, callbacks) => updateMutation.mutate({ downloadUserAgentOverride: next }, callbacks)}
+              />
+              <UserAgentOverrideField
+                id={`feed-ua-${slug}`}
+                label="RSS User-Agent"
+                feed={feed}
+                field="feedUserAgentOverride"
+                globalValue={settings?.feedUserAgent?.value}
+                hint="This feed's own RSS fetch. Blank uses global."
+                saveAriaLabel="Save RSS User-Agent"
+                useGlobalAriaLabel="Use global RSS User-Agent"
+                errorFallback="Failed to save RSS User-Agent"
+                disabled={updateMutation.isPending}
+                onSave={(next, callbacks) => updateMutation.mutate({ feedUserAgentOverride: next }, callbacks)}
+              />
               {/* Boundary-snap opt-ins (simple flags; off unless enabled here) */}
               {(
                 [

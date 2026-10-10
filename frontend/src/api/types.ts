@@ -140,9 +140,8 @@ export interface Feed {
   // Per-feed episode title blacklist: fnmatch glob patterns matched against
   // episode titles. A match is never queued or JIT-processed.
   titleSkipPatterns?: string[];
-  // Per-feed episode description blacklist (#835): fnmatch glob patterns
-  // matched against the plain-text description. A match is never queued or
-  // JIT-processed.
+  // Per-feed episode description blacklist (#835): fnmatch glob patterns matched
+  // against the plain-text description. A match is never queued or JIT-processed.
   descriptionSkipPatterns?: string[];
   // RSS visibility for episodes excluded by title, description, or duration.
   titleSkipAction?: 'serve_original' | 'hide' | null;
