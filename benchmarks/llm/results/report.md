@@ -64,7 +64,6 @@ Models ranked by F0.5 (precision weighted 2x recall) against human-verified grou
 | A | `x-ai/grok-4.3` | 0.842 | +/-0.111 | 0.836 | 0.885 | 0.854 | $1.6899 | 5.0s | 1.00 |  |
 | A | `openai/gpt-5.5` | 0.839 | +/-0.123 | 0.836 | 0.870 | 0.847 | $7.6842 | 5.4s | 0.87 | (!) brittle JSON (!) fails no-ad control |
 | A | `google/gemini-3.7-flash` | 0.838 | +/-0.112 | 0.833 | 0.878 | 0.848 | $1.2822 | 4.7s | 1.00 |  |
-| A | `claude-fable-5-1` | 0.833 | +/-0.182 | 0.830 | 0.856 | 0.839 | $3.6406 | 4.4s | 1.00 |  |
 | A | `x-ai/grok-4.6` | 0.827 | +/-0.107 | 0.816 | 0.897 | 0.847 | $3.7063 | 13.4s | 1.00 |  |
 | A | `claude-sonnet-5` | 0.824 | +/-0.098 | 0.812 | 0.897 | 0.845 | $2.2552 | 5.8s | 1.00 |  |
 | A | `openai/gpt-5.6-terra` | 0.823 | +/-0.113 | 0.822 | 0.858 | 0.830 | $2.3902 | 2.1s | 0.86 | (!) brittle JSON (!) fails no-ad control |
@@ -212,28 +211,27 @@ Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here be
 | 61 | `claude-sonnet-4-6` | 0.27 | 0.859 | 0.866 | $3.2386 |  |
 | 62 | `x-ai/grok-4.5` | 0.25 | 0.843 | 0.861 | $3.3554 |  |
 | 63 | `moonshotai/kimi-k3` | 0.23 | 0.760 | 0.770 | $3.3067 | (!) brittle JSON (!) fails no-ad control |
-| 64 | `claude-fable-5-1` | 0.23 | 0.833 | 0.839 | $3.6406 |  |
-| 65 | `google/gemini-3.5-flash` | 0.23 | 0.843 | 0.863 | $3.7029 |  |
-| 66 | `openai/gpt-5.4` | 0.23 | 0.633 | 0.685 | $2.7907 | (!) brittle JSON (!) fails no-ad control |
-| 67 | `x-ai/grok-4.6` | 0.22 | 0.827 | 0.847 | $3.7063 |  |
-| 68 | `deepseek/deepseek-v4-pro-0813` | 0.20 | 0.565 | 0.507 | $2.8913 | (!) brittle JSON |
-| 69 | `openai/o3` | 0.19 | 0.613 | 0.499 | $3.3100 |  |
-| 70 | `claude-opus-5-5` | 0.18 | 0.823 | 0.832 | $4.4947 |  |
-| 71 | `google/gemini-2.5-pro` | 0.17 | 0.720 | 0.752 | $4.1601 | (!) fails no-ad control |
-| 72 | `google/gemini-3.1-pro-preview` | 0.16 | 0.791 | 0.815 | $4.9160 |  |
-| 73 | `cohere/command-r-plus-08-2024` | 0.16 | 0.451 | 0.389 | $2.8505 |  |
-| 74 | `claude-opus-4-7` | 0.15 | 0.803 | 0.822 | $5.3293 |  |
-| 75 | `claude-opus-4-8` | 0.14 | 0.816 | 0.842 | $5.6985 |  |
-| 76 | `cohere/command-a` | 0.14 | 0.412 | 0.464 | $2.9415 | (!) brittle JSON (!) fails no-ad control |
-| 77 | `claude-opus-5` | 0.14 | 0.771 | 0.798 | $5.6934 |  |
-| 78 | `qwen/qwen3.8-2.4t-a95b` | 0.12 | 0.499 | 0.446 | $4.2877 | (!) brittle JSON (!) fails no-ad control |
-| 79 | `openai/gpt-5.5` | 0.11 | 0.839 | 0.847 | $7.6842 | (!) brittle JSON (!) fails no-ad control |
-| 80 | `qwen/qwen3.8-max` | 0.10 | 0.354 | 0.285 | $3.6094 | (!) brittle JSON |
-| 81 | `thinkingmachines/inkling` | 0.09 | 0.302 | 0.236 | $3.2111 | (!) brittle JSON (!) fails no-ad control |
-| 82 | `openai/o4-mini` | 0.09 | 0.193 | 0.137 | $2.1179 | (!) brittle JSON |
-| 83 | `claude-fable-5` | 0.08 | 0.815 | 0.847 | $10.7552 |  |
-| 84 | `bytedance-seed/seed-2-1-turbo` | 0.05 | 0.080 | 0.058 | $1.5249 | (!) brittle JSON (!) fails no-ad control |
-| 85 | `qwen/qwen3-8b` | 0.00 | 0.000 | 0.000 | $0.3470 | (!) brittle JSON |
+| 64 | `google/gemini-3.5-flash` | 0.23 | 0.843 | 0.863 | $3.7029 |  |
+| 65 | `openai/gpt-5.4` | 0.23 | 0.633 | 0.685 | $2.7907 | (!) brittle JSON (!) fails no-ad control |
+| 66 | `x-ai/grok-4.6` | 0.22 | 0.827 | 0.847 | $3.7063 |  |
+| 67 | `deepseek/deepseek-v4-pro-0813` | 0.20 | 0.565 | 0.507 | $2.8913 | (!) brittle JSON |
+| 68 | `openai/o3` | 0.19 | 0.613 | 0.499 | $3.3100 |  |
+| 69 | `claude-opus-5-5` | 0.18 | 0.823 | 0.832 | $4.4947 |  |
+| 70 | `google/gemini-2.5-pro` | 0.17 | 0.720 | 0.752 | $4.1601 | (!) fails no-ad control |
+| 71 | `google/gemini-3.1-pro-preview` | 0.16 | 0.791 | 0.815 | $4.9160 |  |
+| 72 | `cohere/command-r-plus-08-2024` | 0.16 | 0.451 | 0.389 | $2.8505 |  |
+| 73 | `claude-opus-4-7` | 0.15 | 0.803 | 0.822 | $5.3293 |  |
+| 74 | `claude-opus-4-8` | 0.14 | 0.816 | 0.842 | $5.6985 |  |
+| 75 | `cohere/command-a` | 0.14 | 0.412 | 0.464 | $2.9415 | (!) brittle JSON (!) fails no-ad control |
+| 76 | `claude-opus-5` | 0.14 | 0.771 | 0.798 | $5.6934 |  |
+| 77 | `qwen/qwen3.8-2.4t-a95b` | 0.12 | 0.499 | 0.446 | $4.2877 | (!) brittle JSON (!) fails no-ad control |
+| 78 | `openai/gpt-5.5` | 0.11 | 0.839 | 0.847 | $7.6842 | (!) brittle JSON (!) fails no-ad control |
+| 79 | `qwen/qwen3.8-max` | 0.10 | 0.354 | 0.285 | $3.6094 | (!) brittle JSON |
+| 80 | `thinkingmachines/inkling` | 0.09 | 0.302 | 0.236 | $3.2111 | (!) brittle JSON (!) fails no-ad control |
+| 81 | `openai/o4-mini` | 0.09 | 0.193 | 0.137 | $2.1179 | (!) brittle JSON |
+| 82 | `claude-fable-5` | 0.08 | 0.815 | 0.847 | $10.7552 |  |
+| 83 | `bytedance-seed/seed-2-1-turbo` | 0.05 | 0.080 | 0.058 | $1.5249 | (!) brittle JSON (!) fails no-ad control |
+| 84 | `qwen/qwen3-8b` | 0.00 | 0.000 | 0.000 | $0.3470 | (!) brittle JSON |
 
 ### Best Free-Tier (F0.5)
 
@@ -377,7 +375,7 @@ Source data: [Parser stress test](#parser-stress-test) table
 
 ## Failures and provider issues
 
-**312 call(s) failed out of 74948 total (0.42%).** Failures are excluded from F1 / cost calculations, but they often surface real production-relevant gotchas worth knowing.
+**130 call(s) failed out of 74520 total (0.17%).** Failures are excluded from F1 / cost calculations, but they often surface real production-relevant gotchas worth knowing.
 
 ### By category
 
@@ -385,7 +383,6 @@ Errors classified into coarse buckets so failure patterns are visible at a glanc
 
 | Category | Calls | Affected models |
 |----------|------:|-----------------|
-| Rate-limited | 182 | `claude-fable-5-1` |
 | Provider content moderation rejection | 130 | `stepfun/step-3.7-flash` |
 
 ### Per-model error count
@@ -394,18 +391,11 @@ Same errors grouped by model, with the failure rate as a fraction of that model'
 
 | Model | Errors | of total |
 |---|---:|---:|
-| `claude-fable-5-1` | 182 | 182/428 (42.5%) |
 | `stepfun/step-3.7-flash` | 130 | 130/855 (15.2%) |
 
 ### Sample messages (first 3 per category)
 
 First three raw error messages per category, so you can see what the provider actually returned without grepping the call records. Messages are truncated to ~240 characters; full text lives in `results/raw/calls/<model>.jsonl`.
-
-**Rate-limited** (182)
-- `claude-fable-5-1` on `ep-andy-and-ari-e774e8022fab` (trial 1, window 0): Error code: 429 - {'error': {'message': 'Upstream rate limit exceeded', 'type': 'upstream_api_error', 'code': 'assistant_rate_limit', 'rate_limit_type': 'session_limit', 'resets_at': 1791756000, 'resets_at_iso': '2026-10-11T22:00:00+00:00',...
-- `claude-fable-5-1` on `ep-andy-and-ari-e774e8022fab` (trial 1, window 1): Error code: 429 - {'error': {'message': 'Upstream rate limit exceeded', 'type': 'upstream_api_error', 'code': 'assistant_rate_limit', 'rate_limit_type': 'session_limit', 'resets_at': 1791756000, 'resets_at_iso': '2026-10-11T22:00:00+00:00',...
-- `claude-fable-5-1` on `ep-andy-and-ari-e774e8022fab` (trial 1, window 2): Error code: 429 - {'error': {'message': 'Upstream rate limit exceeded', 'type': 'upstream_api_error', 'code': 'assistant_rate_limit', 'rate_limit_type': 'session_limit', 'resets_at': 1791756000, 'resets_at_iso': '2026-10-11T22:00:00+00:00',...
-- ... and 179 more
 
 **Provider content moderation rejection** (130)
 - `stepfun/step-3.7-flash` on `ep-drink-champs-30c9a2d49f13` (trial 0, window 4): Error code: 451 - {'error': {'message': 'Provider returned error', 'code': 451, 'metadata': {'raw': '{"error":{"message":"The content you provided or machine outputted is blocked.","type":"censorship_blocked"}}', 'provider_name': 'StepFun',...
@@ -455,7 +445,6 @@ Reading the table: high precision + low recall means the model is cautious. It r
 | `claude-opus-4-8` | 0.802 | 0.909 | 245 | 72 | 25 |
 | `mistralai/mistral-medium-3-5` | 0.811 | 0.887 | 221 | 58 | 24 |
 | `google/gemini-3.1-flash-lite` | 0.764 | 0.970 | 260 | 103 | 10 |
-| `claude-fable-5-1` | 0.830 | 0.856 | 110 | 26 | 20 |
 | `claude-opus-5-5` | 0.818 | 0.860 | 239 | 47 | 31 |
 | `openai/gpt-5.6-terra` | 0.822 | 0.858 | 209 | 51 | 36 |
 | `qwen/qwen3.7-max` | 0.803 | 0.871 | 210 | 61 | 35 |
@@ -547,7 +536,6 @@ MAE is size of the miss; bias is its direction (mean of predicted minus truth). 
 | `google/gemini-3.1-flash-lite` | 3.83 | 2.66 | -0.60 | -1.20 |
 | `google/gemini-3.6-flash` | 3.59 | 3.16 | +0.81 | -2.30 |
 | `deepseek/deepseek-v4-flash` | 3.93 | 2.90 | +0.76 | -0.78 |
-| `claude-fable-5-1` | 4.28 | 2.60 | -1.58 | -1.46 |
 | `claude-sonnet-5` | 4.20 | 2.70 | -1.41 | -0.82 |
 | `claude-sonnet-4-6` | 4.13 | 2.81 | -1.32 | -1.93 |
 | `qwen/qwen3.8-flash` | 3.71 | 3.35 | -2.12 | -3.25 |
@@ -631,7 +619,6 @@ Models include a self-reported `confidence` on each detected ad. A well-calibrat
 |---|---:|---:|---:|---:|---:|---:|
 | `bytedance-seed/seed-2-1-turbo` | -- | -- | -- | 0.88 (n=8) | -- | 8 |
 | `claude-fable-5` | 0.00 (n=17) | 0.00 (n=41) | 0.71 (n=7) | 0.92 (n=242) | -- | 307 |
-| `claude-fable-5-1` | 0.00 (n=6) | 0.00 (n=6) | 0.33 (n=3) | 0.90 (n=121) | -- | 136 |
 | `claude-haiku-4-5-20251001` | 0.00 (n=1) | 0.15 (n=13) | 0.46 (n=13) | 0.90 (n=216) | 0.91 (n=53) | 296 |
 | `claude-opus-4-7` | 0.00 (n=8) | 0.00 (n=17) | 0.00 (n=27) | 0.93 (n=228) | 1.00 (n=9) | 289 |
 | `claude-opus-4-8` | 0.00 (n=14) | 0.00 (n=27) | 0.75 (n=4) | 0.89 (n=270) | 1.00 (n=2) | 317 |
@@ -761,7 +748,6 @@ Median latency hides outliers. p99 and max are what determines queue depth and w
 | `claude-sonnet-4-6` | 4.11s | 63.07s | 83.49s | 170.46s | 351.49s |
 | `xiaomi/mimo-v2.5` | 4.16s | 12.88s | 21.43s | 62.00s | 201.00s |
 | `meta/muse-spark-1.1` | 4.31s | 10.89s | 13.59s | 17.76s | 20.43s |
-| `claude-fable-5-1` | 4.40s | 64.14s | 67.47s | 183.66s | 244.04s |
 | `google/gemini-3.6-flash` | 4.51s | 8.72s | 10.24s | 14.59s | 19.88s |
 | `claude-opus-4-7` | 4.60s | 64.27s | 66.02s | 183.69s | 245.11s |
 | `google/gemini-3.7-flash` | 4.65s | 7.79s | 9.87s | 13.77s | 20.04s |
@@ -827,7 +813,6 @@ How many output tokens the model spent per detected ad. Lower is more concise (t
 | `claude-fable-5` | 39,151 | 566 | 69 | $0.0472 |
 | `mistralai/codestral-2508` | 57,458 | 820 | 70 | $0.0021 |
 | `claude-opus-4-8` | 45,415 | 645 | 70 | $0.0233 |
-| `claude-fable-5-1` | 16,058 | 224 | 72 | $0.0331 |
 | `mistralai/mistral-medium-3.1` | 51,122 | 705 | 73 | $0.0024 |
 | `openai/gpt-3.5-turbo` | 56,074 | 767 | 73 | $0.0054 |
 | `claude-opus-5` | 44,397 | 606 | 73 | $0.0238 |
@@ -924,7 +909,6 @@ Where each model's per-episode dollars go, at the same pricing snapshot as every
 | `google/gemini-2.5-pro` | $4.1601 | $1.4178 | $2.7423 | 66% |
 | `x-ai/grok-4.6` | $3.7063 | $2.2292 | $1.4771 | 40% |
 | `google/gemini-3.5-flash` | $3.7029 | $1.7814 | $1.9215 | 52% |
-| `claude-fable-5-1` | $3.6406 | $3.4488 | $0.1918 | 5% |
 | `qwen/qwen3.8-max` | $3.6094 | $1.9307 | $1.6786 | 47% |
 | `x-ai/grok-4.5` | $3.3554 | $2.2292 | $1.1262 | 34% |
 | `openai/o3` | $3.3100 | $2.1229 | $1.1871 | 36% |
@@ -1020,7 +1004,6 @@ All trials run at temperature 0.0. If a model produces stable output you'd expec
 | `claude-opus-4-8` | 0.0424 | 0.1565 |
 | `mistralai/mistral-medium-3-5` | 0.0295 | 0.1082 |
 | `google/gemini-3.1-flash-lite` | 0.0262 | 0.1445 |
-| `claude-fable-5-1` | 0.0382 | 0.0894 |
 | `claude-opus-5-5` | 0.0543 | 0.2739 |
 | `openai/gpt-5.6-terra` | 0.0555 | 0.1482 |
 | `qwen/qwen3.7-max` | 0.0495 | 0.1848 |
@@ -1095,68 +1078,68 @@ All trials run at temperature 0.0. If a model produces stable output you'd expec
 
 ## Cross-model agreement
 
-For each of the 182 (episode, window, trial-equivalent) entries, how many of the 87 active models predicted at least one ad? High-agreement windows are unambiguous ads (or unambiguously not ads). Low-agreement windows are where individual models disagree, and are candidates for ensemble voting if you want a cheap accuracy boost.
+For each of the 182 (episode, window, trial-equivalent) entries, how many of the 86 active models predicted at least one ad? High-agreement windows are unambiguous ads (or unambiguously not ads). Low-agreement windows are where individual models disagree, and are candidates for ensemble voting if you want a cheap accuracy boost.
 
 | Models predicting an ad | Window count | Share |
 |---:|---:|---:|
-| 1 of 87 | 2 | 1.1% |
-| 5 of 87 | 1 | 0.5% |
-| 7 of 87 | 6 | 3.3% |
-| 8 of 87 | 4 | 2.2% |
-| 9 of 87 | 5 | 2.7% |
-| 10 of 87 | 8 | 4.4% |
-| 11 of 87 | 7 | 3.8% |
-| 12 of 87 | 6 | 3.3% |
-| 13 of 87 | 6 | 3.3% |
-| 14 of 87 | 15 | 8.2% |
-| 15 of 87 | 12 | 6.6% |
-| 16 of 87 | 5 | 2.7% |
-| 17 of 87 | 4 | 2.2% |
-| 18 of 87 | 4 | 2.2% |
-| 19 of 87 | 6 | 3.3% |
-| 20 of 87 | 1 | 0.5% |
-| 21 of 87 | 2 | 1.1% |
-| 22 of 87 | 2 | 1.1% |
-| 24 of 87 | 2 | 1.1% |
-| 25 of 87 | 2 | 1.1% |
-| 26 of 87 | 1 | 0.5% |
-| 27 of 87 | 1 | 0.5% |
-| 28 of 87 | 1 | 0.5% |
-| 30 of 87 | 1 | 0.5% |
-| 35 of 87 | 1 | 0.5% |
-| 38 of 87 | 1 | 0.5% |
-| 43 of 87 | 2 | 1.1% |
-| 45 of 87 | 1 | 0.5% |
-| 50 of 87 | 1 | 0.5% |
-| 54 of 87 | 1 | 0.5% |
-| 55 of 87 | 1 | 0.5% |
-| 60 of 87 | 1 | 0.5% |
-| 63 of 87 | 1 | 0.5% |
-| 64 of 87 | 1 | 0.5% |
-| 65 of 87 | 2 | 1.1% |
-| 66 of 87 | 1 | 0.5% |
-| 67 of 87 | 2 | 1.1% |
-| 68 of 87 | 2 | 1.1% |
-| 69 of 87 | 3 | 1.6% |
-| 70 of 87 | 1 | 0.5% |
-| 71 of 87 | 3 | 1.6% |
-| 72 of 87 | 4 | 2.2% |
-| 73 of 87 | 2 | 1.1% |
-| 74 of 87 | 4 | 2.2% |
-| 75 of 87 | 7 | 3.8% |
-| 76 of 87 | 5 | 2.7% |
-| 77 of 87 | 10 | 5.5% |
-| 78 of 87 | 4 | 2.2% |
-| 79 of 87 | 7 | 3.8% |
-| 80 of 87 | 7 | 3.8% |
-| 81 of 87 | 2 | 1.1% |
-| 82 of 87 | 1 | 0.5% |
+| 1 of 86 | 2 | 1.1% |
+| 5 of 86 | 1 | 0.5% |
+| 7 of 86 | 6 | 3.3% |
+| 8 of 86 | 4 | 2.2% |
+| 9 of 86 | 5 | 2.7% |
+| 10 of 86 | 8 | 4.4% |
+| 11 of 86 | 7 | 3.8% |
+| 12 of 86 | 7 | 3.8% |
+| 13 of 86 | 9 | 4.9% |
+| 14 of 86 | 15 | 8.2% |
+| 15 of 86 | 8 | 4.4% |
+| 16 of 86 | 5 | 2.7% |
+| 17 of 86 | 4 | 2.2% |
+| 18 of 86 | 4 | 2.2% |
+| 19 of 86 | 6 | 3.3% |
+| 20 of 86 | 1 | 0.5% |
+| 21 of 86 | 2 | 1.1% |
+| 22 of 86 | 2 | 1.1% |
+| 24 of 86 | 2 | 1.1% |
+| 25 of 86 | 2 | 1.1% |
+| 26 of 86 | 2 | 1.1% |
+| 28 of 86 | 1 | 0.5% |
+| 30 of 86 | 1 | 0.5% |
+| 35 of 86 | 1 | 0.5% |
+| 38 of 86 | 1 | 0.5% |
+| 42 of 86 | 1 | 0.5% |
+| 43 of 86 | 1 | 0.5% |
+| 45 of 86 | 1 | 0.5% |
+| 50 of 86 | 1 | 0.5% |
+| 54 of 86 | 1 | 0.5% |
+| 55 of 86 | 1 | 0.5% |
+| 60 of 86 | 1 | 0.5% |
+| 63 of 86 | 1 | 0.5% |
+| 64 of 86 | 1 | 0.5% |
+| 65 of 86 | 2 | 1.1% |
+| 66 of 86 | 1 | 0.5% |
+| 67 of 86 | 3 | 1.6% |
+| 68 of 86 | 2 | 1.1% |
+| 69 of 86 | 3 | 1.6% |
+| 70 of 86 | 1 | 0.5% |
+| 71 of 86 | 5 | 2.7% |
+| 72 of 86 | 2 | 1.1% |
+| 73 of 86 | 2 | 1.1% |
+| 74 of 86 | 7 | 3.8% |
+| 75 of 86 | 6 | 3.3% |
+| 76 of 86 | 8 | 4.4% |
+| 77 of 86 | 5 | 2.7% |
+| 78 of 86 | 6 | 3.3% |
+| 79 of 86 | 7 | 3.8% |
+| 80 of 86 | 5 | 2.7% |
+| 81 of 86 | 1 | 0.5% |
+| 82 of 86 | 1 | 0.5% |
 
 Read this as: rows near the top are windows where the field disagrees (most models said no, a few said yes, usually false positives); rows near the bottom are windows where the field broadly agrees (typical of clear sponsor reads).
 
 ### Per-model alignment with consensus
 
-Same data, viewed per model. For each window, the **majority** is whether more than half of the 87 active models flagged an ad. Then for each model: did it vote with the majority or against it? Four buckets:
+Same data, viewed per model. For each window, the **majority** is whether more than half of the 86 active models flagged an ad. Then for each model: did it vote with the majority or against it? Four buckets:
 
 - **with-yes**: this model voted yes, majority also voted yes (likely true positive)
 - **with-no**: this model voted no, majority also voted no (likely true negative)
@@ -1238,7 +1221,6 @@ Alignment rate is `(with-yes + with-no) / total`. High alignment means the model
 | `qwen/qwen3.8-max` | 25 | 108 | 0 | 49 | 73.1% |
 | `openai/gpt-5.4` | 74 | 58 | 50 | 0 | 72.5% |
 | `nvidia/nemotron-3-ultra-550b-a55b` | 66 | 62 | 46 | 8 | 70.3% |
-| `claude-fable-5-1` | 30 | 97 | 11 | 44 | 69.8% |
 | `deepseek/deepseek-r1-0528` | 73 | 53 | 55 | 1 | 69.2% |
 | `mistralai/mistral-large-2512` | 74 | 46 | 62 | 0 | 65.9% |
 | `cohere/command-a` | 74 | 39 | 69 | 0 | 62.1% |
@@ -1257,25 +1239,25 @@ Alignment rate is `(with-yes + with-no) / total`. High alignment means the model
 
 ### Windows flagged with no truth ad
 
-The other side of the histogram: windows the ground truth marks ad-free, ranked by how many of the 87 models flagged them anyway (in at least one trial). A window near the top is either content that genuinely resembles an ad, which is what precision-focused validator rules should train against, or a spot the truth file missed. Either way these are the first windows worth a manual re-listen; on a corpus this size a single mislabeled window moves scores. No-ad control episodes are included and tagged.
+The other side of the histogram: windows the ground truth marks ad-free, ranked by how many of the 86 models flagged them anyway (in at least one trial). A window near the top is either content that genuinely resembles an ad, which is what precision-focused validator rules should train against, or a spot the truth file missed. Either way these are the first windows worth a manual re-listen; on a corpus this size a single mislabeled window moves scores. No-ad control episodes are included and tagged.
 
 | Episode | Window | Span | Models flagging |
 |---|---:|---|---:|
-| `ep-on-air-with-dan-and-alex2-574e4f303730` | 6 | 2520-3120s | 64 of 87 |
-| `ep-drink-champs-30c9a2d49f13` | 35 | 14700-15300s | 63 of 87 |
-| `ep-on-air-with-dan-and-alex2-574e4f303730` | 5 | 2100-2700s | 60 of 87 |
-| `ep-drink-champs-30c9a2d49f13` | 12 | 5040-5640s | 55 of 87 |
-| `ep-the-brilliant-idiots-0bb9bf634c8e` | 10 | 4200-4800s | 54 of 87 |
-| `ep-the-brilliant-idiots-0bb9bf634c8e` | 9 | 3780-4380s | 50 of 87 |
-| `ep-daily-gist-chicago-70a82fe93a5c` | 2 | 840-1271s | 43 of 87 |
-| `ep-daily-gist-chicago-70a82fe93a5c` | 3 | 1260-1271s | 43 of 87 |
-| `ep-the-brilliant-idiots-0bb9bf634c8e` | 14 | 5880-6480s | 35 of 87 |
-| `ep-ai-cloud-essentials-e8dc897fbd6b` (no-ad control) | 0 | 0-600s | 30 of 87 |
-| `ep-on-air-with-dan-and-alex2-574e4f303730` | 2 | 840-1440s | 28 of 87 |
-| `ep-crime-junkie-8ce498f299d7` | 1 | 420-1020s | 27 of 87 |
-| `ep-security-now-audio-2850b24903b2` | 11 | 4620-5220s | 26 of 87 |
-| `ep-the-brilliant-idiots-0bb9bf634c8e` | 2 | 840-1440s | 25 of 87 |
-| `ep-the-brilliant-idiots-0bb9bf634c8e` | 3 | 1260-1860s | 25 of 87 |
+| `ep-on-air-with-dan-and-alex2-574e4f303730` | 6 | 2520-3120s | 64 of 86 |
+| `ep-drink-champs-30c9a2d49f13` | 35 | 14700-15300s | 63 of 86 |
+| `ep-on-air-with-dan-and-alex2-574e4f303730` | 5 | 2100-2700s | 60 of 86 |
+| `ep-drink-champs-30c9a2d49f13` | 12 | 5040-5640s | 55 of 86 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 10 | 4200-4800s | 54 of 86 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 9 | 3780-4380s | 50 of 86 |
+| `ep-daily-gist-chicago-70a82fe93a5c` | 3 | 1260-1271s | 43 of 86 |
+| `ep-daily-gist-chicago-70a82fe93a5c` | 2 | 840-1271s | 42 of 86 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 14 | 5880-6480s | 35 of 86 |
+| `ep-ai-cloud-essentials-e8dc897fbd6b` (no-ad control) | 0 | 0-600s | 30 of 86 |
+| `ep-on-air-with-dan-and-alex2-574e4f303730` | 2 | 840-1440s | 28 of 86 |
+| `ep-crime-junkie-8ce498f299d7` | 1 | 420-1020s | 26 of 86 |
+| `ep-security-now-audio-2850b24903b2` | 11 | 4620-5220s | 26 of 86 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 2 | 840-1440s | 25 of 86 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 3 | 1260-1860s | 25 of 86 |
 
 ... and 87 more with 2+ votes.
 
@@ -1291,7 +1273,6 @@ Truth ads bucketed by duration: short (<30s), medium (30-90s), long (>=90s). Cel
 |---|---:|---:|---:|
 | `bytedance-seed/seed-2-1-turbo` | 0.01 (n=165) | 0.04 (n=75) | 0.07 (n=30) |
 | `claude-fable-5` | 0.93 (n=140) | 1.00 (n=75) | 0.77 (n=30) |
-| `claude-fable-5-1` | 0.92 (n=65) | 0.90 (n=50) | 0.33 (n=15) |
 | `claude-haiku-4-5-20251001` | 0.92 (n=165) | 0.96 (n=75) | 0.90 (n=30) |
 | `claude-opus-4-7` | 0.97 (n=140) | 0.95 (n=75) | 0.43 (n=30) |
 | `claude-opus-4-8` | 0.94 (n=165) | 0.95 (n=75) | 0.63 (n=30) |
@@ -1385,7 +1366,6 @@ Truth ads bucketed by where they fall in the episode: pre-roll (first 10%), mid-
 |---|---:|---:|---:|
 | `bytedance-seed/seed-2-1-turbo` | 0.04 (n=75) | 0.00 (n=140) | 0.07 (n=55) |
 | `claude-fable-5` | 1.00 (n=70) | 0.94 (n=125) | 0.80 (n=50) |
-| `claude-fable-5-1` | 1.00 (n=36) | 0.76 (n=63) | 0.84 (n=31) |
 | `claude-haiku-4-5-20251001` | 1.00 (n=75) | 0.96 (n=140) | 0.75 (n=55) |
 | `claude-opus-4-7` | 0.99 (n=70) | 0.86 (n=125) | 0.88 (n=50) |
 | `claude-opus-4-8` | 0.99 (n=75) | 0.92 (n=140) | 0.76 (n=55) |
@@ -1492,7 +1472,6 @@ One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`
 | `claude-opus-4-8` | 0.842 | $5.6985 | 4.7s | 1.000 | 0.911 | 0.920 | 0.978 | 0.613 | 0.941 | 0.686 | 1.000 | 0.800 | 0.750 | 0.489 | 1.000 | 0.861 | PASS | PASS | 0.042 | - |
 | `mistralai/mistral-medium-3-5` | 0.842 | $1.8393 | 1.1s | - | 1.000 | 0.500 | 1.000 | 0.733 | 0.872 | 0.740 | 1.000 | 1.000 | 0.800 | 0.667 | 0.809 | 0.982 | PASS | PASS | 0.030 | - |
 | `google/gemini-3.1-flash-lite` | 0.839 | $0.3215 | 1.3s | 0.964 | 1.000 | 0.800 | 1.000 | 0.717 | 0.834 | 0.646 | 0.853 | 0.800 | 0.693 | 0.600 | 1.000 | 1.000 | FAIL (1 FP) | PASS | 0.026 | - |
-| `claude-fable-5-1` | 0.839 | $3.6406 | 4.4s | 1.000 | 0.978 | 0.460 | 1.000 | 0.673 | - | - | 0.960 | - | - | - | 1.000 | 0.640 | PASS | - | 0.038 | - |
 | `claude-opus-5-5` | 0.832 | $4.4947 | 3.2s | 1.000 | 1.000 | 0.200 | 1.000 | 0.733 | 0.931 | 0.857 | 0.960 | 0.800 | 0.870 | 0.829 | 1.000 | 0.640 | PASS | PASS | 0.054 | - |
 | `openai/gpt-5.6-terra` | 0.830 | $2.3902 | 2.1s | - | 1.000 | 0.400 | 0.950 | 0.750 | 0.821 | 0.857 | 0.920 | 0.960 | 0.801 | 0.791 | 1.000 | 0.711 | FAIL (2 FP) | FAIL (1 FP) | 0.055 | - |
 | `qwen/qwen3.7-max` | 0.826 | $2.8109 | 23.4s | - | 0.950 | 0.500 | 1.000 | 0.600 | 0.639 | 0.857 | 1.000 | 0.840 | 0.780 | 0.821 | 1.000 | 0.930 | PASS | PASS | 0.050 | - |
@@ -1752,18 +1731,6 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Extraction methods: `json_array_direct`: 907, `json_object_single_ad_truncated`: 2, `parse_failure`: 1
 - Verbosity: 0/910 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 2 salvaged from truncated JSON (0.2%)
 - Segment category named on 1030/1032 detections (100%); the rest stay uncategorized (resolver: production)
-
-#### `claude-fable-5-1`
-
-- F1 (avg across episodes): **0.839**
-- Total cost / episode: **$3.6406**
-- p50 / p95 latency: 4.40s / 67.47s
-- JSON compliance: 1.00
-- JSON mode: native (100% native, 246 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 246
-- Verbosity: 0/246 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Segment category named on 224/224 detections (100%); the rest stay uncategorized (resolver: production)
 
 #### `claude-opus-5-5`
 
@@ -2632,7 +2599,6 @@ One subsection per episode in the corpus, showing how every model performed on t
 |-------|--------|----------|
 | `bytedance-seed/seed-2-1-turbo` | PASS | 0 |
 | `claude-fable-5` | PASS | 0 |
-| `claude-fable-5-1` | PASS | 0 |
 | `claude-haiku-4-5-20251001` | PASS | 0 |
 | `claude-opus-4-7` | PASS | 0 |
 | `claude-opus-4-8` | PASS | 0 |
@@ -2726,7 +2692,6 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `claude-fable-5-1` | 1.000 | 0.000 |
 | `claude-haiku-4-5-20251001` | 1.000 | 0.000 |
 | `claude-opus-4-8` | 1.000 | 0.000 |
 | `claude-opus-5` | 1.000 | 0.000 |
@@ -2772,7 +2737,6 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `qwen/qwen3.7-flash` | 1.000 | 0.000 |
 | `stealth/ox-alpha` | 1.000 | 0.000 |
 | `x-ai/grok-4.3` | 1.000 | 0.000 |
-| `claude-fable-5-1` | 0.978 | 0.050 |
 | `claude-opus-4-7` | 0.978 | 0.050 |
 | `claude-sonnet-5` | 0.978 | 0.050 |
 | `meta/muse-glimmer-30b` | 0.978 | 0.050 |
@@ -2891,7 +2855,6 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `moonshotai/kimi-k3` | 0.480 | 0.045 |
 | `stealth/ox-alpha` | 0.480 | 0.045 |
 | `nvidia/nemotron-3-ultra-550b-a55b` | 0.473 | 0.306 |
-| `claude-fable-5-1` | 0.460 | 0.055 |
 | `deepseek/deepseek-r1-0528` | 0.440 | 0.358 |
 | `meta/muse-glimmer-30b` | 0.440 | 0.055 |
 | `qwen/qwen3.8-flash` | 0.440 | 0.055 |
@@ -2946,7 +2909,6 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `claude-fable-5-1` | 1.000 | 0.000 |
 | `claude-haiku-4-5-20251001` | 1.000 | 0.000 |
 | `claude-opus-4-7` | 1.000 | 0.000 |
 | `claude-opus-5-5` | 1.000 | 0.000 |
@@ -3054,7 +3016,6 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `openai/gpt-5.6-sol` | 0.700 | 0.112 |
 | `qwen/qwen3.6-flash` | 0.700 | 0.046 |
 | `stealth/ox-alpha` | 0.683 | 0.037 |
-| `claude-fable-5-1` | 0.673 | 0.075 |
 | `claude-sonnet-5` | 0.670 | 0.053 |
 | `claude-haiku-4-5-20251001` | 0.667 | 0.000 |
 | `claude-sonnet-4-6` | 0.667 | 0.000 |
@@ -3344,7 +3305,6 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `stealth/ox-alpha` | 1.000 | 0.000 |
 | `x-ai/grok-4.3` | 1.000 | 0.000 |
 | `x-ai/grok-4.5` | 1.000 | 0.000 |
-| `claude-fable-5-1` | 0.960 | 0.089 |
 | `claude-opus-5-5` | 0.960 | 0.089 |
 | `x-ai/grok-4.6` | 0.960 | 0.089 |
 | `moonshotai/kimi-k3` | 0.933 | 0.149 |
@@ -3803,7 +3763,6 @@ One subsection per episode in the corpus, showing how every model performed on t
 | Model | F1 | F1 stdev |
 |-------|----|----------|
 | `claude-fable-5` | 1.000 | 0.000 |
-| `claude-fable-5-1` | 1.000 | 0.000 |
 | `claude-haiku-4-5-20251001` | 1.000 | 0.000 |
 | `claude-opus-4-7` | 1.000 | 0.000 |
 | `claude-opus-4-8` | 1.000 | 0.000 |
@@ -3936,7 +3895,6 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `google/gemini-2.5-pro` | 0.658 | 0.166 |
 | `qwen/qwen3.7-flash` | 0.649 | 0.268 |
 | `qwen/qwen3-235b-a22b-2507` | 0.640 | 0.215 |
-| `claude-fable-5-1` | 0.640 | 0.037 |
 | `claude-opus-5-5` | 0.640 | 0.037 |
 | `deepseek/deepseek-r1-0528` | 0.640 | 0.123 |
 | `qwen/qwen3.6-plus` | 0.630 | 0.375 |
@@ -3994,7 +3952,6 @@ How each model's responses were actually parsed. Columns are extraction methods,
 | Model | bracket_fallback | json_array_direct | json_object_ad_key | json_object_ad_segments_key | json_object_ads_detected_key | json_object_ads_key | json_object_advertisement_segments_key | json_object_no_ads | json_object_segments_key | json_object_single_ad | json_object_single_ad_truncated | markdown_code_block | parse_failure | regex_json_array |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `claude-fable-5` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `claude-fable-5-1` | 0 | 246 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `claude-haiku-4-5-20251001` | 0 | 910 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `claude-opus-4-7` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `claude-opus-4-8` | 0 | 910 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -4321,13 +4278,13 @@ The `initial_prompt` seeded a sponsor vocabulary so Whisper produced consistent 
 
 ## Run Metadata
 
-- Report generated: 2026-10-10T17:07:55Z
-- Unique work units (current state, last-write-wins after retries): 74948
-- Raw call records: 97796 (22848 superseded by later retries; kept for audit)
-- Successful: 74636
-- Failed: 312
-- Lifetime list-price cost (sum of at-runtime costs, includes superseded rows): $861.2559
-- Lifetime tokens (same basis): 565,249,034 in + 80,158,104 out = 645,407,138
+- Report generated: 2026-10-10T18:33:58Z
+- Unique work units (current state, last-write-wins after retries): 74520
+- Raw call records: 97368 (22848 superseded by later retries; kept for audit)
+- Successful: 74390
+- Failed: 130
+- Lifetime list-price cost (sum of at-runtime costs, includes superseded rows): $846.1101
+- Lifetime tokens (same basis): 563,814,746 in + 80,142,046 out = 643,956,792
 - Note: every input token is priced at list rate. Providers that serve a repeated prompt from cache bill less than this, and the harness does not record cache hits, so a real invoice for this run will come in under the figure above.
 - Active pricing snapshot: 2026-10-07T08:48:49.567770Z
 - Addressing mode: timestamps
