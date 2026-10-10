@@ -750,6 +750,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'audio_bitrate': SettingSpec(
         env_backed=True, seeded=True,
         in_ad_reset=True, payload_key='audioBitrate'),
+    'audio_encoder_compression_level': SettingSpec(
+        env_backed=True, seeded=True,
+        in_ad_reset=True, payload_key='audioEncoderCompressionLevel'),
     'skip_flac_compression': SettingSpec(
         env_backed=True,
         in_ad_reset=True, payload_key='skipFlacCompression',

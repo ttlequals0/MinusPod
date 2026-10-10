@@ -49,6 +49,7 @@ Customize ad detection in Settings:
 - **Chapters Model** - Model for chapter generation (a small model like Haiku works well here). Its provider selector also defaults to Same as detection
 - **Ad chapters** - Set a category's segment action to Mark (see Segment categories below) to publish it as a skippable chapter instead of just leaving it in the audio. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
+- **Audio Encoder Compression Level** - ffmpeg's `libmp3lame` `-compression_level`: 0 is slowest and best quality, 9 is fastest. 7 measured roughly twice as fast as the default for speech at 128 kbps, with a quality trade that is probably inaudible. Default `default` leaves the flag unset, so ffmpeg's own encoding behavior is unchanged
 - **System Prompts** - Customizable prompts for first pass and verification detection
 - **Ad break filler gap threshold** - ads in the same break separated by less than this many seconds of speech are merged into one cut. Default 12 seconds. Set to 0 to disable. Merges that would exceed 5 minutes total are skipped. See [Nearby-Ad Merge](how-it-works.md#nearby-ad-merge)
 - **Compare with the publisher transcript** - diffs the Whisper transcript against the feed's `podcast:transcript` tag, when one exists, and uses missing speech as ad evidence. On by default; each feed can override it (Feed Settings > Advanced > Transcript diff). See [Upstream Transcript Differential](transcript-differential.md)

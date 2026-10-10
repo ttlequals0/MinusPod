@@ -5600,7 +5600,9 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: converting {codec or 'unknown'} to mp3")
             bitrate = db.get_setting('audio_bitrate') or '128k'
-            converted = AudioProcessor(bitrate=bitrate).convert_to_mp3(audio_path)
+            compression_level = db.get_setting('audio_encoder_compression_level') or 'default'
+            converted = AudioProcessor(
+                bitrate=bitrate, compression_level=compression_level).convert_to_mp3(audio_path)
             if not converted:
                 raise Exception(f"Failed to convert {codec or 'unknown'} enclosure to mp3")
             os.unlink(audio_path)
@@ -5723,10 +5725,12 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
         settings = db.get_all_settings()
         bitrate = settings.get('audio_bitrate', {}).get('value', '128k')
+        compression_level = settings.get('audio_encoder_compression_level', {}).get('value', 'default')
         audio_output = db.resolve_audio_output(slug, podcast=podcast_row)
         if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
             audio_output['mp3_stream_copy_enabled'] = False
-        local_audio_processor = AudioProcessor(bitrate=bitrate, **audio_output)
+        local_audio_processor = AudioProcessor(
+            bitrate=bitrate, compression_level=compression_level, **audio_output)
         original_duration = (local_audio_processor.get_audio_duration(work_path)
                              or (segments[-1]['end'] if segments else 0))
         min_cut_confidence = get_min_cut_confidence()
@@ -7076,10 +7080,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             settings = db.get_all_settings()
             bitrate = settings.get('audio_bitrate', {}).get('value', '128k')
+            compression_level = settings.get('audio_encoder_compression_level', {}).get('value', 'default')
             audio_output = db.resolve_audio_output(slug, podcast=podcast_settings)
             if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
                 audio_output['mp3_stream_copy_enabled'] = False
-            local_audio_processor = AudioProcessor(bitrate=bitrate, **audio_output)
+            local_audio_processor = AudioProcessor(
+                bitrate=bitrate, compression_level=compression_level, **audio_output)
 
             # process_episode returns the cuts ffmpeg actually applied (merged,
             # <10s-filtered, end-trimmed); verification mapping and assets must

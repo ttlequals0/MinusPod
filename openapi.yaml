@@ -6579,6 +6579,14 @@ paths:
                   enum: ['64k', '96k', '128k', '192k', '256k']
                   description: Output bitrate used when re-encoding processed audio.
                   example: 128k
+                audioEncoderCompressionLevel:
+                  type: string
+                  enum: ['default', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+                  description: >-
+                    libmp3lame -compression_level: 0 is slowest/best, 9 is
+                    fastest. 'default' omits the flag, leaving ffmpeg's own
+                    encoding behavior unchanged.
+                  example: 'default'
                 skipFlacCompression:
                   type: boolean
                   description: |
@@ -15842,6 +15850,14 @@ components:
               enum: ['64k', '96k', '128k', '192k', '256k']
             isDefault:
               type: boolean
+        audioEncoderCompressionLevel:
+          type: object
+          properties:
+            value:
+              type: string
+              enum: ['default', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+            isDefault:
+              type: boolean
         skipFlacCompression:
           type: object
           properties:
@@ -16834,6 +16850,9 @@ components:
             audioBitrate:
               type: string
               enum: ['64k', '96k', '128k', '192k', '256k']
+            audioEncoderCompressionLevel:
+              type: string
+              enum: ['default', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
             skipFlacCompression:
               type: boolean
             adDetectionParallelWindows:

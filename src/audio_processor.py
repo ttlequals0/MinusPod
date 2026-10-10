@@ -97,11 +97,22 @@ DEFAULT_NORMALIZE_INTENSITY = 'normal'
 class AudioProcessor:
     def __init__(self, replace_audio_path: str = None, bitrate: str = '128k', *,
                  replacement_sound_enabled: bool = True,
-                 mp3_stream_copy_enabled: bool = False):
+                 mp3_stream_copy_enabled: bool = False,
+                 compression_level: str = 'default'):
         self.replace_audio_path = replace_audio_path or get_replace_audio_path()
         self.bitrate = bitrate
         self.replacement_sound_enabled = replacement_sound_enabled
         self.mp3_stream_copy_enabled = mp3_stream_copy_enabled
+        self.compression_level = compression_level
+
+    def _mp3_encode_args(self) -> list[str]:
+        """libmp3lame codec/bitrate args, plus -compression_level when set
+        to something other than 'default' (which leaves ffmpeg's own
+        default behavior unchanged)."""
+        args = ['-acodec', 'libmp3lame', '-ab', self.bitrate]
+        if self.compression_level != 'default':
+            args += ['-compression_level', self.compression_level]
+        return args
 
     def get_audio_duration(self, audio_path: str) -> float | None:
         """Get duration of audio file in seconds.
@@ -144,8 +155,7 @@ class AudioProcessor:
                 'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
                 '-i', input_path,
                 '-vn',
-                '-acodec', 'libmp3lame',
-                '-ab', self.bitrate,
+                *self._mp3_encode_args(),
             ]
             if source_tag is not None:
                 cmd += ['-id3v2_version', str(source_tag.version)]
@@ -216,8 +226,7 @@ class AudioProcessor:
                 'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-y',
                 '-i', input_path,
                 '-filter:a', filter_str,
-                '-acodec', 'libmp3lame',
-                '-ab', self.bitrate,
+                *self._mp3_encode_args(),
             ]
             if source_tag is not None:
                 cmd += ['-id3v2_version', str(source_tag.version)]
@@ -623,8 +632,7 @@ class AudioProcessor:
             cmd += [
                 '-filter_complex', filter_str,
                 '-map', '[out]',
-                '-acodec', 'libmp3lame',
-                '-ab', self.bitrate,
+                *self._mp3_encode_args(),
             ]
             if source_tag is not None:
                 cmd += ['-id3v2_version', str(source_tag.version)]

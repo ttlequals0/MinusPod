@@ -49,6 +49,7 @@ _SEED_ENV_VARS = (
 SEED_SNAPSHOT = {
     '_review_prompt_migrated': 'true',
     'audio_bitrate': '128k',
+    'audio_encoder_compression_level': 'default',
     'chapter_prompt': ('sha256', 'ba78ae10ed245f1b215407d2980358cdf6aff6b5f64dfc1662c6f6848cb418b4'),
     'pattern_cleanup_prompt': ('sha256', '9afdc1f10e265d421a8d39f04ff0a13e00275ac436aa51517c2b3a7d2213f145'),
     'audio_normalize_enabled': 'false',
@@ -179,6 +180,7 @@ EXPECTED_AD_RESET_KEYS = {
     'ad_chapter_held_title_format', 'ad_chapter_resume_title',
     'ad_chapter_min_confidence',
     'min_cut_confidence', 'auto_process_enabled', 'audio_bitrate',
+    'audio_encoder_compression_level',
     'audio_normalize_enabled', 'audio_normalize_intensity',
     'audio_replacement_sound_enabled', 'audio_mp3_stream_copy_enabled',
     'whisper_api_timeout_seconds',
@@ -534,11 +536,12 @@ class TestGetDefaults:
         # Six patternCleanup* settings plus patternCleanupPrompt (157 -> 164).
         # adChaptersEnabled and adChapterCategories retired with the settings
         # they came from (164 -> 162; 2.98.0, mark_action_from_ad_chapters_v1).
+        # audioEncoderCompressionLevel added after that (165 -> 166).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 165
+        assert len(payload_keys) == 166
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

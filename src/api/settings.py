@@ -29,6 +29,7 @@ from config import (
     PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE,
     PROVIDERS_NON_ANTHROPIC, DEFAULT_OPENAI_BASE_URL,
     ALLOWED_AUDIO_BITRATES, DEFAULT_AUDIO_BITRATE,
+    ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, DEFAULT_AUDIO_ENCODER_COMPRESSION_LEVEL,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -523,6 +524,8 @@ def _build_settings_payload():
         'differential_hold_min_seconds', registry_get_default('differential_hold_min_seconds'))
 
     audio_bitrate = _setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
+    audio_encoder_compression_level = _setting_value(
+        settings, 'audio_encoder_compression_level', DEFAULT_AUDIO_ENCODER_COMPRESSION_LEVEL)
     audio_replacement_sound_enabled = coerce_bool_setting(_setting_value(
         settings, 'audio_replacement_sound_enabled', registry_default('audio_replacement_sound_enabled')))
     audio_mp3_stream_copy_enabled = coerce_bool_setting(_setting_value(
@@ -918,6 +921,8 @@ def _build_settings_payload():
         'spliceVetoEnabled': _sv('splice_veto_enabled', splice_veto_enabled),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
+        'audioEncoderCompressionLevel': _sv(
+            'audio_encoder_compression_level', audio_encoder_compression_level),
         'audioReplacementSoundEnabled': _sv('audio_replacement_sound_enabled', audio_replacement_sound_enabled),
         'audioMp3StreamCopyEnabled': _sv('audio_mp3_stream_copy_enabled', audio_mp3_stream_copy_enabled),
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
@@ -2174,6 +2179,14 @@ def _audio_field_writes(data):
             return None, (
                 f'audioBitrate must be one of: {", ".join(ALLOWED_AUDIO_BITRATES)}', 400)
         writes.append(('audio_bitrate', val))
+
+    if 'audioEncoderCompressionLevel' in data:
+        val = str(data['audioEncoderCompressionLevel']).strip()
+        if val not in ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS:
+            return None, (
+                f'audioEncoderCompressionLevel must be one of: '
+                f'{", ".join(ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS)}', 400)
+        writes.append(('audio_encoder_compression_level', val))
 
     if 'audioNormalizeEnabled' in data:
         value = 'true' if data['audioNormalizeEnabled'] else 'false'

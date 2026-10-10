@@ -94,6 +94,40 @@ def test_no_cuts_preserves_encoded_bytes(source, tmp_path):
     assert output.read_bytes() == source.read_bytes()
 
 
+def _record_commands(monkeypatch):
+    recorded = []
+    original_tracked = audio_processor.tracked_run
+
+    def record(command, **kwargs):
+        recorded.append(command)
+        return original_tracked(command, **kwargs)
+
+    monkeypatch.setattr(audio_processor, 'tracked_run', record)
+    return recorded
+
+
+def test_default_compression_level_omits_the_flag(source, tmp_path, monkeypatch):
+    recorded = _record_commands(monkeypatch)
+    processor = AudioProcessor()
+    processor.convert_to_mp3(str(source))
+    processor.normalize_audio(str(source))
+    processor.remove_ads(str(source), [{'start': 20, 'end': 30}], str(tmp_path / 'output.mp3'))
+    assert len(recorded) == 3
+    for command in recorded:
+        assert '-compression_level' not in command
+
+
+def test_compression_level_7_adds_the_flag_to_every_command_shape(source, tmp_path, monkeypatch):
+    recorded = _record_commands(monkeypatch)
+    processor = AudioProcessor(compression_level='7')
+    processor.convert_to_mp3(str(source))
+    processor.normalize_audio(str(source))
+    processor.remove_ads(str(source), [{'start': 20, 'end': 30}], str(tmp_path / 'output.mp3'))
+    assert len(recorded) == 3
+    for command in recorded:
+        assert command[command.index('-compression_level') + 1] == '7'
+
+
 def test_chapters_only_comparison_uses_effective_replacement_sound():
     markers = [{'start': 20, 'end': 30, 'action_applied': 'remove'}]
     silent = [{'start': 20, 'end': 30, 'replacement_duration': 0.0}]

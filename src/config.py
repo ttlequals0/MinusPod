@@ -2221,6 +2221,11 @@ def resolve_stage_tunables(prefix: str, settings: dict | None = None,
 # frontend/src/pages/settings/AudioSection.tsx.
 ALLOWED_AUDIO_BITRATES = ('64k', '96k', '128k', '192k', '256k')
 DEFAULT_AUDIO_BITRATE = '128k'
+
+# libmp3lame -compression_level: 0 is slowest/best, 9 is fastest. 'default'
+# omits the flag so ffmpeg's own default behavior is unchanged.
+ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS = ('default', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
+DEFAULT_AUDIO_ENCODER_COMPRESSION_LEVEL = 'default'
 DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED = True
 DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED = False
 
@@ -2253,6 +2258,10 @@ AD_REVIEWER_PARALLEL_ADS_MAX = 32
 
 def _validate_audio_bitrate(value: str) -> bool:
     return value in ALLOWED_AUDIO_BITRATES
+
+
+def _validate_audio_encoder_compression_level(value: str) -> bool:
+    return value in ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS
 
 
 def _validate_bool_string(value: str) -> bool:
@@ -2505,6 +2514,12 @@ def get_env_backed_int(key: str, *, floor: int = None, ceiling: int = None,
 ENV_BACKED_SETTINGS = (
     ('llm_provider', 'LLM_PROVIDER', 'anthropic', _validate_llm_provider),
     ('audio_bitrate', 'AUDIO_BITRATE', DEFAULT_AUDIO_BITRATE, _validate_audio_bitrate),
+    (
+        'audio_encoder_compression_level',
+        'AUDIO_ENCODER_COMPRESSION_LEVEL',
+        DEFAULT_AUDIO_ENCODER_COMPRESSION_LEVEL,
+        _validate_audio_encoder_compression_level,
+    ),
     ('skip_flac_compression', 'SKIP_FLAC_COMPRESSION', 'false', _validate_bool_string),
     (
         'ad_detection_parallel_windows',
