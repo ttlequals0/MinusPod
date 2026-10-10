@@ -9,6 +9,8 @@ import sys
 import tempfile
 import types
 
+import pytest
+
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='cue-wire-test-'))
@@ -85,12 +87,14 @@ def test_first_pass_applies_cue_pair_and_snap(monkeypatch):
     # Cue-pair synthesized the missed break (proves synthesize_ads_from_cue_pairs ran).
     pair = [a for a in ads if a.get('detection_stage') == 'cue_pair']
     assert len(pair) == 1
-    assert 300 < pair[0]['start'] < 305 and 355 < pair[0]['end'] < 360
+    assert pair[0]['start'] == 299.95
+    assert pair[0]['end'] == 360.55
 
     # Boundary snap moved the LLM ad's edges to the cues (proves snap ran).
     llm = next(a for a in ads if 99 < a['start'] < 101 or 'cue_snap' in a)
     assert 'cue_snap' in llm
-    assert abs(llm['start'] - 99.55) < 0.01   # cue end (99.5) + 0.05 lead
+    assert llm['start'] == 97.95
+    assert llm['end'] == 161.65
 
     # Telemetry wiring: every template cue recorded with its outcome (proves
     # the pipeline calls build_cue_detection_records + record_cue_detections).
@@ -120,3 +124,29 @@ def test_first_pass_no_cue_pair_when_setting_off(monkeypatch):
     )
     # Setting off -> no synthesized ad.
     assert not any(a.get('detection_stage') == 'cue_pair' for a in ads)
+
+
+@pytest.mark.parametrize(('episode_duration', 'pair_count'), [(200.0, 1), (0.0, 0)])
+def test_pair_fraction_uses_audio_duration_with_transcript_fallback(monkeypatch, episode_duration, pair_count):
+    from main_app import processing
+
+    ad_result = {'status': 'success', 'ads': []}
+    monkeypatch.setattr(processing.ad_detector, 'process_transcript', lambda *a, **k: ad_result)
+    monkeypatch.setattr(processing.storage, 'save_ads_json', lambda *a, **k: None)
+    monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
+    monkeypatch.setattr(processing, 'clear_fallback', lambda *a, **k: None)
+    db = _StubDB(create_from_pairs=True)
+    overrides = db.get_podcast_cue_settings_overrides(1)
+    overrides['cue_pair_max_break_fraction_override'] = 0.4
+    monkeypatch.setattr(db, 'get_podcast_cue_settings_overrides', lambda _: overrides)
+    monkeypatch.setattr(processing, 'db', db)
+    analysis = AudioAnalysisResult(signals=[_cue(100.0, 110.0), _cue(162.0, 170.0)])
+    ctx = types.SimpleNamespace(slug='wire-feed', episode_id='abcdef012345', podcast_id=1)
+    ads, _, _ = processing._detect_ads_first_pass(
+        ctx, segments=[{'start': 0.0, 'end': 165.0, 'text': 'Episode speech'}],
+        audio_path='x.mp3', skip_patterns=False, audio_analysis_result=analysis,
+        progress_callback=None, episode_duration=episode_duration)
+    pairs = [ad for ad in ads if ad.get('detection_stage') == 'cue_pair']
+    assert len(pairs) == pair_count
+    if pairs:
+        assert (pairs[0]['start'], pairs[0]['end']) == (99.95, 170.05)

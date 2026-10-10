@@ -631,6 +631,8 @@ class SchemaMixin:
             # visibility (NULL/'serve_original' keep, 'hide' drops it).
             ('title_skip_patterns', 'TEXT'),
             ('title_skip_action', 'TEXT'),
+            ('min_duration_seconds', 'REAL'),
+            ('max_duration_seconds', 'REAL'),
             # Per-feed low-ad-yield action override; NULL = use the global
             # low_ad_yield_action setting.
             ('low_ad_yield_action', 'TEXT'),
@@ -673,6 +675,7 @@ class SchemaMixin:
         act_cols = self._get_table_columns(conn, 'audio_cue_templates')
         act_migrations = [
             ('score_threshold', 'REAL'),
+            ('remove_with_ad', 'INTEGER NOT NULL DEFAULT 1'),
         ]
         for col, definition in act_migrations:
             self._add_column_if_missing(conn, 'audio_cue_templates', col, definition, act_cols)
@@ -1987,6 +1990,7 @@ class SchemaMixin:
                     "id, podcast_id, label, source_episode_id, source_offset_s, "
                     "duration_s, sample_rate, n_coeffs, mfcc_blob, pcm_blob, "
                     "pcm_sample_rate, scope, network_id, cue_type, enabled, "
+                    "score_threshold, remove_with_ad, "
                     "created_at, created_by"
                 )
                 before = conn.execute(
@@ -2008,6 +2012,8 @@ class SchemaMixin:
                         network_id TEXT,
                         cue_type TEXT NOT NULL DEFAULT 'ad_break_boundary',
                         enabled INTEGER NOT NULL DEFAULT 1,
+                        score_threshold REAL,
+                        remove_with_ad INTEGER NOT NULL DEFAULT 1,
                         created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                         created_by TEXT DEFAULT 'user',
                         FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE

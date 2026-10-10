@@ -651,6 +651,21 @@ describe('StatsPage ledger filters', () => {
     }
   });
 
+  it.each([
+    [320, '320 ms'],
+    [1250, '1,250 ms'],
+    [320.125, '320.125 ms'],
+    [0, '0 ms'],
+    [null, 'Unknown'],
+  ])('shows average latency %s in milliseconds as %s', async (average, expected) => {
+    mockGetSystemOneStats.mockResolvedValue({
+      ...SYSTEMONE_STATS, calls: 1, logicalLatencyMsAverage: average,
+    });
+    renderPage();
+    const value = await screen.findByText(expected);
+    expect(document.getElementById('stats-systemone')?.contains(value)).toBe(true);
+  });
+
   it('does not imply measured usage when a logical call sends no HTTP request', async () => {
     mockGetSystemOneStats.mockResolvedValue({ ...SYSTEMONE_STATS, calls: 1, outcomes: { completed: 0, failed: 1, inconclusive: 0 } });
     renderPage();

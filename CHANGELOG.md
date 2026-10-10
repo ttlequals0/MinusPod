@@ -9,6 +9,23 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+## [2.99.3] - 2026-10-10
+
+### Added
+- Episode filters group title rules with optional RSS duration limits. Skipped episodes can keep their original audio or be hidden from the served feed. (#833)
+- Live episode title search covers the full feed, with selection across pages and an explicit limit of 500 episodes per bulk action.
+
+### Changed
+- Rename the Settings section to System One Tuneables.
+- Matched ad-break cues are removed with ads by default. Each template can opt out, while programme cues and manual trims remain protected. (#832)
+
+### Fixed
+- System One statistics show average call time in milliseconds, preserving subsecond timing.
+- Expected provider holds and service deferrals no longer log processing failures.
+- Legacy cue-template migrations preserve saved match thresholds and cue-removal preferences.
+
 ## [2.99.2] - 2026-10-09
 
 ### Fixed

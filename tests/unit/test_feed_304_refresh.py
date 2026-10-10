@@ -168,6 +168,15 @@ class TestRSSCacheStale(unittest.TestCase):
             }
             self.assertFalse(_rss_cache_stale('example-podcast', podcast))
 
+    def test_duration_hidden_episode_does_not_make_cache_stale(self):
+        with patch('main_app.feeds.storage.get_rss', return_value='<rss/>'), \
+                patch('main_app.feeds.db.get_processed_episodes_for_feed', return_value=[{
+                    'episode_id': 'hidden-id', 'title': 'Clip', 'rss_duration': 30,
+                }]):
+            self.assertFalse(_rss_cache_stale('example-podcast', {
+                'id': 1, 'title_skip_action': 'hide', 'min_duration_seconds': 60,
+            }))
+
     def test_hidden_match_still_makes_cache_stale_for_other_actions(self):
         for action in (None, 'serve_original'):
             with self.subTest(action=action), \

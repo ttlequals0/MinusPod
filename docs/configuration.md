@@ -337,13 +337,23 @@ Changing a feed's queue priority restamps every episode of that feed still pendi
 
 ### Title blacklist
 
-Each feed can list glob patterns under **Skip episodes by title** on its settings page. An episode whose title matches any pattern is skipped: it is never queued for automatic processing, and just-in-time processing (playing it) does not detect or cut it either.
+Each feed can list glob patterns under **Episode filters > Skip episodes by title** on its detail page. An episode whose title matches any pattern is skipped: it is never queued for automatic processing, and just-in-time processing (playing it) does not detect or cut it either.
 
 Matching is against the whole title, case-insensitive. `*` is a wildcard; a pattern with no wildcard must match the entire title exactly, so a substring match needs `*` on both sides. For example `Bonus Episode *` skips any title starting with "Bonus Episode", and `*live show*` skips any title containing "live show" anywhere.
 
-A per-feed **Skipped episodes** choice decides how a skipped episode is served: **Keep in feed with original audio** (default) serves it unmodified in the RSS feed, or **Hide from feed** drops it from the served feed entirely. Either way the episode is unaffected by the blacklist if you reprocess it manually: a manual reprocess always overrides the blacklist and processes the episode normally.
+The shared **Skipped episodes** choice applies to title and duration filters. **Keep in feed with original audio** (default) serves the episode unmodified. **Hide from feed** removes it from served RSS. Either way the episode is unaffected by the blacklist if you reprocess it manually: a manual reprocess always overrides the blacklist and processes the episode normally.
 
 API: `titleSkipPatterns` (array of strings, max 50 patterns, 200 characters each) and `titleSkipAction` (`serve_original` or `hide`) on `PATCH /api/v1/feeds/{slug}`.
+
+### Episode duration filters
+
+The feed's **Episode filters** section has optional **Minimum (minutes)** and **Maximum (minutes)** fields. Leave either blank for no limit, then choose **Save duration limits**.
+
+Limits include their endpoints and use the publisher's RSS duration, before any download or ad removal. Episodes with missing, invalid, or zero duration stay eligible. The minimum cannot exceed the maximum.
+
+An episode outside the range skips automatic and just-in-time processing. **Skipped episodes** decides whether it stays in the served feed with original audio or is hidden. Manual reprocessing overrides both duration and title filters. Local feeds ignore these upstream filters.
+
+API: `minDurationSeconds` and `maxDurationSeconds` on `PATCH /api/v1/feeds/{slug}` accept finite, nonnegative numbers in seconds. Null clears a limit; omitted fields keep their saved values. Configuration Import / Export preserves both limits.
 
 ### Recents feed
 

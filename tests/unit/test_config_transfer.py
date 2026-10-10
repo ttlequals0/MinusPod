@@ -823,3 +823,20 @@ def test_audio_output_import_preserves_missing_and_resets_null(temp_db, monkeypa
     assert temp_db.resolve_audio_output('example-feed') == {
         'replacement_sound_enabled': True, 'mp3_stream_copy_enabled': False,
     }
+
+
+def test_duration_filters_export_import_and_range_validation(temp_db, monkeypatch):
+    temp_db.create_podcast('example-feed', 'https://example.com/feed.xml', 'Example')
+    temp_db.update_podcast('example-feed', min_duration_seconds=60, max_duration_seconds=180)
+    document = config_transfer.export_config(temp_db, '2.98.2')
+    settings = document['feeds'][0]['settings']
+    assert settings['min_duration_seconds'] == 60
+    assert settings['max_duration_seconds'] == 180
+    temp_db.update_podcast('example-feed', min_duration_seconds=None, max_duration_seconds=None)
+    preview = config_transfer.build_preview(temp_db, document, 'everything')
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    config_transfer.apply_config(temp_db, document, 'everything', None, preview['previewToken'])
+    assert temp_db.get_podcast_by_slug('example-feed')['min_duration_seconds'] == 60
+    settings['min_duration_seconds'] = 200
+    with pytest.raises(ConfigTransferError, match='must not exceed'):
+        config_transfer.build_preview(temp_db, document, 'everything')

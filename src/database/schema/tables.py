@@ -106,6 +106,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Served-RSS handling for a blacklisted episode: NULL/'serve_original'
     -- keeps it in the feed untouched, 'hide' drops it from the served feed.
     title_skip_action TEXT,
+    min_duration_seconds REAL,
+    max_duration_seconds REAL,
     -- Per-feed low-ad-yield action override: NULL = use the global
     -- low_ad_yield_action setting.
     low_ad_yield_action TEXT,
@@ -578,6 +580,7 @@ TABLE_DDL['audio_cue_templates'] = """CREATE TABLE IF NOT EXISTS audio_cue_templ
     cue_type TEXT NOT NULL DEFAULT 'ad_break_boundary',
     enabled INTEGER NOT NULL DEFAULT 1,
     score_threshold REAL,
+    remove_with_ad INTEGER NOT NULL DEFAULT 1,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     created_by TEXT DEFAULT 'user',
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE

@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 from config import (
     HTTP_MAX_REDIRECTS_FEED, MAX_RSS_BYTES_MIN,
-    get_env_backed_int, title_matches_skip_patterns,
+    get_env_backed_int, episode_matches_feed_filters,
 )
 from defusedxml.common import DefusedXmlException
 from feedparser.sanitizer import _sanitize_html as sanitize_html
@@ -1044,7 +1044,9 @@ class RSSParser:
                     feed_auth_key: str | None = None,
                     own_episode_guids: bool = False,
                     hide_title_patterns: str | None = None,
-                    chapter_notes: dict[str, str] | None = None) -> str:
+                    chapter_notes: dict[str, str] | None = None,
+                    hide_min_duration_seconds: float | None = None,
+                    hide_max_duration_seconds: float | None = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -1168,6 +1170,11 @@ class RSSParser:
             logger.debug(f"[{slug}] Limiting feed from {len(feed.entries)} to {max_episodes} episodes")
 
         # Process each episode from RSS
+        hide_filters = {
+            'title_skip_patterns': hide_title_patterns,
+            'min_duration_seconds': hide_min_duration_seconds,
+            'max_duration_seconds': hide_max_duration_seconds,
+        }
         included_episode_ids = set()
         processed_meta = {
             ep.get('episode_id'): ep
@@ -1208,7 +1215,10 @@ class RSSParser:
             episode_id = self.generate_episode_id(episode_url, entry.get('id'))
             if processed_only and episode_id not in (processed_episode_ids or set()):
                 continue
-            if title_matches_skip_patterns(entry.get('title', ''), hide_title_patterns):
+            if episode_matches_feed_filters({
+                    'title': entry.get('title'),
+                    'rss_duration': self._parse_itunes_duration(entry.get('itunes_duration')),
+            }, hide_filters):
                 continue
             if db_title_dates and self._matches_db_duplicate(entry, db_title_dates):
                 suppressed_upstream_duplicates += 1
@@ -1291,7 +1301,7 @@ class RSSParser:
                 ep_id = ep['episode_id']
                 if ep_id in included_episode_ids:
                     continue
-                if title_matches_skip_patterns(ep.get('title', ''), hide_title_patterns):
+                if episode_matches_feed_filters(ep, hide_filters):
                     continue
                 self._append_db_episode_item(lines, slug, ep, storage,
                                              feed_auth_key,
@@ -1787,9 +1797,9 @@ class RSSParser:
             return None
         try:
             seconds = parse_timestamp(raw)
-        except ValueError:
+        except (ValueError, TypeError, OverflowError):
             return None
-        return seconds if seconds > 0 else None
+        return seconds if math.isfinite(seconds) and seconds > 0 else None
 
     def extract_episodes(self, feed_content: str, parsed_feed=None,
                          source: str = None, channel=None) -> list[dict]:

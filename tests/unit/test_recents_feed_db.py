@@ -121,3 +121,13 @@ def test_detail_flags_only_with_details_and_sort_is_whitelisted():
     assert [r['episode_id'] for r in oldest_first] == ['a1', 'a2']
     bogus = _db().get_recent_processed_episodes('2026-09-06', sort_by='1; DROP TABLE episodes')
     assert [r['episode_id'] for r in bogus] == ['a2', 'a1']
+
+
+def test_title_search_precedes_recents_pagination():
+    _seed_source('alpha')
+    _seed_episode('alpha', 'match-first', '2026-09-10T00:00:00Z')
+    _seed_episode('alpha', 'other', '2026-09-11T00:00:00Z')
+    _seed_episode('alpha', 'match-last', '2026-09-12T00:00:00Z')
+    rows = _db().get_recent_processed_episodes('2026-09-01', search='MATCH', limit=1, offset=1)
+    assert [row['episode_id'] for row in rows] == ['match-first']
+    assert _db().count_recent_processed_episodes('2026-09-01', search='MATCH') == 2

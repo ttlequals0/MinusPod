@@ -89,7 +89,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
   const selectedProfileSlot = editableSlots.includes(selectedSlot) ? selectedSlot : editableSlots[0];
 
   return (
-    <CollapsibleSection title="System One">
+    <CollapsibleSection title="System One Tuneables" storageKey="settings-section-system-one">
       <div className="space-y-5">
         {!selectedProfileSlot ? (
           <p className="text-sm text-muted-foreground">Choose a System One provider in LLM Provider.</p>

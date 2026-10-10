@@ -1376,7 +1376,8 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                 min_confidence=db.get_setting_float('audio_cue_pair_confidence', AUDIO_CUE_PAIR_CONFIDENCE),
                 min_break_s=cue_settings['pair_min_break'],
                 max_break_s=cue_settings['pair_max_break'],
-                total_duration=(segments[-1]['end'] if segments else episode_duration),
+                total_duration=(episode_duration if episode_duration > 0
+                                else segments[-1]['end'] if segments else 0.0),
                 max_break_fraction=cue_settings['pair_max_break_fraction'],
                 orient_window_s=db.get_setting_float('audio_cue_pair_orient_window_seconds', AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS),
                 strict_roles=strict_pair_roles,
@@ -5906,7 +5907,6 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     """Handle processing failure: GPU cleanup, retry logic, error recording."""
     _require_publication_owner(slug, episode_id)
     processing_time = time.time() - start_time
-    audio_logger.error(f"[{slug}:{episode_id}] Failed: {error} ({processing_time:.1f}s)")
 
     try:
         from transcriber import WhisperModelSingleton
@@ -5987,6 +5987,8 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             service=service, error_message=error, slug=slug,
             episode_id=episode_id, podcast_name=podcast_name)
         return
+
+    audio_logger.error(f"[{slug}:{episode_id}] Failed: {error} ({processing_time:.1f}s)")
 
     transient = is_transient_error(error)
     current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0

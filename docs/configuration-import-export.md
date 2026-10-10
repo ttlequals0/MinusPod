@@ -24,6 +24,8 @@ Audio output choices include their nullable feed overrides. Null resets a global
 choice to its default or clears a feed override back to inheritance. Omitted
 fields preserve the destination values, including imports from older exports.
 
+Feed duration limits export as `min_duration_seconds` and `max_duration_seconds`, in seconds. Null clears a limit; omitted fields preserve destination values. Import rejects nonfinite, negative, or reversed limits.
+
 ## UI and API
 
 Open Settings > Data Management > Configuration Import / Export. Acknowledge that the file contains credentials before downloading it. To restore settings, select a JSON file and scope, review the affected setting names and feeds, then apply the import. Feed-refresh warnings appear after the settings are saved.

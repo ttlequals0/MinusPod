@@ -138,9 +138,10 @@ export interface Feed {
   // Per-feed episode title blacklist: fnmatch glob patterns matched against
   // episode titles. A match is never queued or JIT-processed.
   titleSkipPatterns?: string[];
-  // Served-RSS visibility for a title-blacklisted episode. Absent/null
-  // resolves to 'serve_original'.
+  // RSS visibility for episodes excluded by title or duration.
   titleSkipAction?: 'serve_original' | 'hide' | null;
+  minDurationSeconds?: number | null;
+  maxDurationSeconds?: number | null;
   // Per-feed segment-action overrides (issue #565): only overridden
   // categories are present (others inherit the global map); null/absent
   // means there are no per-feed overrides at all.
@@ -181,6 +182,7 @@ export interface EpisodeSummary {
   error?: string | null;
   pendingReviewCount?: number;
   titleSkipped?: boolean;
+  durationSkipped?: boolean;
   passthroughEnabled?: boolean | null;
   hasBeenProcessed?: boolean;
 }
@@ -224,6 +226,7 @@ export interface Episode {
   hasOriginalAudio?: boolean;
   pendingReviewCount?: number;
   titleSkipped?: boolean;
+  durationSkipped?: boolean;
   error?: string | null;
   artworkUrl?: string | null;
   // Set once, on the first successful processing run, and left untouched

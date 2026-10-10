@@ -133,6 +133,7 @@ FEED_COLUMNS = (
     'segment_category_actions', 'detect_show_segments', 'skip_second_pass',
     'transcript_differential', 'skip_transcription', 'cue_only_safety',
     'queue_priority', 'title_skip_patterns', 'title_skip_action',
+    'min_duration_seconds', 'max_duration_seconds',
     'low_ad_yield_action', 'episode_logs', 'retention_days_override',
     'keep_original_audio_override', 'user_tags', 'author', 'explicit',
     'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
@@ -1017,6 +1018,11 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             value, error = feed_api._normalize_title_skip_patterns(value)
             if error:
                 raise ConfigTransferError(error)
+        elif key in ('min_duration_seconds', 'max_duration_seconds'):
+            field = 'minDurationSeconds' if key == 'min_duration_seconds' else 'maxDurationSeconds'
+            value, error = feed_api._normalize_duration_limit(value, field)
+            if error:
+                raise ConfigTransferError(error)
         elif key == 'title_skip_action':
             value, error = feed_api._normalize_title_skip_action(value)
             if error:
@@ -1066,6 +1072,9 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
         if key in ('source_url', 'title') and value is not None and not str(value).strip():
             raise ConfigTransferError(f'{key} cannot be empty')
         updates[key] = value
+    range_error = feed_api._validate_duration_range({**(podcast or {}), **updates})
+    if range_error:
+        raise ConfigTransferError(range_error)
     if updates.get('skip_transcription'):
         effective = {**(podcast or {}), **updates}
         if resolve_feed_processing_mode(effective) != PROCESSING_MODE_CUE_ONLY:
@@ -1212,7 +1221,8 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
     rss_fields = {
         'max_episodes', 'only_expose_processed_episodes', 'title_override',
         'source_url', 'own_episode_guids', 'title_skip_patterns',
-        'title_skip_action', 'title', 'author', 'explicit', 'categories',
+        'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
+        'title', 'author', 'explicit', 'categories',
         'p20_channel_json', 'description', 'chapters_in_notes',
     }
     try:

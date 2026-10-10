@@ -18,7 +18,7 @@ from api import (
 )
 from config import (
     is_keep_like, is_pending_review, normalize_segment_category, resolve_chapters_in_notes,
-    title_matches_skip_patterns,
+    title_matches_skip_patterns, duration_outside_feed_range, episode_matches_feed_filters,
     resolve_processing_mode, DEFAULT_SEGMENT_ACTION,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
@@ -289,19 +289,24 @@ def list_episodes(slug):
     offset = max(0, request.args.get('offset', 0, type=int))
     sort_by = request.args.get('sort_by', 'published_at')
     sort_dir = request.args.get('sort_dir', 'desc')
+    search = request.args.get('search', '').strip()
+    selection = request.args.get('selection', '').lower() == 'true'
+    query_limit = None if selection else limit
+    if selection:
+        offset = 0
 
     if is_recents_feed(podcast):
         # Membership rows belong to other feeds; each carries its source.
         cutoff = recents_cutoff(podcast)
         if status in (None, 'all', 'processed'):
-            episodes = db.get_recent_processed_episodes(cutoff, limit=limit, offset=offset,
-                                                        sort_by=sort_by, sort_dir=sort_dir)
-            total = db.count_recent_processed_episodes(cutoff)
+            episodes = db.get_recent_processed_episodes(cutoff, limit=query_limit, offset=offset,
+                                                        sort_by=sort_by, sort_dir=sort_dir, search=search)
+            total = db.count_recent_processed_episodes(cutoff, search=search)
         else:
             episodes, total = [], 0
     else:
-        episodes, total = db.get_episodes(slug, status=status, limit=limit, offset=offset,
-                                          sort_by=sort_by, sort_dir=sort_dir)
+        episodes, total = db.get_episodes(slug, status=status, limit=query_limit, offset=offset,
+                                          sort_by=sort_by, sort_dir=sort_dir, search=search, selection=selection)
 
     # One batched lookup for the whole page rather than one query per row.
     job_states = db.get_episode_job_states([ep['episode_id'] for ep in episodes])
@@ -310,12 +315,31 @@ def list_episodes(slug):
     for ep in episodes:
         source_slug = ep.get('source_slug')
         owner_slug = source_slug or slug
+        if selection:
+            filters = ({
+                'min_duration_seconds': ep.get('source_min_duration_seconds'),
+                'max_duration_seconds': ep.get('source_max_duration_seconds'),
+            } if source_slug else podcast)
+            status_key = EpisodeStatus.to_api(ep['status'])
+            episode_list.append({
+                'id': ep['episode_id'], 'status': status_key,
+                'jobState': _job_state(status_key, job_states.get((owner_slug, ep['episode_id']))),
+                'titleSkipped': title_matches_skip_patterns(
+                    ep.get('title'), ep.get('source_title_skip_patterns')
+                    if source_slug else podcast.get('title_skip_patterns')),
+                'durationSkipped': duration_outside_feed_range(ep.get('rss_duration'), filters),
+            })
+            continue
         item = _episode_base_json(
             ep, slug=owner_slug,
             is_local=(ep.get('source_feed_type') == 'local') if source_slug else is_local,
             storage=storage,
             title_skip_patterns=(ep.get('source_title_skip_patterns')
-                                 if source_slug else podcast.get('title_skip_patterns')))
+                                 if source_slug else podcast.get('title_skip_patterns')),
+            duration_filters=({
+                'min_duration_seconds': ep.get('source_min_duration_seconds'),
+                'max_duration_seconds': ep.get('source_max_duration_seconds'),
+            } if source_slug else podcast))
         item['ad_count'] = ep['ads_removed']
         item['episodeNumber'] = ep.get('episode_number')
         item['jobState'] = _job_state(
@@ -326,7 +350,8 @@ def list_episodes(slug):
         episode_list.append(item)
 
     return json_response({
-        'episodes': episode_list,
+        'episodes': [] if selection else episode_list,
+        **({'selection': episode_list} if selection else {}),
         'total': total,
         'limit': limit,
         'offset': offset
@@ -387,7 +412,7 @@ def _episode_job_state(db, slug, episode_id, status):
 
 
 def _episode_base_json(ep, *, slug=None, is_local=False, storage=None,
-                       title_skip_patterns=None):
+                       title_skip_patterns=None, duration_filters=None):
     """Shared camelCase fields for the episode list and detail serializers.
 
     Status is mapped for frontend compatibility: 'processed' -> 'completed';
@@ -431,6 +456,7 @@ def _episode_base_json(ep, *, slug=None, is_local=False, storage=None,
         'pendingReviewCount': ep.get('pending_review_count', 0),
         'titleSkipped': title_matches_skip_patterns(
             ep.get('title'), title_skip_patterns),
+        'durationSkipped': duration_outside_feed_range(ep.get('rss_duration'), duration_filters),
         'passthroughEnabled': bool(ep.get('passthrough_enabled')),
         # Stable Process/Reprocess eligibility: a completed episode that is
         # queued again reverts to 'pending', so status alone flips the label.
@@ -749,7 +775,7 @@ def get_episode(slug, episode_id):
 
     base = _episode_base_json(
         episode, slug=slug, is_local=is_local, storage=storage,
-        title_skip_patterns=podcast.get('title_skip_patterns'))
+        title_skip_patterns=podcast.get('title_skip_patterns'), duration_filters=podcast)
     # Separate from description: the local-episode editor round-trips that
     # field, and the block must never be written back (#720).
     base['chapterNotes'] = (format_chapter_block(episode.get('chapters_json'))
@@ -1656,12 +1682,11 @@ def bulk_episode_action(slug):
             if not episode:
                 skipped += 1
                 continue
-            if title_matches_skip_patterns(
-                    episode.get('title'), podcast.get('title_skip_patterns')):
+            if episode_matches_feed_filters(episode, podcast):
                 skipped += 1
                 skipped_episodes.append({
                     'episodeId': episode_id,
-                    'reason': 'Title matches feed title-skip patterns',
+                    'reason': 'Episode matches feed filters',
                 })
                 continue
             if episode.get('status') == EpisodeStatus.DISCOVERED.value:

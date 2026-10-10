@@ -187,6 +187,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [addingTitleSkipPattern, setAddingTitleSkipPattern] = useState(false);
   const [titleSkipPatternInput, setTitleSkipPatternInput] = useState('');
   const [titleSkipPatternError, setTitleSkipPatternError] = useState<string | null>(null);
+  const [durationFilterError, setDurationFilterError] = useState<string | null>(null);
+  const minDurationField = useDraftField(feed, (f) =>
+    f.minDurationSeconds == null ? '' : String(f.minDurationSeconds / 60));
+  const maxDurationField = useDraftField(feed, (f) =>
+    f.maxDurationSeconds == null ? '' : String(f.maxDurationSeconds / 60));
   // Local source of truth for the per-feed override map, not the `feed`
   // prop: the PATCH replaces the stored map outright with no server merge,
   // so building from a stale prop between edits would drop the earlier one.
@@ -301,6 +306,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     // other field to server truth.
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
+      queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
     },
   });
 
@@ -526,7 +532,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     <div className="mb-6">
       <CollapsibleSection
         title="Feed settings"
-        subtitle="Network, DAI platform, auto-processing, language, tags, and collapsed cue tuning and advanced controls"
+        subtitle="Source, processing, episode filters, tags, chapters, and storage"
         defaultOpen={false}
         storageKey={`feed-settings-${slug}`}
         onToggle={setPanelOpen}
@@ -965,16 +971,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </CollapsibleSection>
 
+          {!isLocal && (
           <CollapsibleSection
-            title="Title and tag rules"
+            title="Episode filters"
+            subtitle="Skip automatic processing by title or duration"
             defaultOpen
-            storageKey={`feed-title-tags-${slug}`}
+            storageKey={`feed-filters-${slug}`}
           >
             <div className="space-y-4 pt-1">
-              {/* Episode title blacklist: skip episodes whose title matches a glob
-                  pattern. Local feeds don't get new upstream episodes to blacklist. */}
-              {!isLocal && (
-              <>
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
                   Skip episodes by title:
@@ -1047,7 +1051,71 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </div>
               </div>
 
-              {/* Served-feed visibility for a title-blacklisted episode */}
+              <div className="space-y-2 text-sm">
+                <div className="grid grid-cols-2 gap-3 max-w-xs">
+                  {([
+                    ['Minimum (minutes)', minDurationField],
+                    ['Maximum (minutes)', maxDurationField],
+                  ] as const).map(([label, field]) => (
+                    <label key={label} className="flex min-w-0 flex-col gap-1.5">
+                      <span className="text-muted-foreground">{label}</span>
+                      <DraftNumberInput
+                        value={parseOptionalNumber(field.value)}
+                        fallback={null}
+                        min={0}
+                        step="any"
+                        parse={parseOptionalNumber}
+                        onChange={(value) => field.setValue(value == null ? '' : String(value))}
+                        placeholder="No limit"
+                        ariaLabel={label}
+                        disabled={updateMutation.isPending}
+                        className="w-full min-h-11 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Unknown durations are kept. Manual reprocessing overrides filters.
+                </p>
+                {durationFilterError && <p role="alert" className="text-xs text-destructive">{durationFilterError}</p>}
+                <button
+                  type="button"
+                  disabled={updateMutation.isPending || (!minDurationField.dirty && !maxDurationField.dirty)}
+                  className={`min-h-11 px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+                  onClick={() => {
+                    const minimum = parseOptionalNumber(minDurationField.value);
+                    const maximum = parseOptionalNumber(maxDurationField.value);
+                    if ((minimum != null && minimum < 0) || (maximum != null && maximum < 0)) {
+                      setDurationFilterError('Duration limits must be 0 minutes or greater.');
+                      return;
+                    }
+                    if ((minimum != null && !Number.isFinite(minimum * 60))
+                      || (maximum != null && !Number.isFinite(maximum * 60))) {
+                      setDurationFilterError('Duration limits must be finite numbers.');
+                      return;
+                    }
+                    if (minimum != null && maximum != null && minimum > maximum) {
+                      setDurationFilterError('Minimum duration must not exceed maximum duration.');
+                      return;
+                    }
+                    setDurationFilterError(null);
+                    updateMutation.mutate({
+                      minDurationSeconds: minimum == null ? null : minimum * 60,
+                      maxDurationSeconds: maximum == null ? null : maximum * 60,
+                    }, {
+                      onSuccess: () => {
+                        minDurationField.markClean(minDurationField.value);
+                        maxDurationField.markClean(maxDurationField.value);
+                      },
+                      onError: (error) => setDurationFilterError(getErrorMessage(error, 'Could not save duration limits.')),
+                    });
+                  }}
+                >
+                  Save duration limits
+                </button>
+              </div>
+
+
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">
                   Skipped episodes:
@@ -1065,9 +1133,16 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <option value="hide">Hide from feed</option>
                 </select>
               </div>
-              </>
-              )}
+            </div>
+          </CollapsibleSection>
+          )}
 
+          <CollapsibleSection
+            title="Tags"
+            defaultOpen
+            storageKey={`feed-title-tags-${slug}`}
+          >
+            <div className="space-y-4 pt-1">
               {/* Feed tags */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Tags:</span>

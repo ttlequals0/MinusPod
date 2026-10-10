@@ -169,6 +169,7 @@ def test_full_lifecycle(app_client, seeded):
     tpl = r.get_json()['template']
     assert tpl['cueType'] == 'ad_break_start' and tpl['label'] == 'ad-break start'
     assert tpl['scope'] == 'podcast'
+    assert tpl['removeWithAd'] is True
     tid = tpl['id']
 
     # list shows it
@@ -190,12 +191,18 @@ def test_full_lifecycle(app_client, seeded):
     assert spots.status_code == 200
     assert 'loudSpots' in spots.get_json()
 
+    patch_response = app_client.patch(f'/api/v1/cue-templates/{tid}',
+                                      json={'removeWithAd': False}, headers=hdr)
+    assert patch_response.status_code == 200
+    assert patch_response.get_json()['template']['removeWithAd'] is False
+
     # export the template (it has raw PCM)
     exp = app_client.get(f'/api/v1/cue-templates/{tid}/export')
     assert exp.status_code == 200
     assert exp.mimetype == 'application/zip'
     with zipfile.ZipFile(io.BytesIO(exp.get_data())) as z:
         assert {'cue.flac', 'template.json'} <= set(z.namelist())
+        assert json.loads(z.read('template.json'))['removeWithAd'] is False
 
     # import it back into the same feed
     imp = app_client.post(
@@ -203,6 +210,7 @@ def test_full_lifecycle(app_client, seeded):
         data={'file': (io.BytesIO(exp.get_data()), 'cue.zip')},
         headers=hdr, content_type='multipart/form-data')
     assert imp.status_code == 201
+    assert imp.get_json()['template']['removeWithAd'] is False
     assert len(app_client.get(base).get_json()['templates']) == 2
 
     # delete
@@ -397,3 +405,38 @@ def test_xep_intro_max_duration_from_db(app_client, seeded):
     assert captured.get('intro_max_duration') == 45.0, (
         f"Expected intro_max_duration=45.0 from DB setting, got {captured}"
     )
+
+
+@pytest.mark.parametrize('value', ['false', 0, None])
+def test_removal_option_requires_boolean(app_client, seeded, value):
+    hdr = _csrf(app_client)
+    tid = _seed_template(seeded['db'], seeded['slug'])
+    response = app_client.patch(f'/api/v1/cue-templates/{tid}',
+                                json={'removeWithAd': value}, headers=hdr)
+    assert response.status_code == 400
+    assert seeded['db'].get_cue_template(tid)['remove_with_ad'] == 1
+    response = app_client.post(f"/api/v1/feeds/{seeded['slug']}/cue-templates",
+                               json={'removeWithAd': value}, headers=hdr)
+    assert response.status_code == 400
+    assert response.get_json()['error'] == 'removeWithAd must be true or false'
+
+
+def test_legacy_template_import_defaults_to_removal(app_client, seeded):
+    if shutil.which('ffmpeg') is None:
+        pytest.skip('ffmpeg not available')
+    hdr = _csrf(app_client)
+    tid = _seed_template(seeded['db'], seeded['slug'])
+    exported = app_client.get(f'/api/v1/cue-templates/{tid}/export')
+    archive = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(exported.get_data())) as source:
+        manifest = json.loads(source.read('template.json'))
+        manifest.pop('removeWithAd')
+        with zipfile.ZipFile(archive, 'w') as destination:
+            destination.writestr('template.json', json.dumps(manifest))
+            destination.writestr('cue.flac', source.read('cue.flac'))
+    archive.seek(0)
+    response = app_client.post(f"/api/v1/feeds/{seeded['slug']}/cue-templates/import",
+                               data={'file': (archive, 'cue.zip')}, headers=hdr,
+                               content_type='multipart/form-data')
+    assert response.status_code == 201
+    assert response.get_json()['template']['removeWithAd'] is True

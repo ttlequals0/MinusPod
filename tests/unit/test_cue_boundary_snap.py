@@ -15,6 +15,8 @@ from ad_detector.cue_boundary_snap import (
     DEFAULT_SNAP_LAG_SECONDS,
     _pick_cue_for_start,
 )
+from ad_validator import AdValidator, user_trimmed_keep_ranges
+from audio_processor import AudioProcessor
 from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
 from config import AUDIO_CUE_TYPE_CONTENT_TRANSITION
 from main_app import processing
@@ -30,7 +32,7 @@ def _cue(start, end, conf=0.9, source='template', label='ding', template_id=1):
     return AudioSegmentSignal(
         start=start, end=end, signal_type='audio_cue',
         confidence=conf,
-        details={'source': source, 'label': label, 'template_id': template_id},
+        details={'source': source, 'label': label, 'template_id': template_id, 'remove_with_ad': False},
     )
 
 
@@ -156,7 +158,7 @@ def _typed_cue(start, end, role, conf=0.9, template_id=1):
     return AudioSegmentSignal(
         start=start, end=end, signal_type='audio_cue', confidence=conf,
         details={'source': 'template', 'label': role, 'role': role,
-                 'template_id': template_id},
+                 'template_id': template_id, 'remove_with_ad': False},
     )
 
 
@@ -578,3 +580,68 @@ def test_allow_transition_plumbing_reaches_snap():
     assert kwargs.get('allow_transition') is True, (
         f"expected allow_transition=True, got {kwargs.get('allow_transition')}"
     )
+
+
+def test_ad_cues_removed_by_default_at_both_edges():
+    start_cue = _typed_cue(97.0, 99.5, 'start')
+    end_cue = _typed_cue(160.5, 163.0, 'end')
+    for cue in (start_cue, end_cue):
+        cue.details.pop('remove_with_ad')
+    ads = [{'start': 100.0, 'end': 160.0}]
+    snap_ad_boundaries_to_cues(ads, _result_with(start_cue, end_cue), 10.0)
+    assert ads[0]['start'] == 96.95
+    assert ads[0]['end'] == 163.05
+    assert ads[0]['cue_snap']['start']['remove_with_ad'] is True
+    assert ads[0]['cue_snap']['end']['remove_with_ad'] is True
+
+
+def test_removal_cap_measures_far_edge_of_long_cues():
+    start_cue = _typed_cue(85.0, 99.5, 'start')
+    end_cue = _typed_cue(160.5, 175.0, 'end')
+    for cue in (start_cue, end_cue):
+        cue.details['remove_with_ad'] = True
+    ads = [{'start': 100.0, 'end': 160.0}]
+    snap_ad_boundaries_to_cues(ads, _result_with(start_cue, end_cue), 10.0)
+    assert ads == [{'start': 100.0, 'end': 160.0}]
+
+
+def test_removal_start_clamps_to_episode_start():
+    cue = _typed_cue(0.0, 0.5, 'start')
+    cue.details['remove_with_ad'] = True
+    ads = [{'start': 1.0, 'end': 60.0}]
+    snap_ad_boundaries_to_cues(ads, _result_with(cue), 10.0)
+    assert ads[0]['start'] == 0.0
+
+
+def test_transition_opt_in_keeps_programme_cue_audio():
+    start_cue = _transition_cue(97.0, 99.5)
+    end_cue = _transition_cue(160.5, 163.0)
+    start_cue.details['remove_with_ad'] = True
+    end_cue.details['remove_with_ad'] = True
+    ads = [{'start': 100.0, 'end': 160.0}]
+    snap_ad_boundaries_to_cues(ads, _result_with(start_cue, end_cue), 10.0,
+                               allow_transition=True)
+    assert ads[0]['start'] == 99.55
+    assert ads[0]['end'] == 160.45
+    assert ads[0]['cue_snap']['start']['remove_with_ad'] is False
+
+
+def test_cue_removal_preserves_user_approved_trim_and_render_barriers():
+    start_cue = _typed_cue(97.0, 99.5, 'start')
+    end_cue = _typed_cue(160.5, 163.0, 'end')
+    for cue in (start_cue, end_cue):
+        cue.details['remove_with_ad'] = True
+    ads = [{'start': 100.0, 'end': 160.0, 'confidence': 0.95, 'reason': 'ad'}]
+    snap_ad_boundaries_to_cues(ads, _result_with(start_cue, end_cue), 10.0)
+    assert (ads[0]['start'], ads[0]['end']) == (96.95, 163.05)
+    corrections = [{
+        'start': 96.95, 'end': 163.05,
+        'confirmed_span': {'start': 100.0, 'end': 160.0},
+    }]
+    validated = AdValidator(episode_duration=600.0, segments=[],
+                            confirmed_corrections=corrections).validate(ads)
+    assert validated.accepted == 1
+    assert (validated.ads[0]['start'], validated.ads[0]['end']) == (100.0, 160.0)
+    cuts = AudioProcessor().compute_applied_cuts(
+        validated.ads, 600.0, cut_barriers=user_trimmed_keep_ranges(corrections))
+    assert [(cut['start'], cut['end']) for cut in cuts] == [(100.0, 160.0)]

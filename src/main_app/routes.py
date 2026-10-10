@@ -23,7 +23,7 @@ from config import (
     JIT_RETRY_COOLDOWN_SECONDS,
     MAX_EPISODE_RETRIES,
     resolve_jit_blocked_user_agents,
-    title_matches_skip_patterns,
+    title_matches_skip_patterns, duration_outside_feed_range,
     user_agent_is_jit_blocked,
 )
 from ad_chapters import ID3_CHAPTER_SOURCE_KEY, public_chapters
@@ -676,14 +676,13 @@ def register_routes(app):
         episode_description = ep_data.get('description')
         episode_artwork_url = ep_data.get('artwork_url')
 
-        # Title blacklist: serve the upstream audio untouched, never process.
-        # Local feeds have no upstream to redirect to -- original_url is the
-        # unreachable local:// sentinel -- so the blacklist never applies to
-        # them; a matching title on a local episode just processes normally.
+        # Filtered subscribed episodes serve upstream audio without processing.
         if not local_feed:
             title_skip_patterns = db.get_podcast_title_skip_patterns(slug)
-            if title_matches_skip_patterns(episode_title, title_skip_patterns):
-                feed_logger.info(f"[{slug}:{episode_id}] Title-blacklisted, serving original: {episode_title}")
+            if (title_matches_skip_patterns(episode_title, title_skip_patterns)
+                    or duration_outside_feed_range(
+                        ep_data.get('rss_duration', (episode or {}).get('rss_duration')), podcast)):
+                feed_logger.info(f"[{slug}:{episode_id}] Matched feed filters, serving original: {episode_title}")
                 return redirect(original_url, code=302)
 
         # A crawler gets the origin audio rather than a processing run it will

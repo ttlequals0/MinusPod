@@ -358,7 +358,10 @@ export async function regenerateAllFeeds(): Promise<{ message: string; feedCount
   });
 }
 
+export type EpisodeSelection = Pick<Episode, 'id' | 'status' | 'jobState' | 'titleSkipped' | 'durationSkipped'>;
+
 export interface EpisodesResponse {
+  selection?: EpisodeSelection[];
   episodes: Episode[];
   total: number;
   limit: number;
@@ -367,7 +370,7 @@ export interface EpisodesResponse {
 
 export async function getEpisodes(
   slug: string,
-  params?: { limit?: number; offset?: number; status?: string; sortBy?: string; sortDir?: string }
+  params?: { limit?: number; offset?: number; status?: string; sortBy?: string; sortDir?: string; search?: string; selection?: boolean }
 ): Promise<EpisodesResponse> {
   const qs = buildQueryString({
     limit: params?.limit,
@@ -375,6 +378,8 @@ export async function getEpisodes(
     status: params?.status,
     sort_by: params?.sortBy,
     sort_dir: params?.sortDir,
+    search: params?.search,
+    selection: params?.selection,
   });
   return apiRequest<EpisodesResponse>(`/feeds/${slug}/episodes${qs}`);
 }
@@ -458,6 +463,8 @@ export interface UpdateFeedPayload {
   audioMp3StreamCopyOverride?: boolean | null;
   titleSkipPatterns?: string[];
   titleSkipAction?: 'serve_original' | 'hide' | null;
+  minDurationSeconds?: number | null;
+  maxDurationSeconds?: number | null;
   // Per-feed segment-action overrides (issue #565). The backend replaces
   // the stored map outright, so callers must send the full desired partial
   // map (not just the changed key); null clears every override.

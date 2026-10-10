@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.99.2
+  version: 2.99.3
   contact:
     name: MinusPod
   license:
@@ -934,7 +934,15 @@ paths:
                     - serve_original
                     - hide
                     - null
-                  description: What happens to a title-blacklisted episode in the served RSS. 'serve_original' (default, null) keeps the entry in the feed; 'hide' removes it from the served feed entirely.
+                  description: Served-RSS handling for an episode skipped by title or duration. 'serve_original' (default, null) keeps original audio available; 'hide' removes the entry.
+                minDurationSeconds:
+                  type: [number, 'null']
+                  minimum: 0
+                  description: Minimum publisher RSS duration in seconds, inclusive. Null clears this limit; omission preserves it. The effective minimum cannot exceed the maximum. Unknown or zero durations remain eligible; manual reprocessing overrides the filter.
+                maxDurationSeconds:
+                  type: [number, 'null']
+                  minimum: 0
+                  description: Maximum publisher RSS duration in seconds, inclusive. Null clears this limit; omission preserves it. The effective maximum cannot be below the minimum. Filtering uses RSS duration before ad removal.
                 cueTemplateScoreOverride:
                   type:
                     - number
@@ -1482,7 +1490,9 @@ paths:
       description: >-
         Returns paginated list of episodes for a podcast. For the recents feed the rows come from
         the source feeds (see feedSlug and feedTitle); they are all processed, so a status filter
-        other than processed returns an empty page.
+        other than processed returns an empty page. Title search applies before pagination.
+        With selection=true, pagination is ignored and selection contains every matching
+        episode's action state; episodes is empty. Bulk actions still accept at most 500 IDs.
       operationId: listEpisodes
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -1522,6 +1532,17 @@ paths:
             type: string
             enum: [asc, desc]
             default: desc
+        - name: search
+          in: query
+          description: Case-insensitive literal title substring, trimmed before matching. Searches the full feed, including Recents; wildcard characters are literal.
+          schema:
+            type: string
+        - name: selection
+          in: query
+          description: Return all matching action-state rows in selection and an empty episodes array. Ignores limit and offset for selecting rows; limit still reports the normal capped request value and offset is 0.
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: List of episodes
@@ -1534,6 +1555,11 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/EpisodeSummary'
+                  selection:
+                    type: array
+                    description: Present only when selection=true; every matching episode without pagination.
+                    items:
+                      $ref: '#/components/schemas/EpisodeSelection'
                   total:
                     type: integer
                   limit:
@@ -10350,7 +10376,8 @@ paths:
       description: >
         Requires the episode's original (un-cut) audio to still be retained.
         Decodes the marked window, extracts an MFCC fingerprint, and stores the
-        raw PCM as the source of truth. Selection must be 0.2 to 4 seconds.
+        raw PCM as the source of truth. Selection must respect the configured capture
+        minimum and the selected cue type's maximum.
       operationId: createCueTemplate
       parameters:
         - name: slug
@@ -10382,8 +10409,12 @@ paths:
                     matching role: ad_break_start/end snap that edge, ad_break_boundary
                     snaps both, show_intro/show_outro never snap or pair and only
                     tell the model the sound is the show open/close, not an ad, and
-                    content_transition likewise never snaps or pairs and hints the
-                    model that a segment transition (not necessarily an ad) is there.
+                    content_transition never pairs and hints that a segment transition is there.
+                    It can snap an existing ad edge when the feed opts in, while retaining its audio.
+                removeWithAd:
+                  type: boolean
+                  default: true
+                  description: Include a matched ad-break cue in the cut. Programme cues, including content transitions, keep their audio regardless of this option.
                 scope:
                   type: string
                   enum: [podcast, network]
@@ -10409,7 +10440,7 @@ paths:
   /cue-templates/{templateId}:
     patch:
       tags: [AudioCueTemplates]
-      summary: Rename, enable/disable, move the window, or change the scope of a template
+      summary: Update cue template options, capture window, or scope
       operationId: updateCueTemplate
       parameters:
         - name: templateId
@@ -10430,6 +10461,9 @@ paths:
                   description: Change the cue type (also resets the derived label)
                 enabled:
                   type: boolean
+                removeWithAd:
+                  type: boolean
+                  description: Include this ad-break cue in cuts. Omit to preserve the saved value; programme cues retain their audio.
                 scope:
                   type: string
                   enum: [podcast, network]
@@ -10518,6 +10552,7 @@ paths:
     get:
       tags: [AudioCueTemplates]
       summary: Export a template as a portable zip (lossless FLAC + JSON manifest)
+      description: The zip manifest preserves removeWithAd alongside cue metadata and lossless audio.
       operationId: exportCueTemplate
       parameters:
         - name: templateId
@@ -10571,6 +10606,7 @@ paths:
         recomputed from the decoded audio (a foreign blob is never trusted).
         Imports land as podcast scope. Sample-rate and channel mismatches are
         hard-rejected with no resampling.
+        The manifest's removeWithAd must be boolean; omission defaults to true.
       operationId: importCueTemplate
       parameters:
         - name: slug
@@ -12395,6 +12431,10 @@ components:
           default: podcast
         networkId:
           type: [string, 'null']
+        removeWithAd:
+          type: boolean
+          default: true
+          description: Include matched ad-break cues in cuts. Existing templates and imports without this field default to true. Programme cues retain their audio.
         enabled:
           type: boolean
         createdAt:
@@ -13237,12 +13277,20 @@ components:
           items:
             type: string
           description: Per-feed episode title blacklist, always an array (empty when unset). Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued or JIT-processed.
+        minDurationSeconds:
+          type: [number, 'null']
+          minimum: 0
+          description: Inclusive minimum publisher RSS duration in seconds. Null means no minimum; unknown durations remain eligible.
+        maxDurationSeconds:
+          type: [number, 'null']
+          minimum: 0
+          description: Inclusive maximum publisher RSS duration in seconds. Null means no maximum. Uses RSS duration before ad removal.
         titleSkipAction:
           type: string
           enum:
             - serve_original
             - hide
-          description: What happens to a title-blacklisted episode in the served RSS, always resolved to one of the two values ('serve_original' covers both an explicit setting and no override). 'hide' removes the entry from the served feed entirely.
+          description: Served-RSS handling for episodes skipped by title or duration. Always resolves to serve_original or hide; serve_original is the default.
         processingMode:
           type: string
           enum:
@@ -13514,6 +13562,9 @@ components:
         titleSkipped:
           type: boolean
           description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
+        durationSkipped:
+          type: boolean
+          description: Publisher RSS duration is outside the feed's inclusive limits, making the episode ineligible for the bulk Process action. Unknown or zero durations return false.
         passthroughEnabled:
           type: boolean
           description: Per-episode pass-through override, same meaning as EpisodeSummary.passthroughEnabled.
@@ -13522,6 +13573,24 @@ components:
             - string
             - 'null'
           description: Episode description, truncated to 200 characters.
+
+    EpisodeSelection:
+      type: object
+      required: [id, status, jobState, titleSkipped, durationSkipped]
+      description: Lightweight action state returned for every matching episode when selection=true.
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [discovered, pending, processing, completed, failed, permanently_failed, deferred]
+        jobState:
+          type: string
+          enum: [idle, queued, processing]
+        titleSkipped:
+          type: boolean
+        durationSkipped:
+          type: boolean
 
     EpisodeSummary:
       type: object
@@ -13571,6 +13640,9 @@ components:
         titleSkipped:
           type: boolean
           description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
+        durationSkipped:
+          type: boolean
+          description: Publisher RSS duration is outside the feed's inclusive limits, making the episode ineligible for the bulk Process action. Unknown or zero durations return false.
         passthroughEnabled:
           type: boolean
           description: Per-episode pass-through override (issue #746). When true, this episode is relayed with no transcription, ad detection, or cutting, even when the feed's own processing mode is not passthrough. The audio may still be transcoded to MP3 when the publisher's enclosure is not already MP3, since the serving stack names episode files .mp3 and declares audio/mpeg. Set via POST /feeds/{slug}/episodes/passthrough.

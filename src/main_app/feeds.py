@@ -13,7 +13,7 @@ from config import (
     FEED_REFRESH_OUTAGE_MIN_FEEDS,
     FEED_REFRESH_OUTAGE_RETRY_BASE_SECONDS,
     FEED_REFRESH_OUTAGE_RETRY_JITTER_SECONDS,
-    title_matches_skip_patterns,
+    episode_matches_feed_filters,
 )
 
 from database.episodes import normalize_published_at
@@ -140,10 +140,9 @@ def _rss_cache_stale(slug: str, podcast) -> bool:
         return True
     processed = db.get_processed_episodes_for_feed(podcast['id'])
     if podcast.get('title_skip_action') == 'hide':
-        patterns = podcast.get('title_skip_patterns')
         processed = [
             ep for ep in processed
-            if not title_matches_skip_patterns(ep.get('title', ''), patterns)
+            if not episode_matches_feed_filters(ep, podcast)
         ]
     return any(ep['episode_id'] not in cached_rss for ep in processed)
 
@@ -539,9 +538,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                             is_recent = False
 
                     if is_recent:
-                        if title_matches_skip_patterns(
-                                ep.get('title'), podcast.get('title_skip_patterns') if podcast else None):
-                            refresh_logger.info(f"[{slug}] Skipping title-blacklisted episode: {ep.get('title')}")
+                        if episode_matches_feed_filters(ep, podcast):
+                            refresh_logger.info(f"[{slug}] Skipping episode matched by feed filters: {ep.get('title')}")
                             continue
                         # New recent episode - queue for processing
                         # iso_published already calculated above for deduplication check
@@ -767,11 +765,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     # even though the stored key is retained for re-enable.
     feed_auth_key = active_feed_key(db)
     chapter_notes = chapter_notes_for(db, podcast)
-    # 'hide' drops title-blacklisted episodes from the served feed entirely;
-    # 'serve_original'/NULL (the default) leaves them in place.
-    hide_title_patterns = None
-    if (podcast or {}).get('title_skip_action') == 'hide':
-        hide_title_patterns = podcast.get('title_skip_patterns')
+    # Hide applies both title and duration exclusions to served RSS.
+    hide_filters = podcast if podcast.get('title_skip_action') == 'hide' else {}
     modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,
                                           max_episodes=feed_cap,
                                           extra_episodes=extra_episodes,
@@ -782,7 +777,9 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           watermark_artwork=watermark_artwork,
                                           feed_auth_key=feed_auth_key,
                                           own_episode_guids=(podcast or {}).get('own_episode_guids'),
-                                          hide_title_patterns=hide_title_patterns,
+                                          hide_title_patterns=hide_filters.get('title_skip_patterns'),
+                                          hide_min_duration_seconds=hide_filters.get('min_duration_seconds'),
+                                          hide_max_duration_seconds=hide_filters.get('max_duration_seconds'),
                                           chapter_notes=chapter_notes)
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())

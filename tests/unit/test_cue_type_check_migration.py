@@ -115,3 +115,33 @@ def test_migration_idempotent_on_second_init(tmp_path):
         "SELECT sql FROM sqlite_master WHERE name='audio_cue_templates'"
     ).fetchone()[0]
     assert 'CHECK(cue_type' not in sql
+
+
+def test_rebuild_preserves_threshold_and_existing_removal_preference(tmp_path):
+    path = tmp_path / 'podcast.db'
+    _seed_legacy_db(path)
+    conn = sqlite3.connect(path)
+    conn.execute('ALTER TABLE audio_cue_templates ADD COLUMN score_threshold REAL')
+    conn.execute('ALTER TABLE audio_cue_templates ADD COLUMN remove_with_ad INTEGER NOT NULL DEFAULT 1')
+    conn.execute('UPDATE audio_cue_templates SET score_threshold=0.87, remove_with_ad=0 WHERE id=1')
+    conn.row_factory = sqlite3.Row
+    before = [dict(row) for row in conn.execute('SELECT * FROM audio_cue_templates ORDER BY id')]
+    conn.commit()
+    conn.close()
+    db = Database(data_dir=str(tmp_path))
+    after = db.get_connection().execute('SELECT * FROM audio_cue_templates ORDER BY id').fetchall()
+    assert [dict(row) for row in after] == before
+
+
+def test_existing_templates_default_to_removal_without_data_loss(tmp_path):
+    path = tmp_path / 'podcast.db'
+    _seed_legacy_db(path)
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    before = [dict(row) for row in conn.execute('SELECT * FROM audio_cue_templates ORDER BY id')]
+    conn.close()
+    db = Database(data_dir=str(tmp_path))
+    after = [dict(row) for row in db.get_connection().execute('SELECT * FROM audio_cue_templates ORDER BY id')]
+    for old, migrated in zip(before, after, strict=True):
+        assert {key: migrated[key] for key in old} == old
+        assert migrated['remove_with_ad'] == 1

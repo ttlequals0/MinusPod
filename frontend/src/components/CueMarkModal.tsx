@@ -114,6 +114,7 @@ function CueMarkModal({
   // mid-edit and a pin drag still updates the displayed value.
   const [startInput, setStartInput] = useState(() => formatTime(defaults.cueStart));
   const [endInput, setEndInput] = useState(() => formatTime(defaults.cueEnd));
+  const [removeWithAd, setRemoveWithAd] = useState(true);
   const [cueType, setCueType] = useState<CueTemplateType>(initialCueType ?? 'ad_break_boundary');
   // Capture ceiling follows the cue type: intro/outro stingers get a longer
   // allowance than ad-break dings (mirrors the server-side bound).
@@ -494,28 +495,28 @@ function CueMarkModal({
   // The last persisted template for the current selection. Save-and-preview and
   // Save reuse it when the bounds and type have not changed, so previewing
   // before saving does not leave a duplicate cue behind.
-  const persistedRef = useRef<{ start: number; end: number; cueType: CueTemplateType; template: CueTemplate } | null>(null);
+  const persistedRef = useRef<{ start: number; end: number; cueType: CueTemplateType; removeWithAd: boolean; template: CueTemplate } | null>(null);
 
   const ensureTemplate = useCallback(async (): Promise<CueTemplate> => {
     const prev = persistedRef.current;
     if (
-      prev && prev.cueType === cueType &&
+      prev && prev.cueType === cueType && prev.removeWithAd === removeWithAd &&
       Math.abs(prev.start - cueStart) < 0.001 &&
       Math.abs(prev.end - cueEnd) < 0.001
     ) {
       return prev.template;
     }
-    const template = await createCueTemplate(podcastSlug, episodeId, cueStart, cueEnd, cueType);
+    const template = await createCueTemplate(podcastSlug, episodeId, cueStart, cueEnd, cueType, removeWithAd);
     // The bracket or type changed since the last save/preview; drop the now
     // superseded template so a preview-then-rebracket flow leaves only the
     // latest cue rather than accumulating drafts.
     if (prev) {
       try { await deleteCueTemplate(prev.template.id); } catch { /* best effort */ }
     }
-    persistedRef.current = { start: cueStart, end: cueEnd, cueType, template };
+    persistedRef.current = { start: cueStart, end: cueEnd, cueType, removeWithAd, template };
     onSaved(template);
     return template;
-  }, [cueStart, cueEnd, cueType, podcastSlug, episodeId, onSaved]);
+  }, [cueStart, cueEnd, cueType, removeWithAd, podcastSlug, episodeId, onSaved]);
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -885,6 +886,17 @@ function CueMarkModal({
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
+            {!isNonAd && (
+              <Checkbox
+                className="min-h-11"
+                label="Remove cue with ad"
+                labelClassName="text-xs text-muted-foreground"
+                disabled={saving || previewing}
+                checked={removeWithAd}
+                onChange={setRemoveWithAd}
+                ariaLabel="Remove cue with ad"
+              />
+            )}
             {isNonAd && (
               <label htmlFor="cue-non-ad-ack" className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
                 <Checkbox

@@ -26,7 +26,7 @@ def _cue(start, end, conf=0.9, label='ding', template_id=1):
     return AudioSegmentSignal(
         start=start, end=end, signal_type='audio_cue',
         confidence=conf,
-        details={'source': 'template', 'label': label, 'template_id': template_id},
+        details={'source': 'template', 'label': label, 'template_id': template_id, 'remove_with_ad': False},
     )
 
 
@@ -285,7 +285,7 @@ def _typed_cue(start, end, role='boundary', conf=0.9, template_id=1, cue_type='a
     return AudioSegmentSignal(
         start=start, end=end, signal_type='audio_cue', confidence=conf,
         details={'source': 'template', 'label': 'ding', 'template_id': template_id,
-                 'role': role, 'cue_type': cue_type},
+                 'role': role, 'cue_type': cue_type, 'remove_with_ad': False},
     )
 
 
@@ -387,3 +387,67 @@ def test_strict_roles_start_end_pair_still_synthesizes():
     ads = synthesize_ads_from_cue_pairs([], result, strict_roles=True)
     assert len(ads) == 1
     assert ads[0]['detection_stage'] == 'cue_pair'
+
+
+def test_pair_removes_ad_cues_by_default():
+    opener = _typed_cue(100.0, 100.5, role='start')
+    closer = _typed_cue(220.0, 220.5, role='end')
+    for cue in (opener, closer):
+        cue.details.pop('remove_with_ad')
+    ads = synthesize_ads_from_cue_pairs([], _result_with(opener, closer))
+    assert ads[0]['start'] == 99.95
+    assert ads[0]['end'] == 220.55
+    assert ads[0]['cue_pair']['start']['remove_with_ad'] is True
+
+
+def test_pair_respects_independent_cue_opt_out():
+    opener = _typed_cue(100.0, 100.5, role='start')
+    closer = _typed_cue(220.0, 220.5, role='end')
+    closer.details['remove_with_ad'] = True
+    ads = synthesize_ads_from_cue_pairs([], _result_with(opener, closer))
+    assert ads[0]['start'] == 100.55
+    assert ads[0]['end'] == 220.55
+
+
+def test_pair_cue_removal_clamps_to_episode_bounds():
+    opener = _typed_cue(0.0, 0.5, role='start')
+    closer = _typed_cue(29.0, 30.0, role='end')
+    for cue in (opener, closer):
+        cue.details['remove_with_ad'] = True
+    ads = synthesize_ads_from_cue_pairs([], _result_with(opener, closer),
+                                       total_duration=30.0, max_break_fraction=0, min_break_s=20.0)
+    assert ads[0]['start'] == 0.0
+    assert ads[0]['end'] == 30.0
+
+
+def test_pair_maximum_guards_include_removed_cue_spans():
+    opener = _typed_cue(100.0, 110.0, role='start')
+    closer = _typed_cue(160.0, 170.0, role='end')
+    for limits in ({'max_break_s': 60.0},
+                   {'total_duration': 300.0, 'max_break_fraction': 0.2}):
+        for cue in (opener, closer):
+            cue.details['remove_with_ad'] = True
+        assert synthesize_ads_from_cue_pairs([], _result_with(opener, closer), **limits) == []
+        for cue in (opener, closer):
+            cue.details['remove_with_ad'] = False
+        ads = synthesize_ads_from_cue_pairs([], _result_with(opener, closer), **limits)
+        assert len(ads) == 1
+        assert (ads[0]['start'], ads[0]['end']) == (110.05, 159.95)
+
+
+def test_pair_maximum_checks_full_cue_span_before_audio_end_clamp():
+    opener = _typed_cue(0.0, 0.5, role='start')
+    closer = _typed_cue(29.0, 30.0, role='end')
+    for cue in (opener, closer):
+        cue.details['remove_with_ad'] = True
+    assert synthesize_ads_from_cue_pairs([], _result_with(opener, closer),
+        total_duration=30.0, max_break_s=30.0, max_break_fraction=0) == []
+
+
+def test_pair_maximum_cannot_be_bypassed_by_truncated_duration():
+    opener = _typed_cue(100.0, 110.0, role='start')
+    closer = _typed_cue(162.0, 170.0, role='end')
+    for cue in (opener, closer):
+        cue.details['remove_with_ad'] = True
+    assert synthesize_ads_from_cue_pairs([], _result_with(opener, closer),
+        total_duration=165.0, max_break_s=66.0, max_break_fraction=0) == []

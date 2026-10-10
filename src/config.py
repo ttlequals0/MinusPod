@@ -6,6 +6,7 @@ for easy tuning and consistency across the codebase.
 import fnmatch
 import json
 import logging
+import math
 import os
 import re
 import sqlite3
@@ -406,6 +407,26 @@ def title_matches_skip_patterns(title, patterns_json):
         return False
     low = title.lower()
     return any(fnmatch.fnmatch(low, str(p).lower()) for p in patterns if p)
+
+
+def duration_outside_feed_range(duration, podcast):
+    """Compare known RSS duration against inclusive per-feed bounds."""
+    if not isinstance(duration, (int, float)) or isinstance(duration, bool):
+        return False
+    if not math.isfinite(duration) or duration <= 0:
+        return False
+    podcast = podcast or {}
+    minimum = podcast.get('min_duration_seconds')
+    maximum = podcast.get('max_duration_seconds')
+    return ((minimum is not None and duration < minimum)
+            or (maximum is not None and duration > maximum))
+
+
+def episode_matches_feed_filters(episode, podcast):
+    """Apply title and RSS-duration exclusions without downloading audio."""
+    podcast = podcast or {}
+    return (title_matches_skip_patterns(episode.get('title'), podcast.get('title_skip_patterns'))
+            or duration_outside_feed_range(episode.get('rss_duration'), podcast))
 
 # Ad evidence thresholds
 CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are likely content

@@ -372,6 +372,30 @@ _TITLE_SKIP_PATTERN_MAX_LEN = 200
 _TITLE_SKIP_PATTERNS_MAX_COUNT = 50
 
 
+def _normalize_duration_limit(value, field):
+    """Validate an optional finite, nonnegative duration in seconds."""
+    if value is None:
+        return None, None
+    error = f'{field} must be a finite nonnegative number or null'
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None, error
+    try:
+        seconds = float(value)
+    except OverflowError:
+        return None, error
+    if not math.isfinite(seconds) or seconds < 0:
+        return None, error
+    return seconds, None
+
+
+def _validate_duration_range(podcast):
+    minimum = podcast.get('min_duration_seconds')
+    maximum = podcast.get('max_duration_seconds')
+    if minimum is not None and maximum is not None and minimum > maximum:
+        return 'minDurationSeconds must not exceed maxDurationSeconds'
+    return None
+
+
 def _normalize_title_skip_patterns(value):
     """Validate the per-feed titleSkipPatterns glob list.
 
@@ -912,6 +936,8 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'episodeLogs': podcast.get('episode_logs'),
         'titleSkipPatterns': _deserialize_title_skip_patterns(podcast.get('title_skip_patterns')),
         'titleSkipAction': podcast.get('title_skip_action') or 'serve_original',
+        'minDurationSeconds': podcast.get('min_duration_seconds'),
+        'maxDurationSeconds': podcast.get('max_duration_seconds'),
         'segmentCategoryActions': _deserialize_json_map(
             podcast.get('segment_category_actions')),
         'processingMode': resolve_feed_processing_mode(podcast),
@@ -1058,7 +1084,7 @@ def _sort_podcasts(podcasts: list[dict], sort_by: str, sort_dir: str) -> list[di
 
 
 def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
-                          title_skip_patterns=None) -> dict:
+                          title_skip_patterns=None, duration_filters=None) -> dict:
     """Bounded per-feed episode projection for the /feeds listing.
 
     Reuses the episode-list serializer so the grouped dashboard view matches
@@ -1068,7 +1094,7 @@ def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
     """
     base = _episode_base_json(
         ep, slug=slug, is_local=is_local, storage=storage,
-        title_skip_patterns=title_skip_patterns)
+        title_skip_patterns=title_skip_patterns, duration_filters=duration_filters)
     description = ep.get('description')
     return {
         'id': base['id'],
@@ -1083,6 +1109,7 @@ def _episode_summary_json(ep, *, slug, is_local, storage, job_states,
         'error': base['error'],
         'pendingReviewCount': base['pendingReviewCount'],
         'titleSkipped': base['titleSkipped'],
+        'durationSkipped': base['durationSkipped'],
         'passthroughEnabled': base['passthroughEnabled'],
         'hasBeenProcessed': base['hasBeenProcessed'],
         'description': truncate(description, 200) if description else None,
@@ -1164,7 +1191,7 @@ def list_feeds():
                 _episode_summary_json(
                     ep, slug=podcast['slug'], is_local=is_local_feed(podcast),
                     storage=storage, job_states=job_states,
-                    title_skip_patterns=podcast.get('title_skip_patterns'))
+                    title_skip_patterns=podcast.get('title_skip_patterns'), duration_filters=podcast)
                 for ep in latest_by_podcast.get(podcast['id'], [])
             ]
         feeds.append(feed_json)
@@ -1968,6 +1995,17 @@ def update_feed(slug):
             return error_response(logs_err, 400)
         updates['episode_logs'] = logs_val
 
+    for field, column in (('minDurationSeconds', 'min_duration_seconds'),
+                          ('maxDurationSeconds', 'max_duration_seconds')):
+        if field in data:
+            value, error = _normalize_duration_limit(data[field], field)
+            if error:
+                return error_response(error, 400)
+            updates[column] = value
+    range_error = _validate_duration_range({**podcast, **updates})
+    if range_error:
+        return error_response(range_error, 400)
+
     if 'titleSkipPatterns' in data:
         patterns_val, patterns_err = _normalize_title_skip_patterns(data['titleSkipPatterns'])
         if patterns_err:
@@ -2143,6 +2181,7 @@ def update_feed(slug):
                 or 'title_override' in updates or 'source_url' in updates
                 or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
                 or 'title_skip_action' in updates
+                or 'min_duration_seconds' in updates or 'max_duration_seconds' in updates
                 or 'title' in updates or 'author' in updates
                 or 'explicit' in updates or 'categories' in updates
                 or 'p20_channel_json' in updates or 'description' in updates

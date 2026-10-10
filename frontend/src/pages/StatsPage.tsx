@@ -1343,7 +1343,7 @@ export default function StatsPage() {
                 <StatCard label="Calls" value={String(systemOneStats.calls)} />
                 <StatCard label="HTTP requests" value={String(systemOneStats.requests)} />
                 <StatCard label="Completed / failed / inconclusive" value={`${systemOneStats.outcomes.completed} / ${systemOneStats.outcomes.failed} / ${systemOneStats.outcomes.inconclusive}`} />
-                <StatCard label="Average call time" value={systemOneStats.logicalLatencyMsAverage === null ? 'Unknown' : formatDuration(systemOneStats.logicalLatencyMsAverage / 1000)} />
+                <StatCard label="Average call time" value={systemOneStats.logicalLatencyMsAverage === null ? 'Unknown' : `${systemOneStats.logicalLatencyMsAverage.toLocaleString()} ms`} />
                 <StatCard label="Token usage" value={`${formatTokenCount(systemOneStats.tokens.input)} in / ${formatTokenCount(systemOneStats.tokens.output)} out`} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.tokens.unknownRequestCount ? `Usage unavailable for ${systemOneStats.tokens.unknownRequestCount} requests` : undefined} />
                 <StatCard label="Known cost" value={formatKnownCallCost(systemOneStats.costUsd)} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.unknownCostRequestCount ? `${systemOneStats.unknownCostRequestCount} requests unpriced` : undefined} />
                 <StatCard label="HTTP dispatch time" value={formatDuration(systemOneStats.dispatchLatencyMsTotal / 1000)} details="Sum across requests" />

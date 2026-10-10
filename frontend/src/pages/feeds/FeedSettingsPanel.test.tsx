@@ -1423,3 +1423,41 @@ describe('FeedSettingsPanel chapters in description control', () => {
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersInNotes: null });
   });
 });
+
+describe('Feed duration filters', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('displays minutes and saves both nullable limits in seconds', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ minDurationSeconds: 60, maxDurationSeconds: 180 }));
+    const minimum = screen.getByRole('spinbutton', { name: 'Minimum (minutes)' });
+    const maximum = screen.getByRole('spinbutton', { name: 'Maximum (minutes)' });
+    expect(minimum).toHaveProperty('value', '1');
+    expect(maximum).toHaveProperty('value', '3');
+    await user.clear(minimum);
+    await user.type(minimum, '2.5');
+    await user.clear(maximum);
+    await user.click(screen.getByRole('button', { name: 'Save duration limits' }));
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      minDurationSeconds: 150, maxDurationSeconds: null,
+    }));
+  });
+
+  it('rejects a reversed range before sending an update', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ maxDurationSeconds: 60 }));
+    await user.type(screen.getByRole('spinbutton', { name: 'Minimum (minutes)' }), '2');
+    await user.click(screen.getByRole('button', { name: 'Save duration limits' }));
+    expect(screen.getByRole('alert').textContent).toBe('Minimum duration must not exceed maximum duration.');
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('omits upstream filters on a local feed', () => {
+    renderPanel(makeFeed({ feedType: 'local' }));
+    expect(screen.queryByRole('spinbutton', { name: 'Minimum (minutes)' })).toBeNull();
+  });
+});

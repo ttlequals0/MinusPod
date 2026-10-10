@@ -11,7 +11,7 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('title_blacklist_test_')
 
-from config import title_matches_skip_patterns
+from config import title_matches_skip_patterns, duration_outside_feed_range
 from api.episodes import _episode_base_json
 import main_app.feeds as feeds_mod
 from main_app import app, background
@@ -68,6 +68,7 @@ class TestTitleMatchesSkipPatterns:
 
 
 class TestRssGateSkipsBlacklistedTitles:
+    @pytest.mark.parametrize('duration_filters', [False, True])
     @patch('main_app.feeds._build_and_save_served_rss')
     @patch('main_app.feeds.pattern_service')
     @patch('main_app.feeds.status_service')
@@ -76,7 +77,7 @@ class TestRssGateSkipsBlacklistedTitles:
     @patch('main_app.feeds.db')
     def test_matching_title_skipped_non_matching_queued(
             self, mock_db, mock_rss, mock_storage, mock_status,
-            mock_pattern, _build_rss):
+            mock_pattern, _build_rss, duration_filters):
         from datetime import datetime, timezone
         from email.utils import format_datetime
 
@@ -85,7 +86,8 @@ class TestRssGateSkipsBlacklistedTitles:
         mock_db.get_podcast_by_slug.return_value = {
             'id': 1, 'etag': None, 'last_modified_header': None,
             'artwork_cached': True,
-            'title_skip_patterns': json.dumps(['Blacklisted*']),
+            'title_skip_patterns': None if duration_filters else json.dumps(['Blacklisted*']),
+            'min_duration_seconds': 60 if duration_filters else None,
         }
         mock_db.get_podcast_row.return_value = mock_db.get_podcast_by_slug.return_value
         mock_db.bulk_upsert_discovered_episodes.return_value = (2, {}, {})
@@ -109,9 +111,9 @@ class TestRssGateSkipsBlacklistedTitles:
             'uses_podping': None, 'hive_accounts': []}
         mock_rss.extract_episodes.return_value = [
             {'id': 'ep-blacklisted', 'url': 'https://e.test/a.mp3',
-             'title': 'Blacklisted Episode', 'description': '', 'published': recent},
+             'title': 'Blacklisted Episode', 'description': '', 'published': recent, 'rss_duration': 30},
             {'id': 'ep-normal', 'url': 'https://e.test/b.mp3',
-             'title': 'Normal Episode', 'description': '', 'published': recent},
+             'title': 'Normal Episode', 'description': '', 'published': recent, 'rss_duration': 120},
         ]
 
         feeds_mod.refresh_rss_feed('show', 'https://example.com/f.xml', force=True)
@@ -187,7 +189,8 @@ class TestOnDemandServeGate:
 
 
 class TestClaimGateTitleBlacklist:
-    def _run(self, reprocess_requested_at, start_return=(False, 'busy')):
+    def _run(self, reprocess_requested_at, start_return=(False, 'busy'),
+             podcast_filters=None, rss_duration=None):
         queue_row = {
             'id': 7, 'podcast_slug': 'example-podcast',
             'episode_id': 'a1b2c3d4e5f6', 'original_url': 'https://e.test/a.mp3',
@@ -197,9 +200,11 @@ class TestClaimGateTitleBlacklist:
         mock_db = MagicMock()
         mock_db.claim_next_queued_episode.return_value = queue_row
         mock_db.get_podcast_by_slug.return_value = {
-            'title_skip_patterns': json.dumps(['Blacklisted*'])}
+            **({'title_skip_patterns': json.dumps(['Blacklisted*'])}
+               if podcast_filters is None else podcast_filters)}
         mock_db.is_auto_process_enabled_for_podcast.return_value = True
-        mock_db.get_episode.return_value = {'reprocess_requested_at': reprocess_requested_at}
+        mock_db.get_episode.return_value = {
+            'reprocess_requested_at': reprocess_requested_at, 'rss_duration': rss_duration}
         # Maintenance runs on the dispatcher's first pass; give it a
         # well-formed result so it does not raise before the claim gate runs.
         mock_db.reset_orphaned_queue_items.return_value = (0, 0)
@@ -234,14 +239,14 @@ class TestClaimGateTitleBlacklist:
 
         start.assert_not_called()
         statuses = [c.args for c in mock_db.close_claimed_queue_row.call_args_list]
-        assert (7, 'completed', 'skipped: title blacklist') in statuses
+        assert (7, 'completed', 'skipped: feed filters') in statuses
 
     def test_processes_when_reprocess_requested(self):
         mock_db, start = self._run(reprocess_requested_at='2026-08-07T00:00:00Z')
 
         start.assert_called_once()
         statuses = [c.args for c in mock_db.close_claimed_queue_row.call_args_list]
-        assert (7, 'completed', 'skipped: title blacklist') not in statuses
+        assert (7, 'completed', 'skipped: feed filters') not in statuses
 
 
 def _build_rss_with_titles(titles):
@@ -310,3 +315,84 @@ class TestHideModeFiltersMatchingIds:
 
         assert 'Kept Extra' in result
         assert 'Blacklisted Extra' not in result
+
+
+@pytest.mark.parametrize(('duration', 'minimum', 'maximum', 'skipped'), [
+    (None, 60, 180, False), (0, 60, 180, False),
+    (float('nan'), 60, 180, False), (float('inf'), 60, 180, False),
+    (59, 60, None, True), (60, 60, 180, False),
+    (180, 60, 180, False), (181, None, 180, True),
+])
+def test_duration_filter_inclusive_bounds_and_unknown_lengths(duration, minimum, maximum, skipped):
+    assert duration_outside_feed_range(duration, {
+        'min_duration_seconds': minimum, 'max_duration_seconds': maximum,
+    }) is skipped
+
+
+@pytest.mark.parametrize('raw', ['bad', 'NaN', 'inf', '-10', '0', None])
+def test_malformed_rss_duration_is_unknown(raw):
+    assert RSSParser._parse_itunes_duration(raw) is None
+
+
+def test_duration_filter_hides_upstream_and_appended_using_rss_duration():
+    parser = RSSParser(base_url='https://example.com')
+    content = _build_rss_with_titles(['Short', 'Kept', 'Unknown'])
+    content = content.replace('<rss version="2.0">',
+        '<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">')
+    content = content.replace('<title>Short</title>', '<title>Short</title><itunes:duration>00:30</itunes:duration>')
+    content = content.replace('<title>Kept</title>', '<title>Kept</title><itunes:duration>02:00</itunes:duration>')
+    extras = [{
+        'episode_id': 'extra', 'title': 'Long processed', 'description': '',
+        'published_at': '2025-01-01T00:00:00Z', 'new_duration': 10,
+        'rss_duration': 120, 'episode_number': None,
+    }, {
+        'episode_id': 'extra-short', 'title': 'Short processed', 'description': '',
+        'published_at': '2025-01-01T00:00:00Z', 'new_duration': 10,
+        'rss_duration': 30, 'episode_number': None,
+    }]
+    result = parser.modify_feed(content, 'example-podcast', extra_episodes=extras,
+                                hide_min_duration_seconds=60)
+    assert '<title>Short</title>' not in result
+    assert 'Short processed' not in result
+    assert '<title>Kept</title>' in result
+    assert '<title>Unknown</title>' in result
+    assert 'Long processed' in result
+
+
+@pytest.mark.parametrize('manual', [False, True])
+def test_queued_duration_filter_preserves_manual_reprocess_override(manual):
+    db, start = TestClaimGateTitleBlacklist()._run(
+        '2026-10-10T00:00:00Z' if manual else None,
+        podcast_filters={'min_duration_seconds': 60}, rss_duration=30)
+    assert start.call_count == int(manual)
+    if not manual:
+        db.close_claimed_queue_row.assert_any_call(7, 'completed', 'skipped: feed filters')
+
+
+@pytest.mark.parametrize('duration', [30, 60, None])
+def test_jit_duration_filter_uses_rss_metadata_before_processing(duration):
+    slug, episode_id = 'example-podcast', 'a1b2c3d4e5f6'
+    lookup = ({
+        'id': episode_id, 'url': 'https://example.com/episode.mp3',
+        'title': 'Episode', 'description': '', 'artwork_url': None,
+        'rss_duration': duration,
+    }, 'Example Podcast')
+    with app.test_client() as client, \
+            patch('main_app.routes.get_feed_map', return_value={slug: {'in': 'https://example.com/rss', 'out': slug}}), \
+            patch('main_app.routes.db') as db, \
+            patch('main_app.routes._lookup_episode', return_value=lookup), \
+            patch('main_app.processing.start_background_processing', return_value=(True, None)) as start:
+        db.get_episode.return_value = {
+            'episode_id': episode_id, 'status': 'discovered',
+            'original_url': 'https://example.com/episode.mp3',
+        }
+        db.get_podcast_by_slug.return_value = {
+            'feed_type': 'subscribed', 'min_duration_seconds': 60}
+        db.get_podcast_title_skip_patterns.return_value = None
+        response = client.get(f'/episodes/{slug}/{episode_id}.mp3')
+        if duration == 30:
+            assert response.status_code == 302
+            assert response.headers['Location'] == lookup[0]['url']
+            start.assert_not_called()
+        else:
+            start.assert_called_once()

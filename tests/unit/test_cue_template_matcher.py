@@ -1,5 +1,6 @@
 """Unit tests for the audio cue template matcher (#350)."""
 import numpy as np
+import pytest
 
 from audio_analysis.cue_template_matcher import (
     AudioCueTemplateMatcher,
@@ -118,3 +119,15 @@ def test_attenuation_without_pcm_falls_back_to_blob():
     assert m.is_usable
     assert np.array_equal(m._templates[0].mfcc, stored)
     assert np.array_equal(m._templates[0].mfcc, stored)
+
+
+@pytest.mark.parametrize('remove_with_ad', [True, False])
+def test_matcher_threads_removal_preference_into_signals(remove_with_ad):
+    mfcc = np.random.default_rng(42).standard_normal((20, N_COEFFS)).astype(np.float32)
+    row = _make_template_row(mfcc)
+    row['remove_with_ad'] = remove_with_ad
+    matcher = AudioCueTemplateMatcher([row])
+    matches = {1: []}
+    matcher._scan_chunk(mfcc, 0.0, matches, {1: 0.0}, {1: []})
+    assert len(matches[1]) == 1
+    assert matches[1][0].details['remove_with_ad'] is remove_with_ad

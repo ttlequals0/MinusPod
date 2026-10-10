@@ -70,7 +70,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Cue-only** - The experimental per-feed Processing mode that cuts from cue pairs and previously learned ad patterns, with no LLM reading the transcript. Requires an enabled ad-break-start and an enabled ad-break-end template on the feed. [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset)
 
-**Cue pair** - Two bracketing template cues, an ad-break-start and an ad-break-end, that mint an ad span between them without reading the transcript. Cutting from cue pairs is experimental and off by default. [Audio Cue Detection > Ad cutting](audio-cues.md#ad-cutting)
+**Cue pair** - Two bracketing template cues, an ad-break-start and an ad-break-end, that propose an ad span without reading the transcript. Each cue is included in the cut unless its removal option is off. Cutting from cue pairs is experimental and off by default. [Audio Cue Detection > Ad cutting](audio-cues.md#ad-cutting)
 
 ## D
 
@@ -81,6 +81,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Detections Not Cut** - The episode page section listing regions the detector flagged but left in the audio: rejected by validation, below the confidence threshold, or vetoed by the reviewer. [How It Works > Post-Detection Validation](how-it-works.md#post-detection-validation)
 
 **Deferred** - An episode parked because the LLM or transcription endpoint was unreachable. It retries automatically when the endpoint comes back instead of burning through its retry budget. [Configuration > Offline Queue](configuration.md#offline-queue)
+
+**Duration filter** - A per-feed minimum or maximum RSS duration that skips automatic and just-in-time processing outside the range. Unknown durations remain eligible; manual reprocessing overrides the filter. [Configuration > Episode duration filters](configuration.md#episode-duration-filters)
 
 **Differential hold** - An uncorroborated cross-fetch differential candidate: the two fetches measurably differ, but no other stage, overlap, or matched audio cue backs it as an ad. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
 
@@ -190,6 +192,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Reprocess modes** - *Patterns + AI* (the default, everything), *AI Only* (skip the learned-pattern DB), *Re-detect Ads* (reuse the saved transcript, rerun detection), and *Recut*. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
 
+**Remove cue with ad** - A cue-template option, on by default, that includes a matched ad-break cue in the cut. Programme cues remain protected. [Audio Cues > Remove cue with ad](audio-cues.md#remove-cue-with-ad)
+
 **Resurrected** - A detection the validator rejected that the Ad Reviewer overruled and put back in the cut list. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
 
 **Retired pattern** - A pattern disabled after an approved cleanup suggestion because it has gone unused. Its record is retained and the approval can be undone if it has not been changed afterward. [Pattern Cleanup > Suggestion kinds](pattern-cleanup.md#suggestion-kinds)
@@ -223,6 +227,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **System One** - A structured question protocol used by the native TypeSafe and System One-compatible providers. Detection, verification, and ad categorization are supported; review is experimental. Profiles are independent for each credential slot and provider type. Stats separate logical adapter calls from actual HTTP attempts. [System One](system-one.md)
 
 **Synthesized publish date** - The publish date MinusPod assigns a local-feed episode when none was given explicitly: episodes are sorted by season and episode, the newest anchors at import time, and earlier ones step back a day each (or space evenly between two explicit dates). [Local Feeds > Publish dates](local-feeds.md#publish-dates)
+
+**System One Tuneables** - The Settings section for independent native-provider tuning profiles. [System One > Independent tuning profiles](system-one.md#independent-tuning-profiles)
 
 ## T
 

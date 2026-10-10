@@ -7,6 +7,7 @@ Mirrors test_passthrough_settings_api.py's fixture style. Covers:
 - PATCH an invalid string -> 400, column left unchanged.
 """
 import os
+import sqlite3
 import sys
 import tempfile
 
@@ -684,3 +685,91 @@ def test_env_only_native_primary_rejects_feed_chapters_override(app_client, seed
                 db.clear_setting(key)
             else:
                 db.set_setting(key, value)
+
+
+def test_duration_limits_nullable_seconds_and_partial_range_validation(app_client, seeded_feed):
+    slug, db = seeded_feed['slug'], seeded_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['minDurationSeconds'] is None
+    response = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'minDurationSeconds': 60.5, 'maxDurationSeconds': 180}, headers=headers)
+    assert response.status_code == 200
+    assert response.get_json()['minDurationSeconds'] == 60.5
+    invalid = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'minDurationSeconds': 200}, headers=headers)
+    assert invalid.status_code == 400
+    assert db.get_podcast_by_slug(slug)['min_duration_seconds'] == 60.5
+    cleared = app_client.patch(f'/api/v1/feeds/{slug}', json={
+        'minDurationSeconds': None, 'maxDurationSeconds': None}, headers=headers)
+    assert cleared.status_code == 200
+    assert cleared.get_json()['maxDurationSeconds'] is None
+
+
+@pytest.mark.parametrize('value', [-1, True, '60', float('nan'), float('inf'), 10**400])
+def test_invalid_duration_limit_leaves_feed_unchanged(app_client, seeded_feed, value):
+    _authed(app_client)
+    slug = seeded_feed['slug']
+    response = app_client.patch(f'/api/v1/feeds/{slug}',
+        json={'minDurationSeconds': value}, headers=_csrf_headers(app_client))
+    assert response.status_code == 400
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['min_duration_seconds'] is None
+
+
+def test_feed_episode_search_filters_full_dataset_and_returns_all_selection(app_client, seeded_feed):
+    _authed(app_client)
+    slug, db = seeded_feed['slug'], seeded_feed['db']
+    db.bulk_upsert_discovered_episodes(slug, [{
+        'id': f'episode-{i}', 'url': f'https://example.com/{i}.mp3',
+        'title': f'Full Show {i}' if i < 30 else 'Clip 100%',
+        'rss_duration': 120 if i < 30 else 30,
+    } for i in range(31)])
+    db.update_podcast(slug, min_duration_seconds=60)
+    page = app_client.get(f'/api/v1/feeds/{slug}/episodes?search=FULL%20SHOW&limit=1&offset=29')
+    assert page.status_code == 200
+    assert page.get_json()['total'] == 30
+    assert len(page.get_json()['episodes']) == 1
+    selection = app_client.get(f'/api/v1/feeds/{slug}/episodes?search=full%20show&selection=true&limit=1')
+    assert selection.status_code == 200
+    assert len(selection.get_json()['selection']) == 30
+    assert set(selection.get_json()['selection'][0]) == {
+        'id', 'status', 'jobState', 'titleSkipped', 'durationSkipped'}
+    literal = app_client.get(f'/api/v1/feeds/{slug}/episodes?search=%25')
+    assert literal.get_json()['total'] == 1
+    assert literal.get_json()['episodes'][0]['durationSkipped'] is True
+    assert literal.get_json()['episodes'][0]['titleSkipped'] is False
+
+
+def test_bulk_reprocess_overrides_duration_filter(app_client, seeded_feed):
+    _authed(app_client)
+    slug, db = seeded_feed['slug'], seeded_feed['db']
+    db.bulk_upsert_discovered_episodes(slug, [{
+        'id': 'filtered-episode', 'url': 'https://example.com/episode.mp3',
+        'title': 'Clip', 'rss_duration': 30,
+    }])
+    db.upsert_episode(slug, 'filtered-episode', status='processed')
+    db.update_podcast(slug, min_duration_seconds=60)
+    response = app_client.post(f'/api/v1/feeds/{slug}/episodes/bulk',
+        json={'episodeIds': ['filtered-episode'], 'action': 'reprocess_full'},
+        headers=_csrf_headers(app_client))
+    assert response.status_code == 200
+    assert response.get_json()['queued'] == 1
+    assert response.get_json()['skipped'] == 0
+    assert db.get_episode(slug, 'filtered-episode')['reprocess_requested_at']
+
+
+def test_full_selection_job_states_respect_sqlite_variable_limit(temp_db):
+    slug = 'selection-limit'
+    temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Example')
+    temp_db.upsert_episode_for_processing(slug, 'queued', 'https://example.com/queued.mp3', 'Queued')
+    temp_db.upsert_episode_for_processing(slug, 'running', 'https://example.com/running.mp3', 'Running')
+    conn = temp_db.get_connection()
+    conn.execute("UPDATE auto_process_queue SET status='processing' WHERE episode_id='running'")
+    conn.commit()
+    prior_limit = conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 10)
+    try:
+        states = temp_db.get_episode_job_states([
+            *[f'id-{i}' for i in range(20)], 'queued', 'running', 'queued'])
+    finally:
+        conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, prior_limit)
+    assert states == {(slug, 'queued'): 'queued', (slug, 'running'): 'processing'}
