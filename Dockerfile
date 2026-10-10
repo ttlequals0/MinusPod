@@ -24,7 +24,19 @@ RUN mkdir -p /app/static/ui/swagger \
           node_modules/swagger-ui-dist/swagger-ui-standalone-preset.js \
           /app/static/ui/swagger/
 
-# Stage 2: Python application
+# Build patched media packages with Ubuntu's full build recipes.
+FROM ubuntu:26.04 AS media-security-dependencies
+ENV DEBIAN_FRONTEND=noninteractive
+RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update \
+    && apt-get build-dep -y --no-install-recommends ffmpeg libass srt libsndfile \
+    && apt-get install -y --no-install-recommends python3 ca-certificates devscripts quilt
+FROM media-security-dependencies AS media-security-builder
+COPY scripts/build_media_security_packages.py /build/scripts/
+COPY scripts/media-security/ /build/scripts/media-security/
+RUN python3 /build/scripts/build_media_security_packages.py
+
+# Stage 3: Python application
 # Plain Ubuntu base - no nvidia/cuda image. ctranslate2 statically links the
 # CUDA runtime, and cuDNN/cuBLAS come from the pip nvidia-* wheels (torch
 # deps) via LD_LIBRARY_PATH below. GPU access is injected by the NVIDIA
@@ -90,6 +102,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     pip install -r requirements.txt
+# Keep the matching shared-library family and corresponding patched source.
+COPY --from=media-security-builder /out/packages/ /opt/media-security-packages/
+COPY --from=media-security-builder /out/provenance/ /usr/share/minuspod/media-security/
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends /opt/media-security-packages/*.deb \
+    && rm -rf /opt/media-security-packages /var/lib/apt/lists/*
+
 # Use Ubuntu's supported GNU provider instead of the protected Rust provider.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --allow-remove-essential \
@@ -98,6 +117,7 @@ RUN apt-get update \
         linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
         software-properties-common python3-jwt systemd systemd-sysv libpam-systemd \
     && apt-get autoremove -y \
+    && python3.12 /usr/share/minuspod/media-security/build_media_security_packages.py --verify-installed \
     && python -m pip uninstall -y pip \
     && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/* \
     && find /opt/venv -type d -name '__pycache__' -exec rm -rf {} +

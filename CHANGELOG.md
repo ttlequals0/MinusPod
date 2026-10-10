@@ -28,6 +28,7 @@ release notes.
 - Legacy cue-template migrations preserve saved match thresholds and cue-removal preferences.
 - Settings tests isolate automatic reviewer calibration to prevent unrelated retry assertions from failing.
 - Container images remove unused repository setup and init packages and use GNU coreutils.
+- Container images build pinned media security backports and SRT 1.5.6, retaining patched source and build provenance.
 - Scheduled backups prevent temporary-file symlink races and preserve the previous backup when the destination changes during a snapshot.
 
 ## [2.99.2] - 2026-10-09

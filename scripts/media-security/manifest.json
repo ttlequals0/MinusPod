@@ -1,0 +1,409 @@
+{
+  "source_date_epoch": 1791590400,
+  "packages": [
+    {
+      "name": "ffmpeg",
+      "source_version": "7:8.0.1-3ubuntu2",
+      "version": "7:8.0.1-3ubuntu2+minuspod1",
+      "source_files": [
+        {
+          "file": "ffmpeg_8.0.1.orig.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_8.0.1.orig.tar.xz",
+          "sha256": "05ee0b03119b45c0bdb4df654b96802e909e0a752f72e4fe3794f487229e5a41"
+        },
+        {
+          "file": "ffmpeg_8.0.1.orig.tar.xz.asc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_8.0.1.orig.tar.xz.asc",
+          "sha256": "54ab4020bb4eb280444da74d7aabc282acf6e8500cf6feaefd9821373fa9e72c"
+        },
+        {
+          "file": "ffmpeg_8.0.1-3ubuntu2.debian.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_8.0.1-3ubuntu2.debian.tar.xz",
+          "sha256": "a32bd75677bca735105b04a0ebd190a3481e0d8c2fcacd7d9f17524e240ee879"
+        },
+        {
+          "file": "ffmpeg_8.0.1-3ubuntu2.dsc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_8.0.1-3ubuntu2.dsc",
+          "sha256": "70ac30ebbb7e89fc4ebc4438457fab7c1deea5b62986577bfb1c866fee72436e"
+        }
+      ],
+      "dsc": "ffmpeg_8.0.1-3ubuntu2.dsc",
+      "patches": [
+        {
+          "file": "fd3ee52fab34d98a95b787d0b5ff45685766200c.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/fd3ee52fab34d98a95b787d0b5ff45685766200c.patch",
+          "sha256": "d62b08c87551d24bbce30e8c738e54a101881b24fd4155aab35bc82177993e41",
+          "upstream_commit": "fd3ee52fab34d98a95b787d0b5ff45685766200c",
+          "cves": [
+            "CVE-2026-65703"
+          ]
+        },
+        {
+          "file": "86708357d126af84c16f80d9c57335d1e8c845c5.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/86708357d126af84c16f80d9c57335d1e8c845c5.patch",
+          "sha256": "01d50e84c02e74cd86f193c045443aa9731c2f75114fd6f3a5d9dd2bde550d04",
+          "upstream_commit": "86708357d126af84c16f80d9c57335d1e8c845c5",
+          "cves": [
+            "CVE-2026-66037"
+          ]
+        },
+        {
+          "file": "25867a16702756b261fee5d2c7b46f0d9aea94f0.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/25867a16702756b261fee5d2c7b46f0d9aea94f0.patch",
+          "sha256": "fe4a7dd6e785957a6bd96c4d63295431953d591261fbf9eda79da36b71d2af7f",
+          "upstream_commit": "25867a16702756b261fee5d2c7b46f0d9aea94f0",
+          "cves": [
+            "CVE-2026-66038"
+          ]
+        },
+        {
+          "file": "2addf444823393896605bf8fb201ac4019d604d0.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/2addf444823393896605bf8fb201ac4019d604d0.patch",
+          "sha256": "50f2b699b5c62a72808fed345f6ad99107fdbe0325f24bc81e972fe92647f40d",
+          "upstream_commit": "2addf444823393896605bf8fb201ac4019d604d0",
+          "cves": [
+            "CVE-2026-66038"
+          ]
+        },
+        {
+          "file": "4da9812e25894fb51d62a8875cfa8eb39b5e20f5.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/4da9812e25894fb51d62a8875cfa8eb39b5e20f5.patch",
+          "sha256": "d12ecf6cc3b8749179d89446e0a8a4b9df74ce4e64f7e877712e4214e07c834c",
+          "upstream_commit": "4da9812e25894fb51d62a8875cfa8eb39b5e20f5",
+          "cves": [
+            "CVE-2026-66041"
+          ]
+        },
+        {
+          "file": "ffmpeg-cve-2026-66036.patch",
+          "path": "patches/ffmpeg-cve-2026-66036.patch",
+          "sha256": "3fd66beaea2bc31a0c42e209a1d6b112f613d7712f99992fbc0b4242147f20f5",
+          "cves": [
+            "CVE-2026-66036"
+          ],
+          "upstream_commit": "c8bfe73e26cbb16a99d252186acb66f717a06f7c"
+        },
+        {
+          "file": "ffmpeg-cve-2026-40962.patch",
+          "sha256": "daf01d7124e16c77299e99b105f8514c20ef33540fccd66aa3d52d4a3f1e2d4e",
+          "upstream_commit": "948acf35920ebfefb91c01232a4c6d401f5547f1",
+          "cves": [
+            "CVE-2026-40962"
+          ],
+          "path": "patches/ffmpeg-cve-2026-40962.patch"
+        },
+        {
+          "file": "dbd495f066a85ba96b17433f4306582aa37c3951.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/dbd495f066a85ba96b17433f4306582aa37c3951.patch",
+          "sha256": "71c5b78160ecd473401a690e1e85f023d6c7356f5e29838cec784b48b7360892",
+          "upstream_commit": "dbd495f066a85ba96b17433f4306582aa37c3951",
+          "cves": [
+            "CVE-2026-64830"
+          ]
+        },
+        {
+          "file": "92737390dc133daadce47dd7d2ec8ef3d9ebcbed.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/92737390dc133daadce47dd7d2ec8ef3d9ebcbed.patch",
+          "sha256": "94992fb15e14af02a741578a04e6a77d21fcfe2a34f8054831063b272bce4bf7",
+          "upstream_commit": "92737390dc133daadce47dd7d2ec8ef3d9ebcbed",
+          "cves": [
+            "CVE-2026-64831"
+          ]
+        },
+        {
+          "file": "4c6217477fc64305055b37d9d1d0d76d30e37f97.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/4c6217477fc64305055b37d9d1d0d76d30e37f97.patch",
+          "sha256": "1f8b4ec4ebd47c6c07b6150c7de65a5eb408726116403741ef7eb2eeec5eb8f8",
+          "upstream_commit": "4c6217477fc64305055b37d9d1d0d76d30e37f97",
+          "cves": [
+            "CVE-2026-64832"
+          ]
+        },
+        {
+          "file": "6f80e2765492700622596af720534cef33dd31b4.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/6f80e2765492700622596af720534cef33dd31b4.patch",
+          "sha256": "4377760978b886a4d2e6eb456ded469fbaf0d80db2bd17da35c7eee0b516298d",
+          "upstream_commit": "6f80e2765492700622596af720534cef33dd31b4",
+          "cves": [
+            "CVE-2026-64833"
+          ]
+        },
+        {
+          "file": "11d5f475be95d22d5f0692220cc772b116abc632.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/11d5f475be95d22d5f0692220cc772b116abc632.patch",
+          "sha256": "0e006cd81dad2a3116f39a001a8eb04dd1703f960512822469fce3c396b67eed",
+          "upstream_commit": "11d5f475be95d22d5f0692220cc772b116abc632",
+          "cves": [
+            "CVE-2026-64834"
+          ]
+        },
+        {
+          "file": "1836ef96846937a6cc2443698a693104f5c0b21e.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/1836ef96846937a6cc2443698a693104f5c0b21e.patch",
+          "sha256": "f4a36c928d89974d54f0fc9fdd5ba72a920f54457583a19416d57eafe4e25580",
+          "upstream_commit": "1836ef96846937a6cc2443698a693104f5c0b21e",
+          "cves": [
+            "CVE-2026-64835"
+          ]
+        },
+        {
+          "file": "de771bd52774a52d45b0e2c82e56995a1ef40df7.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/de771bd52774a52d45b0e2c82e56995a1ef40df7.patch",
+          "sha256": "02023ab2bec4979d966c9a204bc2290de9cb7334fbbc8f770f0eecbc7ec2b031",
+          "upstream_commit": "de771bd52774a52d45b0e2c82e56995a1ef40df7",
+          "cves": [
+            "CVE-2026-65704"
+          ]
+        },
+        {
+          "file": "197427d4b954a8ea1650720a87ee547ac10853fb.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/197427d4b954a8ea1650720a87ee547ac10853fb.patch",
+          "sha256": "f303383aab3662f617e12c8aa53ce897624a80500dca8877791e172cc0fd1ac2",
+          "upstream_commit": "197427d4b954a8ea1650720a87ee547ac10853fb",
+          "cves": [
+            "CVE-2026-65705"
+          ]
+        },
+        {
+          "file": "f186c50cf53aec20e9a29059cb22ca3f2d59201c.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/f186c50cf53aec20e9a29059cb22ca3f2d59201c.patch",
+          "sha256": "686564a59f825e75275440cdf4aa839fc0d170f040e559c994092b00210a2258",
+          "upstream_commit": "f186c50cf53aec20e9a29059cb22ca3f2d59201c",
+          "cves": [
+            "CVE-2026-65705"
+          ]
+        },
+        {
+          "file": "a7e38b617b32f996beaa371bbf04b39907d7a527.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/a7e38b617b32f996beaa371bbf04b39907d7a527.patch",
+          "sha256": "c9ffd167268ba647a5745d0c22884090bd0f2daf3b2c26c0b15db781c06b9bc7",
+          "upstream_commit": "a7e38b617b32f996beaa371bbf04b39907d7a527",
+          "cves": [
+            "CVE-2026-65706"
+          ]
+        },
+        {
+          "file": "aafb5c655edc76a753275c383ebb139feb032718.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/aafb5c655edc76a753275c383ebb139feb032718.patch",
+          "sha256": "7ee61e30ac5d11fd107e81921caf3abe17aa569f49b022d27a9ee6e660922a56",
+          "upstream_commit": "aafb5c655edc76a753275c383ebb139feb032718",
+          "cves": [
+            "CVE-2026-66039"
+          ]
+        },
+        {
+          "file": "93f2a525ec6c7b467bae68322720d10188fc6e30.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/93f2a525ec6c7b467bae68322720d10188fc6e30.patch",
+          "sha256": "4c701d18dba9aea6f3b8843d6deb396beca1fa421f891976dd192f97247a4b60",
+          "upstream_commit": "93f2a525ec6c7b467bae68322720d10188fc6e30",
+          "cves": [
+            "CVE-2026-70628"
+          ]
+        },
+        {
+          "file": "db05df9d135fb56a4babb836d5e9f5c1d984e087.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/db05df9d135fb56a4babb836d5e9f5c1d984e087.patch",
+          "sha256": "60dda1bd8ff1eee839fe7ed905c2b1b75e5c49c4505d59a4e3b6d64f5c7cd8d1",
+          "upstream_commit": "db05df9d135fb56a4babb836d5e9f5c1d984e087",
+          "cves": [
+            "CVE-2026-70632"
+          ]
+        },
+        {
+          "file": "acf5d7cdc1f9ae8752c23e1ea8d7f355ed780781.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/acf5d7cdc1f9ae8752c23e1ea8d7f355ed780781.patch",
+          "sha256": "e91545b75e1a2b1391c9f83a1a40becc4130c2a687638b7c8d2f13f963a3b222",
+          "upstream_commit": "acf5d7cdc1f9ae8752c23e1ea8d7f355ed780781",
+          "cves": [
+            "CVE-2026-75141"
+          ]
+        },
+        {
+          "file": "9d786e4b5e9b8482651928574de33772aeee7be1.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/9d786e4b5e9b8482651928574de33772aeee7be1.patch",
+          "sha256": "6f10efbf1a7b0c9d5f16f2796d1e61031fdf7f27144cc8f598399217655cf164",
+          "upstream_commit": "9d786e4b5e9b8482651928574de33772aeee7be1",
+          "cves": [
+            "CVE-2026-75142"
+          ]
+        },
+        {
+          "file": "1c10bcc2e17255dacb717a25ab3db142ce390602.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/1c10bcc2e17255dacb717a25ab3db142ce390602.patch",
+          "sha256": "ea2ba0fe63d5a3043a386b60372e0fc4ea682dc00a1ea9d55bfb4fb66ec68a23",
+          "upstream_commit": "1c10bcc2e17255dacb717a25ab3db142ce390602",
+          "cves": [
+            "CVE-2026-75143"
+          ]
+        },
+        {
+          "file": "1cdeb3c4e7f1f8566d846b9b451e01c376398818.patch",
+          "url": "https://code.ffmpeg.org/FFmpeg/FFmpeg/commit/1cdeb3c4e7f1f8566d846b9b451e01c376398818.patch",
+          "sha256": "770a722d900373b32c36ed542dc4fa8283970d964ace0003d176a86c7e26b8fd",
+          "upstream_commit": "1cdeb3c4e7f1f8566d846b9b451e01c376398818",
+          "cves": [
+            "CVE-2026-75144"
+          ]
+        },
+        {
+          "file": "ffmpeg-cve-2026-75146.patch",
+          "sha256": "149dbb165a8b31bd29ff51328300d107092df2a80223543a03d897dfd53800f0",
+          "upstream_commit": "65b0dab903e5975e036b30ecc58f5935d4f151e0",
+          "cves": [
+            "CVE-2026-75146"
+          ],
+          "path": "patches/ffmpeg-cve-2026-75146.patch"
+        }
+      ],
+      "runtime_packages": [
+        "ffmpeg",
+        "libavcodec62",
+        "libavdevice62",
+        "libavfilter11",
+        "libavformat62",
+        "libavutil60",
+        "libswresample6",
+        "libswscale9"
+      ],
+      "summary": "Backport upstream media parser and filter security fixes."
+    },
+    {
+      "name": "libass",
+      "source_version": "1:0.17.4-2",
+      "version": "1:0.17.4-2+minuspod1",
+      "source_files": [
+        {
+          "file": "libass_0.17.4-2.dsc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/liba/libass/libass_0.17.4-2.dsc",
+          "sha256": "a5df54d5e85f5bcb369713a020e01541f043899e963c1540455f51471574b2c2"
+        },
+        {
+          "file": "libass_0.17.4.orig.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/liba/libass/libass_0.17.4.orig.tar.xz",
+          "sha256": "78f1179b838d025e9c26e8fef33f8092f65611444ffa1bfc0cfac6a33511a05a"
+        },
+        {
+          "file": "libass_0.17.4.orig.tar.xz.asc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/liba/libass/libass_0.17.4.orig.tar.xz.asc",
+          "sha256": "7e2eef6321f717bcba3da115ea1c43534ef5a6b6b47c4d409ee6402e4e36dc27"
+        },
+        {
+          "file": "libass_0.17.4-2.debian.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/liba/libass/libass_0.17.4-2.debian.tar.xz",
+          "sha256": "0443f5612b212c392f0038e258b09b4f4c49639bdd6a6deb2dce62dc9e388184"
+        }
+      ],
+      "dsc": "libass_0.17.4-2.dsc",
+      "patches": [
+        {
+          "file": "libass-61626.patch",
+          "url": "https://github.com/libass/libass/commit/23da65a130bb8c5b2cf0c7df0dd7d424607f98f1.patch",
+          "sha256": "841edd9470418031498e2b73b3ef496082f3108f7a7397397509bc42d26fe785",
+          "cves": [
+            "CVE-2026-61626"
+          ]
+        },
+        {
+          "file": "libass-61627.patch",
+          "url": "https://github.com/libass/libass/commit/f2ef59755292bc4bb950ef22710e18a5487c399d.patch",
+          "sha256": "523ff19ac7f9468406b114e3483df602816b0d97fe14a937c484e5c854c59322",
+          "cves": [
+            "CVE-2026-61627"
+          ]
+        }
+      ],
+      "runtime_packages": [
+        "libass9"
+      ],
+      "summary": "Backport upstream subtitle parser security fixes."
+    },
+    {
+      "name": "srt",
+      "source_version": "1.5.6",
+      "ubuntu_packaging_version": "1.5.4-3",
+      "version": "1.5.6-3+minuspod1",
+      "source_files": [
+        {
+          "file": "srt_1.5.4-3.debian.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/s/srt/srt_1.5.4-3.debian.tar.xz",
+          "sha256": "c3bd288666684f7c4a5b639e6753cb26d00ffefbe3a0691bb98a77d4575a679f"
+        },
+        {
+          "file": "srt-1.5.6.tar.gz",
+          "url": "https://codeload.github.com/Haivision/srt/tar.gz/c63c311e88aa55e430e3b7d94b89d790994f88c4",
+          "sha256": "49db3bf47c55037bee2b749ba977c3002873f42afcacba5577a318b3cd6f09c4"
+        }
+      ],
+      "upstream_archive": "srt-1.5.6.tar.gz",
+      "debian_archive": "srt_1.5.4-3.debian.tar.xz",
+      "patches": [],
+      "cves": [
+        "CVE-2026-55868",
+        "CVE-2026-55869"
+      ],
+      "runtime_packages": [
+        "libsrt1.5-gnutls"
+      ],
+      "summary": "Build upstream SRT 1.5.6 security release with Ubuntu packaging."
+    },
+    {
+      "name": "libsndfile",
+      "source_version": "1.2.2-4",
+      "version": "1.2.2-4+minuspod1",
+      "source_files": [
+        {
+          "file": "libsndfile_1.2.2-4.dsc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libs/libsndfile/libsndfile_1.2.2-4.dsc",
+          "sha256": "582a7b9cd2f7c0ada8bbbf9787e8f11d2e5778d065bb1c13644e44cdd878af83"
+        },
+        {
+          "file": "libsndfile_1.2.2.orig.tar.gz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libs/libsndfile/libsndfile_1.2.2.orig.tar.gz",
+          "sha256": "ffe12ef8add3eaca876f04087734e6e8e029350082f3251f565fa9da55b52121"
+        },
+        {
+          "file": "libsndfile_1.2.2-4.debian.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libs/libsndfile/libsndfile_1.2.2-4.debian.tar.xz",
+          "sha256": "00796f90a34180460edf45b4d6930a004238136bd08c85b4a4c704fc30634a84"
+        }
+      ],
+      "dsc": "libsndfile_1.2.2-4.dsc",
+      "patches": [
+        {
+          "file": "libsndfile-37555.patch",
+          "url": "https://github.com/libsndfile/libsndfile/commit/c32c090ff9bb45e1dae637957c9c9b47b3967623.patch",
+          "sha256": "b89268ccb279b92a5ab573b0541adfe9bd6a4613b47de85b2dd8785f35f275a0",
+          "cves": [
+            "CVE-2026-37555"
+          ],
+          "upstream_commit": "c32c090ff9bb45e1dae637957c9c9b47b3967623"
+        },
+        {
+          "file": "0001-upstream-1167-mat4.patch",
+          "path": "patches/0001-upstream-1167-mat4.patch",
+          "sha256": "cea82691d3edeb19f0794ba80393198433a1e3633eedb62fae89f43a59188b91",
+          "cves": [
+            "CVE-2026-88372"
+          ],
+          "upstream_commit": "c45de8ed8b1d98ca532e94a00dbfb0e49eb9bb8a"
+        },
+        {
+          "file": "0002-mat4-negative-cols.patch",
+          "path": "patches/0002-mat4-negative-cols.patch",
+          "sha256": "838e1f6260403abd6baecfaaad095d2e1febe780baee8f91ed418ee01d4f8f70",
+          "cves": []
+        },
+        {
+          "file": "0003-ircam-samplerate-guard.patch",
+          "path": "patches/0003-ircam-samplerate-guard.patch",
+          "sha256": "82e9b782ca987ab38e0522abcbfc655ff9bb3769f2df34ab9a7cb5bc08f09679",
+          "cves": []
+        }
+      ],
+      "runtime_packages": [
+        "libsndfile1"
+      ],
+      "summary": "Backport audio parser fixes and reject invalid IRCAM sample rates."
+    }
+  ]
+}
