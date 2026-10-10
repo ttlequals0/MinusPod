@@ -78,6 +78,7 @@ from config import (
     log_download_query_enabled,
     resolve_max_boundary_shift,
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
+    ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS,
     MIN_AD_DURATION, MIN_AD_DURATION_FOR_REMOVAL,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_MERGED_DURATION,
@@ -284,7 +285,11 @@ def get_min_cut_confidence() -> float:
 def resolve_audio_encode_settings() -> tuple[str, str]:
     """Global bitrate and libmp3lame compression level for an AudioProcessor."""
     bitrate = db.get_setting('audio_bitrate') or '128k'
+    if bitrate not in ALLOWED_AUDIO_BITRATES:
+        bitrate = '128k'
     compression_level = db.get_setting('audio_encoder_compression_level') or 'default'
+    if compression_level not in ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS:
+        compression_level = 'default'
     return bitrate, compression_level
 
 

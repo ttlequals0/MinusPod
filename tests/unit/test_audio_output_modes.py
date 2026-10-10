@@ -2,10 +2,12 @@
 
 import shutil
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 import audio_processor
+import main_app.processing as processing
 
 from audio_processor import AudioProcessor
 from api.episodes import chapters_only_decisions
@@ -126,6 +128,11 @@ def test_compression_level_7_adds_the_flag_to_every_command_shape(source, tmp_pa
     assert len(recorded) == 3
     for command in recorded:
         assert command[command.index('-compression_level') + 1] == '7'
+
+
+def test_resolve_audio_encode_settings_falls_back_on_garbage_db_values():
+    with patch.object(processing.db, 'get_setting', side_effect=lambda key: 'garbage'):
+        assert processing.resolve_audio_encode_settings() == ('128k', 'default')
 
 
 def test_chapters_only_comparison_uses_effective_replacement_sound():
