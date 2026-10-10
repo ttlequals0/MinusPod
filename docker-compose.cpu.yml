@@ -51,6 +51,9 @@ services:
       - OPENAI_BASE_URL=${OPENAI_BASE_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL}
+      - TYPESAFE_API_KEY=${TYPESAFE_API_KEY}
+      - SYSTEMONE_API_KEY=${SYSTEMONE_API_KEY}
+      - SYSTEMONE_BASE_URL=${SYSTEMONE_BASE_URL}
 
       # =================================================================
       # Whisper Configuration -- CPU defaults
