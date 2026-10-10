@@ -290,7 +290,15 @@ def synthesize_ads_from_cue_pairs(
             synth_end = (cue_b.end + SNAP_GAP_SECONDS if cue_b.remove_with_ad
                          else cue_b.start - SNAP_GAP_SECONDS)
             synth_end = round(synth_end, 3)
-            if synth_end - synth_start > effective_max_break:
+            # Removing a cue extends the span to its far edge, so widen the
+            # cap by the removed cue(s)' own length or a long sting is
+            # rejected (#832).
+            max_break_widen = 0.0
+            if cue_a.remove_with_ad:
+                max_break_widen += cue_a.end - cue_a.start
+            if cue_b.remove_with_ad:
+                max_break_widen += cue_b.end - cue_b.start
+            if synth_end - synth_start > effective_max_break + max_break_widen:
                 continue
             if total_duration > 0:
                 synth_end = round(min(total_duration, synth_end), 3)

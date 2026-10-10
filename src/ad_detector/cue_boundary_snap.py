@@ -125,13 +125,19 @@ def snap_ad_boundaries_to_cues(
         )
         new_start = original_start
         if start_cue is not None:
+            start_cue_removed = cue_removal_enabled(start_cue.details)
             proposed_start = (max(0.0, start_cue.start - SNAP_GAP_SECONDS)
-                              if cue_removal_enabled(start_cue.details)
+                              if start_cue_removed
                               else start_cue.end + SNAP_GAP_SECONDS)
             shift = abs(proposed_start - original_start)
+            # Removing the cue moves the edge to its far side, so widen the
+            # cap by the cue's own length or a long sting gets rejected (#832).
+            allowed_shift = max_boundary_shift_s
+            if start_cue_removed:
+                allowed_shift += start_cue.end - start_cue.start
             if (
                 proposed_start < original_end
-                and shift <= max_boundary_shift_s
+                and shift <= allowed_shift
                 and shift >= 0.01
             ):
                 new_start = round(proposed_start, 3)
@@ -153,13 +159,17 @@ def snap_ad_boundaries_to_cues(
         )
         new_end = original_end
         if end_cue is not None:
+            end_cue_removed = cue_removal_enabled(end_cue.details)
             proposed_end = (end_cue.end + SNAP_GAP_SECONDS
-                            if cue_removal_enabled(end_cue.details)
+                            if end_cue_removed
                             else end_cue.start - SNAP_GAP_SECONDS)
             shift = abs(proposed_end - original_end)
+            allowed_shift = max_boundary_shift_s
+            if end_cue_removed:
+                allowed_shift += end_cue.end - end_cue.start
             if (
                 proposed_end > new_start
-                and shift <= max_boundary_shift_s
+                and shift <= allowed_shift
                 and shift >= 0.01
             ):
                 new_end = round(proposed_end, 3)

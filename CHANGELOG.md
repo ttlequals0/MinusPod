@@ -26,7 +26,8 @@ release notes.
 ### Fixed
 - System One statistics show average call time in milliseconds, preserving subsecond timing.
 - Expected provider holds and service deferrals no longer log processing failures.
-- Legacy cue-template migrations preserve saved match thresholds and cue-removal preferences.
+- Legacy cue-template migrations preserve saved match thresholds. Cue removal becomes the default for every existing template, with a per-template opt-out.
+- Cue boundary snap and cue-pair synthesis widen the max-shift cap by the matched cue's own length so a long sting is not rejected when removed with the ad. (#832)
 - Settings tests isolate automatic reviewer calibration to prevent unrelated retry assertions from failing.
 - Container images remove unused repository setup and init packages and use GNU coreutils.
 - Container images build pinned media security backports and SRT 1.5.6, retaining patched source and build provenance.

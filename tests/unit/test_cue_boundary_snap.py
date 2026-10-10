@@ -595,14 +595,28 @@ def test_ad_cues_removed_by_default_at_both_edges():
     assert ads[0]['cue_snap']['end']['remove_with_ad'] is True
 
 
-def test_removal_cap_measures_far_edge_of_long_cues():
+def test_removal_cap_widens_by_cue_length_for_long_sting():
+    # Far edge is 14.5s past max_boundary_shift_s (10.0); widening by the
+    # cue's own length still snaps a long sting instead of rejecting it (#832).
     start_cue = _typed_cue(85.0, 99.5, 'start')
     end_cue = _typed_cue(160.5, 175.0, 'end')
     for cue in (start_cue, end_cue):
         cue.details['remove_with_ad'] = True
     ads = [{'start': 100.0, 'end': 160.0}]
     snap_ad_boundaries_to_cues(ads, _result_with(start_cue, end_cue), 10.0)
-    assert ads == [{'start': 100.0, 'end': 160.0}]
+    assert ads[0]['start'] == 84.95
+    assert ads[0]['end'] == 175.05
+
+
+def test_removal_cap_not_widened_when_cue_is_kept():
+    # Same long cue, but kept with content: no widening applies, so the
+    # unwidened cap still rejects a shift this large.
+    start_cue = _typed_cue(70.0, 84.5, 'start')
+    start_cue.details['remove_with_ad'] = False
+    ads = [{'start': 100.0, 'end': 160.0}]
+    snap_ad_boundaries_to_cues(ads, _result_with(start_cue), 10.0)
+    assert ads[0]['start'] == 100.0
+    assert 'cue_snap' not in ads[0]
 
 
 def test_removal_start_clamps_to_episode_start():
