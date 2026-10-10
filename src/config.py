@@ -15,8 +15,6 @@ from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
 
-from utils.prompt import strip_html
-
 _tunable_logger = logging.getLogger(__name__)
 
 # ============================================================
@@ -425,6 +423,7 @@ def title_matches_skip_patterns(title, patterns_json):
 
 def _description_plain_text(description):
     """Description HTML reduced to lowercase-ready plain text for matching."""
+    from utils.prompt import strip_html  # lazy: utils imports audio, which imports config
     return re.sub(r'\s+', ' ', strip_html(description)).strip()
 
 
