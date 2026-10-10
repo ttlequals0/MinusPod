@@ -67,6 +67,7 @@ describe('Audio output choices', () => {
       <QueryClientProvider client={qc}>
         <AudioSection
           audioBitrate="128k" onAudioBitrateChange={vi.fn()}
+          audioEncoderCompressionLevel="default" onAudioEncoderCompressionLevelChange={vi.fn()}
           audioReplacementSoundEnabled onAudioReplacementSoundEnabledChange={onSound}
           audioMp3StreamCopyEnabled={false} onAudioMp3StreamCopyEnabledChange={onCopy}
           audioNormalizeEnabled onAudioNormalizeEnabledChange={vi.fn()}
@@ -88,6 +89,31 @@ describe('Audio output choices', () => {
     expect(screen.getByRole('switch', { name: 'Audio Leveling' }).getAttribute('aria-disabled')).not.toBe('true');
     await user.click(sound);
     expect(onSound).toHaveBeenCalledWith(false);
+  });
+
+  it('renders the stored encoder compression level and reports a change', async () => {
+    localStorage.removeItem('settings-section-audio');
+    const user = userEvent.setup();
+    const onLevelChange = vi.fn();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <AudioSection
+          audioBitrate="128k" onAudioBitrateChange={vi.fn()}
+          audioEncoderCompressionLevel="default" onAudioEncoderCompressionLevelChange={onLevelChange}
+          audioReplacementSoundEnabled onAudioReplacementSoundEnabledChange={vi.fn()}
+          audioMp3StreamCopyEnabled={false} onAudioMp3StreamCopyEnabledChange={vi.fn()}
+          audioNormalizeEnabled onAudioNormalizeEnabledChange={vi.fn()}
+          audioNormalizeIntensity="normal" onAudioNormalizeIntensityChange={vi.fn()}
+          maxAudioDownloadMb={500} onMaxAudioDownloadMbChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Audio' }));
+    const select = screen.getByLabelText('Encoder Compression Level') as HTMLSelectElement;
+    expect(select.value).toBe('default');
+    await user.selectOptions(select, '7');
+    expect(onLevelChange).toHaveBeenCalledWith('7');
   });
 });
 

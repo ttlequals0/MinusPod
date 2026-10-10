@@ -270,6 +270,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const introExclusionField = useDraftField(feed, (f) => s(f.adDetectionExcludeStartOverride));
   const downloadUaField = useDraftField(feed, (f) => f.downloadUserAgentOverride ?? '', (v) => v.trim());
   const [downloadUaError, setDownloadUaError] = useState<string | null>(null);
+  const feedUaField = useDraftField(feed, (f) => f.feedUserAgentOverride ?? '', (v) => v.trim());
+  const [feedUaError, setFeedUaError] = useState<string | null>(null);
   // Notes commit on Save, not blur: markClean runs in the mutation's onSuccess so
   // the button/badge update instantly. Dirty compare trims, so a whitespace-only edit isn't dirty.
   const notesField = useDraftField(feed, (f) => f.detectionNotes ?? '', (v) => v.trim());
@@ -433,6 +435,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     updateMutation.mutate({ downloadUserAgentOverride: next }, {
       onSuccess: () => downloadUaField.markClean(next ?? ''),
       onError: (e) => setDownloadUaError(getErrorMessage(e, 'Failed to save download User-Agent')),
+    });
+  };
+
+  const saveFeedUa = (value: string) => {
+    const next = value.trim() || null;
+    setFeedUaError(null);
+    updateMutation.mutate({ feedUserAgentOverride: next }, {
+      onSuccess: () => feedUaField.markClean(next ?? ''),
+      onError: (e) => setFeedUaError(getErrorMessage(e, 'Failed to save RSS User-Agent')),
     });
   };
 
@@ -1645,6 +1656,40 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   >Use global</button>
                 </div>
                 {downloadUaError && <p role="alert" className="text-xs text-destructive">{downloadUaError}</p>}
+              </div>
+              <div className="flex flex-col gap-2 text-sm min-w-0">
+                <label htmlFor={`feed-ua-${slug}`} className="text-muted-foreground">RSS User-Agent</label>
+                <input
+                  id={`feed-ua-${slug}`}
+                  value={feedUaField.value}
+                  onChange={(e) => {
+                    feedUaField.setValue(e.target.value);
+                    setFeedUaError(null);
+                  }}
+                  placeholder={String(settings?.feedUserAgent?.value ?? 'Use global')}
+                  maxLength={512}
+                  disabled={updateMutation.isPending}
+                  aria-describedby={`feed-ua-hint-${slug}`}
+                  className={`w-full min-w-0 min-h-11 font-mono ${inputBase}`}
+                />
+                <p id={`feed-ua-hint-${slug}`} className="text-xs text-muted-foreground">
+                  This feed's own RSS fetch. Blank uses global.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => saveFeedUa(feedUaField.value)}
+                    disabled={!feedUaField.dirty || updateMutation.isPending}
+                    aria-label="Save RSS User-Agent"
+                    className={`${btnPrimary} min-h-11 px-3 py-2 text-xs rounded ${focusRing}`}
+                  >Save</button>
+                  <button
+                    onClick={() => saveFeedUa('')}
+                    disabled={(feed.feedUserAgentOverride == null && feedUaField.value === '') || updateMutation.isPending}
+                    aria-label="Use global RSS User-Agent"
+                    className={`${btnOutline} min-h-11 px-3 py-2 text-xs rounded ${focusRing}`}
+                  >Use global</button>
+                </div>
+                {feedUaError && <p role="alert" className="text-xs text-destructive">{feedUaError}</p>}
               </div>
               {/* Boundary-snap opt-ins (simple flags; off unless enabled here) */}
               {(

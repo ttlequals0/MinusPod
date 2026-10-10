@@ -423,6 +423,7 @@ export interface UpdateFeedPayload {
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
   downloadUserAgentOverride?: string | null;
+  feedUserAgentOverride?: string | null;
   titleOverride?: string | null;
   detectionNotes?: string | null;
   detectionMode?: string | null;

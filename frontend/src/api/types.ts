@@ -77,6 +77,7 @@ export interface Feed {
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
   downloadUserAgentOverride?: string | null;
+  feedUserAgentOverride?: string | null;
   titleOverride?: string | null;
   detectionNotes?: string | null;
   detectionMode?: string | null;
@@ -859,6 +860,7 @@ export interface Settings {
   opmlModifiedUrl: string | null;
   opmlOriginalUrl: string | null;
   audioBitrate: SettingValue;
+  audioEncoderCompressionLevel: SettingValue;
   audioReplacementSoundEnabled: SettingValueBoolean;
   audioMp3StreamCopyEnabled: SettingValueBoolean;
   audioNormalizeEnabled: SettingValueBoolean;
@@ -1053,6 +1055,7 @@ export interface Settings {
     whisperLanguage: string;
     whisperComputeType: string;
     audioBitrate: string;
+    audioEncoderCompressionLevel: string;
     audioReplacementSoundEnabled: boolean;
     audioMp3StreamCopyEnabled: boolean;
     audioNormalizeEnabled: boolean;
@@ -1180,6 +1183,7 @@ export interface UpdateSettingsPayload {
   feedAuthEnabled?: boolean;
   jitBlockedUserAgents?: string[];
   audioBitrate?: string;
+  audioEncoderCompressionLevel?: string;
   audioReplacementSoundEnabled?: boolean | null;
   audioMp3StreamCopyEnabled?: boolean | null;
   audioNormalizeEnabled?: boolean;

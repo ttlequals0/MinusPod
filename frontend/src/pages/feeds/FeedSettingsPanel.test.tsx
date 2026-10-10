@@ -1500,3 +1500,29 @@ describe('Feed download User-Agent', () => {
     expect((screen.getByRole('button', { name: 'Save download User-Agent' }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
+
+describe('Feed RSS User-Agent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({ feedUserAgent: { value: 'Global/1.0', isDefault: false } });
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('keeps edits local until Save and trims the override', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed());
+    const input = screen.getByLabelText('RSS User-Agent');
+    await waitFor(() => expect(input.getAttribute('placeholder')).toBe('Global/1.0'));
+    await user.type(input, '  Feed/2.0  ');
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Save RSS User-Agent' }));
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { feedUserAgentOverride: 'Feed/2.0' }));
+  });
+
+  it('clears the override with null to inherit global', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ feedUserAgentOverride: 'Feed/2.0' }));
+    await user.click(screen.getByRole('button', { name: 'Use global RSS User-Agent' }));
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { feedUserAgentOverride: null }));
+  });
+});

@@ -7,6 +7,8 @@ import { selectBase } from '../../components/fieldStyles';
 interface AudioSectionProps {
   audioBitrate: string;
   onAudioBitrateChange: (bitrate: string) => void;
+  audioEncoderCompressionLevel: string;
+  onAudioEncoderCompressionLevelChange: (level: string) => void;
   audioReplacementSoundEnabled: boolean;
   onAudioReplacementSoundEnabledChange: (enabled: boolean) => void;
   audioMp3StreamCopyEnabled: boolean;
@@ -22,6 +24,8 @@ interface AudioSectionProps {
 function AudioSection({
   audioBitrate,
   onAudioBitrateChange,
+  audioEncoderCompressionLevel,
+  onAudioEncoderCompressionLevelChange,
   audioReplacementSoundEnabled,
   onAudioReplacementSoundEnabledChange,
   audioMp3StreamCopyEnabled,
@@ -54,6 +58,26 @@ function AudioSection({
           </select>
           <p className="mt-1 text-sm text-muted-foreground">
             Applies when the episode is re-encoded.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="audioEncoderCompressionLevel" className="block text-sm font-medium text-foreground mb-2">
+            Encoder Compression Level
+          </label>
+          <select
+            id="audioEncoderCompressionLevel"
+            value={audioEncoderCompressionLevel}
+            onChange={(e) => onAudioEncoderCompressionLevelChange(e.target.value)}
+            className={`w-full ${selectBase}`}
+          >
+            <option value="default">Default</option>
+            {Array.from({ length: 10 }, (_, i) => String(i)).map((level) => (
+              <option key={level} value={level}>{level}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-sm text-muted-foreground">
+            libmp3lame compression level. Lower is slower and higher quality; 7 is about twice as fast as default for speech.
           </p>
         </div>
 
