@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.98.7
+  version: 2.99.4
   contact:
     name: MinusPod
   license:
@@ -360,6 +360,18 @@ paths:
             schema:
               type: object
               properties:
+                downloadUserAgentOverride:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 512
+                  description: Per-feed download User-Agent. Printable ASCII only. Null or blank inherits downloadUserAgent.
+                feedUserAgentOverride:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 512
+                  description: Per-feed RSS User-Agent. Printable ASCII only. Null or blank inherits feedUserAgent.
                 sourceUrl:
                   type: string
                   format: uri
@@ -427,6 +439,12 @@ paths:
                   minimum: 0
                   maximum: 3650
                   description: Per-feed retention override. Null falls back to the global retentionDays setting; 0 archives the feed so processed audio is never deleted, including by the force-all cleanup; 1-3650 keeps it for that many days.
+                audioReplacementSoundOverride:
+                  type: [boolean, 'null']
+                  description: Override replacement sound for this feed; null inherits the global choice.
+                audioMp3StreamCopyOverride:
+                  type: [boolean, 'null']
+                  description: Override MP3 stream copy for this feed; null inherits the global choice.
                 keepOriginalAudioOverride:
                   type:
                     - boolean
@@ -628,6 +646,60 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /episodes/{slug}/{episode_id}/chapter-images/{filename}:
+    servers:
+      - url: /
+        description: Host root on the public feed domain (not under /api/v1)
+    get:
+      tags:
+        - Episodes
+      summary: Get a local embedded chapter image
+      description: |
+        Serves extracted JPEG or PNG bytes without a remote fetch. When feed
+        authentication is enabled, requires a valid global or scoped subscriber
+        key. Served chapters JSON includes the supplied key on local image URLs.
+        HEAD is also supported. Responses prevent content sniffing and allow
+        cross-origin podcast players.
+      operationId: getEmbeddedChapterImage
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{64}\.(jpg|png)$'
+        - name: key
+          in: query
+          description: Required when feed authentication is enabled
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Stored chapter image
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Missing or invalid feed key
+        '404':
+          description: Missing, invalid or unsupported chapter image
+
   /opml/{mode}.opml:
     servers:
       - url: /
@@ -756,6 +828,18 @@ paths:
                     - boolean
                     - 'null'
                   description: Override auto-process setting (null uses global)
+                downloadUserAgentOverride:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 512
+                  description: Audio, artwork, chapters, and transcript User-Agent for this feed. Printable ASCII only. Null or blank inherits downloadUserAgent. Cross-fetch uses a different podcast client.
+                feedUserAgentOverride:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 512
+                  description: RSS fetch User-Agent for this feed. Printable ASCII only. Null or blank inherits feedUserAgent.
                 languageOverride:
                   type:
                     - string
@@ -866,6 +950,16 @@ paths:
                     maxLength: 200
                   maxItems: 50
                   description: Per-feed episode title blacklist. Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; requests for a skipped episode's audio redirect to the upstream enclosure instead. Null or an empty array clears the blacklist.
+                descriptionSkipPatterns:
+                  type:
+                    - array
+                    - 'null'
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                  maxItems: 50
+                  description: Per-feed episode description blacklist (issue 835). Each pattern is matched against the plain-text description (HTML tags removed, whitespace collapsed), case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. '*This is a preview. To hear the entire episode*'. Without a wildcard the whole description must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; requests for a skipped episode's audio redirect to the upstream enclosure instead. Null or an empty array clears the blacklist.
                 titleSkipAction:
                   type:
                     - string
@@ -874,7 +968,15 @@ paths:
                     - serve_original
                     - hide
                     - null
-                  description: What happens to a title-blacklisted episode in the served RSS. 'serve_original' (default, null) keeps the entry in the feed; 'hide' removes it from the served feed entirely.
+                  description: Served-RSS handling for an episode skipped by title, description, or duration. 'serve_original' (default, null) keeps original audio available; 'hide' removes the entry.
+                minDurationSeconds:
+                  type: [number, 'null']
+                  minimum: 0
+                  description: Minimum publisher RSS duration in seconds, inclusive. Null clears this limit; omission preserves it. The effective minimum cannot exceed the maximum. Unknown or zero durations remain eligible; manual reprocessing overrides the filter.
+                maxDurationSeconds:
+                  type: [number, 'null']
+                  minimum: 0
+                  description: Maximum publisher RSS duration in seconds, inclusive. Null clears this limit; omission preserves it. The effective maximum cannot be below the minimum. Filtering uses RSS duration before ad removal.
                 cueTemplateScoreOverride:
                   type:
                     - number
@@ -1036,6 +1138,12 @@ paths:
                   minimum: 0
                   maximum: 3650
                   description: Per-feed retention override. Null falls back to the global retentionDays setting; 0 archives the feed so processed audio is never deleted, including by the force-all cleanup; 1-3650 keeps it for that many days.
+                audioReplacementSoundOverride:
+                  type: [boolean, 'null']
+                  description: Override replacement sound for this feed; null inherits the global choice.
+                audioMp3StreamCopyOverride:
+                  type: [boolean, 'null']
+                  description: Override MP3 stream copy for this feed; null inherits the global choice.
                 keepOriginalAudioOverride:
                   type:
                     - boolean
@@ -1416,7 +1524,10 @@ paths:
       description: >-
         Returns paginated list of episodes for a podcast. For the recents feed the rows come from
         the source feeds (see feedSlug and feedTitle); they are all processed, so a status filter
-        other than processed returns an empty page.
+        other than processed returns an empty page. Title search applies before pagination.
+        With selection=true, pagination is ignored and selection contains every matching
+        episode's action state, up to 501 rows (truncated is true past that cap); episodes
+        is empty. Bulk actions still accept at most 500 IDs.
       operationId: listEpisodes
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -1456,6 +1567,17 @@ paths:
             type: string
             enum: [asc, desc]
             default: desc
+        - name: search
+          in: query
+          description: Case-insensitive literal title substring, trimmed before matching. Searches the full feed, including Recents; wildcard characters are literal.
+          schema:
+            type: string
+        - name: selection
+          in: query
+          description: Return matching action-state rows in selection and an empty episodes array, capped at 501 rows (see truncated). Ignores limit and offset for selecting rows; limit still reports the normal capped request value and offset is 0.
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: List of episodes
@@ -1468,12 +1590,20 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/EpisodeSummary'
+                  selection:
+                    type: array
+                    description: Present only when selection=true; every matching episode without pagination, up to 501 rows.
+                    items:
+                      $ref: '#/components/schemas/EpisodeSelection'
                   total:
                     type: integer
                   limit:
                     type: integer
                   offset:
                     type: integer
+                  truncated:
+                    type: boolean
+                    description: Present only when selection=true; true when more than 501 episodes matched and selection was capped.
         '404':
           $ref: '#/components/responses/NotFound'
     post:
@@ -3102,6 +3232,75 @@ paths:
                   totalPages: { type: integer }
                   page: { type: integer }
                   limit: { type: integer }
+        '400':
+          $ref: '#/components/responses/LedgerDateBadRequest'
+
+  /stats/systemone:
+    get:
+      tags:
+      - Stats
+      summary: Get native System One call statistics
+      description: Logical calls include failures before HTTP dispatch. Requests count actual reserved dispatches;
+        logical latency and dispatch latency are measured separately in milliseconds. Known cost is a decimal
+        USD sum; unknown usage and cost counts include failed and cancelled requests.
+        Only allowlisted diagnostic evidence is included; prompts, transcripts, and credentials are excluded.
+        Statistics are retained for the ledger lifetime. Deleting a feed removes its associated diagnostics.
+      parameters: &id001
+      - name: from
+        in: query
+        schema:
+          type: string
+        description: Start of the selected UTC date range; accepts a date or ISO 8601 timestamp.
+      - name: to
+        in: query
+        schema:
+          type: string
+        description: Inclusive final UTC day; accepts a date or ISO 8601 timestamp.
+      - name: podcastSlug
+        in: query
+        schema:
+          type: string
+        description: Filter by exact podcast scope.
+      - name: provider
+        in: query
+        schema:
+          type: string
+        description: Filter by provider key.
+      - name: model
+        in: query
+        schema:
+          type: string
+        description: Filter by configured model ID.
+      responses:
+        '200':
+          description: Native logical-call and request aggregates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemOneStats'
+        '400':
+          $ref: '#/components/responses/LedgerDateBadRequest'
+  /stats/cleanup:
+    get:
+      tags:
+      - Stats
+      summary: Get Pattern Cleanup accounting and actions
+      description: Attributed usage, checks, and proposals use the cleanup run start date. Separate unattributedUsage
+        uses request time for older unlinked ledger rows and is absent under a podcastSlug filter. Only
+        podcast-scoped patterns have exact feed allocation; global, network, and historical unknown scopes
+        are unallocated. Provider/model filters require exact attempt attribution. Checked counts are attempts,
+        including failed or stale checks. Historical reported reviews are separate from exact checks; historical
+        per-run spend is unavailable. Superseded proposals and compact records of deleted patterns preserve
+        action totals. Applied means approved and not undone, including actions on subsequently deleted
+        patterns; it does not mean the pattern remains active.
+      parameters: *id001
+      responses:
+        '200':
+          description: Exact cleanup cohorts and historical coverage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanupStats'
         '400':
           $ref: '#/components/responses/LedgerDateBadRequest'
 
@@ -5467,7 +5666,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [anthropic, openai, openrouter, whisper, ollama]
+            enum: [anthropic, openai, openrouter, whisper, ollama, typesafe, systemone-compatible]
       requestBody:
         required: true
         content:
@@ -5509,7 +5708,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [anthropic, openai, openrouter, whisper, ollama]
+            enum: [anthropic, openai, openrouter, whisper, ollama, typesafe, systemone-compatible]
       requestBody:
         required: false
         content:
@@ -5593,6 +5792,9 @@ paths:
       tags:
         - Settings
       summary: Test a provider connection
+      description: >-
+        Native System One providers check model discovery without a stage model.
+        Success confirms the catalog connection, not inference.
       operationId: testProvider
       parameters:
         - in: path
@@ -5600,7 +5802,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [anthropic, openai, openrouter, whisper, ollama]
+            enum: [anthropic, openai, openrouter, whisper, ollama, typesafe, systemone-compatible]
       responses:
         '200':
           description: Test result (always 200; see `ok` field)
@@ -5611,11 +5813,16 @@ paths:
                 properties:
                   ok:    { type: boolean }
                   error: { type: string }
+                  detail: { type: string }
+                  reachable: { type: boolean }
+                  status: { type: integer }
+                  validation: { type: string, enum: [model_catalog] }
+                  inferenceChecked: { type: boolean, description: 'False for native model-catalog checks' }
   /settings/providers/{provider}/test-connection:
     post:
       tags:
         - Settings
-      summary: Test a configured endpoint connection end to end
+      summary: Test a configured endpoint connection
       description: |
         Connection probe for providers with a configurable endpoint.
         `whisper` uploads a one-second generated audio sample through the
@@ -5634,6 +5841,12 @@ paths:
         fixed public endpoints with the saved key; the request body is
         ignored for them, distinguishing an unreachable network from a
         rejected or missing key.
+        `typesafe` and `systemone-compatible` check their `/models` endpoint
+        without a stage model. Success confirms model discovery, not inference;
+        public catalogs may not validate keys. TypeSafe requires its own saved
+        key. Compatible endpoints can omit a key; a saved key is sent only to
+        the same saved scheme, host and port. Native probes use
+        the bounded connection-probe timeout.
       operationId: testProviderConnection
       parameters:
         - in: path
@@ -5641,7 +5854,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [whisper, openai, ollama, anthropic, openrouter]
+            enum: [whisper, openai, ollama, anthropic, openrouter, typesafe, systemone-compatible]
       requestBody:
         required: false
         content:
@@ -5650,7 +5863,7 @@ paths:
               type: object
               properties:
                 baseUrl: { type: string, description: 'Base URL to test; when the key is absent the saved value is used' }
-                model:   { type: string, description: 'whisper only: model name to send; falls back to the saved value' }
+                model:   { type: string, description: 'Whisper model to test; ignored for native System One catalog checks' }
                 skipFlacCompression: { type: boolean, description: 'whisper only: upload WAV (true) or FLAC (false); falls back to the saved setting' }
       responses:
         '200':
@@ -5665,7 +5878,7 @@ paths:
     post:
       tags:
         - Settings
-      summary: Test the secondary provider connection end to end
+      summary: Test the secondary provider connection
       description: |
         Same staged probe as `/settings/providers/{provider}/test-connection`,
         but targets the optional secondary provider slot: its key comes from
@@ -5684,7 +5897,7 @@ paths:
               properties:
                 provider:
                   type: string
-                  enum: [anthropic, openrouter, openai-compatible, ollama]
+                  enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible]
                   description: Provider type to test; when absent the saved secondaryProvider is used
                 baseUrl:
                   type: string
@@ -5720,7 +5933,7 @@ paths:
               properties:
                 provider:
                   type: string
-                  enum: [anthropic, openrouter, openai-compatible, ollama]
+                  enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible]
                   description: Provider type to test; when absent the saved failoverLlmProvider is used
                 baseUrl:
                   type: string
@@ -6363,11 +6576,27 @@ paths:
                   maximum: 1
                   description: Minimum marker confidence required before a segment becomes an ad chapter.
                   example: 0.9
+                audioReplacementSoundEnabled:
+                  type: [boolean, 'null']
+                  description: Insert the replacement clip for Remove actions. Null resets to the default.
+                  default: true
+                audioMp3StreamCopyEnabled:
+                  type: [boolean, 'null']
+                  description: Try compatible MP3 cuts; otherwise re-encode. Null resets to the default.
+                  default: false
                 audioBitrate:
                   type: string
                   enum: ['64k', '96k', '128k', '192k', '256k']
                   description: Output bitrate used when re-encoding processed audio.
                   example: 128k
+                audioEncoderCompressionLevel:
+                  type: string
+                  enum: ['default', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+                  description: >-
+                    libmp3lame -compression_level: 0 is slowest/best, 9 is
+                    fastest. 'default' omits the flag, leaving ffmpeg's own
+                    encoding behavior unchanged.
+                  example: 'default'
                 skipFlacCompression:
                   type: boolean
                   description: |
@@ -6426,8 +6655,8 @@ paths:
                   example: 500
                 llmProvider:
                   type: string
-                  description: LLM provider to use (anthropic, openrouter, openai-compatible, ollama)
-                  enum: [anthropic, openai-compatible, ollama, openrouter]
+                  description: LLM provider for detection and verification; System One review is experimental. Chapters and Pattern Cleanup require a chat provider when enabled.
+                  enum: [anthropic, openai-compatible, ollama, openrouter, typesafe, systemone-compatible]
                   example: anthropic
                 omitTemperature:
                   type: boolean
@@ -6444,6 +6673,20 @@ paths:
                     category-repair, and trim-recovery calls to OpenAI-compatible endpoints,
                     for each model that passes the probe. Support is tracked per model, not
                     per endpoint; unsupported models fall back to json_object. Off by default.
+                typesafeApiKey:
+                  type: [string, 'null']
+                  writeOnly: true
+                  description: Primary TypeSafe key. Omit to preserve; null or empty clears the stored key and restores TYPESAFE_API_KEY fallback. Separate from chat-provider credentials.
+                systemoneApiKey:
+                  type: [string, 'null']
+                  writeOnly: true
+                  description: Optional primary compatible key. Omit to preserve; null or empty clears the stored key and restores SYSTEMONE_API_KEY fallback.
+                systemoneBaseUrl:
+                  type: [string, 'null']
+                  description: Primary compatible API base URL; MinusPod appends /systemone. Empty or null clears the saved endpoint and restores SYSTEMONE_BASE_URL fallback. Default empty. TypeSafe always uses its canonical endpoint.
+                  example: https://example.com/v1
+                systemOneTunables:
+                  $ref: '#/components/schemas/SystemOneProfilesPatch'
                 openaiBaseUrl:
                   type: string
                   description: Base URL for OpenAI-compatible API endpoint (only used when provider is not anthropic)
@@ -6478,7 +6721,7 @@ paths:
                 secondaryProvider:
                   type: [string, 'null']
                   description: Secondary provider type. Empty or null clears it.
-                  enum: [anthropic, openai-compatible, ollama, openrouter, '', null]
+                  enum: [anthropic, openai-compatible, ollama, openrouter, typesafe, systemone-compatible, '', null]
                   example: openai-compatible
                 secondaryProviderBaseUrl:
                   type: string
@@ -6559,13 +6802,12 @@ paths:
                   description: Alias of secondaryProviderTokensPerMin.
                 providerATimeoutSeconds:
                   anyOf:
-                    - type: integer
-                      minimum: 10
-                      maximum: 3600
+                    - type: number
+                      exclusiveMinimum: 0
                     - type: 'null'
                     - type: string
                       const: ''
-                  description: Request timeout for Provider A. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
+                  description: Request timeout for Provider A. Null or blank clears it to the provider-type default; omitted leaves it unchanged. Native providers accept positive finite fractional seconds; chat providers require integer seconds from 10 to 3600.
                 providerAMaxRetries:
                   anyOf:
                     - type: integer
@@ -6577,13 +6819,12 @@ paths:
                   description: Max retries for Provider A. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
                 providerBTimeoutSeconds:
                   anyOf:
-                    - type: integer
-                      minimum: 10
-                      maximum: 3600
+                    - type: number
+                      exclusiveMinimum: 0
                     - type: 'null'
                     - type: string
                       const: ''
-                  description: Request timeout for Provider B. Null or blank clears it to the provider-type default; omitted leaves it unchanged.
+                  description: Request timeout for Provider B. Null or blank clears it to the provider-type default; omitted leaves it unchanged. Native providers accept positive finite fractional seconds; chat providers require integer seconds from 10 to 3600.
                 providerBMaxRetries:
                   anyOf:
                     - type: integer
@@ -6984,10 +7225,10 @@ paths:
         - name: provider
           in: query
           required: false
-          description: Preview models for this provider without saving settings. Valid values are anthropic, openrouter, openai-compatible, ollama.
+          description: Preview models for this provider without saving settings. Valid values are anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible.
           schema:
             type: string
-            enum: [anthropic, openrouter, openai-compatible, ollama]
+            enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible]
         - name: slot
           in: query
           required: false
@@ -10181,7 +10422,8 @@ paths:
       description: >
         Requires the episode's original (un-cut) audio to still be retained.
         Decodes the marked window, extracts an MFCC fingerprint, and stores the
-        raw PCM as the source of truth. Selection must be 0.2 to 4 seconds.
+        raw PCM as the source of truth. Selection must respect the configured capture
+        minimum and the selected cue type's maximum.
       operationId: createCueTemplate
       parameters:
         - name: slug
@@ -10213,8 +10455,12 @@ paths:
                     matching role: ad_break_start/end snap that edge, ad_break_boundary
                     snaps both, show_intro/show_outro never snap or pair and only
                     tell the model the sound is the show open/close, not an ad, and
-                    content_transition likewise never snaps or pairs and hints the
-                    model that a segment transition (not necessarily an ad) is there.
+                    content_transition never pairs and hints that a segment transition is there.
+                    It can snap an existing ad edge when the feed opts in, while retaining its audio.
+                removeWithAd:
+                  type: boolean
+                  default: true
+                  description: Include a matched ad-break cue in the cut. Programme cues, including content transitions, keep their audio regardless of this option.
                 scope:
                   type: string
                   enum: [podcast, network]
@@ -10240,7 +10486,7 @@ paths:
   /cue-templates/{templateId}:
     patch:
       tags: [AudioCueTemplates]
-      summary: Rename, enable/disable, move the window, or change the scope of a template
+      summary: Update cue template options, capture window, or scope
       operationId: updateCueTemplate
       parameters:
         - name: templateId
@@ -10261,6 +10507,9 @@ paths:
                   description: Change the cue type (also resets the derived label)
                 enabled:
                   type: boolean
+                removeWithAd:
+                  type: boolean
+                  description: Include this ad-break cue in cuts. Omit to preserve the saved value; programme cues retain their audio.
                 scope:
                   type: string
                   enum: [podcast, network]
@@ -10349,6 +10598,7 @@ paths:
     get:
       tags: [AudioCueTemplates]
       summary: Export a template as a portable zip (lossless FLAC + JSON manifest)
+      description: The zip manifest preserves removeWithAd alongside cue metadata and lossless audio.
       operationId: exportCueTemplate
       parameters:
         - name: templateId
@@ -10402,6 +10652,7 @@ paths:
         recomputed from the decoded audio (a foreign blob is never trusted).
         Imports land as podcast scope. Sample-rate and channel mismatches are
         hard-rejected with no resampling.
+        The manifest's removeWithAd must be boolean; omission defaults to true.
       operationId: importCueTemplate
       parameters:
         - name: slug
@@ -11458,6 +11709,433 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    SystemOneTuning:
+      type: object
+      additionalProperties: false
+      properties:
+        maxConcurrentOperations:
+          type: integer
+          minimum: 1
+          default: 4
+          description: Whole native operations per process. Profiles with the same endpoint and credential share the strictest active or queued limit; queue waits consume the operation deadline.
+        retryAfterMaxSeconds:
+          type: number
+          minimum: 0
+          default: 5
+          description: Maximum first-retry upstream hint wait in seconds, including jitter. Zero permits no hint wait; the operation deadline also bounds waits.
+        detectionEnter:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.95
+        detectionStay:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.4
+          description: Must not exceed detectionEnter.
+        categoryPass:
+          type: boolean
+          default: true
+        categoryContext:
+          type: integer
+          minimum: 0
+          default: 2
+          description: Transcript segments on each side of a classified span.
+        defaultCategory:
+          type: string
+          enum:
+          - sponsor
+          - cross_promo
+          - self_promo
+          - interaction
+          - intro
+          - outro
+          - recap
+          default: sponsor
+        refineBoundaries:
+          type: boolean
+          default: false
+        reviewEvidenceEnter:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 1
+          default: null
+          description: Null selects the model evidence threshold.
+        reviewChoiceEnter:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+          maximum: 1
+          default: null
+          description: Null selects the model choice threshold.
+        reviewProgrammeVeto:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.85
+        reviewBoundaryCapSeconds:
+          type: number
+          exclusiveMinimum: 0
+          default: 60.0
+          description: Maximum boundary movement in seconds.
+        reviewContextSeconds:
+          type: number
+          exclusiveMinimum: 0
+          default: 30.0
+          description: Focused review context window in seconds.
+        requestDeadlineSeconds:
+          type: number
+          exclusiveMinimum: 0
+          default: 75.0
+          description: Absolute logical-operation deadline in seconds, shared by requests and retry waits.
+        maxQuestionsPerRequest:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          default: null
+          description: Null disables the configured question-count cap.
+        maxRequestBytes:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          default: null
+          description: Serialized UTF-8 request byte cap; null disables the configured byte cap. This is not
+            a token limit.
+        maxChoiceOptions:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          description: Compatible backend Choice option cap, or null. TypeSafe uses a fixed cap of 255 options.
+    SystemOneTypeSafeTuning:
+      allOf:
+      - $ref: '#/components/schemas/SystemOneTuning'
+      - type: object
+        properties:
+          maxChoiceOptions:
+            type: integer
+            const: 255
+    SystemOneProfiles:
+      type: object
+      additionalProperties: false
+      properties:
+        primary:
+          type: object
+          additionalProperties: false
+          properties:
+            typesafe:
+              $ref: '#/components/schemas/SystemOneTypeSafeTuning'
+            systemone-compatible:
+              $ref: '#/components/schemas/SystemOneTuning'
+        secondary:
+          type: object
+          additionalProperties: false
+          properties:
+            typesafe:
+              $ref: '#/components/schemas/SystemOneTypeSafeTuning'
+            systemone-compatible:
+              $ref: '#/components/schemas/SystemOneTuning'
+    SystemOneProfileDefaults:
+      type: object
+      properties:
+        primary:
+          type: object
+          properties:
+            typesafe:
+              type: boolean
+            systemone-compatible:
+              type: boolean
+        secondary:
+          type: object
+          properties:
+            typesafe:
+              type: boolean
+            systemone-compatible:
+              type: boolean
+    SystemOneProfilesPatch:
+      type: object
+      additionalProperties: false
+      description: Partial nested merge by credential slot and provider type. Unspecified slots, providers,
+        and fields retain saved values. Null resets one complete profile to shipped defaults. Values survive
+        provider type switches. TypeSafe and compatible profiles are independent for both slots. Unsupported
+        keys and invalid cross-field combinations return 400. Bulk ad-detection reset restores all profiles.
+      properties:
+        primary:
+          type: object
+          additionalProperties: false
+          properties:
+            typesafe:
+              oneOf:
+              - $ref: '#/components/schemas/SystemOneTypeSafeTuning'
+              - type: 'null'
+            systemone-compatible:
+              oneOf:
+              - $ref: '#/components/schemas/SystemOneTuning'
+              - type: 'null'
+        secondary:
+          type: object
+          additionalProperties: false
+          properties:
+            typesafe:
+              oneOf:
+              - $ref: '#/components/schemas/SystemOneTypeSafeTuning'
+              - type: 'null'
+            systemone-compatible:
+              oneOf:
+              - $ref: '#/components/schemas/SystemOneTuning'
+              - type: 'null'
+      example:
+        primary:
+          typesafe:
+            detectionEnter: 0.98
+        secondary:
+          systemone-compatible: null
+    CleanupUsage:
+      type: object
+      required:
+      - requests
+      - inputTokens
+      - outputTokens
+      - knownCostUsd
+      - unknownUsageRequestCount
+      - unknownCostRequestCount
+      properties:
+        requests:
+          type: integer
+          minimum: 0
+        inputTokens:
+          type: integer
+          minimum: 0
+        outputTokens:
+          type: integer
+          minimum: 0
+        knownCostUsd:
+          type: string
+          description: Exact decimal USD sum of known attempt costs; partial known spend remains visible.
+        unknownUsageRequestCount:
+          type: integer
+          minimum: 0
+        unknownCostRequestCount:
+          type: integer
+          minimum: 0
+    CleanupActionCounts:
+      type: object
+      required:
+      - proposed
+      - accepted
+      - applied
+      - reverted
+      properties:
+        proposed:
+          type: integer
+          minimum: 0
+          description: Distinct run/pattern/kind proposal count, including superseded records.
+        accepted:
+          type: integer
+          minimum: 0
+          description: Approved or undone actions.
+        applied:
+          type: integer
+          minimum: 0
+          description: Approved actions not undone; includes deleted patterns.
+        reverted:
+          type: integer
+          minimum: 0
+          description: Undone actions.
+    SystemOneStats:
+      type: object
+      required:
+      - calls
+      - requests
+      - dispatchLatencyMsTotal
+      - logicalLatencyMsTotal
+      - logicalLatencyMsAverage
+      - tokens
+      - costUsd
+      - unknownCostRequestCount
+      - outcomes
+      - reviewReasons
+      - refinements
+      - refinementSkipReasons
+      properties:
+        calls:
+          type: integer
+          minimum: 0
+        requests:
+          type: integer
+          minimum: 0
+        dispatchLatencyMsTotal:
+          type: integer
+          minimum: 0
+        logicalLatencyMsTotal:
+          type: integer
+          minimum: 0
+        logicalLatencyMsAverage:
+          type:
+          - number
+          - 'null'
+          description: Mean of measured logical-call durations in milliseconds; null when no duration is available.
+        tokens:
+          type: object
+          properties:
+            input:
+              type: integer
+              minimum: 0
+            output:
+              type: integer
+              minimum: 0
+            unknownRequestCount:
+              type: integer
+              minimum: 0
+        costUsd:
+          type: string
+          description: Exact decimal sum in USD, including reported or provider-scoped estimated costs.
+        unknownCostRequestCount:
+          type: integer
+          minimum: 0
+        outcomes:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+          properties:
+            completed:
+              type: integer
+              minimum: 0
+            failed:
+              type: integer
+              minimum: 0
+            inconclusive:
+              type: integer
+              minimum: 0
+        reviewReasons:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+        refinements:
+          type: object
+          properties:
+            attempted:
+              type: integer
+              minimum: 0
+            completed:
+              type: integer
+              minimum: 0
+            skipped:
+              type: integer
+              minimum: 0
+            inconclusive:
+              type: integer
+              minimum: 0
+            upstream_error:
+              type: integer
+              minimum: 0
+        refinementSkipReasons:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+    CleanupStats:
+      type: object
+      required:
+      - runs
+      - patterns
+      - actions
+      - usage
+      - unattributedUsage
+      - coverage
+      properties:
+        runs:
+          type: object
+          properties:
+            total:
+              type: integer
+              minimum: 0
+            running:
+              type: integer
+              minimum: 0
+            completed:
+              type: integer
+              minimum: 0
+            failed:
+              type: integer
+              minimum: 0
+            exactAccounting:
+              type: integer
+              minimum: 0
+            legacy:
+              type: integer
+              minimum: 0
+        patterns:
+          type: object
+          properties:
+            checked:
+              type: integer
+              minimum: 0
+            distinctChecked:
+              type: integer
+              minimum: 0
+            modelReviewed:
+              type: integer
+              minimum: 0
+            proposed:
+              type: integer
+              minimum: 0
+            changed:
+              type: integer
+              minimum: 0
+            legacyReportedReviews:
+              type: integer
+              minimum: 0
+          description: checked is one attempt per pattern per run; distinctChecked/proposed/changed count
+            distinct pattern IDs. modelReviewed includes completed and stale reviews. legacyReportedReviews
+            preserves old run counters without claiming exact checks.
+        actions:
+          type: object
+          properties:
+            trim:
+              $ref: '#/components/schemas/CleanupActionCounts'
+            split:
+              $ref: '#/components/schemas/CleanupActionCounts'
+            rename:
+              $ref: '#/components/schemas/CleanupActionCounts'
+            retire:
+              $ref: '#/components/schemas/CleanupActionCounts'
+            flag:
+              $ref: '#/components/schemas/CleanupActionCounts'
+            category:
+              $ref: '#/components/schemas/CleanupActionCounts'
+          description: Stored action kinds. Rename means a sponsor rename. Composite trim/split/flag actions
+            may also change sponsors or categories; these are counted once under their actual kind.
+        usage:
+          $ref: '#/components/schemas/CleanupUsage'
+        unattributedUsage:
+          oneOf:
+          - $ref: '#/components/schemas/CleanupUsage'
+          - type: 'null'
+        coverage:
+          type: object
+          properties:
+            historicalRunCountWithUnknownSpend:
+              type: integer
+              minimum: 0
+            unattributedProposalCount:
+              type: integer
+              minimum: 0
+            proposalHistoryCompleteSince:
+              type:
+              - string
+              - 'null'
+              format: date-time
+              description: Start of durable proposal tracking; older deleted proposals cannot be reconstructed.
+
     RuntimeConfigDocument:
       type: object
       required: [format, formatVersion, settings, feeds]
@@ -11705,6 +12383,8 @@ components:
         reachable: { type: boolean, description: 'The server returned any HTTP response' }
         status:    { type: integer, description: 'HTTP status code, when a response was received' }
         detail:    { type: string, description: 'Human-readable outcome' }
+        validation: { type: string, enum: [model_catalog], description: 'Native System One checks validate model discovery only' }
+        inferenceChecked: { type: boolean, description: 'False for native model-catalog checks' }
         health:
           allOf:
             - $ref: '#/components/schemas/WhisperHealthProbe'
@@ -11791,6 +12471,10 @@ components:
           default: podcast
         networkId:
           type: [string, 'null']
+        removeWithAd:
+          type: boolean
+          default: true
+          description: Include matched ad-break cues in cuts. Existing templates and imports without this field default to true. Programme cues retain their audio.
         enabled:
           type: boolean
         createdAt:
@@ -12536,6 +13220,18 @@ components:
             - boolean
             - 'null'
           description: Override auto-process setting for this feed (null uses global setting)
+        downloadUserAgentOverride:
+          type:
+            - string
+            - 'null'
+          maxLength: 512
+          description: Audio, artwork, chapters, and transcript User-Agent for this feed. Printable ASCII only. Null or blank inherits downloadUserAgent. Cross-fetch uses a different podcast client.
+        feedUserAgentOverride:
+          type:
+            - string
+            - 'null'
+          maxLength: 512
+          description: RSS fetch User-Agent for this feed. Printable ASCII only. Null or blank inherits feedUserAgent.
         languageOverride:
           type:
             - string
@@ -12633,12 +13329,25 @@ components:
           items:
             type: string
           description: Per-feed episode title blacklist, always an array (empty when unset). Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued or JIT-processed.
+        descriptionSkipPatterns:
+          type: array
+          items:
+            type: string
+          description: Per-feed episode description blacklist (issue 835), always an array (empty when unset). Each pattern is matched against the plain-text description (HTML tags removed, whitespace collapsed), case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. '*This is a preview. To hear the entire episode*'. A matching episode is never queued or JIT-processed.
+        minDurationSeconds:
+          type: [number, 'null']
+          minimum: 0
+          description: Inclusive minimum publisher RSS duration in seconds. Null means no minimum; unknown durations remain eligible.
+        maxDurationSeconds:
+          type: [number, 'null']
+          minimum: 0
+          description: Inclusive maximum publisher RSS duration in seconds. Null means no maximum. Uses RSS duration before ad removal.
         titleSkipAction:
           type: string
           enum:
             - serve_original
             - hide
-          description: What happens to a title-blacklisted episode in the served RSS, always resolved to one of the two values ('serve_original' covers both an explicit setting and no override). 'hide' removes the entry from the served feed entirely.
+          description: Served-RSS handling for episodes skipped by title, description, or duration. Always resolves to serve_original or hide; serve_original is the default.
         processingMode:
           type: string
           enum:
@@ -12810,6 +13519,12 @@ components:
           minimum: 0
           maximum: 3650
           description: Per-feed retention override. Null falls back to the global retentionDays setting; 0 archives the feed so processed audio is never deleted, including by the force-all cleanup; 1-3650 keeps it for that many days.
+        audioReplacementSoundOverride:
+          type: [boolean, 'null']
+          description: Override replacement sound for this feed; null inherits the global choice.
+        audioMp3StreamCopyOverride:
+          type: [boolean, 'null']
+          description: Override MP3 stream copy for this feed; null inherits the global choice.
         keepOriginalAudioOverride:
           type:
             - boolean
@@ -12904,6 +13619,12 @@ components:
         titleSkipped:
           type: boolean
           description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
+        descriptionSkipped:
+          type: boolean
+          description: Whether the episode description matches this feed's description-skip patterns (issue 835) and is ineligible for the bulk Process action.
+        durationSkipped:
+          type: boolean
+          description: Publisher RSS duration is outside the feed's inclusive limits, making the episode ineligible for the bulk Process action. Unknown or zero durations return false.
         passthroughEnabled:
           type: boolean
           description: Per-episode pass-through override, same meaning as EpisodeSummary.passthroughEnabled.
@@ -12912,6 +13633,26 @@ components:
             - string
             - 'null'
           description: Episode description, truncated to 200 characters.
+
+    EpisodeSelection:
+      type: object
+      required: [id, status, jobState, titleSkipped, descriptionSkipped, durationSkipped]
+      description: Lightweight action state returned for every matching episode when selection=true.
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [discovered, pending, processing, completed, failed, permanently_failed, deferred]
+        jobState:
+          type: string
+          enum: [idle, queued, processing]
+        titleSkipped:
+          type: boolean
+        descriptionSkipped:
+          type: boolean
+        durationSkipped:
+          type: boolean
 
     EpisodeSummary:
       type: object
@@ -12961,6 +13702,12 @@ components:
         titleSkipped:
           type: boolean
           description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
+        descriptionSkipped:
+          type: boolean
+          description: Whether the episode description matches this feed's description-skip patterns (issue 835) and is ineligible for the bulk Process action.
+        durationSkipped:
+          type: boolean
+          description: Publisher RSS duration is outside the feed's inclusive limits, making the episode ineligible for the bulk Process action. Unknown or zero durations return false.
         passthroughEnabled:
           type: boolean
           description: Per-episode pass-through override (issue #746). When true, this episode is relayed with no transcription, ad detection, or cutting, even when the feed's own processing mode is not passthrough. The audio may still be transcoded to MP3 when the publisher's enclosure is not already MP3, since the serving stack names episode files .mp3 and declares audio/mpeg. Set via POST /feeds/{slug}/episodes/passthrough.
@@ -15104,12 +15851,34 @@ components:
               format: float
             isDefault:
               type: boolean
+        audioReplacementSoundEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        audioMp3StreamCopyEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
         audioBitrate:
           type: object
           properties:
             value:
               type: string
               enum: ['64k', '96k', '128k', '192k', '256k']
+            isDefault:
+              type: boolean
+        audioEncoderCompressionLevel:
+          type: object
+          properties:
+            value:
+              type: string
+              enum: ['default', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
             isDefault:
               type: boolean
         skipFlacCompression:
@@ -15577,7 +16346,7 @@ components:
           properties:
             value:
               type: string
-              description: Active LLM provider (anthropic, openrouter, openai-compatible, ollama)
+              description: Active LLM provider (anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible)
             isDefault:
               type: boolean
         omitTemperature:
@@ -15599,6 +16368,25 @@ components:
               type: boolean
             isDefault:
               type: boolean
+        typesafeApiKeyConfigured:
+          type: boolean
+          readOnly: true
+          description: Effective primary stored or environment key exists; no key material is returned.
+        systemoneApiKeyConfigured:
+          type: boolean
+          readOnly: true
+          description: Effective primary compatible stored or environment key exists; no key material is returned.
+        systemoneBaseUrl:
+          type: object
+          properties:
+            value: {type: string}
+            isDefault: {type: boolean}
+        systemOneTunables:
+          $ref: '#/components/schemas/SystemOneProfiles'
+        systemOneTunablesIsDefault:
+          $ref: '#/components/schemas/SystemOneProfileDefaults'
+        systemOneTunableDefaults:
+          $ref: '#/components/schemas/SystemOneProfiles'
         openaiBaseUrl:
           type: object
           properties:
@@ -15785,10 +16573,10 @@ components:
               type: boolean
         providerATimeoutSeconds:
           type: object
-          description: Request timeout for Provider A. Null value means the provider-type default.
+          description: Request timeout for Provider A. Null value means the provider-type default. Native providers accept positive finite fractional seconds; chat providers require integer seconds from 10 to 3600.
           properties:
             value:
-              type: [integer, 'null']
+              type: [number, 'null']
             isDefault:
               type: boolean
         providerAMaxRetries:
@@ -15801,10 +16589,10 @@ components:
               type: boolean
         providerBTimeoutSeconds:
           type: object
-          description: Request timeout for Provider B. Null value means the provider-type default.
+          description: Request timeout for Provider B. Null value means the provider-type default. Native providers accept positive finite fractional seconds; chat providers require integer seconds from 10 to 3600.
           properties:
             value:
-              type: [integer, 'null']
+              type: [number, 'null']
             isDefault:
               type: boolean
         providerBMaxRetries:
@@ -16076,9 +16864,18 @@ components:
             vadGapTailMinSeconds:
               type: number
               format: float
+            audioReplacementSoundEnabled:
+              type: boolean
+              default: true
+            audioMp3StreamCopyEnabled:
+              type: boolean
+              default: false
             audioBitrate:
               type: string
               enum: ['64k', '96k', '128k', '192k', '256k']
+            audioEncoderCompressionLevel:
+              type: string
+              enum: ['default', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
             skipFlacCompression:
               type: boolean
             adDetectionParallelWindows:
@@ -16108,11 +16905,11 @@ components:
             secondaryProviderTokensPerMin:
               type: integer
             providerATimeoutSeconds:
-              type: [integer, 'null']
+              type: [number, 'null']
             providerAMaxRetries:
               type: [integer, 'null']
             providerBTimeoutSeconds:
-              type: [integer, 'null']
+              type: [number, 'null']
             providerBMaxRetries:
               type: [integer, 'null']
             failoverLlmEnabled:
@@ -16250,6 +17047,9 @@ components:
               maximum: 3600
             llmProvider:
               type: string
+            systemoneBaseUrl:
+              type: string
+              default: ''
             openaiBaseUrl:
               type: string
             pricingSourceMode:

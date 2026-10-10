@@ -202,7 +202,7 @@ describe('ProcessingRunsTable', () => {
     fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #2/i }));
     expect(table.getByText('Elapsed by stage')).toBeTruthy();
     expect(table.getByText('Elapsed by stage').parentElement?.className).toContain('sm:w-[calc(100cqw-1.5rem)]');
-    expect(table.getByText(/Stage times can overlap/)).toBeTruthy();
+    expect(table.getByText('Stage times may overlap. FFmpeg totals include all tasks and retries.')).toBeTruthy();
     expect(table.getByText('0:42')).toBeTruthy();
     expect(table.getByText('0:12')).toBeTruthy();
     expect(table.getAllByText('Unavailable').length).toBeGreaterThan(0);

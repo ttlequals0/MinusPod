@@ -31,7 +31,8 @@ const SLUG = 'test-feed';
 const NEW_GROUPS = [
   'Source and network',
   'Processing',
-  'Title and tag rules',
+  'Episode filters',
+  'Tags',
   'Chapters',
   'Served feed and storage',
 ];
@@ -39,7 +40,8 @@ const OLD_GROUPS = ['Segment actions', 'Cue tuning overrides', 'Advanced'];
 const GROUPS = [
   'Source and network',
   'Processing',
-  'Title and tag rules',
+  'Episode filters',
+  'Tags',
   'Chapters',
   'Served feed and storage',
   'Segment actions',
@@ -82,6 +84,7 @@ describe('FeedSettingsPanel search', () => {
     expect(GROUPS.map((g) => card(g).getAttribute('data-search-key'))).toEqual([
       `feed-source-${SLUG}`,
       `feed-processing-${SLUG}`,
+      `feed-filters-${SLUG}`,
       `feed-title-tags-${SLUG}`,
       `feed-chapters-${SLUG}`,
       `feed-output-${SLUG}`,

@@ -26,15 +26,13 @@ from api import (api, limiter, log_request, json_response, error_response,
                  get_database, get_storage, get_status_service)
 from api.episodes import _episode_base_json
 from api.feeds import _validate_p20_items, _p20_tag_attrs
-from config import MIN_PRESERVED_CHAPTERS
 from cancel import request_cancellation, wait_for_cancellation
 from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
-from embedded_chapters import probe_chapters
 from local_import import (
     _release_import_lock, _try_acquire_import_lock, build_import_plan,
     bump_staging_generation, get_import_status, plan_hash,
-    read_staging_generation, start_commit,
+    probe_and_save_chapters, read_staging_generation, start_commit,
 )
 from storage import _detect_image_mime
 from utils.audio import extract_embedded_artwork, get_audio_duration
@@ -351,15 +349,7 @@ def upload_local_episode(slug):
             raise
         db.cleanup_published_upload_backup(reservation_id)
 
-        chapters = probe_chapters(str(final_path))
-        if chapters and len(chapters) >= MIN_PRESERVED_CHAPTERS:
-            storage.save_chapters_json(slug, episode_id, {
-                'version': '1.2.0',
-                'chapters': [
-                    {'startTime': int(ch['start']), 'title': ch.get('title') or ''}
-                    for ch in chapters
-                ],
-            })
+        probe_and_save_chapters(storage, slug, episode_id, final_path)
 
         if artwork_bytes:
             # evict=False: this is the only copy of this cover (no
@@ -404,7 +394,8 @@ def upload_local_episode(slug):
     # of which pass these) would then show the artwork the 201 body missed.
     response = _episode_base_json(
         episode, slug=slug, is_local=True, storage=storage,
-        title_skip_patterns=podcast.get('title_skip_patterns'))
+        title_skip_patterns=podcast.get('title_skip_patterns'),
+        description_skip_patterns=podcast.get('description_skip_patterns'))
     response['episodeNumber'] = episode.get('episode_number')
     response['seasonNumber'] = episode.get('season_number')
     response['queued'] = queued
@@ -451,7 +442,8 @@ def patch_local_episode(slug, episode_id):
     # shows artworkUrl null, even for an episode with a cached cover.
     response = _episode_base_json(
         updated, slug=slug, is_local=True, storage=storage,
-        title_skip_patterns=podcast.get('title_skip_patterns'))
+        title_skip_patterns=podcast.get('title_skip_patterns'),
+        description_skip_patterns=podcast.get('description_skip_patterns'))
     response['episodeNumber'] = updated.get('episode_number')
     response['seasonNumber'] = updated.get('season_number')
     return json_response(response, 200)

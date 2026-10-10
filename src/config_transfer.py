@@ -17,6 +17,7 @@ import webhook_service
 from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
 from config import (
     PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS,
+    SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
     PROCESSING_MODE_CUE_ONLY, cue_only_missing_roles,
     get_stage_tunable, resolve_community_sync_categories,
     resolve_feed_processing_mode, resolve_jit_blocked_user_agents,
@@ -28,6 +29,7 @@ from db_backup_service import (
     KEEP_COUNT_MAX, KEEP_COUNT_MIN, validate_backup_dest,
 )
 from database.settings import SETTINGS_REGISTRY, registry_default
+from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
 from fx_rates import FxRateError, get_usd_rate
 from llm_route import SAME_AS_DETECTION, VALID_SLOTS
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
@@ -70,6 +72,7 @@ PATTERN_CLEANUP_SETTINGS = frozenset({
 })
 RAW_TRANSFER_SETTINGS = PATTERN_CLEANUP_SETTINGS | {'notification_timezone'}
 NULLABLE_OPTIONAL_SETTINGS = frozenset({
+    'audio_replacement_sound_enabled', 'audio_mp3_stream_copy_enabled',
     'verification_model', 'chapters_model', 'pattern_cleanup_model',
     'secondary_provider', 'failover_llm_provider',
     'llm_timeout_seconds', 'llm_max_retries',
@@ -90,11 +93,14 @@ STRUCTURED_SETTING_TYPES = {
     'segment_category_actions': dict,
     'community_sync_categories': list,
     'webhooks': list,
+    **{key: dict for key in SYSTEMONE_TUNABLE_PROFILE_KEYS.values()},
 }
 
 SECRET_ENV = {
     'anthropic_api_key': 'ANTHROPIC_API_KEY',
     'openai_api_key': 'OPENAI_API_KEY',
+    'systemone_api_key': 'SYSTEMONE_API_KEY',
+    'typesafe_api_key': 'TYPESAFE_API_KEY',
     'openrouter_api_key': 'OPENROUTER_API_KEY',
     'ollama_api_key': 'OLLAMA_API_KEY',
     'secondary_provider_api_key': 'SECONDARY_PROVIDER_API_KEY',
@@ -113,7 +119,8 @@ BOOLEAN_EXTRA_SETTINGS = frozenset({
 FEED_COLUMNS = (
     'title', 'description', 'source_url', 'network_id', 'dai_platform',
     'network_id_override', 'audio_analysis_override', 'auto_process_override',
-    'language_override', 'title_override', 'detection_notes', 'detection_mode',
+    'language_override', 'download_user_agent_override', 'feed_user_agent_override',
+    'title_override', 'detection_notes', 'detection_mode',
     'chapters_mode', 'chapters_in_notes', 'own_episode_guids',
     'cue_template_score_override', 'cue_create_from_pairs_override',
     'cue_pair_min_break_override', 'cue_pair_max_break_override',
@@ -126,13 +133,15 @@ FEED_COLUMNS = (
     'website_url', 'passthrough_enabled', 'skip_ad_detection',
     'segment_category_actions', 'detect_show_segments', 'skip_second_pass',
     'transcript_differential', 'skip_transcription', 'cue_only_safety',
-    'queue_priority', 'title_skip_patterns', 'title_skip_action',
+    'queue_priority', 'title_skip_patterns', 'description_skip_patterns',
+    'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
     'low_ad_yield_action', 'episode_logs', 'retention_days_override',
     'keep_original_audio_override', 'user_tags', 'author', 'explicit',
+    'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
     'categories', 'p20_channel_json',
 )
 FEED_JSON_COLUMNS = frozenset({
-    'segment_category_actions', 'title_skip_patterns',
+    'segment_category_actions', 'title_skip_patterns', 'description_skip_patterns',
     'user_tags', 'categories', 'p20_channel_json',
 })
 FEED_BOOL_COLUMNS = frozenset({
@@ -142,6 +151,7 @@ FEED_BOOL_COLUMNS = frozenset({
     'skip_second_pass', 'transcript_differential', 'skip_transcription',
     'explicit', 'cue_create_from_pairs_override', 'differential_fetch_enabled',
     'keep_original_audio_override',
+    'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
 })
 
 
@@ -287,6 +297,14 @@ def _portable_value(key, value):
     if not isinstance(value, str):
         return value
     spec = SETTINGS_REGISTRY.get(key)
+    if key in {'llm_timeout_seconds', 'secondary_llm_timeout_seconds'}:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            raise ConfigTransferError(f'{key} has an invalid stored timeout', 409) from None
+        if not math.isfinite(number) or number <= 0:
+            raise ConfigTransferError(f'{key} has an invalid stored timeout', 409)
+        return int(number) if number.is_integer() else number
     structured_type = STRUCTURED_SETTING_TYPES.get(key)
     if structured_type:
         try:
@@ -507,7 +525,8 @@ def _validate_setting_value(key, value):
         _validate_json_tree(value, key)
     if value is None:
         if (key not in SECRET_SETTING_KEYS and key != 'feed_auth_key'
-                and key not in NULLABLE_OPTIONAL_SETTINGS):
+                and key not in NULLABLE_OPTIONAL_SETTINGS
+                and key not in SYSTEMONE_TUNABLE_PROFILE_KEYS.values()):
             raise ConfigTransferError(f'{key} cannot be null')
         return
     spec = SETTINGS_REGISTRY.get(key)
@@ -754,10 +773,21 @@ def _resolve_scope(plan, scope, selected_feeds):
     return settings, feeds
 
 
-def _normalize_import_settings(settings):
+def _normalize_import_settings(settings, db=None):
     from api import settings as settings_api
 
     normalized = dict(settings)
+    snapshot = db.get_all_settings() if db is not None else {}
+    for (slot, provider), key in SYSTEMONE_TUNABLE_PROFILE_KEYS.items():
+        if key not in normalized:
+            continue
+        try:
+            value = normalized[key]
+            defaults = SYSTEMONE_TUNABLE_DEFAULTS[provider]
+            normalized[key] = (dict(defaults) if value is None else merge_profile(
+                defaults, profile_from_snapshot(snapshot, slot, provider), value))
+        except SystemOneSettingsError as exc:
+            raise ConfigTransferError(f'{key} is invalid: {exc}') from None
     if 'model_pricing_overrides' in normalized:
         pricing, issue = settings_api._model_pricing_patch(normalized['model_pricing_overrides'])
         if issue:
@@ -802,7 +832,7 @@ def build_preview(db, document, scope, selected_feeds=None):
     _validate_request_envelope(document, scope, selected_feeds)
     plan = _validate_document(document)
     settings, feeds = _resolve_scope(plan, scope, selected_feeds)
-    settings = _normalize_import_settings(settings)
+    settings = _normalize_import_settings(settings, db)
     _validate_retention_pair(db, settings)
     if any(key.startswith('provider_budget_') for key in settings):
         enabled = settings.get('provider_budget_enabled', db.get_setting('provider_budget_enabled'))
@@ -811,7 +841,7 @@ def build_preview(db, document, scope, selected_feeds=None):
                                db.get_setting('provider_budget_unknown_reserve_microusd') or '0')
         if str(enabled).lower() == 'true' and action == 'reserve' and int(reserve) == 0:
             raise ConfigTransferError('provider_budget_unknown_reserve_microusd must be positive for reserve')
-    issue = _settings_validation_error(db, _setting_payload(settings))
+    issue = _settings_validation_error(db, _setting_payload(settings), feeds)
     if issue:
         raise issue
     if 'db_backup_dest' in settings:
@@ -942,12 +972,14 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                 raise ConfigTransferError('user_tags must be an array of strings or null')
             value = _canonical_json(value)
         elif key in ('cue_create_from_pairs_override', 'differential_fetch_enabled',
-                     'keep_original_audio_override'):
+                     'keep_original_audio_override', 'audio_replacement_sound_override',
+                     'audio_mp3_stream_copy_override'):
             value, error = feed_api._normalize_cue_bool_override(value, key)
             if error:
                 raise ConfigTransferError(error)
         elif key in FEED_JSON_COLUMNS and key not in (
-                'title_skip_patterns', 'segment_category_actions') and value is not None:
+                'title_skip_patterns', 'description_skip_patterns',
+                'segment_category_actions') and value is not None:
             value = _canonical_json(value) if not isinstance(value, str) else value
         elif key in FEED_BOOL_COLUMNS and value is not None:
             value = int(value)
@@ -962,9 +994,12 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
         elif key in ('queue_priority', 'own_episode_guids') and value is not None:
             if key == 'queue_priority' and (isinstance(value, bool) or value not in (-10, 0, 10)):
                 raise ConfigTransferError('queue_priority must be -10, 0, 10, or null')
-        elif key in ('language_override', 'title_override', 'detection_notes'):
+        elif key in ('language_override', 'download_user_agent_override', 'feed_user_agent_override',
+                     'title_override', 'detection_notes'):
             normalizer = {
                 'language_override': feed_api._normalize_language_override,
+                'download_user_agent_override': feed_api._normalize_download_user_agent_override,
+                'feed_user_agent_override': feed_api._normalize_feed_user_agent_override,
                 'title_override': feed_api._normalize_title_override,
                 'detection_notes': feed_api._normalize_detection_notes,
             }[key]
@@ -986,6 +1021,15 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                 raise ConfigTransferError(error)
         elif key == 'title_skip_patterns':
             value, error = feed_api._normalize_title_skip_patterns(value)
+            if error:
+                raise ConfigTransferError(error)
+        elif key == 'description_skip_patterns':
+            value, error = feed_api._normalize_description_skip_patterns(value)
+            if error:
+                raise ConfigTransferError(error)
+        elif key in ('min_duration_seconds', 'max_duration_seconds'):
+            field = 'minDurationSeconds' if key == 'min_duration_seconds' else 'maxDurationSeconds'
+            value, error = feed_api._normalize_duration_limit(value, field)
             if error:
                 raise ConfigTransferError(error)
         elif key == 'title_skip_action':
@@ -1037,6 +1081,9 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
         if key in ('source_url', 'title') and value is not None and not str(value).strip():
             raise ConfigTransferError(f'{key} cannot be empty')
         updates[key] = value
+    range_error = feed_api._validate_duration_range({**(podcast or {}), **updates})
+    if range_error:
+        raise ConfigTransferError(range_error)
     if updates.get('skip_transcription'):
         effective = {**(podcast or {}), **updates}
         if resolve_feed_processing_mode(effective) != PROCESSING_MODE_CUE_ONLY:
@@ -1054,6 +1101,8 @@ def _setting_payload(settings):
                 and not (value is None and key in ('verification_model', 'chapters_model'))):
             payload[spec.payload_key] = value
     secret_payload_keys = {
+        'typesafe_api_key': 'typesafeApiKey',
+        'systemone_api_key': 'systemoneApiKey',
         'openrouter_api_key': 'openrouterApiKey',
         'secondary_provider_api_key': 'secondaryProviderApiKey',
         'whisper_api_key': 'whisperApiKey',
@@ -1075,15 +1124,26 @@ def _setting_payload(settings):
     for payload_key, setting_key, _kind in STAGE_TUNABLE_PAYLOAD_KEYS:
         if setting_key in settings:
             payload[payload_key] = settings[setting_key]
+    profiles = {}
+    for (slot, provider), key in SYSTEMONE_TUNABLE_PROFILE_KEYS.items():
+        if key in settings:
+            profiles.setdefault(slot, {})[provider] = settings[key]
+    if profiles:
+        payload['systemOneTunables'] = profiles
     return payload
 
 
-def _settings_validation_error(db, payload):
-    if not payload:
-        return None
+def _settings_validation_error(db, payload, feeds=None):
     from api import settings as settings_api
+    feed_modes = {
+        feed['slug']: feed.get('settings', {}).get('chapters_mode')
+        for feed in (feeds or ()) if 'chapters_mode' in feed.get('settings', {})
+    }
+    if not payload and not feed_modes:
+        return None
     issue = settings_api.validate_settings_payload(
-        db, payload, allow_inactive_tunables=True)
+        db, payload, allow_inactive_tunables=True,
+        prospective_feed_modes=feed_modes)
     if issue is not None:
         return ConfigTransferError(*issue)
     return None
@@ -1127,6 +1187,9 @@ def _phase_applied_setting_keys(settings):
         key for key in settings
         if SETTINGS_REGISTRY.get(key) and SETTINGS_REGISTRY[key].stage_tunable
     })
+    managed.update(key for key in settings if key in SYSTEMONE_TUNABLE_PROFILE_KEYS.values())
+    managed.update(key for key in settings if key in (
+        'systemone_base_url', 'typesafe_api_key', 'systemone_api_key'))
     return managed
 
 
@@ -1136,10 +1199,13 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
     plan = _validate_document(document)
     settings, feeds = _resolve_scope(plan, scope, selected_feeds)
     _validate_request_envelope(document, scope, selected_feeds)
-    settings = _normalize_import_settings(settings)
+    reset_profiles = {key for key in SYSTEMONE_TUNABLE_PROFILE_KEYS.values()
+                      if key in settings and settings[key] is None}
+    settings = _normalize_import_settings(settings, db)
     _validate_import_feed_urls(feeds)
-    payload = _setting_payload(settings)
-    issue = _settings_validation_error(db, payload)
+    payload = _setting_payload({key: None if key in reset_profiles else value
+                                for key, value in settings.items()})
+    issue = _settings_validation_error(db, payload, feeds)
     if issue:
         raise issue
     endpoint_issue = settings_api.validate_provider_endpoint_security(payload)
@@ -1164,7 +1230,9 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
     rss_fields = {
         'max_episodes', 'only_expose_processed_episodes', 'title_override',
         'source_url', 'own_episode_guids', 'title_skip_patterns',
-        'title_skip_action', 'title', 'author', 'explicit', 'categories',
+        'description_skip_patterns',
+        'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
+        'title', 'author', 'explicit', 'categories',
         'p20_channel_json', 'description', 'chapters_in_notes',
     }
     try:
@@ -1189,6 +1257,8 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                 'anthropic_api_key': 'anthropic',
                 'openai_api_key': 'openai-compatible',
                 'ollama_api_key': 'ollama',
+                'typesafe_api_key': 'typesafe',
+                'systemone_api_key': 'systemone-compatible',
             }
             for key, value in settings.items():
                 if key in phase_applied_setting_keys:
@@ -1226,14 +1296,16 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                     else:
                         db.set_setting(key, value, is_default=False)
             if any(key in settings for key in (
-                    'anthropic_api_key', 'openai_api_key', 'ollama_api_key')):
+                    'anthropic_api_key', 'openai_api_key', 'ollama_api_key',
+                    'typesafe_api_key', 'systemone_api_key', 'systemone_base_url')):
                 settings_api._after_commit(settings_api.invalidate_provider_cache)
             null_keys = {key for key, value in settings.items() if value is None}
             if null_keys & {'llm_provider', 'openai_base_url', 'claude_model',
                             'verification_model', 'review_model', 'chapters_model',
                             'detection_provider', 'verification_provider', 'chapters_provider',
                             'anthropic_api_key', 'openai_api_key', 'openrouter_api_key',
-                            'ollama_api_key', 'secondary_provider_api_key', 'failover_llm_api_key'}:
+                            'ollama_api_key', 'secondary_provider_api_key', 'failover_llm_api_key',
+                            'typesafe_api_key', 'systemone_api_key', 'systemone_base_url'}:
                 settings_api._after_commit(settings_api.invalidate_provider_cache)
             if null_keys & {'whisper_model', 'whisper_backend', 'whisper_api_base_url',
                             'whisper_api_key', 'whisper_api_model', 'failover_whisper_api_key'}:

@@ -38,6 +38,7 @@ from typing import Any, Union
 import run_context
 
 import requests
+import httpx
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.rate_limit import (
@@ -45,13 +46,12 @@ from utils.rate_limit import (
     parse_google_retry_delay, parse_google_daily_quota,
 )
 from utils.http import safe_url_for_log
+from utils.safe_http import URLTrust, safe_get
 from utils.ttl_cache import TTLCache
 
 from config import (
     HTTP_MAX_REDIRECTS_API,
     HTTP_TIMEOUT_API,
-    LLM_TIMEOUT_DEFAULT,
-    LLM_TIMEOUT_LOCAL,
     LLM_RETRY_MAX_RETRIES,
     LLM_RETRY_MAX_RETRIES_LOCAL,
     DEFAULT_OPENAI_BASE_URL,
@@ -62,6 +62,11 @@ from config import (
     PROVIDER_OPENROUTER,
     PROVIDER_OLLAMA,
     PROVIDER_OPENAI_COMPATIBLE,
+    PROVIDER_TYPESAFE,
+    PROVIDER_SYSTEMONE_COMPATIBLE,
+    SYSTEMONE_PROVIDERS,
+    TYPESAFE_BASE_URL,
+    TYPESAFE_SYSTEMONE_URL,
     PROVIDERS_NON_ANTHROPIC,
     coerce_bool_setting,
     get_stage_tunable,
@@ -79,6 +84,16 @@ from llm_capabilities import (
     set_fallback,
     translate_reasoning_effort,
 )
+import database
+from llm_timeout import get_llm_timeout_from_snapshot
+from systemone.admission import operation_admission
+from systemone.settings import get_systemone_settings
+from systemone.transport import SystemOneTransport, DispatchResponse
+from systemone.client import response_payload
+from systemone.adapter import ReviewInconclusiveError, run_chat_completion
+from systemone.protocol import GUIDANCE as SYSTEMONE_GUIDANCE, jev_ask
+from sponsor_service import SponsorService
+from community_export import normalize_aliases
 
 logger = logging.getLogger(__name__)
 io_logger = logging.getLogger('podcast.llm_io')
@@ -233,6 +248,7 @@ class LLMResponse:
     reasoning_exhausted: bool = False
     returned_model: str | None = None
     provider_reported_cost_usd: float | None = None
+    diagnostics: dict | None = None
 
 
 @dataclass
@@ -346,12 +362,16 @@ def _clear_model_list_cache():
         _model_list_last_good.clear()
 
 
+def get_effective_provider_from_snapshot(snapshot):
+    value = snapshot.get('llm_provider')
+    if isinstance(value, dict):
+        value = value.get('value')
+    return (value or os.environ.get('LLM_PROVIDER', PROVIDER_ANTHROPIC)).lower()
+
+
 def get_effective_provider() -> str:
     """Return the active LLM provider, checking DB first then env var."""
-    db_val = _get_cached_setting('llm_provider')
-    if db_val:
-        return db_val.lower()
-    return os.environ.get('LLM_PROVIDER', PROVIDER_ANTHROPIC).lower()
+    return get_effective_provider_from_snapshot({'llm_provider': _get_cached_setting('llm_provider')})
 
 
 def model_matches_provider(model_id: str, provider: str) -> bool:
@@ -496,6 +516,13 @@ def get_effective_failover_llm_api_key() -> str | None:
     return _get_cached_secret('failover_llm_api_key')
 
 
+def get_effective_systemone_api_key(provider: str) -> str | None:
+    """Resolve only the credential belonging to this System One provider."""
+    setting = 'typesafe_api_key' if provider == PROVIDER_TYPESAFE else 'systemone_api_key'
+    env_name = 'TYPESAFE_API_KEY' if provider == PROVIDER_TYPESAFE else 'SYSTEMONE_API_KEY'
+    return _get_cached_secret(setting) or os.environ.get(env_name)
+
+
 def _apply_pass_fallback(
     episode_id: str | None,
     pass_name: str | None,
@@ -543,6 +570,8 @@ def _provider_error_kind(error: Exception) -> str:
 
 def is_review_inconclusive_error(error: Exception) -> bool:
     """True for the review service's explicit inconclusive response."""
+    if isinstance(error, ReviewInconclusiveError):
+        return True
     try:
         status = int(_provider_status_code(error))
     except (TypeError, ValueError):
@@ -852,6 +881,243 @@ class LLMClient(ABC):
     def get_provider_name(self) -> str:
         """Return the provider name for logging."""
         pass
+
+
+class SystemOneClient(LLMClient):
+    """Run the Jev adapter while accounting each provider POST separately."""
+    uses_per_request_dispatch = True
+
+    def __init__(self, provider: str, *, base_url: str, api_key: str | None):
+        super().__init__()
+        self.provider = provider
+        self.base_url = base_url.rstrip('/')
+        self.api_key = api_key
+        self._http_client = None
+        self._http_client_lock = threading.Lock()
+
+    def close(self):
+        with self._http_client_lock:
+            if self._http_client is not None:
+                self._http_client.close()
+                self._http_client = None
+        super().close()
+
+    def messages_create(self, model, max_tokens, system, messages,
+                        temperature=0.0, timeout=120.0, response_format=None,
+                        reasoning_effort=None, episode_id=None, pass_name=None):
+        settings = get_systemone_settings(
+            self.provider, self.credential_slot, model)
+        http_client = self._get_http_client(settings.request_timeout)
+        transport = self._make_transport(settings, http_client)
+        deadline_at = time.monotonic() + settings.request_deadline_seconds
+        metadata = run_context.current_llm_dispatch_context()
+        if metadata is not None:
+            metadata['deadline_at'] = deadline_at
+            metadata['retry_after_cap'] = settings.retry_after_max_seconds
+        check = self._admission_check(metadata)
+        with operation_admission(
+                transport.url, self.api_key, settings.max_concurrent_operations,
+                deadline_at=deadline_at, check=check):
+            self._check_circuit_breaker()
+            diagnostics = {}
+            try:
+                diagnostics = metadata.setdefault('diagnostics', {}) if metadata is not None else {}
+                database = metadata.get('database') if metadata is not None else None
+                if database is None:
+                    raise RuntimeError('System One calls require the shared LLM call context')
+                sponsor_rows = SponsorService(database).get_sponsors()
+                sponsors = tuple({
+                    'name': row.get('name'),
+                    'candidates': tuple([row.get('name'), *normalize_aliases(row.get('aliases'))]),
+                } for row in sponsor_rows)
+                data = run_chat_completion(
+                    messages=[{'role': 'system', 'content': system}, *messages],
+                    request_model=model, settings=settings, fetcher=transport,
+                    sponsor_lookup=lambda: sponsors,
+                    deadline_at=deadline_at,
+                    diagnostics=diagnostics,
+                )
+                payload = response_payload(data)
+                usage = data.get('usage') or {}
+                result = LLMResponse(
+                    content=json.dumps(payload, separators=(',', ':')),
+                    model=data.get('model') or settings.model,
+                    usage={
+                        'input_tokens': usage.get('prompt_tokens'),
+                        'output_tokens': usage.get('completion_tokens'),
+                    },
+                    finish_reason=(data.get('choices') or [{}])[0].get('finish_reason'),
+                    returned_model=data.get('model'),
+                    diagnostics=diagnostics,
+                )
+            except ReviewInconclusiveError as error:
+                error.systemone_diagnostics = diagnostics
+                self._record_circuit_breaker(success=True)
+                raise
+            except Exception as error:
+                error.systemone_diagnostics = diagnostics
+                metadata_cancel = metadata.get('cancel_exceptions', ()) if metadata else ()
+                if (is_rate_limit_error(error)
+                        or isinstance(error, ProviderAccountChangedError)
+                        or (metadata_cancel and isinstance(error, metadata_cancel))
+                        or run_context.first_llm_dispatch_attempt() is None):
+                    self._release_circuit_breaker_probe()
+                else:
+                    self._record_circuit_breaker(success=False, error=error)
+                raise
+            self._record_circuit_breaker(success=True)
+            return result
+
+    def _admission_check(self, metadata):
+        context_database = metadata.get('database') if metadata else None
+        from_database = context_database or database.Database()
+        secret_key = ('secondary_provider_api_key' if self.credential_slot == 'secondary'
+                      else 'typesafe_api_key' if self.provider == PROVIDER_TYPESAFE
+                      else 'systemone_api_key')
+        endpoint_key = ('secondary_provider_base_url' if self.credential_slot == 'secondary'
+                        else 'systemone_base_url')
+        env_key = 'TYPESAFE_API_KEY' if self.provider == PROVIDER_TYPESAFE else 'SYSTEMONE_API_KEY'
+
+        def current_identity():
+            key = from_database.get_secret(secret_key)
+            if self.credential_slot == 'primary':
+                key = key or os.environ.get(env_key)
+            endpoint = (from_database.get_setting(endpoint_key)
+                        or (os.environ.get('SYSTEMONE_BASE_URL') if self.credential_slot == 'primary' else None))
+            return key, endpoint
+
+        frozen_identity = current_identity()
+
+        def check(waited):
+            if metadata:
+                metadata.get('cancel_check', lambda: None)()
+                account_check = metadata.get('account_check')
+                if account_check:
+                    account_check(metadata)
+            if waited and current_identity() != frozen_identity:
+                raise ProviderAccountChangedError(
+                    'System One credentials or endpoint changed while waiting for local capacity',
+                    credential_slot=self.credential_slot)
+        return check
+
+    def list_models(self, bypass_cache=False):
+        cache_key = f'{self.provider}:{self.base_url}:{self.credential_slot}'
+        cached = None if bypass_cache else _get_cached_model_list(cache_key)
+        if cached is not None:
+            return cached
+        headers = {'Authorization': f'Bearer {self.api_key}'} if self.api_key else {}
+        headers.update(_opencode_headers(self.base_url))
+        try:
+            response = safe_get(
+                f'{self.base_url}/models', trust=URLTrust.OPERATOR_CONFIGURED,
+                timeout=HTTP_TIMEOUT_API, max_redirects=HTTP_MAX_REDIRECTS_API,
+                headers=headers,
+            )
+            response.raise_for_status()
+            body = response.json()
+            entries = body.get('data', body.get('models', [])) if isinstance(body, dict) else []
+            models = []
+            if isinstance(entries, list):
+                for item in entries:
+                    if not isinstance(item, dict):
+                        continue
+                    model_id = item.get('id') or item.get('name')
+                    if isinstance(model_id, str) and model_id:
+                        models.append(LLMModel(
+                            id=model_id, name=item.get('name') or model_id,
+                            created=str(item['created']) if item.get('created') is not None else None,
+                        ))
+            _set_cached_model_list(cache_key, models)
+            return models
+        except Exception as error:
+            logger.info('System One model discovery unavailable: %s', type(error).__name__)
+            return []
+
+    def _get_http_client(self, timeout):
+        with self._http_client_lock:
+            if self._http_client is None:
+                self._http_client = httpx.Client(timeout=timeout)
+            return self._http_client
+
+    def _make_transport(self, settings, http_client):
+        return SystemOneTransport(
+            url=(TYPESAFE_SYSTEMONE_URL if self.provider == PROVIDER_TYPESAFE
+                 else f'{self.base_url}/systemone'), api_key=self.api_key,
+            model=settings.model, timeout=settings.request_timeout,
+            http_client=http_client)
+
+    def probe_once(self, model, reserve_request=None, note_dispatch=None):
+        """Send one native protocol request for a caller-owned ledger row."""
+        settings = get_systemone_settings(self.provider, self.credential_slot, model)
+        transport = self._make_transport(settings, self._get_http_client(settings.request_timeout))
+        deadline_at = time.monotonic() + settings.request_deadline_seconds
+        check = self._admission_check(run_context.current_llm_dispatch_context())
+        with operation_admission(
+                transport.url, self.api_key, settings.max_concurrent_operations,
+                deadline_at=deadline_at, check=check):
+            self._check_circuit_breaker()
+            dispatch_response = None
+            attempts = []
+
+            def fetcher(payload, **kwargs):
+                nonlocal dispatch_response
+                attempt_id = reserve_request(payload) if reserve_request else None
+                started = time.monotonic()
+                dispatched = False
+
+                def on_dispatch():
+                    nonlocal dispatched
+                    check(False)
+                    if note_dispatch is not None and attempt_id is not None:
+                        note_dispatch(attempt_id)
+                    check(False)
+                    dispatched = True
+
+                try:
+                    body, dispatch_response = transport.probe_once(
+                        payload, deadline_at=deadline_at, validate=kwargs.get('validate'),
+                        on_dispatch=on_dispatch)
+                except Exception as error:
+                    latency = round((time.monotonic() - started) * 1000)
+                    response = getattr(error, 'usage_response', None)
+                    if not dispatched:
+                        response = DispatchResponse(usage={}, actual_dispatch_count=0)
+                    if getattr(response, 'actual_dispatch_count', 1) == 0:
+                        latency = None
+                    attempts.append((attempt_id, response, latency))
+                    raise
+                attempts.append((attempt_id, dispatch_response,
+                                 dispatch_response.dispatch_latency_ms))
+                return body
+
+            try:
+                result = jev_ask(
+                    [{'sid': 0, 'text': 'Connection test.'}], model=settings.model,
+                    guidance=SYSTEMONE_GUIDANCE, enter=settings.detection_enter,
+                    stay=settings.detection_stay, fetcher=fetcher,
+                    request_kind='probe', window_label='connection_probe',
+                    deadline_at=deadline_at,
+                )
+            except Exception as error:
+                error.usage_response = dispatch_response or getattr(
+                    error, 'usage_response', None)
+                error.systemone_probe_attempts = attempts
+                metadata = run_context.current_llm_dispatch_context()
+                metadata_cancel = metadata.get('cancel_exceptions', ()) if metadata else ()
+                if isinstance(error, ReviewInconclusiveError):
+                    self._record_circuit_breaker(success=True)
+                elif (is_rate_limit_error(error) or isinstance(error, ProviderAccountChangedError)
+                      or not attempts or not any(getattr(row[1], 'actual_dispatch_count', 1) for row in attempts)
+                      or (metadata_cancel and isinstance(error, metadata_cancel))):
+                    self._release_circuit_breaker_probe()
+                else:
+                    self._record_circuit_breaker(success=False, error=error)
+                raise
+            self._record_circuit_breaker(success=True)
+            return {'result': result, 'attempts': attempts}
+
+    def get_provider_name(self):
+        return 'TypeSafe (Jev)' if self.provider == PROVIDER_TYPESAFE else 'System One compatible'
 
 
 class AnthropicClient(LLMClient):
@@ -1804,8 +2070,6 @@ class OllamaNativeClient(OpenAICompatibleClient):
 # Provider-aware timeout / retry helpers
 # =============================================================================
 
-_TIMEOUT_KEYS = {'primary': 'llm_timeout_seconds', 'secondary': 'secondary_llm_timeout_seconds',
-                 'failover': 'failover_llm_timeout_seconds'}
 _RETRY_KEYS = {'primary': 'llm_max_retries', 'secondary': 'secondary_llm_max_retries',
                'failover': 'failover_llm_max_retries'}
 
@@ -1825,13 +2089,13 @@ def llm_retries_disabled(credential_slot: str = 'primary') -> bool:
 
 def get_llm_timeout(provider_key: str | None = None, credential_slot: str = 'primary') -> float:
     """Per-slot request timeout; blank falls back to the provider-type default."""
-    configured = _slot_int_setting(_TIMEOUT_KEYS.get(credential_slot, 'llm_timeout_seconds'))
-    if configured is not None:
-        return float(configured)
     provider = provider_key or get_effective_provider()
-    if provider in (PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER):
-        return LLM_TIMEOUT_DEFAULT
-    return LLM_TIMEOUT_LOCAL
+    key = {'primary': 'llm_timeout_seconds',
+           'secondary': 'secondary_llm_timeout_seconds',
+           'failover': 'failover_llm_timeout_seconds'}.get(
+               credential_slot, 'llm_timeout_seconds')
+    return get_llm_timeout_from_snapshot(
+        provider, credential_slot, {key: _get_cached_setting(key)})
 
 
 def get_llm_max_retries(provider_key: str | None = None, credential_slot: str = 'primary') -> int:
@@ -1850,6 +2114,7 @@ def get_llm_max_retries(provider_key: str | None = None, credential_slot: str = 
 # =============================================================================
 
 _client_lock = threading.Lock()
+_UNSET_API_KEY = object()
 
 # Cache of built clients keyed by (provider_key, normalized_base,
 # credential_slot). Multiple providers can be active concurrently (per-phase
@@ -1898,6 +2163,15 @@ def _resolve_cache_key(provider_key: str, base_url: str | None = None,
         return (provider_key, None, credential_slot)
     if provider_key == PROVIDER_OPENROUTER:
         return (provider_key, base_url or OPENROUTER_BASE_URL, credential_slot)
+    if provider_key == PROVIDER_TYPESAFE:
+        return (provider_key, TYPESAFE_BASE_URL, credential_slot)
+    if provider_key == PROVIDER_SYSTEMONE_COMPATIBLE:
+        if credential_slot == 'secondary':
+            raw = base_url or _get_cached_setting('secondary_provider_base_url') or ''
+        else:
+            raw = (base_url or _get_cached_setting('systemone_base_url')
+                   or os.getenv('SYSTEMONE_BASE_URL') or '')
+        return (provider_key, raw.rstrip('/'), credential_slot)
     if provider_key in PROVIDERS_NON_ANTHROPIC:
         raw = base_url or get_effective_base_url()
         return (provider_key, _normalize_base_url_for_provider(provider_key, raw), credential_slot)
@@ -2059,7 +2333,8 @@ def _opencode_headers(base_url: str) -> dict[str, str]:
 
 
 def _build_client(provider: str, base_url: str | None = None,
-                   credential_slot: str = 'primary') -> LLMClient | None:
+                   credential_slot: str = 'primary',
+                   api_key_override=_UNSET_API_KEY) -> LLMClient | None:
     """Build an uncached client; secondary and standby credentials never fall back to primary."""
     def slot_key(primary_getter):
         if credential_slot == 'secondary':
@@ -2073,6 +2348,27 @@ def _build_client(provider: str, base_url: str | None = None,
         if credential_slot != 'primary':
             client.api_key = slot_key(lambda: client.api_key)
         return client
+    elif provider in SYSTEMONE_PROVIDERS:
+        if api_key_override is not _UNSET_API_KEY:
+            api_key = api_key_override
+        elif credential_slot in ('secondary', 'failover'):
+            api_key = slot_key(lambda: None)
+        else:
+            api_key = get_effective_systemone_api_key(provider)
+        if provider == PROVIDER_TYPESAFE:
+            if not api_key:
+                raise ValueError("TypeSafe requires an API key for the selected credential slot")
+            endpoint = TYPESAFE_BASE_URL
+        else:
+            if credential_slot == 'secondary':
+                endpoint = (base_url or _get_cached_setting(
+                    'secondary_provider_base_url') or '').rstrip('/')
+            else:
+                endpoint = (base_url or _get_cached_setting('systemone_base_url')
+                            or os.getenv('SYSTEMONE_BASE_URL') or '').rstrip('/')
+        if provider == PROVIDER_SYSTEMONE_COMPATIBLE and not endpoint:
+            raise ValueError('System One compatible requires a base URL for the selected credential slot')
+        return SystemOneClient(provider, base_url=endpoint, api_key=api_key)
     elif provider == PROVIDER_OPENROUTER:
         api_key = slot_key(get_effective_openrouter_api_key) or 'not-needed'
         return OpenAICompatibleClient(
@@ -2106,6 +2402,7 @@ def _build_client(provider: str, base_url: str | None = None,
 
 def create_client_for_provider(
     provider: str, credential_slot: str = 'primary', base_url: str | None = None,
+    api_key_override=_UNSET_API_KEY,
 ) -> LLMClient | None:
     """Create a non-cached LLM client for a specific provider.
 
@@ -2118,7 +2415,9 @@ def create_client_for_provider(
     slot's own configurable endpoint.
     """
     try:
-        client = _build_client(provider, base_url=base_url, credential_slot=credential_slot)
+        client = _build_client(
+            provider, base_url=base_url, credential_slot=credential_slot,
+            api_key_override=api_key_override)
         if client is None:
             logger.warning(f"Unknown provider '{provider}' for preview client")
         else:

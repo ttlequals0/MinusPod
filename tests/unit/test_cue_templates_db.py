@@ -234,3 +234,15 @@ def test_active_resolution_excludes_disabled_and_other_networks(temp_db):
     other = temp_db.create_podcast('show-j', 'http://x/j.xml', 'Show J')
     _create(temp_db, other, scope='network', network_id='net-3')
     assert temp_db.list_active_cue_templates_for_feed(pid) == []
+
+
+def test_removal_defaults_on_and_opt_out_survives_updates(temp_db):
+    pid = temp_db.create_podcast('cue-removal', 'https://example.com/feed.xml', 'Show')
+    tid = _create(temp_db, pid)
+    assert temp_db.get_cue_template(tid)['remove_with_ad'] == 1
+    temp_db.update_cue_template(tid, remove_with_ad=False)
+    temp_db.update_cue_template(tid, enabled=False)
+    assert temp_db.get_cue_template(tid)['remove_with_ad'] == 0
+    assert temp_db.get_cue_template_meta(tid)['remove_with_ad'] == 0
+    assert temp_db.list_cue_templates_metadata(pid)[0]['remove_with_ad'] == 0
+    assert temp_db.list_cue_templates_for_feed_ui(pid)[0]['remove_with_ad'] == 0

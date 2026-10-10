@@ -531,6 +531,22 @@ def test_local_p20_json_object_survives_export_import_round_trip(temp_db, monkey
     assert json.loads(restored['segment_category_actions']) == {'sponsor': 'remove'}
 
 
+def test_description_skip_patterns_survives_export_import_round_trip(temp_db, monkeypatch):
+    db = temp_db
+    db.create_podcast('description-skip-feed', 'https://example.com/feed.xml', 'Show')
+    db.update_podcast('description-skip-feed',
+                      description_skip_patterns='["*This is a preview*"]')
+    exported = config_transfer.export_config(db, '2.98.2')
+    preview = config_transfer.build_preview(db, exported, 'everything')
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+
+    config_transfer.apply_config(
+        db, exported, 'everything', None, preview['previewToken'])
+
+    restored = db.get_podcast_by_slug('description-skip-feed')
+    assert json.loads(restored['description_skip_patterns']) == ['*This is a preview*']
+
+
 @pytest.mark.parametrize('secret_key', [
     'openrouter_api_key', 'secondary_provider_api_key', 'whisper_api_key',
     'failover_llm_api_key', 'failover_whisper_api_key', 'podcast_index_api_key',
@@ -787,3 +803,82 @@ def test_phase_less_settings_are_validated_before_preview(temp_db, key, value, m
     document = _document({key: value})
     with pytest.raises(ConfigTransferError, match=message):
         config_transfer.build_preview(temp_db, document, 'global')
+
+
+@pytest.mark.parametrize('feed_type', ['subscribed', 'local'])
+def test_audio_output_import_preserves_missing_and_resets_null(temp_db, monkeypatch, feed_type):
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    source = 'local://example-feed' if feed_type == 'local' else 'https://example.com/feed.xml'
+    temp_db.create_podcast('example-feed', source, feed_type=feed_type)
+    temp_db.set_setting('audio_replacement_sound_enabled', 'false')
+    temp_db.set_setting('audio_mp3_stream_copy_enabled', 'true')
+    temp_db.update_podcast('example-feed', audio_replacement_sound_override=False,
+                           audio_mp3_stream_copy_override=True)
+    original = config_transfer.export_config(temp_db, '2.99.0')
+    assert original['settings']['audio_replacement_sound_enabled'] is False
+    assert original['settings']['audio_mp3_stream_copy_enabled'] is True
+    feed = next(f for f in original['feeds'] if f['slug'] == 'example-feed')
+    assert feed['settings']['audio_replacement_sound_override'] is False
+    assert feed['settings']['audio_mp3_stream_copy_override'] is True
+    document = _document(feeds=[{
+        'slug': 'example-feed', 'feedType': feed_type,
+        'settings': {'source_url': source, 'title': 'Updated title'},
+    }])
+    preview = config_transfer.build_preview(temp_db, document, 'everything')
+    config_transfer.apply_config(temp_db, document, 'everything', None, preview['previewToken'])
+    assert temp_db.get_setting_bool('audio_replacement_sound_enabled') is False
+    assert temp_db.get_setting_bool('audio_mp3_stream_copy_enabled') is True
+    assert temp_db.resolve_audio_output('example-feed') == {
+        'replacement_sound_enabled': False, 'mp3_stream_copy_enabled': True,
+    }
+    document['settings'] = {'audio_replacement_sound_enabled': None, 'audio_mp3_stream_copy_enabled': None}
+    document['feeds'][0]['settings'].update(audio_replacement_sound_override=None,
+                                          audio_mp3_stream_copy_override=None)
+    preview = config_transfer.build_preview(temp_db, document, 'everything')
+    config_transfer.apply_config(temp_db, document, 'everything', None, preview['previewToken'])
+    assert temp_db.resolve_audio_output('example-feed') == {
+        'replacement_sound_enabled': True, 'mp3_stream_copy_enabled': False,
+    }
+
+
+def test_duration_filters_export_import_and_range_validation(temp_db, monkeypatch):
+    temp_db.create_podcast('example-feed', 'https://example.com/feed.xml', 'Example')
+    temp_db.update_podcast('example-feed', min_duration_seconds=60, max_duration_seconds=180)
+    document = config_transfer.export_config(temp_db, '2.98.2')
+    settings = document['feeds'][0]['settings']
+    assert settings['min_duration_seconds'] == 60
+    assert settings['max_duration_seconds'] == 180
+    temp_db.update_podcast('example-feed', min_duration_seconds=None, max_duration_seconds=None)
+    preview = config_transfer.build_preview(temp_db, document, 'everything')
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    config_transfer.apply_config(temp_db, document, 'everything', None, preview['previewToken'])
+    assert temp_db.get_podcast_by_slug('example-feed')['min_duration_seconds'] == 60
+    settings['min_duration_seconds'] = 200
+    with pytest.raises(ConfigTransferError, match='must not exceed'):
+        config_transfer.build_preview(temp_db, document, 'everything')
+
+
+@pytest.mark.parametrize('override', ['Feed/2.0', None])
+def test_feed_download_ua_round_trip(temp_db, override, monkeypatch):
+    temp_db.create_podcast('example-feed', 'https://example.com/feed.xml', 'Example')
+    temp_db.update_podcast('example-feed', download_user_agent_override=override)
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    document = config_transfer.export_config(temp_db, '2.99.3')
+    assert document['feeds'][0]['settings']['download_user_agent_override'] == override
+    temp_db.update_podcast('example-feed', download_user_agent_override='Changed/1.0')
+    preview = config_transfer.build_preview(temp_db, document, 'feeds')
+    config_transfer.apply_config(temp_db, document, 'feeds', None, preview['previewToken'])
+    assert temp_db.get_podcast_by_slug('example-feed')['download_user_agent_override'] == override
+
+
+@pytest.mark.parametrize('override', ['Feed/2.0', None])
+def test_feed_feed_ua_round_trip(temp_db, override, monkeypatch):
+    temp_db.create_podcast('example-feed', 'https://example.com/feed.xml', 'Example')
+    temp_db.update_podcast('example-feed', feed_user_agent_override=override)
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    document = config_transfer.export_config(temp_db, '2.99.3')
+    assert document['feeds'][0]['settings']['feed_user_agent_override'] == override
+    temp_db.update_podcast('example-feed', feed_user_agent_override='Changed/1.0')
+    preview = config_transfer.build_preview(temp_db, document, 'feeds')
+    config_transfer.apply_config(temp_db, document, 'feeds', None, preview['previewToken'])
+    assert temp_db.get_podcast_by_slug('example-feed')['feed_user_agent_override'] == override

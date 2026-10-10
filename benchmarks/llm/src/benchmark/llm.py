@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from .config import ProviderConfig, secret
+from .systemone import NativeCallError, call_native
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,8 @@ class LLMResponse:
     # OpenAI-compatible: "stop" | "length" | "content_filter" | "tool_calls" | None
     # Used by the benchmark to flag chatty models that hit max_tokens; None when
     # the provider didn't surface the value.
-    stop_reason: Optional[str] = None
+    stop_reason: str | None = None
+    native_accounting: dict | None = None
 
 
 class LLMTransientError(RuntimeError):
@@ -62,6 +65,7 @@ async def call(
     max_tokens: int,
     timeout: int,
     response_format: str = "json_object",
+    max_retries: int = 0,
 ) -> LLMResponse:
     if provider.client == "anthropic":
         return await _call_anthropic(
@@ -84,6 +88,31 @@ async def call(
             timeout=timeout,
             response_format=response_format,
         )
+    if provider.client in ('typesafe', 'systemone_compatible'):
+        cancel_event = threading.Event()
+        task = asyncio.create_task(asyncio.to_thread(
+            call_native, provider=provider, model_id=model_id, system_prompt=system_prompt,
+            user_prompt=user_prompt, timeout=timeout, max_retries=max_retries,
+            cancel_event=cancel_event))
+        try:
+            content, accounting = await asyncio.shield(task)
+        except asyncio.CancelledError as error:
+            cancel_event.set()
+            try:
+                _, accounting = await task
+            except NativeCallError as native_error:
+                error.native_accounting = native_error.native_accounting
+            else:
+                error.native_accounting = accounting
+            raise
+        except NativeCallError as error:
+            wrapped = LLMNonRetryableError(str(error))
+            wrapped.native_accounting = error.native_accounting
+            raise wrapped from error
+        return LLMResponse(text=content, input_tokens=accounting['input_tokens'],
+                           output_tokens=accounting['output_tokens'], json_format_used='native',
+                           underlying_provider=provider.client, stop_reason='stop',
+                           native_accounting=accounting)
     raise LLMNonRetryableError(f"Unknown provider client {provider.client!r}")
 
 
@@ -269,6 +298,10 @@ async def call_with_retry(
     response_format: str,
     max_retries: int,
 ) -> LLMResponse:
+    if provider.client in ('typesafe', 'systemone_compatible'):
+        return await call(provider=provider, model_id=model_id, system_prompt=system_prompt,
+                          user_prompt=user_prompt, temperature=temperature, max_tokens=max_tokens,
+                          timeout=timeout, response_format=response_format, max_retries=max_retries)
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):
         try:

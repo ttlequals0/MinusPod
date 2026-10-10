@@ -123,6 +123,8 @@ def test_local_missing_original_raises_without_downloading():
 def test_non_local_missing_original_still_downloads():
     """Sanity check: the raise is local-only. A subscribed feed with no
     retained original (the common case) still downloads as before."""
+    podcast = {'feed_type': 'subscribed', 'download_user_agent_override': 'Feed/2.0'}
+    outcome = {}
     mock_storage = MagicMock()
     mock_storage.get_transcript.return_value = None
     mock_storage.get_original_path.return_value = None
@@ -145,10 +147,12 @@ def test_non_local_missing_original_still_downloads():
                       return_value='/tmp/dl.mp3') as download_fn:
         audio_path, _ = processing._download_and_transcribe(
             'sub', 'abc123def456', 'http://cdn.example.com/e.mp3',
-            podcast={'feed_type': 'subscribed'})
+            podcast=podcast, outcome=outcome)
 
     assert audio_path == '/tmp/dl.mp3'
-    download_fn.assert_called_once_with('http://cdn.example.com/e.mp3')
+    download_fn.assert_called_once_with('http://cdn.example.com/e.mp3',
+                                        podcast=podcast, outcome=outcome)
+    assert outcome == {'segments_reused': False}
 
 
 def test_skip_transcription_local_missing_original_raises_without_downloading():

@@ -1,0 +1,88 @@
+{
+  "source_date_epoch": 1791590400,
+  "packages": [
+    {
+      "name": "cjson",
+      "source_version": "1.7.19-2",
+      "version": "1.7.19-2+minuspod1",
+      "source_files": [
+        {
+          "file": "cjson_1.7.19-2.dsc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/c/cjson/cjson_1.7.19-2.dsc",
+          "sha256": "4c2a8c0418ca719fc4f7039d2a889b67d820da2a288a9fb2c8e9c863cdf01aff"
+        },
+        {
+          "file": "cjson_1.7.19.orig.tar.gz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/c/cjson/cjson_1.7.19.orig.tar.gz",
+          "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+        },
+        {
+          "file": "cjson_1.7.19-2.debian.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/c/cjson/cjson_1.7.19-2.debian.tar.xz",
+          "sha256": "eb82fa71fc33ae882af35ba0a7f5588584f834683848ebfed9f1e14cde6ee344"
+        }
+      ],
+      "dsc": "cjson_1.7.19-2.dsc",
+      "patches": [
+        {
+          "file": "cjson-CVE-2026-29036.patch",
+          "url": "https://github.com/DaveGamble/cJSON/commit/09569cf7e9b8678a95389ade908e43a206e9c344.patch",
+          "sha256": "5c36172ff0c550bee5f9ab16f93b958bfc602075009173e5fb9eb2a6ce81a9bd",
+          "upstream_commit": "09569cf7e9b8678a95389ade908e43a206e9c344",
+          "cves": [
+            "CVE-2026-29036"
+          ]
+        }
+      ],
+      "runtime_packages": [
+        "libcjson1"
+      ],
+      "summary": "Decode escaped JSON Pointer keys correctly."
+    },
+    {
+      "name": "glib2.0",
+      "source_version": "2.88.0-1ubuntu0.1",
+      "version": "2.88.0-1ubuntu0.1+minuspod1",
+      "source_files": [
+        {
+          "file": "glib2.0_2.88.0-1ubuntu0.1.dsc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/glib2.0/glib2.0_2.88.0-1ubuntu0.1.dsc",
+          "sha256": "d018220f4ab35797b587a36031c72248ae9f3b25034d5caa0044dd13f6a5e37b"
+        },
+        {
+          "file": "glib2.0_2.88.0.orig-unicode-data.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/glib2.0/glib2.0_2.88.0.orig-unicode-data.tar.xz",
+          "sha256": "4b55352323696c72187f855981ed1f7d1594a53f257f7803a928749cab9f9f44"
+        },
+        {
+          "file": "glib2.0_2.88.0.orig.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/glib2.0/glib2.0_2.88.0.orig.tar.xz",
+          "sha256": "3546251ccbb3744d4bc4eb48354540e1f6200846572bab68e3a2b7b2b64dfd07"
+        },
+        {
+          "file": "glib2.0_2.88.0-1ubuntu0.1.debian.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/glib2.0/glib2.0_2.88.0-1ubuntu0.1.debian.tar.xz",
+          "sha256": "39412140b3e7b71d32475cad47f64f728f1e10df27bfacbbb5544d21b683d608"
+        }
+      ],
+      "dsc": "glib2.0_2.88.0-1ubuntu0.1.dsc",
+      "patches": [
+        {
+          "file": "glib2.0-CVE-2026-86469.patch",
+          "url": "https://gitlab.gnome.org/GNOME/glib/-/commit/a91805ebdc09bf4f8b005af8d8e5ba21a3d0099b.patch",
+          "sha256": "0c0a23d859394576eae85ab31444d8a4b875a3344e581549edee666d8ce1eaa2",
+          "upstream_commit": "a91805ebdc09bf4f8b005af8d8e5ba21a3d0099b",
+          "cves": [
+            "CVE-2026-86469"
+          ]
+        }
+      ],
+      "runtime_packages": [
+        "libglib2.0-0t64",
+        "libglib2.0-data"
+      ],
+      "summary": "Reject symlinks created while replacing a destination file.",
+      "build_mode": "binary"
+    }
+  ]
+}

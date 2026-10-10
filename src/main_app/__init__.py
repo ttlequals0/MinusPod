@@ -744,8 +744,9 @@ def _background_threads_enabled() -> bool:
     database. They also share patched globals with the test, which made
     assertions depend on which module won the leader lock first.
     """
-    if os.environ.get('MINUSPOD_BACKGROUND_THREADS') == '1':
-        return True
+    background_threads = os.environ.get('MINUSPOD_BACKGROUND_THREADS')
+    if background_threads in ('0', '1'):
+        return background_threads == '1'
     return 'pytest' not in sys.modules
 
 

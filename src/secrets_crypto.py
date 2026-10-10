@@ -43,6 +43,8 @@ SECRET_SETTING_KEYS = frozenset(
     {
         "anthropic_api_key",
         "openai_api_key",
+        "typesafe_api_key",
+        "systemone_api_key",
         "openrouter_api_key",
         "ollama_api_key",
         "secondary_provider_api_key",

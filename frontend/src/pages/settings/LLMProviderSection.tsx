@@ -13,15 +13,17 @@ import { selectBase } from '../../components/fieldStyles';
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
   openaiBaseUrl: string;
+  systemoneBaseUrl: string;
   pricingSourceMode: string;
   onProviderChange: (provider: LlmProvider) => void;
   onBaseUrlChange: (url: string) => void;
+  onSystemOneBaseUrlChange: (url: string) => void;
   onPricingSourceModeChange: (mode: string) => void;
   providersState: ProvidersResponse | null;
   onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
   onProviderKeyClear: (provider: ProviderName) => Promise<void>;
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
-  onConnectionTest: (provider: 'openai' | 'ollama' | 'anthropic' | 'openrouter', baseUrl?: string) => Promise<ConnectionTestResult>;
+  onConnectionTest: (provider: 'openai' | 'ollama' | 'anthropic' | 'openrouter' | 'typesafe' | 'systemone-compatible', baseUrl?: string) => Promise<ConnectionTestResult>;
   ollamaNumCtx?: StageTunables['ollamaNumCtx'];
   onOllamaNumCtxUpdate?: (payload: UpdateSettingsPayload) => void;
   llmJsonSchemaEnabled: boolean;
@@ -162,9 +164,11 @@ const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
 function LLMProviderSection({
   llmProvider,
   openaiBaseUrl,
+  systemoneBaseUrl,
   pricingSourceMode,
   onProviderChange,
   onBaseUrlChange,
+  onSystemOneBaseUrlChange,
   onPricingSourceModeChange,
   providersState,
   onProviderKeySave,
@@ -222,7 +226,7 @@ function LLMProviderSection({
 
   return (
     <CollapsibleSection title="LLM Provider" defaultOpen>
-      <div className="space-y-4">
+      <div className="space-y-4 max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
         <div>
           <span className="text-sm font-medium text-foreground">{SLOT_LABELS.primary}</span>
         </div>
@@ -231,10 +235,10 @@ function LLMProviderSection({
           providerLabel="Provider"
           provider={llmProvider}
           onProviderChange={onProviderChange}
-          baseUrlInputId="openaiBaseUrl"
-          baseUrlLabel="Base URL"
-          baseUrl={openaiBaseUrl}
-          onBaseUrlChange={onBaseUrlChange}
+          baseUrlInputId={llmProvider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE ? 'systemoneBaseUrl' : 'openaiBaseUrl'}
+          baseUrlLabel={llmProvider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE ? 'System One base URL' : 'Base URL'}
+          baseUrl={llmProvider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE ? systemoneBaseUrl : openaiBaseUrl}
+          onBaseUrlChange={llmProvider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE ? onSystemOneBaseUrlChange : onBaseUrlChange}
           slotLabel={SLOT_LABELS.primary}
           timeoutSeconds={providerATimeoutSeconds}
           onTimeoutChange={onProviderATimeoutSecondsChange}
@@ -254,6 +258,10 @@ function LLMProviderSection({
               ? 'ollama'
               : llmProvider === LLM_PROVIDERS.OPENAI_COMPATIBLE
                 ? 'openai'
+                : llmProvider === LLM_PROVIDERS.TYPESAFE
+                  ? 'typesafe'
+                  : llmProvider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE
+                    ? 'systemone-compatible'
                 : llmProvider === LLM_PROVIDERS.ANTHROPIC
                   ? 'anthropic'
                   : 'openrouter',
@@ -288,11 +296,7 @@ function LLMProviderSection({
               </span>
             </label>
             <p className="mt-2 text-sm text-muted-foreground">
-              Asks the endpoint to enforce a JSON schema on detection and
-              review responses. Servers that implement it return cleaner
-              JSON. Not every OpenAI-compatible server does: the app probes
-              once and falls back to plain JSON mode, but verify that yours
-              supports response_format with type json_schema.
+              Use JSON schema for detection and review. Unsupported endpoints fall back to plain JSON.
             </p>
           </div>
         )}
@@ -350,7 +354,11 @@ function LLMProviderSection({
               onProviderKeyClear={() => onSecondaryProviderKeyClear()}
               onProviderKeyTest={async () => {
                 const result = await onSecondaryConnectionTest(secondaryProvider);
-                return { ok: result.ok, error: result.ok ? undefined : result.detail };
+                return {
+                  ok: result.ok, detail: result.detail,
+                  error: result.ok ? undefined : result.detail,
+                  validation: result.validation, inferenceChecked: result.inferenceChecked,
+                };
               }}
               onConnectionTest={(baseUrl) => onSecondaryConnectionTest(secondaryProvider, baseUrl)}
             />

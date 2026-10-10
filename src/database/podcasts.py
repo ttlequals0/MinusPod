@@ -3,7 +3,10 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from config import coerce_bool_setting, resolve_segment_category_actions_map
+from config import (
+    DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED, DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED,
+    coerce_bool_setting, resolve_segment_category_actions_map,
+)
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
 
@@ -241,15 +244,6 @@ class PodcastMixin:
         row = cursor.fetchone()
         return row['queue_priority'] if row else None
 
-    def get_podcast_title_skip_patterns(self, slug: str) -> str | None:
-        """Per-feed title_skip_patterns column only: a cheap single-row lookup
-        for the RSS gate and the JIT serve gate."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            "SELECT title_skip_patterns FROM podcasts WHERE slug = ?", (slug,))
-        row = cursor.fetchone()
-        return row['title_skip_patterns'] if row else None
-
     _CUE_OVERRIDE_COLS = (
         'cue_create_from_pairs_override',
         'cue_pair_min_break_override',
@@ -350,7 +344,8 @@ class PodcastMixin:
                 'last_checked_at', 'last_refresh_attempt_at',
                 'source_url', 'network_id', 'dai_platform',
                 'network_id_override', 'audio_analysis_override', 'auto_process_override',
-                'language_override', 'title_override', 'detection_notes', 'detection_mode',
+                'language_override', 'download_user_agent_override', 'feed_user_agent_override',
+                'title_override', 'detection_notes', 'detection_mode',
                 'chapters_mode', 'chapters_in_notes',
                 'own_episode_guids',
                 'cue_template_score_override',
@@ -369,9 +364,11 @@ class PodcastMixin:
                 'segment_category_actions', 'detect_show_segments',
                 'skip_second_pass', 'transcript_differential',
                 'skip_transcription', 'cue_only_safety',
-                'queue_priority', 'title_skip_patterns', 'title_skip_action',
+                'queue_priority', 'title_skip_patterns', 'description_skip_patterns',
+                'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
                 'low_ad_yield_action', 'episode_logs',
                 'retention_days_override', 'keep_original_audio_override',
+                'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
                 'p20_channel_json', 'author', 'explicit', 'categories',
                 'artwork_failure_state',
             ):
@@ -589,6 +586,12 @@ class PodcastMixin:
             "DELETE FROM ad_reviewer_log WHERE podcast_id = ?", (slug,))
         conn.execute(
             "DELETE FROM addressing_log WHERE podcast_slug = ?", (slug,))
+        conn.execute(
+            "UPDATE pattern_cleanup_checks SET podcast_slug = NULL WHERE podcast_slug = ?",
+            (slug,))
+        conn.execute(
+            "UPDATE pattern_cleanup_deleted_actions SET podcast_slug = NULL WHERE podcast_slug = ?",
+            (slug,))
 
         cursor = conn.execute(
             "DELETE FROM podcasts WHERE slug = ?", (slug,)
@@ -754,6 +757,20 @@ class PodcastMixin:
         per_feed = podcast.get('keep_original_audio_override') if podcast else None
         global_keep = (self.get_setting('keep_original_audio') or 'true').lower() != 'false'
         return effective_keep_original(per_feed, global_keep)
+
+    def resolve_audio_output(self, slug: str, podcast: dict | None = None) -> dict:
+        """Resolve sound and stream-copy choices for one feed."""
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
+        resolved = {}
+        for name, default in (
+                ('replacement_sound', DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED),
+                ('mp3_stream_copy', DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED)):
+            override = (podcast or {}).get(f'audio_{name}_override')
+            resolved[f'{name}_enabled'] = (
+                bool(override) if override is not None
+                else self.get_setting_bool(f'audio_{name}_enabled', default))
+        return resolved
 
     def resolve_segment_actions(self, slug: str, podcast: dict | None = None,
                                 global_actions: dict[str, str] | None = None) -> dict[str, str]:

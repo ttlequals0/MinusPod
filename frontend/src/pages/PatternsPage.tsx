@@ -30,7 +30,7 @@ import { getPatternCleanupStatus, patternCleanupQueryKey } from '../api/patternC
 import UnresolvedCorrectionsPanel from './patterns/UnresolvedCorrectionsPanel';
 import { btnOutline } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
-import { focusRing, inputBase, selectBase } from '../components/fieldStyles';
+import { focusRing, inputBase, selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
 import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
 } from '../utils/segmentCategory';
@@ -363,10 +363,10 @@ function PatternsPage() {
 
       {/* Filters */}
       <div className="bg-card rounded-lg border border-border p-4 mb-6">
-        <div className="grid grid-cols-1 min-[375px]:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={`${filterGrid} lg:grid-cols-4`}>
           {/* Scope filter */}
           <div className="min-w-0">
-            <label htmlFor="patterns-scope" className="mb-1 block text-sm text-muted-foreground">Scope:</label>
+            <label htmlFor="patterns-scope" className={filterLabel}>Scope:</label>
             <select
               id="patterns-scope"
               value={scopeFilter}
@@ -374,7 +374,7 @@ function PatternsPage() {
                 setScopeFilter(e.target.value as ScopeFilter);
                 setPage(1);
               }}
-              className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
+              className={`${filterControl} ${selectBase}`}
             >
               <option value="all">All</option>
               <option value="global">Global</option>
@@ -385,7 +385,7 @@ function PatternsPage() {
 
           {/* Origin filter */}
           <div className="min-w-0">
-            <label htmlFor="patterns-origin" className="mb-1 block text-sm text-muted-foreground">Origin:</label>
+            <label htmlFor="patterns-origin" className={filterLabel}>Origin:</label>
             <select
               id="patterns-origin"
               value={originFilter}
@@ -393,7 +393,7 @@ function PatternsPage() {
                 setOriginFilter(e.target.value as OriginFilter);
                 setPage(1);
               }}
-              className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
+              className={`${filterControl} ${selectBase}`}
             >
               <option value="all">All</option>
               <option value="auto">Auto</option>
@@ -403,7 +403,7 @@ function PatternsPage() {
 
           {/* Source filter */}
           <div className="min-w-0">
-            <label htmlFor="patterns-source" className="mb-1 block text-sm text-muted-foreground">Source:</label>
+            <label htmlFor="patterns-source" className={filterLabel}>Source:</label>
             <select
               id="patterns-source"
               value={sourceFilter}
@@ -411,7 +411,7 @@ function PatternsPage() {
                 setSourceFilter(e.target.value as SourceFilter);
                 setPage(1);
               }}
-              className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
+              className={`${filterControl} ${selectBase}`}
             >
               <option value="all">All</option>
               <option value="local">Local</option>
@@ -422,7 +422,7 @@ function PatternsPage() {
 
           {/* Category filter */}
           <div className="min-w-0">
-            <label htmlFor="patterns-category" className="mb-1 block text-sm text-muted-foreground">Category:</label>
+            <label htmlFor="patterns-category" className={filterLabel}>Category:</label>
             <select
               id="patterns-category"
               value={categoryFilter}
@@ -430,7 +430,7 @@ function PatternsPage() {
                 setCategoryFilter(e.target.value);
                 setPage(1);
               }}
-              className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
+              className={`${filterControl} ${selectBase}`}
             >
               {SEGMENT_CATEGORY_FILTER_OPTIONS.map(([value, label]) => (
                 <option key={value || 'all'} value={value}>{label}</option>
@@ -440,7 +440,9 @@ function PatternsPage() {
 
           {/* Search */}
           <div className="min-w-0 min-[375px]:col-span-2">
+            <label htmlFor="patterns-search" className={filterLabel}>Search</label>
             <input
+              id="patterns-search"
               type="text"
               value={searchQuery}
               onChange={(e) => {
@@ -449,7 +451,7 @@ function PatternsPage() {
               }}
               placeholder="Search by sponsor, text, network..."
               aria-label="Search patterns"
-              className={`min-h-11 w-full sm:min-h-0 ${inputBase}`}
+              className={`${filterControl} ${inputBase}`}
             />
           </div>
 

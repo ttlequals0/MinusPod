@@ -1,0 +1,91 @@
+{
+  "source_date_epoch": 1791590400,
+  "packages": [
+    {
+      "name": "glibc",
+      "source_version": "2.43-2ubuntu2.4",
+      "version": "2.43-2ubuntu2.4+minuspod1",
+      "source_files": [
+        {
+          "file": "glibc_2.43.orig.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/glibc/glibc_2.43.orig.tar.xz",
+          "sha256": "d9c86c6b5dbddb43a3e08270c5844fc5177d19442cf5b8df4be7c07cd5fa3831"
+        },
+        {
+          "file": "glibc_2.43.orig.tar.xz.asc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/glibc/glibc_2.43.orig.tar.xz.asc",
+          "sha256": "0a725eb20ceb526abf52d3129f03e0399afa0d97ffa1dd779bed42958ab23326"
+        },
+        {
+          "file": "glibc_2.43-2ubuntu2.4.debian.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/glibc/glibc_2.43-2ubuntu2.4.debian.tar.xz",
+          "sha256": "28103a7cf808c29901c6053d89a4e8299880abfbb850c0d97a09c8df8533e306"
+        },
+        {
+          "file": "glibc_2.43-2ubuntu2.4.dsc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/glibc/glibc_2.43-2ubuntu2.4.dsc",
+          "sha256": "da10d551ca51076bf7bf663de38369d04e267386b8211c283c2814e68e482ed3"
+        }
+      ],
+      "dsc": "glibc_2.43-2ubuntu2.4.dsc",
+      "patches": [
+        {
+          "file": "glibc-18374.patch",
+          "url": "https://sourceware.org/git/?p=glibc.git;a=patch;h=72351055c6a1328c1ce2c06b72b8a4e3ebe0ef08",
+          "sha256": "73ca6cb57d78c89785cd2bdd5c15cf7e5fdee873599bb8f1623035a2692915f1",
+          "upstream_commit": "72351055c6a1328c1ce2c06b72b8a4e3ebe0ef08",
+          "cves": [
+            "CVE-2026-18374"
+          ]
+        },
+        {
+          "file": "glibc-18374-test.patch",
+          "sha256": "3dff8c975dc259dec3a3e8710f60bceb7a77fb5dad47fb7a0194cac22208e495",
+          "upstream_commit": "cca93e5d88d3d4ed073c03100467696f652269e7",
+          "cves": [
+            "CVE-2026-18374"
+          ],
+          "path": "patches/glibc-18374-test.patch"
+        }
+      ],
+      "runtime_packages": [
+        "libc6",
+        "libc-bin",
+        "libc-gconv-modules-extra"
+      ],
+      "build_profiles": [
+        "nobiarch"
+      ],
+      "summary": "Reject empty fopen character sets and include the upstream regression test."
+    },
+    {
+      "name": "pcre2",
+      "source_version": "10.49",
+      "version": "10.49-1build1+minuspod1",
+      "source_files": [
+        {
+          "file": "pcre2-10.49.tar.gz",
+          "url": "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.49/pcre2-10.49.tar.gz",
+          "sha256": "929f0b20e62879252a15886b06c89f1edef61a363cbd5826fb041080a5e557ae"
+        },
+        {
+          "file": "pcre2_10.46-1build1.diff.gz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/pcre2/pcre2_10.46-1build1.diff.gz",
+          "sha256": "3534c69dec410207e74bf9fd6ed334ad5827fb6de1d0715175b7a14257c5bc72"
+        }
+      ],
+      "patches": [],
+      "runtime_packages": [
+        "libpcre2-8-0"
+      ],
+      "summary": "Build PCRE2 10.49 security release with Ubuntu features and package recipes.",
+      "ubuntu_packaging_version": "10.46-1build1",
+      "upstream_archive": "pcre2-10.49.tar.gz",
+      "debian_diff": "pcre2_10.46-1build1.diff.gz",
+      "cves": [
+        "CVE-2026-86145",
+        "CVE-2026-89161"
+      ]
+    }
+  ]
+}

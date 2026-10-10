@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 import llm_client
+import llm_route
 import provider_probe
 import secrets_crypto
 import database
@@ -18,6 +19,7 @@ import transcriber
 from config import (
     FAILOVER_API_TARGET_NAMES, HTTP_TIMEOUT_PROBE, WHISPER_BACKEND_API, WHISPER_BACKEND_LOCAL,
     WHISPER_DEVICE_DEFAULT, DEFAULT_OPENAI_BASE_URL, coerce_bool_setting, normalize_whisper_device,
+    PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE, TYPESAFE_SYSTEMONE_URL,
 )
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -270,17 +272,24 @@ _PROBE_LEASE_RENEW_SECONDS = 5.0
 _PROBE_WAIT_SECONDS = 2 * HTTP_TIMEOUT_PROBE + 2.0
 _PROBE_WAIT_POLL_SECONDS = 0.05
 _ANY_CHECKED_AT = object()
+_NATIVE_ROUTE_KEYS = (
+    'llm_provider', 'secondary_provider_enabled', 'secondary_provider',
+    'detection_provider', 'verification_provider', 'review_provider',
+    'claude_model', 'verification_model', 'review_model',
+)
 _PROBE_CONFIG = {
     'llm:primary': (
         ('llm_provider', 'openai_base_url', 'anthropic_api_key', 'openai_api_key',
-         'openrouter_api_key', 'ollama_api_key', 'provider_config_revision'),
+         'openrouter_api_key', 'ollama_api_key', 'provider_config_revision',
+         'typesafe_api_key', 'systemone_api_key', 'systemone_base_url') + _NATIVE_ROUTE_KEYS,
         ('LLM_PROVIDER', 'OPENAI_BASE_URL', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY',
-         'OPENROUTER_API_KEY', 'OLLAMA_API_KEY'),
+         'OPENROUTER_API_KEY', 'OLLAMA_API_KEY', 'TYPESAFE_API_KEY',
+         'SYSTEMONE_API_KEY', 'SYSTEMONE_BASE_URL'),
     ),
     'llm:secondary': (
         ('secondary_provider_enabled', 'secondary_provider', 'secondary_provider_base_url',
-         'secondary_provider_api_key', 'provider_config_revision'),
-        (),
+         'secondary_provider_api_key', 'provider_config_revision') + _NATIVE_ROUTE_KEYS,
+        ('LLM_PROVIDER',),
     ),
     'llm:failover': (
         ('failover_llm_enabled', 'failover_llm_provider', 'failover_llm_base_url',
@@ -459,6 +468,21 @@ def _probe_request_config(db, target: str, settings: dict[str, str],
                 'ollama_api_key': 'OLLAMA_API_KEY',
                 'openai_api_key': 'OPENAI_API_KEY',
             }[key_name]
+            if provider in (PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE):
+                key_name = ('typesafe_api_key' if provider == PROVIDER_TYPESAFE
+                            else 'systemone_api_key')
+                env_name = ('TYPESAFE_API_KEY' if provider == PROVIDER_TYPESAFE
+                            else 'SYSTEMONE_API_KEY')
+                key = _probe_secret(db, settings.get(key_name)) or environment.get(env_name)
+                return {
+                    'provider': provider,
+                    'base_url': (TYPESAFE_SYSTEMONE_URL if provider == PROVIDER_TYPESAFE
+                                 else settings.get('systemone_base_url') or
+                                 environment.get('SYSTEMONE_BASE_URL', '')),
+                    'api_key': key or '',
+                    'model': llm_route.systemone_probe_model(
+                        {**settings, 'llm_provider': provider}, provider, slot),
+                }
             key = _probe_secret(db, settings.get(key_name)) or environment.get(env_name)
             if key_name in ('openai_api_key', 'ollama_api_key') and not key:
                 key = 'not-needed'
@@ -469,10 +493,16 @@ def _probe_request_config(db, target: str, settings: dict[str, str],
                 'api_key': key or '',
             }
         if slot == 'secondary':
+            provider = settings.get('secondary_provider') or ''
+            base_url = settings.get('secondary_provider_base_url')
+            if provider == PROVIDER_TYPESAFE:
+                base_url = TYPESAFE_SYSTEMONE_URL
+            elif provider == PROVIDER_SYSTEMONE_COMPATIBLE:
+                base_url = base_url or ''
             return {
-                'provider': settings.get('secondary_provider') or '',
-                'base_url': settings.get('secondary_provider_base_url'),
+                'provider': provider, 'base_url': base_url,
                 'api_key': _probe_secret(db, settings.get('secondary_provider_api_key')) or '',
+                'model': llm_route.systemone_probe_model(settings, provider, slot),
             }
         return {
             'provider': settings.get('failover_llm_provider') or '',
@@ -547,6 +577,22 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
             provider = request_config['provider']
             base_url = request_config['base_url']
             key = request_config['api_key']
+            if provider in (PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE):
+                if (not request_config.get('model')
+                        or (provider == PROVIDER_TYPESAFE and not key)
+                        or (provider == PROVIDER_SYSTEMONE_COMPATIBLE and not base_url)):
+                    return {'reachable': None, 'status': None, 'detail': 'Not configured'}
+                result = provider_probe.probe_systemone_endpoint(
+                    provider, base_url, key, request_config['model'],
+                    credential_slot=which, db=database.Database())
+                status = result.get('status')
+                if status == 429:
+                    return {'reachable': None, 'status': 429, 'detail': 'rate limited'}
+                return {
+                    'reachable': result.get('ok') is True,
+                    'status': status,
+                    'detail': result.get('detail', ''),
+                }
             if not provider:
                 return {'reachable': None, 'status': None, 'detail': 'Not configured'}
             if provider in provider_probe.FIXED_PROVIDER_PROBES:

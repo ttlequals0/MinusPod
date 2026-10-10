@@ -8,6 +8,8 @@
 
 - [Configuration](#configuration)
 - [Global feed defaults](#global-feed-defaults)
+- [Audio leveling](#audio-leveling)
+- [Output audio](#output-audio)
 - [Experiments](#experiments)
 - [Reprocessing](#reprocessing)
 - [Community Patterns (Optional)](#community-patterns-optional)
@@ -34,6 +36,10 @@ New feeds use each global choice. A feed set to Inherit continues using that cho
 
 Upgrades preserve existing feed choices instead of switching them to inheritance. The earlier cross-fetch enabled flag becomes an explicit On or Off, while an unset legacy flag becomes explicit Auto.
 
+### Audio leveling
+
+Audio Leveling evens out quiet and loud passages in the processed audio. It runs an additional ffmpeg pass using the `dynaudnorm` filter after ad removal, with Gentle, Normal, Aggressive, Extreme, and Maximum intensity presets. The additional pass adds processing time; it does not change detection or ad-cut boundaries.
+
 ### Ad Detection Settings
 
 Customize ad detection in Settings:
@@ -43,6 +49,7 @@ Customize ad detection in Settings:
 - **Chapters Model** - Model for chapter generation (a small model like Haiku works well here). Its provider selector also defaults to Same as detection
 - **Ad chapters** - Set a category's segment action to Mark (see Segment categories below) to publish it as a skippable chapter instead of just leaving it in the audio. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
+- **Audio Encoder Compression Level** - ffmpeg's `libmp3lame` `-compression_level`: 0 is slowest and best quality, 9 is fastest. Default `default` leaves the flag unset, so ffmpeg's own encoding behavior is unchanged
 - **System Prompts** - Customizable prompts for first pass and verification detection
 - **Ad break filler gap threshold** - ads in the same break separated by less than this many seconds of speech are merged into one cut. Default 12 seconds. Set to 0 to disable. Merges that would exceed 5 minutes total are skipped. See [Nearby-Ad Merge](how-it-works.md#nearby-ad-merge)
 - **Compare with the publisher transcript** - diffs the Whisper transcript against the feed's `podcast:transcript` tag, when one exists, and uses missing speech as ad evidence. On by default; each feed can override it (Feed Settings > Advanced > Transcript diff). See [Upstream Transcript Differential](transcript-differential.md)
@@ -67,7 +74,7 @@ When to enable it:
 - Hosts who organically mention their own other shows or Patreon, where the detector flags a non-ad as promotional
 - Episodes where you have noticed the cut is starting a few seconds late or ending a few seconds early
 
-Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With a typical pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
+Cost is one extra LLM call per detected ad, and one extra call per rejected detection in the resurrection band.
 
 Settings live under AI & Processing -> Ad Reviewer:
 
@@ -331,13 +338,33 @@ Changing a feed's queue priority restamps every episode of that feed still pendi
 
 ### Title blacklist
 
-Each feed can list glob patterns under **Skip episodes by title** on its settings page. An episode whose title matches any pattern is skipped: it is never queued for automatic processing, and just-in-time processing (playing it) does not detect or cut it either.
+Each feed can list glob patterns under **Episode filters > Skip episodes by title** on its detail page. An episode whose title matches any pattern is skipped: it is never queued for automatic processing, and just-in-time processing (playing it) does not detect or cut it either.
 
 Matching is against the whole title, case-insensitive. `*` is a wildcard; a pattern with no wildcard must match the entire title exactly, so a substring match needs `*` on both sides. For example `Bonus Episode *` skips any title starting with "Bonus Episode", and `*live show*` skips any title containing "live show" anywhere.
 
-A per-feed **Skipped episodes** choice decides how a skipped episode is served: **Keep in feed with original audio** (default) serves it unmodified in the RSS feed, or **Hide from feed** drops it from the served feed entirely. Either way the episode is unaffected by the blacklist if you reprocess it manually: a manual reprocess always overrides the blacklist and processes the episode normally.
+The shared **Skipped episodes** choice applies to title, description, and duration filters. **Keep in feed with original audio** (default) serves the episode unmodified. **Hide from feed** removes it from served RSS. Either way the episode is unaffected by the blacklist if you reprocess it manually: a manual reprocess always overrides the blacklist and processes the episode normally.
 
 API: `titleSkipPatterns` (array of strings, max 50 patterns, 200 characters each) and `titleSkipAction` (`serve_original` or `hide`) on `PATCH /api/v1/feeds/{slug}`.
+
+### Skip episodes by description
+
+Add glob patterns under **Episode filters > Skip episodes by description**. Use them for phrases absent from the title, such as *This is a preview*. Matches skip automatic and just-in-time processing, as title matches do.
+
+Matching is against the description's plain text, with HTML tags removed, as a single whole-text string, case-insensitive. `*` is a wildcard, so a phrase needs `*` on both sides, for example `*This is a preview. To hear the entire episode*`.
+
+The shared **Skipped episodes** choice applies to title, description, and duration filters.
+
+API: `descriptionSkipPatterns` (array of strings, max 50 patterns, 200 characters each) on `PATCH /api/v1/feeds/{slug}`; `titleSkipAction` governs served-RSS visibility for all three filters.
+
+### Episode duration filters
+
+The feed's **Episode filters** section has optional **Minimum (minutes)** and **Maximum (minutes)** fields. Leave either blank for no limit, then choose **Save duration limits**.
+
+Limits include their endpoints and use the publisher's RSS duration, before any download or ad removal. Episodes with missing, invalid, or zero duration stay eligible. The minimum cannot exceed the maximum.
+
+An episode outside the range skips automatic and just-in-time processing. **Skipped episodes** decides whether it stays in the served feed with original audio or is hidden. Manual reprocessing overrides duration, title, and description filters. Local feeds ignore these upstream filters.
+
+API: `minDurationSeconds` and `maxDurationSeconds` on `PATCH /api/v1/feeds/{slug}` accept finite, nonnegative numbers in seconds. Null clears a limit; omitted fields keep their saved values. Configuration Import / Export preserves both limits.
 
 ### Recents feed
 
@@ -377,6 +404,35 @@ Matching is case-insensitive, and a bare pattern matches anywhere in the agent s
 
 API: `jitBlockedUserAgents` (array of strings) on `PUT /api/v1/settings/ad-detection`.
 
+## Output audio
+
+Settings > Output > Audio has independent **Replacement sound** and **MP3 stream
+copy** choices. Replacement sound is on by default; stream copy is off. Feed
+Settings > Served feed and storage can override either choice or inherit it.
+Turning replacement sound off omits the clip even when a cut falls back to
+re-encoding. Explicit Beep actions still use the replacement clip.
+
+Stream copy tries compatible, unprotected MPEG-1 Layer III MP3 cuts, preserving
+source-coded audio outside splice transitions. When replacement sound is on, its clip is
+encoded to match the source. The copy path repairs frame packing around joins
+and validates the output before publishing it.
+
+Cuts snap to the nearest MP3 frame. Chapters and transcript timing use those
+actual cuts and the encoded replacement duration. Validation uses temporary
+decoded-audio files, limited to 4 GiB each, and checks free disk space. Unsupported
+headers or gapless tags, protected boundaries and failed resource checks fall
+back to re-encoding.
+
+Leveling, Beep actions, unsupported audio, cuts at the start or end, unsafe joins
+or failed validation use the existing encoder. Output Bitrate applies to that
+re-encoded output. Bitrate and leveling remain configurable with stream copy on.
+
+API: `audioReplacementSoundEnabled` and `audioMp3StreamCopyEnabled` on
+`PUT /api/v1/settings/ad-detection`; null resets the global choice to its default.
+Feed `audioReplacementSoundOverride` and `audioMp3StreamCopyOverride` accept
+true, false or null on `PATCH /api/v1/feeds/{slug}`; null means inherit.
+These settings are stored in the database, without environment variables.
+
 ## Experiments
 
 The Experiments section in Settings holds opt-in features that are still being evaluated. Everything here is disabled by default. Turning a feature on does not change behavior on existing processed episodes; it applies only to subsequent processing runs.
@@ -389,11 +445,10 @@ How often each mode's LLM contract is actually honored shows up on the Stats pag
 
 Default `timestamps`. API: `PUT /api/v1/settings/ad-detection` with `adAddressingMode` (`timestamps`, `segment_ids`, or `random`).
 
-The Stats page tracks two things per mode. Contract compliance says whether
-the model used the requested output shape; both modes hold near 100%
-and it exists mostly as a canary. Ad yield is the comparison that matters:
-how many ads each mode proposed, how many survived into the pipeline, and
-why the rest were dropped. The "invalid ref" drop count only exists for
+The Stats page tracks two things per mode. Contract compliance reports whether
+the model used the requested output shape. Ad yield compares how many ads each
+mode proposed, how many survived into the pipeline, and why the rest were
+dropped. The "invalid ref" drop count only exists for
 segment IDs, and that asymmetry is the point of the experiment: a made-up
 segment ID is caught and dropped, while a made-up timestamp sails through
 and has to be caught by later validation, if it is caught at all.
@@ -444,7 +499,7 @@ Reprocessing an episode re-runs detection without re-fetching it from the source
 
 - **Reprocess** (default) - uses the learned pattern database plus the LLM. Fastest option for routine re-detection.
 - **Full Analysis** - skips the pattern database for a fresh LLM-only pass.
-- **Recut Audio** - re-cuts the retained original from the episode's current ad list and re-times the saved transcript, without re-transcribing or calling the LLM. Use it after editing ads by hand to regenerate the output file. Because no LLM runs, generated chapters are not refreshed: the rebuilt file carries the source feed's own chapters remapped to the new cut, and the podcast:chapters JSON keeps its old timestamps. Run Regenerate Chapters afterward if chapters matter for the episode.
+- **Recut Audio** - re-cuts the retained original from the episode's current ad list and re-times the saved transcript, without re-transcribing or calling the LLM. Use it after editing ads by hand to regenerate the output file. Because no LLM runs, chapter topics are not regenerated. The MP3 and chapter JSON are kept in sync when their timestamps are remapped.
 - **Re-detect Ads** - reruns detection and re-cuts using the transcript already saved for the episode, skipping the transcription step that dominates processing time on local hardware. Requires an existing transcript; episodes without one are skipped, and it is also offered for failed episodes that still have a transcript. Use it to iterate on detection settings or models without paying for transcription each time. Not available on a feed set to Pass-through, skip ad detection, or `cue_only` mode (returns a 409): none of those modes has a detection LLM call to rerun, so **Recut Audio** is the equivalent action after editing ad markers by hand.
 
 ## Community Patterns (Optional)
@@ -536,7 +591,7 @@ All are off by default (0 means unlimited), so existing installs are unaffected.
 - `providerRequestsPerMin`, `providerRequestsPerDay`, `providerTokensPerMin` - caps for the Provider A account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`, `PROVIDER_TOKENS_PER_MIN`).
 - `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - caps for the Provider B account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`, `SECONDARY_PROVIDER_TOKENS_PER_MIN`); aliases `providerBRequestsPerMin`, `providerBRequestsPerDay`, `providerBTokensPerMin`.
 
-Example, using figures that were current for one provider's free tier at the time of writing: an account allowed 5 requests per minute and 20 per day. Providers change their tiers often, so read your own account's limits rather than trusting this number, then set `providerRequestsPerMin` to 5 and `providerRequestsPerDay` to 20. Pair this with a large detection window size (see [Detection window geometry](#detection-window-geometry)) so each episode spends fewer requests, and a whole episode can fit inside a small daily budget. The token-per-minute allowance on a tier like that is often generous enough that TPM is not the binding limit, but you can set `providerTokensPerMin` if your account has a tighter token budget.
+For an account limited to 5 requests per minute and 20 per day, set `providerRequestsPerMin` to 5 and `providerRequestsPerDay` to 20. Check your account limits before choosing values. A larger [detection window](#detection-window-geometry) uses fewer requests per episode. Set `providerTokensPerMin` if the account also has a token cap.
 
 A held or limited provider never reroutes to another provider: the episode waits in the queue for that account's reset.
 
@@ -581,6 +636,12 @@ with any OpenAI-compatible Whisper server. That one happens to expose the
 fields described above.
 
 ## Outbound Requests
+
+Feed settings > Advanced > Download User-Agent overrides the global download string for one feed's audio, artwork, chapters, and upstream transcripts. Save a printable ASCII string of up to 512 characters, or choose Use global to clear it. The API field `downloadUserAgentOverride` accepts a string or `null`; blank also clears it. Configuration export and import preserve the override. Changing the effective download string also allows a fresh attempt for artwork that failed with the previous string.
+
+Feed settings > Advanced > RSS User-Agent overrides the global RSS string for that feed's own fetches, the same way the download override works. The API field `feedUserAgentOverride` accepts a string or `null`; blank also clears it. Configuration export and import preserve the override. An override that fails validation (e.g. edited directly in the database) is ignored in favor of the global RSS string, with a warning logged once per feed until the stored value changes.
+
+Cross-fetch still selects a random alternate from its podcast-client pool. It excludes the feed's effective download string and any accepted fallback string, so setting an override preserves request variation.
 
 MinusPod identifies itself with two User-Agent strings, and hosts treat them differently. Bot mitigation on some CDNs refuses browser identifiers below a version floor that moves as new browsers ship. A string that worked last year starts drawing a 403 on download, even though the file is there. Other feed hosts do the reverse and answer only a declared podcast client. One string cannot satisfy both, so there are two.
 

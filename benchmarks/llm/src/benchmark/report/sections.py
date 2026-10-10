@@ -24,7 +24,14 @@ from .aggregate import (
 
 
 def _is_free_tier(s: ModelStats) -> bool:
-    return s.total_episode_cost == 0
+    return s.total_episode_cost == 0 and not s.native_unknown_cost_requests
+
+
+def _cost_label(s):
+    if s.native_unknown_cost_requests:
+        return 'unknown'
+    value = s.total_episode_cost
+    return f'${value:.8f}' if 0 < value < 0.0001 else f'${value:.4f}'
 
 
 # HTTP 5xx detector for the failures classifier. Matches "500", "502", etc.
@@ -80,7 +87,9 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
     acc_tiers = _assign_tiers(accuracy_rows)
     paid_rows = [s for s in stats.values() if not _is_free_tier(s)]
     free_rows = [s for s in stats.values() if _is_free_tier(s)]
-    value_rows = sorted(paid_rows, key=lambda s: s.avg_f05 / s.total_episode_cost, reverse=True)
+    value_rows = sorted((s for s in paid_rows
+                         if s.total_episode_cost > 0 and not s.native_unknown_cost_requests),
+                        key=lambda s: s.avg_f05 / s.total_episode_cost, reverse=True)
     free_by_f05 = sorted(free_rows, key=lambda s: s.avg_f05, reverse=True)
 
     lines = ["## TL;DR", "", "### Best Accuracy (F0.5 @ IoU >= 0.5)", ""]
@@ -101,7 +110,7 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
         lines.append(
             f"| {tier} | `{s.model}` | {s.avg_f05:.3f} | +/-{cis[s.model]:.3f} | "
             f"{s.avg_precision:.3f} | {s.avg_recall:.3f} | {s.avg_f1:.3f} | "
-            f"${s.total_episode_cost:.4f} | {s.p50_call_latency_ms / 1000:.1f}s | "
+            f"{_cost_label(s)} | {s.p50_call_latency_ms / 1000:.1f}s | "
             f"{s.json_compliance_mean:.2f} | {_reliability_flags(s)} |"
         )
 
@@ -119,7 +128,7 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
     for i, s in enumerate(value_rows, 1):
         lines.append(
             f"| {i} | `{s.model}` | {s.avg_f05 / s.total_episode_cost:.2f} | {s.avg_f05:.3f} | "
-            f"{s.avg_f1:.3f} | ${s.total_episode_cost:.4f} | {_reliability_flags(s)} |"
+            f"{s.avg_f1:.3f} | {_cost_label(s)} | {_reliability_flags(s)} |"
         )
 
     if free_by_f05:
@@ -163,7 +172,7 @@ def _render_quick_comparison(stats: dict[str, ModelStats], episodes: list[Episod
         "|" + "|".join("---" for _ in header) + "|",
     ]
     for s in sorted(stats.values(), key=lambda s: _avg_f1(s), reverse=True):
-        cells = [f"`{s.model}`", f"{_avg_f1(s):.3f}", f"${s.total_episode_cost:.4f}", f"{s.p50_call_latency_ms / 1000:.1f}s"]
+        cells = [f"`{s.model}`", f"{_avg_f1(s):.3f}", f"{_cost_label(s)}", f"{s.p50_call_latency_ms / 1000:.1f}s"]
         for ep in ad_eps:
             f1 = s.f1_per_episode.get(ep.ep_id)
             cells.append(f"{f1:.3f}" if f1 is not None else "-")
@@ -380,7 +389,12 @@ def _render_per_model_detail(stats: dict[str, ModelStats]) -> str:
     for s in sorted(stats.values(), key=lambda s: _avg_f1(s), reverse=True):
         lines.append(f"#### `{s.model}`\n")
         lines.append(f"- F1 (avg across episodes): **{_avg_f1(s):.3f}**")
-        lines.append(f"- Total cost / episode: **${s.total_episode_cost:.4f}**")
+        lines.append(f"- Total cost / episode: **{_cost_label(s)}**")
+        if s.native_known_cost_usd is not None:
+            lines.append(f'- Known native request cost: USD {s.native_known_cost_usd}; '
+                         f'{s.native_unknown_cost_requests} requests with unknown cost')
+            lines.append(f'- Native usage: {s.native_request_count} requests; '
+                         f'{s.native_unknown_usage_requests} requests with unknown tokens')
         lines.append(f"- p50 / p95 latency: {s.p50_call_latency_ms / 1000:.2f}s / {s.p95_call_latency_ms / 1000:.2f}s")
         lines.append(f"- JSON compliance: {s.json_compliance_mean:.2f}")
         lines.append(
@@ -479,7 +493,7 @@ def _render_deprecated(stats: dict[str, ModelStats]) -> str:
     lines.append("Historical data preserved; excluded from headline rankings.")
     lines.append("")
     for s in stats.values():
-        lines.append(f"- `{s.model}`: F1 {_avg_f1(s):.3f}, cost ${s.total_episode_cost:.4f}/ep")
+        lines.append(f"- `{s.model}`: F1 {_avg_f1(s):.3f}, cost {_cost_label(s)}/ep")
     return "\n".join(lines)
 
 
@@ -822,7 +836,8 @@ def _render_cost_breakdown(stats: dict[str, ModelStats]) -> str:
     """Input vs output share of each model's per-episode cost. Output-heavy
     rows are paying for verbosity or chain-of-thought, not transcript size."""
     rows = sorted(
-        [s for s in stats.values() if s.input_episode_cost + s.output_episode_cost > 0],
+        [s for s in stats.values() if s.input_episode_cost + s.output_episode_cost > 0
+         and not s.native_unknown_cost_requests],
         key=lambda s: -(s.input_episode_cost + s.output_episode_cost),
     )
     if not rows:

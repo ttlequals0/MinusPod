@@ -12,6 +12,8 @@ const providersState: ProvidersResponse = {
   openrouter: { configured: false, source: 'none' },
   whisper: { configured: false, source: 'none' },
   ollama: { configured: false, source: 'none' },
+  typesafe: { configured: false, source: 'none' },
+  'systemone-compatible': { configured: false, source: 'none' },
 };
 
 function renderSection(overrides: Partial<Parameters<typeof LLMProviderSection>[0]> = {}) {
@@ -21,9 +23,11 @@ function renderSection(overrides: Partial<Parameters<typeof LLMProviderSection>[
     <LLMProviderSection
       llmProvider="anthropic"
       openaiBaseUrl=""
+      systemoneBaseUrl=""
       pricingSourceMode="auto"
       onProviderChange={vi.fn()}
       onBaseUrlChange={vi.fn()}
+      onSystemOneBaseUrlChange={vi.fn()}
       onPricingSourceModeChange={vi.fn()}
       providersState={providersState}
       onProviderKeySave={vi.fn().mockResolvedValue(undefined)}
@@ -90,6 +94,20 @@ describe('LLMProviderSection: Provider A / Provider B labeling', () => {
     expect((screen.getByLabelText('Provider B max retries') as HTMLInputElement).placeholder).toBe('2');
     expect(screen.getAllByText('Blank uses the provider default. 0 sends one request with no retries.')).toHaveLength(2);
   });
+
+  it('accepts fractional native timeouts without imposing chat timeout limits', async () => {
+    const onProviderATimeoutSecondsChange = vi.fn();
+    renderSection({ llmProvider: 'typesafe', secondaryProviderEnabled: true, secondaryProvider: 'anthropic', onProviderATimeoutSecondsChange });
+    const native = screen.getByLabelText('Provider A request timeout (seconds)') as HTMLInputElement;
+    await userEvent.setup().type(native, '0.25');
+    expect(onProviderATimeoutSecondsChange).toHaveBeenLastCalledWith(0.25);
+    expect(native.validity.valid).toBe(true);
+    expect(native.max).toBe('');
+    const chat = screen.getByLabelText('Provider B request timeout (seconds)') as HTMLInputElement;
+    expect(chat.min).toBe('10');
+    expect(chat.max).toBe('3600');
+    expect(chat.step).toBe('1');
+  });
 });
 
 describe('LLMProviderSection: secondary provider toggle', () => {
@@ -115,6 +133,49 @@ describe('LLMProviderSection: secondary provider toggle', () => {
 });
 
 describe('LLMProviderSection: secondary provider block, once enabled', () => {
+  it('shows the primary native test failure detail', async () => {
+    const onProviderKeyTest = vi.fn().mockResolvedValue({ ok: false, detail: 'HTTP 401' });
+    renderSection({
+      llmProvider: 'typesafe',
+      providersState: { ...providersState, typesafe: providersState.anthropic },
+      onProviderKeyTest,
+    });
+    const form = screen.getByLabelText('TypeSafe API key').closest('form') as HTMLElement;
+    await userEvent.setup().click(within(form).getByRole('button', { name: 'Test' }));
+    expect(await within(form).findByText('HTTP 401')).toBeTruthy();
+  });
+
+  it('keeps native tests available without stage models and shows connection-only results in both slots', async () => {
+    const user = userEvent.setup();
+    const detail = 'Connection successful. Inference not tested.';
+    const result = { ok: true, reachable: true, detail, validation: 'model_catalog', inferenceChecked: false };
+    const onProviderKeyTest = vi.fn().mockResolvedValue(result);
+    const onConnectionTest = vi.fn().mockResolvedValue(result);
+    const onSecondaryConnectionTest = vi.fn().mockResolvedValue(result);
+    renderSection({
+      llmProvider: 'typesafe',
+      providersState: { ...providersState, typesafe: providersState.anthropic },
+      secondaryProviderEnabled: true,
+      secondaryProvider: 'systemone-compatible',
+      secondaryProviderApiKeyConfigured: true,
+      onProviderKeyTest, onConnectionTest, onSecondaryConnectionTest,
+    });
+
+    const primary = screen.getByLabelText('TypeSafe API key').closest('form') as HTMLElement;
+    const secondary = screen.getByLabelText('System One API key').closest('form') as HTMLElement;
+    for (const container of [primary, secondary]) {
+      await user.click(within(container).getByRole('button', { name: 'Test' }));
+      expect(await within(container).findByText(detail)).toBeTruthy();
+    }
+    for (const button of screen.getAllByRole('button', { name: 'Test connection' })) {
+      await user.click(button);
+    }
+    expect(screen.getAllByRole('status').map((status) => status.textContent)).toEqual([detail, detail]);
+    expect(onProviderKeyTest).toHaveBeenCalledWith('typesafe');
+    expect(onConnectionTest).toHaveBeenCalledWith('typesafe', undefined);
+    expect(onSecondaryConnectionTest).toHaveBeenCalledTimes(2);
+  });
+
   it('exposes the same controls as the primary block: type select, key field, connection test', () => {
     renderSection({ secondaryProviderEnabled: true });
     expect(screen.getByLabelText('Provider B type')).toBeDefined();

@@ -18,7 +18,8 @@ from api import (
 )
 from config import (
     is_keep_like, is_pending_review, normalize_segment_category, resolve_chapters_in_notes,
-    title_matches_skip_patterns,
+    title_matches_skip_patterns, description_matches_skip_patterns,
+    duration_outside_feed_range, episode_matches_feed_filters,
     resolve_processing_mode, DEFAULT_SEGMENT_ACTION,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
@@ -42,6 +43,7 @@ from llm_client import (
 )
 import run_context
 from llm_route import resolve_route
+from llm_capabilities import chapters_capability_error
 from processing_queue import ProcessingQueue
 from rate_limit_hold import (
     get_active_hold, hold_message, hold_queue_for_provider_limit,
@@ -67,6 +69,9 @@ logger = logging.getLogger('podcast.api')
 # 'deferred' episodes (#482) are included so a stuck offline queue
 # can be force-retried or cleaned up by hand.
 REPROCESSABLE_STATUSES = ('processed', 'failed', 'permanently_failed', 'deferred')
+
+# One more than the 500-episode bulk-action cap enforced below.
+SELECTION_FETCH_CAP = 501
 
 
 def _float_arg(name, default=None):
@@ -135,7 +140,7 @@ def _same_cut(a, b, tol=0.05) -> bool:
 
 def chapters_only_decisions(markers, applied_cuts, original_duration,
                             actions=None, false_positives=(), confirmed=(),
-                            keep_override=None):
+                            keep_override=None, replacement_sound_enabled=True):
     """True when cutting the current markers reproduces the applied cuts.
 
     The decisions then changed only which ad chapters the audio should carry,
@@ -147,6 +152,8 @@ def chapters_only_decisions(markers, applied_cuts, original_duration,
     safe fallback.
     """
     if applied_cuts is None or not original_duration:
+        return False
+    if not replacement_sound_enabled and any('replacement_duration' not in cut for cut in applied_cuts):
         return False
     # A marker without bounds cannot be compared; dropping it shortens the
     # wanted list, which answers False rather than guessing.
@@ -162,7 +169,7 @@ def chapters_only_decisions(markers, applied_cuts, original_duration,
                 for m, action in resolved]
     protected = [*(m for m, action in resolved if is_keep_like(action)),
                  *user_trimmed_keep_ranges(list(confirmed))]
-    wanted = AudioProcessor().compute_applied_cuts(
+    wanted = AudioProcessor(replacement_sound_enabled=replacement_sound_enabled).compute_applied_cuts(
         [dict(m, beep=(action == 'beep')) for m, action in resolved
          if _marker_wants_cut(m, action, false_positives, confirmed)],
         original_duration, cut_barriers=protected, hard_barriers=protected,
@@ -188,6 +195,7 @@ def _apply_needs_chapters_only(db, slug, episode_id, episode, markers) -> bool:
             episode['podcast_id'], episode_id),
         confirmed=db.get_confirmed_corrections(
             episode['podcast_id'], episode_id),
+        replacement_sound_enabled=db.resolve_audio_output(slug)['replacement_sound_enabled'],
         keep_override=lambda m: _keep_overridden(dict(m), differential_override))
 
 
@@ -284,19 +292,24 @@ def list_episodes(slug):
     offset = max(0, request.args.get('offset', 0, type=int))
     sort_by = request.args.get('sort_by', 'published_at')
     sort_dir = request.args.get('sort_dir', 'desc')
+    search = request.args.get('search', '').strip()
+    selection = request.args.get('selection', '').lower() == 'true'
+    query_limit = SELECTION_FETCH_CAP if selection else limit
+    if selection:
+        offset = 0
 
     if is_recents_feed(podcast):
         # Membership rows belong to other feeds; each carries its source.
         cutoff = recents_cutoff(podcast)
         if status in (None, 'all', 'processed'):
-            episodes = db.get_recent_processed_episodes(cutoff, limit=limit, offset=offset,
-                                                        sort_by=sort_by, sort_dir=sort_dir)
-            total = db.count_recent_processed_episodes(cutoff)
+            episodes = db.get_recent_processed_episodes(cutoff, limit=query_limit, offset=offset,
+                                                        sort_by=sort_by, sort_dir=sort_dir, search=search)
+            total = db.count_recent_processed_episodes(cutoff, search=search)
         else:
             episodes, total = [], 0
     else:
-        episodes, total = db.get_episodes(slug, status=status, limit=limit, offset=offset,
-                                          sort_by=sort_by, sort_dir=sort_dir)
+        episodes, total = db.get_episodes(slug, status=status, limit=query_limit, offset=offset,
+                                          sort_by=sort_by, sort_dir=sort_dir, search=search, selection=selection)
 
     # One batched lookup for the whole page rather than one query per row.
     job_states = db.get_episode_job_states([ep['episode_id'] for ep in episodes])
@@ -305,12 +318,36 @@ def list_episodes(slug):
     for ep in episodes:
         source_slug = ep.get('source_slug')
         owner_slug = source_slug or slug
+        if selection:
+            filters = ({
+                'min_duration_seconds': ep.get('source_min_duration_seconds'),
+                'max_duration_seconds': ep.get('source_max_duration_seconds'),
+            } if source_slug else podcast)
+            status_key = EpisodeStatus.to_api(ep['status'])
+            episode_list.append({
+                'id': ep['episode_id'], 'status': status_key,
+                'jobState': _job_state(status_key, job_states.get((owner_slug, ep['episode_id']))),
+                'titleSkipped': title_matches_skip_patterns(
+                    ep.get('title'), ep.get('source_title_skip_patterns')
+                    if source_slug else podcast.get('title_skip_patterns')),
+                'descriptionSkipped': description_matches_skip_patterns(
+                    ep.get('description'), ep.get('source_description_skip_patterns')
+                    if source_slug else podcast.get('description_skip_patterns')),
+                'durationSkipped': duration_outside_feed_range(ep.get('rss_duration'), filters),
+            })
+            continue
         item = _episode_base_json(
             ep, slug=owner_slug,
             is_local=(ep.get('source_feed_type') == 'local') if source_slug else is_local,
             storage=storage,
             title_skip_patterns=(ep.get('source_title_skip_patterns')
-                                 if source_slug else podcast.get('title_skip_patterns')))
+                                 if source_slug else podcast.get('title_skip_patterns')),
+            description_skip_patterns=(ep.get('source_description_skip_patterns')
+                                       if source_slug else podcast.get('description_skip_patterns')),
+            duration_filters=({
+                'min_duration_seconds': ep.get('source_min_duration_seconds'),
+                'max_duration_seconds': ep.get('source_max_duration_seconds'),
+            } if source_slug else podcast))
         item['ad_count'] = ep['ads_removed']
         item['episodeNumber'] = ep.get('episode_number')
         item['jobState'] = _job_state(
@@ -321,10 +358,12 @@ def list_episodes(slug):
         episode_list.append(item)
 
     return json_response({
-        'episodes': episode_list,
+        'episodes': [] if selection else episode_list,
+        **({'selection': episode_list} if selection else {}),
         'total': total,
         'limit': limit,
-        'offset': offset
+        'offset': offset,
+        **({'truncated': total > len(episode_list)} if selection else {}),
     })
 
 
@@ -382,7 +421,8 @@ def _episode_job_state(db, slug, episode_id, status):
 
 
 def _episode_base_json(ep, *, slug=None, is_local=False, storage=None,
-                       title_skip_patterns=None):
+                       title_skip_patterns=None, description_skip_patterns=None,
+                       duration_filters=None):
     """Shared camelCase fields for the episode list and detail serializers.
 
     Status is mapped for frontend compatibility: 'processed' -> 'completed';
@@ -426,6 +466,9 @@ def _episode_base_json(ep, *, slug=None, is_local=False, storage=None,
         'pendingReviewCount': ep.get('pending_review_count', 0),
         'titleSkipped': title_matches_skip_patterns(
             ep.get('title'), title_skip_patterns),
+        'descriptionSkipped': description_matches_skip_patterns(
+            ep.get('description'), description_skip_patterns),
+        'durationSkipped': duration_outside_feed_range(ep.get('rss_duration'), duration_filters),
         'passthroughEnabled': bool(ep.get('passthrough_enabled')),
         # Stable Process/Reprocess eligibility: a completed episode that is
         # queued again reverts to 'pending', so status alone flips the label.
@@ -744,7 +787,9 @@ def get_episode(slug, episode_id):
 
     base = _episode_base_json(
         episode, slug=slug, is_local=is_local, storage=storage,
-        title_skip_patterns=podcast.get('title_skip_patterns'))
+        title_skip_patterns=podcast.get('title_skip_patterns'),
+        description_skip_patterns=podcast.get('description_skip_patterns'),
+        duration_filters=podcast)
     # Separate from description: the local-episode editor round-trips that
     # field, and the block must never be written back (#720).
     base['chapterNotes'] = (format_chapter_block(episode.get('chapters_json'))
@@ -1271,6 +1316,7 @@ def regenerate_chapters(slug, episode_id):
         return error_response('Episode not found', 404)
     if not episode['has_transcript_vtt']:
         return error_response('No VTT transcript available - full reprocess required', 400)
+    chapters_route = None
     try:
         chapters_route = resolve_route('chapters')
         chapters_provider = chapters_route.provider_key
@@ -1280,6 +1326,14 @@ def regenerate_chapters(slug, episode_id):
         # legacy unscoped check, a safe superset of any real provider hold.
         chapters_provider = None
         chapters_slot = 'primary'
+    if chapters_route is not None:
+        chapters_error = chapters_capability_error(
+            db, chapters_route.provider_key, chapters_route.model_id)
+    else:
+        chapters_error = chapters_capability_error(db)
+    if chapters_error:
+        return error_response('Chapter regeneration requires a supported chat provider and model; '
+                              'System One does not support chapters', 400)
     hold_until, _ = get_active_hold(db, chapters_provider, chapters_slot)
     if hold_until:
         return error_response(
@@ -1637,12 +1691,11 @@ def bulk_episode_action(slug):
             if not episode:
                 skipped += 1
                 continue
-            if title_matches_skip_patterns(
-                    episode.get('title'), podcast.get('title_skip_patterns')):
+            if episode_matches_feed_filters(episode, podcast):
                 skipped += 1
                 skipped_episodes.append({
                     'episodeId': episode_id,
-                    'reason': 'Title matches feed title-skip patterns',
+                    'reason': 'Episode matches feed filters',
                 })
                 continue
             if episode.get('status') == EpisodeStatus.DISCOVERED.value:

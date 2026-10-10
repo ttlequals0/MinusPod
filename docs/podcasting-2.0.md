@@ -8,7 +8,6 @@
 
 - [The rule](#the-rule)
 - [What MinusPod supports](#what-minuspod-supports)
-- [What MinusPod does not support, and why](#what-minuspod-does-not-support-and-why)
 - [Podping](#podping)
 - [Feed identity](#feed-identity)
 - [Upstream namespace URIs](#upstream-namespace-uris)
@@ -112,23 +111,26 @@ Settings > Transcripts & Chapters sets the chapter mode: **Auto** (the default),
 choice; an explicit Feed Settings value overrides it. During normal processing,
 the mode is applied only when Generate Chapters is on.
 
-**Auto** preserves the podcast's own chapters when enough of them survive
-the cut, checking two sources before falling back to generation. The
-ffmpeg cut step already remaps any embedded ID3 chapter markers onto the
-cut audio's timeline, so once an episode is processed MinusPod first
-probes the finished file for what made it through. When at least two
-survive, they become the served `podcast:chapters` JSON: the publisher's
-own titles and boundaries, shifted to account for the removed ads.
+Encrypted, compressed, restricted, or malformed ID3 chapter tags stop processing
+before existing audio and chapter data are replaced.
 
-When fewer than two embedded chapters survive, or the episode has none,
-MinusPod checks whether the feed instead declares its chapters in a
-separate podcast:chapters JSON file, captured at the last feed refresh. If
-it does, MinusPod fetches that file, remaps its timestamps the same way,
-and uses the result when at least two chapters survive. A failed or
+The cut step remaps embedded ID3 chapters and preserves their images and links.
+**Auto** keeps surviving ID3 publisher chapters, including a single chapter.
+When preserving publisher chapters, recuts recover their metadata from the
+retained original and remap it to the new cut timeline.
+
+Chapter images are served locally when their JPEG or PNG data fits the artwork
+size limit. Other embedded image formats remain in the ID3 tags. Local image
+URLs retain the validated feed key supplied with the chapter request.
+
+When usable embedded chapters are unavailable, MinusPod checks whether the feed
+declares its chapters in a separate `podcast:chapters` JSON file, captured at the
+last feed refresh. If it does, MinusPod fetches that file, remaps its timestamps
+the same way, and uses the result when at least two chapters survive. A failed or
 malformed fetch counts as unknown, not as "no chapters", and it falls
 back to generation rather than losing chapters altogether.
 
-Only when neither source yields enough survivors does MinusPod fall back
+Only when neither source yields usable chapters does MinusPod fall back
 to AI-generated chapters. If the embedded probe itself fails (for example
 a transient ffprobe error), MinusPod treats that as unknown too, and skips
 the chapter step for that run rather than risk overwriting the ID3 frames
@@ -145,9 +147,6 @@ chapters they already have until they are reprocessed.
 Auto is the default because it keeps the publisher's chapters
 whenever they hold up across the cut; replacing accurate publisher
 chapters with generated ones is what prompted issue #560.
-
-## What MinusPod does not support, and why
-
 
 ### Chapters in episode descriptions
 

@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import os
+import re
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from config import SYSTEMONE_TUNABLE_DEFAULTS
+from systemone.tuning import merge_profile
 
 
 @dataclass(frozen=True)
@@ -19,8 +23,9 @@ class MinusPodConfig:
 class ProviderConfig:
     name: str
     client: str
-    api_key_env: str
+    api_key_env: str | None
     base_url: str | None = None
+    systemone: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -100,13 +105,24 @@ def _parse(raw: dict[str, Any], base_dir: Path) -> BenchmarkConfig:
     providers: dict[str, ProviderConfig] = {}
     for name, body in providers_raw.items():
         client = _require(body, "client", f"providers.{name}")
-        if client not in ("anthropic", "openai_compatible"):
-            raise ConfigError(f"providers.{name}.client must be 'anthropic' or 'openai_compatible', got {client!r}")
+        if client not in ("anthropic", "openai_compatible", "typesafe", "systemone_compatible"):
+            raise ConfigError(f"providers.{name}.client must be anthropic, openai_compatible, typesafe, or systemone_compatible, got {client!r}")
+        tuning = {}
+        if client in ('typesafe', 'systemone_compatible'):
+            provider_type = 'typesafe' if client == 'typesafe' else 'systemone-compatible'
+            defaults = SYSTEMONE_TUNABLE_DEFAULTS[provider_type]
+            profile = merge_profile(defaults, {}, body.get('systemone', {}))
+            tuning = {re.sub(r'(?<!^)(?=[A-Z])', '_', key).lower(): value
+                      for key, value in profile.items()}
+            if client == 'systemone_compatible' and not body.get('base_url'):
+                raise ConfigError(f'providers.{name}.base_url required for System One compatible')
         providers[name] = ProviderConfig(
             name=name,
             client=client,
-            api_key_env=_require(body, "api_key_env", f"providers.{name}"),
+            api_key_env=(body.get("api_key_env") if client == "systemone_compatible"
+                         else _require(body, "api_key_env", f"providers.{name}")),
             base_url=body.get("base_url"),
+            systemone=tuning,
         )
 
     models_raw = raw.get("models", [])

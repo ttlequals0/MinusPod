@@ -56,8 +56,8 @@ def stage():
 
 def test_ok_run_persists_spans_and_stats(stage, caplog):
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
-        payload, run_stats = stage.run()
-    stage.fetch.assert_called_once_with(URL, 'text/vtt')
+        payload, run_stats = stage.run(podcast={**FEED, 'download_user_agent_override': 'Feed/2.0'})
+    stage.fetch.assert_called_once_with(URL, 'text/vtt', user_agent='Feed/2.0')
     assert payload['status'] == 'ok'
     assert payload['spans'] == [SPAN]
     assert payload['source_url'] == URL

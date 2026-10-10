@@ -16,7 +16,7 @@ from config import (
     FEED_REFRESH_OUTAGE_MIN_FEEDS, MAX_EPISODE_RETRIES,
     PROCESSING_MODE_CUE_ONLY, PROCESSING_MODE_PASSTHROUGH,
     resolve_episode_log_retention_days, resolve_processing_mode,
-    resolve_skip_transcription, title_matches_skip_patterns,
+    resolve_skip_transcription, episode_matches_feed_filters,
 )
 from database.queue import PENDING_QUEUE_LIMIT
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
@@ -354,18 +354,21 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
 
         # Every status write below reports on the row this claim
         # holds, so all of them go through close_claimed_queue_row.
-        # One podcast fetch feeds both gates below (auto-process
-        # override and title_skip_patterns live on the same row).
+        # Resolve automatic processing and feed filters from one podcast row.
         podcast = db.get_podcast_by_slug(slug)
         auto_process_enabled = db.is_auto_process_enabled_for_podcast(slug, podcast=podcast)
-        title_blacklisted = title_matches_skip_patterns(
-            title, podcast.get('title_skip_patterns') if podcast else None)
+        episode_row = None
+        if podcast and (podcast.get('min_duration_seconds') is not None
+                        or podcast.get('max_duration_seconds') is not None):
+            episode_row = db.get_episode(slug, episode_id)
+        feed_filtered = episode_matches_feed_filters(
+            {**(episode_row or {}), 'title': title, 'description': description}, podcast)
 
         # An explicit user reprocess bypasses both gates below; only
         # fetched when a gate would otherwise skip this claim.
         user_requested = False
-        if not auto_process_enabled or title_blacklisted:
-            episode_row = db.get_episode(slug, episode_id)
+        if not auto_process_enabled or feed_filtered:
+            episode_row = episode_row or db.get_episode(slug, episode_id)
             user_requested = bool(episode_row and episode_row.get('reprocess_requested_at'))
 
         # Auto-process gate (inside the try so a gate error reverts the
@@ -379,11 +382,10 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
                 return 'skipped'
             refresh_logger.info(f"[{slug}:{episode_id}] Auto-process disabled but user-initiated reprocess; honoring")
 
-        # Title blacklist gate: mirrors the auto-process gate above,
-        # also bypassed by an explicit user reprocess.
-        if title_blacklisted and not user_requested:
-            db.close_claimed_queue_row(queue_id, 'completed', 'skipped: title blacklist')
-            refresh_logger.info(f"[{slug}:{episode_id}] Skipped - title blacklist match: {title}")
+        # Explicit manual reprocessing bypasses the feed filters.
+        if feed_filtered and not user_requested:
+            db.close_claimed_queue_row(queue_id, 'completed', 'skipped: feed filters')
+            refresh_logger.info(f"[{slug}:{episode_id}] Skipped - feed filter match: {title}")
             return 'skipped'
 
         refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")

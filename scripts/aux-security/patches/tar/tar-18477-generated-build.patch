@@ -1,0 +1,22 @@
+Subject: Update generated Makefiles for the tar security backport
+
+Keep release-generated build files consistent with the upstream Makefile changes.
+
+--- a/lib/Makefile.in
++++ b/lib/Makefile.in
+@@ -1753,6 +1753,7 @@
+ AM_CPPFLAGS = -I$(top_srcdir)/gnu -I../ -I../gnu
+ AM_CFLAGS = $(GNULIB_WARN_CFLAGS) $(WERROR_CFLAGS)
+ noinst_HEADERS = \
++ mkdtempat.h\
+  paxlib.h\
+  rmt.h\
+  system.h\
+@@ -1761,6 +1762,7 @@
+  xattr-at.h
+ 
+ libtar_a_SOURCES = \
++  mkdtempat.c mkdtempat.h \
+   paxerror.c paxexit-status.c paxlib.h paxnames.c \
+   rtapelib.c \
+   rmt.h \

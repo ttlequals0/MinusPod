@@ -142,7 +142,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null } }) =>
+    mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; removeWithAd?: boolean; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null } }) =>
       updateCueTemplate(id, patch),
     onSuccess: invalidate,
     onError: (e) => setActionError(getErrorMessage(e, 'Update failed')),
@@ -391,6 +391,7 @@ function CueTemplatesPanel({ slug }: Props) {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <Checkbox
+                    className="min-h-11 min-w-11 justify-center"
                     checked={t.enabled}
                     onChange={() => handleToggle(t)}
                     disabled={t.owned === false}
@@ -441,6 +442,17 @@ function CueTemplatesPanel({ slug }: Props) {
                         {t.sourceEpisodeId ? ` of episode ${t.sourceEpisodeId.slice(0, 8)}` : ''}
                         {t.lastMatchAt ? ` - last match ${formatDate(t.lastMatchAt)}` : ''}
                       </p>
+                      {t.cueType.startsWith('ad_break_') && (
+                        <Checkbox
+                          className="min-h-11"
+                          label="Remove cue with ad"
+                          labelClassName="text-xs text-muted-foreground"
+                          checked={t.removeWithAd ?? true}
+                          onChange={(removeWithAd) => updateMutation.mutate({ id: t.id, patch: { removeWithAd } })}
+                          disabled={t.owned === false || updateMutation.isPending}
+                          ariaLabel={`Remove cue with ad: ${t.label}`}
+                        />
+                      )}
                       {t.owned !== false && t.scope === 'network' && networkId
                         && t.networkId && t.networkId !== networkId && (
                         <p className="text-xs text-warning">
@@ -630,8 +642,8 @@ function CueTemplatesPanel({ slug }: Props) {
                     {h.label || `Template ${h.templateId}`}: {h.rejected} rejected
                     {h.confirmed > 0 && `, ${h.confirmed} confirmed`}
                     {h.hint === 'raise_threshold'
-                      ? ' -- rejections sit just above the current threshold'
-                      : ' -- rejections spread across the score range; the capture matches the wrong audio'}
+                      ? '. Rejections sit just above the current threshold.'
+                      : '. Rejections span the score range; this capture matches the wrong audio.'}
                   </p>
                 ))}
               </div>

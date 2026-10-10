@@ -30,12 +30,12 @@ class FakeTranscriber:
 
 @pytest.fixture
 def agents(monkeypatch):
-    monkeypatch.setattr(processing, 'download_user_agent', lambda: 'Browser/1')
-    monkeypatch.setattr(processing, 'feed_user_agent', lambda: 'Podcaster/1')
+    monkeypatch.setattr(processing, 'download_user_agent', lambda podcast=None: (podcast or {}).get('download_user_agent_override') or 'Browser/1')
+    monkeypatch.setattr(processing, 'feed_user_agent', lambda podcast=None: 'Podcaster/1')
 
 
 def test_user_agent_floor_downloads_with_the_accepted_string(monkeypatch, agents, caplog):
-    fake = FakeTranscriber({None: (False, 'CDN refused the request (403)'),
+    fake = FakeTranscriber({'Browser/1': (False, 'CDN refused the request (403)'),
                             'Podcaster/1': (True, None)})
     monkeypatch.setattr(processing, 'transcriber', fake)
     with caplog.at_level(logging.WARNING):
@@ -46,7 +46,7 @@ def test_user_agent_floor_downloads_with_the_accepted_string(monkeypatch, agents
 
 
 def test_block_on_both_agents_is_transient(monkeypatch, agents):
-    fake = FakeTranscriber({None: (False, 'CDN refused the request (403)'),
+    fake = FakeTranscriber({'Browser/1': (False, 'CDN refused the request (403)'),
                             'Podcaster/1': (False, 'CDN refused the request (403)')})
     monkeypatch.setattr(processing, 'transcriber', fake)
     with pytest.raises(Exception) as exc:
@@ -57,8 +57,18 @@ def test_block_on_both_agents_is_transient(monkeypatch, agents):
 
 
 def test_other_probe_failures_do_not_reprobe(monkeypatch, agents):
-    fake = FakeTranscriber({None: (False, 'CDN not ready (404)')})
+    fake = FakeTranscriber({'Browser/1': (False, 'CDN not ready (404)')})
     monkeypatch.setattr(processing, 'transcriber', fake)
     with pytest.raises(Exception) as exc:
         _download_episode_audio(URL)
     assert str(exc.value) == 'CDN not ready (404)'
+
+
+def test_feed_override_and_accepted_fallback_are_recorded(monkeypatch, agents):
+    fake = FakeTranscriber({'Feed/2': (False, 'CDN refused the request (403)'),
+                            'Podcaster/1': (True, None)})
+    monkeypatch.setattr(processing, 'transcriber', fake)
+    outcome = {}
+    assert _download_episode_audio(URL, {'download_user_agent_override': 'Feed/2'}, outcome) == '/tmp/audio.mp3'
+    assert outcome == {'download_user_agent': 'Feed/2', 'fallback_user_agent': 'Podcaster/1'}
+    assert fake.downloaded_with == ['Podcaster/1']

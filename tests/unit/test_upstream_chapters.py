@@ -153,3 +153,13 @@ def test_bool_start_time_and_non_http_asset_urls_are_dropped(monkeypatch):
     monkeypatch.setattr('upstream_chapters.safe_get', lambda *a, **k: _response(body))
     out = fetch_upstream_chapters('https://example.com/ch.json')
     assert out == [{'startTime': 10, 'title': 'ok', 'url': 'https://ok.example/x'}]
+
+
+def test_explicit_feed_user_agent_is_sent(monkeypatch):
+    seen = []
+    def fetch(*args, **kwargs):
+        seen.append(kwargs['headers']['User-Agent'])
+        return _response(b'{"chapters": []}')
+    monkeypatch.setattr('upstream_chapters.safe_get', fetch)
+    assert fetch_upstream_chapters('https://example.com/chapters.json', user_agent='Feed/2.0') == []
+    assert seen == ['Feed/2.0']

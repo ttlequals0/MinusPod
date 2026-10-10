@@ -53,9 +53,7 @@ function RecentsFeedForm({ onCancel }: { onCancel: () => void }) {
   return (
     <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }} className="space-y-4 max-w-xl">
       <p className="text-sm text-muted-foreground">
-        One feed with every episode processed from now on, across all your podcasts.
-        Subscribe to it once; podcasts you add later show up without another import.
-        Episodes published before today stay out, even when they are reprocessed.
+        One feed for newly processed episodes across your podcasts. Episodes published before today stay out.
       </p>
       <div>
         <label htmlFor="recentsTitle" className="block text-sm font-medium text-foreground mb-2">Title</label>
@@ -657,7 +655,7 @@ function AddFeed() {
         <details className="group">
           <summary className="text-sm text-primary hover:underline cursor-pointer list-none">
             Advanced options
-            <span className="text-muted-foreground font-normal"> -- applies to URL and search results</span>
+            <span className="text-muted-foreground font-normal"> (URL and search feeds)</span>
           </summary>
           <div className="mt-4 space-y-4">
             <div>
@@ -722,7 +720,7 @@ function AddFeed() {
                 onChange={setOnlyExposeProcessedEpisodes}
               />
               <p className="mt-1 text-sm text-muted-foreground">
-                Hides upstream episodes from the served RSS feed until they finish processing. "Global Default" follows the site-wide setting; per-feed values override it.
+                Hide upstream episodes until processing finishes. Global Default uses the site-wide setting.
               </p>
             </div>
           </div>

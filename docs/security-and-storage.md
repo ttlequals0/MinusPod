@@ -181,6 +181,8 @@ The copies are written with SQLite's online backup API, so they stay consistent 
 
 The default destination is `/app/data/backups/` inside the container. When MinusPod creates the destination directory it sets mode `0700`; a directory you point it at that already exists keeps its own permissions. Each backup file is written with mode `0600`, so other UIDs on the host cannot read a dump that holds provider secrets. These files carry the same sensitive contents listed under [Database backup sensitivity](#database-backup-sensitivity) above, and unlike the download path they are never encrypted. Point the destination at a directory you trust, and treat it like a credential store.
 
+Scheduled backups create snapshots in private staging directories and use directory descriptors for atomic publication. This prevents temporary-file symlinks from redirecting writes. Detected destination changes stop publication and preserve the previous backup. Scheduled backups require Linux `/proc/self/fd`, available in the Docker images.
+
 ### Restore and passphrase rotation
 
 Prepare a new database file while MinusPod is stopped:

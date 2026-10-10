@@ -2,7 +2,7 @@
   <img src="frontend/public/logo.png" alt="MinusPod" width="400" />
 </p>
 
-MinusPod is a self-hosted server that removes ads from podcasts before you ever hit play. It transcribes episodes with Whisper, uses an LLM to detect and cut ad segments, and builds cross-episode ad patterns from your corrections so repeat sponsors get caught without re-asking the LLM. Bring your own LLM: Claude, Ollama, OpenRouter, or any OpenAI-compatible provider.
+MinusPod is a self-hosted server that removes ads from podcasts before you ever hit play. It transcribes episodes with Whisper, uses an LLM to detect and cut ad segments, and builds cross-episode ad patterns from your corrections so repeat sponsors get caught without re-asking the LLM. Bring your own LLM: Claude, Ollama, OpenRouter, OpenAI-compatible providers, or System One.
 
 <p align="center">
   <img src="docs/screenshots/dashboard-desktop-hulu.png" alt="MinusPod dashboard on desktop" width="600" />
@@ -18,7 +18,7 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 - [Quick start](#quick-start)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
-- [Jev experiment](#jev-experiment)
+- [System One](#system-one)
 - [Disclaimer](#disclaimer)
 - [License](#license)
 - [LLM disclosure](#llm-disclosure)
@@ -27,6 +27,7 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 
 **Ad detection**
 - First-pass LLM detection over sliding windows, plus an automatic verification pass on the re-cut audio
+- Native System One support for detection and verification, with experimental review. [Details](docs/system-one.md)
 - Optional ad-reviewer stage that confirms, adjusts, or rejects each cut and can resurrect borderline detections
 - Audio-side signals: loudness analysis, DAI transition detection, pre/post-roll, and a VAD-gap detector for spans Whisper drops
 - Per-feed audio cue detection that snaps cuts to a show's jingle or stinger
@@ -136,9 +137,9 @@ Or browse the [full docs index](docs/README.md).
 
 Bug reports, feature requests, enhancements, and general feedback are all welcome. Open an issue using one of the templates, or send a pull request if you already have a fix in hand. For larger changes, open an issue first so we can talk through the approach before you write code. Two areas have their own contribution flows: ad patterns ([Community Patterns](patterns/README.md)) and benchmark results ([Benchmark Contributing](benchmarks/llm/CONTRIBUTING.md)). Fork-derived features and community bug reports are credited in the CHANGELOG.md entry that ships them; merged commits are credited automatically on the repo's contributors graph.
 
-## Jev experiment
+## System One
 
-[MinusPodJev](https://github.com/ttlequals0/MinusPodJev) is a FastAPI proxy that makes TypeSafe Jev available to MinusPod as an OpenAI-compatible ad-detection model. Support is limited to the ad detection and reviewer phases.
+MinusPod has native TypeSafe and System One-compatible providers for detection and verification. Ad category classification is supported; the optional reviewer is experimental. Chapter generation and Pattern Cleanup require a chat-completion provider. See [System One setup, phase support, migration, and statistics](docs/system-one.md).
 
 ## Disclaimer
 

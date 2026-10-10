@@ -95,7 +95,7 @@ def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
     below the plot so each model's color sits next to its name."""
     plt = _plt()
 
-    points = [(s, _avg_f1(s)) for s in stats.values()]
+    points = [(s, _avg_f1(s)) for s in stats.values() if not s.native_unknown_cost_requests]
     points = [(s, f1) for s, f1 in points if not (f1 == 0 and s.total_episode_cost == 0)]
     points.sort(key=lambda t: (-t[1], t[0].total_episode_cost))  # rank by F1 desc, then cost asc
 
@@ -155,7 +155,8 @@ def _render_cost_split_chart(stats: dict[str, ModelStats], path: Path) -> None:
     plt = _plt()
     import numpy as np
 
-    rows = [s for s in stats.values() if s.input_episode_cost + s.output_episode_cost > 0]
+    rows = [s for s in stats.values() if s.input_episode_cost + s.output_episode_cost > 0
+            and not s.native_unknown_cost_requests]
     if not rows:
         return
     rows.sort(key=lambda s: s.input_episode_cost + s.output_episode_cost)

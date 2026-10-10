@@ -1,0 +1,13 @@
+--- a/src/mat4.c
++++ b/src/mat4.c
+@@ -284,6 +284,10 @@
+ 	else if (rows > SF_MAX_CHANNELS)
+ 	{	psf_log_printf (psf, "*** Error : channel count %d > SF_MAX_CHANNELS.\n", rows) ;
+ 		return SFE_CHANNEL_COUNT ;
++		}
++	else if (cols < 0)
++	{	psf_log_printf (psf, "*** Error : negative frame count %d.\n", cols) ;
++		return SFE_MALFORMED_FILE ;
+ 		} ;
+ 
+ 	psf->sf.channels	= rows ;

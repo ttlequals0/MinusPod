@@ -18,8 +18,16 @@ from llm_capabilities import (
     mark_model_omits_temperature,
     set_fallback,
     supports_json_schema,
+    systemone_supported_phases,
     translate_reasoning_effort,
 )
+
+
+def test_systemone_phase_support_uses_only_explicit_provider_and_model_ids():
+    supported = frozenset({'detection', 'verification', 'review'})
+    assert systemone_supported_phases('typesafe', 'custom-model') == supported
+    assert systemone_supported_phases('openai-compatible', 'JEV-PREVIEW') == supported
+    assert systemone_supported_phases('openai-compatible', 'custom-jev-model') is None
 
 
 @pytest.fixture(autouse=True)

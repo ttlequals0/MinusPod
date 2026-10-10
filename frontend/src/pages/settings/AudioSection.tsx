@@ -7,6 +7,12 @@ import { selectBase } from '../../components/fieldStyles';
 interface AudioSectionProps {
   audioBitrate: string;
   onAudioBitrateChange: (bitrate: string) => void;
+  audioEncoderCompressionLevel: string;
+  onAudioEncoderCompressionLevelChange: (level: string) => void;
+  audioReplacementSoundEnabled: boolean;
+  onAudioReplacementSoundEnabledChange: (enabled: boolean) => void;
+  audioMp3StreamCopyEnabled: boolean;
+  onAudioMp3StreamCopyEnabledChange: (enabled: boolean) => void;
   audioNormalizeEnabled: boolean;
   onAudioNormalizeEnabledChange: (enabled: boolean) => void;
   audioNormalizeIntensity: string;
@@ -18,6 +24,12 @@ interface AudioSectionProps {
 function AudioSection({
   audioBitrate,
   onAudioBitrateChange,
+  audioEncoderCompressionLevel,
+  onAudioEncoderCompressionLevelChange,
+  audioReplacementSoundEnabled,
+  onAudioReplacementSoundEnabledChange,
+  audioMp3StreamCopyEnabled,
+  onAudioMp3StreamCopyEnabledChange,
   audioNormalizeEnabled,
   onAudioNormalizeEnabledChange,
   audioNormalizeIntensity,
@@ -38,14 +50,48 @@ function AudioSection({
             onChange={(e) => onAudioBitrateChange(e.target.value)}
             className={`w-full ${selectBase}`}
           >
-            <option value="64k">64 kbps - Smallest file size</option>
-            <option value="96k">96 kbps - Good for speech</option>
-            <option value="128k">128 kbps - Standard quality (recommended)</option>
-            <option value="192k">192 kbps - High quality</option>
-            <option value="256k">256 kbps - Maximum quality</option>
+            <option value="64k">64 kbps</option>
+            <option value="96k">96 kbps</option>
+            <option value="128k">128 kbps (recommended)</option>
+            <option value="192k">192 kbps</option>
+            <option value="256k">256 kbps</option>
           </select>
           <p className="mt-1 text-sm text-muted-foreground">
-            Higher bitrates produce better audio quality but larger file sizes
+            Applies when the episode is re-encoded.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="audioEncoderCompressionLevel" className="block text-sm font-medium text-foreground mb-2">
+            Encoder Compression Level
+          </label>
+          <select
+            id="audioEncoderCompressionLevel"
+            value={audioEncoderCompressionLevel}
+            onChange={(e) => onAudioEncoderCompressionLevelChange(e.target.value)}
+            className={`w-full ${selectBase}`}
+          >
+            <option value="default">Default</option>
+            {Array.from({ length: 10 }, (_, i) => String(i)).map((level) => (
+              <option key={level} value={level}>{level}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-sm text-muted-foreground">
+            MP3 encoding quality: lower levels are slower with higher quality; higher levels encode faster. Default uses the encoder's own setting.
+          </p>
+        </div>
+
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={audioMp3StreamCopyEnabled}
+              onChange={onAudioMp3StreamCopyEnabledChange}
+              ariaLabel="MP3 stream copy"
+            />
+            <span className="text-sm font-medium text-foreground">MP3 stream copy</span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground ml-14">
+            Tries compatible MP3 cuts; otherwise re-encodes.
           </p>
         </div>
 
@@ -59,9 +105,7 @@ function AudioSection({
             <span className="text-sm font-medium text-foreground">Audio Leveling (loudness normalization)</span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground ml-14">
-            Runs a second ffmpeg pass (dynaudnorm) on the final audio to even out
-            the volume between quiet and loud passages, so the episode plays at a
-            more consistent level. Adds ~3-5s per episode.
+            Even out quiet and loud passages.
           </p>
         </div>
 
@@ -87,6 +131,20 @@ function AudioSection({
             </p>
           </div>
         )}
+
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={audioReplacementSoundEnabled}
+              onChange={onAudioReplacementSoundEnabledChange}
+              ariaLabel="Replacement sound"
+            />
+            <span className="text-sm font-medium text-foreground">Replacement sound</span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground ml-14">
+            Insert a sound where audio is removed.
+          </p>
+        </div>
 
         <ReplacementAudioField />
 

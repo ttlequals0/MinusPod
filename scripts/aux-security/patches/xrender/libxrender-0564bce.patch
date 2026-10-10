@@ -1,0 +1,37 @@
+From 0564bce5446550c1b1681f3d8a933c20ea1455f7 Mon Sep 17 00:00:00 2001
+From: Peter Hutterer <peter.hutterer@who-t.net>
+Date: Wed, 16 Sep 2026 16:07:39 +1000
+Subject: [PATCH] Check numSubpixel against numScreens to avoid OOB writes
+ (CVE-2026-88807)
+
+A malicious server could reply to XRenderQueryFormat with a numSubpixels
+count greater than the number of screens, causing an OOB write into
+screen->subpixel which was allocated using numScreens.
+
+This vulnerability was discovered by:
+Adam Bedard working with TrendAI Zero Day Initiative
+
+ZDI-CAN-32093
+
+CVE-2026-88807
+
+Part-of: <https://gitlab.freedesktop.org/xorg/lib/libxrender/-/merge_requests/19>
+---
+ src/Xrender.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/Xrender.c b/src/Xrender.c
+index 3080d00..5cdd437 100644
+--- a/src/Xrender.c
++++ b/src/Xrender.c
+@@ -478,6 +478,7 @@ XRenderQueryFormats (Display *dpy)
+ 	(rep.numDepths  < ((INT_MAX / 4) / sizeof (XRenderDepth))) &&
+ 	(rep.numVisuals < ((INT_MAX / 4) / sizeof (XRenderVisual))) &&
+ 	(rep.numSubpixel < ((INT_MAX / 4) / 4)) &&
++	(rep.numSubpixel <= rep.numScreens) &&
+ 	(rep.length < (INT_MAX >> 2)) ) {
+         /* Zero-initialize so that pointers are NULL if there is a failure. */
+ 	xri = Xcalloc (1, sizeof (XRenderInfo));
+-- 
+GitLab
+

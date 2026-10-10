@@ -11,7 +11,7 @@ bootstrap('llm_call_failover_test_')
 import ad_detector
 import run_context
 from ad_detector import AdDetector, PASS_AD_DETECTION_1
-from config import PROVIDER_ANTHROPIC, resolve_stage_tunables
+from config import PROVIDER_ANTHROPIC, PROVIDER_TYPESAFE, resolve_stage_tunables
 import failover
 import llm_route
 from cancel import ProcessingCancelled
@@ -410,6 +410,31 @@ def test_anthropic_failover_keeps_existing_json_schema(no_sleep):
         response, error = _call(primary, response_format=schema)
 
     assert response == {'content': 'ok'} and error is None
+    assert standby.create_message.call_args.kwargs['response_format'] == schema
+
+
+def test_systemone_primary_keeps_schema_for_compatible_standby(no_sleep):
+    primary = MagicMock()
+    primary.uses_per_request_dispatch = True
+    primary.create_message.side_effect = _outage()
+    standby = MagicMock()
+    standby.create_message.return_value = {'content': 'ok'}
+    schema = llm_call.json_schema_format('segments', {'type': 'object'})
+    with patch.object(failover, 'is_configured', return_value=True), \
+            patch.object(failover, 'trigger', return_value=True), \
+            patch.object(llm_call, '_failover_route', return_value=FAILOVER_ROUTE), \
+            patch.object(llm_call, 'client_for_route', return_value=standby), \
+            patch.object(llm_call, 'supports_json_schema_for_calls', return_value=True), \
+            patch.object(llm_call, '_ledger_call_once',
+                         side_effect=lambda client, kwargs, model, **_meta:
+                         client.create_message(**kwargs)):
+        response, error = _call(
+            primary, provider=PROVIDER_TYPESAFE, model='jev-latest',
+            response_format=schema,
+        )
+
+    assert response == {'content': 'ok'} and error is None
+    assert primary.create_message.call_args.kwargs['response_format'] == schema
     assert standby.create_message.call_args.kwargs['response_format'] == schema
 
 

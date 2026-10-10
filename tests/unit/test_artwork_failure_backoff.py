@@ -141,3 +141,39 @@ def test_a_forced_retry_that_succeeds_unblocks_the_normal_path(storage):
                       return_value=(True, None)) as fetch:
         assert storage.download_artwork('example-feed', URL) is True
     fetch.assert_called_once()
+
+
+@pytest.mark.parametrize('status', ['error', 'not_found'])
+def test_feed_ua_change_retries_failure_without_affecting_other_feeds(storage, status):
+    for slug in ('feed-one', 'feed-two'):
+        storage.db.create_podcast(slug, 'https://example.com/feed.xml')
+    with patch.object(storage, '_download_artwork_uncached', return_value=(False, status)) as fetch:
+        for slug in ('feed-one', 'feed-two'):
+            storage.download_artwork(slug, URL)
+        storage.db.update_podcast('feed-one', download_user_agent_override='Feed/2.0')
+        storage.download_artwork('feed-one', URL)
+        storage.download_artwork('feed-two', URL)
+        storage.download_artwork('feed-one', URL)
+    assert fetch.call_count == 3
+    storage._artwork_failure_cache.clear()
+    storage._artwork_404_cache.clear()
+    with patch.object(storage, '_download_artwork_uncached') as fetch:
+        storage.download_artwork('feed-one', URL)
+    fetch.assert_not_called()
+    storage.db.delete_podcast('feed-one')
+    storage.db.delete_podcast('feed-two')
+
+
+def test_global_ua_change_retries_feed_and_episode_failures(storage, monkeypatch):
+    monkeypatch.setattr('storage.download_user_agent', lambda podcast=None: 'First/1.0')
+    with patch.object(storage, '_download_artwork_uncached', return_value=(False, 'error')) as feed_fetch, \
+         patch.object(storage, '_download_episode_artwork_uncached', return_value=False) as episode_fetch:
+        storage.download_artwork('example-feed', URL)
+        storage.download_episode_artwork('example-feed', 'a1b2c3d4e5f6', URL)
+        monkeypatch.setattr('storage.download_user_agent', lambda podcast=None: 'Second/2.0')
+        storage.download_artwork('example-feed', URL)
+        storage.download_episode_artwork('example-feed', 'a1b2c3d4e5f6', URL)
+        storage.download_artwork('example-feed', URL)
+        storage.download_episode_artwork('example-feed', 'a1b2c3d4e5f6', URL)
+    assert feed_fetch.call_count == 2
+    assert episode_fetch.call_count == 2

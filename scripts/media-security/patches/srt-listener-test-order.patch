@@ -1,0 +1,17 @@
+Subject: Register listener polling before starting the test client
+
+A listener added after the client connects cannot recover its earlier accept event.
+Keep socket readiness assertions unchanged and launch after registration.
+
+--- a/test/test_reuseaddr.cpp
++++ b/test/test_reuseaddr.cpp
+@@ -306,4 +305,0 @@
+-        auto launched = std::async(std::launch::async, run);
+-
+-        AtReturnJoin<decltype(launched)> atreturn_join {launched};
+-
+@@ -313,0 +310,4 @@
++
++        auto launched = std::async(std::launch::async, run);
++
++        AtReturnJoin<decltype(launched)> atreturn_join {launched};

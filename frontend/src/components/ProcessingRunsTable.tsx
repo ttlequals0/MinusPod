@@ -136,7 +136,7 @@ function TimingBreakdown({ run }: { run: EpisodeProcessingRun }) {
     <div className="mt-3 w-full border-t border-border/40 pt-2 sm:w-[calc(100cqw-1.5rem)]">
       <h4 className="text-xs font-medium text-muted-foreground">Elapsed by stage</h4>
       <p className="mt-1 text-xs text-muted-foreground">
-        Stage times can overlap. FFmpeg runs inside stages and totals every FFmpeg task in the run, including retries.
+        Stage times may overlap. FFmpeg totals include all tasks and retries.
       </p>
       <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-xs tabular-nums sm:grid-cols-2 lg:grid-cols-3">
         {TIMING_STAGES.map(([key, label]) => (

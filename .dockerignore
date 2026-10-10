@@ -55,7 +55,18 @@ tests
 smoke
 docs
 tmp
-scripts
+scripts/*
+!scripts/build_media_security_packages.py
+!scripts/media-security/
+!scripts/media-security/**
+!scripts/core-security/
+!scripts/core-security/**
+!scripts/misc-security/
+!scripts/misc-security/**
+!scripts/graphics-security/
+!scripts/graphics-security/**
+!scripts/aux-security/
+!scripts/aux-security/**
 
 # Offline LLM benchmark (corpus, raw responses, generated reports). Not a
 # runtime component; production code never imports from this directory.

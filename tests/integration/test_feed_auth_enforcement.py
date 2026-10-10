@@ -14,6 +14,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('feedauth_test_', secret_key='feedauth-test-secret')
 
 import database
+from ad_chapters import ID3_CHAPTER_SOURCE_KEY
 from database.podcasts import RECENTS_SLUG
 from main_app import app, db as app_db, status_service
 import main_app.feeds as feeds_mod
@@ -476,3 +477,118 @@ def test_feeds_regenerate_endpoint(client, db):
     assert body['feedCount'] >= 1
     # the rebuild embedded the active key
     assert f'?key={KEY}' in routes_mod.storage.get_rss('auth-feed')
+
+
+@pytest.fixture
+def chapter_image_feed(db):
+    slug, episode_id = 'chapter-image-feed', 'a1b2c3d4e5f6'
+    _seed_feed(db, slug)
+    db.upsert_episode(slug, episode_id, status='processed', processed_file='processed.mp3')
+    data = _png()
+    image_url = routes_mod.storage.save_chapter_image(slug, episode_id, data)
+    routes_mod.storage.save_chapters_json(slug, episode_id, {
+        'version': '1.2.0',
+        'chapters': [
+            {'startTime': 0, 'title': 'Topic', 'img': image_url},
+            {'startTime': 30, 'title': 'Next', 'img': 'https://example.com/image.png'},
+        ],
+    })
+    yield {'slug': slug, 'episodeId': episode_id, 'url': image_url, 'data': data}
+    db.delete_episode_rows(slug, [episode_id], routes_mod.storage)
+    db.delete_podcast(slug)
+
+
+def test_public_chapter_json_excludes_chapter_set_provenance(client, chapter_image_feed):
+    asset = chapter_image_feed
+    stored = routes_mod.storage.get_chapters_json(asset['slug'], asset['episodeId'])
+    stored[ID3_CHAPTER_SOURCE_KEY] = 'id3'
+    routes_mod.storage.save_chapters_json(asset['slug'], asset['episodeId'], stored)
+    response = client.get(f"/episodes/{asset['slug']}/{asset['episodeId']}/chapters.json")
+    assert response.status_code == 200
+    body = response.get_json(force=True)
+    assert ID3_CHAPTER_SOURCE_KEY not in body
+    assert body['version'] == stored['version']
+    assert len(body['chapters']) == len(stored['chapters'])
+
+
+def test_chapter_images_enforce_feed_keys_and_safe_image_headers(client, db, chapter_image_feed):
+    _set_auth(db, True)
+    asset = chapter_image_feed
+    assert client.get(asset['url']).status_code == 401
+    assert client.get(f"{asset['url']}?key={OTHER_KEY}").status_code == 401
+    response = client.get(f"{asset['url']}?key={KEY}")
+    assert response.status_code == 200
+    assert response.data == asset['data']
+    assert response.mimetype == 'image/png'
+    assert response.headers['X-Content-Type-Options'] == 'nosniff'
+    assert response.headers['Content-Security-Policy'] == "default-src 'none'"
+    assert response.headers['Access-Control-Allow-Origin'] == '*'
+    assert 'Set-Cookie' not in response.headers
+    head = client.head(f"{asset['url']}?key={KEY}")
+    assert head.status_code == 200
+    assert head.data == b''
+
+
+@pytest.mark.parametrize('scoped', [False, True])
+def test_chapter_json_propagates_only_the_supplied_key_to_local_images(
+        client, db, chapter_image_feed, scoped):
+    _set_auth(db, True)
+    asset = chapter_image_feed
+    key = db.create_feed_subscriber_key(asset['slug'], 'Player')['token'] if scoped else KEY
+    with patch.object(routes_mod.rss_parser, '_resolved_base_url', return_value=BASE):
+        response = client.get(f"/episodes/{asset['slug']}/{asset['episodeId']}/chapters.json?key={key}")
+    assert response.status_code == 200
+    chapters = response.get_json(force=True)['chapters']
+    assert chapters[0]['img'] == f"{BASE}{asset['url']}?key={key}"
+    assert chapters[1]['img'] == 'https://example.com/image.png'
+    assert client.get(f"{asset['url']}?key={key}").status_code == 200
+    if scoped:
+        assert KEY not in response.get_data(as_text=True)
+        assert db.revoke_feed_subscriber_key(asset['slug'], key.split('.', 1)[0])
+        assert client.get(f"{asset['url']}?key={key}").status_code == 401
+
+
+def test_chapter_json_has_keyless_local_images_when_feed_auth_is_off(
+        client, db, chapter_image_feed):
+    _set_auth(db, False)
+    asset = chapter_image_feed
+    with patch.object(routes_mod.rss_parser, '_resolved_base_url', return_value=BASE):
+        response = client.get(f"/episodes/{asset['slug']}/{asset['episodeId']}/chapters.json?key={KEY}")
+    assert response.get_json(force=True)['chapters'][0]['img'] == f"{BASE}{asset['url']}"
+    assert client.get(asset['url']).status_code == 200
+
+
+def test_chapter_image_rejects_another_feeds_subscriber_key(client, db, chapter_image_feed):
+    _set_auth(db, True)
+    slug = 'other-chapter-feed'
+    _seed_feed(db, slug)
+    key = db.create_feed_subscriber_key(slug, 'Other player')['token']
+    try:
+        assert client.get(f"{chapter_image_feed['url']}?key={key}").status_code == 401
+    finally:
+        db.delete_podcast(slug)
+
+
+@pytest.mark.parametrize('filename', ['image.svg', '../escape.png', 'a' * 64 + '.webp'])
+def test_chapter_image_route_rejects_unsafe_paths_and_formats(client, db, chapter_image_feed, filename):
+    _set_auth(db, False)
+    asset = chapter_image_feed
+    response = client.get(f"/episodes/{asset['slug']}/{asset['episodeId']}/chapter-images/{filename}")
+    assert response.status_code == 404
+
+
+def test_processed_episode_delete_removes_images_but_retains_original(client, db, chapter_image_feed):
+    asset = chapter_image_feed
+    original = routes_mod.storage.get_original_path(asset['slug'], asset['episodeId'])
+    original.write_bytes(b'original')
+    count, freed_mb = db.delete_episodes(asset['slug'], [asset['episodeId']], routes_mod.storage, keep_original=True)
+    assert count == 1
+    assert freed_mb == len(asset['data']) / (1024 * 1024)
+    assert original.read_bytes() == b'original'
+    assert client.get(asset['url']).status_code == 404
+
+
+def test_hard_episode_delete_removes_chapter_assets(client, db, chapter_image_feed):
+    asset = chapter_image_feed
+    assert db.delete_episode_rows(asset['slug'], [asset['episodeId']], routes_mod.storage) == 1
+    assert client.get(asset['url']).status_code == 404

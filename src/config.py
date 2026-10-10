@@ -6,10 +6,12 @@ for easy tuning and consistency across the codebase.
 import fnmatch
 import json
 import logging
+import math
 import os
 import re
 import sqlite3
 import string
+from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
 
@@ -396,16 +398,61 @@ def count_not_cut(markers) -> int:
                and not is_keep_like(m.get('action_applied')))
 
 
-def title_matches_skip_patterns(title, patterns_json):
-    """Case-insensitive fnmatch against the feed's title skip list."""
-    if not title or not patterns_json:
-        return False
+@lru_cache(maxsize=256)
+def _parsed_skip_patterns(patterns_json):
+    """Lowercased pattern tuple for patterns_json, cached so a feed's list is parsed once."""
     try:
         patterns = json.loads(patterns_json)
     except (ValueError, TypeError):
+        return ()
+    return tuple(str(p).lower() for p in patterns if p)
+
+
+def _matches_skip_patterns(text, patterns_json):
+    """Case-insensitive fnmatch of text against the pattern list encoded in patterns_json."""
+    if not text or not patterns_json:
         return False
-    low = title.lower()
-    return any(fnmatch.fnmatch(low, str(p).lower()) for p in patterns if p)
+    low = text.lower()
+    return any(fnmatch.fnmatch(low, p) for p in _parsed_skip_patterns(patterns_json))
+
+
+def title_matches_skip_patterns(title, patterns_json):
+    """Case-insensitive fnmatch against the feed's title skip list."""
+    return _matches_skip_patterns(title, patterns_json)
+
+
+def _description_plain_text(description):
+    """Description HTML reduced to lowercase-ready plain text for matching."""
+    from utils.prompt import strip_html  # lazy: utils imports audio, which imports config
+    return re.sub(r'\s+', ' ', strip_html(description)).strip()
+
+
+def description_matches_skip_patterns(description, patterns_json):
+    """Case-insensitive fnmatch against the feed's description skip list, HTML stripped."""
+    if not description or not patterns_json:
+        return False
+    return _matches_skip_patterns(_description_plain_text(description), patterns_json)
+
+
+def duration_outside_feed_range(duration, podcast):
+    """Compare known RSS duration against inclusive per-feed bounds."""
+    if not isinstance(duration, (int, float)) or isinstance(duration, bool):
+        return False
+    if not math.isfinite(duration) or duration <= 0:
+        return False
+    podcast = podcast or {}
+    minimum = podcast.get('min_duration_seconds')
+    maximum = podcast.get('max_duration_seconds')
+    return ((minimum is not None and duration < minimum)
+            or (maximum is not None and duration > maximum))
+
+
+def episode_matches_feed_filters(episode, podcast):
+    """Apply title, description, and RSS-duration exclusions without downloading audio."""
+    podcast = podcast or {}
+    return (title_matches_skip_patterns(episode.get('title'), podcast.get('title_skip_patterns'))
+            or description_matches_skip_patterns(episode.get('description'), podcast.get('description_skip_patterns'))
+            or duration_outside_feed_range(episode.get('rss_duration'), podcast))
 
 # Ad evidence thresholds
 CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are likely content
@@ -1654,7 +1701,59 @@ PROVIDER_ANTHROPIC = 'anthropic'
 PROVIDER_OPENROUTER = 'openrouter'
 PROVIDER_OPENAI_COMPATIBLE = 'openai-compatible'
 PROVIDER_OLLAMA = 'ollama'
-PROVIDERS_NON_ANTHROPIC = ('openai-compatible', 'ollama')
+PROVIDER_TYPESAFE = 'typesafe'
+PROVIDER_SYSTEMONE_COMPATIBLE = 'systemone-compatible'
+TYPESAFE_BASE_URL = 'https://api.typesafe.ai/v1'
+TYPESAFE_SYSTEMONE_URL = 'https://api.typesafe.ai/v1/systemone'
+SYSTEMONE_COMPATIBLE_BASE_URL = ''
+SYSTEMONE_PROVIDERS = (PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE)
+PROVIDERS_NON_ANTHROPIC = ('openai-compatible', 'ollama', *SYSTEMONE_PROVIDERS)
+SYSTEMONE_TUNABLE_DEFAULTS = {
+    PROVIDER_TYPESAFE: {
+        'detectionEnter': 0.95,
+        'detectionStay': 0.40,
+        'categoryPass': True,
+        'categoryContext': 2,
+        'defaultCategory': 'sponsor',
+        'refineBoundaries': False,
+        'reviewEvidenceEnter': None,
+        'reviewChoiceEnter': None,
+        'reviewProgrammeVeto': 0.85,
+        'reviewBoundaryCapSeconds': 60.0,
+        'reviewContextSeconds': 30.0,
+        'requestDeadlineSeconds': 75.0,
+        'maxConcurrentOperations': 4,
+        'retryAfterMaxSeconds': 5.0,
+        'maxQuestionsPerRequest': None,
+        'maxRequestBytes': None,
+        'maxChoiceOptions': 255,
+    },
+    PROVIDER_SYSTEMONE_COMPATIBLE: {
+        'detectionEnter': 0.95,
+        'detectionStay': 0.40,
+        'categoryPass': True,
+        'categoryContext': 2,
+        'defaultCategory': 'sponsor',
+        'refineBoundaries': False,
+        'reviewEvidenceEnter': None,
+        'reviewChoiceEnter': None,
+        'reviewProgrammeVeto': 0.85,
+        'reviewBoundaryCapSeconds': 60.0,
+        'reviewContextSeconds': 30.0,
+        'requestDeadlineSeconds': 75.0,
+        'maxConcurrentOperations': 4,
+        'retryAfterMaxSeconds': 5.0,
+        'maxQuestionsPerRequest': None,
+        'maxRequestBytes': None,
+        'maxChoiceOptions': None,
+    },
+}
+SYSTEMONE_TUNABLE_PROFILE_KEYS = {
+    ('primary', PROVIDER_TYPESAFE): 'systemone_tunables_primary_typesafe',
+    ('primary', PROVIDER_SYSTEMONE_COMPATIBLE): 'systemone_tunables_primary_compatible',
+    ('secondary', PROVIDER_TYPESAFE): 'systemone_tunables_secondary_typesafe',
+    ('secondary', PROVIDER_SYSTEMONE_COMPATIBLE): 'systemone_tunables_secondary_compatible',
+}
 
 _ANTHROPIC_ADAPTIVE_ONLY_MODELS = (
     'claude-opus-4-7',
@@ -2149,6 +2248,13 @@ def resolve_stage_tunables(prefix: str, settings: dict | None = None,
 ALLOWED_AUDIO_BITRATES = ('64k', '96k', '128k', '192k', '256k')
 DEFAULT_AUDIO_BITRATE = '128k'
 
+# libmp3lame -compression_level: 0 is slowest/best, 9 is fastest. 'default'
+# omits the flag so ffmpeg's own default behavior is unchanged.
+ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS = ('default', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
+DEFAULT_AUDIO_ENCODER_COMPRESSION_LEVEL = 'default'
+DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED = True
+DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED = False
+
 
 # Ad-detection parallelism. Bounded ceiling protects against accidental
 # fan-out into upstream LLM rate limits. Default of 4 was chosen as a
@@ -2178,6 +2284,10 @@ AD_REVIEWER_PARALLEL_ADS_MAX = 32
 
 def _validate_audio_bitrate(value: str) -> bool:
     return value in ALLOWED_AUDIO_BITRATES
+
+
+def _validate_audio_encoder_compression_level(value: str) -> bool:
+    return value in ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS
 
 
 def _validate_bool_string(value: str) -> bool:
@@ -2323,7 +2433,8 @@ def _validate_llm_provider(value: str) -> bool:
     """Reject an unrecognized LLM_PROVIDER so a typo falls back safely
     instead of being adopted verbatim into the stored setting."""
     return value in (PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
-                      PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA)
+                      PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+                      PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE)
 
 
 def _validate_positive_int(value: str) -> bool:
@@ -2429,6 +2540,12 @@ def get_env_backed_int(key: str, *, floor: int = None, ceiling: int = None,
 ENV_BACKED_SETTINGS = (
     ('llm_provider', 'LLM_PROVIDER', 'anthropic', _validate_llm_provider),
     ('audio_bitrate', 'AUDIO_BITRATE', DEFAULT_AUDIO_BITRATE, _validate_audio_bitrate),
+    (
+        'audio_encoder_compression_level',
+        'AUDIO_ENCODER_COMPRESSION_LEVEL',
+        DEFAULT_AUDIO_ENCODER_COMPRESSION_LEVEL,
+        _validate_audio_encoder_compression_level,
+    ),
     ('skip_flac_compression', 'SKIP_FLAC_COMPRESSION', 'false', _validate_bool_string),
     (
         'ad_detection_parallel_windows',

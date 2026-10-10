@@ -1,0 +1,107 @@
+From: Paul Eggert <eggert@cs.ucla.edu>
+Subject: Backport incremental X-entry path and race fix (CVE-2026-18477)
+
+Port the upstream path validation and directory-relative temporary creation to the Ubuntu source, which includes the CVE-2026-5704 refactor.
+
+--- a/lib/Makefile.am
++++ b/lib/Makefile.am
+@@ -30,6 +30,7 @@
+ AM_CFLAGS = $(GNULIB_WARN_CFLAGS) $(WERROR_CFLAGS)
+ 
+ noinst_HEADERS = \
++ mkdtempat.h\
+  paxlib.h\
+  rmt.h\
+  system.h\
+@@ -38,6 +39,7 @@
+  xattr-at.h
+ 
+ libtar_a_SOURCES = \
++  mkdtempat.c\
+   paxerror.c paxexit-status.c paxlib.h paxnames.c \
+   rtapelib.c \
+   rmt.h \
+--- a/lib/mkdtempat.c
++++ b/lib/mkdtempat.c
+@@ -0,0 +1,45 @@
++/* Copyright 2026 Free Software Foundation, Inc.
++
++   This program is free software; you can redistribute it and/or modify it
++   under the terms of the GNU General Public License as published by the
++   Free Software Foundation; either version 3 of the License, or (at your
++   option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License along
++   with this program. If not, see <http://www.gnu.org/licenses/>.
++
++   Written by Paul Eggert.  */
++
++#include <config.h>
++
++#include "mkdtempat.h"
++
++#include <tempname.h>
++
++#include <stddef.h>
++#include <sys/stat.h>
++
++static int
++try_dir (char *tmpl, void *flags)
++{
++  int *pdirfd = flags;
++  return mkdirat (*pdirfd, tmpl, S_IRUSR | S_IWUSR | S_IXUSR);
++}
++
++/* Relative to the directory DIRFD if XTEMPLATE is relative,
++   generate a unique temporary directory from XTEMPLATE.
++   The last six characters of XTEMPLATE must be "XXXXXX";
++   replace them with a string that makes the generated directory unique.
++   Create the directory mode 700, and return its name.
++   On failure, return NULL and set errno.  */
++char *
++mkdtempat (int dirfd, char *xtemplate)
++{
++  return (try_tempname_len (xtemplate, 0, &dirfd, try_dir, 6) < 0
++	  ? NULL : xtemplate);
++}
+--- a/lib/mkdtempat.h
++++ b/lib/mkdtempat.h
+@@ -0,0 +1 @@
++char *mkdtempat (int, char *);
+--- a/src/incremen.c
++++ b/src/incremen.c
+@@ -19,6 +19,7 @@
+ 
+ #include <system.h>
+ #include <hash.h>
++#include <mkdtempat.h>
+ #include <quotearg.h>
+ #include "common.h"
+ 
+@@ -1658,13 +1659,16 @@
+       if (*arc == 'X')
+ 	{
+ #define TEMP_DIR_TEMPLATE "tar.XXXXXX"
+-	  size_t len = strlen (arc + 1);
++	  char *d = safer_name_suffix (arc + 1, false, absolute_names_option);
++	  size_t len = strlen (d);
+ 	  temp_stub = xrealloc (temp_stub, len + 1 + sizeof TEMP_DIR_TEMPLATE);
+-	  memcpy (temp_stub, arc + 1, len);
+-	  temp_stub[len] = '/';
+-	  memcpy (temp_stub + len + 1, TEMP_DIR_TEMPLATE,
++	  char *copy_end = mempcpy (temp_stub, d, len);
++	  *copy_end = '/';
++	  memcpy (copy_end + !ISSLASH (copy_end[-1]), TEMP_DIR_TEMPLATE,
+ 		  sizeof TEMP_DIR_TEMPLATE);
+-	  if (!mkdtemp (temp_stub))
++	  struct fdbase f = fdbase (temp_stub);
++	  if (f.fd == BADFD
++	      || !mkdtempat (f.fd, temp_stub + (f.base - temp_stub)))
+ 	    {
+ 	      ERROR ((0, errno,
+ 		      _("Cannot create temporary directory using template %s"),

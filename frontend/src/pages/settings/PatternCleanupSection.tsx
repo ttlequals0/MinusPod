@@ -23,6 +23,7 @@ import SavedBadge from './SavedBadge';
 import CronScheduleField from './CronScheduleField';
 import ModelSelect from './ModelSelect';
 import StageProviderSelect, { inheritedSlotOptions } from './StageProviderSelect';
+import { isSystemOneRoute } from './systemoneWarnings';
 
 interface PatternCleanupSectionProps {
   // Provider types behind each slot; secondaryProvider is '' when that slot is unusable.
@@ -32,6 +33,7 @@ interface PatternCleanupSectionProps {
   detectionSlot: ProviderSlot;
   primaryBaseUrl?: string;
   secondaryBaseUrl?: string;
+  detectionModel?: string;
   providerIdentityHasUnsavedChanges?: boolean;
 }
 
@@ -47,6 +49,7 @@ function runErrorMessage(e: unknown): string {
 function PatternCleanupSection({
   primaryProvider, secondaryProvider, secondaryEnabled, detectionSlot,
   primaryBaseUrl = '', secondaryBaseUrl = '',
+  detectionModel = '',
   providerIdentityHasUnsavedChanges = false,
 }: PatternCleanupSectionProps) {
   const qc = useQueryClient();
@@ -85,6 +88,9 @@ function PatternCleanupSection({
     ? accountIdentity(slot, secondaryProvider, secondaryBaseUrl)
     : accountIdentity(slot, primaryProvider, primaryBaseUrl);
   const cleanupIdentity = identityForSlot(cleanupSlot);
+  const cleanupProvider = cleanupSlot === SLOT_SECONDARY ? secondaryProvider : primaryProvider;
+  const cleanupModel = modelSelection === SAME_AS_DETECTION ? detectionModel : modelSelection || detectionModel;
+  const cleanupUsesSystemOne = isSystemOneRoute(cleanupProvider, cleanupModel);
   const previousCleanupIdentity = useRef<string | null>(null);
   const hasUnsavedChanges = !!data && (
     settings.enabled !== data.enabled
@@ -127,6 +133,7 @@ function PatternCleanupSection({
       setSaveError(null);
       setDraft({});
       qc.invalidateQueries({ queryKey: patternCleanupQueryKey });
+      qc.invalidateQueries({ queryKey: ['settings'] });
     },
     onError: (e: unknown) => setSaveError(getErrorMessage(e, 'Save failed')),
   });
@@ -140,7 +147,7 @@ function PatternCleanupSection({
   });
 
   const running = run.isPending || !!data?.inProgress;
-  const runDisabled = running || save.isPending || hasUnsavedChanges || !!data?.modelMissing;
+  const runDisabled = running || save.isPending || hasUnsavedChanges || !!data?.modelMissing || cleanupUsesSystemOne;
   const summary = data?.lastSummary;
 
   return (
@@ -161,11 +168,17 @@ function PatternCleanupSection({
         <SkeletonRows count={3} />
       ) : (
         <div className="space-y-4">
+        {cleanupUsesSystemOne && (
+          <div role="status" className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+            System One does not support pattern cleanup. Disable cleanup or select a chat provider and model.
+          </div>
+        )}
           <div>
             <label className="flex items-center gap-3 cursor-pointer">
               <ToggleSwitch
                 checked={settings.enabled}
                 onChange={(v) => update({ enabled: v })}
+                disabled={!settings.enabled && cleanupUsesSystemOne}
                 ariaLabel="Enable scheduled pattern cleanup"
               />
               <span className="text-sm font-medium text-foreground">Enable scheduled cleanup</span>
@@ -174,7 +187,8 @@ function PatternCleanupSection({
             <p className="mt-2 text-sm text-muted-foreground">
               Only learned patterns are reviewed; community and manual patterns are left alone.
               Suggestions wait on the Patterns page until you approve or reject them, and an
-              approved change can be undone. Run now works even with scheduling off.
+              approved change can be undone.
+              {!cleanupUsesSystemOne && <> Run now works with scheduling off.</>}
             </p>
           </div>
 
@@ -260,7 +274,7 @@ function PatternCleanupSection({
             <button
               type="button"
               onClick={() => save.mutate()}
-              disabled={save.isPending || modelSelection === ''}
+              disabled={save.isPending || modelSelection === '' || (settings.enabled && cleanupUsesSystemOne)}
               className={`${actionButton} ${btnPrimary}`}
             >
               {save.isPending ? 'Saving...' : 'Save'}

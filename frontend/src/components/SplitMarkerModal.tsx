@@ -284,8 +284,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Split ad block</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Drag a divider, or add one where you are listening, to set where
-            one ad ends and the next begins.
+            Add or drag dividers between ads.
           </p>
         </div>
 

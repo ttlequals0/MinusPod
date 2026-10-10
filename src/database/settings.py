@@ -13,9 +13,14 @@ from config import (
     normalize_model_key, ENV_BACKED_SETTINGS, resolve_env_backed_default,
     coerce_bool_setting, get_env_backed_int,
     STAGE_TUNABLE_DEFAULTS,
+    SYSTEMONE_TUNABLE_DEFAULTS,
+    SYSTEMONE_TUNABLE_PROFILE_KEYS,
     DEFAULT_OPENAI_BASE_URL,
+    DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED, DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED,
+    SYSTEMONE_COMPATIBLE_BASE_URL,
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OLLAMA,
+    SYSTEMONE_PROVIDERS,
     WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
     WHISPER_COMPUTE_TYPE_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
@@ -308,7 +313,8 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default=None, seeded=True, in_ad_reset=True,
         payload_key='secondaryProvider',
         validator=_one_of(PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
-                           PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA)),
+                           PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+                           *SYSTEMONE_PROVIDERS)),
     'secondary_provider_base_url': SettingSpec(
         default=DEFAULT_OPENAI_BASE_URL, seeded=True, in_ad_reset=True,
         payload_key='secondaryProviderBaseUrl'),
@@ -381,13 +387,13 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # Blank per-slot LLM overrides use the provider-type default.
     'llm_timeout_seconds': SettingSpec(
         default=None, seeded=True, payload_key='providerATimeoutSeconds',
-        payload_kind='int'),
+        payload_kind='float'),
     'llm_max_retries': SettingSpec(
         default=None, seeded=True, payload_key='providerAMaxRetries',
         payload_kind='int'),
     'secondary_llm_timeout_seconds': SettingSpec(
         default=None, seeded=True, payload_key='providerBTimeoutSeconds',
-        payload_kind='int'),
+        payload_kind='float'),
     'secondary_llm_max_retries': SettingSpec(
         default=None, seeded=True, payload_key='providerBMaxRetries',
         payload_kind='int'),
@@ -605,6 +611,14 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         payload_key='positionalPriorEnabled', payload_kind='bool'),
 
     # -- Audio output --
+    'audio_replacement_sound_enabled': SettingSpec(
+        default=str(DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED).lower(),
+        seeded=True, in_ad_reset=True,
+        payload_key='audioReplacementSoundEnabled', payload_kind='bool'),
+    'audio_mp3_stream_copy_enabled': SettingSpec(
+        default=str(DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED).lower(),
+        seeded=True, in_ad_reset=True,
+        payload_key='audioMp3StreamCopyEnabled', payload_kind='bool'),
     'audio_normalize_enabled': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='audioNormalizeEnabled', payload_kind='bool'),
@@ -712,6 +726,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'openai_base_url': SettingSpec(
         default=DEFAULT_OPENAI_BASE_URL, env='OPENAI_BASE_URL', seeded=True,
         in_ad_reset=True, payload_key='openaiBaseUrl'),
+    'systemone_base_url': SettingSpec(
+        default=SYSTEMONE_COMPATIBLE_BASE_URL, env='SYSTEMONE_BASE_URL', seeded=True,
+        in_ad_reset=True, payload_key='systemoneBaseUrl'),
     'auto_process_enabled': SettingSpec(
         env_backed=True, seeded=True, in_ad_reset=True,
         payload_key='autoProcessEnabled',
@@ -733,6 +750,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'audio_bitrate': SettingSpec(
         env_backed=True, seeded=True,
         in_ad_reset=True, payload_key='audioBitrate'),
+    'audio_encoder_compression_level': SettingSpec(
+        env_backed=True, seeded=True,
+        in_ad_reset=True, payload_key='audioEncoderCompressionLevel'),
     'skip_flac_compression': SettingSpec(
         env_backed=True,
         in_ad_reset=True, payload_key='skipFlacCompression',
@@ -926,7 +946,16 @@ for _key in sorted(SECRET_SETTING_KEYS):
 for _key in STAGE_TUNABLE_DEFAULTS:
     SETTINGS_REGISTRY[_key] = SettingSpec(stage_tunable=True, in_ad_reset=True)
 
+for (_slot, _provider), _key in SYSTEMONE_TUNABLE_PROFILE_KEYS.items():
+    _defaults = SYSTEMONE_TUNABLE_DEFAULTS[_provider]
+    SETTINGS_REGISTRY[_key] = SettingSpec(
+        default=json.dumps(_defaults, separators=(',', ':'), sort_keys=True),
+        seeded=True, in_ad_reset=True,
+        payload_factory=lambda defaults=_defaults: dict(defaults),
+    )
+
 del _key
+del _slot, _provider, _defaults
 
 # Ordered key list for POST /settings/ad-detection/reset.
 AD_RESET_SETTING_KEYS = tuple(

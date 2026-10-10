@@ -1,8 +1,9 @@
 import { apiRequest, buildQueryString } from './client';
 import {
   AddressingStats, DashboardStats, DayStats, EpisodeCostResponse, EpisodeCostSortField,
-  EpisodeProcessingRun, LedgerFilterOptions, ModelUsageResponse, ModelUsageSortField,
+  CleanupStats, EpisodeProcessingRun, LedgerFilterOptions, ModelUsageResponse, ModelUsageSortField,
   PodcastStats, ReviewerStats, SpendAttemptsResponse,
+  SystemOneStats,
 } from './types';
 
 // Shared page/filter params for the ledger list endpoints below. Mirrors
@@ -61,6 +62,20 @@ export async function getModelUsageStats(
 ): Promise<ModelUsageResponse> {
   const qs = buildQueryString({ ...params });
   return apiRequest<ModelUsageResponse>(`/stats/model-usage${qs}`);
+}
+
+export async function getSystemOneStats(
+  params: Pick<LedgerListParams<never>, 'from' | 'to' | 'podcastSlug' | 'provider' | 'model'> = {},
+): Promise<SystemOneStats> {
+  const qs = buildQueryString({ ...params });
+  return apiRequest<SystemOneStats>(`/stats/systemone${qs}`);
+}
+
+export async function getCleanupStats(
+  params: Pick<LedgerListParams<never>, 'from' | 'to' | 'podcastSlug' | 'provider' | 'model'> = {},
+): Promise<CleanupStats> {
+  const qs = buildQueryString({ ...params });
+  return apiRequest<CleanupStats>(`/stats/cleanup${qs}`);
 }
 
 export async function getEpisodeCostStats(

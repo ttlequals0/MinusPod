@@ -127,7 +127,7 @@ export function FeedTagsEditor({ slug }: Props) {
                     onChange={(e) => e.target.value && addTag(e.target.value)}
                     className={`${selectBase}`}
                   >
-                    <option value="" disabled>Pick a tag…</option>
+                    <option value="" disabled>Pick a tag...</option>
                     {vocab?.podcast_genres && (
                       <optgroup label="Podcast genres">
                         {vocab.podcast_genres

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ProviderName, ProviderStatus } from '../../api/providers';
+import type { ProviderName, ProviderStatus, ProviderTestResult } from '../../api/providers';
 import { getErrorMessage } from '../../api/client';
 import { ConfirmModal } from '../../components/Modal';
 import { useTransientState } from '../../hooks/useTransientState';
@@ -16,7 +16,7 @@ interface ProviderKeyFieldProps {
   helper?: string;
   onSave: (provider: ProviderName, apiKey: string) => Promise<void>;
   onClear: (provider: ProviderName) => Promise<void>;
-  onTest: (provider: ProviderName) => Promise<{ ok: boolean; error?: string }>;
+  onTest: (provider: ProviderName) => Promise<ProviderTestResult>;
 }
 
 const CHIP: Record<ProviderStatus['source'], { tone: StatusDotTone; text: string }> = {
@@ -74,7 +74,7 @@ function ProviderKeyField({
     setBusy('test'); setTestResult(null);
     try {
       const r = await onTest(provider);
-      setTestResult({ ok: r.ok, msg: r.ok ? 'OK' : (r.error || 'failed') });
+      setTestResult({ ok: r.ok, msg: r.ok ? (r.detail || 'OK') : (r.error || r.detail || 'failed') });
     } catch (e) {
       setTestResult({ ok: false, msg: getErrorMessage(e, 'failed') });
     } finally { setBusy(null); }
@@ -126,7 +126,7 @@ function ProviderKeyField({
             type="button"
             disabled={busy !== null || testBlocked}
             onClick={handleTest}
-            title={testBlocked ? 'Click Save first -- Test reads the saved key, not the unsaved draft.' : undefined}
+            title={testBlocked ? 'Save the key before testing.' : undefined}
             className={`px-3 py-1.5 rounded-md ${btnOutline} text-sm font-medium transition-colors disabled:opacity-50 ${focusRing}`}
           >
             {busy === 'test' ? 'Testing...' : 'Test'}
@@ -148,7 +148,7 @@ function ProviderKeyField({
           )}
           {savedNotice && (
             <span className="text-sm text-success">
-              Saved -- input cleared because keys are stored encrypted
+              Key saved.
             </span>
           )}
         </div>

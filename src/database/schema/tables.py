@@ -67,6 +67,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     audio_analysis_override TEXT,
     auto_process_override TEXT,
     language_override TEXT,
+    download_user_agent_override TEXT,
+    feed_user_agent_override TEXT,
     title_override TEXT,
     detection_notes TEXT,
     detection_mode TEXT,
@@ -103,9 +105,14 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Episode title blacklist: JSON array of case-insensitive glob patterns.
     -- A matching episode is never queued or JIT-processed.
     title_skip_patterns TEXT,
+    -- Episode description blacklist (#835): same glob semantics as
+    -- title_skip_patterns, matched against the plain-text description.
+    description_skip_patterns TEXT,
     -- Served-RSS handling for a blacklisted episode: NULL/'serve_original'
     -- keeps it in the feed untouched, 'hide' drops it from the served feed.
     title_skip_action TEXT,
+    min_duration_seconds REAL,
+    max_duration_seconds REAL,
     -- Per-feed low-ad-yield action override: NULL = use the global
     -- low_ad_yield_action setting.
     low_ad_yield_action TEXT,
@@ -118,6 +125,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Per-feed pre-cut original audio override: NULL = follow the global
     -- keep_original_audio setting, 0 = never keep, 1 = always keep.
     keep_original_audio_override INTEGER,
+    audio_replacement_sound_override INTEGER,
+    audio_mp3_stream_copy_override INTEGER,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
     tags TEXT NOT NULL DEFAULT '[]',
@@ -385,6 +394,7 @@ TABLE_DDL['pattern_cleanup_runs'] = """CREATE TABLE IF NOT EXISTS pattern_cleanu
     suggested_count INTEGER NOT NULL DEFAULT 0,
     skipped_count INTEGER NOT NULL DEFAULT 0,
     error_count INTEGER NOT NULL DEFAULT 0,
+    accounting_version INTEGER,
     error TEXT
 )"""
 
@@ -400,7 +410,30 @@ TABLE_DDL['pattern_cleanup_suggestions'] = """CREATE TABLE IF NOT EXISTS pattern
     before TEXT,
     applied TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    reviewed_at TEXT
+    reviewed_at TEXT,
+    superseded_at TEXT,
+    pattern_scope TEXT,
+    podcast_slug TEXT
+)"""
+
+TABLE_DDL['pattern_cleanup_checks'] = """CREATE TABLE IF NOT EXISTS pattern_cleanup_checks (
+    run_id INTEGER NOT NULL REFERENCES pattern_cleanup_runs(id) ON DELETE CASCADE,
+    pattern_id INTEGER NOT NULL,
+    pattern_scope TEXT NOT NULL,
+    podcast_slug TEXT,
+    stats_checked INTEGER NOT NULL DEFAULT 0,
+    model_status TEXT,
+    PRIMARY KEY (run_id, pattern_id)
+)"""
+
+TABLE_DDL['pattern_cleanup_deleted_actions'] = """CREATE TABLE IF NOT EXISTS pattern_cleanup_deleted_actions (
+    suggestion_id INTEGER PRIMARY KEY,
+    run_id INTEGER REFERENCES pattern_cleanup_runs(id) ON DELETE SET NULL,
+    pattern_id INTEGER NOT NULL,
+    pattern_scope TEXT,
+    podcast_slug TEXT,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL
 )"""
 
 # One pending suggestion per (pattern, kind); a later run replaces it.
@@ -552,6 +585,7 @@ TABLE_DDL['audio_cue_templates'] = """CREATE TABLE IF NOT EXISTS audio_cue_templ
     cue_type TEXT NOT NULL DEFAULT 'ad_break_boundary',
     enabled INTEGER NOT NULL DEFAULT 1,
     score_threshold REAL,
+    remove_with_ad INTEGER NOT NULL DEFAULT 1,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     created_by TEXT DEFAULT 'user',
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
@@ -679,7 +713,10 @@ TABLE_DDL['addressing_log'] = """CREATE TABLE IF NOT EXISTS addressing_log (
 
 TABLE_DDL['llm_call_usage'] = """CREATE TABLE IF NOT EXISTS llm_call_usage (
     attempt_id TEXT PRIMARY KEY,
+    logical_call_id TEXT,
     run_id TEXT,
+    cleanup_run_id INTEGER,
+    cleanup_pattern_id INTEGER,
     podcast_id INTEGER,
     episode_id TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
@@ -692,6 +729,8 @@ TABLE_DDL['llm_call_usage'] = """CREATE TABLE IF NOT EXISTS llm_call_usage (
     credential_slot TEXT,
     configured_model TEXT NOT NULL,
     returned_model TEXT,
+    dispatch_latency_ms INTEGER,
+    call_latency_ms INTEGER,
     input_tokens INTEGER,
     output_tokens INTEGER,
     cache_read_tokens INTEGER,
@@ -708,6 +747,25 @@ TABLE_DDL['llm_call_usage'] = """CREATE TABLE IF NOT EXISTS llm_call_usage (
     -- Tokens reserved at dispatch (prompt estimate + max_tokens); the TPM
     -- cap reads this while the row is in flight and actual usage after.
     reserved_tokens INTEGER
+)"""
+
+TABLE_DDL['systemone_call_diagnostics'] = """CREATE TABLE IF NOT EXISTS systemone_call_diagnostics (
+    logical_call_id TEXT PRIMARY KEY,
+    run_id TEXT,
+    podcast_id INTEGER,
+    episode_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    provider_key TEXT NOT NULL,
+    credential_slot TEXT,
+    configured_model TEXT NOT NULL,
+    phase_key TEXT NOT NULL,
+    window_label TEXT,
+    logical_latency_ms INTEGER,
+    outcome TEXT NOT NULL,
+    reason TEXT,
+    stage TEXT,
+    diagnostics_json TEXT,
+    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 )"""
 
 SCHEMA_SQL = """
@@ -771,6 +829,8 @@ CREATE INDEX IF NOT EXISTS idx_failover_events_created
 -- pattern cleanup: LLM review runs and their suggestions for learned patterns
 """ + TABLE_DDL['pattern_cleanup_runs'] + """;
 """ + TABLE_DDL['pattern_cleanup_suggestions'] + """;
+""" + TABLE_DDL['pattern_cleanup_checks'] + """;
+""" + TABLE_DDL['pattern_cleanup_deleted_actions'] + """;
 """ + ';\n'.join(PATTERN_CLEANUP_INDEXES) + """;
 
 -- audio_fingerprints table (Chromaprint hashes for DAI-inserted ads)
@@ -893,12 +953,18 @@ CREATE INDEX IF NOT EXISTS idx_podping_hosts_last_seen
 -- Downstream checkpoints write one row per attempt and derive counters
 -- from it in the same transaction.
 """ + TABLE_DDL['llm_call_usage'] + """;
+""" + TABLE_DDL['systemone_call_diagnostics'] + """;
+CREATE INDEX IF NOT EXISTS idx_systemone_call_diagnostics_created
+    ON systemone_call_diagnostics(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_systemone_call_diagnostics_episode
+    ON systemone_call_diagnostics(podcast_id, episode_id);
 CREATE INDEX IF NOT EXISTS idx_llm_call_usage_run ON llm_call_usage(run_id);
 CREATE INDEX IF NOT EXISTS idx_llm_call_usage_episode ON llm_call_usage(podcast_id, episode_id);
 CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_model ON llm_call_usage(provider_key, configured_model);
 CREATE INDEX IF NOT EXISTS idx_llm_call_usage_created ON llm_call_usage(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_llm_call_usage_state ON llm_call_usage(state);
 CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_slot_created ON llm_call_usage(provider_key, credential_slot, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_llm_call_usage_logical ON llm_call_usage(logical_call_id);
 
 -- addressing_log: per-pass addressing-mode compliance samples (random
 -- addressing mode A/B tracking). Aggregated per effective_mode by

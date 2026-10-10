@@ -19,8 +19,8 @@ function catalog(overrides: Partial<ModelCatalog> = {}): ModelCatalog {
   return { models, isLoading: false, isError: false, ...overrides };
 }
 
-function renderSection(overrides: Partial<Parameters<typeof AIModelsSection>[0]> = {}) {
-  return render(
+function section(overrides: Partial<Parameters<typeof AIModelsSection>[0]> = {}) {
+  return (
     <AIModelsSection
       detectionCatalog={catalog()}
       verificationCatalog={catalog()}
@@ -34,18 +34,28 @@ function renderSection(overrides: Partial<Parameters<typeof AIModelsSection>[0]>
       detectionProvider="primary"
       verificationProvider="same_as_detection"
       chaptersProvider="same_as_detection"
+      effectiveChaptersProvider="anthropic"
       onDetectionProviderChange={() => {}}
       onVerificationProviderChange={() => {}}
       onChaptersProviderChange={() => {}}
       modelsRefresh={{ refresh: () => {}, isPending: false, error: null }}
       modelPricingOverrides={{}}
+      pricingModelIds={['gpt-5', 'gpt-5-mini']}
       onPricingOverrideUpdate={vi.fn().mockResolvedValue(undefined)}
       {...overrides}
     />
   );
 }
 
+function renderSection(overrides: Partial<Parameters<typeof AIModelsSection>[0]> = {}) {
+  return render(section(overrides));
+}
+
 describe('AIModelsSection: not-configured state', () => {
+  it('warns about an inherited native chapter route independently of the model name', () => {
+    renderSection({ effectiveChaptersProvider: 'systemone-compatible', chaptersModel: 'gpt-5' });
+    expect(screen.getByText(/System One cannot generate chapters/)).toBeTruthy();
+  });
   it('renders a selected "Not configured" placeholder for an empty model value', () => {
     renderSection({ selectedModel: '' });
     const select = screen.getByLabelText('Ad Detection Model') as HTMLSelectElement;
@@ -236,6 +246,45 @@ describe('AIModelsSection: secondary provider slot', () => {
 });
 
 describe('AIModelsSection: custom pricing', () => {
+  it('restores saved rates when an inactive model is reselected and refreshes changed props', () => {
+    const modelPricingOverrides = { 'retired-model': { inputCostPerMtok: 1, outputCostPerMtok: 2 } };
+    const view = renderSection({ modelPricingOverrides });
+    expect(screen.queryByText('retired-model')).toBeNull();
+    view.rerender(section({ modelPricingOverrides, pricingModelIds: ['retired-model'] }));
+    expect((screen.getByLabelText('Input, USD per 1 million tokens') as HTMLInputElement).value).toBe('1');
+    view.rerender(section({
+      pricingModelIds: ['retired-model'],
+      modelPricingOverrides: { 'retired-model': { inputCostPerMtok: 3, outputCostPerMtok: 4 } },
+    }));
+    expect((screen.getByLabelText('Input, USD per 1 million tokens') as HTMLInputElement).value).toBe('3');
+  });
+
+  it('edits the operative alias key and disables its row during saving', async () => {
+    const user = userEvent.setup();
+    const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
+    const modelPricingOverrides = { 'openai/gpt-5': { inputCostPerMtok: 1, outputCostPerMtok: 2 } };
+    const props = { pricingModelIds: ['gpt-5'], modelPricingOverrides, onPricingOverrideUpdate };
+    const view = renderSection(props);
+    expect(screen.queryByText('openai/gpt-5')).toBeNull();
+    await user.clear(screen.getByLabelText('Input, USD per 1 million tokens'));
+    await user.clear(screen.getByLabelText('Output, USD per 1 million tokens'));
+    await user.click(screen.getByRole('button', { name: 'Save pricing' }));
+    expect(onPricingOverrideUpdate).toHaveBeenCalledWith('openai/gpt-5', null);
+    view.rerender(section({ ...props, pricingOverrideSavingModel: 'openai/gpt-5' }));
+    expect((screen.getByRole('button', { name: 'Saving...' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('retains conflicting exact prices for distinct active model IDs', () => {
+    renderSection({
+      pricingModelIds: ['gpt-5', 'gpt-5:free'],
+      modelPricingOverrides: {
+        'gpt-5': { inputCostPerMtok: 1, outputCostPerMtok: 2 },
+        'gpt-5:free': { inputCostPerMtok: 0, outputCostPerMtok: 0 },
+      },
+    });
+    expect(screen.getAllByLabelText('Input, USD per 1 million tokens').map((input) => (input as HTMLInputElement).value)).toEqual(['1', '0']);
+  });
+
   it('renders explicit zero rates for a free model', () => {
     renderSection({
       modelPricingOverrides: {
@@ -325,8 +374,7 @@ describe('AIModelsSection: custom pricing', () => {
     expect(onPricingOverrideUpdate).toHaveBeenCalledWith('gpt-5', null);
   });
 
-  it('keeps an override available after the model is no longer selected', async () => {
-    const user = userEvent.setup();
+  it('hides inactive overrides without updating their stored rates', () => {
     const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
     renderSection({
       modelPricingOverrides: {
@@ -335,15 +383,8 @@ describe('AIModelsSection: custom pricing', () => {
       onPricingOverrideUpdate,
     });
 
-    const retiredModel = screen.getByText('retired-model');
-    const fields = retiredModel.closest('fieldset')!;
-    const input = fields.querySelector<HTMLInputElement>('input[id$="-input"]')!;
-    const output = fields.querySelector<HTMLInputElement>('input[id$="-output"]')!;
-    await user.clear(input);
-    await user.clear(output);
-    await user.click(fields.querySelector<HTMLButtonElement>('button')!);
-
-    expect(onPricingOverrideUpdate).toHaveBeenCalledWith('retired-model', null);
+    expect(screen.queryByText('retired-model')).toBeNull();
+    expect(onPricingOverrideUpdate).not.toHaveBeenCalled();
   });
 });
 

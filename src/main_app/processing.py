@@ -17,6 +17,7 @@ import requests
 import requests.exceptions
 
 from ad_chapters import (
+    ID3_CHAPTER_SOURCE_KEY,
     merge_ad_chapters, public_chapters, refresh_keep_like_markers,
     resolve_ad_chapter_config, strip_ad_chapters,
 )
@@ -77,6 +78,7 @@ from config import (
     log_download_query_enabled,
     resolve_max_boundary_shift,
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
+    ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS,
     MIN_AD_DURATION, MIN_AD_DURATION_FOR_REMOVAL,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_MERGED_DURATION,
@@ -135,6 +137,7 @@ from database import Database
 from database.podcasts import is_local_feed
 from database.settings import registry_get_default
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
+from id3_chapters import ChapterTagError
 from upstream_chapters import fetch_upstream_chapters
 from llm_capabilities import (
     PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
@@ -277,6 +280,17 @@ def get_min_cut_confidence() -> float:
     except (ValueError, TypeError):
         pass
     return MIN_CUT_CONFIDENCE
+
+
+def resolve_audio_encode_settings() -> tuple[str, str]:
+    """Global bitrate and libmp3lame compression level for an AudioProcessor."""
+    bitrate = db.get_setting('audio_bitrate') or '128k'
+    if bitrate not in ALLOWED_AUDIO_BITRATES:
+        bitrate = '128k'
+    compression_level = db.get_setting('audio_encoder_compression_level') or 'default'
+    if compression_level not in ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS:
+        compression_level = 'default'
+    return bitrate, compression_level
 
 
 def is_transient_error(error: Exception) -> bool:
@@ -477,6 +491,8 @@ def _cleanup_cancelled_processing_output(slug, episode_id, run_id, queue,
 def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None, cancel_event=None, run_id=None):
     """Background thread wrapper for process_episode with queue management."""
     ctx = run_context.begin(slug, episode_id, run_id=run_id)
+    ctx.llm_cancel_check = lambda: _check_cancel(cancel_event, slug, episode_id, run_id)
+    ctx.llm_cancel_exceptions = (ProcessingCancelled, ProcessingOwnershipLost)
     queue = ProcessingQueue()
     start_time = time.time()
     # The run log is bracketed here, not inside process_episode: the fallback
@@ -710,26 +726,33 @@ def _apply_transcript_corrections(slug, episode_id, segments):
 CDN_BLOCKED_MESSAGE = 'CDN blocked the request (403) with both User-Agents'
 
 
-def _download_episode_audio(episode_url):
+def _download_episode_audio(episode_url, podcast=None, outcome=None):
     """Check CDN availability and download the enclosure. Returns the temp
     audio path; raises on either failure."""
     with _measure_run_stage('download'):
         url_for_log = safe_url_for_log(
             episode_url, keep_path=True, keep_query=log_download_query_enabled())
-        user_agent = None
-        available, cdn_error = transcriber.check_audio_availability(episode_url)
+        user_agent = download_user_agent(podcast)
+        if outcome is not None:
+            outcome['download_user_agent'] = user_agent
+        available, cdn_error = transcriber.check_audio_availability(episode_url, user_agent=user_agent)
         if not available and cdn_error.startswith(CDN_REFUSED_PREFIX):
             # A 403 may be a permanent User-Agent refusal or a transient block.
             # Probe the alternate configured agent to distinguish them.
-            alternate = feed_user_agent()
+            alternate = feed_user_agent(podcast)
             accepted, _ = transcriber.check_audio_availability(episode_url, user_agent=alternate)
             if accepted:
+                setting_location = ("Feed settings > Advanced"
+                                    if (podcast or {}).get("download_user_agent_override")
+                                    else "Settings > Outbound Requests")
                 audio_logger.warning(
                     f"Host at {url_for_log} refuses the download User-Agent "
-                    f"'{download_user_agent()}' but accepts the feed User-Agent "
+                    f"'{user_agent}' but accepts the feed User-Agent "
                     f"'{alternate}'. Downloading with the feed string. Update the "
-                    f"download User-Agent in Settings > Outbound Requests.")
+                    f"download User-Agent in {setting_location}.")
                 available, cdn_error, user_agent = True, None, alternate
+                if outcome is not None:
+                    outcome['fallback_user_agent'] = alternate
             else:
                 cdn_error = CDN_BLOCKED_MESSAGE
         if not available:
@@ -806,7 +829,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         elif is_local_feed(podcast):
             raise Exception("original audio missing")
         else:
-            audio_path = _download_episode_audio(episode_url)
+            audio_path = _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
         audio_logger.info(f"[{slug}:{episode_id}] Transcription skipped (per-feed setting)")
         if force_transcription:
             # The rerun will not write a transcript, so the stale row must
@@ -851,7 +874,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         elif is_local_feed(podcast):
             raise Exception("original audio missing")
         else:
-            audio_path = _download_episode_audio(episode_url)
+            audio_path = _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
         language_override = get_feed_language_override(db, slug)
         segments, added, empty_holes = _repair_transcript(
             slug, episode_id, audio_path, segments, language_override,
@@ -881,7 +904,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
             raise Exception("original audio missing")
         else:
             audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
-            audio_path = _download_episode_audio(episode_url)
+            audio_path = _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
 
         _publish_status('update_job_stage', slug, episode_id, "pass1:transcribing", 20)
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
@@ -1033,7 +1056,7 @@ def _publish_primary_cues(future, audio_analysis_result) -> None:
 
 def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_id,
                             dai_platform=None, podcast=None,
-                            primary_cue_future=None):
+                            primary_cue_future=None, download_outcome=None):
     """Pipeline stage: cross-fetch differential (Layer 3).
 
     Runs when the per-feed flag is on, or -- when the flag is unset -- when
@@ -1107,7 +1130,11 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
             with _measure_run_stage('differential'):
                 result = fetch_and_diff(episode_url, audio_path, work_dir,
                                         cue_scan=cue_scan,
-                                        primary_cues=primary_cues)
+                                        primary_cues=primary_cues,
+                                        primary_user_agent=(download_outcome or {}).get(
+                                            'download_user_agent') or download_user_agent(podcast),
+                                        fallback_user_agent=(download_outcome or {}).get(
+                                            'fallback_user_agent'))
         except Exception as e:
             # fetch_and_diff traps expected failures itself; this guards the rest.
             audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
@@ -1177,7 +1204,8 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
                 with _measure_run_stage('transcript_diff'):
                     try:
                         transcript = fetch_upstream_transcript(
-                            url, episode_row.get('upstream_transcript_type'))
+                            url, episode_row.get('upstream_transcript_type'),
+                            user_agent=download_user_agent(podcast))
                         if transcript is None:
                             fail('fetch or parse failed')
                         else:
@@ -1372,7 +1400,8 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                 min_confidence=db.get_setting_float('audio_cue_pair_confidence', AUDIO_CUE_PAIR_CONFIDENCE),
                 min_break_s=cue_settings['pair_min_break'],
                 max_break_s=cue_settings['pair_max_break'],
-                total_duration=(segments[-1]['end'] if segments else episode_duration),
+                total_duration=(episode_duration if episode_duration > 0
+                                else segments[-1]['end'] if segments else 0.0),
                 max_break_fraction=cue_settings['pair_max_break_fraction'],
                 orient_window_s=db.get_setting_float('audio_cue_pair_orient_window_seconds', AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS),
                 strict_roles=strict_pair_roles,
@@ -4396,56 +4425,61 @@ def _ad_chapter_count(chapters):
     return len(chapters) - len(strip_ad_chapters(chapters))
 
 
-def _publish_chapters(slug, episode_id, chapters_json, merged, all_cuts,
-                      audio_path, audio_duration, embed, label):
-    """Save a chapter set with its authoritative cut list, then embed it.
+def _publisher_chapter_entries(publisher):
+    entries = []
+    for index, chapter in enumerate(publisher):
+        entry = {key: value for key, value in chapter.items()
+                 if key in ('title', 'url', 'img', '_id3_id', '_id3_end')}
+        entry['startTime'] = (round(chapter['start'], 3) if chapter.get('_id3_id')
+                              else max(1, int(round(chapter['start']))))
+        entry['title'] = chapter.get('title') or f'Chapter {index + 1}'
+        image = chapter.get('_id3_image')
+        if image is not None:
+            entry['_id3_image'] = image
+        entries.append(entry)
+    return entries
 
-    Both persist in ONE DB write: a later recut remaps from that cut list, and
-    fresh chapters paired with stale cuts would poison the remap.
-    """
-    storage.save_chapters_and_applied_cuts(
-        slug, episode_id, {**chapters_json, 'chapters': merged}, all_cuts or [])
+
+def _publish_chapters(slug, episode_id, chapters_json, merged, all_cuts,
+                      audio_path, audio_duration, embed, label, pending_assets):
+    """Validate embedded chapters before staging their JSON and cut map."""
+    if embed and audio_path:
+        embedded = embed_chapters(str(audio_path), public_chapters(merged, for_embedding=True),
+                                  duration=audio_duration)
+        if not embedded and any(ch.get('_id3_id') for ch in merged):
+            raise ChapterTagError('Publisher chapters could not be embedded')
+    pending_assets.update(chapters={**chapters_json, 'chapters': merged},
+                          applied_cuts=all_cuts or [])
     audio_logger.info(
         f"[{slug}:{episode_id}] {label}, {_ad_chapter_count(merged)} ad "
         f"chapter entries")
-    if embed and audio_path:
-        embed_chapters(str(audio_path), public_chapters(merged),
-                       duration=audio_duration)
 
 
 def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
                             previous_cuts, original_duration,
                             audio_path=None, audio_duration=None,
-                            markers=None, podcast_row=None):
-    """Recut-path chapter fixup (AI-free): remap the stored chapters JSON onto
-    the recut timeline and re-embed it into the recut MP3.
-
-    previous_cuts is the AUTHORITATIVE applied cut list the stored chapters
-    JSON was generated against (original-episode coordinates), loaded from the
-    persisted applied_cuts_json. None means no authoritative list exists
-    (episode rendered before applied_cuts_json was persisted, or the slot was
-    cleared/unparseable): the topic chapters are then left on their old
-    timeline, exactly as the pre-2.62.1 recut did, because reconstructing the
-    list from was_cut markers would ship wrong timestamps in served RSS and
-    embedded ID3, worse than stale-but-consistent ones. The ad entries are
-    still rebuilt from this recut's own (known) cut list, so they never linger
-    on the previous timeline; the result saves without claiming all_cuts as
-    authoritative, since the topics were not remapped.
-
-    On a successful remap, all_cuts (the recut's own applied cuts) becomes the
-    new authoritative list so the NEXT recut remaps from it.
-
-    Never raises: on any failure the previous JSON is left in place and the
-    recut proceeds."""
+                            markers=None, podcast_row=None, *, pending_assets):
+    """Stage recut chapters, refusing unsafe publisher metadata changes."""
+    rich_source = False
     try:
         chapters_json = storage.get_chapters_json(slug, episode_id)
         stored = (chapters_json or {}).get('chapters') or []
         # Stale ad chapters are rebuilt from the recut's markers, never remapped.
         chapters = strip_ad_chapters(stored)
+        rich_source = ((chapters_json or {}).get(ID3_CHAPTER_SOURCE_KEY) == 'id3'
+                       or any(ch.get('_id3_id') for ch in chapters))
+        source_entries = []
+        if rich_source:
+            publisher = probe_chapters(str(audio_path)) if audio_path else None
+            if publisher is None:
+                raise ChapterTagError('Publisher chapter metadata is unavailable')
+            source_entries = _publisher_chapter_entries([ch for ch in publisher if ch.get('_id3_id')])
+            chapters = [ch for ch in chapters if not ch.get('_id3_id')]
+            chapters_json = {**(chapters_json or {}), ID3_CHAPTER_SOURCE_KEY: 'id3'}
         had_ads = len(stored) != len(chapters)
         # had_ads still writes: the stale entries must leave the JSON and ID3
         # even when nothing replaces them.
-        nothing_stored = not chapters and not had_ads
+        nothing_stored = not chapters and not had_ads and not rich_source
         if nothing_stored and not markers:
             return
         ad_config = resolve_ad_chapter_config(
@@ -4466,23 +4500,26 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
             # No authoritative previous cuts: the topic chapters keep their old
             # timestamps, but the ad entries are rebuilt from this recut's own
             # cut list instead of being left on the previous timeline.
-            merged = merge_ad_chapters(chapters, markers, all_cuts or [],
+            merged = merge_ad_chapters(sorted(chapters + source_entries, key=lambda ch: ch['startTime']), markers, all_cuts or [],
                                        resolved_duration, replacement_duration,
                                        ad_config)
             if merged == stored:
                 return
             if audio_path and not embed_chapters(
-                    str(audio_path), public_chapters(merged),
+                    str(audio_path), public_chapters(merged, for_embedding=True),
                     duration=resolved_duration):
+                if any(ch.get('_id3_id') for ch in merged):
+                    raise ChapterTagError('Publisher chapters could not be embedded')
                 audio_logger.warning(
                     f"[{slug}:{episode_id}] Chapter embed failed after recut; "
                     f"keeping previous chapters JSON and embedded ID3")
                 return
             # Chapters alone: all_cuts is not the list these topic chapters sit
             # on, so it must not become the authoritative one.
-            storage.save_chapters_json(
-                slug, episode_id,
-                {**(chapters_json or {'version': '1.2.0'}), 'chapters': merged})
+            updated_chapters = {**(chapters_json or {'version': '1.2.0'}), 'chapters': merged}
+            pending_assets['chapters'] = updated_chapters
+            if rich_source and not chapters:
+                pending_assets['applied_cuts'] = all_cuts or []
             audio_logger.info(
                 f"[{slug}:{episode_id}] Rebuilt {_ad_chapter_count(merged)} ad "
                 f"chapter entries without a remap (no authoritative previous cuts)")
@@ -4495,10 +4532,11 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
         remapped = _remap_chapters_for_recut(
             chapters, previous_cuts, all_cuts or [],
             replacement_duration, original_duration, resolved_duration)
+        remapped = sorted(remapped + source_entries, key=lambda ch: ch['startTime'])
         merged = merge_ad_chapters(remapped, markers, all_cuts or [],
                                    resolved_duration, replacement_duration,
                                    ad_config)
-        if not merged and not had_ads:
+        if not merged and not had_ads and not rich_source:
             audio_logger.warning(
                 f"[{slug}:{episode_id}] Chapter remap swallowed every "
                 f"chapter; keeping previous chapters JSON")
@@ -4508,10 +4546,12 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
         # (issue #523 was the reverse order -- new JSON, stale ID3). This is a
         # set replacement of the ffmpeg cut step's remapped source chapters,
         # not a second remap: embed_chapters writes the timestamps as-is and
-        # returns False (never raises for ffmpeg/OS errors) on failure.
+        # returns False for ffmpeg/OS errors; unsafe source metadata raises.
         if audio_path:
-            if not embed_chapters(str(audio_path), public_chapters(merged),
+            if not embed_chapters(str(audio_path), public_chapters(merged, for_embedding=True),
                                   duration=resolved_duration):
+                if rich_source:
+                    raise ChapterTagError('Publisher chapters could not be embedded')
                 audio_logger.warning(
                     f"[{slug}:{episode_id}] Chapter embed failed after recut; "
                     f"keeping previous chapters JSON and embedded ID3")
@@ -4520,15 +4560,17 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
         # both persist in ONE DB write so a failure can never pair fresh
         # chapters with a stale authoritative cut list (that pairing makes
         # the NEXT remap unproject through the wrong previous cuts).
-        storage.save_chapters_and_applied_cuts(
-            slug, episode_id,
-            {**(chapters_json or {'version': '1.2.0'}), 'chapters': merged},
-            all_cuts or [])
+        updated_chapters = {**(chapters_json or {'version': '1.2.0'}), 'chapters': merged}
+        pending_assets.update(chapters=updated_chapters, applied_cuts=all_cuts or [])
         audio_logger.info(
             f"[{slug}:{episode_id}] Remapped {len(chapters)} stored "
             f"chapter(s) -> {len(merged)} onto the recut timeline "
             f"(no AI call)")
+    except ChapterTagError:
+        raise
     except Exception as e:
+        if rich_source:
+            raise ChapterTagError('Publisher chapter assets could not be prepared') from e
         audio_logger.warning(
             f"[{slug}:{episode_id}] Failed to remap stored chapters after "
             f"recut; keeping previous chapters JSON: {e}")
@@ -4608,7 +4650,7 @@ def rebuild_ad_chapters(slug, episode_id, markers, episode=None) -> bool:
         with _episode_embed_lock((slug, episode_id)):
             # Embed first: a failed embed must leave the served JSON matching
             # the ID3 already in the file.
-            if exists and not embed_chapters(str(path), public_chapters(merged),
+            if exists and not embed_chapters(str(path), public_chapters(merged, for_embedding=True),
                                              duration=duration):
                 audio_logger.warning(
                     f"[{slug}:{episode_id}] Ad chapter embed failed; "
@@ -4668,6 +4710,9 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     """
     from transcript_generator import TranscriptGenerator
     from chapters_generator import ChaptersGenerator
+    pending_assets = {}
+    publish_assets = True
+    preserving_source = False
     try:
         vtt_enabled = db.get_setting('vtt_transcripts_enabled')
         transcript_gen = TranscriptGenerator()
@@ -4676,20 +4721,19 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
         # (cut - beep) per cut, not the full cut length.
         replacement_duration = get_replacement_duration()
 
-        # Persist final segments unconditionally; consumers (e.g. the offline
-        # benchmark) need them even when VTT generation is disabled.
+        # Successful asset publication includes final segments even when VTT is disabled.
         final_segments = transcript_gen.compute_final_segments(segments, all_cuts, replacement_duration)
-        storage.save_final_segments(slug, episode_id, final_segments)
+        pending_assets['final_segments'] = final_segments
 
         if vtt_enabled is None or vtt_enabled.lower() == 'true':
             vtt_content = transcript_gen.generate_vtt(segments, all_cuts, replacement_duration)
             if vtt_content and len(vtt_content) > 10:
-                storage.save_transcript_vtt(slug, episode_id, vtt_content)
+                pending_assets['transcript_vtt'] = vtt_content
                 audio_logger.info(f"[{slug}:{episode_id}] Generated VTT transcript")
 
         processed_text = transcript_gen.generate_text(segments, all_cuts, replacement_duration)
         if processed_text:
-            db.save_episode_details(slug, episode_id, transcript_text=processed_text)
+            pending_assets['transcript_text'] = processed_text
 
         chapters_enabled = db.get_setting('chapters_enabled')
         if not regenerate_chapters:
@@ -4699,7 +4743,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                    original_duration,
                                    audio_path=audio_path,
                                    audio_duration=audio_duration,
-                                   markers=markers, podcast_row=podcast_row)
+                                   markers=markers, podcast_row=podcast_row, pending_assets=pending_assets)
         elif chapters_enabled is None or chapters_enabled.lower() == 'true':
             if podcast_row is None:
                 podcast_row = db.get_podcast_by_slug(slug)
@@ -4729,20 +4773,12 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                         f"[{slug}:{episode_id}] Chapter probe failed after "
                         f"cut; skipping chapter step this run")
                     return
-            if len(publisher) >= MIN_PRESERVED_CHAPTERS:
-                chapters_json = {
-                    'version': '1.2.0',
-                    'chapters': [
-                        {
-                            # min 1 (not 0): some podcast apps require
-                            # chapters to start at 1, matching the same
-                            # floor the generator applies below.
-                            'startTime': max(1, int(round(c['start']))),
-                            'title': c.get('title') or f"Chapter {i + 1}",
-                        }
-                        for i, c in enumerate(publisher)
-                    ],
-                }
+            preserving_source = any(ch.get('_id3_id') for ch in publisher)
+            if len(publisher) >= MIN_PRESERVED_CHAPTERS or preserving_source:
+                entries = _publisher_chapter_entries(publisher)
+                chapters_json = {'version': '1.2.0', 'chapters': entries}
+                if preserving_source:
+                    chapters_json[ID3_CHAPTER_SOURCE_KEY] = 'id3'
                 base = chapters_json['chapters']
                 merged = merge_ad_chapters(base, markers, all_cuts or [],
                                            audio_duration, replacement_duration,
@@ -4752,7 +4788,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 _publish_chapters(
                     slug, episode_id, chapters_json, merged, all_cuts,
                     audio_path, audio_duration, merged != base,
-                    f"Preserved {len(publisher)} publisher chapter(s) (no AI call)")
+                    f"Preserved {len(publisher)} publisher chapter(s) (no AI call)", pending_assets=pending_assets)
                 return
             # Embedded chapters came up short. Some feeds publish chapters
             # only as a separate podcast:chapters JSON file (issue #560
@@ -4769,7 +4805,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 episode_row = db.get_episode(slug, episode_id)
                 upstream_url = (episode_row or {}).get('upstream_chapters_url')
                 if upstream_url:
-                    fetched = fetch_upstream_chapters(upstream_url)
+                    fetched = fetch_upstream_chapters(upstream_url, user_agent=download_user_agent(podcast_row))
                     if fetched is not None:
                         remapped = _remap_chapters_for_recut(
                             fetched, [], all_cuts or [], replacement_duration,
@@ -4793,7 +4829,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                 slug, episode_id, chapters_json, merged,
                                 all_cuts, audio_path, audio_duration, True,
                                 f"Preserved {len(remapped)} upstream JSON "
-                                f"chapter(s) (no AI call)")
+                                f"chapter(s) (no AI call)", pending_assets=pending_assets)
                             return
             chapters_gen = None
             chapter_setup_failed = False
@@ -4851,11 +4887,25 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 _publish_chapters(
                     slug, episode_id, chapters or {'version': '1.2.0'}, merged,
                     all_cuts, audio_path, audio_duration, True,
-                    f"Generated {len(topic)} chapters")
-    except (ProviderAccountChangedError, ProcessingCancelled, ProcessingOwnershipLost):
+                    f"Generated {len(topic)} chapters", pending_assets=pending_assets)
+    except (ProviderAccountChangedError, ProcessingCancelled, ProcessingOwnershipLost, ChapterTagError):
+        publish_assets = False
         raise
     except Exception as e:
+        if preserving_source:
+            publish_assets = False
+            raise ChapterTagError('Publisher chapter assets could not be prepared') from e
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to generate Podcasting 2.0 assets: {e}")
+
+    finally:
+        if publish_assets and pending_assets:
+            for chapter in pending_assets.get('chapters', {}).get('chapters', []):
+                image = chapter.pop('_id3_image', None)
+                if image is not None:
+                    image_url = storage.save_chapter_image(slug, episode_id, image)
+                    if image_url:
+                        chapter['img'] = image_url
+            db.save_processing_assets(slug, episode_id, pending_assets)
 
 
 def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
@@ -5505,7 +5555,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
 def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                           podcast_name, episode_description,
                           episode_artwork_url, episode_published_at,
-                          start_time, episode_data, cancel_event=None):
+                          start_time, episode_data, cancel_event=None, podcast=None):
     """Pass-through mode (#521): download the episode and serve it exactly
     as published -- no transcription, detection, LLM, cutting, or assets.
     MinusPod acts as an archive/relay for the feed while the served feed
@@ -5536,7 +5586,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: reusing retained original")
         else:
-            audio_path = _download_episode_audio(episode_url)
+            audio_path = _download_episode_audio(episode_url, podcast=podcast)
         _check_cancel(cancel_event, slug, episode_id)
 
         duration = audio_processor.get_audio_duration(audio_path)
@@ -5561,8 +5611,9 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
         if codec != 'mp3':
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: converting {codec or 'unknown'} to mp3")
-            bitrate = db.get_setting('audio_bitrate') or '128k'
-            converted = AudioProcessor(bitrate=bitrate).convert_to_mp3(audio_path)
+            bitrate, compression_level = resolve_audio_encode_settings()
+            converted = AudioProcessor(
+                bitrate=bitrate, compression_level=compression_level).convert_to_mp3(audio_path)
             if not converted:
                 raise Exception(f"Failed to convert {codec or 'unknown'} enclosure to mp3")
             os.unlink(audio_path)
@@ -5683,9 +5734,12 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         if not segments:
             raise Exception("No saved transcript segments; cannot recut")
 
-        settings = db.get_all_settings()
-        bitrate = settings.get('audio_bitrate', {}).get('value', '128k')
-        local_audio_processor = AudioProcessor(bitrate=bitrate)
+        bitrate, compression_level = resolve_audio_encode_settings()
+        audio_output = db.resolve_audio_output(slug, podcast=podcast_row)
+        if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
+            audio_output['mp3_stream_copy_enabled'] = False
+        local_audio_processor = AudioProcessor(
+            bitrate=bitrate, compression_level=compression_level, **audio_output)
         original_duration = (local_audio_processor.get_audio_duration(work_path)
                              or (segments[-1]['end'] if segments else 0))
         min_cut_confidence = get_min_cut_confidence()
@@ -5878,7 +5932,6 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     """Handle processing failure: GPU cleanup, retry logic, error recording."""
     _require_publication_owner(slug, episode_id)
     processing_time = time.time() - start_time
-    audio_logger.error(f"[{slug}:{episode_id}] Failed: {error} ({processing_time:.1f}s)")
 
     try:
         from transcriber import WhisperModelSingleton
@@ -5959,6 +6012,8 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             service=service, error_message=error, slug=slug,
             episode_id=episode_id, podcast_name=podcast_name)
         return
+
+    audio_logger.error(f"[{slug}:{episode_id}] Failed: {error} ({processing_time:.1f}s)")
 
     transient = is_transient_error(error)
     current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0
@@ -6472,7 +6527,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                      episode_title, podcast_name,
                                      episode_description, episode_artwork_url,
                                      episode_published_at, start_time,
-                                     episode_data, cancel_event=cancel_event)
+                                     episode_data, cancel_event=cancel_event,
+                                     podcast=podcast_settings)
 
     # Skip ad detection (#538): episodes still get transcription, chapters,
     # and a transcript, but the detection stages and the cut are skipped.
@@ -6680,7 +6736,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         dai_platform=(podcast_settings.get('dai_platform')
                                       if podcast_settings else None),
                         podcast=podcast_settings,
-                        primary_cue_future=primary_cue_future)
+                        primary_cue_future=primary_cue_future,
+                        download_outcome=transcribe_outcome)
                 except BaseException as e:
                     diff_outcome['error'] = e
 
@@ -7030,9 +7087,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                             "pass1:processing", 80)
             audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(ads_to_remove)} ads to remove)")
 
-            settings = db.get_all_settings()
-            bitrate = settings.get('audio_bitrate', {}).get('value', '128k')
-            local_audio_processor = AudioProcessor(bitrate=bitrate)
+            bitrate, compression_level = resolve_audio_encode_settings()
+            audio_output = db.resolve_audio_output(slug, podcast=podcast_settings)
+            if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
+                audio_output['mp3_stream_copy_enabled'] = False
+            local_audio_processor = AudioProcessor(
+                bitrate=bitrate, compression_level=compression_level, **audio_output)
 
             # process_episode returns the cuts ffmpeg actually applied (merged,
             # <10s-filtered, end-trimmed); verification mapping and assets must
@@ -7179,19 +7239,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             final_path = storage.get_episode_path(slug, episode_id, version=new_version)
             shutil.move(processed_path, final_path)
 
-            # Retain the pre-cut audio for the ad-editor "Review mode" playback
-            # when the user hasn't opted out. Moved rather than copied so the
-            # temp file in the finally-block below no longer exists.
-            keep_original = db.resolve_keep_original_audio(
-                slug, podcast_settings)
-            if keep_original and os.path.exists(audio_path):
-                original_final = storage.get_original_path(slug, episode_id)
-                original_final.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(audio_path, original_final)
-                audio_logger.info(
-                    f"[{slug}:{episode_id}] Retained original audio at {original_final.name}"
-                )
-
             # Stage 7: Generate assets. Uses the RENDERED cut lists (one
             # replacement beep per span), not the UI ad list: gap-merged
             # pass-2 ads share a single beep in the audio.
@@ -7206,6 +7253,17 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                   original_duration=original_duration,
                                   run_stats=run_stats,
                                   markers=all_ads_with_validation)
+            # Retain the source only after chapter assets validate.
+            keep_original = db.resolve_keep_original_audio(
+                slug, podcast_settings)
+            if keep_original and os.path.exists(audio_path):
+                original_final = storage.get_original_path(slug, episode_id)
+                original_final.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(audio_path, original_final)
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Retained original audio at {original_final.name}"
+                )
+
             storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
             # Stage 8: Finalize. ads_removed counts rendered cuts, so markers

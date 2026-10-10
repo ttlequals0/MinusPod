@@ -1,0 +1,704 @@
+Subject: Adapt Fedora Patch27 GNU tar --one-top-level confinement for Ubuntu 1.35
+Upstream: https://src.fedoraproject.org/rpms/tar/raw/f45/f/tar-1.35-fix-absolute-one-top-level.patch
+Upstream authors: Sergey Poznyakoff <gray@gnu.org>; Paul Eggert <eggert@cs.ucla.edu>; Pavel Cahyna <pcahyna@redhat.com>
+Upstream commits: bfc33463942060316f70f275471ed202b0076972, b4fc9ca13617411c5db57286a3ff534bd40acdc1, 67c8dff6968aae58fcdfb05268eb1b4c07308f1a, 55e8233438b3c13294109df502a9b220a9a3f4f5, 0470c109c08f466d8332ba3326070554b4d81aa1, 1b91f5f66f8e6c490eef0fdee50f652cfe155844, 325b899214ac13519153318e66c889a31c15342d, 1980e032afe60c5fe0e5df573457885ece4e69d5, e335e2c8b102f83b63ffd373f0b88401da3ebe6c, 941f62b24db232c58a41a0a621e08451f7f97ed8
+CVE: CVE-2026-18508
+
+--- a/src/common.h
++++ b/src/common.h
+@@ -249,7 +249,6 @@
+ GLOBAL bool one_file_system_option;
+ 
+ /* Create a top-level directory for extracting based on the archive name.  */
+-GLOBAL bool one_top_level_option;
+ GLOBAL char *one_top_level_dir;
+ 
+ /* Specified value to be put into tar file in place of stat () results, or
+@@ -550,6 +549,7 @@
+ /* Module extract.c.  */
+ 
+ void extr_init (void);
++int make_directories (char *file_name);
+ void extract_archive (void);
+ void extract_finish (void);
+ bool rename_directory (char *src, char *dst);
+@@ -639,6 +639,20 @@
+ 
+ #define min(a, b) ((a) < (b) ? (a) : (b))
+ #define max(a, b) ((a) < (b) ? (b) : (a))
++
++/* A directory FD, and a file name BASE that matches the regexp "[^/]*[/]*".
++   If BASE is absolute (i.e., matches "/+"), FD is valid but irrelevant.
++   Otherwise if FD == AT_FDCWD, BASE is relative to the current directory.
++   Otherwise if FD == BADFD, the parent directory could not be opened
++   and BASE is merely the original file name's basename.
++   Otherwise, FD is open to a parent directory,
++   and BASE is relative to that directory.
++   BASE points to storage managed elsewhere; do not free it directly.  */
++struct fdbase
++  {
++    int fd;
++    char const *base;
++  };
+ 
+ char const *quote_n_colon (int n, char const *arg);
+ void assign_string_or_null (char **dest, const char *src)
+@@ -662,6 +676,8 @@
+ char *namebuf_name (namebuf_t buf, const char *name);
+ 
+ const char *tar_dirname (void);
++char *transform_top_level (const char *name)
++  _GL_ATTRIBUTE_MALLOC _GL_ATTRIBUTE_DEALLOC_FREE;
+ 
+ /* Represent N using a signed integer I such that (uintmax_t) I == N.
+    With a good optimizing compiler, this is equivalent to (intmax_t) i
+@@ -733,10 +749,10 @@
+ enum { BADFD = AT_FDCWD == -1 ? -2 : -1 };
+ 
+ extern int chdir_current;
+-int chdir_arg (char const *dir);
+-void chdir_do (int dir);
++int chdir_arg (char const *dir, bool one_top_level);
++void chdir_do (int dir, bool create);
+ struct chdir_id { int err; dev_t st_dev; ino_t st_ino; } chdir_id (void);
+-struct fdbase { int fd; char const *base; } fdbase (char const *);
++struct fdbase fdbase (char const *);
+ struct fdbase fdbase1 (char const *);
+ void fdbase_clear (void);
+ int chdir_count (void);
+--- a/src/create.c
++++ b/src/create.c
+@@ -1286,7 +1286,7 @@
+ /* If we just ran out of file descriptors, release a file descriptor
+    in the directory chain somewhere leading from DIR->parent->parent
+    up through the root.  Return true if successful, false (preserving
+-   errno == EMFILE) otherwise.
++   errno) otherwise.
+ 
+    Do not release DIR's file descriptor, or DIR's parent, as other
+    code assumes that they work.  On some operating systems, another
+@@ -1297,7 +1297,8 @@
+ static bool
+ open_failure_recover (struct tar_stat_info const *dir)
+ {
+-  if (errno == EMFILE && dir && dir->parent)
++  int err = errno;
++  if ((err == EMFILE || err == ENFILE) && dir && dir->parent)
+     {
+       struct tar_stat_info *p;
+       for (p = dir->parent->parent; p; p = p->parent)
+@@ -1306,7 +1307,7 @@
+ 	    tar_stat_close (p);
+ 	    return true;
+ 	  }
+-      errno = EMFILE;
++      errno = err;
+     }
+ 
+   return false;
+--- a/src/extract.c
++++ b/src/extract.c
+@@ -698,7 +698,7 @@
+    create all required directories.  Return zero if all the required
+    directories were created, nonzero (issuing a diagnostic) otherwise.
+    Set *INTERDIR_MADE if at least one directory was created.  */
+-static int
++int
+ make_directories (char *file_name)
+ {
+   char *cursor0 = file_name + FILE_SYSTEM_PREFIX_LEN (file_name);
+@@ -973,7 +973,7 @@
+ 	      && memcmp (file_name, data->file_name, data->file_name_len) == 0))
+ 	break;
+ 
+-      chdir_do (data->change_dir);
++      chdir_do (data->change_dir, false);
+ 
+       if (check_for_renamed_directories)
+ 	{
+@@ -1847,7 +1847,7 @@
+     {
+       int dir = chdir_current;
+       apply_nonancestor_delayed_set_stat (current_stat_info.file_name, 0);
+-      chdir_do (dir);
++      chdir_do (dir, false);
+     }
+ 
+   /* Take a safety backup of a previously existing file.  */
+@@ -1867,8 +1867,23 @@
+   typeflag = sparse_member_p (&current_stat_info) ?
+                   GNUTYPE_SPARSE : current_header->header.typeflag;
+ 
+-  bool ok = (prepare_to_extract (current_stat_info.file_name, typeflag, &fun)
+-	     && fun (current_stat_info.file_name, typeflag) == 0);
++  bool ok = false;
++  if (prepare_to_extract (current_stat_info.file_name, typeflag, &fun))
++    {
++      if (one_top_level_dir)
++	{
++	  chdir_do (chdir_current, true);
++	  if (!delay_directory_restore_option)
++	    {
++	      int dir = chdir_current;
++	      apply_nonancestor_delayed_set_stat (current_stat_info.file_name,
++						  false);
++	      chdir_do (dir, false);
++	    }
++	}
++      if (fun (current_stat_info.file_name, typeflag) == 0)
++	ok = true;
++    }
+   skip_member ();
+   if (!ok && backup_option)
+     undo_last_backup ();
+@@ -1881,7 +1896,7 @@
+   struct string_list *sources = ds->sources;
+   char const *valid_source = NULL;
+ 
+-  chdir_do (ds->change_dir);
++  chdir_do (ds->change_dir, false);
+ 
+   for (sources = ds->sources; sources; sources = sources->next)
+     {
+--- a/src/list.c
++++ b/src/list.c
+@@ -128,16 +128,28 @@
+       int pos = strlen (one_top_level_dir);
+       if (strncmp (p, one_top_level_dir, pos) == 0)
+ 	{
+-	  if (ISSLASH (p[pos]) || p[pos] == 0)
+-	    return;
+-	}
+-
+-      *pfile_name = make_file_name (one_top_level_dir, file_name);
+-      normalize_filename_x (*pfile_name);
++	  /* Remove the one_top_level_dir prefix if it ends at
++	     component boundary.  */
++	  if (ISSLASH (p[pos]))
++	    {
++	      *pfile_name = xstrdup (p[pos+1] ? &p[pos+1] : ".");
++	      free (file_name);
++	      return;
++	    }
++	  else if (p[pos] == 0)
++	    {
++	      *pfile_name = xstrdup (".");
++	      free (file_name);
++	      return;
++	    }
++	}
++      /* If the prefix does not match, do nothing.  */
+     }
+   else
+-    *pfile_name = xstrdup (one_top_level_dir);
+-  free (file_name);
++    {
++      *pfile_name = xstrdup (".");
++      free (file_name);
++    }
+ }
+ 
+ void
+@@ -158,8 +170,15 @@
+       transform_member_name (&stat_info->link_name, XFORM_LINK);
+     }
+ 
+-  if (one_top_level_option)
+-    enforce_one_top_level (&current_stat_info.file_name);
++  if (one_top_level_dir)
++    {
++      enforce_one_top_level (&stat_info->file_name);
++      /* Hard links are interpreted relative to cwd, and --one-top-level
++	 works by means of a hidden change of cwd to the requested directory.
++	 Adjust hard link targets as well.  */
++      if (typeflag == LNKTYPE)
++	enforce_one_top_level (&stat_info->link_name);
++    }
+ }
+ 
+ /* Main loop for reading an archive.  */
+@@ -1168,9 +1187,9 @@
+   int sizelen;
+ 
+   if (show_transformed_names_option)
+-    temp_name = st->file_name ? st->file_name : st->orig_file_name;
++    temp_name = transform_top_level (st->file_name ? st->file_name : st->orig_file_name);
+   else
+-    temp_name = st->orig_file_name ? st->orig_file_name : st->file_name;
++    temp_name = xstrdup (st->orig_file_name ? st->orig_file_name : st->file_name);
+ 
+   if (block_number_option)
+     {
+@@ -1363,6 +1382,7 @@
+     }
+   fflush (stdlis);
+   xattrs_print (st);
++  free (temp_name);
+ }
+ 
+ 
+--- a/src/misc.c
++++ b/src/misc.c
+@@ -23,6 +23,7 @@
+ #include <xgetcwd.h>
+ #include <unlinkdir.h>
+ #include <utimens.h>
++#include <assert.h>
+ 
+ #ifndef DOUBLE_SLASH_IS_DISTINCT_ROOT
+ # define DOUBLE_SLASH_IS_DISTINCT_ROOT 0
+@@ -950,6 +951,7 @@
+      to be used.  */
+   int fd;
+ 
++  bool one_top_level;
+   /* If ID.err is zero, the directory's identity;
+      if positive, a failure indication with errno = ID.err;
+      if negative, no attempt has been made yet to get the identity.  */
+@@ -981,9 +983,17 @@
+ int
+ chdir_count (void)
+ {
+-  if (wd_count == 0)
+-    return wd_count;
+-  return wd_count - 1;
++  int count = 0;
++  if (wd_count)
++    {
++      /* Do not count the initial CWD entry -> start at 1.  */
++      for (int i = 1; i < wd_count; i++)
++	{
++	  if (! wd[i].one_top_level)
++	    count++;
++	}
++    }
++  return count;
+ }
+ 
+ /* Grow the WD table by at least one entry.  */
+@@ -1000,15 +1010,27 @@
+       wd[wd_count].abspath = NULL;
+       wd[wd_count].fd = AT_FDCWD;
+       wd[wd_count].id.err = -1;
++      wd[wd_count].one_top_level = false;
+       wd_count++;
++      if (one_top_level_dir)
++	{
++	  wd[wd_count].name = one_top_level_dir;
++	  wd[wd_count].abspath = NULL;
++	  wd[wd_count].fd = 0;
++	  wd[wd_count].id.err = -1;
++	  wd[wd_count].one_top_level = true;
++	  wd_count++;
++	}
+     }
+ }
+ 
+ /* DIR is the operand of a -C option; add it to vector of chdir targets,
+    and return the index of its location.  */
+ int
+-chdir_arg (char const *dir)
+-{
++chdir_arg (char const *dir, bool one_top_level)
++{
++  if (one_top_level)
++    chdir_arg (dir, false);
+   if (wd_count == wd_alloc)
+     grow_wd ();
+ 
+@@ -1018,13 +1040,22 @@
+     {
+       dir += dotslashlen (dir);
+       if (! dir[dir[0] == '.'])
+-	return wd_count - 1;
+-    }
++	{
++	  if (wd[wd_count - 1].one_top_level == one_top_level)
++	    return wd_count - 1;
++	  else
++	    return wd_count - 2;
++	}
++    }
++
++  if (one_top_level)
++    dir = one_top_level_dir;
+ 
+   wd[wd_count].name = dir;
+   wd[wd_count].abspath = NULL;
+   wd[wd_count].fd = 0;
+   wd[wd_count].id.err = -1;
++  wd[wd_count].one_top_level = one_top_level;
+   return wd_count++;
+ }
+ 
+@@ -1043,21 +1074,74 @@
+    working directory; otherwise, I must be a value returned by
+    chdir_arg.  */
+ void
+-chdir_do (int i)
+-{
+-  if (chdir_current != i)
+-    {
+-      struct wd *curr = &wd[i];
+-      int fd = curr->fd;
+-
+-      if (! fd)
++chdir_do (int i, bool create)
++{
++  struct wd *curr = &wd[i];
++  int fd = curr->fd;
++
++  /* Nothing to create unless we are at the one_top_level dir that has
++     not been created yet.  */
++  create = create && curr->one_top_level && (fd == BADFD || fd == 0);
++
++  if (chdir_current != i || create)
++    {
++      if (! fd || create)
+ 	{
+ 	  if (! IS_ABSOLUTE_FILE_NAME (curr->name))
+-	    chdir_do (i - 1);
++	    {
++	      int j = i - 1;
++	      if (wd[j].one_top_level)
++		{
++		  j--;
++		  assert (! wd[j].one_top_level);
++		}
++	      chdir_do (j, false);
++	    }
+ 	  fd = openat (chdir_fd, curr->name,
+ 		       open_searchdir_how.flags & ~O_NOFOLLOW);
+ 	  if (fd < 0)
+-	    open_fatal (curr->name);
++	    {
++	      if (create)
++		{
++		  char *dir_with_dot;
++		  struct open_how saved_open_searchdir_how = open_searchdir_how;
++		  /* Don't use O_BENEATH during creation of the
++		     directory. The one-top-level directory is
++		     allowed to be given as an absolute path.  */
++		  open_searchdir_how.resolve = 0;
++		  /* Append a dot. make_directories creates
++		     directories up to and excluding the last
++		     component of the path. So, in order to create
++		     "a/b", we need to pass "a/b/." to it. */
++		  {
++		    namebuf_t nbuf = namebuf_create (curr->name);
++		    namebuf_add_dir (nbuf, ".");
++		    dir_with_dot = namebuf_finish (nbuf);
++		  }
++		  if (make_directories (dir_with_dot) == 0)
++		    /* Directory created, retry */
++		    fd = openat (chdir_fd, curr->name,
++				 open_searchdir_how.flags & ~O_NOFOLLOW);
++		  open_searchdir_how = saved_open_searchdir_how;
++		  free (dir_with_dot);
++		  /* Either the creation or open failed */
++		  if (fd < 0)
++		    open_fatal (curr->name);
++		}
++	      else if (errno == ENOENT && curr->one_top_level)
++		{
++		  /* We are requested to not create the directory now. Mark it
++		     as to be created later when called with create == true. */
++		  chdir_fd = curr->fd = BADFD;
++		  chdir_current = i;
++		  /* Do not add it to the cache */
++		  return;
++		}
++	      else
++		{
++		  open_fatal (curr->name);
++		}
++	    }
+ 
+ 	  curr->fd = fd;
+ 
+@@ -1075,7 +1159,7 @@
+ 	    }
+ 	}
+ 
+-      if (0 < fd)
++      if (0 < fd && /* no assumption about sign of BADFD */ fd != BADFD)
+ 	{
+ 	  /* Move the i value to the front of the cache.  This is
+ 	     O(CHDIR_CACHE_SIZE), but the cache is small.  */
+@@ -1179,6 +1263,14 @@
+ {
+   char const *name = file_name;
+ 
++  if (chdir_fd == BADFD && ! IS_ABSOLUTE_FILE_NAME (file_name))
++    {
++      /* BADFD is a sentinel value meaning that the chdir directory
++	 needs to be created lazily, therefore if we encounter it, the
++	 directory does not exist yet. */
++      errno = ENOENT;
++      return (struct fdbase) { .fd = chdir_fd, .base = name };
++    }
+   /* Skip past leading "./"s,
+      but not past the last "./" if that ends the name.  */
+   idx_t dslen = dotslashlen (name);
+@@ -1223,13 +1315,13 @@
+ 	  if (subfd < 0)
+ 	    {
+ 	      /* Keep the old directory cached and report open failure,
+-		 unless EMFILE means it's possible that falling
++		 unless EMFILE/ENFILE means it's possible that falling
+ 		 through to close the old directory would mean we
+ 		 could successfully retry from the chdir_fd level.
+ 	         When reporting failure, there is no need to
+ 	         null-terminate the old directory, since the code does
+ 	         not assume null termination.  */
+-	      if (errno != EMFILE)
++	      if (errno != EMFILE && errno != ENFILE)
+ 		return (struct fdbase) { .fd = BADFD, .base = base };
+ 	    }
+ 	  else
+@@ -1284,6 +1376,29 @@
+   return wd[chdir_current].name;
+ }
+ 
++/* Return a newly allocated string that shows NAME from the user's
++   viewpoint, given that --one-top-level may be in effect.  */
++char *
++transform_top_level (const char *name)
++{
++  if (wd[chdir_current].one_top_level)
++    {
++      if (strcmp (name, ".") == 0)
++	{
++	  /* nothing to append - .../. is the same as ... */
++	  return xstrdup (wd[chdir_current].name);
++	}
++      else
++	{
++	  namebuf_t nbuf = namebuf_create (wd[chdir_current].name);
++	  namebuf_add_dir (nbuf, name);
++	  return namebuf_finish (nbuf);
++	}
++    }
++  else
++    return xstrdup (name);
++}
++
+ /* Return the absolute path that represents the working
+    directory referenced by IDX.
+ 
+@@ -1312,12 +1427,13 @@
+       int save_cwdi = chdir_current;
+ 
+       for (i = idx; i >= 0; i--)
+-	if (wd[i].abspath)
++	if (wd[i].abspath && !wd[i].one_top_level)
+ 	  break;
+ 
+       while (++i <= idx)
+ 	{
+-	  chdir_do (i);
++	  if (!wd[i].one_top_level)
++	    chdir_do (i, false);
+ 	  if (i == 0)
+ 	    {
+ 	      if ((wd[i].abspath = xgetcwd ()) == NULL)
+@@ -1330,13 +1446,18 @@
+ 	    wd[i].abspath = xstrdup (wd[i].name);
+ 	  else
+ 	    {
+-	      namebuf_t nbuf = namebuf_create (wd[i - 1].abspath);
++	      int j = i - 1;
++	      if (wd[j].one_top_level)
++		{
++		  j--;
++		  assert (! wd[j].one_top_level);
++		}
++	      namebuf_t nbuf = namebuf_create (wd[j].abspath);
+ 	      namebuf_add_dir (nbuf, wd[i].name);
+ 	      wd[i].abspath = namebuf_finish (nbuf);
+ 	    }
+ 	}
+-
+-      chdir_do (save_cwdi);
++      chdir_do (save_cwdi, false);
+     }
+ 
+   return wd[idx].abspath;
+--- a/src/names.c
++++ b/src/names.c
+@@ -880,6 +880,7 @@
+ {
+   name_buffer = xmalloc (NAME_FIELD_SIZE + 2);
+   name_buffer_length = NAME_FIELD_SIZE;
++  chdir_do (chdir_arg (".", !!one_top_level_dir), false);
+   name_list_adjust ();
+ }
+ 
+@@ -1136,7 +1137,8 @@
+ 	case NELT_CHDIR:
+ 	  if (change_dirs)
+ 	    {
+-	      chdir_do (chdir_arg (xstrdup (ep->v.name)));
++	      chdir_do (chdir_arg (xstrdup (ep->v.name), !!one_top_level_dir),
++			false);
+ 	      name_list_advance ();
+ 	      break;
+ 	    }
+@@ -1199,7 +1201,7 @@
+       static int change_dir;
+ 
+       while ((ep = name_next_elt (0)) && ep->type == NELT_CHDIR)
+-	change_dir = chdir_arg (xstrdup (ep->v.name));
++	change_dir = chdir_arg (xstrdup (ep->v.name), !!one_top_level_dir);
+ 
+       if (ep)
+ 	{
+@@ -1228,7 +1230,7 @@
+ 	{
+ 	  int change_dir0 = change_dir;
+ 	  while ((ep = name_next_elt (0)) && ep->type == NELT_CHDIR)
+-	    change_dir = chdir_arg (xstrdup (ep->v.name));
++	    change_dir = chdir_arg (xstrdup (ep->v.name), !!one_top_level_dir);
+ 
+ 	  if (ep)
+ 	    addname (ep->v.name, change_dir, true, NULL);
+@@ -1343,7 +1345,7 @@
+ 
+       if (cursor->name[0] == 0)
+ 	{
+-	  chdir_do (cursor->change_dir);
++	  chdir_do (cursor->change_dir, false);
+ 	  namelist = NULL;
+ 	  nametail = NULL;
+ 	  return true;
+@@ -1365,7 +1367,7 @@
+ 	  if (!(ISSLASH (file_name[cursor->length]) && recursion_option)
+ 	      || cursor->found_count == 0)
+ 	    cursor->found_count++; /* remember it matched */
+-	  chdir_do (cursor->change_dir);
++	  chdir_do (cursor->change_dir, false);
+ 	  /* We got a match.  */
+ 	  return ISFOUND (cursor);
+ 	}
+@@ -1803,7 +1805,7 @@
+ 	/* NOTE: EXCLUDE_ANCHORED is not relevant here */
+ 	/* FIXME: just skip regexps for now */
+ 	continue;
+-      chdir_do (name->change_dir);
++      chdir_do (name->change_dir, false);
+ 
+       if (name->name[0] == 0)
+ 	continue;
+@@ -1949,7 +1951,7 @@
+     {
+       if (!gnu_list_name->is_wildcard)
+ 	gnu_list_name->found_count++;
+-      chdir_do (gnu_list_name->change_dir);
++      chdir_do (gnu_list_name->change_dir, false);
+       return gnu_list_name;
+     }
+   return NULL;
+--- a/src/tar.c
++++ b/src/tar.c
+@@ -1621,7 +1621,6 @@
+ 
+     case ONE_TOP_LEVEL_OPTION:
+       optloc_save (OC_ONE_TOP_LEVEL, args->loc);
+-      one_top_level_option = true;
+       one_top_level_dir = arg;
+       break;
+ 
+@@ -2626,9 +2625,11 @@
+ 	same_order_option = false;
+     }
+ 
+-  if (one_top_level_option)
+-    {
+-      char *base;
++  if (optloc_lookup (OC_ONE_TOP_LEVEL))
++    {
++      if (!IS_SUBCOMMAND_CLASS (SUBCL_READ))
++	option_conflict_error ("--one-top-level",
++			       subcommand_string (subcommand_option));
+ 
+       if (absolute_names_option)
+ 	{
+@@ -2639,17 +2640,15 @@
+ 
+ 	  if (optloc_eq (one_top_level_loc, absolute_names_loc))
+ 	    option_conflict_error ("--one-top-level", "--absolute-names");
+-	  else if (one_top_level_loc->source == OPTS_COMMAND_LINE)
++	  if (one_top_level_loc->source == OPTS_COMMAND_LINE)
+ 	    absolute_names_option = false;
+ 	  else
+-	    one_top_level_option = false;
++	    one_top_level_dir = NULL;
+ 	}
+ 
+-      if (one_top_level_option && !one_top_level_dir)
++      if (!absolute_names_option && !one_top_level_dir)
+ 	{
+-	  /* If the user wants to guarantee that everything is under one
+-	     directory, determine its name now and let it be created later.  */
+-	  base = base_name (archive_name_array[0]);
++	  char *base = base_name (archive_name_array[0]);
+ 	  one_top_level_dir = strip_compression_suffix (base);
+ 	  free (base);
+ 
+@@ -2658,6 +2657,7 @@
+ 			  _("Cannot deduce top-level directory name; "
+ 			    "please set it explicitly with --one-top-level=DIR")));
+ 	}
++      normalize_filename_x (one_top_level_dir);
+     }
+ 
+   /* If ready to unlink hierarchies, so we are for simpler files.  */
+--- a/src/unlink.c
++++ b/src/unlink.c
+@@ -103,7 +103,7 @@
+       if (force
+ 	  || records_written > p->records_written + deferred_unlink_delay)
+ 	{
+-	  chdir_do (p->dir_idx);
++	  chdir_do (p->dir_idx, false);
+ 	  if (p->is_dir)
+ 	    {
+ 	      const char *fname;
+@@ -175,11 +175,11 @@
+ 	  struct deferred_unlink *next = p->next;
+ 	  const char *fname;
+ 
+-	  chdir_do (p->dir_idx);
++	  chdir_do (p->dir_idx, false);
+ 	  if (p->dir_idx && IS_CWD (p))
+ 	    {
+ 	      fname = tar_dirname ();
+-	      chdir_do (p->dir_idx - 1);
++	      chdir_do (p->dir_idx - 1, false);
+ 	    }
+ 	  else
+ 	    fname = p->file_name;
+@@ -195,9 +195,9 @@
+ 	  p = next;
+ 	}
+       dunlink_head = dunlink_tail = NULL;
+-    }	  
+-	    
+-  chdir_do (saved_chdir);
++    }
++
++  chdir_do (saved_chdir, false);
+ }
+ 
+ void
+--- a/src/update.c
++++ b/src/update.c
+@@ -141,7 +141,7 @@
+ 	      {
+ 		struct stat s;
+ 
+-		chdir_do (name->change_dir);
++		chdir_do (name->change_dir, false);
+ 		if (deref_stat (current_stat_info.file_name, &s) == 0)
+ 		  {
+ 		    if (S_ISDIR (s.st_mode))

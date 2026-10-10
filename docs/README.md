@@ -14,6 +14,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Upstream Transcript Differential](transcript-differential.md) - diffing the Whisper transcript against the publisher's ad-free `podcast:transcript`, how gaps corroborate or hold, settings
 - [Environment Variables](environment-variables.md) - every env var, grouped by how often you touch it
 - [LLM Providers](llm-providers.md) - Claude Code wrapper, Ollama (local/cloud), OpenRouter, recommended models, pricing
+- [System One](system-one.md) - native TypeSafe and compatible providers, supported phases, profiles, migration, and statistics
 - [Failover](failover.md) - standby LLM provider and transcriber, triggers, health probes, recovery, manual control, API
 - [Pattern Cleanup](pattern-cleanup.md) - scheduled or manual LLM review and statistics checks: trims, splits, renames, retirements, false-positive or contamination flags, approve/reject/undo, API
 - [Whisper / Transcription](transcription.md) - GPU compute types, whisper.cpp, Groq, OpenAI Whisper, language, timeouts

@@ -799,3 +799,41 @@ describe('SPA navigation between feeds without a remount', () => {
     expect(screen.queryByText(/No cues yet/)).toBeNull();
   });
 });
+
+
+describe('Remove cue with ad', () => {
+  it('defaults on and saves an explicit opt-out', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate()]);
+    mockUpdateCueTemplate.mockResolvedValue(makeTemplate({ removeWithAd: false }));
+    renderPanel();
+    const checkbox = await screen.findByRole('checkbox', { name: 'Remove cue with ad: Ding' });
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(screen.getByText('Remove cue with ad'));
+    await waitFor(() => expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { removeWithAd: false }));
+  });
+
+  it('toggles from the label padding without changing cue enablement', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate()]);
+    mockUpdateCueTemplate.mockResolvedValue(makeTemplate({ removeWithAd: false }));
+    renderPanel();
+    const checkbox = await screen.findByRole('checkbox', { name: 'Remove cue with ad: Ding' });
+    await userEvent.click(checkbox.closest('label')!);
+    await waitFor(() => expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { removeWithAd: false }));
+    expect(screen.getByRole('checkbox', { name: 'Enable cue Ding' })).toHaveProperty('checked', true);
+  });
+
+  it('keeps shared templates read-only', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ owned: false, removeWithAd: false })]);
+    renderPanel();
+    const checkbox = await screen.findByRole('checkbox', { name: 'Remove cue with ad: Ding' });
+    expect((checkbox as HTMLInputElement).disabled).toBe(true);
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('does not offer removal for programme cues', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ cueType: 'content_transition' })]);
+    renderPanel();
+    await screen.findByText('Ding');
+    expect(screen.queryByRole('checkbox', { name: 'Remove cue with ad: Ding' })).toBeNull();
+  });
+});

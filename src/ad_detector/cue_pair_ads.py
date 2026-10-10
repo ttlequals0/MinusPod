@@ -33,6 +33,7 @@ from config import (
     AUDIO_CUE_END_EDGE_ROLES,
     is_template_cue,
 )
+from ad_detector.cue_boundary_snap import SNAP_GAP_SECONDS, cue_removal_enabled
 from ad_detector.cue_telemetry import cue_key as _diag_key
 
 # Skip-diagnostics reasons (#350 Phase 6). Keyed by (template_id, round(start,3))
@@ -76,6 +77,7 @@ class _Cue:
     label: str | None
     template_id: int | None
     role: str
+    remove_with_ad: bool = True
     effective_role: str = ''
 
     def __post_init__(self):
@@ -234,6 +236,7 @@ def synthesize_ads_from_cue_pairs(
             label=(c.details or {}).get('label'),
             template_id=(c.details or {}).get('template_id'),
             role=(c.details or {}).get('role', AUDIO_CUE_ROLE_DEFAULT),
+            remove_with_ad=cue_removal_enabled(c.details),
         ) for c in raw_cues
         if c.confidence >= min_confidence and is_template_cue(c.details)),
         key=lambda x: x.start,
@@ -281,8 +284,16 @@ def synthesize_ads_from_cue_pairs(
                 # of a short episode); stop pairing for cue_a.
                 break
             found_partner_in_band = True
-            synth_start = round(cue_a.end + 0.05, 3)
-            synth_end = round(cue_b.start - 0.05, 3)
+            synth_start = round(max(0.0, cue_a.start - SNAP_GAP_SECONDS)
+                                if cue_a.remove_with_ad
+                                else cue_a.end + SNAP_GAP_SECONDS, 3)
+            synth_end = (cue_b.end + SNAP_GAP_SECONDS if cue_b.remove_with_ad
+                         else cue_b.start - SNAP_GAP_SECONDS)
+            synth_end = round(synth_end, 3)
+            if synth_end - synth_start > effective_max_break:
+                continue
+            if total_duration > 0:
+                synth_end = round(min(total_duration, synth_end), 3)
             if _covered_by_existing_ad(new_ads, synth_start, synth_end):
                 reasons[i] = SKIP_COVERED
                 reasons[j] = SKIP_COVERED
@@ -312,6 +323,7 @@ def synthesize_ads_from_cue_pairs(
                         'confidence': round(cue_a.confidence, 3),
                         'template_id': cue_a.template_id,
                         'label': cue_a.label,
+                        'remove_with_ad': cue_a.remove_with_ad,
                     },
                     'end': {
                         'cue_start': round(cue_b.start, 3),
@@ -319,6 +331,7 @@ def synthesize_ads_from_cue_pairs(
                         'confidence': round(cue_b.confidence, 3),
                         'template_id': cue_b.template_id,
                         'label': cue_b.label,
+                        'remove_with_ad': cue_b.remove_with_ad,
                     },
                 },
             }

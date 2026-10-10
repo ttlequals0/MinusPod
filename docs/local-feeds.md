@@ -233,7 +233,7 @@ Out of scope for now: value-for-value splits, `liveItem`, and Podping announceme
 
 ## What doesn't apply to local feeds
 
-Because there's no upstream feed, the following don't apply to a local feed: RSS refresh (`POST /api/v1/feeds/{slug}/refresh` returns 400, "Local feed has no upstream to refresh"), Podping, the cross-fetch differential, and the episode title skip list (there's no upstream original to redirect a blacklisted title to, so a local episode processes normally regardless of its title). The rest of the processing pipeline (detection mode, cue templates, chapters mode, segment actions, queue priority, retention overrides) works exactly as it does on a subscribed feed.
+Local feeds have no upstream RSS, so refresh returns 400, "Local feed has no upstream to refresh". Podping, cross-fetch differential, and title or duration episode filters do not apply. The rest of the processing pipeline (detection mode, cue templates, chapters mode, segment actions, queue priority, retention overrides) works exactly as it does on a subscribed feed.
 
 ## Retention, backups, and originals
 

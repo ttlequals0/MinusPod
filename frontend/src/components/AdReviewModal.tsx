@@ -1059,7 +1059,7 @@ function AdReviewModal({
             numbers floating in the chrome. */}
         <div className={`px-4 sm:px-6 pt-3 sm:pt-4 flex items-center justify-between gap-3 flex-wrap text-xs text-muted-foreground tabular-nums ${textModeActive ? 'hidden' : ''}`}>
           <span>
-            Window: {formatTime(windowStart)} – {formatTime(windowEnd)}
+            Window: {formatTime(windowStart)} - {formatTime(windowEnd)}
           </span>
           <div className="flex items-center gap-3 flex-wrap">
             <Checkbox
@@ -1174,7 +1174,7 @@ function AdReviewModal({
             {peaksError ? (
               <p className="text-sm text-destructive">Failed to load waveform: {peaksError}</p>
             ) : !peaks ? (
-              <p className="text-sm text-muted-foreground">Loading waveform…</p>
+              <p className="text-sm text-muted-foreground">Loading waveform...</p>
             ) : (
               <div
                 ref={waveformScrollRef}
@@ -1382,7 +1382,7 @@ function AdReviewModal({
             <span className="text-xs">({Math.round((adEnd - adStart) * 10) / 10}s)</span>
             {boundariesMoved && !boundaryError && (
               <span className="text-xs text-warning">
-                (originally {formatTime(item.start)} – {formatTime(item.end)})
+                (originally {formatTime(item.start)} - {formatTime(item.end)})
               </span>
             )}
           </div>
@@ -1553,7 +1553,7 @@ function AdReviewModal({
             <label htmlFor="sponsor" className="block text-sm font-medium text-foreground mb-1">
               Sponsor name
               <span className="ml-2 text-xs font-normal text-muted-foreground">
-                (trains Stage 2; leave blank to skip pattern creation)
+                (leave blank to skip pattern creation)
               </span>
             </label>
             <input
@@ -1610,7 +1610,7 @@ function AdReviewModal({
           {mode === 'create' ? (
             <>
               <div className="text-xs text-muted-foreground">
-                Save creates a new ad pattern tagged as `created_by=user`.
+                Save creates a manual ad pattern.
               </div>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={onClose} disabled={multiSubmitting}

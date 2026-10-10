@@ -67,6 +67,7 @@ class _Template:
     n_coeffs: int
     cue_type: str
     role: str
+    remove_with_ad: bool = True
     score_threshold: float | None = None  # per-template override; None = use instance
     eff_threshold: float = 0.0   # precomputed: score_threshold if set, else instance threshold
     pick_floor: float = 0.0      # precomputed: min(eff_threshold, near_miss_floor) or eff_threshold
@@ -142,6 +143,7 @@ class AudioCueTemplateMatcher:
                 n_coeffs=n_coeffs,
                 cue_type=cue_type,
                 role=audio_cue_type_role(cue_type),
+                remove_with_ad=bool(row.get('remove_with_ad', True)),
                 score_threshold=per_tpl_threshold,
                 eff_threshold=eff_thr,
                 pick_floor=pick_flr,
@@ -337,6 +339,7 @@ class AudioCueTemplateMatcher:
                             'label': tpl.label,
                             'cue_type': tpl.cue_type,
                             'role': tpl.role,
+                            'remove_with_ad': tpl.remove_with_ad,
                             'score': round(score, 3),
                         },
                     ))

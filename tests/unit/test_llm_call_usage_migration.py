@@ -6,13 +6,13 @@ bootstrap('llm_call_usage_migration_test_')
 from database import Database
 
 EXPECTED_COLUMNS = {
-    'attempt_id', 'run_id', 'podcast_id', 'episode_id', 'created_at',
+    'attempt_id', 'logical_call_id', 'run_id', 'podcast_id', 'episode_id', 'created_at',
     'finalized_at', 'phase_key', 'invoking_pass', 'window_label',
     'provider_key', 'configured_model', 'returned_model', 'input_tokens',
     'output_tokens', 'cache_read_tokens', 'cache_write_tokens',
     'reasoning_tokens', 'cost_usd', 'cost_source', 'rate_snapshot',
     'pricing_revision', 'state', 'credential_slot', 'dispatch_count',
-    'reserved_tokens',
+    'reserved_tokens', 'dispatch_latency_ms', 'call_latency_ms',
 }
 
 
@@ -67,7 +67,8 @@ def test_credential_slot_added_to_legacy_row_without_data_loss(tmp_path):
             """CREATE TABLE llm_call_usage (
                    attempt_id TEXT PRIMARY KEY, provider_key TEXT NOT NULL,
                    configured_model TEXT NOT NULL, phase_key TEXT NOT NULL,
-                   created_at TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'in_flight')""")
+                   created_at TEXT NOT NULL, finalized_at TEXT,
+                   state TEXT NOT NULL DEFAULT 'in_flight')""")
         conn.execute(
             "INSERT INTO llm_call_usage (attempt_id, provider_key, "
             "configured_model, phase_key, created_at) VALUES "
@@ -90,6 +91,37 @@ def test_credential_slot_added_to_legacy_row_without_data_loss(tmp_path):
         assert row['dispatch_count'] == 1
         assert db.count_recent_llm_attempts(
             'anthropic', 'primary', '2026-01-01T00:00:00Z') == 1
+    finally:
+        Database._instance = None
+
+
+def test_latency_columns_migrate_additively_with_existing_rows(tmp_path):
+    Database._instance = None
+    db = Database(data_dir=str(tmp_path))
+    try:
+        attempt_id = db.begin_llm_attempt(
+            run_id='run-1', podcast_id=1, episode_id='ep1',
+            phase_key='detection', invoking_pass=1,
+            provider_key='systemone-compatible', configured_model='model')
+        conn = db.get_connection()
+        conn.execute('ALTER TABLE llm_call_usage DROP COLUMN dispatch_latency_ms')
+        conn.execute('ALTER TABLE llm_call_usage DROP COLUMN call_latency_ms')
+        conn.execute('DROP INDEX idx_llm_call_usage_logical')
+        conn.execute('ALTER TABLE llm_call_usage DROP COLUMN logical_call_id')
+        conn.commit()
+
+        db._run_schema_migrations()
+
+        row = conn.execute(
+            'SELECT run_id, episode_id, state, logical_call_id, dispatch_latency_ms, call_latency_ms '
+            'FROM llm_call_usage WHERE attempt_id = ?', (attempt_id,)).fetchone()
+        assert row['run_id'] == 'run-1'
+        assert row['episode_id'] == 'ep1'
+        assert row['state'] == 'in_flight'
+        assert row['logical_call_id'] is None
+        assert row['dispatch_latency_ms'] is None
+        assert row['call_latency_ms'] is None
+        assert db._table_exists(conn, 'systemone_call_diagnostics')
     finally:
         Database._instance = None
 

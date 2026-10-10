@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 from config import (
     HTTP_MAX_REDIRECTS_FEED, MAX_RSS_BYTES_MIN,
-    get_env_backed_int, title_matches_skip_patterns,
+    get_env_backed_int, episode_matches_feed_filters,
 )
 from defusedxml.common import DefusedXmlException
 from feedparser.sanitizer import _sanitize_html as sanitize_html
@@ -355,8 +355,8 @@ class RSSParser:
             return env
         return getattr(self, 'base_url', 'http://localhost:8000')
 
-    def fetch_feed(self, url: str, timeout: int = 30) -> str | None:
-        """Fetch RSS feed from URL."""
+    def fetch_feed(self, url: str, timeout: int = 30, podcast=None) -> str | None:
+        """Fetch RSS feed from URL. Pass podcast to honor its feed UA override."""
         breaker = _get_rss_circuit_breaker(url)
         probe_token = None
         try:
@@ -378,7 +378,7 @@ class RSSParser:
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,
-                headers=_identity_headers(url, {'User-Agent': feed_user_agent()}),
+                headers=_identity_headers(url, {'User-Agent': feed_user_agent(podcast)}),
             )
             try:
                 response.raise_for_status()
@@ -431,7 +431,7 @@ class RSSParser:
                     stream=True,
                     headers={
                         'Accept-Encoding': 'identity',
-                        'User-Agent': feed_user_agent(),
+                        'User-Agent': feed_user_agent(podcast),
                     },
                 )
                 response.raise_for_status()
@@ -469,7 +469,8 @@ class RSSParser:
             return None
 
     def fetch_feed_conditional(self, url: str, etag: str = None,
-                               last_modified: str = None, timeout: int = 30):
+                               last_modified: str = None, timeout: int = 30,
+                               podcast=None):
         """Fetch RSS feed with conditional GET support.
 
         Uses If-None-Match and If-Modified-Since headers to avoid downloading
@@ -480,13 +481,14 @@ class RSSParser:
             etag: Previously received ETag header value
             last_modified: Previously received Last-Modified header value
             timeout: Request timeout in seconds
+            podcast: Podcast row to honor its feed UA override, if any
 
         Returns:
             Tuple of (content, new_etag, new_last_modified)
             If feed not modified (304), returns (None, etag, last_modified)
             On error, returns (None, None, None)
         """
-        headers = _identity_headers(url, {'User-Agent': feed_user_agent()})
+        headers = _identity_headers(url, {'User-Agent': feed_user_agent(podcast)})
         if etag:
             headers['If-None-Match'] = etag
         if last_modified:
@@ -1044,7 +1046,10 @@ class RSSParser:
                     feed_auth_key: str | None = None,
                     own_episode_guids: bool = False,
                     hide_title_patterns: str | None = None,
-                    chapter_notes: dict[str, str] | None = None) -> str:
+                    chapter_notes: dict[str, str] | None = None,
+                    hide_min_duration_seconds: float | None = None,
+                    hide_max_duration_seconds: float | None = None,
+                    hide_description_patterns: str | None = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -1082,6 +1087,8 @@ class RSSParser:
             hide_title_patterns: JSON array of glob patterns (title_skip_action
                 'hide'). Entries whose title matches are dropped from the
                 served feed, both upstream and DB-appended.
+            hide_description_patterns: Same as hide_title_patterns, matched
+                against the plain-text description instead (#835).
         """
         feed = (parsed_feed if parsed_feed is not None
                 else self.parse_feed(feed_content, source=slug))
@@ -1168,6 +1175,12 @@ class RSSParser:
             logger.debug(f"[{slug}] Limiting feed from {len(feed.entries)} to {max_episodes} episodes")
 
         # Process each episode from RSS
+        hide_filters = {
+            'title_skip_patterns': hide_title_patterns,
+            'description_skip_patterns': hide_description_patterns,
+            'min_duration_seconds': hide_min_duration_seconds,
+            'max_duration_seconds': hide_max_duration_seconds,
+        }
         included_episode_ids = set()
         processed_meta = {
             ep.get('episode_id'): ep
@@ -1208,7 +1221,11 @@ class RSSParser:
             episode_id = self.generate_episode_id(episode_url, entry.get('id'))
             if processed_only and episode_id not in (processed_episode_ids or set()):
                 continue
-            if title_matches_skip_patterns(entry.get('title', ''), hide_title_patterns):
+            if episode_matches_feed_filters({
+                    'title': entry.get('title'),
+                    'description': self._get_episode_description(entry),
+                    'rss_duration': self._parse_itunes_duration(entry.get('itunes_duration')),
+            }, hide_filters):
                 continue
             if db_title_dates and self._matches_db_duplicate(entry, db_title_dates):
                 suppressed_upstream_duplicates += 1
@@ -1291,7 +1308,7 @@ class RSSParser:
                 ep_id = ep['episode_id']
                 if ep_id in included_episode_ids:
                     continue
-                if title_matches_skip_patterns(ep.get('title', ''), hide_title_patterns):
+                if episode_matches_feed_filters(ep, hide_filters):
                     continue
                 self._append_db_episode_item(lines, slug, ep, storage,
                                              feed_auth_key,
@@ -1787,9 +1804,9 @@ class RSSParser:
             return None
         try:
             seconds = parse_timestamp(raw)
-        except ValueError:
+        except (ValueError, TypeError, OverflowError):
             return None
-        return seconds if seconds > 0 else None
+        return seconds if math.isfinite(seconds) and seconds > 0 else None
 
     def extract_episodes(self, feed_content: str, parsed_feed=None,
                          source: str = None, channel=None) -> list[dict]:

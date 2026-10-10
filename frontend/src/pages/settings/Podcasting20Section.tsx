@@ -29,7 +29,7 @@ const CHAPTER_GEOMETRY_FIELDS = [
   {
     key: 'chapterMaxBoundaries', label: 'Maximum chapters',
     min: 1, max: 200, step: 1,
-    help: '1 to 200. Default 40. Was hardcoded to 6 before 2.82.0.',
+    help: '1 to 200. Default 40.',
   },
   {
     key: 'chapterMinDurationSeconds', label: 'Shortest chapter (seconds)',
@@ -159,6 +159,7 @@ interface Podcasting20SectionProps {
   onChaptersInNotesChange: (enabled: boolean) => void;
   chaptersMode: 'auto' | 'generate' | 'off';
   onChaptersModeChange: (mode: 'auto' | 'generate' | 'off') => void;
+  unsupportedChaptersRoute?: string | null;
   adChapters?: AdChaptersBlockProps;
   geometry?: ChapterGeometryProps;
 }
@@ -172,21 +173,28 @@ function Podcasting20Section({
   onChaptersInNotesChange,
   chaptersMode,
   onChaptersModeChange,
+  unsupportedChaptersRoute = null,
   adChapters,
   geometry,
 }: Podcasting20SectionProps) {
   return (
     <CollapsibleSection title="Transcripts & Chapters">
-      <div className="space-y-4">
+      <div className="space-y-4 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
         <ToggleRow checked={vttTranscriptsEnabled} onChange={onVttTranscriptsEnabledChange}
           label="Generate VTT Transcripts">
           Create WebVTT transcripts with adjusted timestamps for podcast apps
         </ToggleRow>
 
         <ToggleRow checked={chaptersEnabled} onChange={onChaptersEnabledChange}
+          disabled={!chaptersEnabled && !!unsupportedChaptersRoute}
           label="Generate Chapters">
           Create JSON chapters from ad boundaries and description timestamps
         </ToggleRow>
+        {unsupportedChaptersRoute && (
+          <div role="status" className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+            System One cannot generate chapters. Select a chat provider and model.
+          </div>
+        )}
 
         <div className="border-t border-border pt-4">
           <label htmlFor="globalChaptersMode" className="block text-sm font-medium text-foreground mb-2">

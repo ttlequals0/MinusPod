@@ -19,6 +19,10 @@ import subprocess
 import tempfile
 
 from config import FFMPEG_LONG_TIMEOUT, FFPROBE_TIMEOUT
+from id3_chapters import (
+    ChapterTagError, chapter_frames, chapters_from_tag, merge_chapter_frames, read_tag, remap_tag,
+    set_chapters, validate_for_write, write_tag,
+)
 from utils.audio import get_audio_duration
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, SAFE_MEDIA_PROBE_ARGS
@@ -40,6 +44,12 @@ def probe_chapters(audio_path: str) -> list[dict] | None:
     transient ffprobe failure would silently destroy them; falling back to
     ffmpeg's default passthrough keeps them (stale but recoverable).
     """
+    try:
+        tag = source_chapter_tag(audio_path, False)
+        if tag is not None:
+            return chapters_from_tag(tag)
+    except OSError:
+        pass
     cmd = [
         'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'quiet', '-show_chapters', '-of', 'json', audio_path,
     ]
@@ -54,7 +64,41 @@ def probe_chapters(audio_path: str) -> list[dict] | None:
     except (OSError, subprocess.SubprocessError, ValueError) as e:
         logger.warning(f"ffprobe chapter read failed for {audio_path}: {e}")
         return None
-    return parse_chapters(chapters)
+    parsed = parse_chapters(chapters)
+    if parsed:
+        try:
+            tag = source_chapter_tag(audio_path, True)
+            if tag is not None:
+                return chapters_from_tag(tag)
+        except OSError as error:
+            logger.warning('Publisher chapter read failed: %s', error)
+            return None
+    return parsed
+
+
+def source_chapter_tag(audio_path, detected):
+    try:
+        with open(audio_path, 'rb') as source:
+            header = source.read(10)
+    except FileNotFoundError:
+        return None
+    if not header.startswith(b'ID3'):
+        return None
+    if len(header) >= 4 and header[3] not in (3, 4) and not detected:
+        return None
+    tag = read_tag(audio_path, chapters_only=not bool(detected))
+    if tag is None:
+        return None
+    if not chapter_frames(tag)[0]:
+        return None
+    validate_for_write(tag)
+    return tag
+
+
+def restore_chapter_tag(audio_path, tag, cuts, replacement_duration, duration):
+    if tag is not None:
+        restored = remap_tag(tag, cuts, replacement_duration, duration)
+        write_tag(audio_path, merge_chapter_frames(read_tag(audio_path), restored))
 
 
 def parse_chapters(chapters: list[dict]) -> list[dict]:
@@ -86,6 +130,7 @@ def remap_chapters(chapters: list[dict], cuts: list[dict], *,
         if span_inside_any_cut(ch['start'], ch['end'], cuts):
             continue
         kept.append({
+            **ch,
             'start': adjust_timestamp(ch['start'], cuts, replacement_duration),
             'title': ch['title'],
         })
@@ -116,18 +161,19 @@ def chapters_to_spans(chapters: list[dict], duration: float) -> list[dict]:
     each chapter ends where the next begins and the last ends at the file
     duration. Chapters at or past the duration are dropped.
     """
-    starts = sorted(
-        (float(ch.get('startTime', 0)), ch.get('title', ''))
+    starts = sorted((
+        (float(ch.get('startTime', 0)), ch)
         for ch in chapters
-    )
+    ), key=lambda item: item[0])
     starts = [(s, t) for s, t in starts if s < duration]
     # starts[1:] is empty both when starts has 0 and when it has 1 element,
     # so the +[duration] tail must be skipped for the empty case or ends
     # ends up with a dangling entry starts doesn't have.
     ends = ([s for s, _ in starts[1:]] + [duration]) if starts else []
     return [
-        {'start': s, 'end': e, 'title': t}
-        for (s, t), e in zip(starts, ends, strict=True)
+        {**{key: value for key, value in ch.items() if key != 'startTime'},
+         'start': s, 'end': e, 'title': ch.get('title', '')}
+        for (s, ch), e in zip(starts, ends, strict=True)
     ]
 
 
@@ -174,6 +220,14 @@ def embed_chapters(audio_path: str, chapters: list[dict],
         logger.warning(f"Chapter embed skipped: no usable chapters for {audio_path}")
         return False
 
+    preserved_tag = None
+    if any(ch.get('_id3_id') for ch in spans):
+        preserved_tag = read_tag(audio_path)
+        if preserved_tag is None:
+            raise ChapterTagError('Publisher chapter metadata is unavailable')
+        preserved_tag = set_chapters(preserved_tag, spans)
+        validate_for_write(preserved_tag)
+
     audio_dir = os.path.dirname(audio_path)
     base = os.path.basename(audio_path)
     # Temp files share the audio's directory (same filesystem -> atomic
@@ -193,13 +247,17 @@ def embed_chapters(audio_path: str, chapters: list[dict],
             '-map', '0', '-map_metadata', '0',
             '-map_chapters', '1' if spans else '-1',
             '-c', 'copy', '-f', 'mp3',
-            tmp_path,
         ]
+        if preserved_tag is not None:
+            cmd += ['-id3v2_version', str(preserved_tag.version)]
+        cmd.append(tmp_path)
         result = tracked_run(cmd, capture_output=True, timeout=FFMPEG_LONG_TIMEOUT)
         if result.returncode != 0:
             stderr = result.stderr.decode('utf-8', errors='replace')[-500:]
             logger.warning(f"Chapter embed failed for {audio_path}: {stderr}")
             return False
+        if preserved_tag is not None:
+            write_tag(tmp_path, merge_chapter_frames(read_tag(tmp_path), preserved_tag))
         os.replace(tmp_path, audio_path)
         logger.info(f"Embedded {len(spans)} chapters into {audio_path}" if spans
                     else f"Removed all embedded chapters from {audio_path}")

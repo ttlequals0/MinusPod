@@ -44,7 +44,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## C
 
-**Chapters** - Chapter markers MinusPod generates for the processed audio, served as Podcasting 2.0 JSON and embedded in the MP3 as ID3 frames. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
+**Chapters** - Chapter markers MinusPod preserves or generates for the processed audio, served as Podcasting 2.0 JSON and embedded in the MP3 as ID3 frames. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
 
 **Chapter regeneration** - Refreshing an episode's chapters on demand. Each attempt gets its own processing-history entry and usage record, plus an episode log when log storage is enabled. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
 
@@ -70,7 +70,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Cue-only** - The experimental per-feed Processing mode that cuts from cue pairs and previously learned ad patterns, with no LLM reading the transcript. Requires an enabled ad-break-start and an enabled ad-break-end template on the feed. [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset)
 
-**Cue pair** - Two bracketing template cues, an ad-break-start and an ad-break-end, that mint an ad span between them without reading the transcript. Cutting from cue pairs is experimental and off by default. [Audio Cue Detection > Ad cutting](audio-cues.md#ad-cutting)
+**Cue pair** - Two bracketing template cues, an ad-break-start and an ad-break-end, that propose an ad span without reading the transcript. Each cue is included in the cut unless its removal option is off. Cutting from cue pairs is experimental and off by default. [Audio Cue Detection > Ad cutting](audio-cues.md#ad-cutting)
 
 ## D
 
@@ -82,7 +82,11 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Deferred** - An episode parked because the LLM or transcription endpoint was unreachable. It retries automatically when the endpoint comes back instead of burning through its retry budget. [Configuration > Offline Queue](configuration.md#offline-queue)
 
+**Duration filter** - A per-feed minimum or maximum RSS duration that skips automatic and just-in-time processing outside the range. Unknown durations remain eligible; manual reprocessing overrides the filter. [Configuration > Episode duration filters](configuration.md#episode-duration-filters)
+
 **Differential hold** - An uncorroborated cross-fetch differential candidate: the two fetches measurably differ, but no other stage, overlap, or matched audio cue backs it as an ad. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
+
+**Download User-Agent override** - A per-feed download identifier in Feed settings > Advanced. Blank inherits the global string; cross-fetch still uses a different podcast client. [Configuration > Outbound Requests](configuration.md#outbound-requests)
 
 **Dry-run import plan** - The preview a bulk archive-import scan returns before anything is written: every file matched to an episode, every rejected file with a reason, and the publish date each episode would get. Committing re-checks the same files and refuses if anything changed underneath the plan. [Local Feeds > Scan, then commit](local-feeds.md#scan-then-commit)
 
@@ -127,6 +131,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Low ad yield** - The amber episode badge shown when a run removed far less ad time than the feed's recent average. Usually a lightly-filled DAI download, occasionally a missed ad worth a look. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
 ## M
+
+**MP3 stream copy** - An opt-in cut path that preserves source-coded MP3 audio outside splice transitions and falls back to re-encoding when the cut is incompatible or fails validation. [Configuration > Output audio](configuration.md#output-audio)
 
 **Mark action** - A segment action that leaves the audio intact and publishes a skippable chapter when chapters are enabled. Keep leaves the audio intact without an ad chapter. [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 
@@ -178,6 +184,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## R
 
+**Replacement sound** - The clip inserted for Remove actions, enabled by default. Turning it off omits the clip on both copy and re-encode paths; Beep actions still use the replacement clip. [Configuration > Output audio](configuration.md#output-audio)
+
 **Reasoning budget / effort** - Controls for how much thinking an LLM does before answering. Older Anthropic models use a token budget; adaptive-only models use an effort level. [LLM Providers > Reasoning settings](llm-providers.md#reasoning-settings)
 
 **Rate-limit hold** - An opt-in hold that puts an episode back in the queue when the LLM provider answers a 429 carrying a reset time, and stops the queue claiming any work until that time passes. Unlike the offline queue it pauses everything, Play and Reprocess included. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
@@ -185,6 +193,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Recut** - Re-cutting the retained original audio using the current ad markers, with no download, transcription, or LLM involved. What "Approve & Recut" does. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
 
 **Reprocess modes** - *Patterns + AI* (the default, everything), *AI Only* (skip the learned-pattern DB), *Re-detect Ads* (reuse the saved transcript, rerun detection), and *Recut*. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
+
+**Remove cue with ad** - A cue-template option, on by default, that includes a matched ad-break cue in the cut. Programme cues remain protected. [Audio Cues > Remove cue with ad](audio-cues.md#remove-cue-with-ad)
 
 **Resurrected** - A detection the validator rejected that the Ad Reviewer overruled and put back in the cut list. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
 
@@ -216,7 +226,11 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Staging area** - The per-feed holding folder for a local feed's uploaded archive-import batch, `<data>/import-staging/<slug>/`. Unlike the import directory, MinusPod fully manages it: it is populated by the upload endpoint and cleared out as the import commits. [Local Feeds > Bulk import](local-feeds.md#bulk-import)
 
+**System One** - A structured question protocol used by the native TypeSafe and System One-compatible providers. Detection, verification, and ad categorization are supported; review is experimental. Profiles are independent for each credential slot and provider type. Stats separate logical adapter calls from actual HTTP attempts. [System One](system-one.md)
+
 **Synthesized publish date** - The publish date MinusPod assigns a local-feed episode when none was given explicitly: episodes are sorted by season and episode, the newest anchors at import time, and earlier ones step back a day each (or space evenly between two explicit dates). [Local Feeds > Publish dates](local-feeds.md#publish-dates)
+
+**System One Tuneables** - The Settings section for independent native-provider tuning profiles. [System One > Independent tuning profiles](system-one.md#independent-tuning-profiles)
 
 ## T
 

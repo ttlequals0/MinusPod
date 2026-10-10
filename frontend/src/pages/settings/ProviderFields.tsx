@@ -12,6 +12,9 @@ function providerDefaults(type: LlmProvider | ''): { timeout: number; retries: n
   if (type === LLM_PROVIDERS.ANTHROPIC || type === LLM_PROVIDERS.OPENROUTER) {
     return { timeout: 120, retries: 3 };
   }
+  if (type === LLM_PROVIDERS.TYPESAFE || type === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE) {
+    return { timeout: 60, retries: 2 };
+  }
   return { timeout: 600, retries: 2 };
 }
 
@@ -22,6 +25,8 @@ export function keyProviderFor(
   if (p === LLM_PROVIDERS.OPENROUTER) return 'openrouter';
   if (p === LLM_PROVIDERS.OPENAI_COMPATIBLE) return 'openai';
   if (p === LLM_PROVIDERS.OLLAMA) return 'ollama';
+  if (p === LLM_PROVIDERS.TYPESAFE) return 'typesafe';
+  if (p === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE) return 'systemone-compatible';
   return null;
 }
 
@@ -37,6 +42,8 @@ export const KEY_META: Record<ProviderName, { placeholder: string; label: string
   secondary:  { placeholder: '', label: 'API key' },
   failover:   { placeholder: '', label: 'API key' },
   'failover-whisper': { placeholder: '', label: 'API key' },
+  typesafe: { placeholder: '', label: 'TypeSafe API key' },
+  'systemone-compatible': { placeholder: '', label: 'System One API key' },
 };
 
 export function keyMetaForType(type: LlmProvider | '') {
@@ -71,6 +78,7 @@ interface ProviderFieldsProps {
   onProviderKeyClear: (provider: ProviderName) => Promise<void>;
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
   onConnectionTest: (baseUrl?: string) => Promise<ConnectionTestResult>;
+  allowSystemOne?: boolean;
 }
 
 export function ProviderFields({
@@ -79,10 +87,15 @@ export function ProviderFields({
   slotLabel, timeoutSeconds, onTimeoutChange, maxRetries, onMaxRetriesChange,
   keyProvider, keyStatus, cryptoReady, keyLabel, keyPlaceholder, keyHelper,
   onProviderKeySave, onProviderKeyClear, onProviderKeyTest, onConnectionTest,
+  allowSystemOne = true,
 }: ProviderFieldsProps) {
-  const hasBaseUrl = provider === LLM_PROVIDERS.OPENAI_COMPATIBLE || provider === LLM_PROVIDERS.OLLAMA;
-  const hasFixedEndpoint = provider === LLM_PROVIDERS.ANTHROPIC || provider === LLM_PROVIDERS.OPENROUTER;
+  const hasBaseUrl = provider === LLM_PROVIDERS.OPENAI_COMPATIBLE || provider === LLM_PROVIDERS.OLLAMA || provider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE;
+  const hasFixedEndpoint = provider === LLM_PROVIDERS.ANTHROPIC || provider === LLM_PROVIDERS.OPENROUTER || provider === LLM_PROVIDERS.TYPESAFE;
+  const providerOptions = allowSystemOne ? LLM_PROVIDER_OPTIONS : LLM_PROVIDER_OPTIONS.filter(
+    (p) => p !== LLM_PROVIDERS.TYPESAFE && p !== LLM_PROVIDERS.SYSTEMONE_COMPATIBLE,
+  );
   const defaults = providerDefaults(provider);
+  const nativeSystemOne = provider === LLM_PROVIDERS.TYPESAFE || provider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE;
 
   return (
     <>
@@ -99,7 +112,7 @@ export function ProviderFields({
           {/* No type saved yet: without an option of its own the select would
               render blank, reading as the first provider in the list. */}
           {!provider && <option value="">Choose a provider</option>}
-          {LLM_PROVIDER_OPTIONS.map((p) => (
+          {providerOptions.map((p) => (
             <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
           ))}
         </select>
@@ -121,7 +134,9 @@ export function ProviderFields({
           <p className="mt-1 text-sm text-muted-foreground">
             {provider === LLM_PROVIDERS.OLLAMA
               ? 'Ollama server URL (e.g. http://localhost:11434)'
-              : 'OpenAI-compatible API endpoint (must end with /v1)'}
+              : provider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE
+                ? 'Base URL; /systemone is added automatically.'
+                : 'OpenAI-compatible API endpoint (must end with /v1)'}
           </p>
           <ConnectionTestButton
             key={`${provider}|${baseUrl}|${keyStatus.configured}`}
@@ -137,9 +152,9 @@ export function ProviderFields({
           </label>
           <DraftNumberInput
             id={`${providerSelectId}TimeoutSeconds`}
-            min={10}
-            max={3600}
-            step={1}
+            min={nativeSystemOne ? Number.MIN_VALUE : 10}
+            max={nativeSystemOne ? undefined : 3600}
+            step={nativeSystemOne ? 'any' : 1}
             placeholder={String(defaults.timeout)}
             value={timeoutSeconds}
             fallback={null}

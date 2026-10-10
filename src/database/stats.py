@@ -1,6 +1,7 @@
 """Statistics and token usage mixin for MinusPod database."""
 import json
 import logging
+import math
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -143,6 +144,84 @@ def _sum_billable_rows(rows) -> tuple[int, int, Decimal, bool]:
         else:
             has_unknown_cost = True
     return total_input, total_output, total_cost, has_unknown_cost
+
+
+def _safe_systemone_diagnostics(value) -> str:
+    """Serialize only bounded review categories and numeric evidence."""
+    if not isinstance(value, dict):
+        return '{}'
+    safe = {}
+    for key in ('provider', 'outcome', 'error_type'):
+        item = value.get(key)
+        if isinstance(item, str) and len(item) <= 64:
+            safe[key] = item
+    allowed = {
+        'outcome', 'skip_reason', 'original_start', 'original_end',
+        'proposed_start', 'proposed_end', 'context_start', 'context_end',
+        'corroborated_start', 'corroborated_end', 'start_candidates',
+        'end_candidates', 'limit', 'reason', 'stage', 'score', 'threshold',
+        'cache_hit', 'range_start', 'range_end', 'candidate_start',
+        'candidate_end', 'start_supported', 'end_supported', 'validation_rule',
+        'proposal', 'fallback', 'numeric_details', 'changed',
+    }
+    nested_allowed = allowed | {
+        'expected_count', 'actual_count', 'actual', 'expected_total', 'actual_total', 'tolerance',
+    }
+    def clean_details(details):
+        clean = {}
+        for key, item in details.items():
+            if key not in allowed:
+                continue
+            if isinstance(item, str) and len(item) <= 64:
+                clean[key] = item
+            elif (isinstance(item, (int, float)) and not isinstance(item, bool)
+                  and math.isfinite(item)):
+                clean[key] = item
+            elif isinstance(item, bool) and key in {
+                    'cache_hit', 'start_supported', 'end_supported', 'changed'}:
+                clean[key] = item
+            elif key in {'proposal', 'fallback', 'numeric_details'} and isinstance(item, dict):
+                nested = {}
+                for nested_key, nested_value in item.items():
+                    if nested_key not in nested_allowed:
+                        continue
+                    if (isinstance(nested_value, str) and len(nested_value) <= 64
+                            and nested_key in {'reason', 'stage'}):
+                        nested[nested_key] = nested_value
+                    elif (isinstance(nested_value, (int, float))
+                          and not isinstance(nested_value, bool)
+                          and math.isfinite(nested_value)):
+                        nested[nested_key] = nested_value
+                    elif isinstance(nested_value, bool) and nested_key == 'cache_hit':
+                        nested[nested_key] = nested_value
+                if nested:
+                    clean[key] = nested
+        return clean
+
+    refinements = value.get('review_refinements')
+    if isinstance(refinements, list):
+        safe['review_refinements'] = [clean_details(row) for row in refinements[:64]
+                                      if isinstance(row, dict)]
+    error_details = value.get('error_details')
+    if isinstance(error_details, dict):
+        clean = clean_details(error_details)
+        if clean:
+            safe['error_details'] = clean
+    return json.dumps(safe, separators=(',', ':'), sort_keys=True)
+
+
+def _cleanup_usage_summary(rows):
+    rows = [row for row in rows if row['dispatch_count'] is None or row['dispatch_count'] > 0]
+    return {
+        'requests': sum(row['dispatch_count'] or 1 for row in rows),
+        'inputTokens': sum(row['input_tokens'] or 0 for row in rows),
+        'outputTokens': sum(row['output_tokens'] or 0 for row in rows),
+        'knownCostUsd': str(sum((Decimal(row['cost_usd']) for row in rows
+                                 if row['cost_usd'] is not None), Decimal('0'))),
+        'unknownUsageRequestCount': sum(row['input_tokens'] is None or row['output_tokens'] is None
+                                        for row in rows),
+        'unknownCostRequestCount': sum(row['cost_usd'] is None for row in rows),
+    }
 
 
 class StatsMixin:
@@ -382,19 +461,22 @@ class StatsMixin:
     def begin_llm_attempt(self, *, run_id, podcast_id, episode_id, phase_key,
                           invoking_pass, provider_key, configured_model,
                           window_label=None, credential_slot='primary',
-                          reserved_tokens=None) -> str:
+                          reserved_tokens=None, logical_call_id=None) -> str:
         """Insert an in_flight llm_call_usage row; return a new attempt_id."""
         return self.reserve_llm_attempt(
             run_id=run_id, podcast_id=podcast_id, episode_id=episode_id,
             phase_key=phase_key, invoking_pass=invoking_pass,
             provider_key=provider_key, configured_model=configured_model,
             window_label=window_label, credential_slot=credential_slot,
-            reserved_tokens=reserved_tokens)['attempt_id']
+            reserved_tokens=reserved_tokens,
+            logical_call_id=logical_call_id)['attempt_id']
 
     def reserve_llm_attempt(self, *, run_id, podcast_id, episode_id, phase_key,
                             invoking_pass, provider_key, configured_model,
                             window_label=None, credential_slot='primary',
-                            reserved_tokens=None, caps=None) -> dict:
+                            reserved_tokens=None, caps=None,
+                            logical_call_id=None, cleanup_run_id=None,
+                            cleanup_pattern_id=None, dispatch_count=1) -> dict:
         """Reserve one request against the manual caps by inserting its
         in_flight ledger row, or refuse when a cap is already met.
 
@@ -407,9 +489,10 @@ class StatsMixin:
         blocked names the cap that refused it.
         """
         attempt_id = str(uuid.uuid4())
-        row = (attempt_id, run_id, podcast_id, episode_id, phase_key,
+        row = (attempt_id, logical_call_id, run_id, cleanup_run_id, cleanup_pattern_id,
+               podcast_id, episode_id, phase_key,
                invoking_pass, window_label, provider_key, credential_slot,
-               configured_model, reserved_tokens)
+               configured_model, dispatch_count, reserved_tokens)
         # No cap configured means nothing to reserve against, so the write
         # lock BEGIN IMMEDIATE takes up front would only add contention.
         if not any((caps or {}).get(name, 0) > 0 for name in ('rpm', 'rpd', 'tpm')):
@@ -429,12 +512,42 @@ class StatsMixin:
     def _insert_llm_attempt(conn, row: tuple) -> None:
         conn.execute(
             """INSERT INTO llm_call_usage
-                   (attempt_id, run_id, podcast_id, episode_id, phase_key,
+                   (attempt_id, logical_call_id, run_id, cleanup_run_id, cleanup_pattern_id,
+                    podcast_id, episode_id, phase_key,
                     invoking_pass, window_label, provider_key, credential_slot,
                     configured_model, state, dispatch_count, reserved_tokens)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight', 1, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'in_flight', ?, ?)""",
             row
         )
+
+    def record_systemone_call_diagnostics(self, *, logical_call_id, run_id,
+                                          podcast_id, episode_id, provider_key,
+                                          credential_slot, configured_model,
+                                          phase_key, window_label, created_at=None,
+                                          logical_latency_ms, outcome,
+                                          reason=None, stage=None,
+                                          diagnostics=None) -> None:
+        """Store one logical adapter result without duplicating request usage."""
+        allowed_outcomes = {'completed', 'failed', 'inconclusive'}
+        if outcome not in allowed_outcomes:
+            outcome = 'failed'
+        reason = reason if isinstance(reason, str) and len(reason) <= 64 else None
+        stage = stage if isinstance(stage, str) and len(stage) <= 64 else None
+        conn = self.get_connection()
+        conn.execute(
+            """INSERT OR REPLACE INTO systemone_call_diagnostics
+               (logical_call_id, run_id, podcast_id, episode_id, provider_key,
+                credential_slot, configured_model, phase_key, window_label,
+                created_at,
+                logical_latency_ms, outcome, reason, stage, diagnostics_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now')), ?, ?, ?, ?, ?)""",
+            (logical_call_id, run_id, podcast_id, episode_id, provider_key,
+             credential_slot, configured_model, phase_key, window_label,
+             created_at,
+             logical_latency_ms, outcome, reason, stage,
+             _safe_systemone_diagnostics(diagnostics)),
+        )
+        conn.commit()
 
     def _llm_cap_blocked(self, conn, provider_key: str, credential_slot: str,
                          caps: dict | None) -> tuple[str | None, str | None]:
@@ -464,7 +577,8 @@ class StatsMixin:
     def _count_llm_dispatches(conn, provider_key: str, credential_slot: str,
                               since_iso: str) -> int:
         row = conn.execute(
-            """SELECT COALESCE(SUM(COALESCE(dispatch_count, 1)), 0) AS n
+            """SELECT COALESCE(SUM(CASE WHEN finalized_at IS NULL THEN MAX(COALESCE(dispatch_count, 1), 1)
+                                ELSE COALESCE(dispatch_count, 1) END), 0) AS n
                FROM llm_call_usage
                WHERE provider_key = ?
                  AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
@@ -480,7 +594,7 @@ class StatsMixin:
             """SELECT MIN(created_at) AS oldest FROM llm_call_usage
                WHERE provider_key = ?
                  AND (credential_slot = ? OR (credential_slot IS NULL AND ? = 'primary'))
-                 AND created_at >= ?""",
+                 AND created_at >= ? AND (finalized_at IS NULL OR COALESCE(dispatch_count, 1) > 0)""",
             (provider_key, credential_slot, credential_slot, since_iso)
         ).fetchone()
         return row['oldest'] if row and row['oldest'] else None
@@ -571,7 +685,9 @@ class StatsMixin:
                              returned_model=None, input_tokens=None,
                              output_tokens=None, cache_read_tokens=None,
                              cache_write_tokens=None, reasoning_tokens=None,
-                             provider_reported_cost_usd=None) -> float:
+                             provider_reported_cost_usd=None,
+                             dispatch_latency_ms=None,
+                             call_latency_ms=None, actual_dispatch_count=None) -> float:
         """Finalize one ledger attempt and derive counters when billable.
 
         Cost/cost_source: provider_reported_cost_usd wins when given
@@ -605,8 +721,11 @@ class StatsMixin:
             cost_dec = Decimal(str(provider_reported_cost_usd))
             cost_usd = str(cost_dec)
             cost = float(cost_dec)
-        elif tokens_known:
-            resolved = self._resolve_model_rate(conn, configured_model)
+        elif tokens_known or (row['provider_key'] == 'typesafe' and input_tokens is not None):
+            if row['provider_key'] == 'typesafe':
+                resolved = (0.042, 0.0, 'typesafe-v1')
+            else:
+                resolved = self._resolve_model_rate(conn, configured_model)
             # An endpoint alias may resolve to a differently-named priced model.
             if resolved is None and returned_model and returned_model != configured_model:
                 resolved = self._resolve_model_rate(conn, returned_model)
@@ -640,7 +759,7 @@ class StatsMixin:
                             Decimal(str(input_per_mtok)) * write_multiplier)
                     cost_dec = (
                         billed_input / mtok * Decimal(str(input_per_mtok))
-                        + Decimal(output_tokens) / mtok * Decimal(str(output_per_mtok))
+                        + Decimal(output_tokens or 0) / mtok * Decimal(str(output_per_mtok))
                     )
                     rate_snapshot = json.dumps(rates)
                     pricing_revision = revision
@@ -656,11 +775,14 @@ class StatsMixin:
                    state = ?, returned_model = ?, input_tokens = ?,
                    output_tokens = ?, cache_read_tokens = ?,
                    cache_write_tokens = ?, reasoning_tokens = ?, cost_usd = ?,
-                   cost_source = ?, rate_snapshot = ?, pricing_revision = ?
+                   cost_source = ?, rate_snapshot = ?, pricing_revision = ?,
+                   dispatch_latency_ms = ?, call_latency_ms = ?,
+                   dispatch_count = COALESCE(?, dispatch_count)
                WHERE attempt_id = ? AND finalized_at IS NULL""",
             (state, returned_model, input_tokens, output_tokens,
              cache_read_tokens, cache_write_tokens, reasoning_tokens,
-             cost_usd, cost_source, rate_snapshot, pricing_revision, attempt_id)
+             cost_usd, cost_source, rate_snapshot, pricing_revision,
+             dispatch_latency_ms, call_latency_ms, actual_dispatch_count, attempt_id)
         )
         if cursor.rowcount == 0:
             conn.commit()
@@ -681,8 +803,19 @@ class StatsMixin:
         conn.commit()
         return cost
 
+    def set_llm_call_latency(self, attempt_id: str, latency_ms: int) -> None:
+        """Set logical-call latency on its first request row once."""
+        conn = self.get_connection()
+        conn.execute(
+            "UPDATE llm_call_usage SET call_latency_ms = ? "
+            "WHERE attempt_id = ? AND call_latency_ms IS NULL",
+            (latency_ms, attempt_id),
+        )
+        conn.commit()
+
     def finalize_llm_attempt_from_response(self, attempt_id: str, state: str,
-                                           response) -> float:
+                                           response, *, dispatch_latency_ms=None,
+                                           call_latency_ms=None) -> float:
         """finalize_llm_attempt fed from a provider response object.
 
         Guards every field a client may leave unset or set to the wrong type,
@@ -698,6 +831,10 @@ class StatsMixin:
         provider_cost = getattr(response, 'provider_reported_cost_usd', None)
         if isinstance(provider_cost, bool) or not isinstance(provider_cost, (int, float)):
             provider_cost = None
+        actual_dispatch_count = getattr(response, 'actual_dispatch_count', None)
+        if (isinstance(actual_dispatch_count, bool) or not isinstance(actual_dispatch_count, int)
+                or not 0 <= actual_dispatch_count <= 2**63 - 1):
+            actual_dispatch_count = None
         return self.finalize_llm_attempt(
             attempt_id, state=state, returned_model=returned_model,
             input_tokens=usage.get('input_tokens'),
@@ -706,6 +843,9 @@ class StatsMixin:
             cache_write_tokens=usage.get('cache_write_tokens'),
             reasoning_tokens=usage.get('reasoning_tokens'),
             provider_reported_cost_usd=provider_cost,
+            dispatch_latency_ms=dispatch_latency_ms,
+            call_latency_ms=call_latency_ms,
+            actual_dispatch_count=actual_dispatch_count,
         )
 
     def get_run_usage_totals(self, run_id: str) -> dict:
@@ -989,6 +1129,231 @@ class StatsMixin:
             'unknownCostCount': row['unknown_cost_count'],
         } for row in rows]
         return items, total
+
+    def get_systemone_stats(self, *, from_date=None, to_date=None,
+                            podcast_slug=None, provider=None, model=None) -> dict:
+        """Aggregate logical adapter calls separately from their HTTP rows."""
+        clauses = []
+        params = []
+        if from_date:
+            clauses.append('d.created_at >= ?')
+            params.append(_utc_day_start(from_date) or from_date)
+        if to_date:
+            start = _utc_day_start(to_date)
+            if start:
+                next_day = (datetime.strptime(start, '%Y-%m-%dT00:00:00Z')
+                            + timedelta(days=1)).strftime('%Y-%m-%dT00:00:00Z')
+                clauses.append('d.created_at < ?')
+                params.append(next_day)
+            else:
+                clauses.append('d.created_at <= ?')
+                params.append(to_date)
+        if podcast_slug:
+            clauses.append('p.slug = ?')
+            params.append(podcast_slug)
+        if provider:
+            clauses.append('d.provider_key = ?')
+            params.append(provider)
+        if model:
+            clauses.append('d.configured_model = ?')
+            params.append(model)
+        where_sql = ' AND '.join(clauses) if clauses else '1 = 1'
+        conn = self.get_connection()
+        row = conn.execute(
+            f"""SELECT COUNT(DISTINCT d.logical_call_id) AS calls,
+                       COALESCE(SUM(u.dispatch_count), 0) AS requests,
+                       COALESCE(SUM(u.dispatch_latency_ms), 0) AS dispatch_latency_ms,
+                       COALESCE(SUM(u.input_tokens), 0) AS input_tokens,
+                       COALESCE(SUM(u.output_tokens), 0) AS output_tokens,
+                       SUM(CASE WHEN u.attempt_id IS NOT NULL AND u.dispatch_count > 0 AND
+                                    (u.input_tokens IS NULL OR u.output_tokens IS NULL)
+                                THEN 1 ELSE 0 END) AS unknown_usage_count,
+                       SUM(CASE WHEN u.attempt_id IS NOT NULL AND u.dispatch_count > 0 AND u.cost_usd IS NULL
+                                THEN 1 ELSE 0 END) AS unknown_cost_count,
+                       COUNT(DISTINCT d.logical_call_id) AS logical_calls
+                FROM systemone_call_diagnostics d
+                LEFT JOIN llm_call_usage u ON u.logical_call_id = d.logical_call_id
+                LEFT JOIN podcasts p ON p.id = d.podcast_id
+                WHERE {where_sql}""",  # noqa: S608
+            params,
+        ).fetchone()
+        cost_rows = conn.execute(
+            f"""SELECT u.cost_usd FROM llm_call_usage u
+                JOIN systemone_call_diagnostics d ON d.logical_call_id = u.logical_call_id
+                LEFT JOIN podcasts p ON p.id = d.podcast_id
+                WHERE {where_sql} AND u.cost_usd IS NOT NULL""",  # noqa: S608
+            params).fetchall()
+        calls = conn.execute(
+            f"""SELECT d.outcome, d.reason, d.diagnostics_json,
+                       d.logical_latency_ms
+                FROM systemone_call_diagnostics d
+                LEFT JOIN podcasts p ON p.id = d.podcast_id
+                WHERE {where_sql}""",  # noqa: S608
+            params,
+        ).fetchall()
+        outcomes = {'completed': 0, 'failed': 0, 'inconclusive': 0}
+        reasons = {}
+        refinements = {
+            'attempted': 0, 'completed': 0, 'skipped': 0,
+            'inconclusive': 0, 'upstream_error': 0,
+        }
+        skip_reasons = {}
+        logical_latencies = [item['logical_latency_ms'] for item in calls
+                             if item['logical_latency_ms'] is not None]
+        for item in calls:
+            outcomes[item['outcome']] = outcomes.get(item['outcome'], 0) + 1
+            if item['reason']:
+                reasons[item['reason']] = reasons.get(item['reason'], 0) + 1
+            try:
+                diagnostics = json.loads(item['diagnostics_json'] or '{}')
+            except (TypeError, ValueError):
+                diagnostics = {}
+            for refinement in diagnostics.get('review_refinements', []):
+                outcome = refinement.get('outcome')
+                if outcome in refinements:
+                    refinements[outcome] += 1
+                if outcome == 'skipped' and refinement.get('skip_reason'):
+                    reason = refinement['skip_reason']
+                    skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+        return {
+            'calls': row['calls'],
+            'requests': row['requests'],
+            'dispatchLatencyMsTotal': row['dispatch_latency_ms'],
+            'logicalLatencyMsTotal': sum(logical_latencies),
+            'logicalLatencyMsAverage': (
+                sum(logical_latencies) / len(logical_latencies)
+                if logical_latencies else None),
+            'tokens': {
+                'input': row['input_tokens'], 'output': row['output_tokens'],
+                'unknownRequestCount': row['unknown_usage_count'] or 0,
+            },
+            'costUsd': str(sum((Decimal(item['cost_usd']) for item in cost_rows), Decimal('0'))),
+            'unknownCostRequestCount': row['unknown_cost_count'] or 0,
+            'outcomes': outcomes,
+            'reviewReasons': reasons,
+            'refinements': refinements,
+            'refinementSkipReasons': skip_reasons,
+        }
+
+    def get_cleanup_stats(self, *, from_date=None, to_date=None,
+                          podcast_slug=None, provider=None, model=None) -> dict:
+        """Cleanup cohorts use run start; unattributed usage uses request time."""
+        conn = self.get_connection()
+        dates, date_params = [], []
+        if from_date:
+            dates.append('r.started_at >= ?')
+            date_params.append(_utc_day_start(from_date) or from_date)
+        if to_date:
+            start = _utc_day_start(to_date)
+            if start:
+                dates.append('r.started_at < ?')
+                date_params.append((datetime.strptime(start, '%Y-%m-%dT00:00:00Z')
+                                    + timedelta(days=1)).strftime('%Y-%m-%dT00:00:00Z'))
+            else:
+                dates.append('r.started_at <= ?')
+                date_params.append(to_date)
+        request_filters, request_params = [], []
+        if provider:
+            request_filters.append('u.provider_key = ?')
+            request_params.append(provider)
+        if model:
+            request_filters.append('u.configured_model = ?')
+            request_params.append(model)
+        request_where = ' AND '.join(request_filters) or '1 = 1'
+        pattern_filters, pattern_params = [], []
+        if podcast_slug:
+            pattern_filters.append('c.podcast_slug = ?')
+            pattern_params.append(podcast_slug)
+        if request_filters:
+            pattern_filters.append(f"""EXISTS (SELECT 1 FROM llm_call_usage u
+                WHERE u.cleanup_run_id = c.run_id AND u.cleanup_pattern_id = c.pattern_id
+                  AND {request_where})""")  # noqa: S608
+            pattern_params.extend(request_params)
+        pattern_where = ' AND '.join(pattern_filters) or '1 = 1'
+        proposal_source = """(SELECT run_id, pattern_id, pattern_scope, podcast_slug, kind, status
+            FROM pattern_cleanup_suggestions UNION ALL
+            SELECT run_id, pattern_id, pattern_scope, podcast_slug, kind, status
+            FROM pattern_cleanup_deleted_actions)"""
+        run_filters = list(dates)
+        run_params = list(date_params)
+        if pattern_filters:
+            run_filters.append(f"""(EXISTS (SELECT 1 FROM pattern_cleanup_checks c
+                WHERE c.run_id = r.id AND {pattern_where}) OR
+                EXISTS (SELECT 1 FROM {proposal_source} c
+                WHERE c.run_id = r.id AND {pattern_where}))""")  # noqa: S608
+            run_params.extend(pattern_params * 2)
+        run_where = ' AND '.join(run_filters) or '1 = 1'
+        runs = conn.execute(f'SELECT r.* FROM pattern_cleanup_runs r WHERE {run_where}',  # noqa: S608
+                            run_params).fetchall()
+        date_where = ' AND '.join(dates) or '1 = 1'
+        checks = conn.execute(f"""SELECT c.* FROM pattern_cleanup_checks c
+            JOIN pattern_cleanup_runs r ON r.id = c.run_id
+            WHERE {date_where} AND {pattern_where}""",  # noqa: S608
+            date_params + pattern_params).fetchall()
+        suggestions = conn.execute(f"""SELECT c.run_id, c.pattern_id, c.kind, c.status, c.pattern_scope
+            FROM {proposal_source} c
+            JOIN pattern_cleanup_runs r ON r.id = c.run_id
+            WHERE {date_where} AND {pattern_where}""",  # noqa: S608
+            date_params + pattern_params).fetchall()
+        usage_filters = list(dates) + request_filters
+        usage_params = date_params + request_params
+        if podcast_slug:
+            usage_filters.append('c.podcast_slug = ?')
+            usage_params.append(podcast_slug)
+        usage_where = ' AND '.join(usage_filters) or '1 = 1'
+        usage = conn.execute(f"""SELECT u.* FROM llm_call_usage u
+            JOIN pattern_cleanup_runs r ON r.id = u.cleanup_run_id
+            LEFT JOIN pattern_cleanup_checks c ON c.run_id = u.cleanup_run_id
+                AND c.pattern_id = u.cleanup_pattern_id
+            WHERE u.phase_key = 'pattern_cleanup' AND {usage_where}""",  # noqa: S608
+            usage_params).fetchall()
+        unattributed = None
+        if not podcast_slug:
+            legacy_where = date_where.replace('r.started_at', 'u.created_at')
+            legacy_rows = conn.execute(f"""SELECT u.* FROM llm_call_usage u
+                WHERE u.phase_key = 'pattern_cleanup' AND u.cleanup_run_id IS NULL
+                  AND {legacy_where} AND {request_where}""",  # noqa: S608
+                date_params + request_params).fetchall()
+            unattributed = _cleanup_usage_summary(legacy_rows)
+        actions = {}
+        changed_patterns = set()
+        for kind in ('trim', 'split', 'rename', 'retire', 'flag', 'category'):
+            items = [row for row in suggestions if row['kind'] == kind]
+            accepted = [row for row in items if row['status'] in ('approved', 'undone')]
+            changed_patterns.update(row['pattern_id'] for row in accepted)
+            actions[kind] = {
+                'proposed': len({(row['run_id'], row['pattern_id']) for row in items}),
+                'accepted': len(accepted),
+                'applied': sum(row['status'] == 'approved' for row in items),
+                'reverted': sum(row['status'] == 'undone' for row in items),
+            }
+        legacy_runs = [row for row in runs if row['accounting_version'] is None]
+        coverage = conn.execute("SELECT applied_at FROM schema_migrations WHERE name = ?",
+                                ('pattern_cleanup_accounting_v1',)).fetchone()
+        return {
+            'runs': {
+                'total': len(runs),
+                **{status: sum(row['status'] == status for row in runs)
+                   for status in ('running', 'completed', 'failed')},
+                'exactAccounting': len(runs) - len(legacy_runs), 'legacy': len(legacy_runs),
+            },
+            'patterns': {
+                'checked': len(checks),
+                'distinctChecked': len({row['pattern_id'] for row in checks}),
+                'modelReviewed': sum(row['model_status'] in ('completed', 'stale') for row in checks),
+                'proposed': len({row['pattern_id'] for row in suggestions}),
+                'changed': len(changed_patterns),
+                'legacyReportedReviews': (sum(row['reviewed_count'] for row in legacy_runs)
+                                          if not (podcast_slug or provider or model) else 0),
+            },
+            'actions': actions, 'usage': _cleanup_usage_summary(usage),
+            'unattributedUsage': unattributed,
+            'coverage': {
+                'historicalRunCountWithUnknownSpend': len(legacy_runs),
+                'unattributedProposalCount': sum(row['pattern_scope'] is None for row in suggestions),
+                'proposalHistoryCompleteSince': coverage['applied_at'] if coverage else None,
+            },
+        }
 
     _EPISODE_COST_SORT_COLUMNS = {
         'podcastSlug': 'podcast_slug',

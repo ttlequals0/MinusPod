@@ -30,7 +30,7 @@ _SEED_ENV_VARS = (
     'RETENTION_PERIOD', 'PROCESSING_SOFT_TIMEOUT', 'PROCESSING_HARD_TIMEOUT',
     'WHISPER_MODEL', 'WHISPER_LANGUAGE', 'WHISPER_BACKEND',
     'WHISPER_API_BASE_URL', 'WHISPER_API_MODEL', 'WHISPER_COMPUTE_TYPE',
-    'LLM_PROVIDER', 'OPENAI_MODEL', 'OPENAI_BASE_URL',
+    'LLM_PROVIDER', 'OPENAI_MODEL', 'OPENAI_BASE_URL', 'SYSTEMONE_BASE_URL',
     'AUDIO_BITRATE', 'SKIP_FLAC_COMPRESSION',
     'AD_DETECTION_PARALLEL_WINDOWS', 'AD_REVIEWER_PARALLEL_ADS',
     'MINUSPOD_MAX_ARTWORK_BYTES', 'MINUSPOD_MAX_RSS_BYTES',
@@ -49,9 +49,12 @@ _SEED_ENV_VARS = (
 SEED_SNAPSHOT = {
     '_review_prompt_migrated': 'true',
     'audio_bitrate': '128k',
+    'audio_encoder_compression_level': 'default',
     'chapter_prompt': ('sha256', 'ba78ae10ed245f1b215407d2980358cdf6aff6b5f64dfc1662c6f6848cb418b4'),
     'pattern_cleanup_prompt': ('sha256', '9afdc1f10e265d421a8d39f04ff0a13e00275ac436aa51517c2b3a7d2213f145'),
     'audio_normalize_enabled': 'false',
+    'audio_replacement_sound_enabled': 'true',
+    'audio_mp3_stream_copy_enabled': 'false',
     'audio_normalize_intensity': 'normal',
     'auto_process_enabled': 'true',
     'chapters_enabled': 'true',
@@ -106,6 +109,12 @@ SEED_SNAPSHOT = {
     'omit_temperature': 'false',
     'only_expose_processed_default': 'false',
     'openai_base_url': 'http://localhost:8000/v1',
+    'systemone_base_url': '',
+    'systemone_tunables_primary_typesafe': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":255,"maxConcurrentOperations":4,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"refineBoundaries":false,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0,"reviewBoundaryCapSeconds":60.0,"reviewChoiceEnter":null,"reviewContextSeconds":30.0,"reviewEvidenceEnter":null,"reviewProgrammeVeto":0.85}',
+    'systemone_tunables_primary_compatible': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":null,"maxConcurrentOperations":4,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"refineBoundaries":false,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0,"reviewBoundaryCapSeconds":60.0,"reviewChoiceEnter":null,"reviewContextSeconds":30.0,"reviewEvidenceEnter":null,"reviewProgrammeVeto":0.85}',
+    'systemone_tunables_secondary_typesafe': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":255,"maxConcurrentOperations":4,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"refineBoundaries":false,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0,"reviewBoundaryCapSeconds":60.0,"reviewChoiceEnter":null,"reviewContextSeconds":30.0,"reviewEvidenceEnter":null,"reviewProgrammeVeto":0.85}',
+    'systemone_tunables_secondary_compatible': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":null,"maxConcurrentOperations":4,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"refineBoundaries":false,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0,"reviewBoundaryCapSeconds":60.0,"reviewChoiceEnter":null,"reviewContextSeconds":30.0,"reviewEvidenceEnter":null,"reviewProgrammeVeto":0.85}',
+
     'podping_enabled': 'false',
     'processing_hard_timeout_seconds': '7200',
     'processing_soft_timeout_seconds': '3600',
@@ -171,7 +180,9 @@ EXPECTED_AD_RESET_KEYS = {
     'ad_chapter_held_title_format', 'ad_chapter_resume_title',
     'ad_chapter_min_confidence',
     'min_cut_confidence', 'auto_process_enabled', 'audio_bitrate',
+    'audio_encoder_compression_level',
     'audio_normalize_enabled', 'audio_normalize_intensity',
+    'audio_replacement_sound_enabled', 'audio_mp3_stream_copy_enabled',
     'whisper_api_timeout_seconds',
     'transcribe_max_chunk_seconds', 'transcribe_concurrent_chunks',
     'transcribe_chunk_overlap_seconds',
@@ -179,7 +190,9 @@ EXPECTED_AD_RESET_KEYS = {
     'ad_detection_parallel_windows',
     'ad_reviewer_parallel_ads', 'max_artwork_bytes', 'max_rss_bytes',
     'max_audio_download_mb',
-    'llm_provider', 'openai_base_url', 'pricing_source_mode',
+    'llm_provider', 'openai_base_url', 'systemone_base_url', 'pricing_source_mode',
+    'systemone_tunables_primary_typesafe', 'systemone_tunables_primary_compatible',
+    'systemone_tunables_secondary_typesafe', 'systemone_tunables_secondary_compatible',
     'secondary_provider', 'secondary_provider_base_url',
     'openrouter_api_key',
     'whisper_backend', 'whisper_api_base_url', 'whisper_api_key',
@@ -443,6 +456,8 @@ class TestGetDefaults:
             'audioCueProminenceDb': 9.0,
             'silenceSnapNoiseDb': -50.0,
             'audioBitrate': '128k',
+            'audioReplacementSoundEnabled': True,
+            'audioMp3StreamCopyEnabled': False,
             'audioNormalizeEnabled': False,
             'audioNormalizeIntensity': 'normal',
             'skipFlacCompression': False,
@@ -456,6 +471,7 @@ class TestGetDefaults:
             'transcribeChunkOverlapSeconds': 30,
             'llmProvider': 'anthropic',
             'openaiBaseUrl': 'http://localhost:8000/v1',
+            'systemoneBaseUrl': '',
             'pricingSourceMode': 'auto',
             'autoProcessEnabled': True,
             'feedAuthEnabled': False,
@@ -520,11 +536,13 @@ class TestGetDefaults:
         # Six patternCleanup* settings plus patternCleanupPrompt (157 -> 164).
         # adChaptersEnabled and adChapterCategories retired with the settings
         # they came from (164 -> 162; 2.98.0, mark_action_from_ad_chapters_v1).
+        # audioEncoderCompressionLevel added after that (165 -> 166).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 162
+        assert len(payload_keys) == 166
+        assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys

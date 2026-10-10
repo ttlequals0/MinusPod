@@ -358,7 +358,12 @@ export async function regenerateAllFeeds(): Promise<{ message: string; feedCount
   });
 }
 
+export type EpisodeSelection = Pick<Episode, 'id' | 'status' | 'jobState' | 'titleSkipped' | 'descriptionSkipped' | 'durationSkipped'>;
+
 export interface EpisodesResponse {
+  selection?: EpisodeSelection[];
+  // Present only with selection=true; true when the match count exceeded the 501-row cap.
+  truncated?: boolean;
   episodes: Episode[];
   total: number;
   limit: number;
@@ -367,7 +372,7 @@ export interface EpisodesResponse {
 
 export async function getEpisodes(
   slug: string,
-  params?: { limit?: number; offset?: number; status?: string; sortBy?: string; sortDir?: string }
+  params?: { limit?: number; offset?: number; status?: string; sortBy?: string; sortDir?: string; search?: string; selection?: boolean }
 ): Promise<EpisodesResponse> {
   const qs = buildQueryString({
     limit: params?.limit,
@@ -375,6 +380,8 @@ export async function getEpisodes(
     status: params?.status,
     sort_by: params?.sortBy,
     sort_dir: params?.sortDir,
+    search: params?.search,
+    selection: params?.selection,
   });
   return apiRequest<EpisodesResponse>(`/feeds/${slug}/episodes${qs}`);
 }
@@ -417,6 +424,8 @@ export interface UpdateFeedPayload {
   networkIdOverride?: string | null;
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
+  downloadUserAgentOverride?: string | null;
+  feedUserAgentOverride?: string | null;
   titleOverride?: string | null;
   detectionNotes?: string | null;
   detectionMode?: string | null;
@@ -454,8 +463,13 @@ export interface UpdateFeedPayload {
   onlyExposeProcessedEpisodes?: boolean | null;
   retentionDaysOverride?: number | null;
   keepOriginalAudioOverride?: boolean | null;
+  audioReplacementSoundOverride?: boolean | null;
+  audioMp3StreamCopyOverride?: boolean | null;
   titleSkipPatterns?: string[];
+  descriptionSkipPatterns?: string[];
   titleSkipAction?: 'serve_original' | 'hide' | null;
+  minDurationSeconds?: number | null;
+  maxDurationSeconds?: number | null;
   // Per-feed segment-action overrides (issue #565). The backend replaces
   // the stored map outright, so callers must send the full desired partial
   // map (not just the changed key); null clears every override.

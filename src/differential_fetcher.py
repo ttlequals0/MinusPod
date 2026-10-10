@@ -58,9 +58,9 @@ DAI_URL_DOMAINS = (
 )
 
 
-def pick_refetch_user_agent(first_ua: str | None) -> str:
-    """Pick a refetch User-Agent from the pool, never equal to first_ua."""
-    pool = [ua for ua in REFETCH_USER_AGENTS if ua != first_ua]
+def pick_refetch_user_agent(first_ua: str | None, fallback_ua: str | None = None) -> str:
+    """Pick a client different from the primary and any accepted fallback."""
+    pool = [ua for ua in REFETCH_USER_AGENTS if ua not in (first_ua, fallback_ua)]
     return random.choice(pool)
 
 
@@ -472,7 +472,9 @@ def match_cue_anchor_pairs(primary_cues: list, refetch_cues: list) -> list:
 
 def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
                    timeout_s: int = 300, cue_scan=None,
-                   primary_cues: Callable[[], list] | None = None) -> dict:
+                   primary_cues: Callable[[], list] | None = None,
+                   primary_user_agent: str | None = None,
+                   fallback_user_agent: str | None = None) -> dict:
     """Refetch the enclosure with a rotated podcast-client UA and diff it
     against the run file.
 
@@ -494,7 +496,7 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
     # caller bug, and swallowing it would silently drop every cue anchor.
     if primary_cues is not None and not callable(primary_cues):
         raise TypeError('primary_cues must be a zero-argument callable')
-    ua = pick_refetch_user_agent(download_user_agent())
+    ua = pick_refetch_user_agent(primary_user_agent or download_user_agent(), fallback_user_agent)
     meta = {'ua': ua, 'size': None, 'duration': None}
     refetch_path = os.path.join(work_dir, 'refetch_audio')
     try:

@@ -20,6 +20,7 @@ import logging
 import sys
 import threading
 
+
 # Defensive sys.path bootstrap so direct `python path/to/script.py` invocation
 # works as well as `python -m tools.X`.
 from pathlib import Path
@@ -27,6 +28,9 @@ from pathlib import Path
 _REPO_SRC = Path(__file__).resolve().parents[1]
 if str(_REPO_SRC) not in sys.path:
     sys.path.insert(0, str(_REPO_SRC))
+
+import llm_client as provider_clients
+from config import PROVIDER_TYPESAFE
 
 logger = logging.getLogger(__name__)
 
@@ -418,6 +422,12 @@ def trigger_reviewer_calibration(db, previous_revision: str | None):
         return None
     if not db.get_setting_bool('reviewer_calibration_on_change', True):
         return None
+    if route.provider_key == PROVIDER_TYPESAFE:
+        key = (provider_clients.get_effective_secondary_provider_api_key()
+               if route.credential_slot == 'secondary'
+               else provider_clients.get_effective_systemone_api_key(PROVIDER_TYPESAFE))
+        if not key:
+            return None
 
     with _CALIBRATION_LOCK:
         _CALIBRATION_STATE['revision'] = revision

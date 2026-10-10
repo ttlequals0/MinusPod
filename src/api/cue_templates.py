@@ -154,6 +154,7 @@ def _template_to_meta_dict(row: dict) -> dict:
         'scope': row.get('scope', 'podcast'),
         'networkId': row.get('network_id'),
         'enabled': bool(row['enabled']),
+        'removeWithAd': bool(row.get('remove_with_ad', True)),
         'createdAt': row['created_at'],
         'createdBy': row.get('created_by'),
         'hasAudio': bool(row.get('pcm_blob')) or bool(row.get('has_audio')),
@@ -215,6 +216,9 @@ def create_cue_template(slug):
     payload = request.get_json(silent=True) or {}
     episode_id = payload.get('episodeId')
     cue_type = payload.get('cueType', AUDIO_CUE_TYPE_DEFAULT)
+    remove_with_ad = payload.get('removeWithAd', True)
+    if not isinstance(remove_with_ad, bool):
+        return error_response('removeWithAd must be true or false', 400)
     try:
         start_s = float(payload['startS'])
         end_s = float(payload['endS'])
@@ -276,6 +280,7 @@ def create_cue_template(slug):
         pcm_sample_rate=SAMPLE_RATE_HZ,
         scope=scope,
         network_id=network_id,
+        remove_with_ad=remove_with_ad,
     )
     logger.info(
         f"Cue template created: id={template_id} feed={slug} ep={episode_id} "
@@ -383,6 +388,9 @@ def update_cue_template_route(template_id):
     payload = request.get_json(silent=True) or {}
     new_cue_type = payload.get('cueType')
     enabled = payload.get('enabled')
+    remove_with_ad = payload.get('removeWithAd')
+    if 'removeWithAd' in payload and not isinstance(remove_with_ad, bool):
+        return error_response('removeWithAd must be true or false', 400)
     if new_cue_type is not None and new_cue_type not in AUDIO_CUE_TYPES:
         return error_response(
             'cueType must be one of: ' + ', '.join(sorted(AUDIO_CUE_TYPES)), 400)
@@ -470,7 +478,8 @@ def update_cue_template_route(template_id):
             return error_response('template not found', 404)
 
     db.update_cue_template(template_id, cue_type=new_cue_type, enabled=enabled,
-                           score_threshold=score_threshold)  # _CUE_THRESHOLD_UNSET = no change
+                           score_threshold=score_threshold,
+                           remove_with_ad=remove_with_ad)  # _CUE_THRESHOLD_UNSET = no change
     if scope is not None:
         db.promote_cue_template(template_id, scope, network_id)
 
@@ -667,6 +676,7 @@ def export_cue_template(template_id):
         'appVersion': _get_version(),
         'label': row['label'],
         'cueType': row.get('cue_type', AUDIO_CUE_TYPE_DEFAULT),
+        'removeWithAd': bool(row.get('remove_with_ad', True)),
         'durationS': row['duration_s'],
         'sampleRate': sample_rate,
         'nCoeffs': row['n_coeffs'],
@@ -805,6 +815,10 @@ def import_cue_template(slug):
     if cue_type not in AUDIO_CUE_TYPES:
         cue_type = AUDIO_CUE_TYPE_DEFAULT
     duration_s = round(len(pcm) / float(SAMPLE_RATE_HZ), 3)
+    remove_with_ad = manifest.get('removeWithAd', True)
+    if not isinstance(remove_with_ad, bool):
+        return error_response('removeWithAd must be true or false', 400)
+
     template_id = db.create_cue_template(
         podcast_id=podcast['id'],
         cue_type=cue_type,
@@ -817,6 +831,7 @@ def import_cue_template(slug):
         pcm_blob=frames,
         pcm_sample_rate=SAMPLE_RATE_HZ,
         created_by='import',
+        remove_with_ad=remove_with_ad,
     )
     logger.info(f"Cue template imported: id={template_id} feed={slug} cue_type={cue_type!r}")
     row = db.get_cue_template(template_id)

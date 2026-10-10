@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
+from database.maintenance import _chunked
 # Shared with the stats mixin so both agree on what counts as processed.
 from database.stats import _PROCESSED_EPISODE_EXISTS_SQL
 from utils.constants import EpisodeStatus
@@ -138,7 +139,8 @@ class EpisodeMixin:
 
     def get_episodes(self, slug: str, status: str = None,
                      limit: int = 50, offset: int = 0,
-                     sort_by: str = 'created_at', sort_dir: str = 'desc') -> tuple[list[dict], int]:
+                     sort_by: str = 'created_at', sort_dir: str = 'desc',
+                     search: str = '', selection: bool = False) -> tuple[list[dict], int]:
         """Get episodes for a podcast with pagination and sorting."""
         conn = self.get_connection()
 
@@ -156,6 +158,10 @@ class EpisodeMixin:
         if status and status != 'all':
             where_clause += " AND e.status = ?"
             params.append(status)
+
+        if search:
+            where_clause += " AND INSTR(LOWER(COALESCE(e.title, '')), LOWER(?)) > 0"
+            params.append(search)
 
         # Get total count
         cursor = conn.execute(
@@ -176,13 +182,18 @@ class EpisodeMixin:
             order_clause = f"ORDER BY e.{sort_col} {sort_direction}"
 
         # Get episodes
-        params.extend([limit, offset])
+        pagination = ''
+        if limit is not None:
+            pagination = 'LIMIT ? OFFSET ?'
+            params.extend([limit, offset])
+        columns = ('e.episode_id, e.title, e.description, e.status, e.rss_duration' if selection
+                   else f'e.*, {_PROCESSED_EPISODE_EXISTS_SQL} AS has_been_processed')
         cursor = conn.execute(
-            f"""SELECT e.*, {_PROCESSED_EPISODE_EXISTS_SQL} AS has_been_processed
+            f"""SELECT {columns}
                 FROM episodes e
                 {where_clause}
                 {order_clause}
-                LIMIT ? OFFSET ?""",  # noqa: S608
+                {pagination}""",  # noqa: S608
             params
         )
 
@@ -717,6 +728,42 @@ class EpisodeMixin:
         conn.commit()
         logger.debug(f"[{slug}:{episode_id}] Saved {len(segments)} original segments to database")
 
+    def save_processing_assets(self, slug, episode_id, assets):
+        """Publish a validated asset set in one episode-details update."""
+        fields = {
+            'final_segments': 'final_segments_json', 'chapters': 'chapters_json',
+            'applied_cuts': 'applied_cuts_json', 'transcript_vtt': 'transcript_vtt',
+            'transcript_text': 'transcript_text',
+        }
+        if not assets or any(key not in fields for key in assets):
+            raise ValueError('Invalid processing asset fields')
+        identifier = self._get_episode_db_id(slug, episode_id)
+        if identifier is None:
+            raise ValueError('Episode not found for asset publication')
+        keys = tuple(fields)
+        normalized = {**assets}
+        if normalized.get('applied_cuts') is not None:
+            normalized['applied_cuts'] = [_serialize_applied_cut(cut) for cut in normalized['applied_cuts']]
+        values = [None if normalized.get(key) is None else
+                  json.dumps(normalized[key]) if key in ('final_segments', 'chapters', 'applied_cuts')
+                  else assets[key] for key in keys]
+        present = [key in assets for key in keys]
+        conn = self.get_connection()
+        conn.execute(
+            """INSERT INTO episode_details
+               (episode_id, final_segments_json, chapters_json, applied_cuts_json,
+                transcript_vtt, transcript_text)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(episode_id) DO UPDATE SET
+               final_segments_json = CASE WHEN ? THEN excluded.final_segments_json ELSE final_segments_json END,
+               chapters_json = CASE WHEN ? THEN excluded.chapters_json ELSE chapters_json END,
+               applied_cuts_json = CASE WHEN ? THEN excluded.applied_cuts_json ELSE applied_cuts_json END,
+               transcript_vtt = CASE WHEN ? THEN excluded.transcript_vtt ELSE transcript_vtt END,
+               transcript_text = CASE WHEN ? THEN excluded.transcript_text ELSE transcript_text END""",
+            (identifier, *values, *present),
+        )
+        conn.commit()
+
     def save_final_segments(self, slug: str, episode_id: str, segments: list[dict]):
         """Save final (post-cut) segments as JSON. Overwrites on reprocess."""
         conn = self.get_connection()
@@ -1110,7 +1157,7 @@ class EpisodeMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT episode_id, title, description, published_at,
-                      new_duration, episode_number, original_url,
+                      new_duration, episode_number, original_url, rss_duration,
                       processed_version, processed_size_bytes
                FROM episodes
                WHERE podcast_id = ? AND status = 'processed'
@@ -1130,15 +1177,24 @@ class EpisodeMixin:
     _RECENTS_SOURCE_COLS = ("p.slug AS source_slug, "
                             "COALESCE(NULLIF(p.title_override, ''), NULLIF(p.title, ''), p.slug) AS source_title, "
                             "p.feed_type AS source_feed_type, p.chapters_in_notes AS source_chapters_in_notes, "
-                            "p.title_skip_patterns AS source_title_skip_patterns")
+                            "p.title_skip_patterns AS source_title_skip_patterns, "
+                            "p.description_skip_patterns AS source_description_skip_patterns, "
+                            "p.min_duration_seconds AS source_min_duration_seconds, "
+                            "p.max_duration_seconds AS source_max_duration_seconds")
 
-    def count_recent_processed_episodes(self, since: str) -> int:
+    def count_recent_processed_episodes(self, since: str, search: str = '') -> int:
+        where = self._RECENTS_WHERE
+        params = [since]
+        if search:
+            where += " AND INSTR(LOWER(COALESCE(e.title, '')), LOWER(?)) > 0"
+            params.append(search)
         return self.get_connection().execute(
-            f"SELECT COUNT(*) {self._RECENTS_WHERE}", (since,)).fetchone()[0]
+            f"SELECT COUNT(*) {where}", params).fetchone()[0]
 
     def get_recent_processed_episodes(self, since: str, limit: int | None = None,
                                       offset: int = 0, sort_by: str = 'published_at',
-                                      sort_dir: str = 'desc', details: bool = False) -> list[dict]:
+                                      sort_dir: str = 'desc', details: bool = False,
+                                      search: str = '') -> list[dict]:
         """Each row carries its source feed's slug, display title, feed type and
         chapters override. details=True adds chapters_json and has_transcript_vtt
         for the feed renderer; typeof() reads the record header instead of
@@ -1151,8 +1207,11 @@ class EpisodeMixin:
             cols += ", d.chapters_json, typeof(d.transcript_vtt) = 'text' AS has_transcript_vtt"
             join = "LEFT JOIN episode_details d ON d.episode_id = e.id "
         where = self._RECENTS_WHERE.replace('WHERE ', f'{join}WHERE ', 1)
-        query = f"SELECT {cols} {where} ORDER BY e.{sort_col} {direction}, e.id DESC"
         params: list = [since]
+        if search:
+            where += " AND INSTR(LOWER(COALESCE(e.title, '')), LOWER(?)) > 0"
+            params.append(search)
+        query = f"SELECT {cols} {where} ORDER BY e.{sort_col} {direction}, e.id DESC"
         if limit:
             query += " LIMIT ? OFFSET ?"
             params += [limit, offset]
@@ -1262,38 +1321,35 @@ class EpisodeMixin:
         return [dict(row) for row in cursor.fetchall()]
 
     def get_episode_job_states(self, episode_ids: list[str]) -> dict:
-        """{(podcast_slug, episode_id): 'processing' | 'queued'} for the given ids.
-
-        One query over both ownership registries so a worker that has claimed
-        a run or a queue row but not yet flipped the episode status can never
-        be reported as idle.
-        """
+        """Queue/run ownership by (feed slug, episode id), batched for SQLite."""
         if not episode_ids:
             return {}
         conn = self.get_connection()
-        placeholders = ','.join('?' * len(episode_ids))
-        rows = conn.execute(
-            f"""SELECT p.slug AS podcast_slug, q.episode_id AS episode_id,
-                       CASE WHEN q.status = 'processing' THEN 'processing'
-                            ELSE 'queued' END AS job_state
-                FROM auto_process_queue q
-                JOIN podcasts p ON q.podcast_id = p.id
-                WHERE q.status IN ('pending', 'processing')
-                  AND q.episode_id IN ({placeholders})
-                UNION ALL
-                SELECT p.slug, r.episode_id, 'processing'
-                FROM processing_runs r
-                JOIN podcasts p ON r.podcast_id = p.id
-                WHERE r.state IN ('running', 'cancel_requested')
-                  AND r.episode_id IN ({placeholders})""",  # noqa: S608
-            [*episode_ids, *episode_ids]
-        )
         states: dict = {}
-        for row in rows.fetchall():
-            key = (row['podcast_slug'], row['episode_id'])
-            # An owned run outranks a waiting queue row for the same episode.
-            if states.get(key) != 'processing':
-                states[key] = row['job_state']
+        chunk_size = min(500, conn.getlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER) // 2)
+        for chunk in _chunked(episode_ids, size=chunk_size):
+            placeholders = ','.join('?' * len(chunk))
+            rows = conn.execute(
+                f"""SELECT p.slug AS podcast_slug, q.episode_id AS episode_id,
+                           CASE WHEN q.status = 'processing' THEN 'processing'
+                                ELSE 'queued' END AS job_state
+                    FROM auto_process_queue q
+                    JOIN podcasts p ON q.podcast_id = p.id
+                    WHERE q.status IN ('pending', 'processing')
+                      AND q.episode_id IN ({placeholders})
+                    UNION ALL
+                    SELECT p.slug, r.episode_id, 'processing'
+                    FROM processing_runs r
+                    JOIN podcasts p ON r.podcast_id = p.id
+                    WHERE r.state IN ('running', 'cancel_requested')
+                      AND r.episode_id IN ({placeholders})""",  # noqa: S608
+                [*chunk, *chunk]
+            )
+            for row in rows.fetchall():
+                key = (row['podcast_slug'], row['episode_id'])
+                # An owned run outranks a waiting queue row for the same episode.
+                if states.get(key) != 'processing':
+                    states[key] = row['job_state']
         return states
 
     def batch_clear_episode_details(self, slug: str, episode_ids: list[str]) -> None:
@@ -1779,6 +1835,9 @@ class EpisodeMixin:
 
         if ids_to_reset:
             self.batch_clear_episode_details(slug, ids_to_reset)
+            if keep_original:
+                for episode_id in ids_to_reset:
+                    freed_bytes += storage.remove_chapter_images(slug, episode_id)
             self.batch_reset_episodes_to_discovered(slug, ids_to_reset)
 
         freed_mb = freed_bytes / (1024 * 1024)

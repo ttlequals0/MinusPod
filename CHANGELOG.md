@@ -9,6 +9,76 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+## [2.99.4] - 2026-10-10
+
+### Added
+- Description glob patterns skip automatic and just-in-time processing, with the shared choice to serve original audio or hide matching episodes. (#835)
+- Per-feed RSS User-Agent overrides apply to validation, refresh and artwork-source fetches. (#836)
+- Audio Encoder Compression Level controls libmp3lame encoding; Default leaves ffmpeg's setting unchanged. (#830)
+
+### Fixed
+- Episode selection requests stop at 501 rows and report truncation; bulk actions remain limited to 500 episodes.
+- Episode-filter saves prevent duplicate or stale-list writes; long patterns wrap on narrow screens.
+- Removed cue lengths count toward the boundary-shift allowance while synthesized cue pairs retain their full-span break cap. (#832)
+- Invalid stored bitrate or compression settings fall back to defaults before encoding.
+- Backups clean old staging directories left by interrupted snapshots. Unreadable or disappearing leftovers do not block a new backup.
+- Invalid stored per-feed User-Agent overrides warn once per value and inherit the global identifier.
+- Compose examples pass TypeSafe and System One-compatible credentials to the application.
+
+## [2.99.3] - 2026-10-10
+
+### Added
+- Per-feed download User-Agent overrides apply to audio, artwork, chapters, and upstream transcripts; cross-fetch keeps a different podcast client. (#836)
+- Episode filters group title rules with optional RSS duration limits. Skipped episodes can keep their original audio or be hidden from the served feed. (#833)
+- Live episode title search covers the full feed, with selection across pages and an explicit limit of 500 episodes per bulk action.
+- Benchmark tooling (not shipped in the runtime image): `jev-spike` and `jev-cv` commands score System One/TypeSafe against the corpus with cached per-window probabilities and threshold sweeps.
+
+### Changed
+- Container images upgrade PCRE2 to 10.49 with newer JIT fixes and Unicode 17 matching data.
+- Rename the Settings section to System One Tuneables.
+- `color-scheme` moves from date inputs alone to `:root` and `.dark`, so native form controls across the app match the active theme, not just date pickers.
+- Matched ad-break cues are removed with ads by default. Each template can opt out, while programme cues and manual trims remain protected. (#832)
+- System One admission pools key their per-credential fingerprint with a per-process HMAC instead of a plain hash.
+
+### Fixed
+- System One statistics show average call time in milliseconds, preserving subsecond timing.
+- Expected provider holds and service deferrals no longer log processing failures.
+- Legacy cue-template migrations preserve saved match thresholds. Cue removal becomes the default for every existing template, with a per-template opt-out.
+- Settings tests isolate automatic reviewer calibration to prevent unrelated retry assertions from failing.
+- Container images remove unused repository setup and init packages and use GNU coreutils.
+- Container images build pinned media security backports and SRT 1.5.6, retaining patched source and build provenance.
+- Container images also backport fixes in core, graphics, and utility packages; native CPU builds verify runtime imports, media processing, installed package versions, and application health, and reject a build whose image scan finds leaked secrets, before publication.
+- Scheduled backups prevent temporary-file symlink races and preserve the previous backup when the destination changes during a snapshot.
+
+## [2.99.2] - 2026-10-09
+
+### Fixed
+- Custom pricing shows configured model routes and keeps inactive prices saved.
+
+## [2.99.1] - 2026-10-09
+
+### Added
+- Optional MP3 stream copy for compatible cuts, with a separate replacement-sound toggle and per-feed overrides. (#830)
+
+### Fixed
+- Cleanup action statistics use stacked cards on mobile.
+- System One statistics have a separate card and navigation link, using the LLM spend filters.
+- Embedded chapter images and links survive audio cuts. Supported images are served locally under the episode's feed access rules. (#831)
+- Provider connection tests work before stage models are selected and distinguish connection checks from inference tests.
+
+## [2.99.0] - 2026-10-09
+
+### Added
+- Native TypeSafe and System One-compatible providers for ad detection and verification, with supported ad categorization and experimental review. Each credential slot retains independent profiles, including request limits and shared per-process concurrency controls. Chapter generation, Pattern Cleanup, and chat failover enforce provider capabilities.
+- System One statistics distinguish logical calls from actual HTTP attempts, with diagnostics, retries, latency, and usage coverage. Pattern Cleanup statistics separate runs, checks, suggestions, accepted actions, currently applied actions, and reversions, while identifying unavailable historical accounting and feed attribution.
+- System One setup and manual proxy migration documentation. Configuration import and export preserve independent profiles and encrypted credentials.
+
+### Changed
+- Stats links to System One and Cleanup activity. Filters use aligned controls across Stats, History, Sponsors, and Patterns, with paired date fields on mobile.
+- Shorter guidance across pages, settings and dialogs. Detailed behavior stays in documentation, following the design guide.
+
 ## [2.98.7] - 2026-10-08
 
 ### Fixed

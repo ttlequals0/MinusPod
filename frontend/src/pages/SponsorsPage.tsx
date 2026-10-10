@@ -13,8 +13,7 @@ import { SortHeader, useSortState } from '../components/SortHeader';
 import { formatDate } from '../utils/format';
 import { btnOutline, btnPrimary } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
-import { selectBase } from '../components/fieldStyles';
-import { focusRing } from '../components/fieldStyles';
+import { selectBase, inputBase, filterGrid, filterLabel, filterControl, focusRing } from '../components/fieldStyles';
 import { ActiveBadge } from '../components/ActiveBadge';
 
 type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_matched_at';
@@ -108,28 +107,32 @@ function SponsorsSection() {
     <div>
       {/* Filters + add */}
       <div className="bg-card rounded-lg border border-border p-4 mb-6">
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-muted-foreground">Tag:</label>
+        <div className={`${filterGrid} lg:grid-cols-4 items-end`}>
+          <div className="min-w-0">
+            <label htmlFor="sponsors-tag" className={filterLabel}>Tag</label>
             <select
+              id="sponsors-tag"
               value={tagFilter}
               onChange={(e) => { setTagFilter(e.target.value); setPage(1); }}
-              className={`${selectBase}`}
+              className={`${filterControl} ${selectBase}`}
             >
               <option value="all">All</option>
               {(vocab?.all_tags ?? []).map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
-          <div className="flex-1 min-w-[200px]">
+          <div className="min-w-0">
+            <label htmlFor="sponsors-search" className={filterLabel}>Search</label>
             <input
+              id="sponsors-search"
               type="text"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search by name, alias, category..."
-              className="w-full px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+              className={`${filterControl} ${inputBase}`}
             />
           </div>
           <Checkbox
+            className="min-h-11"
             checked={showInactive}
             onChange={(v) => { setShowInactive(v); setPage(1); }}
             label="Show inactive"
@@ -138,7 +141,7 @@ function SponsorsSection() {
           <button
             type="button"
             onClick={() => setEditing(null)}
-            className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors ${focusRing}`}
+            className={`min-h-11 px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors ${focusRing}`}
           >
             + Add Sponsor
           </button>

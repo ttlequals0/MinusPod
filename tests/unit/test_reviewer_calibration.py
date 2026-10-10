@@ -1,6 +1,10 @@
 """Tests for the reviewer calibration self-test."""
 import json
+import dataclasses
 import threading
+import subprocess
+import sys
+from pathlib import Path
 import time
 from unittest.mock import MagicMock
 
@@ -260,6 +264,23 @@ def test_reviewer_calibration_on_change_defaults_true():
     assert db.get_setting_bool('reviewer_calibration_on_change', True) is True
 
 
+def test_unrelated_settings_save_does_not_start_calibration_worker(
+        client, monkeypatch, preserve_setting):
+    db = _build_db()
+    for key, value in (
+            ('review_provider', 'primary'), ('review_model', 'old-model'),
+            ('reviewer_calibration_on_change', 'true')):
+        preserve_setting(key)
+        db.set_setting(key, value, is_default=False)
+    monkeypatch.setattr(calib_mod, 'threading', MagicMock())
+
+    response = _save_settings(client, {'reviewModel': 'new-model'})
+
+    assert response.status_code == 200
+    assert db.get_setting('review_model') == 'new-model'
+    calib_mod.threading.Thread.assert_not_called()
+
+
 def test_settings_save_calibrates_the_committed_review_model_once(client, calibration_runs):
     db = _build_db()
     db.set_setting('review_provider', 'primary', is_default=False)
@@ -454,3 +475,22 @@ def test_calibration_routes_to_the_review_slot_not_the_global_client():
     finally:
         for k in keys:
             db.clear_setting(k)
+
+
+def test_missing_typesafe_slot_key_skips_automatic_calibration(temp_db, monkeypatch):
+    route = calib_mod.resolve_calibration_route()
+    route = dataclasses.replace(route, provider_key='typesafe', credential_slot='secondary')
+    monkeypatch.setattr(calib_mod, 'calibration_route_revision', lambda: ('native-review', route))
+    monkeypatch.setattr(calib_mod.provider_clients, 'get_effective_secondary_provider_api_key', lambda: None)
+    monkeypatch.setattr(calib_mod.provider_clients, 'get_effective_systemone_api_key',
+                        lambda _provider: (_ for _ in ()).throw(AssertionError('secondary cannot use primary key')))
+    assert trigger_reviewer_calibration(temp_db, 'previous') is None
+
+
+def test_direct_calibration_script_import_bootstraps_src_without_inference():
+    root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [sys.executable, '-I', '-c',
+         "import runpy; runpy.run_path('src/tools/reviewer_calibration.py', run_name='import_check')"],
+        cwd=root, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr

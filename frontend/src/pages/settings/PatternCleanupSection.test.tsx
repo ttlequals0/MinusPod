@@ -101,7 +101,8 @@ describe('PatternCleanupSection', () => {
 
   it('save sends numbers and the slot string', async () => {
     const user = userEvent.setup();
-    renderSection();
+    const view = renderSection();
+    view.queryClient.setQueryData(['settings'], {});
     const batch = await screen.findByLabelText(/patterns per run/i);
     await user.clear(batch);
     await user.type(batch, '50');
@@ -118,6 +119,7 @@ describe('PatternCleanupSection', () => {
       provider: 'primary', model: 'big-model',
     });
     expect(await screen.findByText(/^saved$/i)).toBeDefined();
+    expect(view.queryClient.getQueryState(['settings'])?.isInvalidated).toBe(true);
   });
 
   it('requires choosing an inherited or explicit model when cleanup model is missing', async () => {

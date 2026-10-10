@@ -206,6 +206,7 @@ describe('QueueControlSection', () => {
     resolveRate!({
       currency: 'EUR', localPerUsd: '0.8', source: 'Frankfurter', sourceDate: '2026-09-10', dailyLimit: '0', unknownReserve: '0',
     });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save admission settings' }).hasAttribute('disabled')).toBe(false));
     await user.click(screen.getByRole('button', { name: 'Save admission settings' }));
     await waitFor(() => expect(mocked.updateProviderBudget).toHaveBeenCalledWith(expect.objectContaining({
       displayCurrency: 'EUR', dailyLimit: '0', unknownReserve: '0',

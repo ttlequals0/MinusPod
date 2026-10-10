@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 MAX_UPSTREAM_CHAPTERS_BYTES = 1024 * 1024
 
 
-def fetch_upstream_chapters(url: str) -> list[dict] | None:
+def fetch_upstream_chapters(url: str, user_agent: str | None = None) -> list[dict] | None:
     """Fetch and parse a podcast:chapters JSON file.
 
     Returns None for ANY failure: network error, size-cap trip, JSON parse
@@ -53,7 +53,7 @@ def fetch_upstream_chapters(url: str) -> list[dict] | None:
             timeout=HTTP_TIMEOUT_API,
             stream=True,
             headers={
-                'User-Agent': download_user_agent(),
+                'User-Agent': user_agent or download_user_agent(),
                 'Accept': 'application/json',
             },
         )

@@ -34,8 +34,7 @@ logger = logging.getLogger('podcast.claude.cue_snap')
 # Aliases kept for callers that import these names directly.
 DEFAULT_SNAP_LEAD_SECONDS = AUDIO_CUE_SNAP_LEAD_SECONDS
 DEFAULT_SNAP_LAG_SECONDS = AUDIO_CUE_SNAP_LAG_SECONDS
-# Gap between the cue's end and the snapped ad start. Tiny lead so the cut
-# does not slice into the trailing decay of the ding.
+# Padding outside removed cues, or spacing inside cues kept with content.
 SNAP_GAP_SECONDS = 0.05
 # Minimum cue confidence to consider for snapping (default; DB-settable via
 # audio_cue_snap_confidence, which the caller threads in as min_confidence).
@@ -52,6 +51,22 @@ def _cue_role(cue) -> str:
     return (cue.details or {}).get('role', AUDIO_CUE_ROLE_DEFAULT)
 
 
+def cue_removal_enabled(details) -> bool:
+    """Only ad-role cues may be removed with a detected break."""
+    details = details or {}
+    return (
+        details.get('role', AUDIO_CUE_ROLE_DEFAULT) != AUDIO_CUE_ROLE_NON_AD
+        and not is_transition_cue(details)
+        and details.get('cue_type') not in ('show_intro', 'show_outro')
+        and bool(details.get('remove_with_ad', True))
+    )
+
+
+def removed_cue_cap_allowance(start: float, end: float, removed: bool) -> float:
+    """Allow the removed cue's length in the boundary-shift cap (#832)."""
+    return (end - start) if removed else 0.0
+
+
 def _snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -> dict:
     """Build snap audit; sets ambiguous/candidates when 2+ eligible cues."""
     details = cue.details or {}
@@ -65,6 +80,7 @@ def _snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -
         'label': details.get('label'),
         'source': details.get('source', AUDIO_CUE_SOURCE_SPECTRAL),
         'cue_type': details.get('cue_type'),
+        'remove_with_ad': cue_removal_enabled(details),
     }
     if n_candidates >= 2:
         rec['ambiguous'] = True
@@ -81,20 +97,7 @@ def snap_ad_boundaries_to_cues(
     min_confidence: float = MIN_CUE_CONFIDENCE_FOR_SNAP,
     allow_transition: bool = False,
 ) -> list[dict]:
-    """Return ``ads`` with each ``start`` and ``end`` snapped to a nearby cue.
-
-    Start snap: ad start moves to the cue's *end* + a tiny lead so the cut
-    lands just after the stinger finishes.
-
-    End snap: ad end moves to the cue's *start* so the cut lands at the
-    moment the resume-content stinger begins (its decay belongs to the
-    content side of the break).
-
-    Each shifted ad records the snap in ``ad['cue_snap']`` so the UI / logs
-    can show why the boundary moved. A cue used for the start snap of an
-    ad is excluded from the end snap of the same ad so the same cue can't
-    drag both edges to itself.
-    """
+    """Snap ad edges to template cues, including ad cues unless opted out."""
     if not ads or not audio_analysis_result:
         return ads
     cues = audio_analysis_result.get_signals_by_type('audio_cue') if audio_analysis_result else []
@@ -127,11 +130,18 @@ def snap_ad_boundaries_to_cues(
         )
         new_start = original_start
         if start_cue is not None:
-            proposed_start = start_cue.end + SNAP_GAP_SECONDS
+            start_cue_removed = cue_removal_enabled(start_cue.details)
+            proposed_start = (max(0.0, start_cue.start - SNAP_GAP_SECONDS)
+                              if start_cue_removed
+                              else start_cue.end + SNAP_GAP_SECONDS)
             shift = abs(proposed_start - original_start)
+            # Removing the cue moves the edge to its far side, so widen the
+            # cap by the cue's own length or a long sting gets rejected (#832).
+            allowed_shift = max_boundary_shift_s + removed_cue_cap_allowance(
+                start_cue.start, start_cue.end, start_cue_removed)
             if (
                 proposed_start < original_end
-                and shift <= max_boundary_shift_s
+                and shift <= allowed_shift
                 and shift >= 0.01
             ):
                 new_start = round(proposed_start, 3)
@@ -153,14 +163,16 @@ def snap_ad_boundaries_to_cues(
         )
         new_end = original_end
         if end_cue is not None:
-            # End snap lands on the resume-content stinger's START so the
-            # break ends just before the stinger plays. Its decay stays
-            # with the content side.
-            proposed_end = end_cue.start - SNAP_GAP_SECONDS
+            end_cue_removed = cue_removal_enabled(end_cue.details)
+            proposed_end = (end_cue.end + SNAP_GAP_SECONDS
+                            if end_cue_removed
+                            else end_cue.start - SNAP_GAP_SECONDS)
             shift = abs(proposed_end - original_end)
+            allowed_shift = max_boundary_shift_s + removed_cue_cap_allowance(
+                end_cue.start, end_cue.end, end_cue_removed)
             if (
                 proposed_end > new_start
-                and shift <= max_boundary_shift_s
+                and shift <= allowed_shift
                 and shift >= 0.01
             ):
                 new_end = round(proposed_end, 3)

@@ -1495,6 +1495,40 @@ class TestAudioBitrateValidation:
         assert data['audioBitrate']['isDefault'] is True
 
 
+class TestAudioEncoderCompressionLevelValidation:
+    """audioEncoderCompressionLevel round-trip + validation ('default' or '0'..'9')."""
+
+    def _get_settings(self, client):
+        resp = client.get('/api/v1/settings')
+        assert resp.status_code == 200
+        return json.loads(resp.data)
+
+    def test_get_exposes_compression_level_with_default(self, client):
+        data = self._get_settings(client)
+        assert data['audioEncoderCompressionLevel']['value'] == 'default'
+        assert data['audioEncoderCompressionLevel']['isDefault'] is True
+
+    def test_put_accepts_default_and_digit_values(self, client):
+        for value in ('default', '0', '7', '9'):
+            resp = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'audioEncoderCompressionLevel': value}),
+                content_type='application/json',
+            )
+            assert resp.status_code == 200, resp.data
+            assert self._get_settings(client)['audioEncoderCompressionLevel']['value'] == value
+
+    def test_put_rejects_out_of_range_and_non_numeric_values(self, client):
+        for value in ('10', 'fast'):
+            resp = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'audioEncoderCompressionLevel': value}),
+                content_type='application/json',
+            )
+            assert resp.status_code == 400
+            assert 'audioEncoderCompressionLevel' in json.loads(resp.data)['error']
+
+
 class TestArtworkBadgePositionValidation:
     """artworkBadgePosition round-trip + validation (issue #600)."""
 

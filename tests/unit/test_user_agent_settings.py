@@ -172,3 +172,42 @@ def test_module_imports_before_storage():
         [sys.executable, '-c', 'import user_agent; print(user_agent.feed_user_agent())'],
         capture_output=True, text=True, env={'PYTHONPATH': src, 'PATH': os.environ['PATH']})
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize('resolver_name, setting, override_key, other_resolver_name, other_default', [
+    ('download_user_agent', user_agent.DOWNLOAD_UA_SETTING, 'download_user_agent_override',
+     'feed_user_agent', APP_USER_AGENT),
+    ('feed_user_agent', user_agent.FEED_UA_SETTING, 'feed_user_agent_override',
+     'download_user_agent', BROWSER_USER_AGENT),
+])
+def test_feed_override_takes_precedence_over_global(
+        resolver_name, setting, override_key, other_resolver_name, other_default):
+    Database().set_setting(setting, 'Global/1.0')
+    user_agent.invalidate_cache()
+    resolver = getattr(user_agent, resolver_name)
+    other_resolver = getattr(user_agent, other_resolver_name)
+    assert resolver({override_key: '  Feed/2.0  '}) == 'Feed/2.0'
+    assert resolver({override_key: None}) == 'Global/1.0'
+    assert resolver() == 'Global/1.0'
+    assert other_resolver() == other_default
+
+
+@pytest.mark.parametrize('value', [None, '', 'Bad/1.0\r\nX-Injected: yes', 5])
+def test_invalid_or_empty_feed_override_inherits_global(value):
+    assert user_agent.download_user_agent({'download_user_agent_override': value}) == BROWSER_USER_AGENT
+
+
+def test_invalid_feed_override_warns_once_until_the_value_changes(caplog):
+    podcast = {'slug': 'show-a', 'feed_user_agent_override': 'Bad/1.0\r\nX-Injected: yes'}
+    with caplog.at_level('WARNING', logger='podcast.audio'):
+        for _ in range(3):
+            assert user_agent.feed_user_agent(podcast) == APP_USER_AGENT
+        warnings = [r for r in caplog.records if 'show-a' in r.message]
+        assert len(warnings) == 1
+
+        caplog.clear()
+        podcast['feed_user_agent_override'] = 'Still/Bad\r\nX-Injected: yes'
+        assert user_agent.feed_user_agent(podcast) == APP_USER_AGENT
+        assert user_agent.feed_user_agent(podcast) == APP_USER_AGENT
+        warnings = [r for r in caplog.records if 'show-a' in r.message]
+        assert len(warnings) == 1

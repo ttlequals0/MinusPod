@@ -7,6 +7,7 @@ import FeedDetail from './FeedDetail';
 import type { Feed } from '../api/types';
 
 let mockSlug = 'feed-a';
+const mockGetEpisodes = vi.fn();
 
 vi.mock('react-router', () => ({
   useParams: () => ({ slug: mockSlug }),
@@ -33,7 +34,7 @@ vi.mock('../api/feeds', () => ({
     queryKey: ['feeds'],
     queryFn: () => Promise.resolve({ feeds: Object.values(FEEDS), lastRefreshCompletedAt: null }),
   },
-  getEpisodes: () => Promise.resolve({ episodes: [], total: 0 }),
+  getEpisodes: (...args: unknown[]) => mockGetEpisodes(...args),
   getNetworks: () => Promise.resolve([]),
   refreshFeed: vi.fn(),
   updateFeed: vi.fn(),
@@ -65,6 +66,7 @@ describe('FeedDetail: switching feeds', () => {
   beforeEach(() => {
     localStorage.clear();
     mockSlug = 'feed-a';
+    mockGetEpisodes.mockResolvedValue({ episodes: [], total: 0 });
   });
 
   it('resets the settings search and keeps the next feed stored collapse state', async () => {
@@ -95,4 +97,27 @@ describe('FeedDetail: switching feeds', () => {
     expect(toggle('Chapters').getAttribute('aria-expanded')).toBe('false');
     expect(localStorage.getItem('feed-chapters-feed-b')).toBe('false');
   });
+});
+
+it('clears selections on feed changes without restoring them when returning', async () => {
+  mockSlug = 'feed-a';
+  mockGetEpisodes.mockResolvedValue({ episodes: [{
+    id: 'shared-id', title: 'Episode', published: '2026-10-10T00:00:00Z',
+    status: 'completed', jobState: 'idle',
+  }], total: 1 });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  for (const slug of Object.keys(FEEDS)) client.setQueryData(['feed', slug], FEEDS[slug]);
+  const tree = () => <QueryClientProvider client={client}><FeedDetail /></QueryClientProvider>;
+  const user = userEvent.setup();
+  const { rerender } = render(tree());
+  await user.click(await screen.findByRole('button', { name: 'Select episode' }));
+  expect(screen.getByText('1 selected')).toBeTruthy();
+  mockSlug = 'feed-b';
+  rerender(tree());
+  await screen.findByRole('button', { name: 'Select episode' });
+  expect(screen.queryByText('1 selected')).toBeNull();
+  mockSlug = 'feed-a';
+  rerender(tree());
+  await screen.findByRole('button', { name: 'Select episode' });
+  expect(screen.queryByText('1 selected')).toBeNull();
 });

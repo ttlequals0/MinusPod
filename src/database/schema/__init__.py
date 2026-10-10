@@ -178,6 +178,7 @@ class SchemaMixin:
         'ad_reviewer_log',
         'podping_hosts',
         'llm_call_usage',
+        'systemone_call_diagnostics',
         'addressing_log',
         'processing_runs',
         'upload_reservations',
@@ -186,6 +187,8 @@ class SchemaMixin:
         'failover_events',
         'pattern_cleanup_runs',
         'pattern_cleanup_suggestions',
+        'pattern_cleanup_checks',
+        'pattern_cleanup_deleted_actions',
     )
 
     def _create_new_tables_only(self, conn):
@@ -221,6 +224,7 @@ class SchemaMixin:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_provider_model ON llm_call_usage(provider_key, configured_model)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_created ON llm_call_usage(created_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_call_usage_state ON llm_call_usage(state)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_systemone_call_diagnostics_created ON systemone_call_diagnostics(created_at DESC)")
         # The provider/credential_slot index is created in _run_schema_migrations,
         # after the ALTER that adds credential_slot to pre-existing tables.
         conn.execute(
@@ -480,6 +484,17 @@ class SchemaMixin:
         """)
         conn.commit()
 
+        ledger_cols = self._get_table_columns(conn, 'llm_call_usage')
+        self._add_column_if_missing(
+            conn, 'llm_call_usage', 'logical_call_id', 'TEXT', ledger_cols)
+        self._add_column_if_missing(
+            conn, 'llm_call_usage', 'dispatch_latency_ms', 'INTEGER', ledger_cols)
+        self._add_column_if_missing(
+            conn, 'llm_call_usage', 'call_latency_ms', 'INTEGER', ledger_cols)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_llm_call_usage_logical "
+            "ON llm_call_usage(logical_call_id)")
+
         # -- Episodes table columns --
         self._add_episode_columns(conn)
 
@@ -525,6 +540,8 @@ class SchemaMixin:
             ('created_at', "TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
             ('auto_process_override', 'TEXT'),
             ('language_override', 'TEXT'),
+            ('download_user_agent_override', 'TEXT'),
+            ('feed_user_agent_override', 'TEXT'),
             ('title_override', 'TEXT'),
             ('detection_mode', 'TEXT'),
             ('cue_template_score_override', 'REAL'),
@@ -615,7 +632,12 @@ class SchemaMixin:
             # case-insensitively; title_skip_action controls served-RSS
             # visibility (NULL/'serve_original' keep, 'hide' drops it).
             ('title_skip_patterns', 'TEXT'),
+            # Episode description blacklist (#835): same glob semantics as
+            # title_skip_patterns, matched against the plain-text description.
+            ('description_skip_patterns', 'TEXT'),
             ('title_skip_action', 'TEXT'),
+            ('min_duration_seconds', 'REAL'),
+            ('max_duration_seconds', 'REAL'),
             # Per-feed low-ad-yield action override; NULL = use the global
             # low_ad_yield_action setting.
             ('low_ad_yield_action', 'TEXT'),
@@ -629,6 +651,8 @@ class SchemaMixin:
             # Per-feed pre-cut original audio override; NULL = follow the
             # global keep_original_audio setting, 0 = off, 1 = on.
             ('keep_original_audio_override', 'INTEGER'),
+            ('audio_replacement_sound_override', 'INTEGER'),
+            ('audio_mp3_stream_copy_override', 'INTEGER'),
             # Local feeds: 'subscribed' (upstream RSS) or 'local' (imported
             # archive with no upstream). Immutable after creation.
             ('feed_type', "TEXT NOT NULL DEFAULT 'subscribed'"),
@@ -656,6 +680,7 @@ class SchemaMixin:
         act_cols = self._get_table_columns(conn, 'audio_cue_templates')
         act_migrations = [
             ('score_threshold', 'REAL'),
+            ('remove_with_ad', 'INTEGER NOT NULL DEFAULT 1'),
         ]
         for col, definition in act_migrations:
             self._add_column_if_missing(conn, 'audio_cue_templates', col, definition, act_cols)
@@ -1970,6 +1995,7 @@ class SchemaMixin:
                     "id, podcast_id, label, source_episode_id, source_offset_s, "
                     "duration_s, sample_rate, n_coeffs, mfcc_blob, pcm_blob, "
                     "pcm_sample_rate, scope, network_id, cue_type, enabled, "
+                    "score_threshold, remove_with_ad, "
                     "created_at, created_by"
                 )
                 before = conn.execute(
@@ -1991,6 +2017,8 @@ class SchemaMixin:
                         network_id TEXT,
                         cue_type TEXT NOT NULL DEFAULT 'ad_break_boundary',
                         enabled INTEGER NOT NULL DEFAULT 1,
+                        score_threshold REAL,
+                        remove_with_ad INTEGER NOT NULL DEFAULT 1,
                         created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                         created_by TEXT DEFAULT 'user',
                         FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
@@ -2324,6 +2352,43 @@ class SchemaMixin:
                     'INSERT INTO schema_migrations (name) VALUES (?)',
                     (cleanup_category_gate,))
                 conn.commit()
+
+        cleanup_ledger_cols = self._get_table_columns(conn, 'llm_call_usage')
+        for name in ('cleanup_run_id', 'cleanup_pattern_id'):
+            self._add_column_if_missing(conn, 'llm_call_usage', name, 'INTEGER', cleanup_ledger_cols)
+        cleanup_run_cols = self._get_table_columns(conn, 'pattern_cleanup_runs')
+        self._add_column_if_missing(conn, 'pattern_cleanup_runs', 'accounting_version',
+                                    'INTEGER', cleanup_run_cols)
+        cleanup_suggestion_cols = self._get_table_columns(conn, 'pattern_cleanup_suggestions')
+        for name in ('superseded_at', 'pattern_scope', 'podcast_slug'):
+            self._add_column_if_missing(conn, 'pattern_cleanup_suggestions', name,
+                                        'TEXT', cleanup_suggestion_cols)
+        cleanup_accounting_gate = 'pattern_cleanup_accounting_v1'
+        if not conn.execute('SELECT 1 FROM schema_migrations WHERE name = ?',
+                            (cleanup_accounting_gate,)).fetchone():
+            conn.execute('DROP INDEX IF EXISTS idx_cleanup_suggestions_pending')
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_cleanup_suggestions_pending "
+                         "ON pattern_cleanup_suggestions(pattern_id, kind) "
+                         "WHERE status = 'pending' AND superseded_at IS NULL")
+            conn.execute("""UPDATE pattern_cleanup_suggestions
+                SET pattern_scope = json_extract(before, '$.scope'),
+                    podcast_slug = CASE WHEN json_extract(before, '$.scope') = 'podcast'
+                                        AND json_type(before, '$.podcast_id') = 'text'
+                                   THEN json_extract(before, '$.podcast_id') END
+                WHERE pattern_scope IS NULL AND json_valid(before)
+                  AND json_extract(before, '$.scope') IN ('podcast', 'network', 'global')""")
+            conn.execute('INSERT INTO schema_migrations (name) VALUES (?)',
+                         (cleanup_accounting_gate,))
+        conn.execute("""CREATE TRIGGER IF NOT EXISTS archive_cleanup_actions_on_pattern_delete
+            BEFORE DELETE ON ad_patterns BEGIN
+                INSERT INTO pattern_cleanup_deleted_actions
+                    (suggestion_id, run_id, pattern_id, pattern_scope, podcast_slug, kind, status)
+                SELECT id, run_id, pattern_id, pattern_scope, podcast_slug, kind, status
+                FROM pattern_cleanup_suggestions WHERE pattern_id = OLD.id;
+                DELETE FROM pattern_cleanup_suggestions WHERE pattern_id = OLD.id;
+            END""")
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_llm_usage_cleanup_run '
+                     'ON llm_call_usage(cleanup_run_id, cleanup_pattern_id)')
 
         # Refresh the default review prompt with the PARTIAL SPAN contract:
         # when the reviewer concludes part of the span is not ad content, it

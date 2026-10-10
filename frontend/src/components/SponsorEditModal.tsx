@@ -135,7 +135,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
             ))}
           </select>
           <p className="mt-1 text-xs text-muted-foreground">
-            Every read that names this sponsor is filed under this category, whatever the detector called it.
+            Overrides the detected category for this sponsor.
           </p>
         </div>
 

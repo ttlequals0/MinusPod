@@ -53,6 +53,7 @@ export interface CueTemplate {
   scope: CueTemplateScope;
   networkId: string | null;
   enabled: boolean;
+  removeWithAd?: boolean;
   createdAt: string;
   createdBy: string | null;
   // False for a network template shared from another feed in this network;
@@ -109,12 +110,13 @@ export async function createCueTemplate(
   startS: number,
   endS: number,
   cueType: CueTemplateType,
+  removeWithAd = true,
 ): Promise<CueTemplate> {
   const res = await apiRequest<{ template: CueTemplate }>(
     `/feeds/${slug}/cue-templates`,
     {
       method: 'POST',
-      body: { episodeId, startS, endS, cueType },
+      body: { episodeId, startS, endS, cueType, removeWithAd },
     },
   );
   return res.template;
@@ -125,6 +127,7 @@ export async function updateCueTemplate(
   patch: {
     cueType?: CueTemplateType;
     enabled?: boolean;
+    removeWithAd?: boolean;
     scope?: CueTemplateScope;
     networkId?: string;
     scoreThreshold?: number | null;

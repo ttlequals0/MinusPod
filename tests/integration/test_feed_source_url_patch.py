@@ -12,6 +12,7 @@ import tempfile
 import pytest
 
 from tests.app_bootstrap import authenticate_test_client
+from user_agent import feed_user_agent
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='feed-srcurl-test-'))
@@ -81,7 +82,7 @@ def refresh_recorder(monkeypatch):
 
 
 def _mock_fetch(monkeypatch, content):
-    def _fetch(self, url, timeout=30):
+    def _fetch(self, url, timeout=30, podcast=None):
         return content
     monkeypatch.setattr('rss_parser.RSSParser.fetch_feed', _fetch)
 
@@ -100,6 +101,27 @@ def test_patch_source_url_valid_persists_and_returns(app_client, seeded_feed, _a
     assert r.get_json()['sourceUrl'] == NEW_URL
     podcast = seeded_feed['db'].get_podcast_by_slug(slug)
     assert podcast['source_url'] == NEW_URL
+
+
+def test_patch_source_and_rss_ua_validates_with_pending_override(
+        app_client, seeded_feed, _auth, refresh_recorder, monkeypatch):
+    db, slug = seeded_feed['db'], seeded_feed['slug']
+    db.update_podcast(slug, feed_user_agent_override='Previous/1.0')
+    observed = []
+
+    def fetch(self, url, timeout=30, podcast=None):
+        observed.append(feed_user_agent(podcast))
+        return VALID_RSS if observed[-1] == 'Feed/2.0' else None
+
+    monkeypatch.setattr('rss_parser.RSSParser.fetch_feed', fetch)
+    response = app_client.patch(f'/api/v1/feeds/{slug}', headers=_csrf(app_client), json={
+        'sourceUrl': NEW_URL, 'feedUserAgentOverride': 'Feed/2.0',
+    })
+    assert response.status_code == 200
+    assert observed == ['Feed/2.0']
+    podcast = db.get_podcast_by_slug(slug)
+    assert podcast['source_url'] == NEW_URL
+    assert podcast['feed_user_agent_override'] == 'Feed/2.0'
 
 
 def test_patch_source_url_triggers_forced_refresh_with_new_url(app_client, seeded_feed,
@@ -153,7 +175,7 @@ def test_patch_source_url_ssrf_blocked(app_client, seeded_feed, _auth,
                                        refresh_recorder, monkeypatch):
     fetch_calls = []
 
-    def _fetch(self, url, timeout=30):
+    def _fetch(self, url, timeout=30, podcast=None):
         fetch_calls.append(url)
         return VALID_RSS
 

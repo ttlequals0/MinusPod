@@ -8,14 +8,23 @@ Import offers three scopes: global settings and feeds, global settings only, or 
 
 The file format is versioned independently of the MinusPod application version. Unknown setting names are shown in preview and skipped. Newer unsupported file formats are rejected. Missing settings leave the destination unchanged. Null clears credentials or resets a supported nullable override; it is invalid for other non-nullable settings. Nullable overrides are:
 
+System One tuning profiles are imported as partial field updates. Fields absent from an older export keep their destination values, and provider profiles not present in the import are retained. A profile-level null resets that profile to its defaults; nullable threshold or limit fields with null keep their documented inherited or unlimited meaning. See [System One](system-one.md#independent-tuning-profiles).
+
 - `verification_model`, `chapters_model`, `secondary_provider`, and `failover_llm_provider`
 - `llm_timeout_seconds`, `llm_max_retries`, `secondary_llm_timeout_seconds`, `secondary_llm_max_retries`, `failover_llm_timeout_seconds`, `failover_llm_max_retries`, and `failover_whisper_max_attempts`
 - `detection_reasoning_budget` and `detection_reasoning_level`, with corresponding `verification_`, `reviewer_`, `chapter_boundary_`, and `chapter_title_` settings
 - `ollama_num_ctx`
+- `audio_replacement_sound_enabled` and `audio_mp3_stream_copy_enabled`
 
 `pattern_cleanup_model` has three states: null inherits the detection model, an empty string means the model was explicitly cleared and must be selected before a run, and a nonempty string selects that model. Stage tunables export their effective values, using null only when the effective value is null. Nullable feed overrides can still inherit global defaults. Credentials set through environment variables may remain active after a database credential is cleared.
 
 Configuration import and export do not copy files that a setting may reference, such as locally stored media. Preview and import do not dispatch test webhooks or email notifications.
+
+Audio output choices include their nullable feed overrides. Null resets a global
+choice to its default or clears a feed override back to inheritance. Omitted
+fields preserve the destination values, including imports from older exports.
+
+Feed duration limits export as `min_duration_seconds` and `max_duration_seconds`, in seconds. Null clears a limit; omitted fields preserve destination values. Import rejects nonfinite, negative, or reversed limits.
 
 ## UI and API
 

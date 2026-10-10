@@ -1,6 +1,8 @@
 """Episode covers are cached locally so publishers cannot block them (#617)."""
 import os
 import sys
+import hashlib
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 import pytest
@@ -31,6 +33,119 @@ def storage(tmp_path):
 def test_saved_cover_round_trips(storage):
     assert storage._save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg') is True
     assert storage.get_episode_artwork(SLUG, EP) == (JPEG, 'image/jpeg')
+
+
+@pytest.mark.parametrize('image,extension,content_type', [
+    (PNG, 'png', 'image/png'), (JPEG, 'jpg', 'image/jpeg'),
+])
+def test_chapter_images_are_content_addressed_and_local(storage, image, extension, content_type):
+    name = f'{hashlib.sha256(image).hexdigest()}.{extension}'
+    url = storage.save_chapter_image(SLUG, EP, image)
+    assert url == f'/episodes/{SLUG}/{EP}/chapter-images/{name}'
+    assert storage.get_chapter_image(SLUG, EP, name) == (image, content_type)
+    assert storage.save_chapter_image(SLUG, EP, image) == url
+    assert len(list(storage._chapter_images_dir(SLUG, EP).iterdir())) == 1
+
+
+@pytest.mark.parametrize('image', [b'<svg xmlns="http://www.w3.org/2000/svg"/>', b'GIF89a' + PNG[6:]])
+def test_non_jpeg_png_chapter_images_are_not_served(storage, image):
+    assert storage.save_chapter_image(SLUG, EP, image) is None
+    assert storage._chapter_images_dir(SLUG, EP) is None
+
+
+def test_oversized_chapter_image_does_not_create_an_asset(storage):
+    with patch.object(storage_module, '_max_artwork_bytes', return_value=len(PNG) - 1):
+        assert storage.save_chapter_image(SLUG, EP, PNG) is None
+    assert storage._chapter_images_dir(SLUG, EP) is None
+
+
+def test_failed_image_replace_preserves_previous_chapter_asset(storage):
+    url = storage.save_chapter_image(SLUG, EP, PNG)
+    with patch.object(storage_module.os, 'replace', side_effect=OSError):
+        assert storage.save_chapter_image(SLUG, EP, JPEG) is None
+    assert storage.get_chapter_image(SLUG, EP, url.rsplit('/', 1)[-1]) == (PNG, 'image/png')
+    assert len(list(storage._chapter_images_dir(SLUG, EP).iterdir())) == 1
+
+
+def test_chapter_asset_reads_do_not_create_directories(storage):
+    name = f'{hashlib.sha256(PNG).hexdigest()}.png'
+    assert storage.get_chapter_image('unknown-feed', EP, name) is None
+    assert not (storage.podcasts_dir / 'unknown-feed').exists()
+
+
+@pytest.mark.parametrize('name', ['../image.png', 'image.svg', 'a' * 64 + '.webp', 'a' * 65 + '.png'])
+def test_chapter_image_names_cannot_traverse_or_select_unsafe_formats(storage, name):
+    assert storage.get_chapter_image(SLUG, EP, name) is None
+
+
+def test_chapter_image_symlink_cannot_escape_its_episode_directory(storage, tmp_path):
+    url = storage.save_chapter_image(SLUG, EP, PNG)
+    name = url.rsplit('/', 1)[-1]
+    path = storage._chapter_images_dir(SLUG, EP) / name
+    outside = tmp_path / 'outside.png'
+    outside.write_bytes(PNG)
+    path.unlink()
+    path.symlink_to(outside)
+    assert storage.get_chapter_image(SLUG, EP, name) is None
+    assert outside.read_bytes() == PNG
+
+
+def test_chapter_image_modified_or_spoofed_bytes_are_not_served(storage):
+    url = storage.save_chapter_image(SLUG, EP, PNG)
+    name = url.rsplit('/', 1)[-1]
+    path = storage._chapter_images_dir(SLUG, EP) / name
+    path.write_bytes(JPEG)
+    assert storage.get_chapter_image(SLUG, EP, name) is None
+
+
+def test_chapter_asset_reads_enforce_the_current_image_size_limit(storage):
+    url = storage.save_chapter_image(SLUG, EP, PNG)
+    with patch.object(storage_module, '_max_artwork_bytes', return_value=len(PNG) - 1):
+        assert storage.get_chapter_image(SLUG, EP, url.rsplit('/', 1)[-1]) is None
+
+
+def test_episode_cleanup_removes_chapter_images_and_counts_bytes(storage):
+    storage.save_chapter_image(SLUG, EP, PNG)
+    assert storage.cleanup_episode_files(SLUG, EP) == len(PNG)
+    assert not storage._chapter_images_dir(SLUG, EP).exists()
+
+
+def test_audio_only_delete_preserves_referenced_chapter_images(storage):
+    url = storage.save_chapter_image(SLUG, EP, PNG)
+    storage.get_episode_path(SLUG, EP).write_bytes(b'audio')
+    storage.delete_processed_file(SLUG, EP, keep_original=True)
+    assert storage.get_chapter_image(SLUG, EP, url.rsplit('/', 1)[-1]) == (PNG, 'image/png')
+
+
+def test_concurrent_chapter_image_writes_are_atomic(storage):
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        urls = list(pool.map(lambda _: storage.save_chapter_image(SLUG, EP, PNG), range(16)))
+    assert None not in urls
+    assert len(set(urls)) == 1
+    assert storage.get_chapter_image(SLUG, EP, urls[0].rsplit('/', 1)[-1]) == (PNG, 'image/png')
+    assert len(list(storage._chapter_images_dir(SLUG, EP).iterdir())) == 1
+
+
+def test_failed_image_cleanup_does_not_abort_audio_cleanup(storage):
+    storage.save_chapter_image(SLUG, EP, PNG)
+    audio = storage.get_episode_path(SLUG, EP)
+    audio.write_bytes(b'audio')
+    with patch.object(storage_module.shutil, 'rmtree', side_effect=OSError):
+        assert storage.cleanup_episode_files(SLUG, EP) == 5
+    assert not audio.exists()
+    assert storage._chapter_images_dir(SLUG, EP).exists()
+
+
+def test_image_cleanup_does_not_follow_an_escaping_directory(storage, tmp_path):
+    storage.save_chapter_image(SLUG, EP, PNG)
+    path = storage._chapter_images_dir(SLUG, EP)
+    storage.remove_chapter_images(SLUG, EP)
+    outside = tmp_path / 'outside-images'
+    outside.mkdir()
+    (outside / 'keep.png').write_bytes(PNG)
+    path.symlink_to(outside)
+    assert storage.remove_chapter_images(SLUG, EP) == 0
+    assert (outside / 'keep.png').read_bytes() == PNG
 
 
 def test_missing_cover_reads_as_none(storage):

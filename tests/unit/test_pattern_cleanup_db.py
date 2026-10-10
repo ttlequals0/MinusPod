@@ -43,6 +43,7 @@ def test_existing_database_gains_tables_and_columns_without_data_loss(temp_dir):
     db = _isolated(temp_dir)
     pids = [_pattern(db, text=f'legacy cleanup row {i}') for i in range(2)]
     conn = db.get_connection()
+    conn.execute("DROP TRIGGER IF EXISTS archive_cleanup_actions_on_pattern_delete")
     conn.execute("DROP TABLE pattern_cleanup_suggestions")
     conn.execute("DROP TABLE pattern_cleanup_runs")
     conn.execute("UPDATE ad_patterns SET cleanup_reviewed_hash = 'preserved'")
@@ -137,7 +138,10 @@ def test_category_kind_migration_preserves_cleanup_suggestions(temp_dir):
             reviewed_at TEXT
         )''')
     conn.execute('''INSERT INTO pattern_cleanup_suggestions_legacy
-        SELECT * FROM pattern_cleanup_suggestions''')
+        SELECT id, run_id, pattern_id, kind, status, confidence, reasons, payload,
+                  before, applied, created_at, reviewed_at
+           FROM pattern_cleanup_suggestions''')
+    conn.execute('DROP TRIGGER IF EXISTS archive_cleanup_actions_on_pattern_delete')
     conn.execute('DROP TABLE pattern_cleanup_suggestions')
     conn.execute('ALTER TABLE pattern_cleanup_suggestions_legacy RENAME TO pattern_cleanup_suggestions')
     conn.execute("DELETE FROM schema_migrations WHERE name = 'pattern_cleanup_category_kind'")
@@ -169,6 +173,7 @@ def test_category_kind_migration_preserves_deleted_id_high_water_mark(temp_dir):
     pid = _pattern(db)
     conn = db.get_connection()
     conn.execute('PRAGMA foreign_keys = OFF')
+    conn.execute('DROP TRIGGER IF EXISTS archive_cleanup_actions_on_pattern_delete')
     conn.execute('DROP TABLE pattern_cleanup_suggestions')
     conn.execute('''
         CREATE TABLE pattern_cleanup_suggestions (

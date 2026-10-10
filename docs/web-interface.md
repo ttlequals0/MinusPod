@@ -22,6 +22,7 @@
 - [Partial Detection](#partial-detection)
 - [Processing stats](#processing-stats)
 - [LLM cost ledger](#llm-cost-ledger)
+- [Filters and date ranges](#filters-and-date-ranges)
 - [Screenshots](#screenshots)
 
 ## Overview
@@ -38,8 +39,8 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Per-feed cue-gated approval: only ads with audio-cue evidence auto-cut; others are held for review (requires cue templates)
 - Per-feed Transcript diff select (Inherit / On / Off) under Feed Settings > Advanced, next to Cross-fetch diff: overrides the global "Compare with the publisher transcript" default for that feed. Hidden on local feeds. See [Upstream Transcript Differential](transcript-differential.md)
 - Per-feed processing mode: one select with five presets: standard (detect and cut ads, the default), keep content only (experimental; marks show content and removes everything else, see [How It Works](how-it-works.md)), skip ad detection (still transcribes and builds chapters, but nothing is scanned or cut; for ad-free shows), pass-through (relays episodes with no transcription or ad removal, though audio may be transcoded for serving), or cue-only (experimental; cuts from cue pairs and previously learned ad patterns, no LLM call; needs one enabled ad-break-start and one enabled ad-break-end template, and exposes a per-feed safety policy and a skip-transcription toggle, see [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset))
-- Feed detail page groups its controls into collapsible sections so the page stays scannable. Inside Feed Settings, everyday controls (network, source feed, auto-process, title blacklist, processing mode, queue priority, retention, original audio, language, hide unprocessed, tags) sit at the top; Segment actions, Cue tuning, and the rarely-changed Advanced controls each fold into their own card
-- Per-feed episode title blacklist: glob patterns that skip queuing and just-in-time processing for matching titles. See [Configuration > Title blacklist](configuration.md#title-blacklist)
+- Feed detail page groups its controls into collapsible sections so the page stays scannable. Feed Settings keeps common controls at the top. Segment actions, Cue tuning, and Advanced controls each fold into their own card. Episode filters groups title rules and optional duration limits in a separate section
+- Episode filters: title patterns and optional RSS duration limits skip automatic and just-in-time processing. [Configuration](configuration.md#episode-duration-filters) explains visibility and manual overrides.
 - Per-feed queue priority (High / Normal / Low) with automatic boosts. See [Configuration > Queue priority](configuration.md#queue-priority)
 - Segment actions card on the feed settings page, with a matching global card in Settings: a four-option toggle per category (Remove, Beep, Keep, or Mark). Mark keeps the audio and publishes the segment as a chapter; see [How It Works > Segment Categories](how-it-works.md#segment-categories)
 - Ad chapters block (Settings > Transcripts & Chapters): chapter and resume titles, minimum confidence, and include-held, with a helper line linking back to Segment actions, where setting a category to Mark is what chapters it. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
@@ -52,7 +53,9 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Episode discovery: all episodes surface on refresh, process any episode from the feed detail page
 - Bulk actions: select multiple episodes to process, reprocess, run a full analysis, re-detect ads on the existing transcript, delete, or set/clear pass-through (the per-episode Recut Audio mode is not a bulk action)
 - Pass-through can also be set or cleared for a single episode from its detail page (in the Reprocess menu). A pass-through episode skips transcription and ad removal, and its audio may be transcoded for serving; a chip on the episode header and a compact indicator in the episode list show which ones are set. Redundant when the whole feed already runs in pass-through mode, in which case the per-episode control is disabled
-- Sort by publish date, episode number, or creation date; paginated (25/50/100/500 per page)
+- Live title search filters the full feed as you type, including episodes outside the current page. Search is case-insensitive and treats wildcard characters literally.
+- Select all on page selects the visible rows. Select all matching episodes spans every page and skips queued or running episodes. Bulk actions accept at most 500 episodes; larger selections show a message and disable the actions.
+- Sort by publish date, episode number, or creation date; paginated (25/50/100/500 episodes per page). Changing search, status, or sort clears the selection.
 - Pattern management: view and manage cross-episode ad patterns with sponsor names; the detail modal edits a pattern's sponsor, text template, active state, and segment category; includes an Ad Review tab for triaging detections across all podcasts
 - Review decisions are recorded as you make them, then applied together. The Ad Review and Detected Ads pages show an Apply recuts button that recuts each waiting episode once, however many decisions it collected. A feed's own page has the same button for just that feed's episodes
 - Segment category is editable in place: on an Ad Review or Detected Ads row, in the Detected ad window, and per pattern in the Ad Patterns table. It is what decides whether a span is cut, beeped, or left in
@@ -288,6 +291,12 @@ Expanding a run shows its per-phase cost breakdown: one row per pipeline phase w
 
 The episode header carries up to three spend readouts: **Active run** while a run is in flight, updated from the ledger as it spends; **Latest run** for the most recent attempt, a failed one included; and **Total spend**, the episode's recorded ledger spend, which reads "Recorded so far" while processing. Historical calls made before the ledger existed are not included in that cumulative figure. When some calls in a figure have no resolved price, the readout says "known spend" and an amber **Incomplete** chip marks it, because the amount is a floor rather than the real total. Setting a price for the model in question (Settings > AI & Processing > AI Models) lets subsequent calls resolve their cost; it does not reprice already-finalized calls or clear their Incomplete status. On the Stats page the Incomplete chip on an episode's cumulative spend is itself a button. It lists the calls behind the figure, one row per recorded attempt with its phase, provider and account slot, model, outcome, tokens, cost or "Unknown", and timestamp. An unpriced call can then be named instead of leaving a gap in a total.
 
+### Filters and date ranges
+
+System One calls and Pattern Cleanup activity have separate Stats cards and jump links. Both use the LLM spend filters: date range, podcast, provider, and model. The summary cards and charts have a separate podcast filter.
+
+Filter labels sit above controls in aligned columns on Stats, History, Sponsors, and Patterns. From and To stay on the same row on narrow screens. Clearing either date removes only that bound; both dates select whole UTC days, including the endpoints. An invalid range is flagged when From is later than To.
+
 ### LLM cost ledger
 
 The Stats page has an **LLM cost ledger** card holding two paginated tables over the same underlying record of every LLM call, including calls made by runs that later failed or were cancelled.
@@ -302,7 +311,7 @@ Above the tables, a line states what the figures cover: "Lifetime spend (all rec
 
 Those filters, both tables' sort columns and directions, and both page numbers live in the page's URL. Reloading restores the view, and the address bar is a shareable link to a specific cost question. Nothing secret is written there: only filter values, sort keys and page numbers, and a value left at its default is omitted rather than spelled out.
 
-A row of section links sits under the Stats heading and jumps straight to Overview, Charts, Reviewer, Addressing, Audio cues, Spend or Podcasts, so the ledger is one tap away on a phone instead of a long scroll. Links are listed only for sections on the page.
+A row of section links sits under the Stats heading and jumps straight to Overview, Charts, Reviewer, Addressing, Audio cues, Spend, System One, Cleanup or Podcasts, so the ledger is one tap away on a phone instead of a long scroll. Links are listed only for sections on the page.
 
 **Provider and model usage** lists one row per provider and model combination, so a model id served by two providers stays two rows. Each row carries call count, distinct episodes, input and output tokens, cost, and a **Coverage** column. Coverage reads "Fully priced" when every call in the row had a resolvable price, and "3 of 12 unpriced" when some did not, which is the same condition the episode page marks as Incomplete. Expanding a row shows its detail. Every column is sortable, server-side, so sorting spans the whole result rather than the current page.
 

@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -80,6 +81,7 @@ _ARTWORK_EXTENSIONS = (
 
 # Per-feed episode covers live here, one file per episode id (issue #617).
 _EPISODE_ARTWORK_DIR = "episode-artwork"
+_CHAPTER_IMAGE_NAME_RE = re.compile(r'[0-9a-f]{64}\.(jpg|png)')
 # Per-feed ceiling on that directory. Publisher episode covers run large (a
 # 3000x3000 JPEG is ~600 KB), and a long back catalogue would otherwise grow
 # without limit, so the least recently served files are dropped past this.
@@ -92,6 +94,10 @@ _WATERMARK_VARIANT = "artwork-minuspod.jpg"
 # without it an upgrade can keep serving the old badge at the new cache-busted
 # URL forever.
 _WATERMARK_SALT = "artwork-minuspod.salt"
+
+
+def is_chapter_image_filename(value: str) -> bool:
+    return bool(_CHAPTER_IMAGE_NAME_RE.fullmatch(value))
 
 
 def _detect_image_mime(data: bytes) -> str | None:
@@ -617,6 +623,89 @@ class Storage:
 
         return None
 
+    def _chapter_images_dir(self, slug: str, episode_id: str,
+                            create: bool = False) -> Path | None:
+        """Resolve one episode's contained chapter-image directory."""
+        if not is_valid_episode_id(episode_id):
+            return None
+        podcast_dir = (self.get_podcast_dir(slug) if create
+                       else self.podcast_dir_if_exists(slug))
+        if not podcast_dir:
+            return None
+        path = _safe_join_under(podcast_dir, 'chapter-images', episode_id)
+        if create:
+            path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def save_chapter_image(self, slug: str, episode_id: str,
+                           image_data: bytes) -> str | None:
+        """Store a bounded JPEG/PNG chapter image without replacing older assets."""
+        if len(image_data) > _max_artwork_bytes():
+            return None
+        content_type = _detect_image_mime(image_data)
+        if content_type not in ('image/jpeg', 'image/png'):
+            return None
+        filename = hashlib.sha256(image_data).hexdigest() + _EXTENSION_BY_TYPE[content_type]
+        tmp_path = None
+        try:
+            image_dir = self._chapter_images_dir(slug, episode_id, create=True)
+            if image_dir is None:
+                return None
+            path = _safe_join_under(image_dir, filename)
+            if not path.exists():
+                with tempfile.NamedTemporaryFile(mode='wb', delete=False,
+                                                 dir=image_dir, suffix='.tmp') as tmp:
+                    tmp_path = Path(tmp.name)
+                    tmp.write(image_data)
+                os.replace(tmp_path, path)
+        except (OSError, PathContainmentError):
+            logger.warning(f'[{slug}:{episode_id}] Could not store chapter image')
+            return None
+        finally:
+            if tmp_path is not None:
+                tmp_path.unlink(missing_ok=True)
+        return f'/episodes/{slug}/{episode_id}/chapter-images/{filename}'
+
+    def get_chapter_image(self, slug: str, episode_id: str,
+                          filename: str) -> tuple[bytes, str] | None:
+        """Read only contained, correctly named JPEG/PNG chapter images."""
+        if not is_chapter_image_filename(filename):
+            return None
+        try:
+            image_dir = self._chapter_images_dir(slug, episode_id)
+            if image_dir is None:
+                return None
+            path = _safe_join_under(image_dir, filename)
+            if not path.is_file():
+                return None
+            limit = _max_artwork_bytes()
+            with path.open('rb') as image_file:
+                data = image_file.read(limit + 1)
+            if len(data) > limit:
+                return None
+        except (OSError, PathContainmentError):
+            return None
+        content_type = _detect_image_mime(data)
+        if (content_type not in ('image/jpeg', 'image/png')
+                or not filename.endswith(_EXTENSION_BY_TYPE[content_type])
+                or hashlib.sha256(data).hexdigest() != filename.split('.')[0]):
+            return None
+        return data, content_type
+
+    def remove_chapter_images(self, slug: str, episode_id: str) -> int:
+        """Remove an episode's chapter images and return freed bytes."""
+        try:
+            image_dir = self._chapter_images_dir(slug, episode_id)
+            if image_dir is None or not image_dir.is_dir():
+                return 0
+            freed = sum(path.stat().st_size for path in image_dir.iterdir()
+                        if path.is_file() and not path.is_symlink())
+            shutil.rmtree(image_dir)
+            return freed
+        except (OSError, PathContainmentError):
+            logger.warning(f'[{slug}:{episode_id}] Could not remove chapter images')
+            return 0
+
     # ---------- Episode covers (issue #617) ----------
 
     def _episode_artwork_dir(self, slug: str, create: bool = False) -> Path | None:
@@ -708,14 +797,15 @@ class Storage:
         if not artwork_url or not is_valid_episode_id(episode_id):
             return False
 
-        failure_key = f"{slug}\n{episode_id}\n{artwork_url}"
+        ua = download_user_agent(self.db.get_podcast_by_slug(slug))
+        failure_key = f"{slug}\n{episode_id}\n{artwork_url}\n{ua}"
         if self._artwork_failure_cache.get(failure_key):
             logger.debug(
                 f"[{slug}:{episode_id}] Skipping episode artwork retry, "
                 f"this URL failed recently")
             return False
 
-        ok = self._download_episode_artwork_uncached(slug, episode_id, artwork_url)
+        ok = self._download_episode_artwork_uncached(slug, episode_id, artwork_url, user_agent=ua)
         # Only failures are stored. Caching successes too would fill the cache
         # with entries nothing reads, and eviction is oldest-first, so a
         # long-lived failure entry would be pushed out well before its TTL.
@@ -727,7 +817,7 @@ class Storage:
         return ok
 
     def _download_episode_artwork_uncached(self, slug: str, episode_id: str,
-                                          artwork_url: str) -> bool:
+                                          artwork_url: str, user_agent: str | None = None) -> bool:
         """Fetch, validate, and save one episode cover. See
         download_episode_artwork."""
         try:
@@ -735,7 +825,7 @@ class Storage:
                         f"{safe_url_for_log(artwork_url)}")
 
             headers = {
-                'User-Agent': download_user_agent(),
+                'User-Agent': user_agent or download_user_agent(self.db.get_podcast_by_slug(slug)),
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }
@@ -990,8 +1080,8 @@ class Storage:
         return out
 
     @staticmethod
-    def _artwork_negative_cache_key(slug: str, url: str) -> str:
-        return f"{slug}\n{url}"
+    def _artwork_negative_cache_key(slug: str, url: str, user_agent: str) -> str:
+        return f"{slug}\n{url}\n{user_agent}"
 
     @staticmethod
     def _artwork_failure_state(podcast: dict | None) -> dict:
@@ -1024,20 +1114,22 @@ class Storage:
                         reverse=True)[:ARTWORK_FAILURE_STATE_MAX_ENTRIES]
         return dict(newest)
 
-    def _artwork_in_backoff(self, slug: str, url: str, podcast: dict | None) -> bool:
+    def _artwork_in_backoff(self, slug: str, url: str, podcast: dict | None,
+                            user_agent: str | None = None) -> bool:
         """True if `url` failed recently enough that it should be skipped.
 
         Checks the in-process caches first, then the durable DB record (the
         authoritative source, re-read each call so its own deadline is never
         extended by an in-process TTL).
         """
-        key = self._artwork_negative_cache_key(slug, url)
+        ua = user_agent or download_user_agent(podcast)
+        key = self._artwork_negative_cache_key(slug, url, ua)
         if self._artwork_failure_cache.get(key) is not None:
             return True
         if self._artwork_404_cache.get(key) is not None:
             return True
         entry = self._artwork_failure_state(podcast).get(url)
-        if not entry:
+        if not entry or entry.get('ua') != ua:
             return False
         failed_at = parse_iso_utc(entry.get('at'))
         if failed_at is None:
@@ -1050,7 +1142,7 @@ class Storage:
         return (utc_now() - failed_at).total_seconds() < window
 
     def _record_artwork_negative_cache(self, slug: str, podcast: dict | None,
-                                       url: str, status: str) -> None:
+                                       url: str, status: str, user_agent: str | None = None) -> None:
         """Memoize a failed candidate URL, in-process and durably.
 
         Mutates podcast['artwork_failure_state'] in place so a caller
@@ -1058,7 +1150,8 @@ class Storage:
         prior failure when recording the next one, instead of each write
         clobbering the last off a stale snapshot.
         """
-        key = self._artwork_negative_cache_key(slug, url)
+        ua = user_agent or download_user_agent(podcast)
+        key = self._artwork_negative_cache_key(slug, url, ua)
         if status == 'not_found':
             self._artwork_404_cache.set(key, True)
             self._artwork_failure_cache.delete(key)
@@ -1066,7 +1159,7 @@ class Storage:
             self._artwork_failure_cache.set(key, True)
             self._artwork_404_cache.delete(key)
         state = self._artwork_failure_state(podcast)
-        state[url] = {'status': status, 'at': utc_now_iso()}
+        state[url] = {'status': status, 'at': utc_now_iso(), 'ua': ua}
         state = self._prune_artwork_failure_state(state)
         try:
             self.db.update_podcast(slug, artwork_failure_state=json.dumps(state))
@@ -1075,9 +1168,11 @@ class Storage:
         except Exception as e:
             logger.warning(f"[{slug}] Failed to persist artwork failure state: {e}")
 
-    def _clear_artwork_negative_cache(self, slug: str, podcast: dict | None, url: str) -> None:
+    def _clear_artwork_negative_cache(self, slug: str, podcast: dict | None, url: str,
+                                      user_agent: str | None = None) -> None:
         """Drop a URL's failure memo, in-process and durably, on success."""
-        key = self._artwork_negative_cache_key(slug, url)
+        ua = user_agent or download_user_agent(podcast)
+        key = self._artwork_negative_cache_key(slug, url, ua)
         self._artwork_failure_cache.delete(key)
         self._artwork_404_cache.delete(key)
         state = self._artwork_failure_state(podcast)
@@ -1113,32 +1208,33 @@ class Storage:
             return False
 
         podcast = self.db.get_podcast_by_slug(slug)
+        ua = download_user_agent(podcast)
         cached_url = (podcast or {}).get('artwork_url')
         if cached_url and cached_url not in candidates:
             candidates = [*candidates, cached_url]
 
         for url in candidates:
-            if not bypass_backoff and self._artwork_in_backoff(slug, url, podcast):
+            if not bypass_backoff and self._artwork_in_backoff(slug, url, podcast, user_agent=ua):
                 logger.debug(
                     f"[{slug}] Skipping artwork retry, this URL failed recently")
                 continue
-            ok, status = self._download_artwork_uncached(slug, url, force)
+            ok, status = self._download_artwork_uncached(slug, url, force, user_agent=ua)
             if ok:
-                self._clear_artwork_negative_cache(slug, podcast, url)
+                self._clear_artwork_negative_cache(slug, podcast, url, user_agent=ua)
                 return True
-            self._record_artwork_negative_cache(slug, podcast, url, status)
+            self._record_artwork_negative_cache(slug, podcast, url, status, user_agent=ua)
 
         return False
 
     def _download_artwork_uncached(self, slug: str, artwork_url: str,
-                                   force: bool) -> tuple[bool, str | None]:
+                                   force: bool, user_agent: str | None = None) -> tuple[bool, str | None]:
         """Validate artwork; return (success, status), mapping non-retryable 4xx responses to not_found."""
         try:
             # Check if we already have this artwork on disk. Callers that
             # already wrote the new URL to the row pass force, since the
             # comparison below would then match the URL against itself.
-            podcast = None if force else self.db.get_podcast_by_slug(slug)
-            if podcast and podcast.get('artwork_url') == artwork_url and podcast.get('artwork_cached'):
+            podcast = self.db.get_podcast_by_slug(slug)
+            if not force and podcast and podcast.get('artwork_url') == artwork_url and podcast.get('artwork_cached'):
                 if self.get_artwork(slug) is not None:
                     logger.debug(f"[{slug}] Artwork already cached")
                     return True, None
@@ -1147,7 +1243,7 @@ class Storage:
             logger.info(f"[{slug}] Downloading artwork from {safe_url_for_log(artwork_url)}")
 
             headers = {
-                'User-Agent': download_user_agent(),
+                'User-Agent': user_agent or download_user_agent(podcast),
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }
@@ -1284,6 +1380,7 @@ class Storage:
                 except Exception as e:
                     logger.warning(f"Failed to delete {path}: {e}")
 
+        freed += self.remove_chapter_images(slug, episode_id)
         return freed
 
     def cleanup_podcast_dir(self, slug: str) -> bool:

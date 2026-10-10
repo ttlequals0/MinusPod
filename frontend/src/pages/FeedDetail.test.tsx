@@ -355,6 +355,26 @@ describe('FeedDetail: bulk toolbar', () => {
     expect(screen.queryByRole('button', { name: /Process now/ })).toBeNull();
   });
 
+  it('excludes description-skipped discovered and pending rows from Process', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [
+      {
+        id: 'ep-description-skipped-discovered', title: 'Skipped discovered',
+        published: '2026-09-11T00:00:00Z', status: 'discovered', jobState: 'idle',
+        descriptionSkipped: true,
+      },
+      {
+        id: 'ep-description-skipped-pending', title: 'Skipped pending',
+        published: '2026-09-10T00:00:00Z', status: 'pending', jobState: 'idle',
+        descriptionSkipped: true,
+      },
+    ]);
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Select all on page' }));
+    expect(screen.getByText('2 selected')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Process now/ })).toBeNull();
+  });
+
   it('keeps title-skipped rows selectable for manual actions but excludes processing', async () => {
     const user = userEvent.setup();
     renderFeedDetail(makeFeed(), [{
@@ -488,4 +508,109 @@ describe('FeedDetail: shift-click range selection', () => {
     // stays selected.
     expect(screen.getByText('1 selected')).toBeTruthy();
   });
+});
+
+describe('FeedDetail: live episode search', () => {
+  const first: Episode = {
+    id: 'match-first', title: 'Full episode', published: '2026-10-10T00:00:00Z',
+    status: 'completed', jobState: 'idle',
+  };
+
+  it('requests matching episodes as the title changes and clears old selections', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [first]);
+    await user.click(await screen.findByRole('button', { name: 'Select episode' }));
+    expect(screen.getByText('1 selected')).toBeTruthy();
+    await user.type(screen.getByRole('searchbox', { name: 'Search episode titles' }), 'clip');
+    await waitFor(() => expect(mockGetEpisodes).toHaveBeenCalledWith('test-feed',
+      expect.objectContaining({ search: 'clip', offset: 0 })));
+    expect(screen.queryByText('1 selected')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Delete \(/ })).toBeNull();
+  });
+
+  it('selects matches from other pages and preserves the delete confirmation', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [first]);
+    mockGetEpisodes.mockImplementation((_slug, params) => Promise.resolve(params.selection
+      ? { episodes: [], total: 30, selection: [first, { ...first, id: 'match-off-page' }] }
+      : { episodes: [first], total: 30 }));
+    await user.type(await screen.findByRole('searchbox', { name: 'Search episode titles' }), 'full');
+    await user.click(await screen.findByRole('button', { name: 'Select all 30 matches' }));
+    expect(await screen.findByText('2 selected')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Delete (2)' }));
+    expect(screen.getByRole('heading', { name: 'Delete 2 Episodes' })).toBeTruthy();
+    expect(mockBulkEpisodeAction).not.toHaveBeenCalled();
+    mockBulkEpisodeAction.mockResolvedValue({ queued: 0, skipped: 0, freedMb: 0, errors: [] });
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(mockBulkEpisodeAction).toHaveBeenCalledWith(
+      'test-feed', ['match-first', 'match-off-page'], 'delete'));
+  });
+
+  it('ignores a late select-all response after the search changes', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [first]);
+    let finish: (value: unknown) => void = () => {};
+    mockGetEpisodes.mockImplementation((_slug, params) => params.selection
+      ? new Promise(resolve => { finish = resolve; })
+      : Promise.resolve({ episodes: [first], total: 1 }));
+    await user.click(await screen.findByRole('button', { name: 'Select all 1 matches' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Search episode titles' }), 'new');
+    finish({ episodes: [], total: 1, selection: [first] });
+    await waitFor(() => expect(mockGetEpisodes).toHaveBeenCalledWith('test-feed',
+      expect.objectContaining({ search: 'new' })));
+    expect(screen.queryByText('1 selected')).toBeNull();
+  });
+
+  it('shows the bulk limit without truncating a large matching selection', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [first]);
+    mockGetEpisodes.mockImplementation((_slug, params) => Promise.resolve(params.selection
+      ? { episodes: [], total: 501, selection: Array.from({ length: 501 }, (_, i) => ({ ...first, id: `match-${i}` })) }
+      : { episodes: [first], total: 501 }));
+    await user.type(await screen.findByRole('searchbox', { name: 'Search episode titles' }), 'all');
+    await user.click(await screen.findByRole('button', { name: 'Select all 501 matches' }));
+    expect(await screen.findByText('501 selected')).toBeTruthy();
+    expect(screen.getByText('Select 500 episodes or fewer.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Delete (501)' })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Set pass-through (501)' })).toHaveProperty('disabled', true);
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.queryByText('501 selected')).toBeNull();
+  });
+
+  it('shows the capped wording when the backend truncates the selection fetch', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [first]);
+    mockGetEpisodes.mockImplementation((_slug, params) => Promise.resolve(params.selection
+      ? {
+        episodes: [], total: 600, truncated: true,
+        selection: Array.from({ length: 501 }, (_, i) => ({ ...first, id: `match-${i}` })),
+      }
+      : { episodes: [first], total: 600 }));
+    await user.type(await screen.findByRole('searchbox', { name: 'Search episode titles' }), 'all');
+    await user.click(await screen.findByRole('button', { name: 'Select all 600 matches' }));
+    expect(await screen.findByText('501 selected')).toBeTruthy();
+    expect(screen.getByText('More than 500 episodes matched. Narrow the search or select 500 or fewer.')).toBeTruthy();
+  });
+
+  it('keeps duration-filtered episodes selectable for manual actions', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [{ ...first, status: 'discovered', durationSkipped: true }]);
+    await user.click(await screen.findByRole('button', { name: 'Select episode' }));
+    expect(screen.getByText('1 selected')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Process now/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Set pass-through (1)' })).toBeTruthy();
+  });
+});
+
+it('allows explicit bulk reprocessing of duration-filtered matching episodes', async () => {
+  const user = userEvent.setup();
+  mockBulkEpisodeAction.mockResolvedValue({ queued: 1, skipped: 0, freedMb: 0, errors: [] });
+  renderFeedDetail(makeFeed(), [{
+    id: 'filtered-completed', title: 'Clip', published: '2026-10-10T00:00:00Z',
+    status: 'completed', jobState: 'idle', durationSkipped: true,
+  }]);
+  await user.click(await screen.findByRole('button', { name: 'Select episode' }));
+  await user.click(screen.getByRole('button', { name: 'Full Reprocess (1)' }));
+  await waitFor(() => expect(mockBulkEpisodeAction).toHaveBeenCalledWith(
+    'test-feed', ['filtered-completed'], 'reprocess_full'));
 });

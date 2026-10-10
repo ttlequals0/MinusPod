@@ -3,6 +3,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed, setEpisodesPassthrough } from '../api/feeds';
+import type { EpisodeSelection } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
 import { getErrorMessage, jobStateOf } from '../api/client';
 import { isActionBlocked } from '../utils/processingStage';
@@ -94,11 +95,24 @@ function FeedDetail() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [episodeSearch, setEpisodeSearch] = useState('');
+  const selectionScope = JSON.stringify([slug, statusFilter, episodeSearch.trim()]);
   const [sortBy, setSortBy] = useState('published_at');
   const [sortDir, setSortDir] = useState('desc');
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedScope, setSelectedScope] = useState(selectionScope);
+  const [matchedSelection, setMatchedSelection] = useState<{
+    scope: string; episodes: EpisodeSelection[]; truncated: boolean;
+  } | null>(null);
+  const [selectionRequest, setSelectionRequest] = useState<{ id: number; scope: string } | null>(null);
+  const selectingMatches = selectionRequest?.scope === selectionScope;
+  const selectionRequestRef = useRef(0);
+  useEffect(() => {
+    selectionRequestRef.current += 1;
+    return () => { selectionRequestRef.current += 1; };
+  }, [slug]);
   // Anchor row for shift-click range selection; reset wherever selection is.
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
@@ -110,6 +124,17 @@ function FeedDetail() {
   const [passthroughResult, setPassthroughResult] = useState<
     { enabled: boolean; updated: number; queued: number } | null
   >(null);
+
+  const [selectionFeedSlug, setSelectionFeedSlug] = useState(slug);
+  if (selectionFeedSlug !== slug) {
+    setSelectionFeedSlug(slug);
+    setSelectedIds(new Set());
+    setSelectedScope(selectionScope);
+    setMatchedSelection(null);
+    setSelectionRequest(null);
+    setSelectionAnchor(null);
+    setShowBulkDeleteConfirm(false);
+  }
 
   // AddFeed's local-feed create flow passes a notice through router state
   // (e.g. an artwork upload failure or size warning) since it can't set
@@ -147,13 +172,14 @@ function FeedDetail() {
   const nextLabel = feedSortBy === 'recent' ? 'Older' : 'Next';
 
   const { data: episodesData, isLoading: episodesLoading } = useQuery({
-    queryKey: ['episodes', slug, page, pageSize, statusFilter, sortBy, sortDir],
+    queryKey: ['episodes', slug, page, pageSize, statusFilter, sortBy, sortDir, episodeSearch.trim()],
     queryFn: () => getEpisodes(slug!, {
       limit: pageSize,
       offset: (page - 1) * pageSize,
       status: statusFilter,
       sortBy,
       sortDir,
+      search: episodeSearch.trim(),
     }),
     enabled: !!slug,
   });
@@ -162,20 +188,56 @@ function FeedDetail() {
   const totalEpisodes = episodesData?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalEpisodes / pageSize));
 
-  // Same eligibility rule the row checkboxes use, so select-all can never
-  // pick an episode whose own control is unavailable.
+  const selectionEpisodes = useMemo(() => {
+    const rows = new Map<string, EpisodeSelection>();
+    if (matchedSelection?.scope === selectionScope) {
+      for (const episode of matchedSelection.episodes) rows.set(episode.id, episode);
+    }
+    for (const episode of episodesData?.episodes ?? []) rows.set(episode.id, episode);
+    return [...rows.values()];
+  }, [matchedSelection, selectionScope, episodesData]);
   const selectableIds = useMemo(
-    () => new Set((episodesData?.episodes ?? [])
-      .filter(ep => !isActionBlocked(ep.jobState, false)).map(ep => ep.id)),
-    [episodesData],
+    () => new Set(selectionEpisodes.filter(ep => !isActionBlocked(ep.jobState, false)).map(ep => ep.id)),
+    [selectionEpisodes],
+  );
+  const effectiveSelectedIds = useMemo(
+    () => new Set(selectedScope === selectionScope
+      ? [...selectedIds].filter(id => selectableIds.has(id)) : []),
+    [selectedIds, selectableIds, selectedScope, selectionScope],
   );
 
-  // Selection pruned against the current server state: an episode that got
-  // queued elsewhere drops out instead of riding along into a bulk action.
-  const effectiveSelectedIds = useMemo(
-    () => new Set([...selectedIds].filter(id => selectableIds.has(id))),
-    [selectedIds, selectableIds],
-  );
+  const clearSelection = () => {
+    selectionRequestRef.current += 1;
+    setSelectedIds(new Set());
+    setSelectedScope(selectionScope);
+    setMatchedSelection(null);
+    setSelectionRequest(null);
+    setSelectionAnchor(null);
+    setShowBulkDeleteConfirm(false);
+  };
+
+  const selectAllMatches = async () => {
+    const requestId = ++selectionRequestRef.current;
+    setSelectionRequest({ id: requestId, scope: selectionScope });
+    setActionError(null);
+    try {
+      const result = await getEpisodes(slug!, {
+        status: statusFilter, search: episodeSearch.trim(), selection: true,
+      });
+      if (requestId !== selectionRequestRef.current) return;
+      const matches = result.selection ?? result.episodes;
+      setMatchedSelection({ scope: selectionScope, episodes: matches, truncated: result.truncated ?? false });
+      setSelectedScope(selectionScope);
+      setSelectedIds(new Set(matches.filter(ep => !isActionBlocked(ep.jobState, false)).map(ep => ep.id)));
+      setSelectionAnchor(null);
+    } catch (error) {
+      if (requestId === selectionRequestRef.current) {
+        setActionError(getErrorMessage(error, 'Could not select matching episodes.'));
+      }
+    } finally {
+      setSelectionRequest(current => current?.id === requestId ? null : current);
+    }
+  };
 
   const refreshMutation = useMutation({
     mutationFn: (opts?: { force?: boolean }) => refreshFeed(slug!, opts),
@@ -249,10 +311,10 @@ function FeedDetail() {
       bulkEpisodeAction(
         slug!,
         action === 'process'
-          ? episodes
+          ? selectionEpisodes
               .filter(ep => effectiveSelectedIds.has(ep.id)
                 && (ep.status === 'discovered' || ep.status === 'pending')
-                && !ep.titleSkipped)
+                && !ep.titleSkipped && !ep.descriptionSkipped && !ep.durationSkipped)
               .map(ep => ep.id)
           : Array.from(effectiveSelectedIds),
         action),
@@ -263,18 +325,16 @@ function FeedDetail() {
       applyEpisodeJobState(
         queryClient, slug!, (context?.ids ?? []).filter(id => !skippedIds.has(id)),
         jobStateOf(result));
-      setSelectedIds(new Set());
-      setSelectionAnchor(null);
-      setShowBulkDeleteConfirm(false);
+      clearSelection();
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     },
     onMutate: ({ action }: { action: BulkAction }): { ids: string[] } => ({
       ids: action === 'process'
-        ? episodes
+        ? selectionEpisodes
             .filter(ep => effectiveSelectedIds.has(ep.id)
               && (ep.status === 'discovered' || ep.status === 'pending')
-              && !ep.titleSkipped)
+              && !ep.titleSkipped && !ep.descriptionSkipped && !ep.durationSkipped)
             .map(ep => ep.id)
         : Array.from(effectiveSelectedIds),
     }),
@@ -295,8 +355,7 @@ function FeedDetail() {
       if (result.queued === 0 || result.queued === accepted.length) {
         applyEpisodeJobState(queryClient, slug!, accepted, jobStateOf(result));
       }
-      setSelectedIds(new Set());
-      setSelectionAnchor(null);
+      clearSelection();
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     },
@@ -319,6 +378,7 @@ function FeedDetail() {
   };
 
   const handleToggleSelect = (id: string, shiftKey: boolean) => {
+    setSelectedScope(selectionScope);
     // Shift+click applies the anchor row's current state to every selectable
     // row between the anchor and it (inclusive), in current page order, skipping
     // blocked rows (standard range-select). A plain click toggles one row and
@@ -330,8 +390,8 @@ function FeedDetail() {
       if (a !== -1 && b !== -1) {
         const [lo, hi] = a < b ? [a, b] : [b, a];
         const select = selectedIds.has(selectionAnchor);
-        setSelectedIds(prev => {
-          const next = new Set(prev);
+        setSelectedIds(() => {
+          const next = new Set(effectiveSelectedIds);
           for (let i = lo; i <= hi; i++) {
             const rid = order[i];
             if (!selectableIds.has(rid)) continue;
@@ -343,8 +403,8 @@ function FeedDetail() {
         return;
       }
     }
-    setSelectedIds(prev => {
-      const next = new Set(prev);
+    setSelectedIds(() => {
+      const next = new Set(effectiveSelectedIds);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
@@ -353,38 +413,44 @@ function FeedDetail() {
   };
 
   const handleSelectAll = (checked: boolean) => {
-    setSelectedIds(checked ? new Set(selectableIds) : new Set());
-    setSelectionAnchor(null);
+    clearSelection();
+    if (checked) {
+      setSelectedIds(new Set(episodes.filter(ep => !isActionBlocked(ep.jobState, false)).map(ep => ep.id)));
+    }
   };
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
     setPage(1);
-    setSelectedIds(new Set());
-    setSelectionAnchor(null);
+    clearSelection();
   };
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
-    setSelectedIds(new Set());
-    setSelectionAnchor(null);
+    if (matchedSelection?.scope !== selectionScope) clearSelection();
   };
 
   // Bulk-action eligibility: count per-action so a mixed selection still
   // surfaces actionable buttons (backend skips ineligible rows).
-  const selectedEpisodes = episodes.filter(ep => effectiveSelectedIds.has(ep.id));
-  const discoveredCount = selectedEpisodes.filter(ep => ep.status === 'discovered' && !ep.titleSkipped).length;
-  const pendingCount = selectedEpisodes.filter(ep => ep.status === 'pending' && !ep.titleSkipped).length;
+  const selectedEpisodes = selectionEpisodes.filter(ep => effectiveSelectedIds.has(ep.id));
+  const discoveredCount = selectedEpisodes.filter(ep => ep.status === 'discovered' && !ep.titleSkipped && !ep.descriptionSkipped && !ep.durationSkipped).length;
+  const pendingCount = selectedEpisodes.filter(ep => ep.status === 'pending' && !ep.titleSkipped && !ep.descriptionSkipped && !ep.durationSkipped).length;
   const processedCount = selectedEpisodes.filter(ep =>
     ['completed', 'failed', 'permanently_failed', 'deferred'].includes(ep.status)
   ).length;
   const hasSelection = effectiveSelectedIds.size > 0;
+  const selectionOverLimit = effectiveSelectedIds.size > 500;
+  const selectionTruncated = matchedSelection?.scope === selectionScope && matchedSelection.truncated;
   // Keyed on jobState, not status: the run buttons key on jobState too, so the
   // note can never claim a selection is busy while those buttons stay live.
-  const runningSelectedCount = episodes.filter(
+  const runningSelectedCount = selectionEpisodes.filter(
     (ep) => selectedIds.has(ep.id) && isActionBlocked(ep.jobState, false),
   ).length;
-  const selectionNote = runningSelectedCount > 0
+  const selectionNote = selectionTruncated
+    ? 'More than 500 episodes matched. Narrow the search or select 500 or fewer.'
+    : selectionOverLimit
+    ? 'Select 500 episodes or fewer.'
+    : runningSelectedCount > 0
     ? `Skipping ${runningSelectedCount} already running.`
     : discoveredCount + pendingCount + processedCount > 0
       ? null
@@ -665,7 +731,7 @@ function FeedDetail() {
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
           <select
             value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); setSelectionAnchor(null); }}
+            onChange={(e) => { clearSelection(); setStatusFilter(e.target.value); setPage(1); }}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
           >
             <option value="all">All statuses</option>
@@ -684,8 +750,7 @@ function FeedDetail() {
               setSortBy(newSort);
               setSortDir(newDir);
               setPage(1);
-              setSelectedIds(new Set());
-              setSelectionAnchor(null);
+              clearSelection();
             }}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
           >
@@ -698,6 +763,31 @@ function FeedDetail() {
         )}
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <input
+          type="search"
+          value={episodeSearch}
+          onChange={(event) => {
+            clearSelection();
+            setEpisodeSearch(event.target.value);
+            setPage(1);
+          }}
+          placeholder="Search episode titles..."
+          aria-label="Search episode titles"
+          className="flex-1 min-w-0 min-h-11 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+        />
+        {!isRecents && totalEpisodes > 0 && (
+          <button
+            type="button"
+            onClick={selectAllMatches}
+            disabled={episodesLoading || selectingMatches || bulkMutation.isPending || passthroughMutation.isPending}
+            className={`min-h-11 px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+          >
+            {selectingMatches ? 'Selecting...' : `Select all ${totalEpisodes} matches`}
+          </button>
+        )}
+      </div>
+
       {/* Bulk action toolbar */}
       {hasSelection && (
         <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border flex flex-wrap items-center gap-2">
@@ -706,7 +796,7 @@ function FeedDetail() {
             {discoveredCount + pendingCount > 0 && (
               <button
                 onClick={() => bulkMutation.mutate({ action: 'process' })}
-                disabled={bulkMutation.isPending}
+                disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
                 className={`${bulkActionBtn} ${btnPrimary} disabled:opacity-50 ${focusRing}`}
               >
                 {bulkMutation.isPending ? 'Processing...' : `Process now (${discoveredCount + pendingCount})`}
@@ -716,21 +806,21 @@ function FeedDetail() {
               <>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess' })}
-                  disabled={bulkMutation.isPending}
+                  disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
                   className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                 >
                   Reprocess ({processedCount})
                 </button>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess_full' })}
-                  disabled={bulkMutation.isPending}
+                  disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
                   className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                 >
                   Full Reprocess ({processedCount})
                 </button>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess_llm' })}
-                  disabled={bulkMutation.isPending}
+                  disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
                   className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                   title="Re-detect ads using existing transcripts (skips re-transcription)"
                 >
@@ -742,7 +832,7 @@ function FeedDetail() {
                 processing rows are excluded from selection in the first place. */}
             <button
               onClick={() => passthroughMutation.mutate({ enabled: true })}
-              disabled={bulkMutation.isPending || passthroughMutation.isPending}
+              disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
               title="Serve these episodes unmodified, with no ad processing"
               className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
             >
@@ -751,7 +841,7 @@ function FeedDetail() {
             </button>
             <button
               onClick={() => passthroughMutation.mutate({ enabled: false })}
-              disabled={bulkMutation.isPending || passthroughMutation.isPending}
+              disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
               title="Resume normal ad processing for these episodes"
               className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
             >
@@ -761,7 +851,7 @@ function FeedDetail() {
             {processedCount > 0 && (
               <button
                 onClick={() => setShowBulkDeleteConfirm(true)}
-                disabled={bulkMutation.isPending}
+                disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
                 className={`${bulkActionBtn} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
               >
                 Delete ({processedCount})
@@ -771,7 +861,7 @@ function FeedDetail() {
               <span className="text-xs text-muted-foreground">{selectionNote}</span>
             )}
             <button
-              onClick={() => { setSelectedIds(new Set()); setSelectionAnchor(null); }}
+              onClick={clearSelection}
               className={`${cardActionBtn} ${btnGhost} ${focusRing}`}
             >
               Clear
@@ -917,7 +1007,7 @@ function FeedDetail() {
               </button>
               <button
                 onClick={() => bulkMutation.mutate({ action: 'delete' })}
-                disabled={bulkMutation.isPending}
+                disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
                 className={`px-4 py-2 rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}
               >
                 {bulkMutation.isPending ? 'Deleting...' : 'Delete'}

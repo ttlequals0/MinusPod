@@ -71,8 +71,20 @@ jobs:
           fi
           echo "version.py == $EXPECTED; ok to build."
 
+      - name: Free unused hosted-runner SDK storage
+        run: |
+          df -h /
+          sudo du -sh /usr/share/dotnet /usr/local/lib/android /opt/ghc 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h /
+          free -h
+
       - name: Set up Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 2
 
       - name: Docker Hub login
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
@@ -95,6 +107,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
           build-args: MINUSPOD_VERSION=${{ inputs.version }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=cpu-${{ matrix.arch_id }}
           cache-to: type=gha,scope=cpu-${{ matrix.arch_id }},mode=max
 
@@ -111,6 +124,53 @@ jobs:
           mkdir -p /tmp/digests
           echo "$IMAGE_DIGEST" > "/tmp/digests/$ARCH_ID"
 
+      - name: Verify native runtime and startup
+        env:
+          ARCH_ID: ${{ matrix.arch_id }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          EXPECTED_VERSION: ${{ inputs.version }}
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          IMAGE="$REGISTRY_IMAGE@$IMAGE_DIGEST"
+          docker pull "$IMAGE"
+          test "$(docker image inspect --format '{{.Architecture}}' "$IMAGE")" = "$ARCH_ID"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE")" = "$EXPECTED_REVISION"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$IMAGE")" = "$EXPECTED_VERSION"
+          docker run --rm --network none --user 1000:1000 --entrypoint /opt/venv/bin/python \
+            -v "$PWD/scripts/check_image_runtime.py:/checks/runtime.py:ro" \
+            "$IMAGE" /checks/runtime.py > "runtime-$ARCH_ID.json"
+          NAME="cpu-runtime-$ARCH_ID"
+          cleanup() {
+            docker logs "$NAME" > "startup-$ARCH_ID.log" 2>&1 || true
+            docker rm -f "$NAME" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker run -d --network none --name "$NAME" \
+            -e SECRET_KEY=local-image-startup-check "$IMAGE"
+          for attempt in $(seq 1 60); do
+            if docker exec -e EXPECTED_VERSION="$EXPECTED_VERSION" "$NAME" /opt/venv/bin/python -c \
+              'import json,os,urllib.request; health=json.load(urllib.request.urlopen("http://127.0.0.1:8000/api/v1/health",timeout=5)); assert health["status"] == "healthy" and health["version"] == os.environ["EXPECTED_VERSION"]; print(json.dumps(health))' \
+              > "health-$ARCH_ID.json"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Image did not become healthy within 60 attempts" >&2
+          exit 1
+
+      - name: Upload runtime evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: runtime-${{ matrix.arch_id }}
+          path: |
+            runtime-${{ matrix.arch_id }}.json
+            health-${{ matrix.arch_id }}.json
+            startup-${{ matrix.arch_id }}.log
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Scan pushed image
         env:
           ARCH_ID: ${{ matrix.arch_id }}
@@ -118,11 +178,26 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          trivy image --image-src remote --platform "$PLATFORM" --scanners vuln,secret --exit-code 0 \
+          trivy image --image-src remote --platform "$PLATFORM" --ignorefile /dev/null --scanners vuln,secret --exit-code 0 \
             --format json --output "/tmp/trivy-$ARCH_ID.json" \
             "$REGISTRY_IMAGE@$IMAGE_DIGEST"
 
+      - name: Reject image secrets
+        env:
+          ARCH_ID: ${{ matrix.arch_id }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os
+          with open(f'/tmp/trivy-{os.environ["ARCH_ID"]}.json') as handle:
+              report = json.load(handle)
+          count = sum(len(result.get('Secrets', [])) for result in report.get('Results', []))
+          if count:
+              raise SystemExit(f'Image scan found {count} secrets; refusing manifest publication')
+          print('Image secret scan passed')
+          PYTHON
+
       - name: Upload Trivy report
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: trivy-${{ matrix.arch_id }}

@@ -20,6 +20,8 @@ function Harness({
   verificationProvider = '',
   chaptersProvider = '',
   reviewProvider = '',
+  reviewRoutes,
+  reviewEnabled = false,
 }: {
   omitTemperature?: boolean;
   onSave?: (payload: UpdateSettingsPayload) => void;
@@ -28,6 +30,8 @@ function Harness({
   verificationProvider?: string;
   chaptersProvider?: string;
   reviewProvider?: string;
+  reviewRoutes?: { provider: string; model: string }[];
+  reviewEnabled?: boolean;
 }) {
   return (
     <StageTunablesSection
@@ -38,6 +42,8 @@ function Harness({
       verificationProvider={verificationProvider}
       chaptersProvider={chaptersProvider}
       reviewProvider={reviewProvider}
+      reviewRoutes={reviewRoutes}
+      reviewEnabled={reviewEnabled}
       onSave={onSave}
       saveIsPending={false}
       saveIsSuccess={false}
@@ -123,6 +129,29 @@ describe('StageTunablesSection: detection window', () => {
 });
 
 describe('StageTunablesSection: per-stage effective provider', () => {
+  it.each([false, true])('keeps chat reviewer controls editable with a native pass in either position (%s)', (nativeFirst) => {
+    const native = { provider: 'typesafe', model: 'jev-latest' };
+    const chat = { provider: 'anthropic', model: 'claude-sonnet' };
+    render(<Harness reviewEnabled reviewRoutes={nativeFirst ? [native, chat] : [chat, native]} />);
+    const reviewer = stageCard('Reviewer (Pass 1 and Pass 2)');
+    expect(screen.getByText('Ad review with System One models is experimental.')).toBeDefined();
+    expect(within(reviewer).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
+    for (const input of reviewer.querySelectorAll('input,select')) {
+      expect((input as HTMLInputElement).disabled).toBe(false);
+    }
+    expect(within(reviewer).queryByText('Chat settings do not apply to System One.')).toBeNull();
+  });
+
+  it('disables shared reviewer chat controls only when both review routes are native', () => {
+    render(<Harness reviewEnabled reviewRoutes={[
+      { provider: 'typesafe', model: 'jev-latest' },
+      { provider: 'systemone-compatible', model: 'custom-native-model' },
+    ]} />);
+    const reviewer = stageCard('Reviewer (Pass 1 and Pass 2)');
+    for (const input of reviewer.querySelectorAll('input,select')) {
+      expect((input as HTMLInputElement).disabled).toBe(true);
+    }
+  });
   it('shows the Anthropic control for a stage on the global provider and the generic control for one routed elsewhere', () => {
     render(<Harness llmProvider="anthropic" verificationProvider="ollama" />);
 

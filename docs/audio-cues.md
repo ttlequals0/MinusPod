@@ -56,6 +56,18 @@ the cut lands on the chime rather than a beat into or out of the spoken read. An
 ad whose edge was moved this way shows a "Cue snapped" badge in the detected-ads
 list on the episode page.
 
+### Remove cue with ad
+
+Ad-break templates have **Remove cue with ad** enabled by default, including templates saved before this option was added. Turn it off in the capture dialog or template list to keep that cue with the programme.
+
+When enabled, an ad starts 0.05 seconds before its opening cue and ends 0.05 seconds after its closing cue. The reviewer's maximum boundary shift applies to the edge actually used, including the cue's full length. A cue beyond that cap leaves the edge unchanged.
+
+Cue-pair cuts include each cue whose removal option is enabled. Their maximum duration and episode-fraction guards include those cue spans. The minimum break still measures the gap between cues.
+
+Show intro, show outro, and content-transition cues remain programme audio. A transition cue enabled for snapping keeps its cue span outside the cut. Saved manual trims and protected content still take precedence.
+
+API metadata, creation, and updates use `removeWithAd` (boolean). Cue-template export and import preserve it; an older imported template without the field defaults to true.
+
 ### Silence snap
 
 DAI-inserted ads are usually bracketed by short silences the platform injects at
@@ -298,8 +310,8 @@ Uses accepted cues to snap ad edges or build ads from cue pairs.
   refining one.
 - **Cue-pair minimum break (s)** - shortest span between two cues that may form a
   synthesized ad.
-- **Cue-pair maximum break (s)** - longest span between two cues that may form a
-  synthesized ad.
+- **Cue-pair maximum break (s)** - longest synthesized cut, including any cue
+  spans removed with the ad.
 - **Cue-pair maximum break (fraction of episode)** - reject a cue pair spanning
   more than this fraction of the episode. 0 disables it.
 - **Create ads from cue pairs** - experimental, off by default. When two

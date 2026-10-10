@@ -1,8 +1,10 @@
 """Integration tests for GET /stats/model-usage and GET /stats/episode-costs:
 paginated, sortable, filterable list endpoints over the llm_call_usage ledger.
 """
+import json
 import os
 import sys
+from decimal import Decimal
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -11,6 +13,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('stats_lists_test_')
 
 from config import normalize_model_key  # noqa: E402
+from database.stats import _safe_systemone_diagnostics  # noqa: E402
 
 
 def _authed(client):
@@ -69,6 +72,47 @@ class TestModelUsageStats:
         assert ('anthropic', 'shared-model') in rows
         assert rows[('openai', 'shared-model')]['knownCostUsd'] == '2.0'
         assert rows[('openai', 'shared-model')]['distinctEpisodes'] == 1
+
+    def test_systemone_stats_separate_logical_calls_and_http_requests(
+            self, app_client, temp_db):
+        _authed(app_client)
+        podcast_id = temp_db.create_podcast(
+            'pod-systemone', 'https://example.com/feed.xml', 'Pod')
+        logical_id = 'logical-systemone-1'
+        temp_db.record_systemone_call_diagnostics(
+            logical_call_id=logical_id, run_id='run-systemone',
+            podcast_id=podcast_id, episode_id='ep1', provider_key='typesafe',
+            credential_slot='primary', configured_model='jev-latest',
+            phase_key='review', window_label='review', logical_latency_ms=350,
+            outcome='inconclusive', reason='choice_inconclusive',
+            stage='choice_rank', diagnostics={
+                'provider': 'systemone', 'outcome': 'failed',
+                'review_refinements': [{'outcome': 'attempted'}],
+            },
+        )
+        attempt_id = temp_db.begin_llm_attempt(
+            run_id='run-systemone', podcast_id=podcast_id, episode_id='ep1',
+            phase_key='review', invoking_pass=1, provider_key='typesafe',
+            configured_model='jev-latest', logical_call_id=logical_id)
+        temp_db.finalize_llm_attempt(
+            attempt_id, state='inconclusive', input_tokens=100,
+            output_tokens=10, dispatch_latency_ms=120)
+
+        response = app_client.get('/api/v1/stats/systemone?provider=typesafe')
+
+        assert response.status_code == 200
+        result = response.get_json()
+        assert (result['calls'], result['requests']) == (1, 1)
+        assert result['dispatchLatencyMsTotal'] == 120
+        assert result['logicalLatencyMsTotal'] == 350
+        assert result['logicalLatencyMsAverage'] == 350
+        assert result['tokens'] == {
+            'input': 100, 'output': 10, 'unknownRequestCount': 0,
+        }
+        assert result['unknownCostRequestCount'] == 0
+        assert result['outcomes']['inconclusive'] == 1
+        assert result['reviewReasons'] == {'choice_inconclusive': 1}
+        assert result['refinements']['attempted'] == 1
 
     def test_unknown_sort_by_falls_back_to_a_safe_default(self, app_client, temp_db):
         _authed(app_client)
@@ -440,3 +484,65 @@ class TestLedgerFilterOptions:
         _authed(app_client)
         resp = app_client.get('/api/v1/stats/ledger-filter-options?from=yesterday')
         assert resp.status_code == 400
+
+
+def test_systemone_diagnostics_sanitize_and_keep_all_refinement_outcomes(temp_db):
+    safe = json.loads(_safe_systemone_diagnostics({
+        'transcript': 'private transcript', 'api_key': 'private key',
+        'review_refinements': [
+            {'outcome': 'attempted'}, {'outcome': 'inconclusive'},
+            {'outcome': 'upstream_error'}, {'outcome': 'skipped', 'skip_reason': 'disabled'},
+        ],
+        'error_details': {
+            'proposal': {'score': 0.5, 'private key': 1, 'transcript': 'private transcript'},
+            'numeric_details': {'expected_count': 3, 'private transcript': 1},
+        },
+    }))
+    assert 'transcript' not in safe and 'api_key' not in safe
+    assert safe['error_details'] == {
+        'proposal': {'score': 0.5}, 'numeric_details': {'expected_count': 3},
+    }
+    temp_db.record_systemone_call_diagnostics(
+        logical_call_id='refinement-test', run_id=None, podcast_id=None, episode_id=None,
+        provider_key='systemone-compatible', credential_slot='primary',
+        configured_model='jev-latest', phase_key='review', window_label='review',
+        logical_latency_ms=10, outcome='failed', diagnostics=safe)
+    result = temp_db.get_systemone_stats()
+    assert result['refinements']['inconclusive'] == result['refinements']['upstream_error'] == 1
+    assert result['refinementSkipReasons'] == {'disabled': 1}
+    assert result['requests'] == 0
+
+
+def test_systemone_stats_survive_episode_retention_and_cascade_feed_deletion(temp_db):
+    podcast_id = temp_db.create_podcast('example-podcast', 'https://example.com/feed.xml', 'Example')
+    temp_db.upsert_episode('example-podcast', 'a1b2c3d4e5f6',
+                           original_url='https://example.com/episode.mp3', status='processed',
+                           processed_file='episode.mp3', processed_at='2020-01-01T00:00:00Z')
+    temp_db.record_systemone_call_diagnostics(
+        logical_call_id='retention-test', run_id=None, podcast_id=podcast_id,
+        episode_id='a1b2c3d4e5f6', provider_key='typesafe', credential_slot='primary',
+        configured_model='jev-latest', phase_key='detection', window_label='window',
+        logical_latency_ms=10, outcome='completed')
+    attempt = temp_db.begin_llm_attempt(
+        run_id=None, podcast_id=podcast_id, episode_id='a1b2c3d4e5f6', phase_key='detection',
+        invoking_pass=1, provider_key='typesafe', configured_model='jev-latest',
+        logical_call_id='retention-test')
+    temp_db.finalize_llm_attempt(attempt, state='success', input_tokens=17, output_tokens=0)
+    temp_db.batch_clear_episode_details('example-podcast', ['a1b2c3d4e5f6'])
+    temp_db.batch_reset_episodes_to_discovered('example-podcast', ['a1b2c3d4e5f6'])
+    assert temp_db.get_systemone_stats(podcast_slug='example-podcast')['requests'] == 1
+    assert temp_db.delete_podcast('example-podcast')
+    assert temp_db.get_systemone_stats()['calls'] == 0
+    assert temp_db.get_connection().execute('SELECT COUNT(*) FROM llm_call_usage').fetchone()[0] == 1
+
+
+def test_systemone_stats_keep_sub_microdollar_known_cost(temp_db):
+    temp_db.record_systemone_call_diagnostics(
+        logical_call_id='small-cost-test', run_id=None, podcast_id=None, episode_id=None,
+        provider_key='typesafe', credential_slot='primary', configured_model='jev-latest',
+        phase_key='detection', window_label='window', logical_latency_ms=1, outcome='completed')
+    attempt = temp_db.begin_llm_attempt(
+        run_id=None, podcast_id=None, episode_id=None, phase_key='detection', invoking_pass=1,
+        provider_key='typesafe', configured_model='jev-latest', logical_call_id='small-cost-test')
+    temp_db.finalize_llm_attempt(attempt, state='success', input_tokens=1, output_tokens=0)
+    assert Decimal(temp_db.get_systemone_stats()['costUsd']) == Decimal('0.000000042')
