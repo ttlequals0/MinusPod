@@ -447,7 +447,7 @@ function FeedDetail() {
     (ep) => selectedIds.has(ep.id) && isActionBlocked(ep.jobState, false),
   ).length;
   const selectionNote = selectionTruncated
-    ? 'More than 500 episodes matched; selection was capped at 500.'
+    ? 'More than 500 episodes matched. Narrow the search or select 500 or fewer.'
     : selectionOverLimit
     ? 'Select 500 episodes or fewer.'
     : runningSelectedCount > 0

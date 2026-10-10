@@ -589,7 +589,7 @@ describe('FeedDetail: live episode search', () => {
     await user.type(await screen.findByRole('searchbox', { name: 'Search episode titles' }), 'all');
     await user.click(await screen.findByRole('button', { name: 'Select all 600 matches' }));
     expect(await screen.findByText('501 selected')).toBeTruthy();
-    expect(screen.getByText('More than 500 episodes matched; selection was capped at 500.')).toBeTruthy();
+    expect(screen.getByText('More than 500 episodes matched. Narrow the search or select 500 or fewer.')).toBeTruthy();
   });
 
   it('keeps duration-filtered episodes selectable for manual actions', async () => {
