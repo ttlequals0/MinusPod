@@ -1,0 +1,343 @@
+From 0eedd4ddd7c924f9cbb4ac496b3fda699435c3cf Mon Sep 17 00:00:00 2001
+From: Zoltan Fridrich <zfridric@redhat.com>
+Date: Thu, 2 Jul 2026 10:54:47 +0200
+Subject: [PATCH] rpc: add recursion depth limit into RPC attribute parsing
+ (CVE-2026-13757)
+
+A DoS was possible when client sent request to a server with deeply
+nested attributes causing stack exhaustion on the server.
+This patch adds a recursion limit on all server entry points to
+prevent such attacks.
+
+Signed-off-by: Zoltan Fridrich <zfridric@redhat.com>
+---
+ p11-kit/rpc-message.c      | 62 +++++++++++++++++++++++++++++---------
+ p11-kit/rpc-message.h      |  4 ++-
+ p11-kit/rpc-server.c       | 12 ++++++--
+ p11-kit/test-rpc-message.c | 38 +++++++++++++++++++++++
+ p11-kit/test-rpc.c         | 27 +++++++++++++++++
+ 5 files changed, 124 insertions(+), 19 deletions(-)
+
+diff --git a/p11-kit/rpc-message.c b/p11-kit/rpc-message.c
+index 1694a424..cf5eb06d 100644
+--- a/p11-kit/rpc-message.c
++++ b/p11-kit/rpc-message.c
+@@ -930,7 +930,8 @@ p11_rpc_message_get_byte_value (p11_rpc_message *msg,
+ 			        p11_buffer *buffer,
+ 			        size_t *offset,
+ 			        void *value,
+-			        CK_ULONG *value_length)
++			        CK_ULONG *value_length,
++			        size_t unused)
+ {
+ 	return p11_rpc_buffer_get_byte_value (buffer, offset, value, value_length);
+ }
+@@ -940,21 +941,38 @@ p11_rpc_message_get_ulong_value (p11_rpc_message *msg,
+ 			         p11_buffer *buffer,
+ 			         size_t *offset,
+ 			         void *value,
+-			         CK_ULONG *value_length)
++			         CK_ULONG *value_length,
++			         size_t unused)
+ {
+ 	return p11_rpc_buffer_get_ulong_value (buffer, offset, value, value_length);
+ }
+ 
++static bool
++p11_rpc_message_get_attribute_recursive (p11_rpc_message *msg,
++					 p11_buffer *buffer,
++					 size_t *offset,
++					 CK_ATTRIBUTE *attr,
++					 size_t depth);
++
+ static bool
+ p11_rpc_message_get_attribute_array_value (p11_rpc_message *msg,
+ 					   p11_buffer *buffer,
+ 					   size_t *offset,
+ 					   void *value,
+-					   CK_ULONG *value_length)
++					   CK_ULONG *value_length,
++					   size_t depth)
+ {
+ 	uint32_t count, i;
+ 	CK_ATTRIBUTE *attr = value;
+ 
++	/* To enforce the same depth as proto_read_attribute_buffer_array
++	 * we need >= instead of > because this function is only called
++	 * for recursive attribute types instead of all types */
++	if (depth >= P11_RPC_MAX_RECURSION_DEPTH) {
++		p11_debug ("recursion depth limit reached");
++		return false;
++	}
++
+ 	if (!p11_rpc_buffer_get_uint32 (buffer, offset, &count))
+ 		return false;
+ 
+@@ -965,7 +983,8 @@ p11_rpc_message_get_attribute_array_value (p11_rpc_message *msg,
+ 		return true;
+ 
+ 	for (i = 0; i < count; ++i)
+-		if (!p11_rpc_message_get_attribute (msg, buffer, offset, attr + i))
++		if (!p11_rpc_message_get_attribute_recursive (msg, buffer, offset,
++							      attr + i, depth + 1))
+ 			return false;
+ 
+ 	return true;
+@@ -976,7 +995,8 @@ p11_rpc_message_get_mechanism_type_array_value (p11_rpc_message *msg,
+ 					        p11_buffer *buffer,
+ 					        size_t *offset,
+ 					        void *value,
+-					        CK_ULONG *value_length)
++					        CK_ULONG *value_length,
++					        size_t unused)
+ {
+ 	return p11_rpc_buffer_get_mechanism_type_array_value (buffer, offset, value, value_length);
+ }
+@@ -986,7 +1006,8 @@ p11_rpc_message_get_date_value (p11_rpc_message *msg,
+ 			        p11_buffer *buffer,
+ 			        size_t *offset,
+ 			        void *value,
+-			        CK_ULONG *value_length)
++			        CK_ULONG *value_length,
++			        size_t unused)
+ {
+ 	return p11_rpc_buffer_get_date_value (buffer, offset, value, value_length);
+ }
+@@ -996,7 +1017,8 @@ p11_rpc_message_get_byte_array_value (p11_rpc_message *msg,
+ 				      p11_buffer *buffer,
+ 				      size_t *offset,
+ 				      void *value,
+-				      CK_ULONG *value_length)
++				      CK_ULONG *value_length,
++				      size_t unused)
+ {
+ 	return p11_rpc_buffer_get_byte_array_value (buffer, offset, value, value_length);
+ }
+@@ -1248,7 +1270,7 @@ p11_rpc_buffer_get_attribute_array_value (p11_buffer *buffer,
+ 					  void *value,
+ 					  CK_ULONG *value_length)
+ {
+-	return p11_rpc_message_get_attribute_array_value (NULL, buffer, offset, value, value_length);
++	return p11_rpc_message_get_attribute_array_value (NULL, buffer, offset, value, value_length, 0);
+ }
+ 
+ bool
+@@ -1333,11 +1355,12 @@ p11_rpc_buffer_get_byte_array_value (p11_buffer *buffer,
+ 	return true;
+ }
+ 
+-bool
+-p11_rpc_message_get_attribute (p11_rpc_message *msg,
+-			       p11_buffer *buffer,
+-			       size_t *offset,
+-			       CK_ATTRIBUTE *attr)
++static bool
++p11_rpc_message_get_attribute_recursive (p11_rpc_message *msg,
++					 p11_buffer *buffer,
++					 size_t *offset,
++					 CK_ATTRIBUTE *attr,
++					 size_t depth)
+ {
+ 	uint32_t type, length;
+ 	CK_ULONG decode_length;
+@@ -1380,7 +1403,7 @@ p11_rpc_message_get_attribute (p11_rpc_message *msg,
+ 
+ 	/* Get the attribute value length */
+ 	saved_offset = *offset;
+-	if (!serializer->decode (NULL, buffer, offset, NULL, &decode_length))
++	if (!serializer->decode (NULL, buffer, offset, NULL, &decode_length, depth))
+ 		return false;
+ 
+ 	/* Decode the attribute value */
+@@ -1389,7 +1412,7 @@ p11_rpc_message_get_attribute (p11_rpc_message *msg,
+ 			return false;
+ 
+ 		*offset = saved_offset;
+-		if (!serializer->decode (msg, buffer, offset, attr->pValue, NULL))
++		if (!serializer->decode (msg, buffer, offset, attr->pValue, NULL, depth))
+ 			return false;
+ 	}
+ 
+@@ -1398,6 +1421,15 @@ p11_rpc_message_get_attribute (p11_rpc_message *msg,
+ 	return true;
+ }
+ 
++bool
++p11_rpc_message_get_attribute (p11_rpc_message *msg,
++			       p11_buffer *buffer,
++			       size_t *offset,
++			       CK_ATTRIBUTE *attr)
++{
++	return p11_rpc_message_get_attribute_recursive (msg, buffer, offset, attr, 0);
++}
++
+ bool
+ p11_rpc_buffer_get_attribute (p11_buffer *buffer,
+ 			      size_t *offset,
+diff --git a/p11-kit/rpc-message.h b/p11-kit/rpc-message.h
+index 405e477e..cb1d8112 100644
+--- a/p11-kit/rpc-message.h
++++ b/p11-kit/rpc-message.h
+@@ -44,6 +44,8 @@
+ #include "pkcs11.h"
+ #include "pkcs11x.h"
+ 
++#define P11_RPC_MAX_RECURSION_DEPTH 8
++
+ /* The calls, must be in sync with array below */
+ enum {
+ 	P11_RPC_CALL_ERROR = 0,
+@@ -297,7 +299,7 @@ typedef struct {
+ 
+ typedef void (*p11_rpc_value_encoder) (p11_buffer *, const void *, CK_ULONG);
+ typedef bool (*p11_rpc_value_decoder) (p11_buffer *, size_t *, void *, CK_ULONG *);
+-typedef bool (*p11_rpc_message_decoder) (p11_rpc_message *msg, p11_buffer *, size_t *, void *, CK_ULONG *);
++typedef bool (*p11_rpc_message_decoder) (p11_rpc_message *msg, p11_buffer *, size_t *, void *, CK_ULONG *, size_t);
+ 
+ void             p11_rpc_message_init                    (p11_rpc_message *msg,
+                                                           p11_buffer *input,
+diff --git a/p11-kit/rpc-server.c b/p11-kit/rpc-server.c
+index fc052ba3..74f59e95 100644
+--- a/p11-kit/rpc-server.c
++++ b/p11-kit/rpc-server.c
+@@ -250,7 +250,8 @@ proto_write_ulong_array (p11_rpc_message *msg,
+ static CK_RV
+ proto_read_attribute_buffer_array (p11_rpc_message *msg,
+ 				   CK_ATTRIBUTE_PTR *result,
+-				   CK_ULONG *n_result)
++				   CK_ULONG *n_result,
++				   size_t depth)
+ {
+ 	CK_RV rv;
+ 	CK_ATTRIBUTE_PTR attrs, array;
+@@ -258,6 +259,11 @@ proto_read_attribute_buffer_array (p11_rpc_message *msg,
+ 	uint32_t n_attrs, i;
+ 	uint32_t type, length;
+ 
++	if (depth > P11_RPC_MAX_RECURSION_DEPTH) {
++		p11_debug ("recursion depth limit reached");
++		return PARSE_ERROR;
++	}
++
+ 	/* Read the number of attributes */
+ 	if (!p11_rpc_buffer_get_uint32 (msg->input, &msg->parsed, &n_attrs))
+ 		return PARSE_ERROR;
+@@ -284,7 +290,7 @@ proto_read_attribute_buffer_array (p11_rpc_message *msg,
+ 			attrs[i].pValue = NULL;
+ 			attrs[i].ulValueLen = 0;
+ 		} else if (IS_ATTRIBUTE_ARRAY (attrs + i)) {
+-			rv = proto_read_attribute_buffer_array (msg, &array, &n_array);
++			rv = proto_read_attribute_buffer_array (msg, &array, &n_array, depth + 1);
+ 			if (rv != CKR_OK)
+ 				return rv;
+ 			if ((n_array != 0 && ULONG_MAX / n_array < sizeof (CK_ATTRIBUTE)) ||
+@@ -318,7 +324,7 @@ proto_read_attribute_buffer (p11_rpc_message *msg,
+ 	/* Make sure this is in the right order */
+ 	assert (!msg->signature || p11_rpc_message_verify_part (msg, "fA"));
+ 
+-	return proto_read_attribute_buffer_array (msg, result, n_result);
++	return proto_read_attribute_buffer_array (msg, result, n_result, 0);
+ }
+ 
+ static CK_RV
+diff --git a/p11-kit/test-rpc-message.c b/p11-kit/test-rpc-message.c
+index 4c11ea5e..2b585f12 100644
+--- a/p11-kit/test-rpc-message.c
++++ b/p11-kit/test-rpc-message.c
+@@ -806,6 +806,43 @@ test_message_write (void)
+ 	p11_buffer_uninit (&buffer);
+ }
+ 
++static void
++test_attribute_recursion_limit (void)
++{
++	bool ret;
++	p11_rpc_message msg;
++	p11_buffer buffer;
++	size_t offset = 0;
++	CK_BBOOL truev = CK_TRUE;
++	CK_ATTRIBUTE attrs_out;
++	CK_ATTRIBUTE attrs[P11_RPC_MAX_RECURSION_DEPTH + 2];
++	for (size_t i = 0; i <= P11_RPC_MAX_RECURSION_DEPTH; i++) {
++		attrs[i].type = CKA_WRAP_TEMPLATE;
++		attrs[i].pValue = &attrs[i + 1];
++		attrs[i].ulValueLen = sizeof (CK_ATTRIBUTE);
++	}
++	attrs[P11_RPC_MAX_RECURSION_DEPTH + 1].type = CKA_ENCRYPT;
++	attrs[P11_RPC_MAX_RECURSION_DEPTH + 1].pValue = &truev;
++	attrs[P11_RPC_MAX_RECURSION_DEPTH + 1].ulValueLen = sizeof (CK_BBOOL);
++
++	ret = p11_buffer_init (&buffer, 0);
++	assert_num_eq (true, ret);
++	p11_rpc_message_init (&msg, &buffer, &buffer);
++	ret = p11_rpc_message_write_attribute_array (&msg, attrs, ELEMS(attrs));
++	assert_num_eq (true, ret);
++
++	/* Skip the array count */
++	ret = p11_rpc_buffer_get_uint32(&buffer, &offset, NULL);
++	assert_num_eq (true, ret);
++
++	/* Hit recursion limit */
++	ret = p11_rpc_message_get_attribute(&msg, &buffer, &offset, &attrs_out);
++	assert_num_eq (false, ret);
++
++	p11_rpc_message_clear (&msg);
++	p11_buffer_uninit (&buffer);
++}
++
+ #include "test-mock.c"
+ 
+ static CK_MECHANISM_TYPE mechanisms[] = {
+@@ -848,6 +885,7 @@ main (int argc,
+ 	p11_test (test_byte_array_value, "/rpc-message/byte-array-value");
+ 	p11_test (test_mechanism_value, "/rpc-message/mechanism-value");
+ 	p11_test (test_message_write, "/rpc-message/message-write");
++	p11_test (test_attribute_recursion_limit, "/rpc-message/attribute-recursion-limit");
+ 
+ 	test_mock_add_tests ("/rpc-message", NULL);
+ 
+diff --git a/p11-kit/test-rpc.c b/p11-kit/test-rpc.c
+index 1cb30aa0..5887fe54 100644
+--- a/p11-kit/test-rpc.c
++++ b/p11-kit/test-rpc.c
+@@ -700,6 +700,32 @@ test_mechanism_unsupported (void *module)
+ 	teardown_mock_module (rpc_module);
+ }
+ 
++static void
++test_recursion_limit (void *module)
++{
++	CK_FUNCTION_LIST_PTR rpc_module;
++	CK_SESSION_HANDLE session;
++	CK_RV rv;
++	CK_BBOOL val;
++	CK_ATTRIBUTE attrs[P11_RPC_MAX_RECURSION_DEPTH + 2];
++	for (size_t i = 0; i <= P11_RPC_MAX_RECURSION_DEPTH; i++) {
++		attrs[i].type = CKA_WRAP_TEMPLATE;
++		attrs[i].pValue = &attrs[i + 1];
++		attrs[i].ulValueLen = sizeof (CK_ATTRIBUTE);
++	}
++	attrs[P11_RPC_MAX_RECURSION_DEPTH + 1].type = CKA_ENCRYPT;
++	attrs[P11_RPC_MAX_RECURSION_DEPTH + 1].pValue = &val;
++	attrs[P11_RPC_MAX_RECURSION_DEPTH + 1].ulValueLen = sizeof (CK_BBOOL);
++
++	rpc_module = setup_test_rpc_module (&test_normal_vtable, module, &session);
++
++	/* Hit recursion limit */
++	rv = (rpc_module->C_GetAttributeValue) (session, MOCK_PUBLIC_KEY_PREFIX, attrs, 1);
++	assert_num_eq (rv, CKR_DEVICE_ERROR);
++
++	teardown_mock_module (rpc_module);
++}
++
+ #ifdef OS_UNIX
+ 
+ static void
+@@ -805,6 +831,7 @@ main (int argc,
+ 	p11_testx (test_get_slot_list_no_device, &mock_module_v3_no_slots, "/rpc3/get-slot-list-no-device");
+ 	p11_testx (test_simultaneous_functions, &mock_module_v3_no_slots, "/rpc3/simultaneous-functions");
+ 	p11_testx (test_mechanism_unsupported, &mock_module_v3, "/rpc3/mechanism-unsupported");
++	p11_testx (test_recursion_limit, &mock_module_v3, "/rpc3/recursion-limit");
+ 
+ #ifdef OS_UNIX
+ 	p11_testx (test_fork_and_reinitialize, &mock_module_v3_no_slots, "/rpc3/fork-and-reinitialize");
