@@ -314,7 +314,7 @@ function FeedDetail() {
           ? selectionEpisodes
               .filter(ep => effectiveSelectedIds.has(ep.id)
                 && (ep.status === 'discovered' || ep.status === 'pending')
-                && !ep.titleSkipped && !ep.durationSkipped)
+                && !ep.titleSkipped && !ep.descriptionSkipped && !ep.durationSkipped)
               .map(ep => ep.id)
           : Array.from(effectiveSelectedIds),
         action),
@@ -334,7 +334,7 @@ function FeedDetail() {
         ? selectionEpisodes
             .filter(ep => effectiveSelectedIds.has(ep.id)
               && (ep.status === 'discovered' || ep.status === 'pending')
-              && !ep.titleSkipped && !ep.durationSkipped)
+              && !ep.titleSkipped && !ep.descriptionSkipped && !ep.durationSkipped)
             .map(ep => ep.id)
         : Array.from(effectiveSelectedIds),
     }),
@@ -433,8 +433,8 @@ function FeedDetail() {
   // Bulk-action eligibility: count per-action so a mixed selection still
   // surfaces actionable buttons (backend skips ineligible rows).
   const selectedEpisodes = selectionEpisodes.filter(ep => effectiveSelectedIds.has(ep.id));
-  const discoveredCount = selectedEpisodes.filter(ep => ep.status === 'discovered' && !ep.titleSkipped && !ep.durationSkipped).length;
-  const pendingCount = selectedEpisodes.filter(ep => ep.status === 'pending' && !ep.titleSkipped && !ep.durationSkipped).length;
+  const discoveredCount = selectedEpisodes.filter(ep => ep.status === 'discovered' && !ep.titleSkipped && !ep.descriptionSkipped && !ep.durationSkipped).length;
+  const pendingCount = selectedEpisodes.filter(ep => ep.status === 'pending' && !ep.titleSkipped && !ep.descriptionSkipped && !ep.durationSkipped).length;
   const processedCount = selectedEpisodes.filter(ep =>
     ['completed', 'failed', 'permanently_failed', 'deferred'].includes(ep.status)
   ).length;

@@ -140,7 +140,11 @@ export interface Feed {
   // Per-feed episode title blacklist: fnmatch glob patterns matched against
   // episode titles. A match is never queued or JIT-processed.
   titleSkipPatterns?: string[];
-  // RSS visibility for episodes excluded by title or duration.
+  // Per-feed episode description blacklist (#835): fnmatch glob patterns
+  // matched against the plain-text description. A match is never queued or
+  // JIT-processed.
+  descriptionSkipPatterns?: string[];
+  // RSS visibility for episodes excluded by title, description, or duration.
   titleSkipAction?: 'serve_original' | 'hide' | null;
   minDurationSeconds?: number | null;
   maxDurationSeconds?: number | null;
@@ -184,6 +188,7 @@ export interface EpisodeSummary {
   error?: string | null;
   pendingReviewCount?: number;
   titleSkipped?: boolean;
+  descriptionSkipped?: boolean;
   durationSkipped?: boolean;
   passthroughEnabled?: boolean | null;
   hasBeenProcessed?: boolean;
@@ -228,6 +233,7 @@ export interface Episode {
   hasOriginalAudio?: boolean;
   pendingReviewCount?: number;
   titleSkipped?: boolean;
+  descriptionSkipped?: boolean;
   durationSkipped?: boolean;
   error?: string | null;
   artworkUrl?: string | null;

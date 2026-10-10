@@ -369,6 +369,51 @@ describe('FeedSettingsPanel title blacklist controls', () => {
   });
 });
 
+describe('FeedSettingsPanel description blacklist controls (#835)', () => {
+  const ADD_BUTTON_NAME = 'Add description pattern';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders existing patterns as chips', () => {
+    renderPanel(makeFeed({ descriptionSkipPatterns: ['*This is a preview*', '*Patreon*'] }));
+    expect(screen.getByText('*This is a preview*')).toBeDefined();
+    expect(screen.getByText('*Patreon*')).toBeDefined();
+  });
+
+  it('adding a pattern fires updateFeed with the appended list', async () => {
+    renderPanel(makeFeed({ descriptionSkipPatterns: ['*This is a preview*'] }));
+    await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
+    await userEvent.type(screen.getByLabelText('New description pattern'), '*Patreon*');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      descriptionSkipPatterns: ['*This is a preview*', '*Patreon*'],
+    });
+  });
+
+  it('a failed add keeps the editor open with its value and shows the error', async () => {
+    mockUpdateFeed.mockRejectedValueOnce(new Error('descriptionSkipPatterns entries must be strings of 1-200 characters'));
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
+    const input = screen.getByLabelText('New description pattern');
+    await userEvent.type(input, '*Patreon*');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(await screen.findByText('descriptionSkipPatterns entries must be strings of 1-200 characters')).toBeDefined();
+    expect((screen.getByLabelText('New description pattern') as HTMLInputElement).value).toBe('*Patreon*');
+  });
+
+  it('removing a pattern fires updateFeed without it', async () => {
+    renderPanel(makeFeed({ descriptionSkipPatterns: ['*This is a preview*', '*Patreon*'] }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove *This is a preview*' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      descriptionSkipPatterns: ['*Patreon*'],
+    });
+  });
+});
+
 describe('FeedSettingsPanel source URL row (#484)', () => {
   beforeEach(() => {
     vi.clearAllMocks();

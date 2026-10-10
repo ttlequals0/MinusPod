@@ -355,6 +355,26 @@ describe('FeedDetail: bulk toolbar', () => {
     expect(screen.queryByRole('button', { name: /Process now/ })).toBeNull();
   });
 
+  it('excludes description-skipped discovered and pending rows from Process', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [
+      {
+        id: 'ep-description-skipped-discovered', title: 'Skipped discovered',
+        published: '2026-09-11T00:00:00Z', status: 'discovered', jobState: 'idle',
+        descriptionSkipped: true,
+      },
+      {
+        id: 'ep-description-skipped-pending', title: 'Skipped pending',
+        published: '2026-09-10T00:00:00Z', status: 'pending', jobState: 'idle',
+        descriptionSkipped: true,
+      },
+    ]);
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Select all on page' }));
+    expect(screen.getByText('2 selected')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Process now/ })).toBeNull();
+  });
+
   it('keeps title-skipped rows selectable for manual actions but excludes processing', async () => {
     const user = userEvent.setup();
     renderFeedDetail(makeFeed(), [{

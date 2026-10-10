@@ -187,6 +187,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [addingTitleSkipPattern, setAddingTitleSkipPattern] = useState(false);
   const [titleSkipPatternInput, setTitleSkipPatternInput] = useState('');
   const [titleSkipPatternError, setTitleSkipPatternError] = useState<string | null>(null);
+  const [addingDescriptionSkipPattern, setAddingDescriptionSkipPattern] = useState(false);
+  const [descriptionSkipPatternInput, setDescriptionSkipPatternInput] = useState('');
+  const [descriptionSkipPatternError, setDescriptionSkipPatternError] = useState<string | null>(null);
   const [durationFilterError, setDurationFilterError] = useState<string | null>(null);
   const minDurationField = useDraftField(feed, (f) =>
     f.minDurationSeconds == null ? '' : String(f.minDurationSeconds / 60));
@@ -539,6 +542,34 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       titleSkipPatterns: (feed.titleSkipPatterns ?? []).filter((p) => p !== pattern),
     }, {
       onError: (e) => setTitleSkipPatternError(getErrorMessage(e, 'Failed to remove pattern')),
+    });
+  };
+
+  const addDescriptionSkipPattern = () => {
+    const pattern = descriptionSkipPatternInput.trim();
+    if (!pattern) return;
+    const current = feed.descriptionSkipPatterns ?? [];
+    if (current.includes(pattern)) {
+      setDescriptionSkipPatternInput('');
+      setAddingDescriptionSkipPattern(false);
+      return;
+    }
+    setDescriptionSkipPatternError(null);
+    updateMutation.mutate({ descriptionSkipPatterns: [...current, pattern] }, {
+      onSuccess: () => {
+        setDescriptionSkipPatternInput('');
+        setAddingDescriptionSkipPattern(false);
+      },
+      onError: (e) => setDescriptionSkipPatternError(getErrorMessage(e, 'Failed to add pattern')),
+    });
+  };
+
+  const removeDescriptionSkipPattern = (pattern: string) => {
+    setDescriptionSkipPatternError(null);
+    updateMutation.mutate({
+      descriptionSkipPatterns: (feed.descriptionSkipPatterns ?? []).filter((p) => p !== pattern),
+    }, {
+      onError: (e) => setDescriptionSkipPatternError(getErrorMessage(e, 'Failed to remove pattern')),
     });
   };
 
@@ -996,7 +1027,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           {!isLocal && (
           <CollapsibleSection
             title="Episode filters"
-            subtitle="Skip automatic processing by title or duration"
+            subtitle="Skip automatic processing by title, description, or duration"
             defaultOpen
             storageKey={`feed-filters-${slug}`}
           >
@@ -1069,6 +1100,79 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   )}
                   <p className="text-xs text-muted-foreground">
                     Match the whole title, ignoring case. Use * as a wildcard, for example Bonus Episode *.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
+                  Skip episodes by description:
+                </span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  {(feed.descriptionSkipPatterns ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-1">
+                      {feed.descriptionSkipPatterns!.map((p) => (
+                        <RemovableChip key={p} label={p} onRemove={() => removeDescriptionSkipPattern(p)}
+                          disabled={updateMutation.isPending} />
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    {!addingDescriptionSkipPattern ? (
+                      <button
+                        type="button"
+                        aria-label="Add description pattern"
+                        onClick={() => setAddingDescriptionSkipPattern(true)}
+                        disabled={updateMutation.isPending}
+                        className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                      >
+                        + Add pattern
+                      </button>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={descriptionSkipPatternInput}
+                          onChange={(e) => setDescriptionSkipPatternInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              addDescriptionSkipPattern();
+                            }
+                          }}
+                          placeholder="*This is a preview*"
+                          aria-label="New description pattern"
+                          maxLength={200}
+                          className="px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0"
+                        />
+                        <button
+                          type="button"
+                          onClick={addDescriptionSkipPattern}
+                          disabled={updateMutation.isPending || !descriptionSkipPatternInput.trim()}
+                          className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                        >
+                          Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAddingDescriptionSkipPattern(false);
+                            setDescriptionSkipPatternInput('');
+                            setDescriptionSkipPatternError(null);
+                          }}
+                          className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {descriptionSkipPatternError && (
+                    <p className="text-xs text-destructive">{descriptionSkipPatternError}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Match the whole description text, HTML removed, ignoring case. Use * as a wildcard, for example *This is a preview. To hear the entire episode*.
                   </p>
                 </div>
               </div>

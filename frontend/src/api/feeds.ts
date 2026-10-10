@@ -358,7 +358,7 @@ export async function regenerateAllFeeds(): Promise<{ message: string; feedCount
   });
 }
 
-export type EpisodeSelection = Pick<Episode, 'id' | 'status' | 'jobState' | 'titleSkipped' | 'durationSkipped'>;
+export type EpisodeSelection = Pick<Episode, 'id' | 'status' | 'jobState' | 'titleSkipped' | 'descriptionSkipped' | 'durationSkipped'>;
 
 export interface EpisodesResponse {
   selection?: EpisodeSelection[];
@@ -466,6 +466,7 @@ export interface UpdateFeedPayload {
   audioReplacementSoundOverride?: boolean | null;
   audioMp3StreamCopyOverride?: boolean | null;
   titleSkipPatterns?: string[];
+  descriptionSkipPatterns?: string[];
   titleSkipAction?: 'serve_original' | 'hide' | null;
   minDurationSeconds?: number | null;
   maxDurationSeconds?: number | null;
