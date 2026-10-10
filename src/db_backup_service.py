@@ -165,12 +165,21 @@ def dest_writable(path: Path) -> bool:
     return ancestor.is_dir() and os.access(ancestor, os.W_OK)
 
 
+STALE_STAGING_SECONDS = 3600
+
+
 def _sweep_stale_staging_dirs(dest_path: Path) -> None:
     """Remove leftover staging dirs from a backup that crashed mid-snapshot (caller holds the backup lock)."""
+    cutoff = time.time() - STALE_STAGING_SECONDS
     for entry in dest_path.iterdir():
-        if entry.is_dir() and entry.name.startswith('.minuspod-backup-'):
-            shutil.rmtree(entry, ignore_errors=True)
-            logger.info('db_backup: removed stale staging directory %s', entry.name)
+        if not entry.is_dir() or not entry.name.startswith('.minuspod-backup-'):
+            continue
+        # The lock is per instance; another instance sharing the destination may still be writing here.
+        newest = max([entry.stat().st_mtime, *(p.stat().st_mtime for p in entry.iterdir())])
+        if newest > cutoff:
+            continue
+        shutil.rmtree(entry, ignore_errors=True)
+        logger.info('db_backup: removed stale staging directory %s', entry.name)
 
 
 def _ensure_dest_dir(dest: Path) -> int:

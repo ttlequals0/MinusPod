@@ -1,8 +1,10 @@
 """Tests for db_backup_service: backup_now, db_backup_tick, validate_backup_dest."""
 import fcntl
 import os
+import shutil
 import sqlite3
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -15,6 +17,7 @@ from db_backup_service import (  # noqa: E402
     FIXED_BACKUP_NAME,
     LOCK_FILENAME,
     ROTATED_NAME_RE,
+    STALE_STAGING_SECONDS,
     TEMP_BACKUP_NAME,
     BackupInProgressError,
     backup_now,
@@ -226,11 +229,19 @@ def test_stale_staging_dir_is_removed_before_backup_runs(db, tmp_path, caplog):
     stale = dest / '.minuspod-backup-leftover'
     stale.mkdir()
     (stale / TEMP_BACKUP_NAME).write_bytes(b'partial')
+    old = time.time() - STALE_STAGING_SECONDS - 60
+    os.utime(stale / TEMP_BACKUP_NAME, (old, old))
+    os.utime(stale, (old, old))
+    recent = dest / '.minuspod-backup-inflight'
+    recent.mkdir()
+    (recent / TEMP_BACKUP_NAME).write_bytes(b'partial')
 
     with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
         summary = backup_now(db)
 
     assert not stale.exists()
+    assert recent.exists()
+    shutil.rmtree(recent)
     assert summary['mode'] == 'overwrite'
     assert (dest / FIXED_BACKUP_NAME).exists()
     assert any('removed stale staging directory' in r.message for r in caplog.records)
