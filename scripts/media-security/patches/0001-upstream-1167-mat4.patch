@@ -1,0 +1,85 @@
+From c45de8ed8b1d98ca532e94a00dbfb0e49eb9bb8a Mon Sep 17 00:00:00 2001
+From: iceray-Li <108821718+iceray00@users.noreply.github.com>
+Date: Tue, 22 Sep 2026 06:02:13 +0000
+Subject: [PATCH] mat4: reject negative channel counts and size the payload
+ safely
+
+mat4_read_header() takes the channel count and the frame count straight from
+the file and uses them to compare the header against the file length:
+
+    if ((psf->filelength - psf->dataoffset) < psf->sf.channels * psf->sf.frames * psf->bytewidth)
+
+The channel count is only checked with
+
+    if (rows == 0) ... else if (rows > SF_MAX_CHANNELS) ...
+
+so a negative value read from the file passes both checks.  With channels and
+frames both coming from 32 bit header fields the product can then exceed the
+range of sf_count_t:
+
+    src/mat4.c:318:78: runtime error: signed integer overflow:
+    -3458764462280933376 * 8 cannot be represented in type 'long'
+
+Reject a negative channel count the same way the other format handlers do, and
+compute the expected payload size once into an sf_count_t so that the
+comparison and the dataend calculation cannot disagree with each other.  With
+the channel count limited to [1, SF_MAX_CHANNELS] the multiplication is
+bounded by 1024 * 2^31 * 8 and cannot overflow.
+
+Tested with ossfuzz/sndfile_alt_fuzzer and ossfuzz/sndfile_fuzzer built with
+-fsanitize=address,undefined: the crafted MAT4 inputs abort at src/mat4.c:318
+before the change and open cleanly after it.
+---
+ src/mat4.c | 19 ++++++++++++++-----
+ 1 file changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/src/mat4.c b/src/mat4.c
+index 9f046f0c6..0a34704f2 100644
+--- a/src/mat4.c
++++ b/src/mat4.c
+@@ -206,6 +206,7 @@ mat4_read_header (SF_PRIVATE *psf)
+ {	char	buffer [256] ;
+ 	uint32_t marker, namesize ;
+ 	int		rows, cols, imag ;
++	sf_count_t	datasize ;
+ 	double	value ;
+ 	const char *marker_str ;
+ 	char	name [64] ;
+@@ -276,6 +277,10 @@ mat4_read_header (SF_PRIVATE *psf)
+ 	{	psf_log_printf (psf, "*** Error : zero channel count.\n") ;
+ 		return SFE_CHANNEL_COUNT_ZERO ;
+ 		}
++	else if (rows < 0)
++	{	psf_log_printf (psf, "*** Error : negative channel count %d.\n", rows) ;
++		return SFE_CHANNEL_COUNT_BAD ;
++		}
+ 	else if (rows > SF_MAX_CHANNELS)
+ 	{	psf_log_printf (psf, "*** Error : channel count %d > SF_MAX_CHANNELS.\n", rows) ;
+ 		return SFE_CHANNEL_COUNT ;
+@@ -315,12 +320,17 @@ mat4_read_header (SF_PRIVATE *psf)
+ 				return SFE_UNIMPLEMENTED ;
+ 		} ;
+ 
+-	if ((psf->filelength - psf->dataoffset) < psf->sf.channels * psf->sf.frames * psf->bytewidth)
++	/* rows and cols are 32 bit values taken from the file. Now that rows has
++	** been checked to be in the range [1, SF_MAX_CHANNELS] the product cannot
++	** overflow sf_count_t. */
++	datasize = (sf_count_t) rows * (sf_count_t) cols * psf->bytewidth ;
++
++	if ((psf->filelength - psf->dataoffset) < datasize)
+ 	{	psf_log_printf (psf, "*** File seems to be truncated. %D <--> %D\n",
+-				psf->filelength - psf->dataoffset, psf->sf.channels * psf->sf.frames * psf->bytewidth) ;
++				psf->filelength - psf->dataoffset, datasize) ;
+ 		}
+-	else if ((psf->filelength - psf->dataoffset) > psf->sf.channels * psf->sf.frames * psf->bytewidth)
+-		psf->dataend = psf->dataoffset + (sf_count_t) rows * (sf_count_t) cols * psf->bytewidth ;
++	else if ((psf->filelength - psf->dataoffset) > datasize)
++		psf->dataend = psf->dataoffset + datasize ;
+ 
+ 	psf->datalength = psf->filelength - psf->dataoffset - psf->dataend ;
+ 
+@@ -388,4 +398,3 @@ mat4_marker_to_str (int marker)
+ 	snprintf (str, sizeof (str) - 1, "%08X", marker) ;
+ 	return str ;
+ } /* mat4_marker_to_str */
+-
