@@ -739,10 +739,6 @@ export const LLM_PROVIDER_OPTIONS: LlmProvider[] = [
   LLM_PROVIDERS.SYSTEMONE_COMPATIBLE,
 ];
 
-export const FAILOVER_LLM_PROVIDER_OPTIONS: LlmProvider[] = LLM_PROVIDER_OPTIONS.filter(
-  (provider) => provider !== LLM_PROVIDERS.TYPESAFE && provider !== LLM_PROVIDERS.SYSTEMONE_COMPATIBLE,
-);
-
 export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
   [LLM_PROVIDERS.ANTHROPIC]: 'Anthropic',
   [LLM_PROVIDERS.OPENROUTER]: 'OpenRouter',
@@ -1774,9 +1770,7 @@ export interface CleanupStats {
   unattributedUsage: CleanupStatsUsage | null;
   coverage: {
     historicalRunCountWithUnknownSpend: number;
-    historicalChecksAvailable: false;
     proposalHistoryCompleteSince: string | null;
-    historicalScopeAvailable: false;
     unattributedProposalCount: number;
   };
 }

@@ -45,7 +45,7 @@ import { sectionVisible, useCollapsibleOpen } from '../components/CollapsibleSec
 const FAILOVER_STORAGE_KEY = 'settings-section-failover';
 import StageTunablesSection from './settings/StageTunablesSection';
 import SystemOneTunablesSection from './settings/SystemOneTunablesSection';
-import { effectiveReviewModels, effectiveStageModel, isSystemOneRoute, systemOneRouteLabel } from './settings/systemoneWarnings';
+import { effectiveReviewModels, effectiveStageModel, hasAllSystemOneProfiles, isSystemOneRoute, systemOneRouteLabel } from './settings/systemoneWarnings';
 import TranscriptionSection from './settings/TranscriptionSection';
 import AudioSection from './settings/AudioSection';
 import CoverArtSection from './settings/CoverArtSection';
@@ -1465,12 +1465,7 @@ function Settings() {
         />
       )}
 
-      {settings?.systemOneTunables?.primary?.typesafe && settings?.systemOneTunables?.primary?.['systemone-compatible']
-        && settings?.systemOneTunables?.secondary?.typesafe && settings?.systemOneTunables?.secondary?.['systemone-compatible']
-        && settings?.systemOneTunableDefaults?.primary?.typesafe && settings?.systemOneTunableDefaults?.primary?.['systemone-compatible']
-        && settings?.systemOneTunableDefaults?.secondary?.typesafe && settings?.systemOneTunableDefaults?.secondary?.['systemone-compatible']
-        && settings?.systemOneTunablesIsDefault?.primary?.typesafe !== undefined && settings?.systemOneTunablesIsDefault?.primary?.['systemone-compatible'] !== undefined
-        && settings?.systemOneTunablesIsDefault?.secondary?.typesafe !== undefined && settings?.systemOneTunablesIsDefault?.secondary?.['systemone-compatible'] !== undefined && (
+      {hasAllSystemOneProfiles(settings) && (
         <SystemOneTunablesSection
           connections={{ primary: llmProvider, secondary: secondaryProvider }}
           profiles={settings.systemOneTunables}

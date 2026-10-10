@@ -1443,16 +1443,12 @@ export default function StatsPage() {
               <CleanupUsageCards title="Unattributed cleanup requests" usage={cleanupStats.unattributedUsage} />
             )}
             <p className="mt-4 text-xs text-muted-foreground">
-              {cleanupStats.coverage.historicalChecksAvailable
-                ? 'Historical check details are available.'
-                : cleanupStats.coverage.proposalHistoryCompleteSince
-                  ? `Exact check history is unavailable. Proposal history is complete since ${cleanupStats.coverage.proposalHistoryCompleteSince}.`
-                  : 'Exact historical check and proposal history is unavailable.'}
-              {!cleanupStats.coverage.historicalScopeAvailable && (
-                <> {ledgerPodcast
-                  ? 'Older unlinked suggestions are excluded from this feed; historical attribution is unavailable.'
-                  : `Historical feed attribution is unavailable for ${cleanupStats.coverage.unattributedProposalCount} proposals.`}</>
-              )}
+              {cleanupStats.coverage.proposalHistoryCompleteSince
+                ? `Exact check history is unavailable. Proposal history is complete since ${cleanupStats.coverage.proposalHistoryCompleteSince}.`
+                : 'Exact historical check and proposal history is unavailable.'}
+              {' '}{ledgerPodcast
+                ? 'Older unlinked suggestions are excluded from this feed; historical attribution is unavailable.'
+                : `Historical feed attribution is unavailable for ${cleanupStats.coverage.unattributedProposalCount} proposals.`}
               {' '}Global and network pattern costs are not allocated to feeds.
             </p>
           </div>

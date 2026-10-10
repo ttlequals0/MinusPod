@@ -95,8 +95,8 @@ const {
     usage: { requests: 2, inputTokens: 10, outputTokens: 5, knownCostUsd: '0.1', unknownUsageRequestCount: 0, unknownCostRequestCount: 0 },
     unattributedUsage: null,
     coverage: {
-      historicalRunCountWithUnknownSpend: 0, historicalChecksAvailable: false,
-      proposalHistoryCompleteSince: '2026-01-01', historicalScopeAvailable: false,
+      historicalRunCountWithUnknownSpend: 0,
+      proposalHistoryCompleteSince: '2026-01-01',
       unattributedProposalCount: 1,
     },
   };

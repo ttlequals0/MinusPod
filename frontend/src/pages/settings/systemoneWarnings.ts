@@ -1,7 +1,18 @@
 import { LLM_PROVIDERS, LLM_PROVIDER_LABELS } from '../../api/types';
-import type { Settings } from '../../api/types';
+import type { Settings, SystemOneCredentialSlot, SystemOneProvider } from '../../api/types';
 
 const SYSTEMONE_PROXY_MODELS = new Set(['jev-latest', 'jev-preview', 'typesafe/jev']);
+const SYSTEMONE_SLOTS: SystemOneCredentialSlot[] = ['primary', 'secondary'];
+const SYSTEMONE_PROVIDERS: SystemOneProvider[] = ['typesafe', 'systemone-compatible'];
+
+// True once every slot x provider has tunables, defaults, and a known isDefault flag.
+export function hasAllSystemOneProfiles(settings: Settings | undefined): settings is Settings {
+  return SYSTEMONE_SLOTS.every((slot) => SYSTEMONE_PROVIDERS.every((provider) =>
+    !!settings?.systemOneTunables?.[slot]?.[provider]
+    && !!settings?.systemOneTunableDefaults?.[slot]?.[provider]
+    && settings?.systemOneTunablesIsDefault?.[slot]?.[provider] !== undefined
+  ));
+}
 
 export function isSystemOneRoute(provider: string, model: string): boolean {
   if (provider === LLM_PROVIDERS.TYPESAFE || provider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE) return true;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveReviewModels, effectiveStageModel, isSystemOneChapterRoute, isSystemOneRoute, systemOneRouteLabel } from './systemoneWarnings';
+import { effectiveReviewModels, effectiveStageModel, hasAllSystemOneProfiles, isSystemOneChapterRoute, isSystemOneRoute, systemOneRouteLabel } from './systemoneWarnings';
 import type { Settings } from '../../api/types';
 
 describe('System One route warnings', () => {
@@ -43,5 +43,18 @@ describe('System One route warnings', () => {
     expect(effectiveStageModel('detection-model', '', '')).toBe('');
     expect(effectiveStageModel('detection-model', 'stage-model', 'stage-model')).toBe('stage-model');
     expect(effectiveStageModel('detection-model', null, 'new-stage-model')).toBe('new-stage-model');
+  });
+
+  it('requires tunables, defaults, and a known isDefault flag for every slot x provider pair', () => {
+    const profile = {};
+    const settings = {
+      systemOneTunables: { primary: { typesafe: profile, 'systemone-compatible': profile }, secondary: { typesafe: profile, 'systemone-compatible': profile } },
+      systemOneTunableDefaults: { primary: { typesafe: profile, 'systemone-compatible': profile }, secondary: { typesafe: profile, 'systemone-compatible': profile } },
+      systemOneTunablesIsDefault: { primary: { typesafe: false, 'systemone-compatible': false }, secondary: { typesafe: false, 'systemone-compatible': false } },
+    } as unknown as Settings;
+    expect(hasAllSystemOneProfiles(settings)).toBe(true);
+    expect(hasAllSystemOneProfiles(undefined)).toBe(false);
+    settings.systemOneTunablesIsDefault.secondary['systemone-compatible'] = undefined as unknown as boolean;
+    expect(hasAllSystemOneProfiles(settings)).toBe(false);
   });
 });
