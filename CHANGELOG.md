@@ -25,6 +25,7 @@ release notes.
 - System One statistics show average call time in milliseconds, preserving subsecond timing.
 - Expected provider holds and service deferrals no longer log processing failures.
 - Legacy cue-template migrations preserve saved match thresholds and cue-removal preferences.
+- Settings tests isolate automatic reviewer calibration to prevent unrelated retry assertions from failing.
 - Scheduled backups prevent temporary-file symlink races and preserve the previous backup when the destination changes during a snapshot.
 
 ## [2.99.2] - 2026-10-09

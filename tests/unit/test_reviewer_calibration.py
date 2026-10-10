@@ -264,6 +264,23 @@ def test_reviewer_calibration_on_change_defaults_true():
     assert db.get_setting_bool('reviewer_calibration_on_change', True) is True
 
 
+def test_unrelated_settings_save_does_not_start_calibration_worker(
+        client, monkeypatch, preserve_setting):
+    db = _build_db()
+    for key, value in (
+            ('review_provider', 'primary'), ('review_model', 'old-model'),
+            ('reviewer_calibration_on_change', 'true')):
+        preserve_setting(key)
+        db.set_setting(key, value, is_default=False)
+    monkeypatch.setattr(calib_mod, 'threading', MagicMock())
+
+    response = _save_settings(client, {'reviewModel': 'new-model'})
+
+    assert response.status_code == 200
+    assert db.get_setting('review_model') == 'new-model'
+    calib_mod.threading.Thread.assert_not_called()
+
+
 def test_settings_save_calibrates_the_committed_review_model_once(client, calibration_runs):
     db = _build_db()
     db.set_setting('review_provider', 'primary', is_default=False)

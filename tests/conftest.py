@@ -37,6 +37,14 @@ def _align_loaded_app_singletons():
     _restore_loaded_app_singletons()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_reviewer_calibration(request, monkeypatch, _reset_rate_limiter):
+    """Only scheduler tests may start automatic calibration workers."""
+    settings_module = sys.modules.get('api.settings')
+    if settings_module is not None and 'calibration_runs' not in request.fixturenames:
+        monkeypatch.setattr(settings_module, 'trigger_reviewer_calibration', lambda *args: None)
+
+
 @pytest.fixture
 def temp_dir():
     """Create a temporary directory for test data."""
