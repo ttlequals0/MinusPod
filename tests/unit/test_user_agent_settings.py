@@ -172,3 +172,17 @@ def test_module_imports_before_storage():
         [sys.executable, '-c', 'import user_agent; print(user_agent.feed_user_agent())'],
         capture_output=True, text=True, env={'PYTHONPATH': src, 'PATH': os.environ['PATH']})
     assert result.returncode == 0, result.stderr
+
+
+def test_feed_override_does_not_change_global_or_other_feeds():
+    Database().set_setting(user_agent.DOWNLOAD_UA_SETTING, 'Global/1.0')
+    user_agent.invalidate_cache()
+    assert user_agent.download_user_agent({'download_user_agent_override': '  Feed/2.0  '}) == 'Feed/2.0'
+    assert user_agent.download_user_agent({'download_user_agent_override': None}) == 'Global/1.0'
+    assert user_agent.download_user_agent() == 'Global/1.0'
+    assert user_agent.feed_user_agent() == APP_USER_AGENT
+
+
+@pytest.mark.parametrize('value', [None, '', 'Bad/1.0\r\nX-Injected: yes', 5])
+def test_invalid_or_empty_feed_override_inherits_global(value):
+    assert user_agent.download_user_agent({'download_user_agent_override': value}) == BROWSER_USER_AGENT

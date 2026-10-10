@@ -14,6 +14,7 @@ release notes.
 ## [2.99.3] - 2026-10-10
 
 ### Added
+- Per-feed download User-Agent overrides apply to audio, artwork, chapters, and upstream transcripts; cross-fetch keeps a different podcast client. (#836)
 - Episode filters group title rules with optional RSS duration limits. Skipped episodes can keep their original audio or be hidden from the served feed. (#833)
 - Live episode title search covers the full feed, with selection across pages and an explicit limit of 500 episodes per bulk action.
 

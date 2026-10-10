@@ -2,6 +2,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from requests import HTTPError
 
 from storage import (
     _ALLOWED_IMAGE_TYPES,
@@ -155,3 +156,38 @@ def test_download_rejects_disallowed_content_type(temp_db, tmp_path):
         result = storage.download_artwork('svg-pod', 'https://cdn.example.com/x.svg')
 
     assert result is False
+
+
+def test_feed_override_covers_show_and_episode_artwork(temp_db, tmp_path):
+    storage = Storage(data_dir=str(tmp_path))
+    storage.db.create_podcast('ua-artwork', 'https://example.com/feed.xml')
+    storage.db.update_podcast('ua-artwork', download_user_agent_override='Feed/2.0')
+    with patch('storage.safe_get', return_value=_mock_response('image/jpeg', JPEG)) as fetch:
+        assert storage.download_artwork('ua-artwork', 'https://example.com/show.jpg') is True
+        assert storage.download_episode_artwork('ua-artwork', 'a1b2c3d4e5f6', 'https://example.com/episode.jpg') is True
+    assert [call.kwargs['headers']['User-Agent'] for call in fetch.call_args_list] == ['Feed/2.0', 'Feed/2.0']
+
+
+@pytest.mark.parametrize('episode_cover', [False, True])
+def test_request_ua_change_does_not_cache_failure_for_new_agent(temp_db, tmp_path, monkeypatch, episode_cover):
+    storage = Storage(data_dir=str(tmp_path))
+    storage.db.create_podcast('ua-race-artwork', 'https://example.com/feed.xml')
+    current = ['First/1.0']
+    monkeypatch.setattr('storage.download_user_agent', lambda podcast=None: current[0])
+    seen = []
+
+    def fetch(*args, **kwargs):
+        seen.append(kwargs['headers']['User-Agent'])
+        current[0] = 'Second/2.0'
+        response = _mock_response('image/jpeg', JPEG)
+        response.status_code = 403
+        response.raise_for_status = MagicMock(side_effect=HTTPError(response=response))
+        return response
+
+    with patch('storage.safe_get', side_effect=fetch):
+        for _ in range(3):
+            if episode_cover:
+                assert storage.download_episode_artwork('ua-race-artwork', 'a1b2c3d4e5f6', 'https://example.com/cover.jpg') is False
+            else:
+                assert storage.download_artwork('ua-race-artwork', 'https://example.com/cover.jpg') is False
+    assert seen == ['First/1.0', 'Second/2.0']

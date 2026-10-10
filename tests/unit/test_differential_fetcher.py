@@ -558,3 +558,16 @@ def test_identical_coverage_unions_overlapping_regions():
 def test_identical_coverage_zero_length_span_or_no_payload():
     assert df.identical_coverage({'regions': [_region(0.0, 3600.0)]}, 100.0, 100.0) == 0.0
     assert df.identical_coverage(None, 100.0, 200.0) == 0.0
+
+
+def test_refetch_excludes_feed_override_and_accepted_fallback(tmp_path, monkeypatch):
+    primary, fallback = REFETCH_USER_AGENTS[:2]
+    choices = []
+    monkeypatch.setattr(df.random, 'choice', lambda pool: choices.append(pool) or pool[0])
+    monkeypatch.setattr(df, 'safe_get', lambda *a, **kw: _FakeResponse([b'x' * 100]))
+    monkeypatch.setattr(df, 'get_audio_duration', lambda path: 42.0)
+    monkeypatch.setattr(df, 'align_and_diff', lambda *a, **kw: {'status': 'ok', 'regions': []})
+    result = fetch_and_diff('https://example.com/episode.mp3', _run_file(tmp_path), str(tmp_path),
+                            primary_user_agent=primary, fallback_user_agent=fallback)
+    assert choices == [list(REFETCH_USER_AGENTS[2:])]
+    assert result['refetch_meta']['ua'] not in (primary, fallback)

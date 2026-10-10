@@ -1461,3 +1461,42 @@ describe('Feed duration filters', () => {
     expect(screen.queryByRole('spinbutton', { name: 'Minimum (minutes)' })).toBeNull();
   });
 });
+
+
+describe('Feed download User-Agent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({ downloadUserAgent: { value: 'Global/1.0', isDefault: false } });
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('keeps edits local until Save and trims the override', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed());
+    const input = screen.getByLabelText('Download User-Agent');
+    await waitFor(() => expect(input.getAttribute('placeholder')).toBe('Global/1.0'));
+    await user.type(input, '  Feed/2.0  ');
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Save download User-Agent' }));
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { downloadUserAgentOverride: 'Feed/2.0' }));
+  });
+
+  it('clears the override with null to inherit global', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed({ downloadUserAgentOverride: 'Feed/2.0' }));
+    await user.click(screen.getByRole('button', { name: 'Use global download User-Agent' }));
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { downloadUserAgentOverride: null }));
+  });
+
+  it('keeps an unsaved draft after the server rejects it', async () => {
+    const user = userEvent.setup();
+    mockUpdateFeed.mockRejectedValueOnce(new Error('downloadUserAgentOverride must be printable ASCII'));
+    renderPanel(makeFeed());
+    const input = screen.getByLabelText('Download User-Agent') as HTMLInputElement;
+    await user.type(input, 'Client/2.0');
+    await user.click(screen.getByRole('button', { name: 'Save download User-Agent' }));
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'downloadUserAgentOverride must be printable ASCII');
+    expect(input.value).toBe('Client/2.0');
+    expect((screen.getByRole('button', { name: 'Save download User-Agent' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+});

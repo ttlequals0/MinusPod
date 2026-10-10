@@ -521,6 +521,7 @@ def test_passed_in_podcast_row_skips_refetch(monkeypatch):
 
 def test_auto_fetches_upstream_when_embedded_short_and_url_present(monkeypatch):
     db = _db(chapters_mode='auto', upstream_chapters_url='https://pub.example.com/ch.json')
+    db.get_podcast_by_slug.return_value['download_user_agent_override'] = 'Feed/2.0'
     fetched = [
         {'startTime': 5, 'title': 'Cold Open'},
         {'startTime': 50, 'img': 'https://cdn.example.com/2.jpg',
@@ -530,7 +531,7 @@ def test_auto_fetches_upstream_when_embedded_short_and_url_present(monkeypatch):
         monkeypatch, db, publisher_chapters=[], original_duration=100.0,
         fetch_return=fetched)
 
-    fetch_mock.assert_called_once_with('https://pub.example.com/ch.json')
+    fetch_mock.assert_called_once_with('https://pub.example.com/ch.json', user_agent='Feed/2.0')
     generator_class.return_value.generate_chapters.assert_not_called()
     db.save_processing_assets.assert_called_once_with(
         'testslug', 'ep1',
@@ -556,11 +557,12 @@ def test_fetch_failure_falls_through_to_generator_not_a_skipped_run(monkeypatch)
     # Unlike a probe failure, this must NOT skip the run: a bad remote file
     # must not block chapters outright.
     db = _db(chapters_mode='auto', upstream_chapters_url='https://pub.example.com/ch.json')
+    db.get_podcast_by_slug.return_value['download_user_agent_override'] = 'Feed/2.0'
     storage_mock, probe_mock, generator_class, embed_mock, fetch_mock = _run(
         monkeypatch, db, publisher_chapters=[], original_duration=100.0,
         fetch_return=None)
 
-    fetch_mock.assert_called_once_with('https://pub.example.com/ch.json')
+    fetch_mock.assert_called_once_with('https://pub.example.com/ch.json', user_agent='Feed/2.0')
     generator_class.return_value.generate_chapters.assert_called_once()
     assert 'chapters' in db.save_processing_assets.call_args.args[2]
 

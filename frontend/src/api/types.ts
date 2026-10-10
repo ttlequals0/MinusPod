@@ -76,6 +76,7 @@ export interface Feed {
   networkIdOverride?: string | null;
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
+  downloadUserAgentOverride?: string | null;
   titleOverride?: string | null;
   detectionNotes?: string | null;
   detectionMode?: string | null;

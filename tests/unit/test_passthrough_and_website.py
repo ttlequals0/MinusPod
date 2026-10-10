@@ -19,7 +19,7 @@ import main_app.processing as processing
 
 
 def _run_passthrough(download_result='/tmp/pt.mp3', duration=3305.7,
-                     codec='mp3', codec_seq=None, retained=False):
+                     codec='mp3', codec_seq=None, retained=False, podcast=None):
     # codec_seq lets a test return a different codec on each probe call (the
     # pass-through path retries once when the first probe yields None); a plain
     # codec value is returned on every call.
@@ -43,16 +43,20 @@ def _run_passthrough(download_result='/tmp/pt.mp3', duration=3305.7,
         result = processing._passthrough_episode(
             'pt-feed', 'ep1', 'https://example.com/ep1.mp3', 'Episode One',
             'PT Feed', None, None, None, start_time=0.0,
-            episode_data={'processed_version': 0})
+            episode_data={'processed_version': 0}, podcast=podcast)
     return result, transcriber, finalize, move, db, copy_retained
 
 
 class TestPassthroughEpisode:
     def test_downloads_and_finalizes_untouched(self):
-        result, transcriber, finalize, move, db, _ = _run_passthrough()
+        result, transcriber, finalize, move, db, _ = _run_passthrough(
+            podcast={'download_user_agent_override': 'Feed/2.0'})
 
         assert result is True
-        transcriber.download_audio.assert_called_once_with('https://example.com/ep1.mp3', user_agent=None)
+        transcriber.check_audio_availability.assert_called_once_with(
+            'https://example.com/ep1.mp3', user_agent='Feed/2.0')
+        transcriber.download_audio.assert_called_once_with(
+            'https://example.com/ep1.mp3', user_agent='Feed/2.0')
         transcriber.transcribe_chunked.assert_not_called()
         move.assert_called_once_with('/tmp/pt.mp3', '/data/pt/episodes/ep1.mp3')
         # Assets from any earlier interrupted run must not be served next

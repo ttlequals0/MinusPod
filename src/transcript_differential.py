@@ -75,7 +75,8 @@ class UpstreamTranscript:
     mime: str
 
 
-def fetch_upstream_transcript(url: str, mime: str | None) -> UpstreamTranscript | None:
+def fetch_upstream_transcript(url: str, mime: str | None,
+                              user_agent: str | None = None) -> UpstreamTranscript | None:
     """Fetch and parse an upstream transcript; None on any failure."""
     if not url:
         return None
@@ -88,7 +89,7 @@ def fetch_upstream_transcript(url: str, mime: str | None) -> UpstreamTranscript 
             timeout=HTTP_TIMEOUT_API,
             stream=True,
             headers={
-                'User-Agent': download_user_agent(),
+                'User-Agent': user_agent or download_user_agent(),
                 'Accept': f'{mime}, */*;q=0.5' if mime else '*/*',
             },
         )

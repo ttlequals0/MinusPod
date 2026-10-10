@@ -25,7 +25,7 @@ import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonSty
 import { ConfirmModal } from '../../components/Modal';
 import SavedBadge from '../settings/SavedBadge';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { selectBase } from '../../components/fieldStyles';
+import { inputBase, selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 
 // Matches MAX_RETENTION_DAYS_OVERRIDE in src/api/feeds.py.
@@ -268,6 +268,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const maxAdDurField = useDraftField(feed, (f) => s(f.maxAdDurationOverride));
   const maxAdDurRejectField = useDraftField(feed, (f) => s(f.maxAdDurationRejectOverride));
   const introExclusionField = useDraftField(feed, (f) => s(f.adDetectionExcludeStartOverride));
+  const downloadUaField = useDraftField(feed, (f) => f.downloadUserAgentOverride ?? '', (v) => v.trim());
+  const [downloadUaError, setDownloadUaError] = useState<string | null>(null);
   // Notes commit on Save, not blur: markClean runs in the mutation's onSuccess so
   // the button/badge update instantly. Dirty compare trims, so a whitespace-only edit isn't dirty.
   const notesField = useDraftField(feed, (f) => f.detectionNotes ?? '', (v) => v.trim());
@@ -424,6 +426,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       draftField.markClean(serverValue != null ? String(serverValue) : '');
     }
   }
+
+  const saveDownloadUa = (value: string) => {
+    const next = value.trim() || null;
+    setDownloadUaError(null);
+    updateMutation.mutate({ downloadUserAgentOverride: next }, {
+      onSuccess: () => downloadUaField.markClean(next ?? ''),
+      onError: (e) => setDownloadUaError(getErrorMessage(e, 'Failed to save download User-Agent')),
+    });
+  };
 
   const saveDetectionNotes = () => {
     const next = notesField.value.trim() || null;
@@ -1596,11 +1607,45 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           {/* Advanced settings (collapsible; rarely-changed knobs) */}
           <CollapsibleSection
             title="Advanced"
-            subtitle="Cut snapping, ad review holds, cross-fetch, and transcript diff"
+            subtitle="Download requests, cut snapping, ad review holds, and differential checks"
             defaultOpen={false}
             storageKey={`feed-advanced-${slug}`}
           >
             <div className="flex flex-col gap-3 pt-1">
+              <div className="flex flex-col gap-2 text-sm min-w-0">
+                <label htmlFor={`download-ua-${slug}`} className="text-muted-foreground">Download User-Agent</label>
+                <input
+                  id={`download-ua-${slug}`}
+                  value={downloadUaField.value}
+                  onChange={(e) => {
+                    downloadUaField.setValue(e.target.value);
+                    setDownloadUaError(null);
+                  }}
+                  placeholder={String(settings?.downloadUserAgent?.value ?? 'Use global')}
+                  maxLength={512}
+                  disabled={updateMutation.isPending}
+                  aria-describedby={`download-ua-hint-${slug}`}
+                  className={`w-full min-w-0 min-h-11 font-mono ${inputBase}`}
+                />
+                <p id={`download-ua-hint-${slug}`} className="text-xs text-muted-foreground">
+                  Audio, artwork, and chapters for this feed. Blank uses global. Cross-fetch uses a different client.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => saveDownloadUa(downloadUaField.value)}
+                    disabled={!downloadUaField.dirty || updateMutation.isPending}
+                    aria-label="Save download User-Agent"
+                    className={`${btnPrimary} min-h-11 px-3 py-2 text-xs rounded ${focusRing}`}
+                  >Save</button>
+                  <button
+                    onClick={() => saveDownloadUa('')}
+                    disabled={(feed.downloadUserAgentOverride == null && downloadUaField.value === '') || updateMutation.isPending}
+                    aria-label="Use global download User-Agent"
+                    className={`${btnOutline} min-h-11 px-3 py-2 text-xs rounded ${focusRing}`}
+                  >Use global</button>
+                </div>
+                {downloadUaError && <p role="alert" className="text-xs text-destructive">{downloadUaError}</p>}
+              </div>
               {/* Boundary-snap opt-ins (simple flags; off unless enabled here) */}
               {(
                 [

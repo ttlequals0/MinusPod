@@ -714,26 +714,33 @@ def _apply_transcript_corrections(slug, episode_id, segments):
 CDN_BLOCKED_MESSAGE = 'CDN blocked the request (403) with both User-Agents'
 
 
-def _download_episode_audio(episode_url):
+def _download_episode_audio(episode_url, podcast=None, outcome=None):
     """Check CDN availability and download the enclosure. Returns the temp
     audio path; raises on either failure."""
     with _measure_run_stage('download'):
         url_for_log = safe_url_for_log(
             episode_url, keep_path=True, keep_query=log_download_query_enabled())
-        user_agent = None
-        available, cdn_error = transcriber.check_audio_availability(episode_url)
+        user_agent = download_user_agent(podcast)
+        if outcome is not None:
+            outcome['download_user_agent'] = user_agent
+        available, cdn_error = transcriber.check_audio_availability(episode_url, user_agent=user_agent)
         if not available and cdn_error.startswith(CDN_REFUSED_PREFIX):
             # A 403 may be a permanent User-Agent refusal or a transient block.
             # Probe the alternate configured agent to distinguish them.
             alternate = feed_user_agent()
             accepted, _ = transcriber.check_audio_availability(episode_url, user_agent=alternate)
             if accepted:
+                setting_location = ("Feed settings > Advanced"
+                                    if (podcast or {}).get("download_user_agent_override")
+                                    else "Settings > Outbound Requests")
                 audio_logger.warning(
                     f"Host at {url_for_log} refuses the download User-Agent "
-                    f"'{download_user_agent()}' but accepts the feed User-Agent "
+                    f"'{user_agent}' but accepts the feed User-Agent "
                     f"'{alternate}'. Downloading with the feed string. Update the "
-                    f"download User-Agent in Settings > Outbound Requests.")
+                    f"download User-Agent in {setting_location}.")
                 available, cdn_error, user_agent = True, None, alternate
+                if outcome is not None:
+                    outcome['fallback_user_agent'] = alternate
             else:
                 cdn_error = CDN_BLOCKED_MESSAGE
         if not available:
@@ -810,7 +817,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         elif is_local_feed(podcast):
             raise Exception("original audio missing")
         else:
-            audio_path = _download_episode_audio(episode_url)
+            audio_path = _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
         audio_logger.info(f"[{slug}:{episode_id}] Transcription skipped (per-feed setting)")
         if force_transcription:
             # The rerun will not write a transcript, so the stale row must
@@ -855,7 +862,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         elif is_local_feed(podcast):
             raise Exception("original audio missing")
         else:
-            audio_path = _download_episode_audio(episode_url)
+            audio_path = _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
         language_override = get_feed_language_override(db, slug)
         segments, added, empty_holes = _repair_transcript(
             slug, episode_id, audio_path, segments, language_override,
@@ -885,7 +892,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
             raise Exception("original audio missing")
         else:
             audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
-            audio_path = _download_episode_audio(episode_url)
+            audio_path = _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
 
         _publish_status('update_job_stage', slug, episode_id, "pass1:transcribing", 20)
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
@@ -1037,7 +1044,7 @@ def _publish_primary_cues(future, audio_analysis_result) -> None:
 
 def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_id,
                             dai_platform=None, podcast=None,
-                            primary_cue_future=None):
+                            primary_cue_future=None, download_outcome=None):
     """Pipeline stage: cross-fetch differential (Layer 3).
 
     Runs when the per-feed flag is on, or -- when the flag is unset -- when
@@ -1111,7 +1118,11 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
             with _measure_run_stage('differential'):
                 result = fetch_and_diff(episode_url, audio_path, work_dir,
                                         cue_scan=cue_scan,
-                                        primary_cues=primary_cues)
+                                        primary_cues=primary_cues,
+                                        primary_user_agent=(download_outcome or {}).get(
+                                            'download_user_agent') or download_user_agent(podcast),
+                                        fallback_user_agent=(download_outcome or {}).get(
+                                            'fallback_user_agent'))
         except Exception as e:
             # fetch_and_diff traps expected failures itself; this guards the rest.
             audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
@@ -1181,7 +1192,8 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
                 with _measure_run_stage('transcript_diff'):
                     try:
                         transcript = fetch_upstream_transcript(
-                            url, episode_row.get('upstream_transcript_type'))
+                            url, episode_row.get('upstream_transcript_type'),
+                            user_agent=download_user_agent(podcast))
                         if transcript is None:
                             fail('fetch or parse failed')
                         else:
@@ -4781,7 +4793,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 episode_row = db.get_episode(slug, episode_id)
                 upstream_url = (episode_row or {}).get('upstream_chapters_url')
                 if upstream_url:
-                    fetched = fetch_upstream_chapters(upstream_url)
+                    fetched = fetch_upstream_chapters(upstream_url, user_agent=download_user_agent(podcast_row))
                     if fetched is not None:
                         remapped = _remap_chapters_for_recut(
                             fetched, [], all_cuts or [], replacement_duration,
@@ -5531,7 +5543,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
 def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                           podcast_name, episode_description,
                           episode_artwork_url, episode_published_at,
-                          start_time, episode_data, cancel_event=None):
+                          start_time, episode_data, cancel_event=None, podcast=None):
     """Pass-through mode (#521): download the episode and serve it exactly
     as published -- no transcription, detection, LLM, cutting, or assets.
     MinusPod acts as an archive/relay for the feed while the served feed
@@ -5562,7 +5574,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: reusing retained original")
         else:
-            audio_path = _download_episode_audio(episode_url)
+            audio_path = _download_episode_audio(episode_url, podcast=podcast)
         _check_cancel(cancel_event, slug, episode_id)
 
         duration = audio_processor.get_audio_duration(audio_path)
@@ -6502,7 +6514,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                      episode_title, podcast_name,
                                      episode_description, episode_artwork_url,
                                      episode_published_at, start_time,
-                                     episode_data, cancel_event=cancel_event)
+                                     episode_data, cancel_event=cancel_event,
+                                     podcast=podcast_settings)
 
     # Skip ad detection (#538): episodes still get transcription, chapters,
     # and a transcript, but the detection stages and the cut are skipped.
@@ -6710,7 +6723,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         dai_platform=(podcast_settings.get('dai_platform')
                                       if podcast_settings else None),
                         podcast=podcast_settings,
-                        primary_cue_future=primary_cue_future)
+                        primary_cue_future=primary_cue_future,
+                        download_outcome=transcribe_outcome)
                 except BaseException as e:
                     diff_outcome['error'] = e
 

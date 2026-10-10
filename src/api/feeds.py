@@ -25,6 +25,7 @@ from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
     CHAPTERS_IN_NOTES_VALUES,
+    USER_AGENT_MAX_LENGTH, validate_user_agent,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     PODPING_HOST_ACTIVE_DAYS,
     VALID_CHAPTERS_MODES,
@@ -149,6 +150,19 @@ def _normalize_language_override(value):
     if val != 'auto' and not LANGUAGE_CODE_RE.match(val):
         return None, "languageOverride must be 'auto' or a 2-3 letter language code (e.g. 'en', 'de', 'pt')"
     return val, None
+
+
+def _normalize_download_user_agent_override(value):
+    """Null or blank inherits the global download UA."""
+    if value is None:
+        return None, None
+    if not isinstance(value, str):
+        return None, 'downloadUserAgentOverride must be a string or null'
+    value = value.strip()
+    if value and not validate_user_agent(value):
+        return None, (f'downloadUserAgentOverride must be printable ASCII on a single line, '
+                      f'at most {USER_AGENT_MAX_LENGTH} characters')
+    return value or None, None
 
 
 _TITLE_OVERRIDE_MAX = 500
@@ -907,6 +921,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'feedType': podcast.get('feed_type', 'subscribed'),
         'title': podcast['title'] or podcast['slug'],
         'titleOverride': podcast.get('title_override'),
+        'downloadUserAgentOverride': podcast.get('download_user_agent_override'),
         'detectionNotes': podcast.get('detection_notes'),
         # Local-only metadata (_LOCAL_ONLY_FIELDS gates PATCH writes to local
         # feeds; reading them back is harmless for a subscribed feed, which
@@ -1433,6 +1448,13 @@ def add_feed():
         if lang_err:
             return error_response(lang_err, 400)
 
+    download_ua_override = None
+    if 'downloadUserAgentOverride' in data:
+        download_ua_override, error = _normalize_download_user_agent_override(
+            data['downloadUserAgentOverride'])
+        if error:
+            return error_response(error, 400)
+
     retention_override = None
     if 'retentionDaysOverride' in data:
         retention_override, retention_err = _validate_retention_override(
@@ -1461,6 +1483,8 @@ def add_feed():
     try:
         db.create_podcast(slug, source_url)
         logger.info(f"Created new feed: {slug} -> {source_url}")
+        if 'downloadUserAgentOverride' in data:
+            db.update_podcast(slug, download_user_agent_override=download_ua_override)
         if audio_output_overrides:
             db.update_podcast(slug, **audio_output_overrides)
 
@@ -1907,6 +1931,12 @@ def update_feed(slug):
         if lang_err:
             return error_response(lang_err, 400)
         updates['language_override'] = lang_val
+
+    if 'downloadUserAgentOverride' in data:
+        value, error = _normalize_download_user_agent_override(data['downloadUserAgentOverride'])
+        if error:
+            return error_response(error, 400)
+        updates['download_user_agent_override'] = value
 
     if 'titleOverride' in data:
         title_val, title_err = _normalize_title_override(data['titleOverride'])

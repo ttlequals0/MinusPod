@@ -224,8 +224,8 @@ def test_negative_cache_is_404_aware_and_survives_a_restart(temp_db, tmp_path):
 
     seven_hours_ago = (utc_now() - timedelta(hours=7)).strftime('%Y-%m-%dT%H:%M:%SZ')
     state = {
-        not_found_url: {'status': 'not_found', 'at': seven_hours_ago},
-        error_url: {'status': 'error', 'at': seven_hours_ago},
+        not_found_url: {'status': 'not_found', 'at': seven_hours_ago, 'ua': storage_mod.download_user_agent()},
+        error_url: {'status': 'error', 'at': seven_hours_ago, 'ua': storage_mod.download_user_agent()},
     }
     storage.db.update_podcast(slug, artwork_failure_state=json.dumps(state))
 

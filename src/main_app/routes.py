@@ -266,7 +266,7 @@ def _head_upstream(slug, episode_id, original_url):
             # Real-world podcast CDNs (Megaphone, Art19, Acast, simplecast)
             # chain 6-8 redirects per asset request.
             max_redirects=HTTP_MAX_REDIRECTS_FEED,
-            headers={'User-Agent': download_user_agent()},
+            headers={'User-Agent': download_user_agent(db.get_podcast_by_slug(slug))},
         )
     except SSRFError as e:
         feed_logger.warning(f"[{slug}:{episode_id}] SSRF blocked in HEAD upstream: {e}")

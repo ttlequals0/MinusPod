@@ -360,6 +360,12 @@ paths:
             schema:
               type: object
               properties:
+                downloadUserAgentOverride:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 512
+                  description: Per-feed download User-Agent. Printable ASCII only. Null or blank inherits downloadUserAgent.
                 sourceUrl:
                   type: string
                   format: uri
@@ -816,6 +822,12 @@ paths:
                     - boolean
                     - 'null'
                   description: Override auto-process setting (null uses global)
+                downloadUserAgentOverride:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 512
+                  description: Audio, artwork, chapters, and transcript User-Agent for this feed. Printable ASCII only. Null or blank inherits downloadUserAgent. Cross-fetch uses a different podcast client.
                 languageOverride:
                   type:
                     - string
@@ -13180,6 +13192,12 @@ components:
             - boolean
             - 'null'
           description: Override auto-process setting for this feed (null uses global setting)
+        downloadUserAgentOverride:
+          type:
+            - string
+            - 'null'
+          maxLength: 512
+          description: Audio, artwork, chapters, and transcript User-Agent for this feed. Printable ASCII only. Null or blank inherits downloadUserAgent. Cross-fetch uses a different podcast client.
         languageOverride:
           type:
             - string

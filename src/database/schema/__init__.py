@@ -540,6 +540,7 @@ class SchemaMixin:
             ('created_at', "TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
             ('auto_process_override', 'TEXT'),
             ('language_override', 'TEXT'),
+            ('download_user_agent_override', 'TEXT'),
             ('title_override', 'TEXT'),
             ('detection_mode', 'TEXT'),
             ('cue_template_score_override', 'REAL'),

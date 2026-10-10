@@ -58,8 +58,11 @@ def _resolve(setting_key: str) -> str:
     return value
 
 
-def download_user_agent() -> str:
-    """UA for audio, artwork, and chapter fetches."""
+def download_user_agent(podcast=None) -> str:
+    """Resolve a feed override, otherwise the global download UA."""
+    override = (podcast or {}).get("download_user_agent_override")
+    if override and validate_user_agent(override):
+        return override.strip()
     return _resolve(DOWNLOAD_UA_SETTING)
 
 
