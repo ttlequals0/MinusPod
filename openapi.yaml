@@ -12092,12 +12092,6 @@ components:
             historicalRunCountWithUnknownSpend:
               type: integer
               minimum: 0
-            historicalChecksAvailable:
-              type: boolean
-              const: false
-            historicalScopeAvailable:
-              type: boolean
-              const: false
             unattributedProposalCount:
               type: integer
               minimum: 0

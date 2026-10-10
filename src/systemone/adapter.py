@@ -883,11 +883,6 @@ def parse_review_context(text: str) -> tuple[list[dict[str, Any]], dict[str, lis
     return segs, words
 
 
-def parse_review_segments(text: str) -> list[dict[str, Any]]:
-    """Compatibility wrapper returning only the coarse transcript context."""
-    return parse_review_context(text)[0]
-
-
 def _review_unavailable(
     pool: str,
     message: str,

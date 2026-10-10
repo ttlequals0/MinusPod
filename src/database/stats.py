@@ -1350,8 +1350,6 @@ class StatsMixin:
             'unattributedUsage': unattributed,
             'coverage': {
                 'historicalRunCountWithUnknownSpend': len(legacy_runs),
-                'historicalChecksAvailable': False,
-                'historicalScopeAvailable': False,
                 'unattributedProposalCount': sum(row['pattern_scope'] is None for row in suggestions),
                 'proposalHistoryCompleteSince': coverage['applied_at'] if coverage else None,
             },

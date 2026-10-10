@@ -78,10 +78,6 @@ class JevReviewValidationError(ValueError):
         return safe
 
 
-class JevCategoryValidationError(JevReviewValidationError):
-    pass
-
-
 class RequestLimitError(ValueError):
     def __init__(self, reason: str):
         self.reason = reason

@@ -159,14 +159,6 @@ def call_payload(payload: dict, *, api_key: str, timeout: float = 60.0) -> dict:
     return resp.json()
 
 
-def call_window(segments: Sequence[dict], *, api_key: str,
-                model: str = DEFAULT_MODEL, uid: str | None = None,
-                timeout: float = 60.0) -> WindowResult:
-    body = call_payload(build_payload(segments, model=model, uid=uid),
-                        api_key=api_key, timeout=timeout)
-    return parse_response(body)
-
-
 def hash_payload(payload: dict) -> str:
     """Cache key covering everything that would change the answer."""
     return hashlib.sha256(
@@ -461,18 +453,6 @@ def aggregate_passes(results: Sequence[WindowResult]) -> WindowResult:
         output_tokens=sum(r.output_tokens for r in results),
         elapsed_ms=sum(r.elapsed_ms for r in results),
     )
-
-
-def pass_spread(results: Sequence[WindowResult]) -> dict[int, float]:
-    """Max-minus-min probability per segment across passes."""
-    if len(results) < 2:
-        return {}
-    sids = {sid for r in results for sid in r.probabilities}
-    spread = {}
-    for sid in sids:
-        vals = [r.probabilities.get(sid, 0.0) for r in results]
-        spread[sid] = max(vals) - min(vals)
-    return spread
 
 
 @dataclass

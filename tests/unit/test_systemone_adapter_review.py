@@ -16,7 +16,7 @@ from systemone.adapter import (
     _boundary_candidates, _choice_state, _effective_category_actions,
     _neighbor_speech, _programme_checks, _range_boundary_support,
     _recover_review_segments, _review_prompt_parts, is_review_request,
-    parse_candidate_bounds, parse_review_context, parse_review_segments,
+    parse_candidate_bounds, parse_review_context,
     run_review,
 )
 from utils.llm_response import extract_json_ads_array
@@ -35,10 +35,6 @@ _END_UNIT_OPTIONS: dict[str, list[dict[str, Any]] | float] = {}
 _END_GROUP_OPTIONS: dict[str, list[float]] = {}
 _WORD_END_OPTIONS: dict[str, float] = {}
 
-
-@pytest.fixture
-def jev_env():
-    return None
 
 def _upstream_status_error(
     status: int, retry_after: str = "7"
@@ -136,7 +132,7 @@ def test_word_recovery_excludes_words_overlapping_coarse_coverage():
     ]
 
 
-def test_word_only_candidate_recovery_reaches_jev(jev_env, tmp_path):
+def test_word_only_candidate_recovery_reaches_jev(tmp_path):
     prompt = build_review_prompt(
         66.1,
         82.16,
@@ -201,7 +197,7 @@ def test_boundary_candidates_cap_seconds_is_adjustable():
     assert 195.0 in wide_ends and 215.0 not in wide_ends
 
 
-def test_boundary_cap_setting_controls_offered_end_options(jev_env, tmp_path):
+def test_boundary_cap_setting_controls_offered_end_options(tmp_path):
     prompt = build_review_prompt(
         100.0, 120.0,
         [(90.0, 100.0, "Editorial before.")],
@@ -268,7 +264,7 @@ def test_boundary_candidates_keep_all_observed_word_edges_within_window():
     assert starts[-1] == pytest.approx(117.9)
 
 
-def test_boundary_option_overflow_abstains_without_truncation(jev_env, tmp_path):
+def test_boundary_option_overflow_abstains_without_truncation(tmp_path):
     prompt = build_review_prompt(
         100.0, 120.0,
         [(90.0, 100.0, "Discussion ends.")],
@@ -420,7 +416,7 @@ def test_overlapping_words_leave_only_supported_rank_choices():
     assert ends == [119.5, 120.0]
 
 
-def test_word_clipped_original_can_adjust_to_aligned_end(jev_env, tmp_path):
+def test_word_clipped_original_can_adjust_to_aligned_end(tmp_path):
     prompt = build_review_prompt(
         0.0, 94.8,
         [],
@@ -457,7 +453,7 @@ def test_word_clipped_original_can_adjust_to_aligned_end(jev_env, tmp_path):
     [0.98, 0.5],
 )
 def test_zero_duration_word_supports_selected_endpoint_outside_coarse_context(
-    jev_env, tmp_path, focused_score
+    tmp_path, focused_score
 ):
     prompt = build_review_prompt(
         90.0,
@@ -792,7 +788,7 @@ def _run(
     )
 
 
-def test_refined_evidence_uses_only_candidate_speech(jev_env, tmp_path):
+def test_refined_evidence_uses_only_candidate_speech(tmp_path):
     evidence_state = {}
     evidence_question = {}
     normal = make_text_fake()
@@ -821,7 +817,7 @@ def test_refined_evidence_uses_only_candidate_speech(jev_env, tmp_path):
 
 @pytest.mark.parametrize("refine_boundaries,include_end_words", [(False, True), (True, False)])
 def test_unvalidated_review_paths_keep_full_context_evidence(
-    jev_env, tmp_path, refine_boundaries, include_end_words,
+    tmp_path, refine_boundaries, include_end_words,
 ):
     prompt = _meaningful_pair_prompt()
     if not include_end_words:
@@ -850,7 +846,7 @@ def test_unvalidated_review_paths_keep_full_context_evidence(
     }
 
 
-def test_review_evidence_threshold_is_independent(jev_env, tmp_path):
+def test_review_evidence_threshold_is_independent(tmp_path):
     prompt = build_review_prompt(
         100.0,
         120.0,
@@ -868,7 +864,7 @@ def test_review_evidence_threshold_is_independent(jev_env, tmp_path):
         )
 
 
-def test_review_prefilter_uses_review_evidence_threshold_only(jev_env, tmp_path):
+def test_review_prefilter_uses_review_evidence_threshold_only(tmp_path):
     rows = [
         (94.0, 100.0, "back to the topic"),
         (100.0, 110.0, "This episode is sponsored by BetterHelp"),
@@ -966,7 +962,7 @@ def test_current_review_and_resurrection_builders_preserve_policy_and_cue_contex
         assert len(parsed) == 4
         assert words == {"start": [], "end": []}
 
-def test_review_choice_threshold_is_independent(jev_env, tmp_path):
+def test_review_choice_threshold_is_independent(tmp_path):
     prompt = build_review_prompt(
         100.0,
         120.0,
@@ -994,7 +990,7 @@ def test_review_choice_threshold_is_independent(jev_env, tmp_path):
         )
 
 
-def test_lower_evidence_threshold_replays_review_without_cache(jev_env, tmp_path):
+def test_lower_evidence_threshold_replays_review_without_cache(tmp_path):
     prompt = build_review_prompt(
         100.0,
         120.0,
@@ -1088,14 +1084,14 @@ def test_dedupe_overlapping_context_and_candidate_lines():
          (110.0, 120.0, "Use promo code SHOW at betterhelp.com")],
         [(120.0, 126.0, "and we are back")],
     )
-    segs = parse_review_segments(prompt)
+    segs = parse_review_context(prompt)[0]
     starts = [s["start"] for s in segs]
     assert starts == sorted(starts)
     assert len(segs) == len({(s["start"], s["end"], s["text"]) for s in segs})
     assert [s["sid"] for s in segs] == list(range(len(segs)))
 
 
-def test_confirm_keeps_candidate_with_jev_boundaries(jev_env, tmp_path):
+def test_confirm_keeps_candidate_with_jev_boundaries(tmp_path):
     prompt = build_review_prompt(
         100.0, 120.0,
         [(94.0, 100.0, "so anyway back to the topic")],
@@ -1115,7 +1111,7 @@ def test_confirm_keeps_candidate_with_jev_boundaries(jev_env, tmp_path):
     assert method == "json_object_ads_key"
 
 
-def test_adjust_when_jev_span_extends_into_context(jev_env, tmp_path):
+def test_adjust_when_jev_span_extends_into_context(tmp_path):
     # The ad actually starts at 94.0 (a context line reads promotional), so the
     # Jev span extends past the candidate start -> a boundary adjustment.
     prompt = build_review_prompt(
@@ -1133,7 +1129,7 @@ def test_adjust_when_jev_span_extends_into_context(jev_env, tmp_path):
     assert start == 94.0 and end == 120.0
 
 
-def test_reject_when_jev_finds_no_ad(jev_env, tmp_path):
+def test_reject_when_jev_finds_no_ad(tmp_path):
     prompt = build_review_prompt(
         50.0, 70.0,
         [(45.0, 50.0, "Have you followed the antitrust case?")],
@@ -1148,7 +1144,7 @@ def test_reject_when_jev_finds_no_ad(jev_env, tmp_path):
     assert verdict == "reject"
 
 
-def test_resurrection_hit_resurrects_with_ad_signal(jev_env, tmp_path):
+def test_resurrection_hit_resurrects_with_ad_signal(tmp_path):
     prompt = build_review_prompt(
         666.7, 674.3,
         [(660.0, 666.7, "so that's our take on the case")],
@@ -1163,7 +1159,7 @@ def test_resurrection_hit_resurrects_with_ad_signal(jev_env, tmp_path):
     assert json.loads(content)["ads"][0]["is_ad"] is True
 
 
-def test_resurrection_miss_keeps_rejected(jev_env, tmp_path):
+def test_resurrection_miss_keeps_rejected(tmp_path):
     prompt = build_review_prompt(
         200.0, 215.0,
         [(195.0, 200.0, "we've been talking about the privacy framework")],
@@ -1178,7 +1174,7 @@ def test_resurrection_miss_keeps_rejected(jev_env, tmp_path):
     assert verdict == "reject"  # keep-rejected: no content cut
 
 
-def test_ambiguous_overlapping_spans_are_unavailable(jev_env, tmp_path):
+def test_ambiguous_overlapping_spans_are_unavailable(tmp_path):
     prompt = build_review_prompt(
         100.0,
         200.0,
@@ -1194,7 +1190,7 @@ def test_ambiguous_overlapping_spans_are_unavailable(jev_env, tmp_path):
         _run(prompt, make_text_fake(), tmp_path)
 
 
-def test_high_score_without_advertising_cue_is_unavailable(jev_env, tmp_path):
+def test_high_score_without_advertising_cue_is_unavailable(tmp_path):
     prompt = build_review_prompt(
         100.0,
         110.0,
@@ -1206,7 +1202,7 @@ def test_high_score_without_advertising_cue_is_unavailable(jev_env, tmp_path):
         _run(prompt, make_text_fake(keywords=("unrelated",)), tmp_path)
 
 
-def test_degrade_no_transcript_is_unavailable(jev_env, tmp_path):
+def test_degrade_no_transcript_is_unavailable(tmp_path):
     # Markers present (routes to review) but no [start-end] lines to score.
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -1216,12 +1212,12 @@ def test_degrade_no_transcript_is_unavailable(jev_env, tmp_path):
         with_timestamps=False,
     )
     assert is_review_request(prompt) is True
-    assert parse_review_segments(prompt) == []
+    assert parse_review_context(prompt)[0] == []
     with pytest.raises(ReviewUnavailableError, match="could not be parsed"):
         _run(prompt, make_text_fake(), tmp_path)
 
 
-def test_degrade_no_transcript_resurrection_is_unavailable(jev_env, tmp_path):
+def test_degrade_no_transcript_resurrection_is_unavailable(tmp_path):
     prompt = build_review_prompt(
         100.0, 120.0,
         [(94.0, 100.0, "context before")],
@@ -1326,7 +1322,7 @@ def test_added_window_checks_cover_all_observed_speech():
     )
 
 
-def test_review_caller_context_reaches_detection_and_all_review_stages(jev_env, tmp_path):
+def test_review_caller_context_reaches_detection_and_all_review_stages(tmp_path):
     prompt = _meaningful_pair_prompt().replace(
         "Podcast: My Podcast\nEpisode: Ep 1\n",
         "Podcast: My Podcast\n"
@@ -1421,7 +1417,7 @@ def test_effective_category_actions_reject_ambiguous_policy(line):
         _effective_category_actions(line)
 
 
-def test_duplicate_effective_category_action_headers_are_inconclusive(jev_env, tmp_path):
+def test_duplicate_effective_category_action_headers_are_inconclusive(tmp_path):
     prompt = _meaningful_pair_prompt().replace(
         "\nTranscript (60s before, the candidate ad, 60s after;",
         "\nEffective category actions: sponsor=remove\n"
@@ -1441,7 +1437,7 @@ def test_duplicate_effective_category_action_headers_are_inconclusive(jev_env, t
     [("keep", True), ("remove", False), ("beep", False)],
 )
 def test_explicit_category_policy_reaches_rank_and_focused_guards(
-    jev_env, tmp_path, action, held,
+    tmp_path, action, held,
 ):
     prompt = _meaningful_pair_prompt().replace(
         "\nTranscript (60s before, the candidate ad, 60s after;",
@@ -1484,7 +1480,7 @@ def test_explicit_category_policy_reaches_rank_and_focused_guards(
 @pytest.mark.parametrize("refine_boundaries", [False, True])
 @pytest.mark.parametrize(("kept_score", "held"), [(0.99, True), (0.01, False)])
 def test_keep_policy_is_checked_without_boundary_refinement(
-    jev_env, tmp_path, refine_boundaries, kept_score, held,
+    tmp_path, refine_boundaries, kept_score, held,
 ):
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -1521,7 +1517,7 @@ def test_keep_policy_is_checked_without_boundary_refinement(
 
 
 def test_keep_policy_without_isolatable_candidate_speech_abstains(
-    jev_env, tmp_path, monkeypatch,
+    tmp_path, monkeypatch,
 ):
     prompt = build_review_prompt(
         101.0, 119.0,
@@ -1550,7 +1546,7 @@ def test_keep_policy_without_isolatable_candidate_speech_abstains(
 
 
 def test_keep_policy_checks_broader_detected_interval_without_refinement(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     prompt = build_review_prompt(
         100.0, 110.0,
@@ -1585,7 +1581,7 @@ def test_keep_policy_checks_broader_detected_interval_without_refinement(
 
 @pytest.mark.parametrize("refine_boundaries", [False, True])
 def test_self_promo_keep_vetoes_same_show_access_without_policy_bias(
-    jev_env, tmp_path, refine_boundaries,
+    tmp_path, refine_boundaries,
 ):
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -1640,7 +1636,7 @@ def test_self_promo_keep_vetoes_same_show_access_without_policy_bias(
 
 @pytest.mark.parametrize("action", ["remove", "beep"])
 def test_self_promo_removal_actions_skip_same_show_access_guard(
-    jev_env, tmp_path, action,
+    tmp_path, action,
 ):
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -1667,7 +1663,7 @@ def test_self_promo_removal_actions_skip_same_show_access_guard(
 
 
 def test_self_promo_keep_allows_independent_sponsor(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -1710,7 +1706,7 @@ def test_self_promo_keep_allows_independent_sponsor(
         ((90.0, 115.0), (100.0, 120.0)),
     ],
 )
-def test_opt_in_refinement_applies_selected_meaningful_pair(jev_env, tmp_path, selected, expected):
+def test_opt_in_refinement_applies_selected_meaningful_pair(tmp_path, selected, expected):
     base = _select_pair_fake(*selected)
 
     def fake(payload, **kwargs):
@@ -1736,7 +1732,7 @@ def test_opt_in_refinement_applies_selected_meaningful_pair(jev_env, tmp_path, s
 
 
 def test_start_alternative_preserves_provider_choice_when_probability_is_not_max(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     base = _select_pair_fake(106.0, 120.0)
     alternative_requests = []
@@ -1781,7 +1777,7 @@ def test_start_alternative_preserves_provider_choice_when_probability_is_not_max
     ],
 )
 def test_start_alternative_protects_episode_return_but_allows_ad_setup(
-    jev_env, tmp_path, added_speech, prefix_score, expected_start,
+    tmp_path, added_speech, prefix_score, expected_start,
 ):
     prompt = _meaningful_pair_prompt().replace("Editorial transition.", added_speech)
     select = _select_pair_fake(106.0, 120.0)
@@ -1820,7 +1816,7 @@ def test_start_alternative_protects_episode_return_but_allows_ad_setup(
 
 
 def test_widened_start_programme_check_vetoes_episode_return(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     prompt = _meaningful_pair_prompt().replace("Editorial before.", "Back to the discussion.")
     select = _select_pair_fake(90.0, 120.0)
@@ -1846,7 +1842,7 @@ def test_widened_start_programme_check_vetoes_episode_return(
 
 
 def test_unknown_start_does_not_trigger_alternative_choice(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     base = _select_pair_fake(106.0, 120.0)
     stages = []
@@ -1877,7 +1873,7 @@ def test_unknown_start_does_not_trigger_alternative_choice(
     assert "boundary_start_alternative" not in stages
 
 
-def test_start_alternative_neither_is_inconclusive(jev_env, tmp_path):
+def test_start_alternative_neither_is_inconclusive(tmp_path):
     base = _select_pair_fake(106.0, 120.0)
 
     def fake(payload, **kwargs):
@@ -1895,7 +1891,7 @@ def test_start_alternative_neither_is_inconclusive(jev_env, tmp_path):
     assert raised.value.stage == "choice_rank"
 
 
-def test_single_start_option_skips_alternative_choice(jev_env, tmp_path):
+def test_single_start_option_skips_alternative_choice(tmp_path):
     prompt = build_review_prompt(
         100.0, 120.0,
         [(90.0, 100.0, "Editorial before.")],
@@ -1919,7 +1915,7 @@ def test_single_start_option_skips_alternative_choice(jev_env, tmp_path):
 
 
 def test_unsupported_selected_start_skips_alternative_choice(
-    jev_env, tmp_path, monkeypatch,
+    tmp_path, monkeypatch,
 ):
     original = adapter._assessment_speech
 
@@ -1945,7 +1941,7 @@ def test_unsupported_selected_start_skips_alternative_choice(
     assert (ad["start"], ad["end"]) == (100.0, 120.0)
 
 
-def test_refinement_centers_fine_context_on_distant_selected_end(jev_env, tmp_path):
+def test_refinement_centers_fine_context_on_distant_selected_end(tmp_path):
     prompt = build_review_prompt(
         100.0, 180.5,
         [(90.0, 100.0, "Discussion ends.")],
@@ -1987,7 +1983,7 @@ def test_refinement_centers_fine_context_on_distant_selected_end(jev_env, tmp_pa
     assert (ad["start"], ad["end"]) == (100.0, 144.0)
 
 
-def test_coarse_end_context_rejects_detector_edge_beyond_search_cap(jev_env, tmp_path):
+def test_coarse_end_context_rejects_detector_edge_beyond_search_cap(tmp_path):
     prompt = build_review_prompt(
         100.0, 180.0,
         [(90.0, 100.0, "Discussion ends.")],
@@ -2017,7 +2013,7 @@ def test_coarse_end_context_rejects_detector_edge_beyond_search_cap(jev_env, tmp
     assert "After the later message." not in end_contexts[0]
 
 
-def test_supported_expansion_does_not_require_partial_added_delta(jev_env, tmp_path):
+def test_supported_expansion_does_not_require_partial_added_delta(tmp_path):
     prompt = build_review_prompt(
         100.0, 119.5,
         [(94.0, 100.0, "Discussion ends.")],
@@ -2045,7 +2041,7 @@ def test_supported_expansion_does_not_require_partial_added_delta(jev_env, tmp_p
     assert comparison_requests == []
 
 
-def test_weak_edge_choice_can_reach_pair_comparison(jev_env, tmp_path):
+def test_weak_edge_choice_can_reach_pair_comparison(tmp_path):
     base = _select_pair_fake(106.0, 120.0)
 
     def fake(payload, **kwargs):
@@ -2066,7 +2062,7 @@ def test_weak_edge_choice_can_reach_pair_comparison(jev_env, tmp_path):
     assert (ad["start"], ad["end"]) == (106.0, 120.0)
 
 
-def test_weak_choice_cannot_confirm_original_with_same_ad_after_end(jev_env, tmp_path):
+def test_weak_choice_cannot_confirm_original_with_same_ad_after_end(tmp_path):
     prompt = build_review_prompt(
         100.0, 118.0,
         [(94.0, 100.0, "Discussion ends.")],
@@ -2101,7 +2097,7 @@ def test_weak_choice_cannot_confirm_original_with_same_ad_after_end(jev_env, tmp
         _run(prompt, fake, tmp_path, refine_boundaries=True)
 
 
-def test_separate_neighboring_ad_does_not_block_complete_cut(jev_env, tmp_path):
+def test_separate_neighboring_ad_does_not_block_complete_cut(tmp_path):
     prompt = build_review_prompt(
         100.0, 120.0,
         [(94.0, 100.0, "Discussion ends.")],
@@ -2128,7 +2124,7 @@ def test_separate_neighboring_ad_does_not_block_complete_cut(jev_env, tmp_path):
     assert (ad["start"], ad["end"]) == (100.0, 120.0)
 
 
-def test_unrelated_editorial_vetoes_ad_present_in_mixed_cut(jev_env, tmp_path):
+def test_unrelated_editorial_vetoes_ad_present_in_mixed_cut(tmp_path):
     normal = make_text_fake()
     evidence_states = []
 
@@ -2151,7 +2147,7 @@ def test_unrelated_editorial_vetoes_ad_present_in_mixed_cut(jev_env, tmp_path):
 
 
 def test_sentence_interior_veto_isolates_show_island_inside_coarse_segment(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     prompt = build_review_prompt(
         100.0, 130.0,
@@ -2183,7 +2179,7 @@ def test_sentence_interior_veto_isolates_show_island_inside_coarse_segment(
 
 
 def test_separate_sponsor_does_not_reclassify_independent_personal_story(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -2222,7 +2218,7 @@ def test_separate_sponsor_does_not_reclassify_independent_personal_story(
     assert raised.value.fallback["score"] == 0.95
 
 
-def test_rank_state_uses_nearby_context_without_duplicate_word_arrays(jev_env, tmp_path):
+def test_rank_state_uses_nearby_context_without_duplicate_word_arrays(tmp_path):
     normal = make_text_fake()
 
     def fake(payload, **kwargs):
@@ -2310,7 +2306,7 @@ def test_end_word_options_keep_truncated_closing_phrases_unknown():
 
 @pytest.mark.parametrize("programme_score", [0.02, 0.98])
 def test_complete_terminal_cta_reaches_fine_end_and_still_checks_programme(
-    jev_env, tmp_path, programme_score,
+    tmp_path, programme_score,
 ):
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -2370,7 +2366,7 @@ def test_complete_terminal_cta_reaches_fine_end_and_still_checks_programme(
 
 
 def test_truncated_terminal_phrase_blocks_otherwise_accepted_boundary(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -2408,7 +2404,7 @@ def test_truncated_terminal_phrase_blocks_otherwise_accepted_boundary(
 
 
 def test_terminal_closing_checks_last_word_before_padded_row_end(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     prompt = build_review_prompt(
         100.0, 119.8,
@@ -2472,7 +2468,7 @@ def _terminal_fallback_fake(original_score: float):
     return fake, closings
 
 
-def test_terminal_closing_falls_back_to_safe_original(jev_env, tmp_path):
+def test_terminal_closing_falls_back_to_safe_original(tmp_path):
     fake, closings = _terminal_fallback_fake(0.98)
 
     response = _run(_terminal_fallback_prompt(), fake, tmp_path, refine_boundaries=True)
@@ -2482,7 +2478,7 @@ def test_terminal_closing_falls_back_to_safe_original(jev_env, tmp_path):
     assert len(closings) == 2
 
 
-def test_terminal_closing_abstains_when_original_also_fails(jev_env, tmp_path):
+def test_terminal_closing_abstains_when_original_also_fails(tmp_path):
     fake, closings = _terminal_fallback_fake(0.02)
 
     with pytest.raises(ReviewInconclusiveError) as raised:
@@ -2500,7 +2496,7 @@ def test_terminal_closing_abstains_when_original_also_fails(jev_env, tmp_path):
 
 
 def test_terminal_allowance_does_not_include_later_programme_speech(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -2540,7 +2536,7 @@ def test_terminal_allowance_does_not_include_later_programme_speech(
 
 
 def test_terminal_cta_still_respects_kept_category(
-    jev_env, tmp_path,
+    tmp_path,
 ):
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -2619,7 +2615,7 @@ def test_large_end_unit_groups_every_word_end_before_exact_selection():
     [("following", 123.0), ("selected", 120.0), ("unknown", None)],
 )
 def test_adjacent_end_unit_comparison_recovers_closing_url(
-    jev_env, tmp_path, pair_choice, expected_end,
+    tmp_path, pair_choice, expected_end,
 ):
     prompt = build_review_prompt(
         100.0, 120.0,
@@ -2684,7 +2680,7 @@ def test_adjacent_end_unit_comparison_recovers_closing_url(
      ("mixed", 101.39), ("forced_unsafe", 101.39)],
 )
 def test_end_transition_handles_adjacent_promo_and_programme_separator(
-    jev_env, tmp_path, tail_kind, expected_end,
+    tmp_path, tail_kind, expected_end,
 ):
     middle = (
         [(102.12, 111.0, "The episode story resumes with the officer's morning.")]
@@ -2782,7 +2778,7 @@ def test_end_transition_handles_adjacent_promo_and_programme_separator(
 
 
 def test_oversized_end_group_choice_keeps_supported_original(
-    jev_env, tmp_path, monkeypatch,
+    tmp_path, monkeypatch,
 ):
     monkeypatch.setattr(adapter, "_END_WORD_GROUP_THRESHOLD", 0)
 
@@ -2847,7 +2843,7 @@ def test_outside_completeness_checks_near_and_far_speech_separately():
     assert questions["end_extended"]["instructions"]["target_speech"] == " ".join(f"after{index}" for index in range(16))
 
 
-def test_incomplete_edge_reranks_once_with_side_specific_context(jev_env, tmp_path):
+def test_incomplete_edge_reranks_once_with_side_specific_context(tmp_path):
     select = _select_pair_fake(106.0, 120.0)
     start_rank_payloads = []
 
@@ -2877,7 +2873,7 @@ def test_incomplete_edge_reranks_once_with_side_specific_context(jev_env, tmp_pa
     assert rerank.startswith(base)
 
 
-def test_rank_upstream_error_logs_only_safe_metadata(jev_env, tmp_path, caplog):
+def test_rank_upstream_error_logs_only_safe_metadata(tmp_path, caplog):
     normal = make_text_fake()
     secret = "sensitive-prompt-and-credential"
 
@@ -2902,7 +2898,7 @@ def test_rank_upstream_error_logs_only_safe_metadata(jev_env, tmp_path, caplog):
     assert secret not in caplog.text
 
 
-def test_ambiguous_intro_fragment_cannot_be_trimmed(jev_env, tmp_path):
+def test_ambiguous_intro_fragment_cannot_be_trimmed(tmp_path):
     prompt = build_review_prompt(
         100.0, 120.0,
         [(94.0, 100.0, "Editorial before.")],
@@ -2929,7 +2925,7 @@ def test_ambiguous_intro_fragment_cannot_be_trimmed(jev_env, tmp_path):
     assert (ad["start"], ad["end"]) == (100.0, 120.0)
 
 
-def test_ad_only_cut_can_omit_ad_intro_when_original_is_unsafe(jev_env, tmp_path):
+def test_ad_only_cut_can_omit_ad_intro_when_original_is_unsafe(tmp_path):
     prompt = build_review_prompt(
         100.0, 120.0,
         [(94.0, 100.0, "Editorial before.")],
@@ -2962,7 +2958,7 @@ def test_ad_only_cut_can_omit_ad_intro_when_original_is_unsafe(jev_env, tmp_path
     assert (ad["start"], ad["end"]) == (105.0, 120.0)
 
 
-def test_outward_sponsor_tail_requires_edge_confirmation(jev_env, tmp_path):
+def test_outward_sponsor_tail_requires_edge_confirmation(tmp_path):
     prompt = build_review_prompt(
         100.0, 118.0,
         [(94.0, 100.0, "Editorial before.")],
@@ -2989,7 +2985,7 @@ def test_outward_sponsor_tail_requires_edge_confirmation(jev_env, tmp_path):
     assert (ad["start"], ad["end"]) == (100.0, 120.0)
 
 
-def test_missing_local_end_words_abstains_for_both_intervals(jev_env, tmp_path):
+def test_missing_local_end_words_abstains_for_both_intervals(tmp_path):
     prompt = build_review_prompt(
         100.0, 118.0,
         [(94.0, 100.0, "Editorial before.")],
@@ -3012,7 +3008,7 @@ def test_missing_local_end_words_abstains_for_both_intervals(jev_env, tmp_path):
     assert raised.value.fallback["reason"] == "insufficient_boundary_text"
 
 
-def test_unknown_rank_cannot_confirm_without_original_comparison(jev_env, tmp_path):
+def test_unknown_rank_cannot_confirm_without_original_comparison(tmp_path):
     normal = make_text_fake()
 
     def fake(payload, **kwargs):
@@ -3047,7 +3043,7 @@ def test_unknown_rank_cannot_confirm_without_original_comparison(jev_env, tmp_pa
     ],
 )
 def test_interval_safety_is_independent_of_relative_preference(
-    jev_env, tmp_path, proposed_safety, original_safety, preference, preference_score, expected
+    tmp_path, proposed_safety, original_safety, preference, preference_score, expected
 ):
     select = _select_pair_fake(106.0, 120.0)
 
@@ -3089,7 +3085,7 @@ def test_interval_safety_is_independent_of_relative_preference(
 )
 @pytest.mark.parametrize("veto_signal", ["programme", "policy"])
 def test_nested_protected_veto_blocks_containing_interval(
-    jev_env, tmp_path, selected_start, outer_label, outer_text, veto_signal,
+    tmp_path, selected_start, outer_label, outer_text, veto_signal,
 ):
     select = _select_pair_fake(selected_start, 120.0)
     observed = {}
@@ -3137,7 +3133,7 @@ def test_nested_protected_veto_blocks_containing_interval(
     assert raised.value.fallback["score"] == pytest.approx(0.86)
 
 
-def test_partial_overlap_does_not_transfer_programme_veto(jev_env, tmp_path):
+def test_partial_overlap_does_not_transfer_programme_veto(tmp_path):
     select = _select_pair_fake(106.0, 130.0)
     observed = {}
 
@@ -3166,7 +3162,7 @@ def test_partial_overlap_does_not_transfer_programme_veto(jev_env, tmp_path):
     assert (ad["start"], ad["end"]) == (106.0, 130.0)
 
 
-def test_outside_continuation_does_not_veto_containing_interval(jev_env, tmp_path):
+def test_outside_continuation_does_not_veto_containing_interval(tmp_path):
     select = _select_pair_fake(106.0, 120.0)
     outside_scores = {}
 
@@ -3192,7 +3188,7 @@ def test_outside_continuation_does_not_veto_containing_interval(jev_env, tmp_pat
 
 @pytest.mark.parametrize("proposed_programme_score, approved", [(0.1, True), (0.85, False), (0.9, False)])
 def test_promotion_requires_local_programme_clearance(
-    jev_env, tmp_path, proposed_programme_score, approved
+    tmp_path, proposed_programme_score, approved
 ):
     select = _select_pair_fake(106.0, 120.0)
     stages = []
@@ -3235,7 +3231,7 @@ def test_promotion_requires_local_programme_clearance(
     assert stages == ["promotion", "programme", "promotion", "programme"]
 
 
-def test_comparison_neither_rejects_safe_alternatives(jev_env, tmp_path):
+def test_comparison_neither_rejects_safe_alternatives(tmp_path):
     select = _select_pair_fake(106.0, 120.0)
     states = {}
 
@@ -3268,7 +3264,7 @@ def test_comparison_neither_rejects_safe_alternatives(jev_env, tmp_path):
     assert "transcript" not in states["interval_comparison"]
 
 
-def test_refinement_logs_effective_context_and_precise_thresholds(jev_env, tmp_path, caplog):
+def test_refinement_logs_effective_context_and_precise_thresholds(tmp_path, caplog):
     import logging
 
     prompt = build_review_prompt(
@@ -3295,7 +3291,7 @@ def test_refinement_logs_effective_context_and_precise_thresholds(jev_env, tmp_p
     assert all("BetterHelp" not in message for message in messages)
 
 
-def test_review_upstream_failure_is_unavailable(jev_env, tmp_path):
+def test_review_upstream_failure_is_unavailable(tmp_path):
     prompt = build_review_prompt(
         100.0, 120.0,
         [(94.0, 100.0, "context before")],

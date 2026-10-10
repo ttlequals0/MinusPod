@@ -335,16 +335,6 @@ class TestAggregatePasses:
         assert jev.aggregate_passes([draw] * 5).probabilities == draw.probabilities
 
 
-class TestPassSpread:
-    def test_spread_is_max_minus_min(self):
-        spread = jev.pass_spread(
-            [jev.WindowResult({0: 0.9, 1: 0.5}), jev.WindowResult({0: 0.3, 1: 0.5})])
-        assert spread == {0: pytest.approx(0.6), 1: pytest.approx(0.0)}
-
-    def test_single_pass_has_no_spread(self):
-        assert jev.pass_spread([jev.WindowResult({0: 0.9})]) == {}
-
-
 class TestProbabilityCache:
     def test_round_trips_through_disk(self, tmp_path):
         segs = contiguous(2)
