@@ -20,6 +20,8 @@ import json
 import logging
 import os
 import re
+import stat
+import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -162,32 +164,26 @@ def dest_writable(path: Path) -> bool:
     return ancestor.is_dir() and os.access(ancestor, os.W_OK)
 
 
-def _ensure_dest_dir(dest: Path) -> None:
-    """Create `dest` if missing, chmod 0o700 ONLY the directories we create.
-
-    A pre-existing destination (e.g. an operator-chosen shared mount) keeps its
-    own permissions untouched; we never chmod ancestors we did not create.
-    """
-    if dest.exists():
-        return
-    # Find the lowest existing ancestor; everything below it we are creating.
-    top_created = dest
-    while not top_created.parent.exists() and top_created.parent != top_created:
-        top_created = top_created.parent
-    dest.mkdir(parents=True, exist_ok=True)
-    # Tighten only the subtree we just created, leaf-first is unnecessary since
-    # 0700 on each created level is sufficient; walk down from top_created.
-    node = top_created
-    while True:
-        try:
-            node.chmod(0o700)
-        except OSError:
-            logger.warning('db_backup: could not tighten permissions on %s', node)
-        if node == dest:
-            break
-        # Descend one level toward dest.
-        rel = dest.relative_to(node)
-        node = node / rel.parts[0]
+def _ensure_dest_dir(dest: Path) -> int:
+    """Pin the destination, creating missing directories privately without following symlinks."""
+    flags = os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW
+    fd = os.open(dest.anchor, flags)
+    try:
+        for part in dest.parts[1:]:
+            try:
+                child_fd = os.open(part, flags, dir_fd=fd)
+            except FileNotFoundError:
+                try:
+                    os.mkdir(part, 0o700, dir_fd=fd)
+                except FileExistsError:
+                    pass
+                child_fd = os.open(part, flags, dir_fd=fd)
+            os.close(fd)
+            fd = child_fd
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
 
 
 _secret_state_logged = False
@@ -265,42 +261,69 @@ def backup_now(db) -> dict[str, Any]:
         db.set_setting('db_backup_last_run', utc_now_iso())
 
         start = time.monotonic()
-        tmp = None
+        dest_fd = None
+        stage_fd = None
+        stage_name = None
         try:
             dest = validate_backup_dest(db.get_setting('db_backup_dest') or '', db.data_dir)
             keep = _clamp_keep_count(db.get_setting('db_backup_keep_count'))
-            tmp = dest / TEMP_BACKUP_NAME
-
-            # Create the dest dir ourselves so we chmod 0700 only directories we
-            # create; a pre-existing user destination keeps its permissions.
-            _ensure_dest_dir(dest)
-
-            # Make sure a stale temp from a crashed run can't leave the rename
-            # pointing at old bytes.
-            tmp.unlink(missing_ok=True)
+            if not Path('/proc/self/fd').is_dir():
+                raise RuntimeError('Scheduled backups require Linux /proc/self/fd; '
+                                   'run MinusPod in its Docker image')
+            dest_fd = _ensure_dest_dir(dest)
+            flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            dest_path = Path(f'/proc/self/fd/{dest_fd}')
+            stage_name = Path(tempfile.mkdtemp(prefix='.minuspod-backup-', dir=dest_path)).name
+            stage_fd = os.open(stage_name, flags, dir_fd=dest_fd)
+            stage_stat = os.fstat(stage_fd)
+            if stage_stat.st_uid != os.geteuid() or stat.S_IMODE(stage_stat.st_mode) & 0o077:
+                os.close(stage_fd)
+                stage_fd = None
+                stage_name = None
+                raise ValueError('backup staging directory is not private')
+            tmp = Path(f'/proc/self/fd/{stage_fd}') / TEMP_BACKUP_NAME
+            tmp_fd = os.open(TEMP_BACKUP_NAME,
+                             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o600, dir_fd=stage_fd)
+            os.close(tmp_fd)
             snapshot_database(db, tmp, tighten_dir_perms=False)
 
             if keep == 1:
                 mode = 'overwrite'
-                final = dest / FIXED_BACKUP_NAME
+                final_name = FIXED_BACKUP_NAME
             else:
                 mode = 'rotate'
-                final = _next_rotated_path(dest, _utc_now())
-            os.replace(tmp, final)
-
-            # Read size before pruning so a prune race can never leave us
-            # stat-ing a file that was just unlinked; prune skips `final`.
-            size_bytes = final.stat().st_size
-            pruned = _prune_rotated(dest, keep, keep_path=final)
+                final_name = _next_rotated_path(dest_path, _utc_now()).name
+            current_dest = os.stat(dest, follow_symlinks=False)
+            opened_dest = os.fstat(dest_fd)
+            if (current_dest.st_dev, current_dest.st_ino) != (opened_dest.st_dev, opened_dest.st_ino):
+                raise ValueError('backup destination changed during snapshot')
+            os.replace(TEMP_BACKUP_NAME, final_name, src_dir_fd=stage_fd, dst_dir_fd=dest_fd)
+            final = dest / final_name
+            size_bytes = os.stat(final_name, dir_fd=dest_fd, follow_symlinks=False).st_size
+            pruned = _prune_rotated(dest_path, keep, keep_path=dest_path / final_name)
         except Exception as e:
             db.set_setting('db_backup_last_error', str(e))
             logger.warning('db_backup: backup failed: %s', e)
-            if tmp is not None:
-                try:
-                    tmp.unlink(missing_ok=True)
-                except OSError:
-                    pass
             raise
+        finally:
+            if stage_fd is not None:
+                try:
+                    for name in os.listdir(stage_fd):
+                        os.unlink(name, dir_fd=stage_fd)
+                except OSError:
+                    logger.warning('db_backup: could not remove a staged backup file')
+            if dest_fd is not None and stage_name is not None:
+                try:
+                    os.rmdir(stage_name, dir_fd=dest_fd)
+                except OSError:
+                    logger.warning('db_backup: could not remove the backup staging directory')
+            for fd in (stage_fd, dest_fd):
+                if fd is not None:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        logger.warning('db_backup: could not close a backup directory descriptor')
 
         summary = {
             'path': str(final),

@@ -1,6 +1,7 @@
 """Tests for db_backup_service: backup_now, db_backup_tick, validate_backup_dest."""
 import fcntl
 import os
+import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -142,6 +143,197 @@ def test_overwrite_mode_single_file_refreshed(db, tmp_path):
     probe = _read_setting_from_backup(final, 'overwrite_probe')
     assert probe == 'x' * 1000
     assert s2['prunedCount'] == 0
+
+
+def test_shared_destination_temp_symlink_cannot_redirect_snapshot(db, tmp_path, monkeypatch):
+    dest = tmp_path / 'shared'
+    dest.mkdir()
+    victim = tmp_path / 'unrelated.db'
+    with sqlite3.connect(victim) as connection:
+        connection.execute('CREATE TABLE sentinel (value TEXT)')
+        connection.execute("INSERT INTO sentinel VALUES ('preserve')")
+    before = victim.read_bytes()
+    db.set_setting('db_backup_dest', str(dest))
+    snapshot = db_backup_service.snapshot_database
+
+    def substitute_public_temp(database, path, **kwargs):
+        (dest / TEMP_BACKUP_NAME).symlink_to(victim)
+        assert path.parent.stat().st_mode & 0o777 == 0o700
+        assert path.stat().st_mode & 0o777 == 0o600
+        return snapshot(database, path, **kwargs)
+
+    monkeypatch.setattr(db_backup_service, 'snapshot_database', substitute_public_temp)
+    backup_now(db)
+
+    assert victim.read_bytes() == before
+    assert not (dest / FIXED_BACKUP_NAME).is_symlink()
+    assert _read_setting_from_backup(dest / FIXED_BACKUP_NAME, 'db_backup_dest') == str(dest)
+    assert not list(dest.glob('.minuspod-backup-*/'))
+
+
+def test_destination_swap_preserves_prior_backup_and_unrelated_files(db, tmp_path, monkeypatch):
+    dest = tmp_path / 'shared'
+    db.set_setting('db_backup_dest', str(dest))
+    backup_now(db)
+    before = (dest / FIXED_BACKUP_NAME).read_bytes()
+    moved = tmp_path / 'moved'
+    other = tmp_path / 'unrelated'
+    other.mkdir()
+    sentinel = other / FIXED_BACKUP_NAME
+    sentinel.write_text('preserve')
+    snapshot = db_backup_service.snapshot_database
+
+    def swap_destination(database, path, **kwargs):
+        result = snapshot(database, path, **kwargs)
+        dest.rename(moved)
+        dest.symlink_to(other, target_is_directory=True)
+        return result
+
+    monkeypatch.setattr(db_backup_service, 'snapshot_database', swap_destination)
+    with pytest.raises(ValueError, match='destination changed during snapshot'):
+        backup_now(db)
+
+    assert (moved / FIXED_BACKUP_NAME).read_bytes() == before
+    assert sentinel.read_text() == 'preserve'
+    assert list(moved.iterdir()) == [moved / FIXED_BACKUP_NAME]
+    assert list(other.iterdir()) == [sentinel]
+
+
+def test_failed_snapshot_preserves_prior_backup_and_removes_staging(db, tmp_path, monkeypatch):
+    dest = tmp_path / 'backups'
+    db.set_setting('db_backup_dest', str(dest))
+    backup_now(db)
+    before = (dest / FIXED_BACKUP_NAME).read_bytes()
+
+    def fail_snapshot(_database, path, **_kwargs):
+        path.write_bytes(b'partial')
+        raise OSError('snapshot failed')
+
+    monkeypatch.setattr(db_backup_service, 'snapshot_database', fail_snapshot)
+    with pytest.raises(OSError, match='snapshot failed'):
+        backup_now(db)
+
+    assert (dest / FIXED_BACKUP_NAME).read_bytes() == before
+    assert list(dest.iterdir()) == [dest / FIXED_BACKUP_NAME]
+
+
+@pytest.mark.parametrize('unsafe_stage', ['permissions', 'owner'])
+def test_untrusted_staging_preserves_prior_backup_and_closes_descriptors(
+        db, tmp_path, monkeypatch, unsafe_stage):
+    dest = tmp_path / 'backups'
+    db.set_setting('db_backup_dest', str(dest))
+    backup_now(db)
+    before = (dest / FIXED_BACKUP_NAME).read_bytes()
+    mkdtemp = db_backup_service.tempfile.mkdtemp
+    fstat = os.fstat
+    open_fd = os.open
+    stage_inode = None
+    opened = []
+
+    def create_untrusted_stage(**kwargs):
+        nonlocal stage_inode
+        path = mkdtemp(**kwargs)
+        stage_inode = os.stat(path).st_ino
+        if unsafe_stage == 'permissions':
+            os.chmod(path, 0o755)
+        return path
+
+    def inspect_stage(fd):
+        result = fstat(fd)
+        if unsafe_stage == 'owner' and result.st_ino == stage_inode:
+            fields = list(result)
+            fields[4] = os.geteuid() + 1
+            return os.stat_result(fields)
+        return result
+
+    def record_open(*args, **kwargs):
+        fd = open_fd(*args, **kwargs)
+        opened.append(fd)
+        return fd
+
+    monkeypatch.setattr(db_backup_service.tempfile, 'mkdtemp', create_untrusted_stage)
+    monkeypatch.setattr(os, 'fstat', inspect_stage)
+    monkeypatch.setattr(os, 'open', record_open)
+    with pytest.raises(ValueError, match='staging directory is not private'):
+        backup_now(db)
+
+    assert (dest / FIXED_BACKUP_NAME).read_bytes() == before
+    for fd in opened:
+        with pytest.raises(OSError):
+            fstat(fd)
+
+
+def test_unavailable_descriptor_paths_preserve_prior_backup(db, tmp_path, monkeypatch):
+    dest = tmp_path / 'backups'
+    db.set_setting('db_backup_dest', str(dest))
+    backup_now(db)
+    before = (dest / FIXED_BACKUP_NAME).read_bytes()
+    is_dir = db_backup_service.Path.is_dir
+    monkeypatch.setattr(db_backup_service.Path, 'is_dir',
+                        lambda path: False if str(path) == '/proc/self/fd' else is_dir(path))
+
+    with pytest.raises(RuntimeError, match='Scheduled backups require Linux'):
+        backup_now(db)
+
+    assert (dest / FIXED_BACKUP_NAME).read_bytes() == before
+    assert list(dest.iterdir()) == [dest / FIXED_BACKUP_NAME]
+
+
+def test_directory_creation_swap_does_not_chmod_or_write_unrelated_directory(
+        db, tmp_path, monkeypatch):
+    parent = tmp_path / 'shared'
+    parent.mkdir(mode=0o755)
+    other = tmp_path / 'unrelated'
+    other.mkdir(mode=0o755)
+    sentinel = other / FIXED_BACKUP_NAME
+    sentinel.write_text('preserve')
+    dest = parent / 'backups'
+    db.set_setting('db_backup_dest', str(dest))
+    mkdir = os.mkdir
+    open_fd = os.open
+    opened = []
+
+    def swap_new_directory(path, mode=0o777, *, dir_fd=None):
+        mkdir(path, mode, dir_fd=dir_fd)
+        if path == 'backups':
+            os.rename(path, 'moved', src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+            os.symlink(other, path, dir_fd=dir_fd)
+
+    def record_open(*args, **kwargs):
+        fd = open_fd(*args, **kwargs)
+        opened.append(fd)
+        return fd
+
+    monkeypatch.setattr(os, 'mkdir', swap_new_directory)
+    monkeypatch.setattr(os, 'open', record_open)
+    with pytest.raises(OSError):
+        backup_now(db)
+
+    assert other.stat().st_mode & 0o777 == 0o755
+    assert parent.stat().st_mode & 0o777 == 0o755
+    assert (parent / 'moved').stat().st_mode & 0o777 == 0o700
+    assert sentinel.read_text() == 'preserve'
+    assert list(other.iterdir()) == [sentinel]
+    for fd in opened:
+        with pytest.raises(OSError):
+            os.fstat(fd)
+
+
+@pytest.mark.parametrize('keep', [1, 2])
+def test_pruning_backup_symlinks_does_not_touch_their_targets(db, tmp_path, keep):
+    dest = tmp_path / 'backups'
+    dest.mkdir()
+    victim = tmp_path / 'unrelated.db'
+    victim.write_text('preserve')
+    (dest / 'minuspod-backup-auto-20000101-000000.db').symlink_to(victim)
+    (dest / 'minuspod-backup-auto-20000101-000001.db').symlink_to(victim)
+    (dest / FIXED_BACKUP_NAME).symlink_to(victim)
+    db.set_setting('db_backup_dest', str(dest))
+    db.set_setting('db_backup_keep_count', str(keep))
+
+    backup_now(db)
+
+    assert victim.read_text() == 'preserve'
 
 
 def test_overwrite_mode_download_decoy_survives(db, tmp_path):
