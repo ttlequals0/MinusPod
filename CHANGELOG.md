@@ -17,6 +17,7 @@ release notes.
 - Per-feed download User-Agent overrides apply to audio, artwork, chapters, and upstream transcripts; cross-fetch keeps a different podcast client. (#836)
 - Episode filters group title rules with optional RSS duration limits. Skipped episodes can keep their original audio or be hidden from the served feed. (#833)
 - Live episode title search covers the full feed, with selection across pages and an explicit limit of 500 episodes per bulk action.
+- Episode selection fetches cap at 501 matching rows and report a `truncated` flag when the match count overflows the cap.
 
 ### Changed
 - Container images upgrade PCRE2 to 10.49 with newer JIT fixes and Unicode 17 matching data.

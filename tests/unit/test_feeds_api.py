@@ -740,6 +740,30 @@ def test_feed_episode_search_filters_full_dataset_and_returns_all_selection(app_
     assert literal.get_json()['episodes'][0]['titleSkipped'] is False
 
 
+def test_selection_fetch_caps_at_501_and_flags_truncation(app_client, seeded_feed):
+    _authed(app_client)
+    slug, db = seeded_feed['slug'], seeded_feed['db']
+    db.bulk_upsert_discovered_episodes(slug, [{
+        'id': f'episode-{i}', 'url': f'https://example.com/{i}.mp3',
+        'title': f'Episode {i}',
+    } for i in range(600)])
+    under_cap = app_client.get(f'/api/v1/feeds/{slug}/episodes?selection=true&limit=1')
+    assert under_cap.get_json()['total'] == 600
+    assert len(under_cap.get_json()['selection']) == 501
+    assert under_cap.get_json()['truncated'] is True
+
+    conn = db.get_connection()
+    conn.execute(
+        "DELETE FROM episodes WHERE episode_id IN ({})".format(  # noqa: S608
+            ','.join('?' * 99)),
+        [f'episode-{i}' for i in range(501, 600)])
+    conn.commit()
+    not_truncated = app_client.get(f'/api/v1/feeds/{slug}/episodes?selection=true&limit=1')
+    assert not_truncated.get_json()['total'] == 501
+    assert len(not_truncated.get_json()['selection']) == 501
+    assert not_truncated.get_json()['truncated'] is False
+
+
 def test_bulk_reprocess_overrides_duration_filter(app_client, seeded_feed):
     _authed(app_client)
     slug, db = seeded_feed['slug'], seeded_feed['db']

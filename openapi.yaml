@@ -1504,7 +1504,8 @@ paths:
         the source feeds (see feedSlug and feedTitle); they are all processed, so a status filter
         other than processed returns an empty page. Title search applies before pagination.
         With selection=true, pagination is ignored and selection contains every matching
-        episode's action state; episodes is empty. Bulk actions still accept at most 500 IDs.
+        episode's action state, up to 501 rows (truncated is true past that cap); episodes
+        is empty. Bulk actions still accept at most 500 IDs.
       operationId: listEpisodes
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -1551,7 +1552,7 @@ paths:
             type: string
         - name: selection
           in: query
-          description: Return all matching action-state rows in selection and an empty episodes array. Ignores limit and offset for selecting rows; limit still reports the normal capped request value and offset is 0.
+          description: Return matching action-state rows in selection and an empty episodes array, capped at 501 rows (see truncated). Ignores limit and offset for selecting rows; limit still reports the normal capped request value and offset is 0.
           schema:
             type: boolean
             default: false
@@ -1569,7 +1570,7 @@ paths:
                       $ref: '#/components/schemas/EpisodeSummary'
                   selection:
                     type: array
-                    description: Present only when selection=true; every matching episode without pagination.
+                    description: Present only when selection=true; every matching episode without pagination, up to 501 rows.
                     items:
                       $ref: '#/components/schemas/EpisodeSelection'
                   total:
@@ -1578,6 +1579,9 @@ paths:
                     type: integer
                   offset:
                     type: integer
+                  truncated:
+                    type: boolean
+                    description: Present only when selection=true; true when more than 501 episodes matched and selection was capped.
         '404':
           $ref: '#/components/responses/NotFound'
     post:

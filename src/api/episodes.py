@@ -69,6 +69,9 @@ logger = logging.getLogger('podcast.api')
 # can be force-retried or cleaned up by hand.
 REPROCESSABLE_STATUSES = ('processed', 'failed', 'permanently_failed', 'deferred')
 
+# One more than the 500-episode bulk-action cap enforced below.
+SELECTION_FETCH_CAP = 501
+
 
 def _float_arg(name, default=None):
     """Float query arg: missing or empty returns default, junk aborts 400."""
@@ -290,7 +293,7 @@ def list_episodes(slug):
     sort_dir = request.args.get('sort_dir', 'desc')
     search = request.args.get('search', '').strip()
     selection = request.args.get('selection', '').lower() == 'true'
-    query_limit = None if selection else limit
+    query_limit = SELECTION_FETCH_CAP if selection else limit
     if selection:
         offset = 0
 
@@ -353,7 +356,8 @@ def list_episodes(slug):
         **({'selection': episode_list} if selection else {}),
         'total': total,
         'limit': limit,
-        'offset': offset
+        'offset': offset,
+        **({'truncated': total > len(episode_list)} if selection else {}),
     })
 
 
