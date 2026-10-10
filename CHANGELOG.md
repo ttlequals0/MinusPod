@@ -26,6 +26,7 @@ release notes.
 - Expected provider holds and service deferrals no longer log processing failures.
 - Legacy cue-template migrations preserve saved match thresholds and cue-removal preferences.
 - Settings tests isolate automatic reviewer calibration to prevent unrelated retry assertions from failing.
+- Container images remove unused repository setup and init packages and use GNU coreutils.
 - Scheduled backups prevent temporary-file symlink races and preserve the previous backup when the destination changes during a snapshot.
 
 ## [2.99.2] - 2026-10-09

@@ -90,9 +90,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     pip install -r requirements.txt
-# Build headers only needed for pip C-extension builds above; linux-libc-dev
-# carries a stream of unfixed kernel-header CVEs the runtime never touches.
-RUN apt-get purge -y linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
+# Use Ubuntu's supported GNU provider instead of the protected Rust provider.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --allow-remove-essential \
+        coreutils-from-gnu coreutils-from-uutils- rust-coreutils- \
+    && apt-get purge -y --allow-remove-essential \
+        linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
+        software-properties-common python3-jwt systemd systemd-sysv libpam-systemd \
     && apt-get autoremove -y \
     && python -m pip uninstall -y pip \
     && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/* \
