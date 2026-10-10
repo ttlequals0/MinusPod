@@ -81,7 +81,7 @@ def refresh_recorder(monkeypatch):
 
 
 def _mock_fetch(monkeypatch, content):
-    def _fetch(self, url, timeout=30):
+    def _fetch(self, url, timeout=30, podcast=None):
         return content
     monkeypatch.setattr('rss_parser.RSSParser.fetch_feed', _fetch)
 
@@ -153,7 +153,7 @@ def test_patch_source_url_ssrf_blocked(app_client, seeded_feed, _auth,
                                        refresh_recorder, monkeypatch):
     fetch_calls = []
 
-    def _fetch(self, url, timeout=30):
+    def _fetch(self, url, timeout=30, podcast=None):
         fetch_calls.append(url)
         return VALID_RSS
 
