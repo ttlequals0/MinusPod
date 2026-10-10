@@ -1,0 +1,76 @@
+{
+  "source_date_epoch": 1791590400,
+  "packages": [
+    {
+      "name": "x264",
+      "source_version": "2:0.165.3222+gitb35605ac-3build1",
+      "version": "2:0.165.3222+gitb35605ac-3build1+minuspod1",
+      "source_files": [
+        {
+          "file": "x264_0.165.3222+gitb35605ac-3build1.dsc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/x/x264/x264_0.165.3222+gitb35605ac-3build1.dsc",
+          "sha256": "78723292c1b72d1210fbb7d75cd9f73ae984b1cb52081de0e54c77a9788c2669"
+        },
+        {
+          "file": "x264_0.165.3222+gitb35605ac.orig.tar.gz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/x/x264/x264_0.165.3222+gitb35605ac.orig.tar.gz",
+          "sha256": "4672fb415c34bf16e2ed9cd43d1ab865158f586c7f1406d507f7f44516fb5ec8"
+        },
+        {
+          "file": "x264_0.165.3222+gitb35605ac-3build1.debian.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/universe/x/x264/x264_0.165.3222+gitb35605ac-3build1.debian.tar.xz",
+          "sha256": "28bb2b111c288cbcbd844da4577203e87653b769190a10ab078b5b8c1c58612f"
+        }
+      ],
+      "dsc": "x264_0.165.3222+gitb35605ac-3build1.dsc",
+      "patches": [
+        {
+          "file": "x264-MR183.patch",
+          "url": "https://code.videolan.org/videolan/x264/-/commit/09136e90b49f30c25f71b00b95775da21a09dbd0.patch",
+          "sha256": "965e39066b38a64af2b6819698143304603f293b3f1d394d4d650a237df7c712",
+          "upstream_commit": "09136e90b49f30c25f71b00b95775da21a09dbd0"
+        }
+      ],
+      "runtime_packages": [
+        "libx264-165"
+      ],
+      "summary": "Guard encoder cleanup when opening an encoder fails."
+    },
+    {
+      "name": "cairo",
+      "source_version": "1.18.4-3",
+      "version": "1.18.4-3+minuspod1",
+      "source_files": [
+        {
+          "file": "cairo_1.18.4-3.dsc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/c/cairo/cairo_1.18.4-3.dsc",
+          "sha256": "5dfb99f2896a2f23810cde3e80e930bd917079b143e4e984feb44ba018590d2a"
+        },
+        {
+          "file": "cairo_1.18.4.orig.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/c/cairo/cairo_1.18.4.orig.tar.xz",
+          "sha256": "445ed8208a6e4823de1226a74ca319d3600e83f6369f99b14265006599c32ccb"
+        },
+        {
+          "file": "cairo_1.18.4-3.debian.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/c/cairo/cairo_1.18.4-3.debian.tar.xz",
+          "sha256": "25cb656a9c4165f36950b01710683efce6b5b0e30b80d81d519d7c3d1a2f7b2a"
+        }
+      ],
+      "dsc": "cairo_1.18.4-3.dsc",
+      "patches": [
+        {
+          "file": "cairo-glyph-overflow-842bd70.patch",
+          "url": "https://gitlab.freedesktop.org/cairo/cairo/-/commit/842bd70cdfaf87d4e284685ecd5995622da38301.patch",
+          "sha256": "91fb2009f26406b6b28f9588447f276c98f9578c43324a97fcd00f2ce71050f5",
+          "upstream_commit": "842bd70cdfaf87d4e284685ecd5995622da38301"
+        }
+      ],
+      "runtime_packages": [
+        "libcairo2",
+        "libcairo-gobject2"
+      ],
+      "summary": "Guard glyph allocation against integer overflow."
+    }
+  ]
+}

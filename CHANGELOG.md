@@ -19,6 +19,7 @@ release notes.
 - Live episode title search covers the full feed, with selection across pages and an explicit limit of 500 episodes per bulk action.
 
 ### Changed
+- Container images upgrade PCRE2 to 10.49 with newer JIT fixes and Unicode 17 matching data.
 - Rename the Settings section to System One Tuneables.
 - Matched ad-break cues are removed with ads by default. Each template can opt out, while programme cues and manual trims remain protected. (#832)
 
@@ -29,6 +30,7 @@ release notes.
 - Settings tests isolate automatic reviewer calibration to prevent unrelated retry assertions from failing.
 - Container images remove unused repository setup and init packages and use GNU coreutils.
 - Container images build pinned media security backports and SRT 1.5.6, retaining patched source and build provenance.
+- Container images also backport fixes in core, graphics, and utility packages; native CPU builds verify runtime imports, media processing, and application health before publication.
 - Scheduled backups prevent temporary-file symlink races and preserve the previous backup when the destination changes during a snapshot.
 
 ## [2.99.2] - 2026-10-09

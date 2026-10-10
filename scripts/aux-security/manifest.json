@@ -1,0 +1,203 @@
+{
+  "source_date_epoch": 1791590400,
+  "packages": [
+    {
+      "name": "p11-kit",
+      "source_version": "0.26.2-2",
+      "version": "0.26.2-2+minuspod1",
+      "source_files": [
+        {
+          "file": "p11-kit_0.26.2-2.dsc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/p11-kit/p11-kit_0.26.2-2.dsc",
+          "sha256": "066316279c279ca964caa83d92b0f9263914fbbe3c329419e3eec9ffb30540fb"
+        },
+        {
+          "file": "p11-kit_0.26.2.orig.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/p11-kit/p11-kit_0.26.2.orig.tar.xz",
+          "sha256": "09fd9f44da4813a3141e73d5e7cf7008e5660d0405f13d56c15e1da9dcecf828"
+        },
+        {
+          "file": "p11-kit_0.26.2.orig.tar.xz.asc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/p11-kit/p11-kit_0.26.2.orig.tar.xz.asc",
+          "sha256": "a2c205bbac7857adc91eb2670304c2ac6649aa9eaf4aab81bf0e46e124f13d8b"
+        },
+        {
+          "file": "p11-kit_0.26.2-2.debian.tar.xz",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/p/p11-kit/p11-kit_0.26.2-2.debian.tar.xz",
+          "sha256": "1e0be1ac6c3f47a44305855b1c54e22064516a258eef911119c4944d5530b87f"
+        }
+      ],
+      "dsc": "p11-kit_0.26.2-2.dsc",
+      "patches": [
+        {
+          "file": "p11-kit-13757.patch",
+          "path": "patches/p11-kit-13757.patch",
+          "sha256": "24ad6541730f21f81b1afa203c6d85944975de3f3a0c96379d16e9b2a20b9039",
+          "upstream_commit": "0eedd4ddd7c924f9cbb4ac496b3fda699435c3cf",
+          "cves": [
+            "CVE-2026-13757"
+          ]
+        }
+      ],
+      "runtime_packages": [
+        "libp11-kit0"
+      ],
+      "summary": "Limit nested RPC attribute parsing depth."
+    },
+    {
+      "name": "bubblewrap",
+      "source_version": "0.12.0-1~deb13u1",
+      "version": "0.12.0-1~deb13u1+minuspod1",
+      "source_files": [
+        {
+          "file": "bubblewrap_0.12.0-1~deb13u1.dsc",
+          "url": "https://deb.debian.org/debian/pool/main/b/bubblewrap/bubblewrap_0.12.0-1~deb13u1.dsc",
+          "sha256": "1abef77e6c35ce6c48c8969d31bffcc7a589bfd8e8fea9284fd8d77750f01d39"
+        },
+        {
+          "file": "bubblewrap_0.12.0.orig.tar.xz",
+          "url": "https://deb.debian.org/debian/pool/main/b/bubblewrap/bubblewrap_0.12.0.orig.tar.xz",
+          "sha256": "9760d007363e3abba7c747489910f9f82d9fca53ba3bd3282e396fa3c97a3314"
+        },
+        {
+          "file": "bubblewrap_0.12.0-1~deb13u1.debian.tar.xz",
+          "url": "https://deb.debian.org/debian/pool/main/b/bubblewrap/bubblewrap_0.12.0-1~deb13u1.debian.tar.xz",
+          "sha256": "7b54f121aebf5d4b38360ea728274c26fa471582bc3e6658379b679ecd8b5a2f"
+        }
+      ],
+      "patches": [],
+      "cves": [
+        "CVE-2026-87766"
+      ],
+      "runtime_packages": [
+        "bubblewrap"
+      ],
+      "summary": "Use the upstream sandbox setup path confinement fix.",
+      "dsc": "bubblewrap_0.12.0-1~deb13u1.dsc",
+      "source_distribution": "Debian"
+    },
+    {
+      "name": "tar",
+      "source_version": "1.35+dfsg-4ubuntu0.4",
+      "version": "1.35+dfsg-4ubuntu0.4+minuspod1",
+      "source_files": [
+        {
+          "file": "tar_1.35+dfsg-4ubuntu0.4.dsc",
+          "sha256": "e42458c1675ec7ba43cca2ea8e085231337e7a4553d7c6e2c21d2003761e5d43",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/t/tar/tar_1.35+dfsg-4ubuntu0.4.dsc"
+        },
+        {
+          "file": "tar_1.35+dfsg.orig.tar.xz",
+          "sha256": "9ae57e981c1e73c0eebc2b26c9b0c4497fe310ef1d516ea430efb5470b71f7a8",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/t/tar/tar_1.35+dfsg.orig.tar.xz"
+        },
+        {
+          "file": "tar_1.35+dfsg-4ubuntu0.4.debian.tar.xz",
+          "sha256": "25d8e50e31629e85baef5da32b3030e5ad0c9148ab3ee6b1428212a10e307e4d",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/t/tar/tar_1.35+dfsg-4ubuntu0.4.debian.tar.xz"
+        }
+      ],
+      "dsc": "tar_1.35+dfsg-4ubuntu0.4.dsc",
+      "patches": [
+        {
+          "file": "tar-18477-code.patch",
+          "path": "patches/tar/tar-18477-code.patch",
+          "sha256": "ad7878be7e792b16a1ed1f3adecdcc111b1f510b307ae758a209a1cf636e099a",
+          "upstream_commits": [
+            "0714d2f082104005a1c70ee6ec4175194943ea88",
+            "d479b2cc9160d9c2fb61afbc9ee70c2faadf80db"
+          ],
+          "cves": [
+            "CVE-2026-18477"
+          ]
+        },
+        {
+          "file": "tar-18477-generated-build.patch",
+          "path": "patches/tar/tar-18477-generated-build.patch",
+          "sha256": "8fedc1c580e371b02d4340365b64cd9b70bb483f1befec065f2458e10fb3fe23",
+          "cves": []
+        },
+        {
+          "file": "tar-18508-fedora-port.patch",
+          "path": "patches/tar/tar-18508-fedora-port.patch",
+          "sha256": "5f4d8d9cac7b179273307b0cf9de6946c2741e40e18621bc71f616cc7f3acc34",
+          "upstream_commits": [
+            "bfc33463942060316f70f275471ed202b0076972",
+            "b4fc9ca13617411c5db57286a3ff534bd40acdc1",
+            "67c8dff6968aae58fcdfb05268eb1b4c07308f1a",
+            "55e8233438b3c13294109df502a9b220a9a3f4f5",
+            "0470c109c08f466d8332ba3326070554b4d81aa1",
+            "1b91f5f66f8e6c490eef0fdee50f652cfe155844",
+            "325b899214ac13519153318e66c889a31c15342d",
+            "1980e032afe60c5fe0e5df573457885ece4e69d5",
+            "e335e2c8b102f83b63ffd373f0b88401da3ebe6c",
+            "941f62b24db232c58a41a0a621e08451f7f97ed8"
+          ],
+          "upstream_authors": [
+            "Sergey Poznyakoff <gray@gnu.org>",
+            "Paul Eggert <eggert@cs.ucla.edu>",
+            "Pavel Cahyna <pcahyna@redhat.com>"
+          ],
+          "cves": [
+            "CVE-2026-18508"
+          ]
+        },
+        {
+          "file": "tar-18508-ubuntu-compat.patch",
+          "path": "patches/tar/tar-18508-ubuntu-compat.patch",
+          "sha256": "dc15491d2cd49e333f6bd9a69584a4c7f8849eaa771f700ff9d589a165e056c8",
+          "cves": [
+            "CVE-2026-18508"
+          ]
+        }
+      ],
+      "runtime_packages": [
+        "tar"
+      ],
+      "summary": "Confine archive extraction to the requested top-level directory."
+    },
+    {
+      "name": "libxrender",
+      "source_version": "1:0.9.12-1build1",
+      "version": "1:0.9.12-1build1+minuspod1",
+      "source_files": [
+        {
+          "file": "libxrender_0.9.12-1build1.dsc",
+          "sha256": "84d74d1d04750e0742521f453635b0b092b5fb13cdf3aa00c1360c6db2d68e42",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxrender/libxrender_0.9.12-1build1.dsc"
+        },
+        {
+          "file": "libxrender_0.9.12.orig.tar.gz",
+          "sha256": "0fff64125819c02d1102b6236f3d7d861a07b5216d8eea336c3811d31494ecf7",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxrender/libxrender_0.9.12.orig.tar.gz"
+        },
+        {
+          "file": "libxrender_0.9.12.orig.tar.gz.asc",
+          "sha256": "0bbd310ac3974ef398cf4d8a4b362b0b4d60ceb43e6eba393c3cc740b03816fc",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxrender/libxrender_0.9.12.orig.tar.gz.asc"
+        },
+        {
+          "file": "libxrender_0.9.12-1build1.diff.gz",
+          "sha256": "473c174d5df6c9378e52d092909acf42bdbd453af419893df6414294619649ac",
+          "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libxrender/libxrender_0.9.12-1build1.diff.gz"
+        }
+      ],
+      "dsc": "libxrender_0.9.12-1build1.dsc",
+      "patches": [
+        {
+          "file": "libxrender-0564bce.patch",
+          "path": "patches/xrender/libxrender-0564bce.patch",
+          "sha256": "eeecac9d32dc658105059c2635270728daeeabcb25394ecdf9ec6c132ce4e595",
+          "cves": [
+            "CVE-2026-88807"
+          ],
+          "upstream_commit": "0564bce5446550c1b1681f3d8a933c20ea1455f7"
+        }
+      ],
+      "runtime_packages": [
+        "libxrender1"
+      ],
+      "summary": "Reject impossible subpixel counts in RenderQueryPictFormats."
+    }
+  ]
+}

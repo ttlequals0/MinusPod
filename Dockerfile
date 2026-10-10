@@ -36,7 +36,60 @@ COPY scripts/build_media_security_packages.py /build/scripts/
 COPY scripts/media-security/ /build/scripts/media-security/
 RUN python3 /build/scripts/build_media_security_packages.py
 
-# Stage 3: Python application
+# Build core libraries independently from the media package cache.
+FROM ubuntu:26.04 AS core-security-dependencies
+ENV DEBIAN_FRONTEND=noninteractive
+RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update \
+    && apt-get build-dep -y --no-install-recommends -P nobiarch glibc pcre2 \
+    && apt-get install -y --no-install-recommends python3 ca-certificates devscripts quilt
+FROM core-security-dependencies AS core-security-builder
+COPY scripts/build_media_security_packages.py /build/scripts/
+COPY scripts/core-security/ /build/scripts/core-security/
+RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/core-security
+
+# Build ancillary libraries as an unprivileged package builder.
+FROM ubuntu:26.04 AS misc-security-dependencies
+ENV DEBIAN_FRONTEND=noninteractive
+RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update \
+    && apt-get build-dep -y --no-install-recommends cjson glib2.0 \
+    && apt-get install -y --no-install-recommends python3 ca-certificates devscripts quilt
+FROM misc-security-dependencies AS misc-security-builder
+COPY scripts/build_media_security_packages.py /build/scripts/
+COPY scripts/misc-security/ /build/scripts/misc-security/
+RUN install -d -o ubuntu -g ubuntu /work/media-security /out
+USER ubuntu
+RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/misc-security
+
+# Build the patched graphics and video libraries separately.
+FROM ubuntu:26.04 AS graphics-security-dependencies
+ENV DEBIAN_FRONTEND=noninteractive
+RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update \
+    && apt-get build-dep -y --no-install-recommends cairo x264 \
+    && apt-get install -y --no-install-recommends python3 ca-certificates devscripts quilt
+FROM graphics-security-dependencies AS graphics-security-builder
+COPY scripts/build_media_security_packages.py /build/scripts/
+COPY scripts/graphics-security/ /build/scripts/graphics-security/
+RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/graphics-security
+
+# Build patched utilities with unprivileged package tests.
+FROM ubuntu:26.04 AS aux-security-dependencies
+ENV DEBIAN_FRONTEND=noninteractive
+RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update \
+    && apt-get build-dep -y --no-install-recommends p11-kit bubblewrap tar libxrender \
+    && apt-get install -y --no-install-recommends \
+        python3 ca-certificates devscripts quilt gtk-doc-tools dh-exec bison xutils-dev libselinux1-dev
+FROM aux-security-dependencies AS aux-security-builder
+COPY scripts/build_media_security_packages.py /build/scripts/
+COPY scripts/aux-security/ /build/scripts/aux-security/
+RUN install -d -o ubuntu -g ubuntu /work/media-security /out
+USER ubuntu
+RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/aux-security
+
+# Python application
 # Plain Ubuntu base - no nvidia/cuda image. ctranslate2 statically links the
 # CUDA runtime, and cuDNN/cuBLAS come from the pip nvidia-* wheels (torch
 # deps) via LD_LIBRARY_PATH below. GPU access is injected by the NVIDIA
@@ -102,6 +155,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     pip install -r requirements.txt
+COPY --from=core-security-builder /out/packages/ /opt/core-security-packages/
+COPY --from=core-security-builder /out/provenance/ /usr/share/minuspod/core-security/
+RUN apt-get update \
+    && apt-get purge -y \
+        linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
+    && apt-get install -y --no-install-recommends /opt/core-security-packages/*.deb \
+    && rm -rf /opt/core-security-packages /var/lib/apt/lists/*
 # Keep the matching shared-library family and corresponding patched source.
 COPY --from=media-security-builder /out/packages/ /opt/media-security-packages/
 COPY --from=media-security-builder /out/provenance/ /usr/share/minuspod/media-security/
@@ -109,15 +169,36 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends /opt/media-security-packages/*.deb \
     && rm -rf /opt/media-security-packages /var/lib/apt/lists/*
 
+COPY --from=misc-security-builder /out/packages/ /opt/misc-security-packages/
+COPY --from=misc-security-builder /out/provenance/ /usr/share/minuspod/misc-security/
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends /opt/misc-security-packages/*.deb \
+    && rm -rf /opt/misc-security-packages /var/lib/apt/lists/*
+
+COPY --from=graphics-security-builder /out/packages/ /opt/graphics-security-packages/
+COPY --from=graphics-security-builder /out/provenance/ /usr/share/minuspod/graphics-security/
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends /opt/graphics-security-packages/*.deb \
+    && rm -rf /opt/graphics-security-packages /var/lib/apt/lists/*
+
+COPY --from=aux-security-builder /out/packages/ /opt/aux-security-packages/
+COPY --from=aux-security-builder /out/provenance/ /usr/share/minuspod/aux-security/
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends /opt/aux-security-packages/*.deb \
+    && rm -rf /opt/aux-security-packages /var/lib/apt/lists/*
+
 # Use Ubuntu's supported GNU provider instead of the protected Rust provider.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --allow-remove-essential \
         coreutils-from-gnu coreutils-from-uutils- rust-coreutils- \
     && apt-get purge -y --allow-remove-essential \
-        linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
         software-properties-common python3-jwt systemd systemd-sysv libpam-systemd \
     && apt-get autoremove -y \
+    && python3.12 /usr/share/minuspod/core-security/build_media_security_packages.py --verify-installed \
     && python3.12 /usr/share/minuspod/media-security/build_media_security_packages.py --verify-installed \
+    && python3.12 /usr/share/minuspod/misc-security/build_media_security_packages.py --verify-installed \
+    && python3.12 /usr/share/minuspod/graphics-security/build_media_security_packages.py --verify-installed \
+    && python3.12 /usr/share/minuspod/aux-security/build_media_security_packages.py --verify-installed \
     && python -m pip uninstall -y pip \
     && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/* \
     && find /opt/venv -type d -name '__pycache__' -exec rm -rf {} +
