@@ -351,3 +351,123 @@ def test_sdk_client_built_with_max_retries_zero_and_500_still_retries(monkeypatc
     assert resp.text == "{}"
     assert captured.get("max_retries") == 0
     assert attempts["n"] == 2
+
+
+def _fake_success_msg():
+    msg = type("M", (), {})()
+    msg.choices = [type("C", (), {"message": type("Msg", (), {"content": "{}"})(),
+                                   "finish_reason": "stop"})()]
+    msg.usage = type("U", (), {"prompt_tokens": 1, "completion_tokens": 1})()
+    msg.model = "m1"
+    return msg
+
+
+def test_inner_retries_absorb_two_500s_within_one_outer_attempt(monkeypatch):
+    """500, 500, then 200: the SDK-shape inner retry (restored alongside
+    max_retries=0) resolves this without the outer call_with_retry loop ever
+    seeing a failure, proven by passing it max_retries=0."""
+    monkeypatch.setenv("K", "dummy-key")
+    attempts = {"n": 0}
+
+    class _FakeAsyncOpenAI:
+        def __init__(self, **kwargs):
+            self.chat = _FakeChat(self._create)
+
+        async def _create(self, **kwargs):
+            attempts["n"] += 1
+            if attempts["n"] <= 2:
+                raise _openai_error(APIStatusError, status=500, body={"error": {"message": "boom"}})
+            return _fake_success_msg()
+
+    monkeypatch.setattr("openai.AsyncOpenAI", _FakeAsyncOpenAI)
+    clock = FakeClock()
+    sleeps = []
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+        await clock.sleep(seconds)
+
+    async def run():
+        return await llm.call_with_retry(
+            **await _call_kwargs(max_retries=0, now_fn=clock.now, sleep_fn=fake_sleep,
+                                  pause_state=llm.ProviderPauseState()),
+        )
+
+    resp = asyncio.run(run())
+    assert resp.text == "{}"
+    assert attempts["n"] == 3
+    # Inner backoff shape: 0.5s doubling, capped at 8s, with jitter (<= requested delay).
+    assert len(sleeps) == 2
+    assert all(0.0 <= s <= 0.5 for s in sleeps[:1])
+    assert all(0.0 <= s <= 1.0 for s in sleeps[1:2])
+
+
+def test_three_500s_raise_one_llm_transient_error_to_outer_loop(monkeypatch):
+    monkeypatch.setenv("K", "dummy-key")
+    attempts = {"n": 0}
+
+    class _FakeAsyncOpenAI:
+        def __init__(self, **kwargs):
+            self.chat = _FakeChat(self._create)
+
+        async def _create(self, **kwargs):
+            attempts["n"] += 1
+            raise _openai_error(APIStatusError, status=500, body={"error": {"message": "boom"}})
+
+    monkeypatch.setattr("openai.AsyncOpenAI", _FakeAsyncOpenAI)
+    clock = FakeClock()
+
+    async def run():
+        return await llm.call_with_retry(
+            **await _call_kwargs(max_retries=0, now_fn=clock.now, sleep_fn=clock.sleep,
+                                  pause_state=llm.ProviderPauseState()),
+        )
+
+    with pytest.raises(llm.LLMTransientError):
+        asyncio.run(run())
+    # 1 initial + 2 inner retries; the outer loop (max_retries=0) never retries again.
+    assert attempts["n"] == 3
+
+
+def test_wait_for_pause_rechecks_after_extension_mid_sleep():
+    """A second 429 extends the pause while two callers are already asleep;
+    both must wait for the extended time, not resend at the old one."""
+    clock = FakeClock()
+    state = llm.ProviderPauseState()
+    t1 = clock.t + 100.0
+    t2 = clock.t + 300.0
+    state.start_or_extend("p", t1, reason="r1", now=clock.t)
+
+    pending: list[asyncio.Event] = []
+
+    async def controlled_sleep(seconds):
+        ev = asyncio.Event()
+        pending.append(ev)
+        await ev.wait()
+
+    async def waiter():
+        await llm._wait_for_pause("p", pause_state=state, now_fn=clock.now, sleep_fn=controlled_sleep)
+        return clock.now()
+
+    async def run():
+        task_a = asyncio.create_task(waiter())
+        task_b = asyncio.create_task(waiter())
+        while len(pending) < 2:
+            await asyncio.sleep(0)
+        # Extend the pause while both are asleep, waiting on their first sleep.
+        state.start_or_extend("p", t2, reason="r2", now=clock.now())
+        clock.t = t1
+        for ev in pending:
+            ev.set()
+        pending.clear()
+        # Both must loop back, see the extension, and start a second sleep
+        # rather than returning at t1.
+        while len(pending) < 2:
+            await asyncio.sleep(0)
+        clock.t = t2
+        for ev in pending:
+            ev.set()
+        return await asyncio.gather(task_a, task_b)
+
+    finish_times = asyncio.run(run())
+    assert all(t >= t2 for t in finish_times)

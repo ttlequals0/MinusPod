@@ -49,9 +49,7 @@ class RunConfig:
     max_tokens: int = 4096  # actual default resolved at parse time via _default_max_tokens()
     max_concurrent_calls: int = 8
     max_concurrent_per_provider: int = 4
-    # Cap on a provider rate-limit pause (e.g. the Claude wrapper's five-hour
-    # account reset) before the call is recorded as an error instead; default
-    # 6h covers that window with margin.
+    # Cap on a rate-limit pause (e.g. the wrapper's five-hour account reset) before it's recorded as an error.
     max_rate_limit_pause_seconds: int = 21600
 
 

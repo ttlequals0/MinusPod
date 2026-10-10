@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -18,16 +19,20 @@ from .config import ProviderConfig, secret
 
 logger = logging.getLogger(__name__)
 
-# Default cap on a rate-limit pause before the call is recorded as an error
-# instead; overridden by [run] max_rate_limit_pause_seconds (see config.py).
+# Cap on a rate-limit pause before the call is recorded as an error; see [run] max_rate_limit_pause_seconds.
 DEFAULT_MAX_RATE_LIMIT_PAUSE_SECONDS = 21600.0
 
-# Wrapper adds this much slack past its own stated reset time (clock skew,
-# upstream rounding) before resuming.
+# Slack past the wrapper's stated reset time (clock skew, rounding).
 ACCOUNT_RESET_SLACK_SECONDS = 15.0
 
 # Used when a 429's reset is unknown and no Retry-After header is usable.
 ACCOUNT_RESET_DEFAULT_SECONDS = 60.0
+
+# Mirrors the openai SDK's own backoff (openai._constants), which max_retries=0
+# below disables so this layer can see a raw 429 before the SDK retries it.
+_INNER_RETRY_INITIAL_DELAY = 0.5
+_INNER_RETRY_MAX_DELAY = 8.0
+_INNER_MAX_RETRIES = 2
 
 # Process-level memo of Anthropic models that have rejected `temperature` as
 # deprecated. Populated lazily on the first 400 per model so subsequent calls
@@ -116,10 +121,17 @@ _default_pause_state = ProviderPauseState()
 
 async def _wait_for_pause(provider_name: str, *, pause_state: ProviderPauseState,
                           now_fn, sleep_fn) -> None:
-    """Block until provider_name's shared pause (if any) has resolved."""
-    resume_at = pause_state.resume_at(provider_name)
-    now = now_fn()
-    if resume_at > now:
+    """Block until provider_name's shared pause (if any) has resolved.
+
+    Re-reads resume_at after every wake: another caller's 429 can extend the
+    pause while this one sleeps, so a single fixed-duration sleep would wake
+    and send too early.
+    """
+    while True:
+        resume_at = pause_state.resume_at(provider_name)
+        now = now_fn()
+        if resume_at <= now:
+            return
         await sleep_fn(resume_at - now)
 
 
@@ -174,6 +186,7 @@ async def call(
     max_tokens: int,
     timeout: int,
     response_format: str = "json_object",
+    sleep_fn=asyncio.sleep,
 ) -> LLMResponse:
     if provider.client == "anthropic":
         return await _call_anthropic(
@@ -195,6 +208,7 @@ async def call(
             max_tokens=max_tokens,
             timeout=timeout,
             response_format=response_format,
+            sleep_fn=sleep_fn,
         )
     raise LLMNonRetryableError(f"Unknown provider client {provider.client!r}")
 
@@ -277,6 +291,35 @@ def _rejects_json_mode(err: str) -> bool:
     return any(k in low for k in _JSON_MODE_REJECTIONS)
 
 
+async def _create_with_inner_retries(client, kwargs: dict, *, sleep_fn):
+    """One chat-completion call, retrying connection errors, timeouts, and 5xx
+    up to _INNER_MAX_RETRIES times with the SDK's own backoff shape (restored
+    here since the client is built with max_retries=0). A 429 is converted
+    and raised immediately, never retried here; a non-5xx APIStatusError
+    (e.g. 400) is re-raised as-is for the caller's own handling.
+    """
+    from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
+
+    attempt = 0
+    while True:
+        try:
+            return await client.chat.completions.create(**kwargs)
+        except RateLimitError as e:
+            raise _account_rate_limit_error(e) or LLMTransientError(str(e)) from e
+        except (APITimeoutError, APIConnectionError) as e:
+            if attempt >= _INNER_MAX_RETRIES:
+                raise LLMTransientError(str(e)) from e
+        except APIStatusError as e:
+            status = getattr(e, "status_code", 0)
+            if not (500 <= status < 600):
+                raise
+            if attempt >= _INNER_MAX_RETRIES:
+                raise LLMTransientError(str(e)) from e
+        delay = min(_INNER_RETRY_INITIAL_DELAY * (2 ** attempt), _INNER_RETRY_MAX_DELAY)
+        await sleep_fn(delay * (1 - 0.25 * random.random()))
+        attempt += 1
+
+
 async def _call_openai_compatible(
     *,
     provider: ProviderConfig,
@@ -287,9 +330,9 @@ async def _call_openai_compatible(
     max_tokens: int,
     timeout: int,
     response_format: str,
+    sleep_fn=asyncio.sleep,
 ) -> LLMResponse:
-    from openai import AsyncOpenAI
-    from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
+    from openai import AsyncOpenAI, APIStatusError
 
     # OpenRouter recommends HTTP-Referer + X-Title headers for app attribution.
     # Routes calls to the project's free-tier allowance and shows up named in
@@ -307,9 +350,8 @@ async def _call_openai_compatible(
         base_url=provider.base_url,
         timeout=timeout,
         default_headers=default_headers,
-        # call_with_retry owns all retry/backoff decisions; the SDK's own 429
-        # retry (up to 60s, twice) would burn the wrapper's rate-limit window
-        # before we ever see the raw 429 to pause on.
+        # Disables the SDK's own 429 retry so our raw-429 handling (below)
+        # sees it before the SDK's backoff burns the wrapper's rate-limit window.
         max_retries=0,
     )
     kwargs: dict[str, Any] = dict(
@@ -327,11 +369,7 @@ async def _call_openai_compatible(
         json_format_used = "native"
 
     try:
-        msg = await client.chat.completions.create(**kwargs)
-    except RateLimitError as e:
-        raise _account_rate_limit_error(e) or LLMTransientError(str(e)) from e
-    except (APITimeoutError, APIConnectionError) as e:
-        raise LLMTransientError(str(e)) from e
+        msg = await _create_with_inner_retries(client, kwargs, sleep_fn=sleep_fn)
     except APIStatusError as e:
         status = getattr(e, "status_code", 0)
         # Providers word the rejection differently: OpenAI says `response_format`,
@@ -339,18 +377,10 @@ async def _call_openai_compatible(
         if status == 400 and json_format_used == "native" and _rejects_json_mode(str(e)):
             kwargs.pop("response_format", None)
             try:
-                msg = await client.chat.completions.create(**kwargs)
+                msg = await _create_with_inner_retries(client, kwargs, sleep_fn=sleep_fn)
                 json_format_used = "prompt_injection"
-            except RateLimitError as e2:
-                raise _account_rate_limit_error(e2) or LLMTransientError(str(e2)) from e2
-            except (APITimeoutError, APIConnectionError) as e2:
-                raise LLMTransientError(str(e2)) from e2
             except APIStatusError as e2:
-                if 500 <= getattr(e2, "status_code", 0) < 600:
-                    raise LLMTransientError(str(e2)) from e2
                 raise LLMNonRetryableError(str(e2)) from e2
-        elif 500 <= status < 600:
-            raise LLMTransientError(str(e)) from e
         else:
             raise LLMNonRetryableError(str(e)) from e
 
@@ -407,6 +437,7 @@ async def call_with_retry(
                 max_tokens=max_tokens,
                 timeout=timeout,
                 response_format=response_format,
+                sleep_fn=sleep_fn,
             )
         except AccountRateLimitError as e:
             now = now_fn()
