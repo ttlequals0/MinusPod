@@ -150,6 +150,8 @@ One-time conversion of a flat `results/raw/calls.jsonl` into per-model shards un
 - `[run] max_concurrent_calls` (default 8): global cap.
 - `[run] max_concurrent_per_provider` (default 4): per-provider cap.
 
+On an account-limit 429 from the Claude OpenAI-compatible wrapper (the subscription's five-hour session cap), the runner pauses every call to that provider until the wrapper's stated reset instead of recording each one as an error. `[run] max_rate_limit_pause_seconds` (default 21600 = 6h) caps how long that pause may run; a longer wait is recorded as an error instead. A 429 without the wrapper's account-limit shape (e.g. OpenRouter's per-model throttling) keeps the previous retry-with-backoff behavior.
+
 Two simultaneous `benchmark run` invocations against the same shards are unsupported and will produce duplicate entries. The runner is single-process by design.
 
 ## Auth

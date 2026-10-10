@@ -16,6 +16,7 @@ release notes.
 - `benchmark run` and `benchmark report` accept `--model`/`--episode` filters, and community segmentation-prompt results from PR #801 are importable via `scripts/import_calls.py`.
 - Benchmark call records now live in per-model shards under `results/raw/calls/` (schema v3); `benchmark migrate-calls` converts an existing checkout.
 - Benchmark call records carry the output-token budget (`max_tokens`) used for that call; methodology and the prompt-variant comparison report now summarize the budgets actually present instead of printing the config's single value.
+- The LLM benchmark pauses all calls to a provider on the Claude wrapper's account-level rate limit (its five-hour session cap) instead of recording each one as an error; `[run] max_rate_limit_pause_seconds` caps how long it will wait before falling back to an error row.
 
 ## [2.98.2] - 2026-10-07
 

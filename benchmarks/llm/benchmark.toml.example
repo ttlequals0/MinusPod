@@ -434,6 +434,9 @@ response_format = "json_object"
 # max_tokens = 8192
 max_concurrent_calls = 8
 max_concurrent_per_provider = 4
+# Cap on a provider rate-limit pause (e.g. the Claude wrapper's five-hour
+# account reset) before the call is recorded as an error instead.
+max_rate_limit_pause_seconds = 21600
 
 [corpus]
 path = "data/corpus"

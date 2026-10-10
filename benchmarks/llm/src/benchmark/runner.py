@@ -289,6 +289,7 @@ async def run(
                     timeout=cfg.run.timeout_seconds,
                     response_format=cfg.run.response_format,
                     max_retries=cfg.run.max_retries,
+                    max_rate_limit_pause_seconds=cfg.run.max_rate_limit_pause_seconds,
                 )
                 response_text = resp.text
                 input_tokens = resp.input_tokens
