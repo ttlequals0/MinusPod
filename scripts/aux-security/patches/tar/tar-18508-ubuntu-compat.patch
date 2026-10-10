@@ -1,0 +1,78 @@
+Subject: Correct top-level context selection and option handling for Ubuntu tar
+CVE: CVE-2026-18508
+
+--- a/src/names.c
++++ b/src/names.c
+@@ -870,6 +870,7 @@
+ 
+ /* Names from external name file.  */
+ 
++static int initial_chdir;
+ static char *name_buffer;	/* buffer to hold the current file name */
+ static size_t name_buffer_length; /* allocated length of name_buffer */
+ 
+@@ -880,7 +881,11 @@
+ {
+   name_buffer = xmalloc (NAME_FIELD_SIZE + 2);
+   name_buffer_length = NAME_FIELD_SIZE;
+-  chdir_do (chdir_arg (".", !!one_top_level_dir), false);
++  initial_chdir = chdir_arg (".", !!one_top_level_dir);
++  chdir_do (initial_chdir, false);
++  for (struct name *name = namelist; name; name = name->next)
++    if (name->change_dir < 0)
++      name->change_dir = initial_chdir;
+   name_list_adjust ();
+ }
+ 
+@@ -1198,7 +1203,9 @@
+ 
+   if (same_order_option)
+     {
+-      static int change_dir;
++      static int change_dir = -1;
++      if (change_dir < 0)
++	change_dir = initial_chdir;
+ 
+       while ((ep = name_next_elt (0)) && ep->type == NELT_CHDIR)
+ 	change_dir = chdir_arg (xstrdup (ep->v.name), !!one_top_level_dir);
+@@ -1224,7 +1231,7 @@
+   else
+     {
+       /* Non sorted names -- read them all in.  */
+-      int change_dir = 0;
++      int change_dir = initial_chdir;
+ 
+       for (;;)
+ 	{
+@@ -1288,7 +1295,7 @@
+ 
+   name->found_count = 0;
+   name->matching_flags = INCLUDE_OPTIONS;
+-  name->change_dir = 0;
++  name->change_dir = -1;
+   name->directory = NULL;
+   name->parent = NULL;
+   name->cmdline = true;
+@@ -1769,7 +1776,7 @@
+   name_gather ();
+ 
+   if (!namelist)
+-    addname (".", 0, false, NULL);
++    addname (".", initial_chdir, false, NULL);
+ 
+   if (listed_incremental_option)
+     {
+--- a/src/tar.c
++++ b/src/tar.c
+@@ -2657,7 +2657,10 @@
+ 			  _("Cannot deduce top-level directory name; "
+ 			    "please set it explicitly with --one-top-level=DIR")));
+ 	}
+-      normalize_filename_x (one_top_level_dir);
++      if (one_top_level_dir && !*one_top_level_dir)
++	USAGE_ERROR ((0, 0, _("--one-top-level requires a nonempty directory")));
++      if (one_top_level_dir)
++	normalize_filename_x (one_top_level_dir);
+     }
+ 
+   /* If ready to unlink hierarchies, so we are for simpler files.  */
