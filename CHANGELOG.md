@@ -15,6 +15,7 @@ release notes.
 
 ### Added
 - Per-feed download User-Agent overrides apply to audio, artwork, chapters, and upstream transcripts; cross-fetch keeps a different podcast client. (#836)
+- Per-feed RSS User-Agent overrides apply to that feed's own fetches, alongside the existing download override. (#836)
 - Episode filters group title rules with optional RSS duration limits. Skipped episodes can keep their original audio or be hidden from the served feed. (#833)
 - Live episode title search covers the full feed, with selection across pages and an explicit limit of 500 episodes per bulk action.
 - Episode selection fetches cap at 501 matching rows and report a `truncated` flag when the match count overflows the cap.
@@ -38,6 +39,7 @@ release notes.
 - Container images also backport fixes in core, graphics, and utility packages; native CPU builds verify runtime imports, media processing, installed package versions, and application health, and reject a build whose image scan finds leaked secrets, before publication.
 - Scheduled backups prevent temporary-file symlink races and preserve the previous backup when the destination changes during a snapshot.
 - Scheduled backups remove a staging directory left behind by a crash mid-snapshot before starting the next run.
+- An invalid per-feed User-Agent override logs a warning once per feed instead of staying silent, and again only once the stored value changes.
 
 ## [2.99.2] - 2026-10-09
 

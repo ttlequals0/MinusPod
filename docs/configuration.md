@@ -629,6 +629,8 @@ fields described above.
 
 Feed settings > Advanced > Download User-Agent overrides the global download string for one feed's audio, artwork, chapters, and upstream transcripts. Save a printable ASCII string of up to 512 characters, or choose Use global to clear it. The API field `downloadUserAgentOverride` accepts a string or `null`; blank also clears it. Configuration export and import preserve the override. Changing the effective download string also allows a fresh attempt for artwork that failed with the previous string.
 
+Feed settings > Advanced > RSS User-Agent overrides the global RSS string for that feed's own fetches, the same way the download override works. The API field `feedUserAgentOverride` accepts a string or `null`; blank also clears it. Configuration export and import preserve the override. An override that fails validation (e.g. edited directly in the database) is ignored in favor of the global RSS string, with a warning logged once per feed until the stored value changes.
+
 Cross-fetch still selects a random alternate from its podcast-client pool. It excludes the feed's effective download string and any accepted fallback string, so setting an override preserves request variation.
 
 MinusPod identifies itself with two User-Agent strings, and hosts treat them differently. Bot mitigation on some CDNs refuses browser identifiers below a version floor that moves as new browsers ship. A string that worked last year starts drawing a 403 on download, even though the file is there. Other feed hosts do the reverse and answer only a declared podcast client. One string cannot satisfy both, so there are two.

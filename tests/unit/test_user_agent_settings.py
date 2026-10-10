@@ -186,3 +186,28 @@ def test_feed_override_does_not_change_global_or_other_feeds():
 @pytest.mark.parametrize('value', [None, '', 'Bad/1.0\r\nX-Injected: yes', 5])
 def test_invalid_or_empty_feed_override_inherits_global(value):
     assert user_agent.download_user_agent({'download_user_agent_override': value}) == BROWSER_USER_AGENT
+
+
+def test_feed_user_agent_override_takes_precedence_over_global():
+    Database().set_setting(user_agent.FEED_UA_SETTING, 'Global/1.0')
+    user_agent.invalidate_cache()
+    assert user_agent.feed_user_agent({'feed_user_agent_override': '  Feed/2.0  '}) == 'Feed/2.0'
+    assert user_agent.feed_user_agent({'feed_user_agent_override': None}) == 'Global/1.0'
+    assert user_agent.feed_user_agent() == 'Global/1.0'
+    assert user_agent.download_user_agent() == BROWSER_USER_AGENT
+
+
+def test_invalid_feed_override_warns_once_until_the_value_changes(caplog):
+    podcast = {'slug': 'show-a', 'feed_user_agent_override': 'Bad/1.0\r\nX-Injected: yes'}
+    with caplog.at_level('WARNING', logger='podcast.audio'):
+        for _ in range(3):
+            assert user_agent.feed_user_agent(podcast) == APP_USER_AGENT
+        warnings = [r for r in caplog.records if 'show-a' in r.message]
+        assert len(warnings) == 1
+
+        caplog.clear()
+        podcast['feed_user_agent_override'] = 'Still/Bad\r\nX-Injected: yes'
+        assert user_agent.feed_user_agent(podcast) == APP_USER_AGENT
+        assert user_agent.feed_user_agent(podcast) == APP_USER_AGENT
+        warnings = [r for r in caplog.records if 'show-a' in r.message]
+        assert len(warnings) == 1

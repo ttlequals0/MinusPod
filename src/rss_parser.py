@@ -355,8 +355,8 @@ class RSSParser:
             return env
         return getattr(self, 'base_url', 'http://localhost:8000')
 
-    def fetch_feed(self, url: str, timeout: int = 30) -> str | None:
-        """Fetch RSS feed from URL."""
+    def fetch_feed(self, url: str, timeout: int = 30, podcast=None) -> str | None:
+        """Fetch RSS feed from URL. Pass podcast to honor its feed UA override."""
         breaker = _get_rss_circuit_breaker(url)
         probe_token = None
         try:
@@ -378,7 +378,7 @@ class RSSParser:
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,
-                headers=_identity_headers(url, {'User-Agent': feed_user_agent()}),
+                headers=_identity_headers(url, {'User-Agent': feed_user_agent(podcast)}),
             )
             try:
                 response.raise_for_status()
@@ -431,7 +431,7 @@ class RSSParser:
                     stream=True,
                     headers={
                         'Accept-Encoding': 'identity',
-                        'User-Agent': feed_user_agent(),
+                        'User-Agent': feed_user_agent(podcast),
                     },
                 )
                 response.raise_for_status()
@@ -469,7 +469,8 @@ class RSSParser:
             return None
 
     def fetch_feed_conditional(self, url: str, etag: str = None,
-                               last_modified: str = None, timeout: int = 30):
+                               last_modified: str = None, timeout: int = 30,
+                               podcast=None):
         """Fetch RSS feed with conditional GET support.
 
         Uses If-None-Match and If-Modified-Since headers to avoid downloading
@@ -480,13 +481,14 @@ class RSSParser:
             etag: Previously received ETag header value
             last_modified: Previously received Last-Modified header value
             timeout: Request timeout in seconds
+            podcast: Podcast row to honor its feed UA override, if any
 
         Returns:
             Tuple of (content, new_etag, new_last_modified)
             If feed not modified (304), returns (None, etag, last_modified)
             On error, returns (None, None, None)
         """
-        headers = _identity_headers(url, {'User-Agent': feed_user_agent()})
+        headers = _identity_headers(url, {'User-Agent': feed_user_agent(podcast)})
         if etag:
             headers['If-None-Match'] = etag
         if last_modified:

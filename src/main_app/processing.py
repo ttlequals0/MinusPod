@@ -727,7 +727,7 @@ def _download_episode_audio(episode_url, podcast=None, outcome=None):
         if not available and cdn_error.startswith(CDN_REFUSED_PREFIX):
             # A 403 may be a permanent User-Agent refusal or a transient block.
             # Probe the alternate configured agent to distinguish them.
-            alternate = feed_user_agent()
+            alternate = feed_user_agent(podcast)
             accepted, _ = transcriber.check_audio_availability(episode_url, user_agent=alternate)
             if accepted:
                 setting_location = ("Feed settings > Advanced"

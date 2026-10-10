@@ -150,17 +150,25 @@ def _normalize_language_override(value):
     return val, None
 
 
-def _normalize_download_user_agent_override(value):
-    """Null or blank inherits the global download UA."""
+def _normalize_user_agent_override(value, field_name):
+    """Null or blank inherits the matching global UA."""
     if value is None:
         return None, None
     if not isinstance(value, str):
-        return None, 'downloadUserAgentOverride must be a string or null'
+        return None, f'{field_name} must be a string or null'
     value = value.strip()
     if value and not validate_user_agent(value):
-        return None, (f'downloadUserAgentOverride must be printable ASCII on a single line, '
+        return None, (f'{field_name} must be printable ASCII on a single line, '
                       f'at most {USER_AGENT_MAX_LENGTH} characters')
     return value or None, None
+
+
+def _normalize_download_user_agent_override(value):
+    return _normalize_user_agent_override(value, 'downloadUserAgentOverride')
+
+
+def _normalize_feed_user_agent_override(value):
+    return _normalize_user_agent_override(value, 'feedUserAgentOverride')
 
 
 _TITLE_OVERRIDE_MAX = 500
@@ -209,7 +217,7 @@ def _normalize_detection_notes(value):
     return text, None
 
 
-def _fetch_feed_content(url, timeout=30):
+def _fetch_feed_content(url, timeout=30, podcast=None):
     """Fetch a feed body with one retry, shared by add_feed and the sourceUrl
     PATCH. Some hosts (e.g. Buzzsprout) 403 the first fetch from a new client
     but serve the retry; the circuit breaker inside fetch_feed still gates
@@ -218,7 +226,7 @@ def _fetch_feed_content(url, timeout=30):
     parser = rss_parser.RSSParser()
     content = None
     for attempt in (1, 2):
-        content = parser.fetch_feed(url, timeout=timeout)
+        content = parser.fetch_feed(url, timeout=timeout, podcast=podcast)
         if content:
             break
         if attempt == 1:
@@ -226,7 +234,7 @@ def _fetch_feed_content(url, timeout=30):
     return parser, content
 
 
-def _validate_source_url(value):
+def _validate_source_url(value, podcast=None):
     """Validate a replacement source feed URL (#484).
 
     Returns (url, error). Fetches and parses the URL before accepting it so a
@@ -246,7 +254,7 @@ def _validate_source_url(value):
     # 15s per attempt so a slow host cannot hang the PATCH toward the worker
     # timeout; the shared retry keeps 403-on-first-fetch hosts working here
     # the same way they do in add_feed.
-    parser, content = _fetch_feed_content(url, timeout=15)
+    parser, content = _fetch_feed_content(url, timeout=15, podcast=podcast)
     if not content:
         return None, 'Could not fetch a valid RSS feed from this URL'
     parsed = parser.parse_feed(content, source=safe_url_for_log(url))
@@ -920,6 +928,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'title': podcast['title'] or podcast['slug'],
         'titleOverride': podcast.get('title_override'),
         'downloadUserAgentOverride': podcast.get('download_user_agent_override'),
+        'feedUserAgentOverride': podcast.get('feed_user_agent_override'),
         'detectionNotes': podcast.get('detection_notes'),
         # Local-only metadata (_LOCAL_ONLY_FIELDS gates PATCH writes to local
         # feeds; reading them back is harmless for a subscribed feed, which
@@ -1453,6 +1462,13 @@ def add_feed():
         if error:
             return error_response(error, 400)
 
+    feed_ua_override = None
+    if 'feedUserAgentOverride' in data:
+        feed_ua_override, error = _normalize_feed_user_agent_override(
+            data['feedUserAgentOverride'])
+        if error:
+            return error_response(error, 400)
+
     retention_override = None
     if 'retentionDaysOverride' in data:
         retention_override, retention_err = _validate_retention_override(
@@ -1483,6 +1499,8 @@ def add_feed():
         logger.info(f"Created new feed: {slug} -> {source_url}")
         if 'downloadUserAgentOverride' in data:
             db.update_podcast(slug, download_user_agent_override=download_ua_override)
+        if 'feedUserAgentOverride' in data:
+            db.update_podcast(slug, feed_user_agent_override=feed_ua_override)
         if audio_output_overrides:
             db.update_podcast(slug, **audio_output_overrides)
 
@@ -1936,6 +1954,12 @@ def update_feed(slug):
             return error_response(error, 400)
         updates['download_user_agent_override'] = value
 
+    if 'feedUserAgentOverride' in data:
+        value, error = _normalize_feed_user_agent_override(data['feedUserAgentOverride'])
+        if error:
+            return error_response(error, 400)
+        updates['feed_user_agent_override'] = value
+
     if 'titleOverride' in data:
         title_val, title_err = _normalize_title_override(data['titleOverride'])
         if title_err:
@@ -2145,7 +2169,7 @@ def update_feed(slug):
     if 'sourceUrl' in data and not (
             isinstance(data['sourceUrl'], str)
             and data['sourceUrl'].strip() == podcast['source_url']):
-        new_url, url_err = _validate_source_url(data['sourceUrl'])
+        new_url, url_err = _validate_source_url(data['sourceUrl'], podcast=podcast)
         if url_err:
             return error_response(url_err, 400)
         updates['source_url'] = new_url
@@ -2559,12 +2583,12 @@ def regenerate_feeds():
         return error_response('Failed to regenerate feeds', 500)
 
 
-def _extract_artwork_candidates_from_feed(source_url: str) -> list[str]:
+def _extract_artwork_candidates_from_feed(source_url: str, podcast=None) -> list[str]:
     """Ordered artwork candidate URLs from a podcast's RSS feed."""
     try:
         from rss_parser import RSSParser
         rss_parser = RSSParser()
-        feed_content = rss_parser.fetch_feed(source_url)
+        feed_content = rss_parser.fetch_feed(source_url, podcast=podcast)
         if not feed_content:
             return []
         # Pass raw XML; see extract_podcast_artwork_url docstring on why
@@ -2595,7 +2619,7 @@ def get_artwork(slug):
             db.update_podcast(slug, artwork_cached=0)
             candidates = []
             if podcast.get('source_url'):
-                candidates = _extract_artwork_candidates_from_feed(podcast['source_url'])
+                candidates = _extract_artwork_candidates_from_feed(podcast['source_url'], podcast=podcast)
             artwork_url = podcast.get('artwork_url')
             if artwork_url and artwork_url not in candidates:
                 candidates.append(artwork_url)

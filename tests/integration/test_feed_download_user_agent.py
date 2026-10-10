@@ -49,6 +49,32 @@ def test_invalid_feed_download_ua_is_atomic(app_client, feed_ua, value):
     assert db.get_podcast_by_slug(slug)['language_override'] is None
 
 
+@pytest.mark.parametrize('value, expected', [('  Crawler/2.0  ', 'Crawler/2.0'), (None, None), ('  ', None)])
+def test_patch_feed_feed_ua(app_client, feed_ua, value, expected):
+    slug, db, headers = feed_ua
+    db.update_podcast(slug, feed_user_agent_override='Previous/1.0')
+    response = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers,
+                                json={'feedUserAgentOverride': value})
+    assert response.status_code == 200
+    assert response.json['feedUserAgentOverride'] == expected
+    assert db.get_podcast_by_slug(slug)['feed_user_agent_override'] == expected
+    assert app_client.get(f'/api/v1/feeds/{slug}').json['feedUserAgentOverride'] == expected
+    assert next(feed for feed in app_client.get('/api/v1/feeds').json['feeds']
+                if feed['slug'] == slug)['feedUserAgentOverride'] == expected
+
+
+@pytest.mark.parametrize('value', [True, 12, [], 'Crawler/1.0\nInjected: yes', 'Crawler/1.0\tbad',
+                                  'x' * (USER_AGENT_MAX_LENGTH + 1)])
+def test_invalid_feed_feed_ua_is_atomic(app_client, feed_ua, value):
+    slug, db, headers = feed_ua
+    db.update_podcast(slug, feed_user_agent_override='Previous/1.0')
+    response = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers,
+                                json={'feedUserAgentOverride': value, 'languageOverride': 'de'})
+    assert response.status_code == 400
+    assert db.get_podcast_by_slug(slug)['feed_user_agent_override'] == 'Previous/1.0'
+    assert db.get_podcast_by_slug(slug)['language_override'] is None
+
+
 def test_create_stores_download_ua_before_initial_refresh(app_client, feed_ua, monkeypatch):
     from api import feeds
     import main_app.feeds as refresh

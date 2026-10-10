@@ -366,6 +366,12 @@ paths:
                     - 'null'
                   maxLength: 512
                   description: Per-feed download User-Agent. Printable ASCII only. Null or blank inherits downloadUserAgent.
+                feedUserAgentOverride:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 512
+                  description: Per-feed RSS User-Agent. Printable ASCII only. Null or blank inherits feedUserAgent.
                 sourceUrl:
                   type: string
                   format: uri
@@ -828,6 +834,12 @@ paths:
                     - 'null'
                   maxLength: 512
                   description: Audio, artwork, chapters, and transcript User-Agent for this feed. Printable ASCII only. Null or blank inherits downloadUserAgent. Cross-fetch uses a different podcast client.
+                feedUserAgentOverride:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 512
+                  description: RSS fetch User-Agent for this feed. Printable ASCII only. Null or blank inherits feedUserAgent.
                 languageOverride:
                   type:
                     - string
@@ -13196,6 +13208,12 @@ components:
             - 'null'
           maxLength: 512
           description: Audio, artwork, chapters, and transcript User-Agent for this feed. Printable ASCII only. Null or blank inherits downloadUserAgent. Cross-fetch uses a different podcast client.
+        feedUserAgentOverride:
+          type:
+            - string
+            - 'null'
+          maxLength: 512
+          description: RSS fetch User-Agent for this feed. Printable ASCII only. Null or blank inherits feedUserAgent.
         languageOverride:
           type:
             - string

@@ -31,7 +31,7 @@ class FakeTranscriber:
 @pytest.fixture
 def agents(monkeypatch):
     monkeypatch.setattr(processing, 'download_user_agent', lambda podcast=None: (podcast or {}).get('download_user_agent_override') or 'Browser/1')
-    monkeypatch.setattr(processing, 'feed_user_agent', lambda: 'Podcaster/1')
+    monkeypatch.setattr(processing, 'feed_user_agent', lambda podcast=None: 'Podcaster/1')
 
 
 def test_user_agent_floor_downloads_with_the_accepted_string(monkeypatch, agents, caplog):

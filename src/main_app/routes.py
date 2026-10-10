@@ -210,7 +210,7 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     # lookup.
     podcast = db.get_podcast_by_slug(slug)
     # An unknown row keeps the historical fetch; only local/recents rows skip it.
-    original_feed = (rss_parser.fetch_feed(feed_map[slug]['in'])
+    original_feed = (rss_parser.fetch_feed(feed_map[slug]['in'], podcast=podcast)
                      if podcast is None or has_upstream(podcast) else None)
     if original_feed:
         parsed_feed = rss_parser.parse_feed(original_feed, source=slug)

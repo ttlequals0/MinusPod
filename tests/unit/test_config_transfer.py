@@ -853,3 +853,16 @@ def test_feed_download_ua_round_trip(temp_db, override, monkeypatch):
     preview = config_transfer.build_preview(temp_db, document, 'feeds')
     config_transfer.apply_config(temp_db, document, 'feeds', None, preview['previewToken'])
     assert temp_db.get_podcast_by_slug('example-feed')['download_user_agent_override'] == override
+
+
+@pytest.mark.parametrize('override', ['Feed/2.0', None])
+def test_feed_feed_ua_round_trip(temp_db, override, monkeypatch):
+    temp_db.create_podcast('example-feed', 'https://example.com/feed.xml', 'Example')
+    temp_db.update_podcast('example-feed', feed_user_agent_override=override)
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    document = config_transfer.export_config(temp_db, '2.99.3')
+    assert document['feeds'][0]['settings']['feed_user_agent_override'] == override
+    temp_db.update_podcast('example-feed', feed_user_agent_override='Changed/1.0')
+    preview = config_transfer.build_preview(temp_db, document, 'feeds')
+    config_transfer.apply_config(temp_db, document, 'feeds', None, preview['previewToken'])
+    assert temp_db.get_podcast_by_slug('example-feed')['feed_user_agent_override'] == override

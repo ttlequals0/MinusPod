@@ -284,7 +284,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
             feed_url,
             etag=existing_etag,
-            last_modified=existing_last_modified
+            last_modified=existing_last_modified,
+            podcast=podcast,
         )
 
         # Handle 304 Not Modified - feed hasn't changed
@@ -314,7 +315,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                     refresh_logger.info(
                         f"[{slug}] Feed unchanged (304) but {forced_reason}, forcing full fetch")
                     feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
-                        feed_url, etag=None, last_modified=None
+                        feed_url, etag=None, last_modified=None, podcast=podcast
                     )
                 else:
                     refresh_logger.debug(f"[{slug}] Feed unchanged (304), skipping refresh")
@@ -330,7 +331,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                     f"forcing full fetch for initial discovery"
                 )
                 feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
-                    feed_url, etag=None, last_modified=None
+                    feed_url, etag=None, last_modified=None, podcast=podcast
                 )
 
         if not feed_content:
@@ -354,7 +355,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
             # One immediate refetch usually clears a body cut in transfer before falling back to backoff.
             refresh_logger.info(f"[{slug}] Feed body failed to parse; refetching once")
             feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
-                feed_url, etag=None, last_modified=None
+                feed_url, etag=None, last_modified=None, podcast=podcast
             )
             if feed_content:
                 parsed_feed = rss_parser.parse_feed(feed_content, source=slug)
@@ -802,7 +803,7 @@ def rebuild_served_rss(slug, podcast=None):
     if not podcast or not podcast.get('source_url'):
         return False
     try:
-        feed_content = rss_parser.fetch_feed(podcast['source_url'])
+        feed_content = rss_parser.fetch_feed(podcast['source_url'], podcast=podcast)
         if not feed_content:
             return False
         parsed_feed = rss_parser.parse_feed(feed_content, source=slug)
@@ -831,7 +832,7 @@ def refresh_feed_artwork(slug, podcast=None):
         # stored URL if the feed can't be fetched.
         candidates = []
         try:
-            feed_content = rss_parser.fetch_feed(podcast['source_url'])
+            feed_content = rss_parser.fetch_feed(podcast['source_url'], podcast=podcast)
             if feed_content:
                 candidates = rss_parser.extract_podcast_artwork_url(feed_content)
         except Exception as e:

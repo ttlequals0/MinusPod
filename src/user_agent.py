@@ -58,20 +58,46 @@ def _resolve(setting_key: str) -> str:
     return value
 
 
+# (slug, setting_key) -> last-warned override value, so a download loop
+# logs the ignored override once, not once per request.
+_ignored_override_warned: dict[tuple[str, str], str] = {}
+
+
+def _resolve_override(podcast, override_key: str, setting_key: str) -> str:
+    """Shared override-or-global resolution for download/feed UA.
+
+    Logs a warning the first time a feed's override is ignored for being
+    invalid, and again if the stored (still invalid) value later changes.
+    """
+    override = (podcast or {}).get(override_key)
+    if not override:
+        return _resolve(setting_key)
+    if validate_user_agent(override):
+        return override.strip()
+    slug = (podcast or {}).get("slug")
+    warn_key = (slug, override_key)
+    with _cache_lock:
+        already_warned = _ignored_override_warned.get(warn_key) == override
+        if not already_warned:
+            _ignored_override_warned[warn_key] = override
+    if not already_warned:
+        logger.warning(
+            f"Ignoring invalid {setting_key} override for feed '{slug}', using the default instead")
+    return _resolve(setting_key)
+
+
 def download_user_agent(podcast=None) -> str:
     """Resolve a feed override, otherwise the global download UA."""
-    override = (podcast or {}).get("download_user_agent_override")
-    if override and validate_user_agent(override):
-        return override.strip()
-    return _resolve(DOWNLOAD_UA_SETTING)
+    return _resolve_override(podcast, "download_user_agent_override", DOWNLOAD_UA_SETTING)
 
 
-def feed_user_agent() -> str:
-    """UA for RSS and feed-validation requests."""
-    return _resolve(FEED_UA_SETTING)
+def feed_user_agent(podcast=None) -> str:
+    """UA for RSS and feed-validation requests. Resolves a feed override, otherwise the global feed UA."""
+    return _resolve_override(podcast, "feed_user_agent_override", FEED_UA_SETTING)
 
 
 def invalidate_cache() -> None:
     """Drop cached values so the next request re-reads the settings."""
     with _cache_lock:
         _cache.clear()
+        _ignored_override_warned.clear()
