@@ -336,7 +336,14 @@
       ],
       "upstream_archive": "srt-1.5.6.tar.gz",
       "debian_archive": "srt_1.5.4-3.debian.tar.xz",
-      "patches": [],
+      "patches": [
+        {
+          "file": "srt-listener-test-order.patch",
+          "path": "patches/srt-listener-test-order.patch",
+          "sha256": "527ac459dff2856d9aa3ec607f0158edd35e827bd4636dc05a2729cf0a097cfb",
+          "cves": []
+        }
+      ],
       "cves": [
         "CVE-2026-55868",
         "CVE-2026-55869"
