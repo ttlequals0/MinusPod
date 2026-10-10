@@ -174,27 +174,27 @@ def test_module_imports_before_storage():
     assert result.returncode == 0, result.stderr
 
 
-def test_feed_override_does_not_change_global_or_other_feeds():
-    Database().set_setting(user_agent.DOWNLOAD_UA_SETTING, 'Global/1.0')
+@pytest.mark.parametrize('resolver_name, setting, override_key, other_resolver_name, other_default', [
+    ('download_user_agent', user_agent.DOWNLOAD_UA_SETTING, 'download_user_agent_override',
+     'feed_user_agent', APP_USER_AGENT),
+    ('feed_user_agent', user_agent.FEED_UA_SETTING, 'feed_user_agent_override',
+     'download_user_agent', BROWSER_USER_AGENT),
+])
+def test_feed_override_takes_precedence_over_global(
+        resolver_name, setting, override_key, other_resolver_name, other_default):
+    Database().set_setting(setting, 'Global/1.0')
     user_agent.invalidate_cache()
-    assert user_agent.download_user_agent({'download_user_agent_override': '  Feed/2.0  '}) == 'Feed/2.0'
-    assert user_agent.download_user_agent({'download_user_agent_override': None}) == 'Global/1.0'
-    assert user_agent.download_user_agent() == 'Global/1.0'
-    assert user_agent.feed_user_agent() == APP_USER_AGENT
+    resolver = getattr(user_agent, resolver_name)
+    other_resolver = getattr(user_agent, other_resolver_name)
+    assert resolver({override_key: '  Feed/2.0  '}) == 'Feed/2.0'
+    assert resolver({override_key: None}) == 'Global/1.0'
+    assert resolver() == 'Global/1.0'
+    assert other_resolver() == other_default
 
 
 @pytest.mark.parametrize('value', [None, '', 'Bad/1.0\r\nX-Injected: yes', 5])
 def test_invalid_or_empty_feed_override_inherits_global(value):
     assert user_agent.download_user_agent({'download_user_agent_override': value}) == BROWSER_USER_AGENT
-
-
-def test_feed_user_agent_override_takes_precedence_over_global():
-    Database().set_setting(user_agent.FEED_UA_SETTING, 'Global/1.0')
-    user_agent.invalidate_cache()
-    assert user_agent.feed_user_agent({'feed_user_agent_override': '  Feed/2.0  '}) == 'Feed/2.0'
-    assert user_agent.feed_user_agent({'feed_user_agent_override': None}) == 'Global/1.0'
-    assert user_agent.feed_user_agent() == 'Global/1.0'
-    assert user_agent.download_user_agent() == BROWSER_USER_AGENT
 
 
 def test_invalid_feed_override_warns_once_until_the_value_changes(caplog):

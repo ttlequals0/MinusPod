@@ -252,7 +252,7 @@ def systemone_supported_phases(provider: str, model: str | None) -> frozenset[st
 
 def chapters_capability_error(
     db, provider: str | None = None, model: str | None = None,
-) -> tuple[str | None, str | None, str | None]:
+) -> str | None:
     """Resolve the effective chapters provider/model (unless given) and check System One support."""
     # Local imports: llm_route and llm_client both import this module.
     from llm_client import get_effective_provider_from_snapshot
@@ -266,11 +266,10 @@ def chapters_capability_error(
         if model is None:
             model = db.get_setting('claude_model')
     supported = systemone_supported_phases(provider or '', model)
-    error = None
     if supported is not None and 'chapters' not in supported:
-        error = (f"chapters is unsupported for effective provider {provider!r} and "
-                 f"model {model!r}. Use a supported chat provider and model.")
-    return provider, model, error
+        return (f"chapters is unsupported for effective provider {provider!r} and "
+                f"model {model!r}. Use a supported chat provider and model.")
+    return None
 
 
 def configured_stage_models(get_setting) -> list[str]:

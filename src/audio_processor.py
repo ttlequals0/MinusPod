@@ -106,9 +106,7 @@ class AudioProcessor:
         self.compression_level = compression_level
 
     def _mp3_encode_args(self) -> list[str]:
-        """libmp3lame codec/bitrate args, plus -compression_level when set
-        to something other than 'default' (which leaves ffmpeg's own
-        default behavior unchanged)."""
+        """libmp3lame codec/bitrate args, plus -compression_level unless 'default'."""
         args = ['-acodec', 'libmp3lame', '-ab', self.bitrate]
         if self.compression_level != 'default':
             args += ['-compression_level', self.compression_level]

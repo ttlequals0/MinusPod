@@ -411,23 +411,6 @@ def test_patch_null_resets_title_skip_patterns(app_client, seeded_feed):
     assert seeded_feed['db'].get_podcast_by_slug(slug)['title_skip_patterns'] is None
 
 
-@pytest.mark.parametrize('patterns', [
-    'not-a-list',
-    ['x' * 201],
-    [''],
-    ['ok'] * 51,
-])
-def test_patch_invalid_title_skip_patterns_rejected(app_client, seeded_feed, patterns):
-    slug = seeded_feed['slug']
-    _authed(app_client)
-    headers = _csrf_headers(app_client)
-
-    resp = app_client.patch(f'/api/v1/feeds/{slug}',
-                            json={'titleSkipPatterns': patterns}, headers=headers)
-    assert resp.status_code == 400
-    assert seeded_feed['db'].get_podcast_by_slug(slug)['title_skip_patterns'] is None
-
-
 def test_patch_sets_title_skip_action_hide(app_client, seeded_feed):
     slug = seeded_feed['slug']
     _authed(app_client)
@@ -502,21 +485,25 @@ def test_patch_null_resets_description_skip_patterns(app_client, seeded_feed):
     assert seeded_feed['db'].get_podcast_by_slug(slug)['description_skip_patterns'] is None
 
 
+@pytest.mark.parametrize('field,column', [
+    ('titleSkipPatterns', 'title_skip_patterns'),
+    ('descriptionSkipPatterns', 'description_skip_patterns'),
+])
 @pytest.mark.parametrize('patterns', [
     'not-a-list',
     ['x' * 201],
     [''],
     ['ok'] * 51,
 ])
-def test_patch_invalid_description_skip_patterns_rejected(app_client, seeded_feed, patterns):
+def test_patch_invalid_skip_patterns_rejected(app_client, seeded_feed, patterns, field, column):
     slug = seeded_feed['slug']
     _authed(app_client)
     headers = _csrf_headers(app_client)
 
     resp = app_client.patch(f'/api/v1/feeds/{slug}',
-                            json={'descriptionSkipPatterns': patterns}, headers=headers)
+                            json={field: patterns}, headers=headers)
     assert resp.status_code == 400
-    assert seeded_feed['db'].get_podcast_by_slug(slug)['description_skip_patterns'] is None
+    assert seeded_feed['db'].get_podcast_by_slug(slug)[column] is None
 
 
 # -- lowAdYieldAction per-feed override --

@@ -281,6 +281,13 @@ def get_min_cut_confidence() -> float:
     return MIN_CUT_CONFIDENCE
 
 
+def resolve_audio_encode_settings() -> tuple[str, str]:
+    """Global bitrate and libmp3lame compression level for an AudioProcessor."""
+    bitrate = db.get_setting('audio_bitrate') or '128k'
+    compression_level = db.get_setting('audio_encoder_compression_level') or 'default'
+    return bitrate, compression_level
+
+
 def is_transient_error(error: Exception) -> bool:
     """Determine if an error is transient (worth retrying) or permanent.
 
@@ -5599,8 +5606,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
         if codec != 'mp3':
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: converting {codec or 'unknown'} to mp3")
-            bitrate = db.get_setting('audio_bitrate') or '128k'
-            compression_level = db.get_setting('audio_encoder_compression_level') or 'default'
+            bitrate, compression_level = resolve_audio_encode_settings()
             converted = AudioProcessor(
                 bitrate=bitrate, compression_level=compression_level).convert_to_mp3(audio_path)
             if not converted:
@@ -5723,9 +5729,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         if not segments:
             raise Exception("No saved transcript segments; cannot recut")
 
-        settings = db.get_all_settings()
-        bitrate = settings.get('audio_bitrate', {}).get('value', '128k')
-        compression_level = settings.get('audio_encoder_compression_level', {}).get('value', 'default')
+        bitrate, compression_level = resolve_audio_encode_settings()
         audio_output = db.resolve_audio_output(slug, podcast=podcast_row)
         if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
             audio_output['mp3_stream_copy_enabled'] = False
@@ -7078,9 +7082,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                             "pass1:processing", 80)
             audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(ads_to_remove)} ads to remove)")
 
-            settings = db.get_all_settings()
-            bitrate = settings.get('audio_bitrate', {}).get('value', '128k')
-            compression_level = settings.get('audio_encoder_compression_level', {}).get('value', 'default')
+            bitrate, compression_level = resolve_audio_encode_settings()
             audio_output = db.resolve_audio_output(slug, podcast=podcast_settings)
             if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
                 audio_output['mp3_stream_copy_enabled'] = False

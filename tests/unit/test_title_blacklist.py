@@ -209,7 +209,9 @@ class TestOnDemandServeGate:
             'episode_id': self.EP, 'status': 'discovered',
             'original_url': 'https://example.com/ep.mp3',
         }
-        mock_db.get_podcast_title_skip_patterns.return_value = json.dumps(['Blacklisted*'])
+        mock_db.get_podcast_by_slug.return_value = {
+            'feed_type': 'subscribed', 'title_skip_patterns': json.dumps(['Blacklisted*']),
+        }
 
         resp = client.get(f'/episodes/{self.SLUG}/{self.EP}.mp3')
 
@@ -229,8 +231,9 @@ class TestOnDemandServeGate:
             'episode_id': self.EP, 'status': 'discovered',
             'original_url': 'https://example.com/ep.mp3',
         }
-        mock_db.get_podcast_title_skip_patterns.return_value = None
-        mock_db.get_podcast_description_skip_patterns.return_value = json.dumps(['desc'])
+        mock_db.get_podcast_by_slug.return_value = {
+            'feed_type': 'subscribed', 'description_skip_patterns': json.dumps(['desc']),
+        }
 
         resp = client.get(f'/episodes/{self.SLUG}/{self.EP}.mp3')
 
@@ -262,7 +265,6 @@ class TestOnDemandServeGate:
         mock_db.get_podcast_by_slug.return_value = {
             'feed_type': 'local', 'title_skip_patterns': json.dumps(['Blacklisted*']),
         }
-        mock_db.get_podcast_title_skip_patterns.return_value = json.dumps(['Blacklisted*'])
         mock_start.return_value = (True, None)
 
         resp = client.get(f'/episodes/{self.SLUG}/{self.LOCAL_EP}.mp3')
@@ -500,7 +502,6 @@ def test_jit_duration_filter_uses_rss_metadata_before_processing(duration):
         }
         db.get_podcast_by_slug.return_value = {
             'feed_type': 'subscribed', 'min_duration_seconds': 60}
-        db.get_podcast_title_skip_patterns.return_value = None
         response = client.get(f'/episodes/{slug}/{episode_id}.mp3')
         if duration == 30:
             assert response.status_code == 302

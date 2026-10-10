@@ -2024,7 +2024,7 @@ def update_feed(slug):
         if effective_mode is None:
             effective_mode = db.get_setting('chapters_mode') or 'auto'
         if global_enabled and effective_mode != 'off':
-            _, _, chapters_error = chapters_capability_error(db)
+            chapters_error = chapters_capability_error(db)
             if chapters_error:
                 return error_response(chapters_error, 400)
         updates['chapters_mode'] = chapters_val

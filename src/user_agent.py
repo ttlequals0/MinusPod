@@ -64,11 +64,8 @@ _ignored_override_warned: dict[tuple[str, str], str] = {}
 
 
 def _resolve_override(podcast, override_key: str, setting_key: str) -> str:
-    """Shared override-or-global resolution for download/feed UA.
-
-    Logs a warning the first time a feed's override is ignored for being
-    invalid, and again if the stored (still invalid) value later changes.
-    """
+    """Shared override-or-global resolution for download/feed UA. Logs a warning
+    once per invalid override, and again if the stored value later changes."""
     override = (podcast or {}).get(override_key)
     if not override:
         return _resolve(setting_key)

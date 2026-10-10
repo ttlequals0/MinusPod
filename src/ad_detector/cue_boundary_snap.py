@@ -62,6 +62,13 @@ def cue_removal_enabled(details) -> bool:
     )
 
 
+def removed_cue_cap_allowance(start: float, end: float, removed: bool) -> float:
+    """Extra max-shift/max-break cap when a cue is removed with the ad, so a long
+    sting is not rejected (#832). Sound only because the cue pickers already bound
+    the matched edge within snap_lead_s/snap_lag_s before this cue is chosen."""
+    return (end - start) if removed else 0.0
+
+
 def _snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -> dict:
     """Build snap audit; sets ambiguous/candidates when 2+ eligible cues."""
     details = cue.details or {}
@@ -132,9 +139,8 @@ def snap_ad_boundaries_to_cues(
             shift = abs(proposed_start - original_start)
             # Removing the cue moves the edge to its far side, so widen the
             # cap by the cue's own length or a long sting gets rejected (#832).
-            allowed_shift = max_boundary_shift_s
-            if start_cue_removed:
-                allowed_shift += start_cue.end - start_cue.start
+            allowed_shift = max_boundary_shift_s + removed_cue_cap_allowance(
+                start_cue.start, start_cue.end, start_cue_removed)
             if (
                 proposed_start < original_end
                 and shift <= allowed_shift
@@ -164,9 +170,8 @@ def snap_ad_boundaries_to_cues(
                             if end_cue_removed
                             else end_cue.start - SNAP_GAP_SECONDS)
             shift = abs(proposed_end - original_end)
-            allowed_shift = max_boundary_shift_s
-            if end_cue_removed:
-                allowed_shift += end_cue.end - end_cue.start
+            allowed_shift = max_boundary_shift_s + removed_cue_cap_allowance(
+                end_cue.start, end_cue.end, end_cue_removed)
             if (
                 proposed_end > new_start
                 and shift <= allowed_shift

@@ -244,24 +244,6 @@ class PodcastMixin:
         row = cursor.fetchone()
         return row['queue_priority'] if row else None
 
-    def get_podcast_title_skip_patterns(self, slug: str) -> str | None:
-        """Per-feed title_skip_patterns column only: a cheap single-row lookup
-        for the RSS gate and the JIT serve gate."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            "SELECT title_skip_patterns FROM podcasts WHERE slug = ?", (slug,))
-        row = cursor.fetchone()
-        return row['title_skip_patterns'] if row else None
-
-    def get_podcast_description_skip_patterns(self, slug: str) -> str | None:
-        """Per-feed description_skip_patterns column only: a cheap single-row
-        lookup for the JIT serve gate (#835)."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            "SELECT description_skip_patterns FROM podcasts WHERE slug = ?", (slug,))
-        row = cursor.fetchone()
-        return row['description_skip_patterns'] if row else None
-
     _CUE_OVERRIDE_COLS = (
         'cue_create_from_pairs_override',
         'cue_pair_min_break_override',

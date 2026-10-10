@@ -449,10 +449,8 @@ def test_pair_maximum_checks_full_cue_span_before_audio_end_clamp():
 
 
 def test_pair_maximum_cannot_be_bypassed_by_truncated_duration():
-    # Raw pre-clamp span (70.1s) fits the cap once widened by both removed
-    # cues' lengths (18s); the post-clamp result (65.05s) is within the
-    # original unwidened cap too, so this is a legitimate synthesis, not a
-    # clamp-order bypass.
+    # Raw pre-clamp span (70.1s) fits the cap once widened by both removed cues'
+    # lengths (18s); the clamped result (65.05s) fits the unwidened cap too.
     opener = _typed_cue(100.0, 110.0, role='start')
     closer = _typed_cue(162.0, 170.0, role='end')
     for cue in (opener, closer):

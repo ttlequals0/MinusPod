@@ -11,6 +11,7 @@ import os
 import re
 import sqlite3
 import string
+from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
 
@@ -399,16 +400,27 @@ def count_not_cut(markers) -> int:
                and not is_keep_like(m.get('action_applied')))
 
 
-def title_matches_skip_patterns(title, patterns_json):
-    """Case-insensitive fnmatch against the feed's title skip list."""
-    if not title or not patterns_json:
-        return False
+@lru_cache(maxsize=256)
+def _parsed_skip_patterns(patterns_json):
+    """Lowercased pattern tuple for patterns_json, cached so a feed's list is parsed once."""
     try:
         patterns = json.loads(patterns_json)
     except (ValueError, TypeError):
+        return ()
+    return tuple(str(p).lower() for p in patterns if p)
+
+
+def _matches_skip_patterns(text, patterns_json):
+    """Case-insensitive fnmatch of text against the pattern list encoded in patterns_json."""
+    if not text or not patterns_json:
         return False
-    low = title.lower()
-    return any(fnmatch.fnmatch(low, str(p).lower()) for p in patterns if p)
+    low = text.lower()
+    return any(fnmatch.fnmatch(low, p) for p in _parsed_skip_patterns(patterns_json))
+
+
+def title_matches_skip_patterns(title, patterns_json):
+    """Case-insensitive fnmatch against the feed's title skip list."""
+    return _matches_skip_patterns(title, patterns_json)
 
 
 def _description_plain_text(description):
@@ -420,14 +432,7 @@ def description_matches_skip_patterns(description, patterns_json):
     """Case-insensitive fnmatch against the feed's description skip list, HTML stripped."""
     if not description or not patterns_json:
         return False
-    try:
-        patterns = json.loads(patterns_json)
-    except (ValueError, TypeError):
-        return False
-    plain = _description_plain_text(description).lower()
-    if not plain:
-        return False
-    return any(fnmatch.fnmatch(plain, str(p).lower()) for p in patterns if p)
+    return _matches_skip_patterns(_description_plain_text(description), patterns_json)
 
 
 def duration_outside_feed_range(duration, podcast):

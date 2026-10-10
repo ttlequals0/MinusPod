@@ -1327,10 +1327,10 @@ def regenerate_chapters(slug, episode_id):
         chapters_provider = None
         chapters_slot = 'primary'
     if chapters_route is not None:
-        _, _, chapters_error = chapters_capability_error(
+        chapters_error = chapters_capability_error(
             db, chapters_route.provider_key, chapters_route.model_id)
     else:
-        _, _, chapters_error = chapters_capability_error(db)
+        chapters_error = chapters_capability_error(db)
     if chapters_error:
         return error_response('Chapter regeneration requires a supported chat provider and model; '
                               'System One does not support chapters', 400)

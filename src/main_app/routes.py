@@ -22,8 +22,8 @@ from config import (
     HTTP_TIMEOUT_API,
     JIT_RETRY_COOLDOWN_SECONDS,
     MAX_EPISODE_RETRIES,
+    episode_matches_feed_filters,
     resolve_jit_blocked_user_agents,
-    title_matches_skip_patterns, description_matches_skip_patterns, duration_outside_feed_range,
     user_agent_is_jit_blocked,
 )
 from ad_chapters import ID3_CHAPTER_SOURCE_KEY, public_chapters
@@ -677,13 +677,14 @@ def register_routes(app):
         episode_artwork_url = ep_data.get('artwork_url')
 
         # Filtered subscribed episodes serve upstream audio without processing.
+        # Reuses the podcast row fetched above instead of separate per-column queries.
         if not local_feed:
-            title_skip_patterns = db.get_podcast_title_skip_patterns(slug)
-            description_skip_patterns = db.get_podcast_description_skip_patterns(slug)
-            if (title_matches_skip_patterns(episode_title, title_skip_patterns)
-                    or description_matches_skip_patterns(episode_description, description_skip_patterns)
-                    or duration_outside_feed_range(
-                        ep_data.get('rss_duration', (episode or {}).get('rss_duration')), podcast)):
+            jit_episode = {
+                'title': episode_title,
+                'description': episode_description,
+                'rss_duration': ep_data.get('rss_duration', (episode or {}).get('rss_duration')),
+            }
+            if episode_matches_feed_filters(jit_episode, podcast):
                 feed_logger.info(f"[{slug}:{episode_id}] Matched feed filters, serving original: {episode_title}")
                 return redirect(original_url, code=302)
 

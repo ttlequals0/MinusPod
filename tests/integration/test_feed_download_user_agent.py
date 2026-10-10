@@ -23,55 +23,37 @@ def feed_ua(app_client):
     db.delete_podcast(slug)
 
 
+UA_OVERRIDE_FIELDS = [
+    ('downloadUserAgentOverride', 'download_user_agent_override'),
+    ('feedUserAgentOverride', 'feed_user_agent_override'),
+]
+
+
+@pytest.mark.parametrize('field, column', UA_OVERRIDE_FIELDS)
 @pytest.mark.parametrize('value, expected', [('  Client/2.0  ', 'Client/2.0'), (None, None), ('  ', None)])
-def test_patch_feed_download_ua(app_client, feed_ua, value, expected):
+def test_patch_feed_ua(app_client, feed_ua, value, expected, field, column):
     slug, db, headers = feed_ua
-    db.update_podcast(slug, download_user_agent_override='Previous/1.0')
+    db.update_podcast(slug, **{column: 'Previous/1.0'})
     response = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers,
-                                json={'downloadUserAgentOverride': value})
+                                json={field: value})
     assert response.status_code == 200
-    assert response.json['downloadUserAgentOverride'] == expected
-    assert db.get_podcast_by_slug(slug)['download_user_agent_override'] == expected
-    assert app_client.get(f'/api/v1/feeds/{slug}').json['downloadUserAgentOverride'] == expected
+    assert response.json[field] == expected
+    assert db.get_podcast_by_slug(slug)[column] == expected
+    assert app_client.get(f'/api/v1/feeds/{slug}').json[field] == expected
     assert next(feed for feed in app_client.get('/api/v1/feeds').json['feeds']
-                if feed['slug'] == slug)['downloadUserAgentOverride'] == expected
+                if feed['slug'] == slug)[field] == expected
 
 
+@pytest.mark.parametrize('field, column', UA_OVERRIDE_FIELDS)
 @pytest.mark.parametrize('value', [True, 12, [], 'Client/1.0\nInjected: yes', 'Client/1.0\tbad',
                                   'x' * (USER_AGENT_MAX_LENGTH + 1)])
-def test_invalid_feed_download_ua_is_atomic(app_client, feed_ua, value):
+def test_invalid_feed_ua_is_atomic(app_client, feed_ua, value, field, column):
     slug, db, headers = feed_ua
-    db.update_podcast(slug, download_user_agent_override='Previous/1.0')
+    db.update_podcast(slug, **{column: 'Previous/1.0'})
     response = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers,
-                                json={'downloadUserAgentOverride': value, 'languageOverride': 'de'})
+                                json={field: value, 'languageOverride': 'de'})
     assert response.status_code == 400
-    assert db.get_podcast_by_slug(slug)['download_user_agent_override'] == 'Previous/1.0'
-    assert db.get_podcast_by_slug(slug)['language_override'] is None
-
-
-@pytest.mark.parametrize('value, expected', [('  Crawler/2.0  ', 'Crawler/2.0'), (None, None), ('  ', None)])
-def test_patch_feed_feed_ua(app_client, feed_ua, value, expected):
-    slug, db, headers = feed_ua
-    db.update_podcast(slug, feed_user_agent_override='Previous/1.0')
-    response = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers,
-                                json={'feedUserAgentOverride': value})
-    assert response.status_code == 200
-    assert response.json['feedUserAgentOverride'] == expected
-    assert db.get_podcast_by_slug(slug)['feed_user_agent_override'] == expected
-    assert app_client.get(f'/api/v1/feeds/{slug}').json['feedUserAgentOverride'] == expected
-    assert next(feed for feed in app_client.get('/api/v1/feeds').json['feeds']
-                if feed['slug'] == slug)['feedUserAgentOverride'] == expected
-
-
-@pytest.mark.parametrize('value', [True, 12, [], 'Crawler/1.0\nInjected: yes', 'Crawler/1.0\tbad',
-                                  'x' * (USER_AGENT_MAX_LENGTH + 1)])
-def test_invalid_feed_feed_ua_is_atomic(app_client, feed_ua, value):
-    slug, db, headers = feed_ua
-    db.update_podcast(slug, feed_user_agent_override='Previous/1.0')
-    response = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers,
-                                json={'feedUserAgentOverride': value, 'languageOverride': 'de'})
-    assert response.status_code == 400
-    assert db.get_podcast_by_slug(slug)['feed_user_agent_override'] == 'Previous/1.0'
+    assert db.get_podcast_by_slug(slug)[column] == 'Previous/1.0'
     assert db.get_podcast_by_slug(slug)['language_override'] is None
 
 
