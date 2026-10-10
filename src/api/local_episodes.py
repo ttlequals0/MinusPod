@@ -26,16 +26,13 @@ from api import (api, limiter, log_request, json_response, error_response,
                  get_database, get_storage, get_status_service)
 from api.episodes import _episode_base_json
 from api.feeds import _validate_p20_items, _p20_tag_attrs
-from config import MIN_PRESERVED_CHAPTERS
 from cancel import request_cancellation, wait_for_cancellation
 from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
-from embedded_chapters import probe_chapters
-from id3_chapters import ChapterTagError
 from local_import import (
     _release_import_lock, _try_acquire_import_lock, build_import_plan,
     bump_staging_generation, get_import_status, plan_hash,
-    read_staging_generation, start_commit,
+    probe_and_save_chapters, read_staging_generation, start_commit,
 )
 from storage import _detect_image_mime
 from utils.audio import extract_embedded_artwork, get_audio_duration
@@ -352,19 +349,7 @@ def upload_local_episode(slug):
             raise
         db.cleanup_published_upload_backup(reservation_id)
 
-        try:
-            chapters = probe_chapters(str(final_path))
-        except ChapterTagError as error:
-            logger.warning('Publisher chapter read failed: %s', error)
-            chapters = None
-        if chapters and len(chapters) >= MIN_PRESERVED_CHAPTERS:
-            storage.save_chapters_json(slug, episode_id, {
-                'version': '1.2.0',
-                'chapters': [
-                    {'startTime': int(ch['start']), 'title': ch.get('title') or ''}
-                    for ch in chapters
-                ],
-            })
+        probe_and_save_chapters(storage, slug, episode_id, final_path)
 
         if artwork_bytes:
             # evict=False: this is the only copy of this cover (no

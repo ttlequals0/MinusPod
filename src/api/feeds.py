@@ -46,9 +46,7 @@ from config import (
 )
 from differential_fetcher import is_likely_dai_feed
 from positional_prior import compute_ad_distribution
-from llm_capabilities import systemone_supported_phases
-from llm_client import get_effective_provider_from_snapshot
-from llm_route import SLOT_SECONDARY, resolved_stage_slot
+from llm_capabilities import chapters_capability_error
 # Module import (not `from rss_parser import RSSParser`) so tests patching
 # rss_parser.RSSParser take effect at call time.
 import rss_parser
@@ -1987,17 +1985,9 @@ def update_feed(slug):
         if effective_mode is None:
             effective_mode = db.get_setting('chapters_mode') or 'auto'
         if global_enabled and effective_mode != 'off':
-            slot = resolved_stage_slot(db, 'chapters')
-            provider = (db.get_setting('secondary_provider') if slot == SLOT_SECONDARY
-                        else get_effective_provider_from_snapshot({'llm_provider': db.get_setting('llm_provider')}))
-            model = db.get_setting('chapters_model')
-            if model is None:
-                model = db.get_setting('claude_model')
-            supported = systemone_supported_phases(provider or '', model)
-            if supported is not None and 'chapters' not in supported:
-                return error_response(
-                    f"chapters is unsupported for effective provider {provider!r} and "
-                    f"model {model!r}. Use a supported chat provider and model.", 400)
+            _, _, chapters_error = chapters_capability_error(db)
+            if chapters_error:
+                return error_response(chapters_error, 400)
         updates['chapters_mode'] = chapters_val
 
     if 'chaptersInNotes' in data:

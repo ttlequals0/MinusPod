@@ -42,6 +42,7 @@ from llm_client import (
 )
 from llm_route import ALL_CREDENTIAL_SLOTS, resolve_route
 from provider_budget import manual_rate_limit_caps, request_token_estimate
+from provider_probe import finalize_probe_success
 import run_context
 from utils.safe_http import safe_get, URLTrust
 from utils.time import ISO_FORMAT, epoch_to_iso, parse_iso_utc, utc_now, utc_now_iso
@@ -821,13 +822,7 @@ def _probe_via_completion(db, provider_key: str | None, credential_slot: str) ->
                     logger.info(f"Rate-limit probe: completion probe re-stamped hold to {hold_until_iso}")
             logger.debug(f"Rate-limit probe: completion probe failed, leaving hold: {error}")
             return False
-        for index, (attempt_id, response, dispatch_latency_ms) in enumerate(attempts):
-            db.finalize_llm_attempt_from_response(
-                attempt_id, 'success', response,
-                dispatch_latency_ms=dispatch_latency_ms,
-                call_latency_ms=(round((time.monotonic() - started) * 1000)
-                                 if index == 0 else None),
-            )
+        finalize_probe_success(db, attempts, started)
         _, held_since = _lift_hold(db, provider_key, credential_slot)
         fire_queue_resumed_event(held_since=held_since)
         logger.info("Rate-limit probe: completion probe succeeded; resuming queue")

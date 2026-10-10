@@ -8,7 +8,7 @@ from utils.time import ISO_FORMAT, utc_now
 
 
 def request_token_estimate(payload):
-    """Estimate reserved tokens from the actual serialized request body."""
+    """No output addend: System One/TypeSafe bills input only, unlike _reserved_tokens' providers."""
     return max(1, len(json.dumps(payload, separators=(',', ':'))) // 2)
 
 

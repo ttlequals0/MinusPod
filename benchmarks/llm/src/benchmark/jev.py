@@ -12,6 +12,8 @@ from pathlib import Path
 
 import requests
 
+from systemone.protocol import GUIDANCE
+
 from . import metrics
 from .corpus import Episode, stamp_id_windows
 from .truth_parser import Ad
@@ -33,21 +35,6 @@ BRIDGE_SECONDS = 30.0
 def line_id(sid: int) -> str:
     return f"L{sid:04d}"
 
-
-# Shared guidance avoids repeating the definition in every segment question.
-GUIDANCE = (
-    "Each line of `transcript` is one segment of a podcast episode, prefixed "
-    "with its line id. A line is ADVERTISING when it is a sponsor read, a "
-    "produced ad spot, a dynamically inserted ad, a hosting-platform pre-roll "
-    "or post-roll, a cross-promotion for another show, or a produced segment "
-    "asking listeners to subscribe, rate, or follow. Signs of advertising: a "
-    "sponsor or brand name, a URL, a promo code, a product pitch, a call to "
-    "action, or concentrated marketing copy that is tonally separate from the "
-    "conversation. A line is EDITORIAL CONTENT when it is the host or a guest "
-    "discussing the episode's subject. A guest talking about their own book or "
-    "project, and the host mentioning their own show or Patreon in passing "
-    "during conversation, are editorial content, not advertising."
-)
 
 # Restore the complete rules from MinusPod's DEFAULT_SYSTEM_PROMPT.
 GUIDANCE_FULL = GUIDANCE + (

@@ -39,11 +39,10 @@ from database.queue import (
 from embedded_chapters import embed_chapters
 from llm_client import (
     ProviderRateLimitedError, start_episode_token_tracking, get_episode_token_totals,
-    get_effective_provider_from_snapshot,
 )
 import run_context
-from llm_route import resolve_route, resolved_stage_slot, SLOT_SECONDARY
-from llm_capabilities import systemone_supported_phases
+from llm_route import resolve_route
+from llm_capabilities import chapters_capability_error
 from processing_queue import ProcessingQueue
 from rate_limit_hold import (
     get_active_hold, hold_message, hold_queue_for_provider_limit,
@@ -1313,16 +1312,11 @@ def regenerate_chapters(slug, episode_id):
         chapters_provider = None
         chapters_slot = 'primary'
     if chapters_route is not None:
-        provider, model = chapters_route.provider_key, chapters_route.model_id
+        _, _, chapters_error = chapters_capability_error(
+            db, chapters_route.provider_key, chapters_route.model_id)
     else:
-        slot = resolved_stage_slot(db, 'chapters')
-        provider = (db.get_setting('secondary_provider') if slot == SLOT_SECONDARY
-                    else get_effective_provider_from_snapshot({'llm_provider': db.get_setting('llm_provider')}))
-        model = db.get_setting('chapters_model')
-        if model is None:
-            model = db.get_setting('claude_model')
-    supported = systemone_supported_phases(provider or '', model)
-    if supported is not None and 'chapters' not in supported:
+        _, _, chapters_error = chapters_capability_error(db)
+    if chapters_error:
         return error_response('Chapter regeneration requires a supported chat provider and model; '
                               'System One does not support chapters', 400)
     hold_until, _ = get_active_hold(db, chapters_provider, chapters_slot)

@@ -167,6 +167,17 @@ def probe_systemone_connection(provider: str, base_url: str | None, api_key: str
     return result
 
 
+def finalize_probe_success(db, attempts, started: float) -> None:
+    """Record each dispatched probe attempt as a success, with call latency on the first."""
+    for index, (attempt_id, response, dispatch_latency_ms) in enumerate(attempts):
+        db.finalize_llm_attempt_from_response(
+            attempt_id, 'success', response,
+            dispatch_latency_ms=dispatch_latency_ms,
+            call_latency_ms=(round((time.monotonic() - started) * 1000)
+                             if index == 0 else None),
+        )
+
+
 def probe_systemone_endpoint(provider: str, base_url: str | None, api_key: str,
                              model: str, *, credential_slot='primary', db) -> dict:
     """Send one native inference probe and account its actual POST."""
@@ -205,13 +216,7 @@ def probe_systemone_endpoint(provider: str, base_url: str | None, api_key: str,
         attempts = probe_result['attempts']
         if not attempts:
             raise RuntimeError('probe did not dispatch a request')
-        for index, (attempt_id, response, dispatch_latency_ms) in enumerate(attempts):
-            db.finalize_llm_attempt_from_response(
-                attempt_id, 'success', response,
-                dispatch_latency_ms=dispatch_latency_ms,
-                call_latency_ms=(round((time.monotonic() - started) * 1000)
-                                 if index == 0 else None),
-            )
+        finalize_probe_success(db, attempts, started)
         return {'ok': True, 'reachable': True,
                 'detail': 'Connected. The System One request completed.'}
     except Exception as error:

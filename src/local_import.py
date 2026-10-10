@@ -925,6 +925,23 @@ def _clear_queue_row(db, slug: str, episode_id: str,
         conn.commit()
 
 
+def probe_and_save_chapters(storage, slug: str, episode_id: str, final_path) -> None:
+    """Read embedded chapters from the published file and save them if enough survive."""
+    try:
+        chapters = probe_chapters(str(final_path))
+    except ChapterTagError as error:
+        logger.warning('Publisher chapter read failed: %s', error)
+        chapters = None
+    if chapters and len(chapters) >= MIN_PRESERVED_CHAPTERS:
+        storage.save_chapters_json(slug, episode_id, {
+            'version': '1.2.0',
+            'chapters': [
+                {'startTime': int(ch['start']), 'title': ch.get('title') or ''}
+                for ch in chapters
+            ],
+        })
+
+
 def _commit_entry(slug: str, entry: dict, db, storage,
                   overwrite: bool, upserted: list,
                   reservation_id: str | None = None) -> tuple[str, object]:
@@ -1091,19 +1108,7 @@ def _commit_entry(slug: str, entry: dict, db, storage,
     # leave a committed row the batched index pass would otherwise skip.
     upserted.append(episode_id)
 
-    try:
-        chapters = probe_chapters(str(final_path))
-    except ChapterTagError as error:
-        logger.warning('Publisher chapter read failed: %s', error)
-        chapters = None
-    if chapters and len(chapters) >= MIN_PRESERVED_CHAPTERS:
-        storage.save_chapters_json(slug, episode_id, {
-            'version': '1.2.0',
-            'chapters': [
-                {'startTime': int(ch['start']), 'title': ch.get('title') or ''}
-                for ch in chapters
-            ],
-        })
+    probe_and_save_chapters(storage, slug, episode_id, final_path)
 
     warnings: list[str] = []
     artwork_saved = False
