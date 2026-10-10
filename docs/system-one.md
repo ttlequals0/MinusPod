@@ -32,6 +32,8 @@ The existing `openai-compatible` route remains supported for explicitly recogniz
 
 Unsupported selections remain visible so they can be repaired. Capability checks use the effective provider and a recognized model ID; unknown model IDs are not guessed from their names. Review remains supported but experimental.
 
+TypeSafe and System One compatible providers are never offered as a chat failover target: a failover configuration whose provider and model resolve to a System One route is treated as unconfigured for failover purposes.
+
 ## Independent tuning profiles
 
 System One tuning is stored independently for each credential slot and provider type: Provider A TypeSafe, Provider A System One compatible, Provider B TypeSafe, and Provider B System One compatible. Switching providers or slots keeps each profile. Profiles also remain in configuration exports. Importing an older export merges only fields it contains, preserving newer values already saved at the destination. Reset profile restores that profile's defaults.

@@ -18,11 +18,14 @@ release notes.
 - Episode filters group title rules with optional RSS duration limits. Skipped episodes can keep their original audio or be hidden from the served feed. (#833)
 - Live episode title search covers the full feed, with selection across pages and an explicit limit of 500 episodes per bulk action.
 - Episode selection fetches cap at 501 matching rows and report a `truncated` flag when the match count overflows the cap.
+- Benchmark tooling (not shipped in the runtime image): `jev-spike` and `jev-cv` commands score System One/TypeSafe against the corpus with cached per-window probabilities and threshold sweeps.
 
 ### Changed
 - Container images upgrade PCRE2 to 10.49 with newer JIT fixes and Unicode 17 matching data.
 - Rename the Settings section to System One Tuneables.
+- `color-scheme` moves from date inputs alone to `:root` and `.dark`, so native form controls across the app match the active theme, not just date pickers.
 - Matched ad-break cues are removed with ads by default. Each template can opt out, while programme cues and manual trims remain protected. (#832)
+- System One admission pools key their per-credential fingerprint with a per-process HMAC instead of a plain hash.
 
 ### Fixed
 - System One statistics show average call time in milliseconds, preserving subsecond timing.
@@ -32,7 +35,7 @@ release notes.
 - Settings tests isolate automatic reviewer calibration to prevent unrelated retry assertions from failing.
 - Container images remove unused repository setup and init packages and use GNU coreutils.
 - Container images build pinned media security backports and SRT 1.5.6, retaining patched source and build provenance.
-- Container images also backport fixes in core, graphics, and utility packages; native CPU builds verify runtime imports, media processing, and application health before publication.
+- Container images also backport fixes in core, graphics, and utility packages; native CPU builds verify runtime imports, media processing, installed package versions, and application health, and reject a build whose image scan finds leaked secrets, before publication.
 - Scheduled backups prevent temporary-file symlink races and preserve the previous backup when the destination changes during a snapshot.
 - Scheduled backups remove a staging directory left behind by a crash mid-snapshot before starting the next run.
 
@@ -44,12 +47,12 @@ release notes.
 ## [2.99.1] - 2026-10-09
 
 ### Added
-- Optional MP3 stream copy for compatible cuts, with a separate replacement-sound toggle and per-feed overrides.
+- Optional MP3 stream copy for compatible cuts, with a separate replacement-sound toggle and per-feed overrides. (#830)
 
 ### Fixed
 - Cleanup action statistics use stacked cards on mobile.
 - System One statistics have a separate card and navigation link, using the LLM spend filters.
-- Embedded chapter images and links survive audio cuts. Supported images are served locally under the episode's feed access rules.
+- Embedded chapter images and links survive audio cuts. Supported images are served locally under the episode's feed access rules. (#831)
 - Provider connection tests work before stage models are selected and distinguish connection checks from inference tests.
 
 ## [2.99.0] - 2026-10-09
