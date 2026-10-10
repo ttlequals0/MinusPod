@@ -33,9 +33,7 @@ from config import (
     AUDIO_CUE_END_EDGE_ROLES,
     is_template_cue,
 )
-from ad_detector.cue_boundary_snap import (
-    SNAP_GAP_SECONDS, cue_removal_enabled, removed_cue_cap_allowance,
-)
+from ad_detector.cue_boundary_snap import SNAP_GAP_SECONDS, cue_removal_enabled
 from ad_detector.cue_telemetry import cue_key as _diag_key
 
 # Skip-diagnostics reasons (#350 Phase 6). Keyed by (template_id, round(start,3))
@@ -292,14 +290,7 @@ def synthesize_ads_from_cue_pairs(
             synth_end = (cue_b.end + SNAP_GAP_SECONDS if cue_b.remove_with_ad
                          else cue_b.start - SNAP_GAP_SECONDS)
             synth_end = round(synth_end, 3)
-            # Removing a cue extends the span to its far edge, so widen the
-            # cap by the removed cue(s)' own length or a long sting is
-            # rejected (#832).
-            max_break_widen = (
-                removed_cue_cap_allowance(cue_a.start, cue_a.end, cue_a.remove_with_ad)
-                + removed_cue_cap_allowance(cue_b.start, cue_b.end, cue_b.remove_with_ad)
-            )
-            if synth_end - synth_start > effective_max_break + max_break_widen:
+            if synth_end - synth_start > effective_max_break:
                 continue
             if total_duration > 0:
                 synth_end = round(min(total_duration, synth_end), 3)

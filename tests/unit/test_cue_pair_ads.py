@@ -420,18 +420,14 @@ def test_pair_cue_removal_clamps_to_episode_bounds():
     assert ads[0]['end'] == 30.0
 
 
-def test_pair_maximum_guards_widened_by_removed_cue_spans():
-    # The span cap widens by each removed cue's own length (#832), so a pair
-    # whose outer edges exceed the raw cap still synthesizes once widened.
+def test_pair_maximum_guards_include_removed_cue_spans():
     opener = _typed_cue(100.0, 110.0, role='start')
     closer = _typed_cue(160.0, 170.0, role='end')
     for limits in ({'max_break_s': 60.0},
                    {'total_duration': 300.0, 'max_break_fraction': 0.2}):
         for cue in (opener, closer):
             cue.details['remove_with_ad'] = True
-        ads = synthesize_ads_from_cue_pairs([], _result_with(opener, closer), **limits)
-        assert len(ads) == 1
-        assert (ads[0]['start'], ads[0]['end']) == (99.95, 170.05)
+        assert synthesize_ads_from_cue_pairs([], _result_with(opener, closer), **limits) == []
         for cue in (opener, closer):
             cue.details['remove_with_ad'] = False
         ads = synthesize_ads_from_cue_pairs([], _result_with(opener, closer), **limits)
@@ -449,13 +445,9 @@ def test_pair_maximum_checks_full_cue_span_before_audio_end_clamp():
 
 
 def test_pair_maximum_cannot_be_bypassed_by_truncated_duration():
-    # Raw pre-clamp span (70.1s) fits the cap once widened by both removed cues'
-    # lengths (18s); the clamped result (65.05s) fits the unwidened cap too.
     opener = _typed_cue(100.0, 110.0, role='start')
     closer = _typed_cue(162.0, 170.0, role='end')
     for cue in (opener, closer):
         cue.details['remove_with_ad'] = True
-    ads = synthesize_ads_from_cue_pairs([], _result_with(opener, closer),
-        total_duration=165.0, max_break_s=66.0, max_break_fraction=0)
-    assert len(ads) == 1
-    assert (ads[0]['start'], ads[0]['end']) == (99.95, 165.0)
+    assert synthesize_ads_from_cue_pairs([], _result_with(opener, closer),
+        total_duration=165.0, max_break_s=66.0, max_break_fraction=0) == []
