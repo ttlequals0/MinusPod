@@ -104,7 +104,7 @@ function FeedDetail() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedScope, setSelectedScope] = useState(selectionScope);
   const [matchedSelection, setMatchedSelection] = useState<{
-    scope: string; episodes: EpisodeSelection[];
+    scope: string; episodes: EpisodeSelection[]; truncated: boolean;
   } | null>(null);
   const [selectionRequest, setSelectionRequest] = useState<{ id: number; scope: string } | null>(null);
   const selectingMatches = selectionRequest?.scope === selectionScope;
@@ -226,7 +226,7 @@ function FeedDetail() {
       });
       if (requestId !== selectionRequestRef.current) return;
       const matches = result.selection ?? result.episodes;
-      setMatchedSelection({ scope: selectionScope, episodes: matches });
+      setMatchedSelection({ scope: selectionScope, episodes: matches, truncated: result.truncated ?? false });
       setSelectedScope(selectionScope);
       setSelectedIds(new Set(matches.filter(ep => !isActionBlocked(ep.jobState, false)).map(ep => ep.id)));
       setSelectionAnchor(null);
@@ -440,12 +440,15 @@ function FeedDetail() {
   ).length;
   const hasSelection = effectiveSelectedIds.size > 0;
   const selectionOverLimit = effectiveSelectedIds.size > 500;
+  const selectionTruncated = matchedSelection?.scope === selectionScope && matchedSelection.truncated;
   // Keyed on jobState, not status: the run buttons key on jobState too, so the
   // note can never claim a selection is busy while those buttons stay live.
   const runningSelectedCount = selectionEpisodes.filter(
     (ep) => selectedIds.has(ep.id) && isActionBlocked(ep.jobState, false),
   ).length;
-  const selectionNote = selectionOverLimit
+  const selectionNote = selectionTruncated
+    ? 'More than 500 episodes matched; selection was capped at 500.'
+    : selectionOverLimit
     ? 'Select 500 episodes or fewer.'
     : runningSelectedCount > 0
     ? `Skipping ${runningSelectedCount} already running.`

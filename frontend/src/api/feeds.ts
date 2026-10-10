@@ -362,6 +362,8 @@ export type EpisodeSelection = Pick<Episode, 'id' | 'status' | 'jobState' | 'tit
 
 export interface EpisodesResponse {
   selection?: EpisodeSelection[];
+  // Present only with selection=true; true when the match count exceeded the 501-row cap.
+  truncated?: boolean;
   episodes: Episode[];
   total: number;
   limit: number;

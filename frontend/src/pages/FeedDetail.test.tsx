@@ -557,6 +557,21 @@ describe('FeedDetail: live episode search', () => {
     expect(screen.queryByText('501 selected')).toBeNull();
   });
 
+  it('shows the capped wording when the backend truncates the selection fetch', async () => {
+    const user = userEvent.setup();
+    renderFeedDetail(makeFeed(), [first]);
+    mockGetEpisodes.mockImplementation((_slug, params) => Promise.resolve(params.selection
+      ? {
+        episodes: [], total: 600, truncated: true,
+        selection: Array.from({ length: 501 }, (_, i) => ({ ...first, id: `match-${i}` })),
+      }
+      : { episodes: [first], total: 600 }));
+    await user.type(await screen.findByRole('searchbox', { name: 'Search episode titles' }), 'all');
+    await user.click(await screen.findByRole('button', { name: 'Select all 600 matches' }));
+    expect(await screen.findByText('501 selected')).toBeTruthy();
+    expect(screen.getByText('More than 500 episodes matched; selection was capped at 500.')).toBeTruthy();
+  });
+
   it('keeps duration-filtered episodes selectable for manual actions', async () => {
     const user = userEvent.setup();
     renderFeedDetail(makeFeed(), [{ ...first, status: 'discovered', durationSkipped: true }]);
