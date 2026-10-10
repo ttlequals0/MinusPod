@@ -19,7 +19,6 @@ interface UserAgentOverrideFieldProps {
   onSave: (next: string | null, callbacks: { onSuccess: () => void; onError: (e: unknown) => void }) => void;
 }
 
-/** Override input + Save/Use-global controls for a feed's download or RSS User-Agent. */
 export function UserAgentOverrideField({
   id, label, feed, field, globalValue, hint, saveAriaLabel, useGlobalAriaLabel, errorFallback, disabled, onSave,
 }: UserAgentOverrideFieldProps) {

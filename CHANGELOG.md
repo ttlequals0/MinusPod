@@ -11,16 +11,28 @@ release notes.
 
 ## [Unreleased]
 
+## [2.99.4] - 2026-10-10
+
+### Added
+- Description glob patterns skip automatic and just-in-time processing, with the shared choice to serve original audio or hide matching episodes. (#835)
+- Per-feed RSS User-Agent overrides apply to validation, refresh and artwork-source fetches. (#836)
+- Audio Encoder Compression Level controls libmp3lame encoding; Default leaves ffmpeg's setting unchanged. (#830)
+
+### Fixed
+- Episode selection requests stop at 501 rows and report truncation; bulk actions remain limited to 500 episodes.
+- Episode-filter saves prevent duplicate or stale-list writes; long patterns wrap on narrow screens.
+- Removed cue lengths count toward the boundary-shift allowance while synthesized cue pairs retain their full-span break cap. (#832)
+- Invalid stored bitrate or compression settings fall back to defaults before encoding.
+- Backups clean old staging directories left by interrupted snapshots. Unreadable or disappearing leftovers do not block a new backup.
+- Invalid stored per-feed User-Agent overrides warn once per value and inherit the global identifier.
+- Compose examples pass TypeSafe and System One-compatible credentials to the application.
+
 ## [2.99.3] - 2026-10-10
 
 ### Added
 - Per-feed download User-Agent overrides apply to audio, artwork, chapters, and upstream transcripts; cross-fetch keeps a different podcast client. (#836)
-- Per-feed RSS User-Agent overrides apply to that feed's own fetches, alongside the existing download override. (#836)
-- Audio Encoder Compression Level setting controls ffmpeg's libmp3lame `-compression_level` for processed audio; default leaves ffmpeg's own encoding behavior unchanged. (#830)
 - Episode filters group title rules with optional RSS duration limits. Skipped episodes can keep their original audio or be hidden from the served feed. (#833)
-- Episode filters can also skip by description, matching the plain-text description against glob patterns so sponsor copy in the body (not just the title) can be filtered. (#835)
 - Live episode title search covers the full feed, with selection across pages and an explicit limit of 500 episodes per bulk action.
-- Episode selection fetches cap at 501 matching rows and report a `truncated` flag when the match count overflows the cap.
 - Benchmark tooling (not shipped in the runtime image): `jev-spike` and `jev-cv` commands score System One/TypeSafe against the corpus with cached per-window probabilities and threshold sweeps.
 
 ### Changed
@@ -34,15 +46,11 @@ release notes.
 - System One statistics show average call time in milliseconds, preserving subsecond timing.
 - Expected provider holds and service deferrals no longer log processing failures.
 - Legacy cue-template migrations preserve saved match thresholds. Cue removal becomes the default for every existing template, with a per-template opt-out.
-- Cue boundary snap widens the max-shift cap by the matched cue's own length so a long sting is not rejected when removed with the ad. (#832)
-- A stored audio bitrate or compression level outside the allowed set falls back to the default instead of reaching ffmpeg and failing the encode.
 - Settings tests isolate automatic reviewer calibration to prevent unrelated retry assertions from failing.
 - Container images remove unused repository setup and init packages and use GNU coreutils.
 - Container images build pinned media security backports and SRT 1.5.6, retaining patched source and build provenance.
 - Container images also backport fixes in core, graphics, and utility packages; native CPU builds verify runtime imports, media processing, installed package versions, and application health, and reject a build whose image scan finds leaked secrets, before publication.
 - Scheduled backups prevent temporary-file symlink races and preserve the previous backup when the destination changes during a snapshot.
-- Scheduled backups remove a staging directory left behind by a crash mid-snapshot before starting the next run.
-- An invalid per-feed User-Agent override logs a warning once per feed instead of staying silent, and again only once the stored value changes.
 
 ## [2.99.2] - 2026-10-09
 

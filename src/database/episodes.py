@@ -186,7 +186,7 @@ class EpisodeMixin:
         if limit is not None:
             pagination = 'LIMIT ? OFFSET ?'
             params.extend([limit, offset])
-        columns = ('e.episode_id, e.title, e.status, e.rss_duration' if selection
+        columns = ('e.episode_id, e.title, e.description, e.status, e.rss_duration' if selection
                    else f'e.*, {_PROCESSED_EPISODE_EXISTS_SQL} AS has_been_processed')
         cursor = conn.execute(
             f"""SELECT {columns}

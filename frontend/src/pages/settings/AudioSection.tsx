@@ -77,7 +77,7 @@ function AudioSection({
             ))}
           </select>
           <p className="mt-1 text-sm text-muted-foreground">
-            libmp3lame compression level. Lower is slower and higher quality; 7 is about twice as fast as default for speech.
+            MP3 encoding quality: lower levels are slower with higher quality; higher levels encode faster. Default uses the encoder's own setting.
           </p>
         </div>
 

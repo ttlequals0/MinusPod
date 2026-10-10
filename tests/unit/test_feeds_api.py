@@ -446,7 +446,7 @@ def test_patch_invalid_title_skip_action_rejected(app_client, seeded_feed):
     assert seeded_feed['db'].get_podcast_by_slug(slug)['title_skip_action'] is None
 
 
-# -- descriptionSkipPatterns (issue #835) --
+# Description skip patterns (#835).
 
 def test_get_feed_defaults_description_skip_patterns(app_client, seeded_feed):
     slug = seeded_feed['slug']
@@ -765,9 +765,11 @@ def test_feed_episode_search_filters_full_dataset_and_returns_all_selection(app_
     db.bulk_upsert_discovered_episodes(slug, [{
         'id': f'episode-{i}', 'url': f'https://example.com/{i}.mp3',
         'title': f'Full Show {i}' if i < 30 else 'Clip 100%',
+        'description': 'Preview episode' if i == 0 else 'Full episode',
         'rss_duration': 120 if i < 30 else 30,
     } for i in range(31)])
-    db.update_podcast(slug, min_duration_seconds=60)
+    db.update_podcast(slug, min_duration_seconds=60,
+                      description_skip_patterns='["*preview*"]')
     page = app_client.get(f'/api/v1/feeds/{slug}/episodes?search=FULL%20SHOW&limit=1&offset=29')
     assert page.status_code == 200
     assert page.get_json()['total'] == 30
@@ -777,6 +779,9 @@ def test_feed_episode_search_filters_full_dataset_and_returns_all_selection(app_
     assert len(selection.get_json()['selection']) == 30
     assert set(selection.get_json()['selection'][0]) == {
         'id', 'status', 'jobState', 'titleSkipped', 'descriptionSkipped', 'durationSkipped'}
+    selected = {episode['id']: episode for episode in selection.get_json()['selection']}
+    assert selected['episode-0']['descriptionSkipped'] is True
+    assert selected['episode-1']['descriptionSkipped'] is False
     literal = app_client.get(f'/api/v1/feeds/{slug}/episodes?search=%25')
     assert literal.get_json()['total'] == 1
     assert literal.get_json()['episodes'][0]['durationSkipped'] is True

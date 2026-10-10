@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { getErrorMessage } from '../../api/client';
 import { RemovableChip } from '../../components/RemovableChip';
 import { btnOutline } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { inputBase, focusRing } from '../../components/fieldStyles';
 
 interface SkipPatternsFieldProps {
   label: string;
@@ -16,7 +16,6 @@ interface SkipPatternsFieldProps {
   onRemove: (next: string[], callbacks: { onError: (e: unknown) => void }) => void;
 }
 
-/** Chip list + inline add input for a feed's title/description skip-pattern filters. */
 export function SkipPatternsField({
   label, patterns, addButtonAriaLabel, inputAriaLabel, placeholder, hint, disabled, onAdd, onRemove,
 }: SkipPatternsFieldProps) {
@@ -25,6 +24,7 @@ export function SkipPatternsField({
   const [error, setError] = useState<string | null>(null);
 
   const addPattern = () => {
+    if (disabled) return;
     const pattern = input.trim();
     if (!pattern) return;
     const current = patterns ?? [];
@@ -52,7 +52,7 @@ export function SkipPatternsField({
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-      <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
+      <span className="text-muted-foreground sm:w-32 shrink-0 sm:pt-0.5">
         {label}
       </span>
       <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -63,14 +63,14 @@ export function SkipPatternsField({
             ))}
           </div>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {!adding ? (
             <button
               type="button"
               aria-label={addButtonAriaLabel}
               onClick={() => setAdding(true)}
               disabled={disabled}
-              className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+              className={`min-h-11 px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
             >
               + Add pattern
             </button>
@@ -80,7 +80,10 @@ export function SkipPatternsField({
                 type="text"
                 autoFocus
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  setError(null);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
@@ -90,24 +93,26 @@ export function SkipPatternsField({
                 placeholder={placeholder}
                 aria-label={inputAriaLabel}
                 maxLength={200}
-                className="px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0"
+                disabled={disabled}
+                className={`w-full min-h-11 min-w-0 sm:flex-1 sm:w-auto ${inputBase}`}
               />
               <button
                 type="button"
                 onClick={addPattern}
                 disabled={disabled || !input.trim()}
-                className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                className={`min-h-11 px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
               >
                 Add
               </button>
               <button
                 type="button"
+                disabled={disabled}
                 onClick={() => {
                   setAdding(false);
                   setInput('');
                   setError(null);
                 }}
-                className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
+                className={`min-h-11 px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
               >
                 Cancel
               </button>
@@ -115,7 +120,7 @@ export function SkipPatternsField({
           )}
         </div>
         {error && (
-          <p className="text-xs text-destructive">{error}</p>
+          <p role="alert" className="text-xs text-destructive">{error}</p>
         )}
         <p className="text-xs text-muted-foreground">
           {hint}

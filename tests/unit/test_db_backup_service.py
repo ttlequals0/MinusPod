@@ -6,6 +6,7 @@ import sqlite3
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -220,7 +221,8 @@ def test_failed_snapshot_preserves_prior_backup_and_removes_staging(db, tmp_path
     assert list(dest.iterdir()) == [dest / FIXED_BACKUP_NAME]
 
 
-def test_stale_staging_dir_is_removed_before_backup_runs(db, tmp_path, caplog):
+@pytest.mark.parametrize('child_type', ['regular', 'dangling-link', 'directory-link'])
+def test_stale_staging_dir_is_removed_before_backup_runs(db, tmp_path, caplog, child_type):
     import logging
     dest = tmp_path / 'backups'
     db.set_setting('db_backup_dest', str(dest))
@@ -228,9 +230,17 @@ def test_stale_staging_dir_is_removed_before_backup_runs(db, tmp_path, caplog):
 
     stale = dest / '.minuspod-backup-leftover'
     stale.mkdir()
-    (stale / TEMP_BACKUP_NAME).write_bytes(b'partial')
+    child = stale / TEMP_BACKUP_NAME
+    outside = tmp_path / 'unrelated'
+    outside.mkdir()
+    sentinel = outside / 'keep'
+    sentinel.write_bytes(b'preserved')
+    if child_type == 'regular':
+        child.write_bytes(b'partial')
+    else:
+        child.symlink_to(outside if child_type == 'directory-link' else outside / 'missing')
     old = time.time() - STALE_STAGING_SECONDS - 60
-    os.utime(stale / TEMP_BACKUP_NAME, (old, old))
+    os.utime(child, (old, old), follow_symlinks=False)
     os.utime(stale, (old, old))
     recent = dest / '.minuspod-backup-inflight'
     recent.mkdir()
@@ -240,11 +250,48 @@ def test_stale_staging_dir_is_removed_before_backup_runs(db, tmp_path, caplog):
         summary = backup_now(db)
 
     assert not stale.exists()
+    assert sentinel.read_bytes() == b'preserved'
     assert recent.exists()
     shutil.rmtree(recent)
     assert summary['mode'] == 'overwrite'
     assert (dest / FIXED_BACKUP_NAME).exists()
     assert any('removed stale staging directory' in r.message for r in caplog.records)
+
+
+@pytest.mark.parametrize('failure', ['disappeared', 'inspect', 'remove'])
+def test_staging_cleanup_failure_does_not_block_snapshot(db, tmp_path, monkeypatch, failure):
+    dest = tmp_path / 'backups'
+    db.set_setting('db_backup_dest', str(dest))
+    backup_now(db)
+    stale = dest / '.minuspod-backup-leftover'
+    stale.mkdir()
+    old = time.time() - STALE_STAGING_SECONDS - 60
+    os.utime(stale, (old, old))
+    original_lstat, original_scandir, original_rmtree = Path.lstat, os.scandir, shutil.rmtree
+
+    def lstat(path):
+        if path.name == stale.name and failure == 'disappeared':
+            original_rmtree(stale)
+        return original_lstat(path)
+
+    def scandir(path):
+        if (failure == 'inspect' and isinstance(path, int)
+                and Path(os.readlink(f'/proc/self/fd/{path}')).name == stale.name):
+            raise PermissionError('staging inspection unavailable')
+        return original_scandir(path)
+
+    def rmtree(path, *args, **kwargs):
+        if failure == 'remove' and Path(path).name == stale.name:
+            raise PermissionError('staging removal unavailable')
+        return original_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'lstat', lstat)
+    monkeypatch.setattr(os, 'scandir', scandir)
+    monkeypatch.setattr(shutil, 'rmtree', rmtree)
+    db.set_setting('audio_bitrate', '96k')
+    summary = backup_now(db)
+    assert summary['mode'] == 'overwrite'
+    assert _read_setting_from_backup(dest / FIXED_BACKUP_NAME, 'audio_bitrate') == '96k'
 
 
 @pytest.mark.parametrize('unsafe_stage', ['permissions', 'owner'])

@@ -9,7 +9,7 @@
  *   - DAI-likely badge + hint render only when feed.daiLikely is true.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FeedSettingsPanel from './FeedSettingsPanel';
@@ -104,7 +104,7 @@ function renderPanel(feed: Feed) {
       <FeedSettingsPanel feed={next} slug={next.slug} />
     </QueryClientProvider>,
   );
-  return { ...result, rerenderWithFeed };
+  return { ...result, client, rerenderWithFeed };
 }
 
 const SELECT_NAME = 'Fetch each episode twice to find inserted ads';
@@ -410,6 +410,54 @@ describe('FeedSettingsPanel description blacklist controls (#835)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove *This is a preview*' }));
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
       descriptionSkipPatterns: ['*Patreon*'],
+    });
+  });
+
+  it('keeps a pending pattern save from being submitted or edited again', async () => {
+    let finishSave!: (feed: Feed) => void;
+    mockUpdateFeed.mockReturnValueOnce(new Promise<Feed>((resolve) => { finishSave = resolve; }));
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
+    const input = screen.getByLabelText('New description pattern');
+    await userEvent.type(input, '*Preview*');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(input).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveProperty('disabled', true);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(mockUpdateFeed).toHaveBeenCalledTimes(1);
+    await act(async () => { finishSave(makeFeed({ descriptionSkipPatterns: ['*Preview*'] })); });
+    await waitFor(() => expect(screen.queryByLabelText('New description pattern')).toBeNull());
+  });
+
+  it('announces a failed save and clears the error when the pattern changes', async () => {
+    mockUpdateFeed.mockRejectedValueOnce(new Error('Failed to save pattern'));
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
+    const input = screen.getByLabelText('New description pattern');
+    await userEvent.type(input, '*Preview*');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Failed to save pattern');
+    await userEvent.type(input, '*');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('waits for refreshed patterns before enabling the next change', async () => {
+    const { client, rerenderWithFeed } = renderPanel(makeFeed());
+    let finishRefresh!: () => void;
+    const refresh = new Promise<void>((resolve) => { finishRefresh = resolve; });
+    const invalidate = vi.spyOn(client, 'invalidateQueries').mockReturnValue(refresh);
+    await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
+    await userEvent.type(screen.getByLabelText('New description pattern'), '*Preview*');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['feed', 'test-feed'] }));
+    expect(screen.getByLabelText('New description pattern')).toHaveProperty('disabled', true);
+    rerenderWithFeed(makeFeed({ descriptionSkipPatterns: ['*Preview*'] }));
+    await act(async () => { finishRefresh(); });
+    await userEvent.click(await screen.findByRole('button', { name: ADD_BUTTON_NAME }));
+    await userEvent.type(screen.getByLabelText('New description pattern'), '*Bonus*');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', {
+      descriptionSkipPatterns: ['*Preview*', '*Bonus*'],
     });
   });
 });

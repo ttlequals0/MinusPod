@@ -63,9 +63,7 @@ def cue_removal_enabled(details) -> bool:
 
 
 def removed_cue_cap_allowance(start: float, end: float, removed: bool) -> float:
-    """Extra max-shift/max-break cap when a cue is removed with the ad, so a long
-    sting is not rejected (#832). Sound only because the cue pickers already bound
-    the matched edge within snap_lead_s/snap_lag_s before this cue is chosen."""
+    """Allow the removed cue's length in the boundary-shift cap (#832)."""
     return (end - start) if removed else 0.0
 
 

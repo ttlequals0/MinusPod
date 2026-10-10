@@ -417,11 +417,7 @@ def _validate_duration_range(podcast):
 
 
 def _normalize_skip_patterns(value, field):
-    """Validate a per-feed glob-pattern list (titleSkipPatterns / descriptionSkipPatterns).
-
-    Returns (db_value, error). None or an empty list clears the blacklist
-    (stored NULL). Each pattern must be a 1-200 char string; max 50 patterns.
-    """
+    """Validate and serialize a bounded per-feed glob-pattern list."""
     if value is None:
         return None, None
     if not isinstance(value, list):
@@ -509,10 +505,7 @@ def _translate_ad_chapter_compat_for_feed(db, pending_override_raw, data):
 
 
 def _deserialize_skip_patterns(raw):
-    """Parse a stored skip-patterns JSON column back for API responses.
-
-    Always returns a list, empty when unset or unparsable.
-    """
+    """Parse stored skip patterns, returning an empty list for invalid values."""
     if not raw:
         return []
     try:
@@ -1402,6 +1395,11 @@ def add_feed():
     if not source_url:
         return error_response('sourceUrl cannot be empty', 400)
 
+    feed_ua_override, error = _normalize_feed_user_agent_override(
+        data.get('feedUserAgentOverride'))
+    if error:
+        return error_response(error, 400)
+
     # SSRF protection: validate URL before any outbound request
     try:
         validate_url(source_url)
@@ -1412,7 +1410,8 @@ def add_feed():
     # Generate slug from podcast name or use provided slug
     slug = data.get('slug', '').strip()
     if not slug:
-        parser, feed_content = _fetch_feed_content(source_url)
+        parser, feed_content = _fetch_feed_content(
+            source_url, podcast={'feed_user_agent_override': feed_ua_override})
 
         if feed_content:
             parsed_feed = parser.parse_feed(
@@ -1474,13 +1473,6 @@ def add_feed():
     if 'downloadUserAgentOverride' in data:
         download_ua_override, error = _normalize_download_user_agent_override(
             data['downloadUserAgentOverride'])
-        if error:
-            return error_response(error, 400)
-
-    feed_ua_override = None
-    if 'feedUserAgentOverride' in data:
-        feed_ua_override, error = _normalize_feed_user_agent_override(
-            data['feedUserAgentOverride'])
         if error:
             return error_response(error, 400)
 
@@ -2191,7 +2183,8 @@ def update_feed(slug):
     if 'sourceUrl' in data and not (
             isinstance(data['sourceUrl'], str)
             and data['sourceUrl'].strip() == podcast['source_url']):
-        new_url, url_err = _validate_source_url(data['sourceUrl'], podcast=podcast)
+        new_url, url_err = _validate_source_url(
+            data['sourceUrl'], podcast={**podcast, **updates})
         if url_err:
             return error_response(url_err, 400)
         updates['source_url'] = new_url

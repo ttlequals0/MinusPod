@@ -3,6 +3,7 @@ import pytest
 
 from config import USER_AGENT_MAX_LENGTH
 from tests.app_bootstrap import bootstrap
+from user_agent import feed_user_agent
 
 _test_data_dir = bootstrap('feed_download_ua_')
 
@@ -76,3 +77,39 @@ def test_create_stores_download_ua_before_initial_refresh(app_client, feed_ua, m
         assert db.get_podcast_by_slug(created_slug)['download_user_agent_override'] == 'Feed/2.0'
     finally:
         db.delete_podcast(created_slug)
+
+
+def test_create_uses_rss_ua_to_derive_slug(app_client, feed_ua, monkeypatch):
+    _, db, headers = feed_ua
+    slug = 'rss-override-show'
+    monkeypatch.setattr('api.feeds.validate_url', lambda url: None)
+    observed = []
+
+    def fetch(self, url, timeout=30, podcast=None):
+        observed.append(feed_user_agent(podcast))
+        return '<rss version="2.0"><channel><title>RSS Override Show</title></channel></rss>'
+
+    monkeypatch.setattr('rss_parser.RSSParser.fetch_feed', fetch)
+    monkeypatch.setattr('main_app.feeds.refresh_rss_feed', lambda slug, url: None)
+    try:
+        response = app_client.post('/api/v1/feeds', headers=headers, json={
+            'sourceUrl': 'https://example.com/feed.xml',
+            'feedUserAgentOverride': 'Feed/2.0',
+        })
+        assert response.status_code == 201
+        assert response.json['slug'] == slug
+        assert observed == ['Feed/2.0']
+        assert db.get_podcast_by_slug(slug)['feed_user_agent_override'] == 'Feed/2.0'
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_invalid_rss_ua_is_rejected_before_slug_fetch(app_client, feed_ua, monkeypatch):
+    _, _, headers = feed_ua
+    fetches = []
+    monkeypatch.setattr('api.feeds._fetch_feed_content', lambda *args, **kwargs: fetches.append(args))
+    response = app_client.post('/api/v1/feeds', headers=headers, json={
+        'sourceUrl': 'https://example.com/feed.xml', 'feedUserAgentOverride': 'bad\nheader',
+    })
+    assert response.status_code == 400
+    assert fetches == []

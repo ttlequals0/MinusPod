@@ -124,7 +124,7 @@ function CueOverrideRow({
   );
   return (
     <div className={`flex flex-col sm:flex-row ${description ? 'sm:items-start' : 'sm:items-center'} gap-2 sm:gap-3 text-sm`}>
-      <span className={`text-muted-foreground whitespace-nowrap sm:w-32 shrink-0${description ? ' sm:pt-1.5' : ''}`}>{label}:</span>
+      <span className={`text-muted-foreground sm:w-32 shrink-0${description ? ' sm:pt-1.5' : ''}`}>{label}:</span>
       {description ? (
         <div className="flex flex-col gap-1 flex-1 min-w-0">
           {inputRow}
@@ -302,10 +302,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     // exact pre-edit snapshot rather than the possibly-stale feed prop.
     // onSettled always refetches so a failed PATCH still reverts every
     // other field to server truth.
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
-      queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
-    },
+    onSettled: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['feed', slug] }),
+      queryClient.invalidateQueries({ queryKey: ['episodes', slug] }),
+    ]),
   });
 
   // Separate mutation from updateMutation: that one closes the network editor
@@ -973,7 +973,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               />
 
               <div className="space-y-2 text-sm">
-                <div className="grid grid-cols-2 gap-3 max-w-xs">
+                <div className="grid grid-cols-2 items-end gap-3 max-w-xs">
                   {([
                     ['Minimum (minutes)', minDurationField],
                     ['Maximum (minutes)', maxDurationField],

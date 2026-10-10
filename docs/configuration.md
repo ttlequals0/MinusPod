@@ -49,7 +49,7 @@ Customize ad detection in Settings:
 - **Chapters Model** - Model for chapter generation (a small model like Haiku works well here). Its provider selector also defaults to Same as detection
 - **Ad chapters** - Set a category's segment action to Mark (see Segment categories below) to publish it as a skippable chapter instead of just leaving it in the audio. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
-- **Audio Encoder Compression Level** - ffmpeg's `libmp3lame` `-compression_level`: 0 is slowest and best quality, 9 is fastest. 7 measured roughly twice as fast as the default for speech at 128 kbps, with a quality trade that is probably inaudible. Default `default` leaves the flag unset, so ffmpeg's own encoding behavior is unchanged
+- **Audio Encoder Compression Level** - ffmpeg's `libmp3lame` `-compression_level`: 0 is slowest and best quality, 9 is fastest. Default `default` leaves the flag unset, so ffmpeg's own encoding behavior is unchanged
 - **System Prompts** - Customizable prompts for first pass and verification detection
 - **Ad break filler gap threshold** - ads in the same break separated by less than this many seconds of speech are merged into one cut. Default 12 seconds. Set to 0 to disable. Merges that would exceed 5 minutes total are skipped. See [Nearby-Ad Merge](how-it-works.md#nearby-ad-merge)
 - **Compare with the publisher transcript** - diffs the Whisper transcript against the feed's `podcast:transcript` tag, when one exists, and uses missing speech as ad evidence. On by default; each feed can override it (Feed Settings > Advanced > Transcript diff). See [Upstream Transcript Differential](transcript-differential.md)
@@ -74,7 +74,7 @@ When to enable it:
 - Hosts who organically mention their own other shows or Patreon, where the detector flags a non-ad as promotional
 - Episodes where you have noticed the cut is starting a few seconds late or ending a few seconds early
 
-Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With a typical pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
+Cost is one extra LLM call per detected ad, and one extra call per rejected detection in the resurrection band.
 
 Settings live under AI & Processing -> Ad Reviewer:
 
@@ -348,7 +348,7 @@ API: `titleSkipPatterns` (array of strings, max 50 patterns, 200 characters each
 
 ### Skip episodes by description
 
-Each feed can also list glob patterns under **Episode filters > Skip episodes by description**. This catches shows that put sponsor copy only in the description, not the title, for example "This is a preview. To hear the entire episode, become a supporter on Patreon." (#835). An episode whose description matches any pattern is skipped the same way a title match is: never queued for automatic processing, and just-in-time processing does not detect or cut it.
+Add glob patterns under **Episode filters > Skip episodes by description**. Use them for phrases absent from the title, such as *This is a preview*. Matches skip automatic and just-in-time processing, as title matches do.
 
 Matching is against the description's plain text, with HTML tags removed, as a single whole-text string, case-insensitive. `*` is a wildcard, so a phrase needs `*` on both sides, for example `*This is a preview. To hear the entire episode*`.
 
@@ -445,11 +445,10 @@ How often each mode's LLM contract is actually honored shows up on the Stats pag
 
 Default `timestamps`. API: `PUT /api/v1/settings/ad-detection` with `adAddressingMode` (`timestamps`, `segment_ids`, or `random`).
 
-The Stats page tracks two things per mode. Contract compliance says whether
-the model used the requested output shape; both modes hold near 100%
-and it exists mostly as a canary. Ad yield is the comparison that matters:
-how many ads each mode proposed, how many survived into the pipeline, and
-why the rest were dropped. The "invalid ref" drop count only exists for
+The Stats page tracks two things per mode. Contract compliance reports whether
+the model used the requested output shape. Ad yield compares how many ads each
+mode proposed, how many survived into the pipeline, and why the rest were
+dropped. The "invalid ref" drop count only exists for
 segment IDs, and that asymmetry is the point of the experiment: a made-up
 segment ID is caught and dropped, while a made-up timestamp sails through
 and has to be caught by later validation, if it is caught at all.
@@ -592,7 +591,7 @@ All are off by default (0 means unlimited), so existing installs are unaffected.
 - `providerRequestsPerMin`, `providerRequestsPerDay`, `providerTokensPerMin` - caps for the Provider A account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`, `PROVIDER_TOKENS_PER_MIN`).
 - `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - caps for the Provider B account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`, `SECONDARY_PROVIDER_TOKENS_PER_MIN`); aliases `providerBRequestsPerMin`, `providerBRequestsPerDay`, `providerBTokensPerMin`.
 
-Example, using figures that were current for one provider's free tier at the time of writing: an account allowed 5 requests per minute and 20 per day. Providers change their tiers often, so read your own account's limits rather than trusting this number, then set `providerRequestsPerMin` to 5 and `providerRequestsPerDay` to 20. Pair this with a large detection window size (see [Detection window geometry](#detection-window-geometry)) so each episode spends fewer requests, and a whole episode can fit inside a small daily budget. The token-per-minute allowance on a tier like that is often generous enough that TPM is not the binding limit, but you can set `providerTokensPerMin` if your account has a tighter token budget.
+For an account limited to 5 requests per minute and 20 per day, set `providerRequestsPerMin` to 5 and `providerRequestsPerDay` to 20. Check your account limits before choosing values. A larger [detection window](#detection-window-geometry) uses fewer requests per episode. Set `providerTokensPerMin` if the account also has a token cap.
 
 A held or limited provider never reroutes to another provider: the episode waits in the queue for that account's reset.
 

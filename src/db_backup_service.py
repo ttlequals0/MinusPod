@@ -169,16 +169,37 @@ STALE_STAGING_SECONDS = 3600
 
 
 def _sweep_stale_staging_dirs(dest_path: Path) -> None:
-    """Remove leftover staging dirs from a backup that crashed mid-snapshot (caller holds the backup lock)."""
+    """Remove old owned staging directories without blocking a new backup."""
     cutoff = time.time() - STALE_STAGING_SECONDS
-    for entry in dest_path.iterdir():
-        if not entry.is_dir() or not entry.name.startswith('.minuspod-backup-'):
+    try:
+        entries = list(dest_path.iterdir())
+    except OSError:
+        logger.warning('db_backup: could not inspect leftover staging directories')
+        return
+    for entry in entries:
+        if not entry.name.startswith('.minuspod-backup-'):
             continue
-        # The lock is per instance; another instance sharing the destination may still be writing here.
-        newest = max([entry.stat().st_mtime, *(p.stat().st_mtime for p in entry.iterdir())])
-        if newest > cutoff:
+        try:
+            info = entry.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+                continue
+            stage_fd = os.open(entry, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                stage_info = os.fstat(stage_fd)
+                if (stage_info.st_dev, stage_info.st_ino) != (info.st_dev, info.st_ino):
+                    continue
+                # Another instance may still be writing into this directory.
+                with os.scandir(stage_fd) as children:
+                    newest = max([stage_info.st_mtime, *(
+                        child.stat(follow_symlinks=False).st_mtime for child in children)])
+            finally:
+                os.close(stage_fd)
+            if newest > cutoff:
+                continue
+            shutil.rmtree(entry)
+        except OSError:
+            logger.warning('db_backup: could not clean staging directory %s', entry.name)
             continue
-        shutil.rmtree(entry, ignore_errors=True)
         logger.info('db_backup: removed stale staging directory %s', entry.name)
 
 

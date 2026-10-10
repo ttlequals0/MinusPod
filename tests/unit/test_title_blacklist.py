@@ -382,12 +382,15 @@ class TestHideModeFiltersMatchingIds:
         assert 'Episode A' in result
         assert 'Blacklisted Episode' in result
 
-    def test_hide_description_patterns_excludes_matching_entries(self):
+    @pytest.mark.parametrize('description_tag', [
+        'description', 'itunes:subtitle', 'content:encoded',
+    ])
+    def test_hide_description_patterns_excludes_matching_entries(self, description_tag):
         parser = RSSParser(base_url="https://podsrv.example.test")
         items = "\n".join(f"""
             <item>
                 <title>Episode {i}</title>
-                <description>{desc}</description>
+                <{description_tag}>{desc}</{description_tag}>
                 <guid>guid-{i}</guid>
                 <pubDate>Wed, 01 Jan 2025 00:00:00 +0000</pubDate>
                 <enclosure url="https://cdn.example.com/{i}.mp3" type="audio/mpeg" length="100" />
@@ -395,7 +398,8 @@ class TestHideModeFiltersMatchingIds:
             """ for i, desc in enumerate(
                 ['Normal show notes', 'This is a preview. Subscribe for more.']))
         feed_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/">
     <channel>
         <title>Test Podcast</title>
         <link>https://example.com</link>

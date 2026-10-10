@@ -1223,7 +1223,7 @@ class RSSParser:
                 continue
             if episode_matches_feed_filters({
                     'title': entry.get('title'),
-                    'description': entry.get('description'),
+                    'description': self._get_episode_description(entry),
                     'rss_duration': self._parse_itunes_duration(entry.get('itunes_duration')),
             }, hide_filters):
                 continue
