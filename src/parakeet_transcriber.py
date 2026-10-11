@@ -10,7 +10,7 @@ import wave
 import numpy as np
 
 from config import (
-    PARAKEET_MODEL_NAME, PARAKEET_OVERLAP_S, PARAKEET_SEGMENT_MAX_S,
+    PARAKEET_MODEL_NAME, PARAKEET_MODEL_REPO, PARAKEET_OVERLAP_S, PARAKEET_SEGMENT_MAX_S,
     PARAKEET_SEGMENT_PAUSE_S, PARAKEET_TOKEN_STEP_S, PARAKEET_WINDOW_S,
     PARAKEET_WORD_MAX_S, resolve_whisper_device,
 )
@@ -31,6 +31,22 @@ def parakeet_available() -> bool:
 def parakeet_unavailable_message() -> str:
     return ("Parakeet transcription needs the onnx-asr package, which is not installed; "
             "install it or set WHISPER_BACKEND=local or openai-api")
+
+
+def _fetch_model_files(model_dir, quantization):
+    """Download the model files into model_dir; fall back to a local copy when offline."""
+    from huggingface_hub import snapshot_download
+    suffix = f'?{quantization}' if quantization else ''
+    patterns = ['config.json', 'config.yaml', 'vocab.txt']
+    for name in ('encoder-model', 'decoder_joint-model'):
+        patterns += [f'{name}{suffix}.onnx', f'{name}{suffix}.onnx?data']
+    try:
+        snapshot_download(PARAKEET_MODEL_REPO, local_dir=model_dir, allow_patterns=patterns)
+    except Exception as e:
+        encoder = os.path.join(model_dir, f'encoder-model{suffix.replace("?", ".")}.onnx')
+        if not os.path.isfile(encoder):
+            raise
+        logger.warning("Parakeet model download failed, using the local copy: %s", e)
 
 
 class ParakeetModelSingleton:
@@ -61,7 +77,7 @@ class ParakeetModelSingleton:
                 # Plain directory: ORT 1.24 rejects external weights behind hub-cache symlinks.
                 model_dir = os.path.join(
                     os.environ.get('HF_HOME', '/app/data/.cache'), 'parakeet', PARAKEET_MODEL_NAME)
-                os.makedirs(model_dir, exist_ok=True)
+                _fetch_model_files(model_dir, quantization)
                 model = onnx_asr.load_model(
                     PARAKEET_MODEL_NAME, path=model_dir, quantization=quantization,
                     providers=providers).with_timestamps()

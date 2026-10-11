@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.2] - 2026-10-11
+
+### Fixed
+- The Parakeet model is downloaded into its cache directory before loading. Pointing onnx-asr at an existing directory puts it in offline mode, so 2.100.1 never fetched the files.
+
 ## [2.100.1] - 2026-10-11
 
 ### Fixed

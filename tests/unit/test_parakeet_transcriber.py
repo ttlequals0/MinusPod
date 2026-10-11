@@ -1,4 +1,5 @@
 """Parakeet transcriber: pure helpers and decode with a stubbed model (#834)."""
+import os
 import sys
 import types
 import wave
@@ -149,7 +150,16 @@ def clean_singleton(monkeypatch, tmp_path):
     pt.ParakeetModelSingleton.unload_model()
 
 
-def _fake_modules(monkeypatch, load_model, preload=None):
+def _fake_modules(monkeypatch, load_model, preload=None, snapshot=None):
+    calls = []
+
+    def default_snapshot(repo, local_dir=None, allow_patterns=None):
+        calls.append({'repo': repo, 'local_dir': local_dir, 'allow_patterns': allow_patterns})
+        os.makedirs(local_dir, exist_ok=True)
+
+    hub = types.ModuleType('huggingface_hub')
+    hub.snapshot_download = snapshot or default_snapshot
+    monkeypatch.setitem(sys.modules, 'huggingface_hub', hub)
     onnx_asr = types.ModuleType('onnx_asr')
     onnx_asr.load_model = load_model
     ort = types.ModuleType('onnxruntime')
@@ -157,6 +167,7 @@ def _fake_modules(monkeypatch, load_model, preload=None):
         ort.preload_dlls = preload
     monkeypatch.setitem(sys.modules, 'onnx_asr', onnx_asr)
     monkeypatch.setitem(sys.modules, 'onnxruntime', ort)
+    return calls
 
 
 def test_get_instance_cuda_and_cpu_settings(monkeypatch, clean_singleton):
@@ -171,7 +182,7 @@ def test_get_instance_cuda_and_cpu_settings(monkeypatch, clean_singleton):
         seen.update(name=name, quantization=quantization, providers=providers)
         return _Loaded()
 
-    _fake_modules(monkeypatch, load_model, preload=lambda: preloaded.append(1))
+    snaps = _fake_modules(monkeypatch, load_model, preload=lambda: preloaded.append(1))
     monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cuda')
     assert pt.ParakeetModelSingleton.get_instance() == 'ts-model'
     assert pt.ParakeetModelSingleton.is_loaded()
@@ -182,6 +193,10 @@ def test_get_instance_cuda_and_cpu_settings(monkeypatch, clean_singleton):
     monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cpu')
     pt.ParakeetModelSingleton.get_instance()
     assert seen['quantization'] == 'int8' and seen['providers'] == ['CPUExecutionProvider']
+    cuda_patterns, cpu_patterns = snaps[0]['allow_patterns'], snaps[1]['allow_patterns']
+    assert 'encoder-model.onnx' in cuda_patterns and 'encoder-model.onnx?data' in cuda_patterns
+    assert 'encoder-model?int8.onnx' in cpu_patterns and 'decoder_joint-model?int8.onnx?data' in cpu_patterns
+    assert snaps[0]['repo'] == pt.PARAKEET_MODEL_REPO
 
 
 def test_get_instance_wraps_load_failure(monkeypatch, clean_singleton):
@@ -253,10 +268,32 @@ def test_get_instance_loads_into_plain_dir_under_hf_home(monkeypatch, tmp_path, 
         seen['path'] = path
         return _Loaded()
 
-    _fake_modules(monkeypatch, load_model)
-    monkeypatch.setenv('HF_HOME', str(tmp_path))
+    snaps = _fake_modules(monkeypatch, load_model)
     monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cpu')
     pt.ParakeetModelSingleton.get_instance()
-    expected = tmp_path / 'parakeet' / pt.PARAKEET_MODEL_NAME
-    assert str(seen['path']) == str(expected)
-    assert expected.is_dir()
+    expected = str(tmp_path / 'parakeet' / pt.PARAKEET_MODEL_NAME)
+    assert snaps[0]['local_dir'] == expected
+    assert seen['path'] == expected
+    assert os.path.isdir(expected)
+
+
+def _offline_snapshot(repo, local_dir=None, allow_patterns=None):
+    raise OSError('no network')
+
+
+def test_get_instance_offline_uses_local_copy(monkeypatch, tmp_path, clean_singleton):
+    model_dir = tmp_path / 'parakeet' / pt.PARAKEET_MODEL_NAME
+    model_dir.mkdir(parents=True)
+    (model_dir / 'encoder-model.int8.onnx').write_bytes(b'x')
+    loaded = types.SimpleNamespace(with_timestamps=lambda: 'ts-model')
+    _fake_modules(monkeypatch, lambda *a, **k: loaded, snapshot=_offline_snapshot)
+    monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cpu')
+    assert pt.ParakeetModelSingleton.get_instance() == 'ts-model'
+
+
+def test_get_instance_offline_without_local_copy_fails(monkeypatch, clean_singleton):
+    loaded = types.SimpleNamespace(with_timestamps=lambda: 'ts-model')
+    _fake_modules(monkeypatch, lambda *a, **k: loaded, snapshot=_offline_snapshot)
+    monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cpu')
+    with pytest.raises(ModelLoadError, match='no network'):
+        pt.ParakeetModelSingleton.get_instance()

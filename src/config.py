@@ -1583,6 +1583,7 @@ WHISPER_LOCAL_BACKENDS = (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_PARAKEET)
 WHISPER_BACKENDS = (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API, WHISPER_BACKEND_PARAKEET)
 
 PARAKEET_MODEL_NAME = 'nemo-parakeet-tdt-0.6b-v3'
+PARAKEET_MODEL_REPO = 'istupakov/parakeet-tdt-0.6b-v3-onnx'  # Hub repo onnx-asr maps the model name to
 # Parakeet decode tuning (#834).
 PARAKEET_WINDOW_S = 30.0  # No dropped speech at 30 s windows
 PARAKEET_OVERLAP_S = 2.0
