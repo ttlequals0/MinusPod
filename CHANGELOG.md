@@ -11,6 +11,8 @@ release notes.
 
 ## [Unreleased]
 
+## [2.99.6] - 2026-10-11
+
 ### Fixed
 - Text pattern intro and outro refinement ignores phrase hits whose segment edge falls outside the search window, so a 20 to 30 second transcript segment cannot pull a match start back into show content.
 
