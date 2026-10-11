@@ -1478,22 +1478,55 @@ class TextPatternMatcher:
         return (spans[0][0], spans[-1][1]) if spans else None
 
     def _refine_edge(self, text_lower, segment_map, segments, variants,
-                     lo_t, hi_t, extract_time, pick):
-        """Time of the phrase hit chosen by pick (min intro, max outro) in [lo_t, hi_t]."""
+                     lo_t, hi_t, extract_time, pattern, match, outro):
+        """Phrase-hit time for one edge in [lo_t, hi_t], preferring the largest trim that leaves no pattern match."""
         bounds = self._char_range(segment_map, segments, lo_t, hi_t)
         if bounds is None:
             return None
         lo, hi = bounds
         region = text_lower[lo:hi]
-        times = []
+        times = set()
         for phrase, cutoff in self._eligible_phrases(variants):
             for start, end, _ in self._fuzzy_find_all(region, phrase, cutoff):
                 t = extract_time(lo, start, region[start:end], segment_map, segments)
                 # Hits snap to 20-30s segment edges and _char_pos_to_time falls back
                 # to 0.0, so only a time inside the requested window counts.
                 if lo_t <= t <= hi_t:
-                    times.append(t)
-        return pick(times) if times else None
+                    times.add(t)
+        if not times:
+            return None
+        pick = max if outro else min
+        if (self._vectorizer is None or self._pattern_vectors is None
+                or pattern.id not in self._pattern_row_index):
+            return pick(times)
+        inner = sorted((t for t in times if (t <= match.end if outro else t >= match.start)),
+                       reverse=not outro)
+        outer = [t for t in times if t not in inner]
+        spans = [(t, match.end) if outro else (match.start, t) for t in inner]
+        for t, still in zip(inner, self._residuals_match(pattern, segments, spans), strict=True):
+            if not still:
+                return t
+        return pick(outer) if outer else None
+
+    def _residuals_match(self, pattern, segments, spans) -> list[bool]:
+        """Per (lo_t, hi_t) span, True when its transcript text still scores at or above the pattern threshold."""
+        texts = [self._get_text_around_time(segments, lo, hi) if hi > lo else ''
+                 for lo, hi in spans]
+        live = [i for i, text in enumerate(texts) if text.strip()]
+        result = [False] * len(spans)  # empty residual: nothing left to match, accept the trim
+        if not live:
+            return result
+        row = self._pattern_row_index[pattern.id]
+        scores = self._vectorizer.transform([texts[i] for i in live]).dot(
+            self._pattern_vectors[row].T).toarray().ravel()
+        for i, score in zip(live, scores, strict=True):
+            if score >= TFIDF_THRESHOLD:
+                logger.debug(
+                    f"Residual text {spans[i][0]:.1f}-{spans[i][1]:.1f}s still matches "
+                    f"pattern {pattern.id} ({score:.2f})"
+                )
+                result[i] = True
+        return result
 
     def _refine_boundaries(
         self,
@@ -1524,13 +1557,15 @@ class TextPatternMatcher:
                 # Content spans are window-granular, so the phrase may sit well inside the span.
                 intro = self._refine_edge(
                     text_lower, segment_map, segments, pattern.intro_variants,
-                    match.start - 10.0, match.end, self._phrase_start_time, min
+                    match.start - 10.0, match.end, self._phrase_start_time,
+                    pattern, match, outro=False
                 )
                 if intro is not None and match.end - intro >= MIN_AD_DURATION:
                     new_start = intro
                 outro = self._refine_edge(
                     text_lower, segment_map, segments, pattern.outro_variants,
-                    match.start, match.end + 10.0, self._phrase_end_time, max
+                    match.start, match.end + 10.0, self._phrase_end_time,
+                    pattern, match, outro=True
                 )
                 if outro is not None and outro - new_start >= MIN_AD_DURATION:
                     new_end = outro

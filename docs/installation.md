@@ -13,14 +13,14 @@
 
 ## Requirements
 
-- Docker with NVIDIA GPU support (for local Whisper), **or** a [remote Whisper backend](transcription.md) (no GPU needed)
+- Docker with NVIDIA GPU support (for local faster-whisper or Parakeet), **or** a [remote transcription backend](transcription.md) (no GPU needed)
 - Anthropic API key, [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, **or** any OpenAI-compatible endpoint
 
 ### Memory Requirements
 
 **GPU VRAM:**
 
-| Whisper Model | VRAM Required |
+| faster-whisper model | VRAM Required |
 |---------------|---------------|
 | tiny | ~1 GB |
 | base | ~1 GB |
@@ -85,7 +85,7 @@ docker compose -f docker-compose.cpu.yml up -d
 
 That pulls `ttlequals0/minuspod:cpu` (the floating CPU tag). To pin a release, set `MINUSPOD_VERSION=X.Y.Z-cpu` in `.env`. The `:latest` tag always points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag. Both follow every release. For vetted builds, set `MINUSPOD_VERSION=stable-cpu` (or `stable` for GPU): these tags move only after a production soak (see [Releasing & Channels](releasing.md)).
 
-Local CPU transcription with `faster-whisper` is slow on amd64 and slower on arm64. For anything beyond a quick test, offload Whisper to a remote API in your `.env`:
+Local CPU transcription with `faster-whisper` or Parakeet is slow on amd64 and slower on arm64. For anything beyond a quick test, offload transcription to a remote API in your `.env`:
 
 ```
 WHISPER_BACKEND=openai-api

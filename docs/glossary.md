@@ -156,6 +156,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Prompt caching** - Reusing a static prompt prefix across LLM calls. MinusPod requests a 5-minute cache for Anthropic system prompts and records cache reads and writes in input-token usage. [LLM Providers > Prompt caching](llm-providers.md#prompt-caching)
 
+**Parakeet** - NVIDIA Parakeet TDT 0.6B v3, the second local transcription backend. It runs in-process through ONNX Runtime and is selected with `WHISPER_BACKEND=parakeet`. [Transcription > Parakeet](transcription.md#parakeet)
+
 **Partial detection** - An episode published from pattern and cross-fetch cuts alone after the AI detection pass failed. Shows an amber badge and a Re-run detection banner on the episode page; one automatic low-priority re-detect is also queued. [How It Works > Partial Detection](how-it-works.md#partial-detection)
 
 **Pass-through** - One of the five presets on the per-feed Processing mode select. It turns processing off entirely: episodes are downloaded and relayed with no transcription or ad removal, though the audio may be transcoded for serving. The feed URL stays the same, so switching to another mode resumes processing later without touching your podcast app. [Configuration > Pass-through mode](configuration.md#pass-through-mode)
@@ -244,6 +246,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Transcript differential** - Comparing the locally transcribed audio with a publisher transcript to find speech absent from the publisher's copy. Gaps need corroboration before they can be cut. [Upstream Transcript Differential](transcript-differential.md)
 
+**Transcription backend** - The engine that turns audio into timed words: faster-whisper, Parakeet, or a remote OpenAI-compatible API. Chosen by `WHISPER_BACKEND` or in Settings > Transcription. [Transcription](transcription.md)
+
 ## U
 
 **User-Agent** - The string MinusPod sends to identify itself on an outbound request; there are two, because hosts disagree about what they will answer. [Configuration > Outbound Requests](configuration.md#outbound-requests)
@@ -261,6 +265,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 ## W
 
 **Waveform Ad Editor** - The visual editor for a single detection: waveform, transcript context, and draggable boundaries, with the original audio for reference. [Web Interface > Waveform Ad Editor](web-interface.md#waveform-ad-editor)
+
+**Whisper (faster-whisper)** - The default local transcription backend (`WHISPER_BACKEND=local`). `WHISPER_MODEL` and `WHISPER_COMPUTE_TYPE` apply to it only. [Transcription > Whisper (faster-whisper)](transcription.md#whisper-faster-whisper)
 
 **Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet, Queue Held, Queue Resumed, Service Offline, Service Reachable, Failover Triggered, and Failover Cancelled. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
 

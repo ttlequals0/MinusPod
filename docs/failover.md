@@ -21,7 +21,7 @@ Failover is a standby account that takes over when a configured provider fails:
 
 - **Provider A** (`llm-a`) - the first LLM provider slot.
 - **Provider B** (`llm-b`) - the second LLM provider slot, when enabled.
-- **Transcriber** (`transcriber`) - the active Whisper backend.
+- **Transcriber** (`transcriber`) - the active transcription backend (faster-whisper, Parakeet, or remote API).
 
 There is one shared LLM failover provider, used by whichever of Provider A or Provider B is in trouble, and one failover transcriber. Each has its own type, endpoint, key, timeout, retries, and (for the LLM side) its own models per pipeline stage.
 

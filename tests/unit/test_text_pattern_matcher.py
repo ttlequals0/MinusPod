@@ -988,9 +988,15 @@ class TestRefineBoundariesWholeSpan:
     INTRO = ("This episode is sponsored by DeleteMe. Have you ever thought about "
              "how much of your personal data is out there?")
     OUTRO = "Go to joindeleteme.com slash darknet and use code darknet for twenty percent off."
+    AD_LINE = ("DeleteMe removes your personal data from broker sites, save twenty percent "
+               "with the discount code darknet at joindeleteme.com")
 
     def _matcher(self):
-        return TextPatternMatcher.__new__(TextPatternMatcher)
+        matcher = TextPatternMatcher.__new__(TextPatternMatcher)
+        matcher._vectorizer = None
+        matcher._pattern_vectors = None
+        matcher._pattern_row_index = {}
+        return matcher
 
     def _build(self, intro_at=(185,), outro_at=(310,), first=120, last=320):
         show = [
@@ -1085,6 +1091,98 @@ class TestRefineBoundariesWholeSpan:
         out = self._matcher()._refine_boundaries(
             [match], segments, [self._pattern(outro=True)], full_text, segment_map)
         assert (out[0].start, out[0].end) == (158.0, 190.0)
+
+    def _fitted(self, matcher, with_vectors=True):
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        vec = TfidfVectorizer(ngram_range=(1, 3), min_df=1, stop_words='english', lowercase=True)
+        template = self.AD_LINE
+        vec.fit([template, "completely different words about gardening and cooking"])
+        matcher._vectorizer = vec
+        if with_vectors:
+            matcher._pattern_vectors = vec.transform([template])
+            matcher._pattern_row_index = {1: 0}
+        return matcher
+
+    def _tail_segments(self, tail_text):
+        ad = self.AD_LINE
+        segs = [{'start': 120.0, 'end': 170.0, 'text': ad},
+                {'start': 170.0, 'end': 200.0, 'text': ad},
+                {'start': 200.0, 'end': 205.0, 'text': self.OUTRO}]
+        segs += [{'start': 205.0 + 5 * i, 'end': 210.0 + 5 * i, 'text': tail_text}
+                 for i in range(12)]
+        return segs
+
+    def _refine(self, segments, start, end, outro=True, with_vectors=True):
+        full_text, segment_map = TextPatternMatcher._concat_segments(segments)
+        matcher = self._fitted(self._matcher(), with_vectors)
+        match = TextMatch(pattern_id=1, start=start, end=end, confidence=0.84,
+                          sponsor="DeleteMe", match_type="content")
+        return matcher._refine_boundaries(
+            [match], segments, [self._pattern(outro=outro)], full_text, segment_map)[0]
+
+    def _run_outro(self, tail_text, with_vectors=True):
+        return self._refine(self._tail_segments(tail_text), 120.0, 265.0,
+                            with_vectors=with_vectors)
+
+    def test_outro_mid_read_keeps_end_when_trimmed_text_matches_pattern(self):
+        out = self._run_outro(self.AD_LINE)
+        assert (out.start, out.end) == (120.0, 265.0)
+
+    def test_outro_trims_when_trailing_text_is_unrelated(self):
+        out = self._run_outro("Back to the story, the researcher explained how the old "
+                              "routers were quietly repurposed overseas.")
+        assert out.end == 205.0
+
+    def test_outro_skips_mid_read_hit_whose_residual_still_matches(self):
+        ad = self.AD_LINE
+        segments = [{'start': 120.0, 'end': 200.0, 'text': ad},
+                    {'start': 200.0, 'end': 205.0, 'text': self.OUTRO},
+                    {'start': 205.0, 'end': 260.0, 'text': ad},
+                    {'start': 260.0, 'end': 265.0, 'text': self.OUTRO}]
+        segments += [{'start': 265.0 + 5 * i, 'end': 270.0 + 5 * i,
+                      'text': "Back to the story, the researcher explained how the old "
+                              "routers were quietly repurposed overseas."} for i in range(2)]
+        out = self._refine(segments, 120.0, 275.0)
+        assert out.end == 265.0
+
+    def _outer_hit_segments(self, last_read):
+        ad = self.AD_LINE
+        return [{'start': 120.0, 'end': 200.0, 'text': ad},
+                {'start': 200.0, 'end': 205.0, 'text': self.OUTRO},
+                {'start': 205.0, 'end': 260.0, 'text': ad},
+                {'start': 260.0, 'end': 265.0, 'text': self.OUTRO},
+                {'start': 265.0, 'end': 270.0, 'text': last_read},
+                {'start': 270.0, 'end': 272.0, 'text': self.OUTRO}]
+
+    def test_outro_falls_back_to_hit_past_match_end_when_inner_residuals_match(self):
+        out = self._refine(self._outer_hit_segments(self.AD_LINE), 120.0, 270.0)
+        assert out.end == 272.0
+
+    def test_outro_prefers_inner_hit_over_hit_past_match_end(self):
+        unrelated = "Back to the story, the researcher explained how the old routers moved."
+        out = self._refine(self._outer_hit_segments(unrelated), 120.0, 270.0)
+        assert out.end == 265.0
+
+    def test_outro_without_template_vector_trims_as_before(self):
+        out = self._run_outro(self.AD_LINE, with_vectors=False)
+        assert out.end == 205.0
+
+    def _run_intro(self, head_text):
+        segments = [{'start': 120.0 + 5 * i, 'end': 125.0 + 5 * i, 'text': head_text}
+                    for i in range(12)]
+        segments.append({'start': 180.0, 'end': 185.0, 'text': self.INTRO})
+        segments += [{'start': 185.0 + 30 * i, 'end': 215.0 + 30 * i, 'text': self.AD_LINE}
+                     for i in range(3)]
+        return self._refine(segments, 120.0, 275.0, outro=False)
+
+    def test_intro_mid_read_keeps_start_when_trimmed_text_matches_pattern(self):
+        out = self._run_intro(self.AD_LINE)
+        assert (out.start, out.end) == (120.0, 275.0)
+
+    def test_intro_trims_when_leading_text_is_unrelated(self):
+        out = self._run_intro("Welcome back to the show, today we dig into a long running "
+                              "network mystery.")
+        assert out.start == 180.0
 
     def test_fuzzy_find_all_returns_every_alignment_in_order(self):
         text = (f"{self.OUTRO.lower()} some unrelated filler about network routers "

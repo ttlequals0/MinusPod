@@ -11,7 +11,7 @@
 
 ## How It Works
 
-1. **Transcription** - Whisper converts audio to text with timestamps (local GPU via faster-whisper, or remote API via OpenAI-compatible endpoint)
+1. **Transcription** - audio is converted to text with timestamps by faster-whisper or Parakeet (local, GPU or CPU), or by a remote OpenAI-compatible API
 2. **Ad Detection** - An LLM analyzes the transcript to identify ad segments, with an automatic verification pass
 3. **Audio Processing** - FFmpeg removes detected ads and inserts short audio markers
 4. **Serving** - Flask serves modified RSS feeds and processed audio files
@@ -37,7 +37,7 @@ See detailed sections below for configuration and usage.
 
 After the first pass detects and removes ads, a verification pipeline runs on the processed audio, unless the feed has "Skip verification pass" set (see [Skip Verification Pass](#skip-verification-pass)):
 
-1. **Re-transcribe** - The processed audio is re-transcribed on CPU using Whisper
+1. **Re-transcribe** - The processed audio is re-transcribed with the active transcription backend
 2. **Audio Analysis** - Volume analysis and transition detection run on the processed audio
 3. **LLM Detection** - A "what doesn't belong" prompt detects any remaining ad content
 4. **Audio Enforcement** - Programmatic signal matching validates and extends detections

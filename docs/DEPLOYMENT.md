@@ -24,7 +24,7 @@ This page covers running MinusPod in production: health monitoring, backups, upd
 ## Prerequisites
 
 - Docker (NVIDIA runtime for GPU image; not required for the CPU image)
-- 8 GB RAM minimum; 16 GB+ recommended for `medium` / `large-v3` Whisper or long episodes
+- 8 GB RAM minimum; 16 GB+ recommended for `medium` / `large-v3` faster-whisper models or long episodes
 - CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). The image does not gate on driver version at startup; an older driver surfaces as a CUDA init error on the first transcription. PyTorch ships a CUDA 12.9 build covering Turing (sm_75) through Blackwell (sm_120). Older cards (Maxwell, Pascal, Volta) still transcribe, since CTranslate2 is compiled separately, but PyTorch prints an unsupported-architecture warning and VRAM-based chunk sizing may fall back to defaults.
 - An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance)
 
@@ -32,7 +32,7 @@ The GPU image is `ttlequals0/minuspod:<version>` and `:latest`. The CPU image is
 
 ## Supported topology
 
-The supported topology is one MinusPod container with multiple gunicorn workers and one local persistent `data` volume. SQLite coordinates those workers. Put remote Whisper replicas behind their own endpoint for more transcription capacity.
+The supported topology is one MinusPod container with multiple gunicorn workers and one local persistent `data` volume. SQLite coordinates those workers. Put remote transcription replicas behind their own endpoint for more transcription capacity.
 
 Multiple MinusPod containers or hosts sharing the same SQLite database and data directory are not supported. Redis can share rate limits across workers or hosts, but it does not make the application database, process ownership records, or file operations safe for multiple app containers.
 
@@ -93,7 +93,7 @@ Cancellation is durable across gunicorn workers. A request can return HTTP 202 w
 
 ### Out of memory
 
-1. Reduce Whisper model size: `WHISPER_MODEL=small` or `WHISPER_MODEL=tiny`
+1. Reduce faster-whisper model size: `WHISPER_MODEL=small` or `WHISPER_MODEL=tiny`
 2. Increase container memory limit
 3. For long episodes (>2 hours), expect 16GB+ RAM usage
 
@@ -101,7 +101,7 @@ A worker the kernel OOM-kills mid-run is recovered automatically at the
 next restart or maintenance pass, and since 2.94.0 a killed full/LLM
 reprocess leaves the episode's previous results intact. Size the
 container for the peak, though: transcription of a long episode holds
-the audio plus the Whisper model in RAM at once, which is where the
+the audio plus the transcription model in RAM at once, which is where the
 16GB+ figure in point 3 comes from.
 
 ### Claude API errors

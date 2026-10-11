@@ -2,7 +2,7 @@
   <img src="frontend/public/logo.png" alt="MinusPod" width="400" />
 </p>
 
-MinusPod is a self-hosted server that removes ads from podcasts before you ever hit play. It transcribes episodes with Whisper, uses an LLM to detect and cut ad segments, and builds cross-episode ad patterns from your corrections so repeat sponsors get caught without re-asking the LLM. Bring your own LLM: Claude, Ollama, OpenRouter, OpenAI-compatible providers, or System One.
+MinusPod is a self-hosted server that removes ads from podcasts before you ever hit play. It transcribes episodes locally with faster-whisper or Parakeet (or through a remote API), uses an LLM to detect and cut ad segments, and builds cross-episode ad patterns from your corrections so repeat sponsors get caught without re-asking the LLM. Bring your own LLM: Claude, Ollama, OpenRouter, OpenAI-compatible providers, or System One.
 
 <p align="center">
   <img src="docs/screenshots/dashboard-desktop-hulu.png" alt="MinusPod dashboard on desktop" width="600" />
@@ -36,7 +36,7 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 - Every marker carries a segment category (sponsor, cross-promo, self-promo, interaction, and opt-in intro/outro/recap), each resolving to remove, beep, keep, or mark (left in the audio and published as a skippable chapter when chapters are enabled), set globally or per feed and defaulting to remove until configured
 
 **Transcription**
-- Local Whisper or Parakeet TDT 0.6B v3 on GPU or CPU, or a remote OpenAI-compatible API
+- Local transcription with faster-whisper (Whisper) or NVIDIA Parakeet TDT 0.6B v3 on GPU or CPU, or a remote OpenAI-compatible API
 - Works with whisper.cpp, Groq, OpenAI Whisper, and OpenVINO (Intel GPU)
 
 **LLM providers**
@@ -67,11 +67,11 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 
 ## How it works
 
-Whisper transcribes the episode, an LLM finds the ad segments in the transcript, FFmpeg cuts them, and Flask serves the modified feed and audio. Full pipeline detail (verification pass, sliding windows, pattern learning, audio analysis) is in [docs/how-it-works.md](docs/how-it-works.md).
+The transcriber (faster-whisper, Parakeet, or a remote API) transcribes the episode, an LLM finds the ad segments in the transcript, FFmpeg cuts them, and Flask serves the modified feed and audio. Full pipeline detail (verification pass, sliding windows, pattern learning, audio analysis) is in [docs/how-it-works.md](docs/how-it-works.md).
 
 ## Requirements
 
-- Docker with NVIDIA GPU support (for local Whisper), **or** a [remote Whisper backend](docs/transcription.md) (no GPU needed)
+- Docker with NVIDIA GPU support (for local transcription), **or** a [remote transcription backend](docs/transcription.md) (no GPU needed)
 - Anthropic API key, [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, **or** any OpenAI-compatible endpoint
 
 Memory and VRAM tables are in [docs/installation.md](docs/installation.md).
@@ -102,7 +102,7 @@ Compose requires an application password before it serves the normal API. Set th
 
 `MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring an encrypted API download requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
 
-**No NVIDIA GPU?** Pull the CPU variant (`docker compose -f docker-compose.cpu.yml up -d`; multi-arch, runs natively on amd64 and arm64) and offload Whisper to a remote API. Full CPU setup is in [docs/installation.md](docs/installation.md).
+**No NVIDIA GPU?** Pull the CPU variant (`docker compose -f docker-compose.cpu.yml up -d`; multi-arch, runs natively on amd64 and arm64) and offload transcription to a remote API. Full CPU setup is in [docs/installation.md](docs/installation.md).
 
 **Stable or edge?** `:latest` (GPU) and `:cpu` follow every release; several can land in one day. For a slower, vetted track, set `MINUSPOD_VERSION=stable` (GPU compose) or `MINUSPOD_VERSION=stable-cpu` (CPU compose) in your `.env` to pin `ttlequals0/minuspod:stable` / `:stable-cpu` instead. Stable tags only move to releases that have soaked in production; see the [releases page](https://github.com/ttlequals0/MinusPod/releases) for curated notes on each.
 
@@ -120,7 +120,7 @@ Compose requires an application password before it serves the normal API. Set th
 | [Community Patterns](patterns/README.md) | Crowdsourced ad pattern set: opt-in manifest sync, file format, and how to contribute |
 | [Environment Variables](docs/environment-variables.md) | Every env var, grouped by how often you touch it |
 | [LLM Providers](docs/llm-providers.md) | Claude Code wrapper, Ollama, OpenRouter, recommended models, pricing |
-| [Whisper / Transcription](docs/transcription.md) | GPU compute types, whisper.cpp, Groq, OpenAI Whisper, timeouts |
+| [Transcription](docs/transcription.md) | faster-whisper and Parakeet backends, choosing between them, GPU compute types, whisper.cpp, Groq, OpenAI Whisper, timeouts |
 | [Intel GPU Transcription (OpenVINO)](docs/transcription-openvino.md) | Offload Whisper to an Intel GPU via the OpenVINO Model Server |
 | [Finding Feeds & Usage](docs/feeds-and-usage.md) | Podcast search, finding RSS feeds, Audiobookshelf |
 | [Local Feeds](docs/local-feeds.md) | Build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema |

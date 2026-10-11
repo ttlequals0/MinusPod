@@ -31,14 +31,14 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `OPENAI_MODEL` | _(none)_ | Model id that seeds `claude_model`, `verification_model`, and `chapters_model` whenever one of those settings is unset. No shipped default exists: **required for Ollama** (e.g. `qwen3:14b`) and needed for OpenAI-compatible/OpenRouter unless you pick a model in Settings > AI models instead. Once a setting has a stored value the env var no longer touches it. Processing fails with a message pointing at Settings > AI models until every model setting is configured. There is no `LLM_MODEL` variable. |
 | `BASE_URL` | `http://localhost:8000` | Public URL for generated feed links |
 | `UI_BASE_URL` | _(falls back to BASE_URL)_ | Public URL for UI links in webhooks (set if UI is on a different domain than feeds) |
-| `WHISPER_MODEL` | `small` | Whisper model size. `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, plus `.en` variants |
+| `WHISPER_MODEL` | `small` | faster-whisper backend only. Model size. `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, plus `.en` variants |
 | `WHISPER_DEVICE` | `cuda` | `cuda` or `cpu`. Set to `cpu` when using API backend to skip GPU init. |
-| `WHISPER_BACKEND` | `local` | `local` (faster-whisper), `parakeet` (built-in Parakeet TDT 0.6B v3), or `openai-api` (remote HTTP). `WHISPER_MODEL` and `WHISPER_COMPUTE_TYPE` apply to `local` only. See [Parakeet (built in)](transcription.md#parakeet-built-in). |
+| `WHISPER_BACKEND` | `local` | `local` (faster-whisper, in the container), `parakeet` (NVIDIA Parakeet TDT 0.6B v3, in the container), or `openai-api` (remote HTTP server). `WHISPER_MODEL` and `WHISPER_COMPUTE_TYPE` apply to `local` only. See [Transcription](transcription.md). |
 | `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API |
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
 | `WHISPER_LANGUAGE` | `en` | ISO 639-1 language code, or `auto`. Seeds fresh installs only; runtime value is in Settings > Transcription. |
-| `WHISPER_COMPUTE_TYPE` | `auto` | `auto`, `float16`, `int8_float16`, `int8`, or `float32`. `auto` picks `float16` on CUDA and `int8` on CPU. Seeds fresh installs only; runtime value is in Settings > Transcription. See [GPU Compute Type](transcription.md#gpu-compute-type) for per-GPU recommendations. |
+| `WHISPER_COMPUTE_TYPE` | `auto` | faster-whisper backend only. `auto`, `float16`, `int8_float16`, `int8`, or `float32`. `auto` picks `float16` on CUDA and `int8` on CPU. Seeds fresh installs only; runtime value is in Settings > Transcription. See [GPU Compute Type](transcription.md#gpu-compute-type) for per-GPU recommendations. |
 | `VAD_GAP_DETECTION_ENABLED` | `true` | `true` or `false`. Toggles the VAD gap detector, which cuts audio regions Whisper's VAD dropped (sped-up disclaimers, distorted ad tails) that the transcript-based detectors never see. Seeds the DB row on fresh installs; runtime value is at `GET/PUT /api/v1/settings`. Advanced tuning, not surfaced in the UI. |
 | `VAD_GAP_START_MIN_SECONDS` | `3.0` | Minimum pre-transcript gap (seconds) at episode start that the VAD detector will cut. Anything shorter is left alone. Seeds fresh installs only. |
 | `VAD_GAP_MID_MIN_SECONDS` | `8.0` | Minimum mid-episode untranscribed gap. Standalone mid-gaps still require BOTH signoff-before AND resume-after context to emit; gaps adjacent to a detected ad extend that ad in place regardless of this threshold. Seeds fresh installs only. |

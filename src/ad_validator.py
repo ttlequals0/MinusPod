@@ -1723,6 +1723,12 @@ class AdValidator:
             if lo is None:
                 out.append(ad)
                 continue
+            # A template cue snap on an edge is a measurement of that edge.
+            snaps = ad.get('cue_snap') or {}
+            if is_template_cue(snaps.get('start')):
+                lo = ad['start']
+            if is_template_cue(snaps.get('end')):
+                hi = ad['end']
             if (lo, hi) == (ad['start'], ad['end']):
                 cut = ad
             else:

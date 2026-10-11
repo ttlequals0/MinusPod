@@ -11,6 +11,15 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.8] - 2026-10-11
+
+### Fixed
+- Text pattern intro and outro refinement keeps an edge when the text it would trim still matches the pattern, so a learned outro phrase that appears mid-read no longer cuts the ad short. (#838)
+- A template ad-break cue that snapped an estimated pattern span's edge counts as a measurement of that edge, so the span up to the cue is cut instead of held for review as an estimated remainder. (#838)
+
+### Changed
+- Documentation presents faster-whisper and Parakeet as the two local transcription backends side by side, with the measured trade-offs and which settings apply to each.
+
 ## [2.100.7] - 2026-10-11
 
 ### Changed

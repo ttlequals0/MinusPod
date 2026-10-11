@@ -18,6 +18,7 @@ from config import (
     HOLD_REASON_UNCORROBORATED_TAIL,
     HOLD_REASON_ESTIMATED_PATTERN,
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
+    AUDIO_CUE_SOURCE_TEMPLATE,
 )
 
 
@@ -2722,6 +2723,46 @@ def test_estimated_tail_split_at_measured_claude_end():
     assert held['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
     assert held['_skip_pattern_learning'] is True and held['_estimated_remainder'] is True
     assert held['reason'].endswith(' (estimated pattern remainder)')
+
+
+def _template_snap(**extra):
+    return {'label': 'ad_break_end', 'source': AUDIO_CUE_SOURCE_TEMPLATE, 'cue_confidence': 0.9, **extra}
+
+
+def test_template_cue_end_snap_counts_as_measured_end():
+    ad = _claude_then_estimate(estimated_end=3680.7)[0]
+    ad['cue_snap'] = {'end': _template_snap()}
+    result = AdValidator(3800.0, [], splice_veto_enabled=False).validate([ad])
+
+    assert _spans(result) == [(3492.9, 3680.7)]
+    assert not result.ads[0].get('held_for_review')
+
+
+def test_spectral_cue_end_snap_still_holds_remainder():
+    ad = _claude_then_estimate(estimated_end=3680.7)[0]
+    ad['cue_snap'] = {'end': {'label': 'ad_break_end', 'source': 'spectral', 'cue_confidence': 0.9}}
+    result = AdValidator(3800.0, [], splice_veto_enabled=False).validate([ad])
+
+    assert _spans(result) == [(3492.9, 3573.2), (3573.2, 3680.7)]
+    assert result.ads[1]['hold_reason'] == HOLD_REASON_ESTIMATED_PATTERN
+
+
+def test_template_cue_start_snap_counts_as_measured_start():
+    ad = {'start': 1451.0, 'end': 1516.6, 'confidence': 0.96,
+          'reason': 'Acme sponsor read', 'sponsor': 'Acme', 'detection_stage': 'claude'}
+    mark_distinct_merge(ad, {
+        'start': 1400.0, 'end': 1451.0, 'confidence': 0.95,
+        'detection_stage': 'text_pattern', 'span_estimated': True,
+        'text_start': 1420.0, 'text_end': 1451.0,
+        'has_estimated_pattern_member': True})
+    ad['start'] = 1400.0
+    ad['cue_snap'] = {'start': _template_snap(label='ad_break_start')}
+    validator = AdValidator(3800.0, [], splice_veto_enabled=False)
+    control = validator.validate([{k: v for k, v in ad.items() if k != 'cue_snap'}])
+    assert any(a.get('_estimated_remainder') for a in control.ads)
+    result = validator.validate([ad])
+    assert _spans(result) == [(1400.0, 1516.6)]
+    assert not any(a.get('_estimated_remainder') for a in result.ads)
 
 
 def test_estimated_tail_split_logs_one_info_line(caplog):

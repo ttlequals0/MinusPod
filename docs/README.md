@@ -17,7 +17,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [System One](system-one.md) - native TypeSafe and compatible providers, supported phases, profiles, migration, and statistics
 - [Failover](failover.md) - standby LLM provider and transcriber, triggers, health probes, recovery, manual control, API
 - [Pattern Cleanup](pattern-cleanup.md) - scheduled or manual LLM review and statistics checks: trims, splits, renames, retirements, false-positive or contamination flags, approve/reject/undo, API
-- [Whisper / Transcription](transcription.md) - GPU compute types, whisper.cpp, Groq, OpenAI Whisper, language, timeouts
+- [Transcription](transcription.md) - faster-whisper and Parakeet backends, choosing between them, GPU compute types, remote APIs (whisper.cpp, Groq, OpenAI), language, timeouts
 - [Intel GPU Transcription (OpenVINO)](transcription-openvino.md) - offload Whisper to an Intel GPU via OpenVINO Model Server
 - [Finding Feeds & Usage](feeds-and-usage.md) - podcast search, finding RSS feeds, Audiobookshelf
 - [Local Feeds](local-feeds.md) - build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema

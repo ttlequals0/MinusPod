@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.100.7
+  version: 2.100.8
   contact:
     name: MinusPod
   license:
@@ -844,7 +844,7 @@ paths:
                   type:
                     - string
                     - 'null'
-                  description: Per-feed Whisper transcription language. 'auto' pins auto-detect for this feed; a language code (e.g. 'en', 'de') forces that language; null falls back to the global whisperLanguage setting.
+                  description: Per-feed transcription language. 'auto' pins auto-detect for this feed; a language code (e.g. 'en', 'de') forces that language; null falls back to the global whisperLanguage setting.
                 titleOverride:
                   type:
                     - string
@@ -1115,7 +1115,7 @@ paths:
                   type:
                     - boolean
                     - 'null'
-                  description: Per-feed opt-out from Whisper transcription. Only valid on a feed already in cue_only mode; rejected with a 400 otherwise. Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
+                  description: Per-feed opt-out from transcription. Only valid on a feed already in cue_only mode; rejected with a 400 otherwise. Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
                 maxEpisodes:
                   type:
                     - integer
@@ -1958,8 +1958,8 @@ paths:
     get:
       tags:
         - Episodes
-      summary: Get original (pre-cut) Whisper segments
-      description: Returns the original Whisper transcript segments with timestamps, captured before any ads were removed. Only available for episodes processed with v2.0.26+.
+      summary: Get original (pre-cut) transcript segments
+      description: Returns the original transcript segments with timestamps, captured before any ads were removed. Only available for episodes processed with v2.0.26+.
       operationId: getOriginalSegments
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -5634,7 +5634,7 @@ paths:
       description: >-
         Probes every currently enabled target (see `enabled_probe_targets`),
         records the result, and applies the same auto-trigger/auto-recovery
-        rules as the background probe tick. A local Whisper diagnostic decode
+        rules as the background probe tick. A local transcription diagnostic decode
         requested from a web request is never run inline: it is handed to the
         background worker to run on its next tick, and this response carries
         that target's last stored verdict instead of a fresh one.
@@ -5883,7 +5883,7 @@ paths:
               type: object
               properties:
                 baseUrl: { type: string, description: 'Base URL to test; when the key is absent the saved value is used' }
-                model:   { type: string, description: 'Whisper model to test; ignored for native System One catalog checks' }
+                model:   { type: string, description: 'Transcription model to test (faster-whisper or remote API); ignored for native System One catalog checks' }
                 skipFlacCompression: { type: boolean, description: 'whisper only: upload WAV (true) or FLAC (false); falls back to the saved setting' }
       responses:
         '200':
@@ -6116,7 +6116,7 @@ paths:
                   example: ''
                 whisperModel:
                   type: string
-                  description: Whisper model for transcription (tiny, base, small, medium, large-v3)
+                  description: faster-whisper model (tiny, base, small, medium, large-v3); ignored by the parakeet and openai-api backends
                   example: small
                 whisperBackend:
                   type: string
@@ -6125,20 +6125,20 @@ paths:
                   example: local
                 whisperApiBaseUrl:
                   type: string
-                  description: Base URL for OpenAI-compatible Whisper API endpoint (only used when whisperBackend is openai-api)
+                  description: Base URL for OpenAI-compatible remote transcription API endpoint (only used when whisperBackend is openai-api)
                   example: http://localhost:8080/v1
                 whisperApiKey:
                   type: string
-                  description: API key for the Whisper API endpoint (only used when whisperBackend is openai-api)
+                  description: API key for the remote transcription API endpoint (only used when whisperBackend is openai-api)
                 whisperApiModel:
                   type: string
-                  description: Model name to use with the Whisper API (only used when whisperBackend is openai-api)
+                  description: Model name to use with the remote transcription API (only used when whisperBackend is openai-api)
                   example: whisper-1
                 whisperLanguage:
                   type: string
                   description: |
-                    ISO 639-1 language code to pin Whisper transcription to (e.g. `en`, `fi`, `es`),
-                    or `auto` to let Whisper detect. Empty value resets to the default (`en`).
+                    ISO 639-1 language code to pin transcription to (e.g. `en`, `fi`, `es`),
+                    or `auto` to let the backend detect. Empty value resets to the default (`en`).
                     Applies to both local (faster-whisper) and remote OpenAI-compatible backends.
                   example: en
                 whisperApiTimeoutSeconds:
@@ -6147,7 +6147,7 @@ paths:
                   maximum: 3600
                   description: |
                     Seconds to wait for each transcription request to the remote
-                    Whisper backend (issue #593). A slow self-hosted backend that
+                    transcription backend (issue #593). A slow self-hosted backend that
                     returns 0 segments on larger chunks is hitting this limit;
                     raise it or lower transcribeMaxChunkSeconds. A proxy in front
                     of the backend may cut the request sooner than this value.
@@ -6162,7 +6162,7 @@ paths:
                   type: integer
                   minimum: 1
                   maximum: 32
-                  description: Number of transcription chunks sent to the Whisper backend concurrently.
+                  description: Number of transcription chunks sent to the transcription backend concurrently.
                   example: 4
                 transcribeChunkOverlapSeconds:
                   type: integer
@@ -6172,24 +6172,24 @@ paths:
                   example: 30
                 whisperPoolEnabled:
                   type: boolean
-                  description: Bound concurrent requests to the remote Whisper API to avoid rate limits.
+                  description: Bound concurrent requests to the remote transcription API to avoid rate limits.
                 whisperPoolMaxRequests:
                   type: integer
                   minimum: 1
                   maximum: 64
-                  description: Maximum concurrent in-flight requests to the remote Whisper API when the pool is enabled.
+                  description: Maximum concurrent in-flight requests to the remote transcription API when the pool is enabled.
                   example: 4
                 whisperPoolMaxEpisodes:
                   type: integer
                   minimum: 1
                   maximum: 16
-                  description: Maximum episodes transcribing concurrently against the remote Whisper API when the pool is enabled.
+                  description: Maximum episodes transcribing concurrently against the remote transcription API when the pool is enabled.
                   example: 1
                 whisperComputeType:
                   type: string
                   enum: [auto, float16, int8_float16, int8, float32]
                   description: |
-                    Compute precision for the local faster-whisper backend.
+                    Compute precision for the local faster-whisper backend only.
                     `auto` resolves to float16 on CUDA and int8 on CPU. On init
                     failure with float16, the server falls back through
                     int8_float16 -> int8 -> float32. Older NVIDIA GPUs
@@ -6544,7 +6544,7 @@ paths:
                   description: When true, feeds that inherit this setting skip the pass-2 verification scan.
                 transcriptDifferentialEnabled:
                   type: boolean
-                  description: Default for the upstream-transcript differential; feeds that inherit this setting follow it. Diffs the upstream podcast:transcript against the Whisper transcript to help locate ads.
+                  description: Default for the upstream-transcript differential; feeds that inherit this setting follow it. Diffs the upstream podcast:transcript against the transcript to help locate ads.
                   example: true
                 differentialFetchMode:
                   type: string
@@ -6621,7 +6621,7 @@ paths:
                   type: boolean
                   description: |
                     When true, skip the FLAC encode pass before uploading audio
-                    to the Whisper API. Send the preprocessed WAV directly.
+                    to the remote transcription API. Send the preprocessed WAV directly.
                   example: false
                 audioNormalizeEnabled:
                   type: boolean
@@ -13359,7 +13359,7 @@ components:
           type:
             - string
             - 'null'
-          description: Per-feed Whisper transcription language ('auto' or a language code like 'en'/'de'); null uses the global whisperLanguage setting.
+          description: Per-feed transcription language ('auto' or a language code like 'en'/'de'); null uses the global whisperLanguage setting.
         titleOverride:
           type:
             - string
@@ -13620,7 +13620,7 @@ components:
           type:
             - boolean
             - 'null'
-          description: Per-feed opt-out from Whisper transcription. Only valid on a feed in cue_only mode. Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
+          description: Per-feed opt-out from transcription. Only valid on a feed in cue_only mode. Generated chapters stop, and transcript search and VTT subtitles become unavailable for those episodes, but publisher chapters (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the cut audio. Null and false both mean transcription still runs.
         maxEpisodes:
           type:
             - integer
@@ -13954,7 +13954,7 @@ components:
                   type:
                     - number
                     - 'null'
-                  description: Fraction of Whisper words matched in the publisher transcript.
+                  description: Fraction of transcript words matched in the publisher transcript.
                 sourceType:
                   type:
                     - string
@@ -14747,7 +14747,7 @@ components:
             transcription:
               type: object
               description: >-
-                Local Whisper transcription outcome for this run. The whole
+                Local transcription outcome for this run. The whole
                 block is absent when the run did not transcribe locally, so a
                 run on the remote API backend or one that skipped
                 transcription has no entry at all.
@@ -14774,7 +14774,7 @@ components:
                   description: Reported GPU name. Null whenever device is cpu.
                 model:
                   type: string
-                  description: Whisper model the run loaded.
+                  description: Local model the run loaded.
                 error:
                   type:
                     - string
@@ -15549,7 +15549,7 @@ components:
           properties:
             value:
               type: string
-              description: Whisper model for transcription
+              description: faster-whisper model for transcription; ignored by the parakeet and openai-api backends
             isDefault:
               type: boolean
         whisperBackend:
@@ -15565,18 +15565,18 @@ components:
           properties:
             value:
               type: string
-              description: Base URL for OpenAI-compatible Whisper API endpoint
+              description: Base URL for OpenAI-compatible remote transcription API endpoint
             isDefault:
               type: boolean
         whisperApiKeyConfigured:
           type: boolean
-          description: Whether a Whisper API key is configured (read-only)
+          description: Whether a remote transcription API key is configured (read-only)
         whisperApiModel:
           type: object
           properties:
             value:
               type: string
-              description: Model name to use with the Whisper API
+              description: Model name to use with the remote transcription API
             isDefault:
               type: boolean
         whisperLanguage:
@@ -15584,7 +15584,7 @@ components:
           properties:
             value:
               type: string
-              description: ISO 639-1 code (e.g. `en`, `fi`) or `auto` for Whisper auto-detect
+              description: ISO 639-1 code (e.g. `en`, `fi`) or `auto` for backend auto-detect
             isDefault:
               type: boolean
         whisperApiTimeoutSeconds:
@@ -15592,7 +15592,7 @@ components:
           properties:
             value:
               type: integer
-              description: Seconds to wait for each remote Whisper transcription request.
+              description: Seconds to wait for each remote transcription request.
             isDefault:
               type: boolean
         transcribeMaxChunkSeconds:
@@ -15605,7 +15605,7 @@ components:
               type: boolean
         transcribeConcurrentChunks:
           type: object
-          description: Number of transcription chunks sent to the Whisper backend concurrently.
+          description: Number of transcription chunks sent to the transcription backend concurrently.
           properties:
             value:
               type: integer
@@ -15621,7 +15621,7 @@ components:
               type: boolean
         whisperPoolEnabled:
           type: object
-          description: Bound concurrent requests to the remote Whisper API to avoid rate limits.
+          description: Bound concurrent requests to the remote transcription API to avoid rate limits.
           properties:
             value:
               type: boolean
@@ -15629,7 +15629,7 @@ components:
               type: boolean
         whisperPoolMaxRequests:
           type: object
-          description: Maximum concurrent in-flight requests to the remote Whisper API when the pool is enabled.
+          description: Maximum concurrent in-flight requests to the remote transcription API when the pool is enabled.
           properties:
             value:
               type: integer
@@ -15637,7 +15637,7 @@ components:
               type: boolean
         whisperPoolMaxEpisodes:
           type: object
-          description: Maximum episodes transcribing concurrently against the remote Whisper API when the pool is enabled.
+          description: Maximum episodes transcribing concurrently against the remote transcription API when the pool is enabled.
           properties:
             value:
               type: integer
@@ -15650,7 +15650,7 @@ components:
               type: string
               enum: [auto, float16, int8_float16, int8, float32]
               description: |
-                Compute precision for the local faster-whisper backend. `auto` resolves to float16
+                Compute precision for the local faster-whisper backend only. `auto` resolves to float16
                 on CUDA and int8 on CPU; older GPUs automatically fall back through the chain
                 int8_float16 -> int8 -> float32 when float16 init fails.
             isDefault:
@@ -17228,13 +17228,13 @@ components:
               description: Effective transcription model from settings (local model, or the remote API model when the backend is openai-api)
             whisperDevice:
               type: string
-              description: Local compute device, or "remote" when transcription runs on a remote whisper API
+              description: Local compute device, or "remote" when transcription runs on a remote transcription API
             whisperBackend:
               type: string
               description: Transcription backend in use (local, openai-api or parakeet; parakeet runs NVIDIA Parakeet TDT 0.6B v3 in-process)
             whisperApiHost:
               type: [string, 'null']
-              description: scheme://host of the remote whisper endpoint, or null when transcription is local
+              description: scheme://host of the remote transcription endpoint, or null when transcription is local
             baseUrl:
               type: string
         stats:
