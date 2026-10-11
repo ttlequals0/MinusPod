@@ -288,7 +288,7 @@ def test_model_load_failure_is_retried_not_permanently_failed(caplog):
         status = _handle_failure(ModelLoadError('Whisper model could not be loaded'))
     assert status['status'] == processing.EpisodeStatus.FAILED.value
     assert status['retry_count'] == 1
-    assert 'Whisper model failed to load, will retry' in caplog.text
+    assert 'Transcription model failed to load, will retry' in caplog.text
 
 
 def test_model_load_failure_respects_the_retry_cap():

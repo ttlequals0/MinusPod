@@ -142,7 +142,8 @@ def test_decode_keeps_non_latin_for_auto(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def clean_singleton():
+def clean_singleton(monkeypatch, tmp_path):
+    monkeypatch.setenv('HF_HOME', str(tmp_path))
     pt.ParakeetModelSingleton.unload_model()
     yield
     pt.ParakeetModelSingleton.unload_model()
@@ -166,7 +167,7 @@ def test_get_instance_cuda_and_cpu_settings(monkeypatch, clean_singleton):
         def with_timestamps(self):
             return 'ts-model'
 
-    def load_model(name, quantization=None, providers=None):
+    def load_model(name, quantization=None, providers=None, path=None):
         seen.update(name=name, quantization=quantization, providers=providers)
         return _Loaded()
 
@@ -239,3 +240,23 @@ def test_words_from_tokens_length_mismatch_uses_shorter(caplog):
         words = pt.words_from_tokens([M + 'a', M + 'b', M + 'c'], [0.0, 0.5])
     assert [w['word'] for w in words] == ['a', 'b']
     assert '3 tokens but 2 timestamps' in caplog.text
+
+
+def test_get_instance_loads_into_plain_dir_under_hf_home(monkeypatch, tmp_path, clean_singleton):
+    seen = {}
+
+    class _Loaded:
+        def with_timestamps(self):
+            return 'ts-model'
+
+    def load_model(name, quantization=None, providers=None, path=None):
+        seen['path'] = path
+        return _Loaded()
+
+    _fake_modules(monkeypatch, load_model)
+    monkeypatch.setenv('HF_HOME', str(tmp_path))
+    monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cpu')
+    pt.ParakeetModelSingleton.get_instance()
+    expected = tmp_path / 'parakeet' / pt.PARAKEET_MODEL_NAME
+    assert str(seen['path']) == str(expected)
+    assert expected.is_dir()

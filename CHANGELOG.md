@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.1] - 2026-10-11
+
+### Fixed
+- Parakeet model files download into a plain directory under the data cache instead of the symlinked Hugging Face hub layout, which ONNX Runtime 1.24 rejects when validating the encoder's external weights.
+
 ## [2.100.0] - 2026-10-11
 
 ### Added

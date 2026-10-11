@@ -6049,7 +6049,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                 audio_logger.warning(f"[{slug}:{episode_id}] Max retries reached ({MAX_EPISODE_RETRIES}), marking as permanently failed")
             else:
                 new_status = EpisodeStatus.FAILED.value
-                cause = ('Whisper model failed to load' if isinstance(error, ModelLoadError)
+                cause = ('Transcription model failed to load' if isinstance(error, ModelLoadError)
                          else 'Transient error')
                 audio_logger.info(f"[{slug}:{episode_id}] {cause}, will retry (attempt {new_retry_count}/{MAX_EPISODE_RETRIES})")
     else:

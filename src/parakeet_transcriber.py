@@ -1,6 +1,7 @@
 """In-process NVIDIA Parakeet TDT transcription through onnx-asr (#834)."""
 import importlib.util
 import logging
+import os
 import string
 import threading
 import unicodedata
@@ -57,8 +58,12 @@ class ParakeetModelSingleton:
                 else:
                     providers = ['CPUExecutionProvider']
                     quantization = 'int8'
+                # Plain directory: ORT 1.24 rejects external weights behind hub-cache symlinks.
+                model_dir = os.path.join(
+                    os.environ.get('HF_HOME', '/app/data/.cache'), 'parakeet', PARAKEET_MODEL_NAME)
+                os.makedirs(model_dir, exist_ok=True)
                 model = onnx_asr.load_model(
-                    PARAKEET_MODEL_NAME, quantization=quantization,
+                    PARAKEET_MODEL_NAME, path=model_dir, quantization=quantization,
                     providers=providers).with_timestamps()
             except Exception as e:
                 raise ModelLoadError(str(e)) from e
