@@ -10,7 +10,8 @@ import pytest
 import parakeet_transcriber as pt
 from utils.errors import ModelLoadError
 
-M = '\u2581'
+M = ' '  # onnx-asr replaces the SentencePiece marker with a space
+MARK = '\u2581'
 
 
 def test_plan_windows_two_windows_for_31s():
@@ -297,3 +298,21 @@ def test_get_instance_offline_without_local_copy_fails(monkeypatch, clean_single
     monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cpu')
     with pytest.raises(ModelLoadError, match='no network'):
         pt.ParakeetModelSingleton.get_instance()
+
+
+def test_words_from_tokens_accepts_sentencepiece_marker_and_skips_specials():
+    words = pt.words_from_tokens([MARK + 'Hi', '<unk>', MARK, MARK + 'there', '<|en|>'],
+                                 [0.0, 0.1, 0.2, 0.4, 0.5])
+    assert [w['word'] for w in words] == ['Hi', 'there']
+
+
+def test_decode_window_of_space_prefixed_tokens_splits_into_segments(tmp_path, monkeypatch):
+    path = tmp_path / 'f.wav'
+    _write_wav(path, 30.0)
+    toks = [' a', ' b', ' c', ' d', ' e', ' f', ' g.', ' h', ' i', ' j', ' k', ' l.']
+    stamps = [i * 2.0 for i in range(12)]
+    model = types.SimpleNamespace(recognize=lambda chunk, sample_rate: _Result(toks, stamps))
+    monkeypatch.setattr(pt.ParakeetModelSingleton, 'get_instance', classmethod(lambda cls: model))
+    segs = pt.decode(path, 'en')
+    assert [len(s['words']) for s in segs] == [7, 5]
+    assert [w['start'] for w in segs[1]['words']] == stamps[7:]

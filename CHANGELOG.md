@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.3] - 2026-10-11
+
+### Fixed
+- Parakeet word boundaries follow the space-prefixed tokens onnx-asr returns, so transcripts carry one word per spoken word instead of one word per 30 second window and no window is dropped at the overlap.
+
 ## [2.100.2] - 2026-10-11
 
 ### Fixed

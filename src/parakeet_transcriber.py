@@ -2,6 +2,7 @@
 import importlib.util
 import logging
 import os
+import re
 import string
 import threading
 import unicodedata
@@ -19,6 +20,7 @@ from utils.errors import ModelLoadError
 logger = logging.getLogger('podcast.parakeet')
 
 WORD_MARKER = '\u2581'
+_SPECIAL_TOKEN = re.compile(r'^(<\|.*\|>|<unk>|<pad>|<blk>)$')
 _SENTENCE_END = ('.', '?', '!')
 _ENGLISH = ('en', 'english', '', None)
 
@@ -129,8 +131,13 @@ def words_from_tokens(tokens, timestamps, offset_s=0.0):
                        len(tokens), len(timestamps))
     groups = []
     for tok, ts in zip(tokens, timestamps, strict=False):
-        if tok.startswith(WORD_MARKER) or not groups:
-            groups.append({'text': tok.lstrip(WORD_MARKER), 'start': ts, 'last': ts})
+        text = tok.lstrip(' ' + WORD_MARKER)
+        # onnx-asr turns the SentencePiece marker into a leading space, so accept both.
+        starts_word = tok[:1] in (' ', WORD_MARKER)
+        if not text or _SPECIAL_TOKEN.match(tok.strip()):
+            continue
+        if starts_word or not groups:
+            groups.append({'text': text, 'start': ts, 'last': ts})
         else:
             groups[-1]['text'] += tok
             groups[-1]['last'] = ts
