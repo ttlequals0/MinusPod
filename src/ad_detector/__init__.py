@@ -3311,7 +3311,11 @@ class AdDetector:
                         last[_CATEGORY_SPAN] = cur_span
 
                 # Merge - prefer pattern-detected metadata
-                if current['end'] > last['end']:
+                if release_transcript and td_last:
+                    # A gap only corroborates: the detection's edges win.
+                    inherit_edge(last, current, 'start')
+                    inherit_edge(last, current, 'end')
+                elif current['end'] > last['end'] and not release_transcript:
                     inherit_edge(last, current, 'end')
                 invalidate_quote_alignment(last)
                 invalidate_word_timed_edges(last)

@@ -69,7 +69,7 @@ def test_merge_releases_hold_on_llm_overlap():
     assert ad['detection_stage'] == 'claude'
     assert ad[TRANSCRIPT_SPAN]['start'] == 100.0
     assert ad['category'] == 'sponsor'
-    assert (ad['start'], ad['end']) == (98.0, 160.0)
+    assert (ad['start'], ad['end']) == (98.0, 150.0)
     assert ad['confidence'] == 0.9
 
 
@@ -166,3 +166,42 @@ def test_dropped_estimated_pattern_does_not_widen_a_precise_llm_ad():
     assert (llm['start'], llm['end']) == (150.0, 158.0)
     assert any(m['detection_stage'] == 'transcript_differential' and m['held_for_review']
                for m in ads)
+
+
+def _gap(start, end):
+    return _held_marker(start=start, end=end)
+
+
+def _text_pattern(start, end):
+    return {'start': start, 'end': end, 'confidence': 0.9, 'reason': 'Pattern match',
+            'detection_stage': 'text_pattern', 'pattern_id': 7, 'category': 'sponsor'}
+
+
+def test_gap_before_detection_does_not_widen_start():
+    merged = _merge([_gap(1110.0, 1180.0), _text_pattern(1140.0, 1230.0)])
+    assert len(merged) == 1
+    assert (merged[0]['start'], merged[0]['end']) == (1140.0, 1230.0)
+
+
+def test_gap_after_detection_start_does_not_widen_end():
+    merged = _merge([_gap(1200.0, 1260.0), _text_pattern(1160.0, 1230.0)])
+    assert len(merged) == 1
+    assert (merged[0]['start'], merged[0]['end']) == (1160.0, 1230.0)
+
+
+def test_gap_fold_releases_the_hold():
+    for gap, det in ((_gap(1110.0, 1180.0), _text_pattern(1140.0, 1230.0)),
+                     (_gap(1200.0, 1260.0), _text_pattern(1160.0, 1230.0))):
+        merged = _merge([gap, det])
+        assert len(merged) == 1
+        assert merged[0].get('held_for_review') is not True
+        assert 'transcript_differential_uncorroborated' not in merged[0]
+
+
+def test_dai_differential_marker_still_widens_edges():
+    dai = {'start': 1110.0, 'end': 1180.0, 'confidence': 0.95, 'reason': 'Audio differs',
+           'detection_stage': 'dai_differential', 'held_for_review': True, 'was_cut': False,
+           'hold_reason': 'differential_uncorroborated', 'differential_uncorroborated': True}
+    merged = _merge([dai, _text_pattern(1160.0, 1230.0)])
+    assert len(merged) == 1
+    assert (merged[0]['start'], merged[0]['end']) == (1110.0, 1230.0)

@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.6] - 2026-10-11
+
+### Fixed
+- A transcript-differential gap that folds into a detected ad only corroborates it; the merged ad keeps the detection's own start and end instead of widening to the gap's alignment-granular edges. (#838)
+
 ## [2.100.5] - 2026-10-11
 
 ### Fixed
