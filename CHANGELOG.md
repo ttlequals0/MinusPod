@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.5] - 2026-10-11
+
+### Fixed
+- Parakeet window merging drops a repeated phrase at a window boundary by comparing words, not only timestamps, so overlapping decodes no longer leave a duplicated phrase about every fifty boundaries.
+
 ## [2.100.4] - 2026-10-11
 
 ### Fixed

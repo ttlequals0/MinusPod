@@ -222,6 +222,29 @@ def _recent_words(words, floor):
         yield k
 
 
+def _merge_windows(decoded):
+    """Merge per-window words, dropping the overlap re-decode by text and then by time."""
+    # Token times are quantized per window, so cores get two token steps of slack.
+    slack = PARAKEET_TOKEN_STEP_S * 2
+    words = []
+    for core_lo, core_hi, window_words in decoded:
+        cands = [w for w in window_words if core_lo - slack <= w['start'] < core_hi + slack]
+        tail = [_norm_word(k['word']) for k in words[-6:]]
+        head = [_norm_word(w['word']) for w in cands[:6]]
+        # Drop the longest leading run of the window that repeats the kept tail (start times can drift past slack).
+        for n in range(min(len(tail), len(head)), 0, -1):
+            if (head[:n] == tail[-n:]
+                    and cands[n - 1]['start'] <= core_lo + PARAKEET_OVERLAP_S + slack):
+                cands = cands[n:]
+                break
+        for w in cands:
+            if any(_norm_word(k['word']) == _norm_word(w['word']) and k['start'] <= w['start'] + slack
+                   for k in _recent_words(words, w['start'] - slack)):
+                continue
+            words.append(w)
+    return words
+
+
 def decode(wav_path, language):
     """Transcribe a preprocessed WAV into segments shaped like faster-whisper output."""
     samples, rate = read_wav_float32(wav_path)
@@ -232,17 +255,7 @@ def decode(wav_path, language):
         chunk = samples[int(start * rate):int(end * rate)]
         result = model.recognize(chunk, sample_rate=rate)
         decoded.append((core_lo, core_hi, words_from_tokens(result.tokens, result.timestamps, start)))
-    # Token times are quantized per window, so cores get two token steps of slack and repeats are deduped.
-    slack = PARAKEET_TOKEN_STEP_S * 2
-    words = []
-    for core_lo, core_hi, window_words in decoded:
-        for w in window_words:
-            if not (core_lo - slack <= w['start'] < core_hi + slack):
-                continue
-            if any(_norm_word(k['word']) == _norm_word(w['word']) and k['start'] <= w['start'] + slack
-                   for k in _recent_words(words, w['start'] - slack)):
-                continue
-            words.append(w)
+    words = _merge_windows(decoded)
     if language in _ENGLISH:
         words, dropped = drop_non_latin_words(words)
         if dropped:

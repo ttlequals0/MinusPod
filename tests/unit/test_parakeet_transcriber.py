@@ -324,3 +324,21 @@ def test_words_from_tokens_bare_marker_starts_digit_word():
     assert [w['word'] for w in words] == ['to', '14', 'inches']
     assert words[1]['start'] == 0.3
     assert words[0]['end'] == 0.3
+
+
+def _ws(*pairs):
+    return [{'word': w, 'start': t, 'end': t + 0.25} for w, t in pairs]
+
+
+def test_merge_windows_drops_text_repeat_with_drifted_times():
+    a = _ws(('so', 754.0), ('your', 755.3), ('whole', 755.6), ('body', 755.9))
+    b = _ws(('your', 755.8), ('whole', 756.2), ('body', 756.5), ('can', 756.9), ('feel', 757.2))
+    merged = pt._merge_windows([(0.0, 756.0, a), (756.0, 790.0, b)])
+    assert ' '.join(w['word'] for w in merged) == 'so your whole body can feel'
+
+
+def test_merge_windows_keeps_genuinely_new_leading_words():
+    a = _ws(('your', 755.3), ('whole', 755.6), ('body', 755.9))
+    b = _ws(('the', 756.2), ('difference', 756.6))
+    merged = pt._merge_windows([(0.0, 756.0, a), (756.0, 790.0, b)])
+    assert ' '.join(w['word'] for w in merged) == 'your whole body the difference'
