@@ -980,3 +980,100 @@ def test_catalog_scope_reads_active_patterns_once_until_a_pattern_write(temp_db,
         assert len(reads) == 2
     matcher.find_matches(segments)
     assert len(reads) == 3
+
+
+class TestRefineBoundariesWholeSpan:
+    """_refine_boundaries must find intro/outro phrases anywhere in a window-granular span (#837)."""
+
+    INTRO = ("This episode is sponsored by DeleteMe. Have you ever thought about "
+             "how much of your personal data is out there?")
+    OUTRO = "Go to joindeleteme.com slash darknet and use code darknet for twenty percent off."
+
+    def _matcher(self):
+        return TextPatternMatcher.__new__(TextPatternMatcher)
+
+    def _build(self, intro_at=(185,), outro_at=(310,), first=120, last=320):
+        show = [
+            "Welcome back to the show, today we dig into a long running network mystery.",
+            "The researcher explained how the old routers were quietly repurposed overseas.",
+            "Later the story shifts to a courtroom where the defense questioned every log.",
+            "Nobody expected the witness to remember the exact hour of the outage.",
+        ]
+        segments = []
+        for i, t in enumerate(range(first, last, 5)):
+            if t in intro_at:
+                text = self.INTRO
+            elif t in outro_at:
+                text = self.OUTRO
+            elif t < 185:
+                text = show[i % len(show)] + f" Part {i}."
+            else:
+                text = f"DeleteMe removes your data from broker sites, save with the discount code {i}."
+            segments.append({'start': float(t), 'end': float(t + 5), 'text': text})
+        full_text, segment_map = TextPatternMatcher._concat_segments(segments)
+        return segments, full_text, segment_map
+
+    def _pattern(self, outro=False):
+        return AdPattern(
+            id=1, text_template="x", intro_variants=[self.INTRO],
+            outro_variants=[self.OUTRO] if outro else [],
+            sponsor="DeleteMe", scope="podcast",
+        )
+
+    def _match(self, end=315.0):
+        return TextMatch(pattern_id=1, start=125.0, end=end, confidence=0.84,
+                         sponsor="DeleteMe", match_type="content")
+
+    def test_intro_found_deep_inside_span(self):
+        segments, full_text, segment_map = self._build()
+        out = self._matcher()._refine_boundaries(
+            [self._match()], segments, [self._pattern()], full_text, segment_map)
+        assert out[0].start == 185.0
+        assert out[0].end == 315.0
+
+    def test_missing_intro_leaves_span_unchanged(self):
+        segments, full_text, segment_map = self._build(intro_at=())
+        out = self._matcher()._refine_boundaries(
+            [self._match()], segments, [self._pattern()], full_text, segment_map)
+        assert (out[0].start, out[0].end) == (125.0, 315.0)
+
+    def test_outro_found_inside_span_end(self):
+        segments, full_text, segment_map = self._build(intro_at=(), outro_at=(265,))
+        out = self._matcher()._refine_boundaries(
+            [self._match(end=325.0)], segments, [self._pattern(outro=True)],
+            full_text, segment_map)
+        assert out[0].start == 125.0
+        assert out[0].end == 270.0
+
+    def test_outro_repeated_mid_ad_keeps_latest(self):
+        segments, full_text, segment_map = self._build(intro_at=(), outro_at=(230, 310))
+        out = self._matcher()._refine_boundaries(
+            [self._match(end=325.0)], segments, [self._pattern(outro=True)],
+            full_text, segment_map)
+        assert out[0].start == 125.0
+        assert out[0].end == 315.0
+
+    def test_intro_repeated_mid_ad_keeps_earliest(self):
+        segments, full_text, segment_map = self._build(intro_at=(185, 250))
+        out = self._matcher()._refine_boundaries(
+            [self._match()], segments, [self._pattern()], full_text, segment_map)
+        assert out[0].start == 185.0
+
+    def test_refinement_respects_min_duration(self):
+        segments, full_text, segment_map = self._build(
+            intro_at=(185,), outro_at=(), first=175, last=200)
+        match = TextMatch(pattern_id=1, start=180.0, end=190.0, confidence=0.84,
+                          sponsor="DeleteMe", match_type="content")
+        out = self._matcher()._refine_boundaries(
+            [match], segments, [self._pattern()], full_text, segment_map)
+        assert out[0].start == 180.0
+
+    def test_fuzzy_find_all_returns_every_alignment_in_order(self):
+        text = (f"{self.OUTRO.lower()} some unrelated filler about network routers "
+                f"and courtrooms here {self.OUTRO.lower()} the end")
+        matcher = self._matcher()
+        hits = matcher._fuzzy_find_all(text, self.OUTRO.lower(), 90)
+        assert len(hits) == 2
+        assert hits[0][1] <= hits[1][0]
+        assert text[hits[1][0]:hits[1][1]].startswith("go to joindeleteme")
+        assert matcher._fuzzy_find_all(text, "completely different phrase about gardening tools", 90) == []

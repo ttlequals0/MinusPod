@@ -18,7 +18,7 @@ from config import (
     DEFAULT_AD_DURATION_ESTIMATE, LONG_AD_WARN,
     TFIDF_MATCH_THRESHOLD as TFIDF_THRESHOLD,
     FUZZY_MATCH_THRESHOLD as FUZZY_THRESHOLD,
-    SEGMENT_CATEGORIES,
+    SEGMENT_CATEGORIES, MIN_AD_DURATION,
 )
 from community_export import (
     count_brand_occurrences, brand_match_candidates,
@@ -717,15 +717,7 @@ class TextPatternMatcher:
         matches = []
 
         # Build full transcript with segment mapping
-        segment_map = []  # [(start_char, end_char, segment_index)]
-        full_text = ""
-
-        for i, seg in enumerate(segments):
-            start_char = len(full_text)
-            text = seg.get('text', '')
-            full_text += text + " "
-            end_char = len(full_text)
-            segment_map.append((start_char, end_char, i))
+        full_text, segment_map = self._concat_segments(segments)
 
         if len(full_text.strip()) < MIN_TEXT_LENGTH:
             return []
@@ -780,7 +772,9 @@ class TextPatternMatcher:
         matches = self._merge_matches(matches)
 
         # Refine boundaries using intro/outro phrases
-        matches = self._refine_boundaries(matches, segments, phrase_patterns)
+        matches = self._refine_boundaries(
+            matches, segments, phrase_patterns, full_text, segment_map
+        )
 
         # Trim/reject spans that ran past the real ad into show content
         matches = self._constrain_overlong_spans(matches, segments)
@@ -1126,6 +1120,17 @@ class TextPatternMatcher:
 
         return matches
 
+    @staticmethod
+    def _concat_segments(segments) -> tuple[str, list[tuple[int, int, int]]]:
+        """Join segment texts; map entries are (start_char, end_char, index)."""
+        segment_map = []
+        full_text = ""
+        for i, seg in enumerate(segments):
+            start_char = len(full_text)
+            full_text += seg.get('text', '') + " "
+            segment_map.append((start_char, len(full_text), i))
+        return full_text, segment_map
+
     def _fuzzy_find(
         self, text: str, pattern: str, score_cutoff: float = 0
     ) -> tuple[int, float, str]:
@@ -1144,6 +1149,39 @@ class TextPatternMatcher:
         except Exception:
             return 0, 0, ''
 
+    def _fuzzy_find_all(
+        self, text: str, phrase: str, score_cutoff: float
+    ) -> list[tuple[int, int, float]]:
+        """Return every non-overlapping alignment of phrase scoring >= score_cutoff."""
+        hits = []
+        try:
+            work = [(0, text)]
+            while work:
+                offset, sub = work.pop()
+                if len(sub) < len(phrase) or not phrase:
+                    continue
+                align = fuzz.partial_ratio_alignment(
+                    phrase, sub, score_cutoff=score_cutoff
+                )
+                if not align:
+                    continue
+                hits.append(
+                    (offset + align.dest_start, offset + align.dest_end, align.score)
+                )
+                work.append((offset, sub[:align.dest_start]))
+                work.append((offset + align.dest_end, sub[align.dest_end:]))
+        except Exception:
+            return []
+        return sorted(hits)
+
+    @staticmethod
+    def _eligible_phrases(variants):
+        """Lowercased variants long enough to fuzzy match, with their score cutoff."""
+        for phrase in variants:
+            if len(phrase) >= MIN_FUZZY_VARIANT_CHARS:
+                lower = phrase.lower()
+                yield lower, required_fuzzy_score(len(lower))
+
     def _scan_for_boundary(self, full_text, segment_map, segments, variants,
                            search_start, search_end, extract_time):
         """Scan a text region for a known phrase variant using fuzzy matching."""
@@ -1154,11 +1192,7 @@ class TextPatternMatcher:
         best_score = 0
         search_region = full_text[search_start:search_end]
 
-        for phrase in variants:
-            if len(phrase) < MIN_FUZZY_VARIANT_CHARS:
-                continue
-            phrase_lower = phrase.lower()
-            required_score = required_fuzzy_score(len(phrase_lower))
+        for phrase_lower, required_score in self._eligible_phrases(variants):
             pos, score, matched = self._fuzzy_find(
                 search_region, phrase_lower, required_score
             )
@@ -1170,36 +1204,36 @@ class TextPatternMatcher:
 
         return best_time
 
+    def _phrase_end_time(self, region_start, pos, matched, seg_map, segs):
+        """End time of the segment holding the end of a matched phrase."""
+        abs_pos = region_start + pos + len(matched)
+        _, end_time = self._char_pos_to_time(
+            region_start + pos, abs_pos, seg_map, segs
+        )
+        return end_time
+
+    def _phrase_start_time(self, region_start, pos, matched, seg_map, segs):
+        """Start time of the segment holding the start of a matched phrase."""
+        abs_pos = region_start + pos
+        start_time, _ = self._char_pos_to_time(
+            abs_pos, abs_pos + len(matched), seg_map, segs
+        )
+        return start_time
+
     def _scan_for_outro(self, full_text, segment_map, segments, pattern, search_from_pos):
         """Scan forward from intro match for a known outro variant."""
         search_end = min(search_from_pos + MAX_SCAN_CHARS, len(full_text))
-
-        def extract_end_time(region_start, pos, matched, seg_map, segs):
-            abs_pos = region_start + pos + len(matched)
-            _, end_time = self._char_pos_to_time(
-                region_start + pos, abs_pos, seg_map, segs
-            )
-            return end_time
-
         return self._scan_for_boundary(
             full_text, segment_map, segments, pattern.outro_variants,
-            search_from_pos, search_end, extract_end_time
+            search_from_pos, search_end, self._phrase_end_time
         )
 
     def _scan_for_intro(self, full_text, segment_map, segments, pattern, search_to_pos):
         """Scan backward from outro match for a known intro variant."""
         search_start = max(0, search_to_pos - MAX_SCAN_CHARS)
-
-        def extract_start_time(region_start, pos, matched, seg_map, segs):
-            abs_pos = region_start + pos
-            start_time, _ = self._char_pos_to_time(
-                abs_pos, abs_pos + len(matched), seg_map, segs
-            )
-            return start_time
-
         return self._scan_for_boundary(
             full_text, segment_map, segments, pattern.intro_variants,
-            search_start, search_to_pos, extract_start_time
+            search_start, search_to_pos, self._phrase_start_time
         )
 
     def _estimate_end_from_duration(self, pattern, start_time):
@@ -1397,18 +1431,46 @@ class TextPatternMatcher:
             constrained.append(replace(match, start=new_start, end=new_end))
         return constrained
 
+    @staticmethod
+    def _char_range(segment_map, segments, start, end):
+        """Char and time bounds of the segments overlapping [start, end], or None."""
+        rows = [(s, e, segments[i]) for s, e, i in segment_map
+                if segments[i]['end'] > start and segments[i]['start'] < end]
+        if not rows:
+            return None
+        return rows[0][0], rows[-1][1], rows[0][2]['start'], rows[-1][2]['end']
+
+    def _refine_edge(self, text_lower, segment_map, segments, variants,
+                     lo_t, hi_t, extract_time, pick):
+        """Time of the phrase hit chosen by pick (min intro, max outro) in [lo_t, hi_t]."""
+        bounds = self._char_range(segment_map, segments, lo_t, hi_t)
+        if bounds is None:
+            return None
+        lo, hi, t_lo, t_hi = bounds
+        region = text_lower[lo:hi]
+        times = []
+        for phrase, cutoff in self._eligible_phrases(variants):
+            for start, end, _ in self._fuzzy_find_all(region, phrase, cutoff):
+                t = extract_time(lo, start, region[start:end], segment_map, segments)
+                # _char_pos_to_time falls back to 0.0; only trust hits inside the region.
+                if t_lo <= t <= t_hi:
+                    times.append(t)
+        return pick(times) if times else None
+
     def _refine_boundaries(
         self,
         matches: list[TextMatch],
         segments: list[dict],
-        patterns: list[AdPattern]
+        patterns: list[AdPattern],
+        full_text: str,
+        segment_map: list[tuple]
     ) -> list[TextMatch]:
         """Refine match boundaries using intro/outro phrases."""
         refined = []
+        text_lower = full_text.lower()
 
         try:
             for match in matches:
-                # Find the pattern
                 pattern = next(
                     (p for p in patterns if p.id == match.pattern_id),
                     None
@@ -1421,46 +1483,27 @@ class TextPatternMatcher:
                 new_start = match.start
                 new_end = match.end
 
-                # Look for intro phrase near start
-                if pattern.intro_variants:
-                    # Flat threshold on purpose: this searches ~40s around a
-                    # match that already cleared required_fuzzy_score, so the
-                    # long-transcript alignment problem it guards is absent.
-                    start_text = self._get_text_around_time(
-                        segments, match.start - 10, match.start + 30
-                    ).lower()
+                # Content spans are window-granular, so the phrase may sit well inside the span.
+                intro = self._refine_edge(
+                    text_lower, segment_map, segments, pattern.intro_variants,
+                    match.start - 10.0, match.end, self._phrase_start_time, min
+                )
+                if intro is not None and match.end - intro >= MIN_AD_DURATION:
+                    new_start = intro
+                outro = self._refine_edge(
+                    text_lower, segment_map, segments, pattern.outro_variants,
+                    match.start, match.end + 10.0, self._phrase_end_time, max
+                )
+                if outro is not None and outro - new_start >= MIN_AD_DURATION:
+                    new_end = outro
 
-                    for intro in pattern.intro_variants:
-                        score = fuzz.partial_ratio(intro.lower(), start_text)
-                        if score >= FUZZY_THRESHOLD * 100:
-                            # Find exact position
-                            for seg in segments:
-                                if seg['start'] >= match.start - 10 and seg['start'] <= match.start + 30:
-                                    if fuzz.partial_ratio(intro.lower(), seg['text'].lower()) >= 70:
-                                        new_start = seg['start']
-                                        break
-                            break
-
-                # Look for outro phrase near end
-                if pattern.outro_variants:
-                    end_text = self._get_text_around_time(
-                        segments, match.end - 30, match.end + 10
-                    ).lower()
-
-                    for outro in pattern.outro_variants:
-                        score = fuzz.partial_ratio(outro.lower(), end_text)
-                        if score >= FUZZY_THRESHOLD * 100:
-                            for seg in segments:
-                                if seg['end'] >= match.end - 30 and seg['end'] <= match.end + 10:
-                                    if fuzz.partial_ratio(outro.lower(), seg['text'].lower()) >= 70:
-                                        new_end = seg['end']
-                                        break
-                            break
-
+                if new_start != match.start or new_end != match.end:
+                    logger.info(
+                        f"Refined text match {match.start:.1f}-{match.end:.1f}s -> "
+                        f"{new_start:.1f}-{new_end:.1f}s via intro/outro phrase"
+                    )
                 refined.append(replace(match, start=new_start, end=new_end))
 
-        except ImportError:
-            return matches
         except Exception as e:
             logger.error(f"Boundary refinement failed: {e}")
             return matches

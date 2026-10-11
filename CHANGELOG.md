@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.99.5] - 2026-10-11
+
+### Fixed
+- Text pattern matches look for the learned intro and outro lines anywhere inside the matched span, so a content match that started a minute before the sponsor read now trims to the read instead of cutting show content. (#837)
+
 ## [2.99.4] - 2026-10-10
 
 ### Added
