@@ -1,4 +1,5 @@
-"""Whisper leaves the GPU after the repair passes and whenever the processing queue is idle."""
+"""The local model unloads only after the queue has stayed idle for LOCAL_MODEL_IDLE_UNLOAD_SECONDS."""
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,11 +8,9 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('whisper_idle_unload_test_')
 from main_app import background, db
-import main_app.processing as processing
 import transcriber as transcriber_mod
 from processing_queue import ProcessingQueue, set_processing_paused
 from transcriber import Transcriber, WhisperModelSingleton, unload_whisper_if_idle
-from verification_pass import VerificationPass
 from whisper_pool import WhisperPool
 
 SLUG = 'idle-unload-feed'
@@ -27,66 +26,13 @@ def loaded(monkeypatch):
     return state, unload
 
 
-def test_unload_after_repair_frees_a_reloaded_model(loaded, caplog):
-    state, unload = loaded
-    with caplog.at_level('INFO', logger='transcriber'):
-        Transcriber.unload_after_repair()
-    unload.assert_called_once()
-    assert state['loaded'] is False
-    assert 'Whisper model unloaded after transcript repair' in caplog.text
-    Transcriber.unload_after_repair()
-    unload.assert_called_once()
+@pytest.fixture
+def stale(monkeypatch):
+    """Last local decode finished long enough ago for the timer to have expired."""
+    monkeypatch.setattr(transcriber_mod, '_last_local_decode_at', time.monotonic() - 301)
 
 
-def test_unload_after_repair_skips_while_a_transcription_holds_the_gpu(loaded, caplog):
-    _state, unload = loaded
-    with patch.object(transcriber_mod, 'GPU_TRANSCRIBE_MAX_CONCURRENT', 1):
-        transcriber_mod._GPU_ADMISSION_SEMAPHORE.acquire()
-        try:
-            with caplog.at_level('DEBUG', logger='transcriber'):
-                Transcriber.unload_after_repair()
-        finally:
-            transcriber_mod._GPU_ADMISSION_SEMAPHORE.release()
-    unload.assert_not_called()
-    assert 'Skipping the post-repair Whisper unload' in caplog.text
-
-
-def _seg(start, end):
-    return {'start': start, 'end': end, 'text': 'x', 'words': []}
-
-
-@pytest.mark.parametrize('holes', [[], [dict(_seg(20.0, 30.0), novad_hole=True)]])
-def test_pass1_repair_unloads_once_with_or_without_holes(holes):
-    mock_t = MagicMock()
-    with patch.object(processing, 'transcriber', mock_t), \
-         patch.object(processing, '_retranscribe_holes_no_vad', return_value=(holes, [])), \
-         patch.object(processing, '_retranscribe_tail_no_vad', return_value=[]), \
-         patch.object(processing, 'sponsor_service', MagicMock()):
-        processing._repair_transcript('show', 'ep1', '/a.mp3', [_seg(0, 10), _seg(40, 50)], None)
-    mock_t.unload_after_repair.assert_called_once()
-
-
-def test_pass1_repair_unloads_even_when_a_pass_raises():
-    mock_t = MagicMock()
-    with patch.object(processing, 'transcriber', mock_t), \
-         patch.object(processing, '_retranscribe_holes_no_vad', side_effect=RuntimeError('boom')):
-        with pytest.raises(RuntimeError):
-            processing._repair_transcript('show', 'ep1', '/a.mp3', [_seg(0, 10)], None)
-    mock_t.unload_after_repair.assert_called_once()
-
-
-def test_pass2_repair_unloads(monkeypatch):
-    import verification_pass
-    monkeypatch.setattr(verification_pass, 'get_feed_language_override', lambda db, slug: None)
-    mock_t = MagicMock()
-    mock_t.transcribe_chunked.return_value = [_seg(0, 10), _seg(40, 50)]
-    mock_t.repair_gaps.return_value = ([], [])
-    VerificationPass(ad_detector=MagicMock(), transcriber=mock_t,
-                     audio_analyzer=MagicMock())._transcribe_verification('/p.mp3', slug='s')
-    mock_t.unload_after_repair.assert_called_once()
-
-
-def test_idle_unload_skips_while_a_transcription_holds_the_gpu(loaded):
+def test_idle_unload_skips_while_a_transcription_holds_the_gpu(loaded, stale):
     _state, unload = loaded
     with patch.object(transcriber_mod, 'GPU_TRANSCRIBE_MAX_CONCURRENT', 1):
         transcriber_mod._GPU_ADMISSION_SEMAPHORE.acquire()
@@ -98,6 +44,28 @@ def test_idle_unload_skips_while_a_transcription_holds_the_gpu(loaded):
         assert unload_whisper_if_idle() is True
     unload.assert_called_once()
     assert unload_whisper_if_idle() is False
+
+
+def test_recent_decode_keeps_the_model_loaded(loaded, monkeypatch):
+    state, unload = loaded
+    monkeypatch.setattr(transcriber_mod, '_last_local_decode_at', time.monotonic() - 10)
+    assert unload_whisper_if_idle() is False
+    unload.assert_not_called()
+    assert state['loaded'] is True
+
+
+def test_decode_301_seconds_ago_unloads(loaded, stale):
+    state, unload = loaded
+    assert unload_whisper_if_idle() is True
+    unload.assert_called_once()
+    assert state['loaded'] is False
+
+
+def test_decode_exit_stamps_the_idle_timer(monkeypatch):
+    monkeypatch.setattr(transcriber_mod, '_last_local_decode_at', 0.0)
+    with transcriber_mod._local_decode_activity():
+        pass
+    assert time.monotonic() - transcriber_mod._last_local_decode_at < 5
 
 
 @pytest.fixture
@@ -112,7 +80,7 @@ def feed():
     db.get_connection().commit()
 
 
-def _one_pass():
+def _one_pass(real_unload=False):
     """Run one dispatcher pass and return the idle-unload mock."""
     calls = {'n': 0}
 
@@ -127,7 +95,7 @@ def _one_pass():
     stop = MagicMock()
     stop.is_set.side_effect = lambda: calls['n'] >= 1
     stop.wait.side_effect = fake_wait
-    idle = MagicMock(return_value=True)
+    idle = unload_whisper_if_idle if real_unload else MagicMock(return_value=True)
     pool = WhisperPool(lambda: {'enabled': False, 'backend': 'openai-api',
                                 'max_requests': 4, 'max_episodes': 1})
     with patch.object(background, 'shutdown_event', stop), \
@@ -142,7 +110,21 @@ def test_idle_queue_unloads_whisper(feed, caplog):
     with caplog.at_level('INFO'):
         idle = _one_pass()
     idle.assert_called_once()
-    assert 'Processing queue idle; unloaded the Whisper model' in caplog.text
+    assert 'Processing queue idle for 300s; unloaded the local transcription model' in caplog.text
+
+
+def test_idle_branch_unloads_only_after_the_timer(feed, loaded, monkeypatch, caplog):
+    state, _unload = loaded
+    monkeypatch.setattr(transcriber_mod, '_last_local_decode_at', time.monotonic() - 10)
+    with caplog.at_level('INFO'):
+        _one_pass(real_unload=True)
+    assert state['loaded'] is True
+    assert 'unloaded the local transcription model' not in caplog.text
+    monkeypatch.setattr(transcriber_mod, '_last_local_decode_at', time.monotonic() - 301)
+    with caplog.at_level('INFO'):
+        _one_pass(real_unload=True)
+    assert state['loaded'] is False
+    assert 'unloaded the local transcription model' in caplog.text
 
 
 def test_no_idle_unload_while_a_run_is_active(feed):
@@ -159,3 +141,26 @@ def test_no_idle_unload_on_a_pass_that_claims_a_job(feed):
     db.upsert_episode_for_processing(SLUG, 'ep1', 'https://example.com/e.mp3', title='E1')
     idle = _one_pass()
     idle.assert_not_called()
+
+
+def test_chunked_body_keeps_the_model_loaded_after_success(loaded, monkeypatch):
+    state, unload = loaded
+    t = Transcriber.__new__(Transcriber)
+    t.get_audio_duration = MagicMock(return_value=3600.0)
+    t.transcribe = MagicMock(return_value=[{'start': 0.0, 'end': 1.0, 'text': 'hi', 'words': []}])
+    t.filter_hallucinations = lambda segments: segments
+
+    def extract(*args, **kwargs):
+        import tempfile
+        handle = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+        handle.close()
+        return handle.name
+
+    with patch('transcriber.calculate_optimal_chunk_duration', return_value=(1800.0, 'test')), \
+            patch('transcriber.extract_audio_chunk', side_effect=extract), \
+            patch('transcriber._get_whisper_settings', return_value={'backend': 'local'}), \
+            patch('transcriber.clear_gpu_memory'):
+        result = t.transcribe_chunked('/tmp/input.mp3')
+    assert result
+    unload.assert_not_called()
+    assert state['loaded'] is True

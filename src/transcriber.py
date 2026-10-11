@@ -49,6 +49,7 @@ import parakeet_transcriber
 from parakeet_transcriber import ParakeetModelSingleton
 from config import (
     API_CHUNK_DURATION_SECONDS,
+    LOCAL_MODEL_IDLE_UNLOAD_SECONDS,
     WHISPER_BACKEND_LOCAL,
     WHISPER_BACKEND_API,
     WHISPER_BACKEND_PARAKEET,
@@ -151,11 +152,12 @@ _GPU_ADMISSION_SEMAPHORE = threading.Semaphore(GPU_TRANSCRIBE_MAX_CONCURRENT)
 _local_activity = threading.Condition()
 _local_decode_count = 0
 _local_probe_active = False
+_last_local_decode_at = time.monotonic()
 
 
 @contextmanager
 def _local_decode_activity():
-    global _local_decode_count
+    global _local_decode_count, _last_local_decode_at
     with _local_activity:
         _local_activity.wait_for(lambda: not _local_probe_active)
         _local_decode_count += 1
@@ -164,6 +166,7 @@ def _local_decode_activity():
     finally:
         with _local_activity:
             _local_decode_count -= 1
+            _last_local_decode_at = time.monotonic()
             _local_activity.notify_all()
 
 
@@ -227,9 +230,11 @@ def _unload_local_models() -> bool:
 
 
 def unload_whisper_if_idle() -> bool:
-    """Unload the local model when no transcription holds an admission permit; True if one was unloaded."""
+    """Unload the local model once no decode is active and none ran for LOCAL_MODEL_IDLE_UNLOAD_SECONDS."""
     with _idle_local_probe() as free:
         if not free:
+            return False
+        if time.monotonic() - _last_local_decode_at < LOCAL_MODEL_IDLE_UNLOAD_SECONDS:
             return False
         return _unload_local_models()
 
@@ -2083,16 +2088,6 @@ class Transcriber:
             f"({new_segments[0]['start']:.1f}s-{new_segments[-1]['end']:.1f}s)")
         return new_segments, None
 
-    @staticmethod
-    def unload_after_repair() -> None:
-        """Free the model the repair decodes reloaded after transcribe_chunked unloaded it."""
-        with _idle_local_probe() as free:
-            if not free:
-                logger.debug("Skipping the post-repair Whisper unload: a local transcription holds the GPU")
-                return
-            if _unload_local_models():
-                logger.info("Whisper model unloaded after transcript repair")
-
     def repair_gaps(self, audio_path: str, segments: list[dict], min_s: float,
                     language_override: str | None = None,
                     skip=()) -> tuple[list[dict], list[dict]]:
@@ -3333,11 +3328,6 @@ class Transcriber:
                     logger.debug("Cleared GPU memory after chunk processing")
         finally:
             prefetcher.close()
-
-        # Unload model once after all chunks complete to free VRAM
-        # for downstream stages (audio analysis, fingerprinting, etc.)
-        WhisperModelSingleton.unload_model()
-        logger.info("Whisper model unloaded after chunked transcription")
 
         # Final hallucination filtering on merged results
         original_count = len(all_segments)

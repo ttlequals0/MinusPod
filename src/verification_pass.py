@@ -255,11 +255,8 @@ class VerificationPass:
         if not segments:
             return segments
         # Same hole repair as pass 1, without the per-episode memo.
-        try:
-            added, _empty = self.transcriber.repair_gaps(
-                audio_path, segments, UNREVIEWABLE_GAP_SECONDS, language_override)
-        finally:
-            self.transcriber.unload_after_repair()
+        added, _empty = self.transcriber.repair_gaps(
+            audio_path, segments, UNREVIEWABLE_GAP_SECONDS, language_override)
         return sorted(segments + added, key=lambda seg: seg['start']) if added else segments
 
 

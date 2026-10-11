@@ -108,7 +108,6 @@ def test_cpu_decodes_remain_concurrent_and_idle_unload_skips_them(monkeypatch):
         assert all(event.wait(1) for event in entered)
         assert transcriber.probe_local_transcription(CONFIG)['reachable'] is None
         assert not transcriber.unload_whisper_if_idle()
-        transcriber.Transcriber.unload_after_repair()
         unload.assert_not_called()
     finally:
         release.set()
@@ -123,7 +122,6 @@ def test_nested_idle_unload_skips_current_decode(monkeypatch):
     monkeypatch.setattr(transcriber.WhisperModelSingleton, 'unload_model', unload)
     with transcriber._local_decode_activity():
         assert not transcriber.unload_whisper_if_idle()
-        transcriber.Transcriber.unload_after_repair()
     unload.assert_not_called()
 
 

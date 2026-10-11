@@ -13,7 +13,7 @@ import run_context
 import run_log
 from config import (
     DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER,
-    FEED_REFRESH_OUTAGE_MIN_FEEDS, MAX_EPISODE_RETRIES,
+    FEED_REFRESH_OUTAGE_MIN_FEEDS, LOCAL_MODEL_IDLE_UNLOAD_SECONDS, MAX_EPISODE_RETRIES,
     PROCESSING_MODE_CUE_ONLY, PROCESSING_MODE_PASSTHROUGH,
     resolve_episode_log_retention_days, resolve_processing_mode,
     resolve_skip_transcription, episode_matches_feed_filters,
@@ -684,7 +684,9 @@ def background_queue_processor():
                     # An empty queue with no active run must not keep Whisper on the GPU.
                     if (nothing_to_claim and registry.slot_count() == 0
                             and unload_whisper_if_idle()):
-                        refresh_logger.info("Processing queue idle; unloaded the Whisper model")
+                        refresh_logger.info(
+                            f"Processing queue idle for {LOCAL_MODEL_IDLE_UNLOAD_SECONDS}s; "
+                            "unloaded the local transcription model")
                     # No queued episodes, wait before checking again. Under a hold
                     # an empty claim means the scan just scored every pending row,
                     # so wait longer than the idle tick before repeating it.

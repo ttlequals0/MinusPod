@@ -11,6 +11,14 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.7] - 2026-10-11
+
+### Changed
+- The local transcription model (Whisper or Parakeet) stays loaded while episodes keep processing and unloads 300 seconds after the queue empties, instead of reloading twice per episode.
+
+### Fixed
+- The detection review filter bar keeps Sort beside Reviewer on phones instead of giving it a row of its own.
+
 ## [2.100.6] - 2026-10-11
 
 ### Fixed

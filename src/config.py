@@ -1576,6 +1576,9 @@ CHUNK_DEFAULT_DURATION_SECONDS = 1800  # Default if memory detection fails (30 m
 API_CHUNK_DURATION_SECONDS = 600
 
 # Whisper backend identifiers
+# Seconds the queue must stay empty before the local transcription model is unloaded.
+LOCAL_MODEL_IDLE_UNLOAD_SECONDS = 300
+
 WHISPER_BACKEND_LOCAL = 'local'
 WHISPER_BACKEND_API = 'openai-api'
 WHISPER_BACKEND_PARAKEET = 'parakeet'

@@ -143,9 +143,9 @@ export function DetectionFilterBar({
       </div>
       {/* Neither the rows nor the cards have sortable headers, so sorting
           lives in the filter bar at every width. */}
-      <div className={`min-w-0 min-[375px]:col-span-2 lg:col-span-1`}>
+      <div className="min-w-0">
         <label htmlFor={`${idPrefix}-sort`} className="mb-1 block text-sm text-muted-foreground">Sort</label>
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1 sm:gap-2">
           <select
             id={`${idPrefix}-sort`}
             value={sort}
