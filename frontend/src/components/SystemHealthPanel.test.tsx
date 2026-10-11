@@ -146,6 +146,14 @@ describe('SystemHealthPanel', () => {
     expect(row?.querySelector('span')?.className).toMatch(/bg-warning/);
   });
 
+  it('renders the parakeet backend in the transcriber row', () => {
+    render(<SystemHealthPanel status={status({
+      transcriber: { available: true, backend: 'parakeet', device: 'cuda', lastOutcome: null },
+    })} />);
+    fireEvent.click(screen.getByRole('button', { name: /system health/i }));
+    expect(screen.getByText(/parakeet \(cuda\), available/)).toBeDefined();
+  });
+
   it('shows a Critical pill when the transcriber is down', () => {
     render(<SystemHealthPanel status={status({
       transcriber: { available: false, backend: 'openai-api', device: null, lastOutcome: null },

@@ -7,6 +7,7 @@
 ## Contents
 
 - [GPU Compute Type](#gpu-compute-type)
+- [Parakeet (built in)](#parakeet-built-in)
 - [whisper.cpp with Docker (NVIDIA GPU)](#whispercpp-with-docker-nvidia-gpu)
 - [whisper.cpp on Apple Silicon (native)](#whispercpp-on-apple-silicon-native)
 - [Intel GPU (OpenVINO Model Server)](#intel-gpu-openvino-model-server)
@@ -39,6 +40,28 @@ Sources:
 
 - CTranslate2 compute-type support matrix: [opennmt.net/CTranslate2/quantization.html](https://opennmt.net/CTranslate2/quantization.html)
 - Official NVIDIA CUDA compute-capability table: [developer.nvidia.com/cuda-gpus](https://developer.nvidia.com/cuda-gpus)
+
+## Parakeet (built in)
+
+NVIDIA Parakeet TDT 0.6B v3 is a built-in transcription backend. It runs through ONNX Runtime inside the MinusPod container: on CUDA in the GPU image and on CPU in the CPU image. No separate server is needed.
+
+Select it in Settings > Transcription > Backend with "Local (Parakeet TDT 0.6B v3)", or set:
+
+```bash
+WHISPER_BACKEND=parakeet
+```
+
+The first use downloads the model into the data directory under `.cache/hub`. Later runs load it from there.
+
+The decoder works in 30 second windows with 2 second overlap, so memory use does not grow with episode length.
+
+Parakeet v3 is multilingual and cannot be pinned to a language. With the transcription language set to `en`, words written in other scripts (Cyrillic, Greek, CJK, Arabic and so on) are dropped before the transcript is built, and the count is logged at INFO. With `auto` or a non-English language, nothing is dropped.
+
+The Whisper model, compute type and API settings do not apply to this backend. Parakeet can also be the failover transcriber: choose it under Settings > AI & Processing > Failover, or set `failoverWhisperBackend` to `parakeet`. See [Failover](failover.md#configuration-reference).
+
+In the reporter's tests on narrative shows with music beds (issue #834), Parakeet ran faster than the Whisper large models and produced fewer repetition loops. It is weaker on proper names and jargon, so keep Whisper where names matter.
+
+The built-in backend does not run on Apple Silicon. Mac users can run whisper.cpp's `parakeet-cli` behind a small OpenAI-compatible adapter and configure MinusPod like the whisper.cpp section below, with `WHISPER_BACKEND=openai-api`. The adapter is described in issue #834.
 
 ## whisper.cpp with Docker (NVIDIA GPU)
 

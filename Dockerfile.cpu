@@ -26,6 +26,7 @@
 # DO NOT MIRROR:
 #   - The GPU file's NVIDIA base-image comment, LD_LIBRARY_PATH cuDNN/cuBLAS
 #     edits, and NVIDIA_* env vars.
+#   - The onnxruntime-gpu swap after the requirements step (CPU keeps onnxruntime).
 #   - GPU defaults: WHISPER_DEVICE=cuda, WHISPER_MODEL=small.
 # =============================================================================
 

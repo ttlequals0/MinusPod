@@ -86,3 +86,16 @@ def test_unset_backend_falls_back_to_env_default(app_client, db, monkeypatch):
     assert settings['whisperBackend'] == 'openai-api'
     assert settings['whisperModel'] == 'whisper-1'
     assert settings['whisperApiHost'] is None
+
+
+def test_parakeet_backend_reports_model_and_device(app_client, db, monkeypatch):
+    monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
+    db.set_setting('whisper_backend', 'parakeet')
+    db.set_setting('whisper_model', 'small')
+
+    settings = _status_settings(app_client)
+
+    assert settings['whisperBackend'] == 'parakeet'
+    assert settings['whisperModel'] == 'nemo-parakeet-tdt-0.6b-v3'
+    assert settings['whisperDevice'] == 'cpu'
+    assert settings['whisperApiHost'] is None

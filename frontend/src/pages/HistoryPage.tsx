@@ -154,7 +154,7 @@ function HistoryPage() {
             <div className="text-2xl font-bold text-foreground">
               {stats.totalLlmCost != null ? `$${stats.totalLlmCost.toFixed(2)}` : '-'}
             </div>
-            <div className="text-sm text-muted-foreground">Total LLM Cost</div>
+            <div className="text-sm text-muted-foreground">Total Cost</div>
           </div>
         </div>
       )}

@@ -8,18 +8,20 @@ import type {
   AddressingStats, CleanupStats, DashboardStats, EpisodeCostResponse, Feed, LedgerFilterOptions,
   ModelUsageResponse, ReviewerStats,
   SystemOneStats,
+  LlmStats,
 } from '../api/types';
 
 // vi.mock factories are hoisted above module-scope const declarations, so
 // fixture data referenced inside them has to be built via vi.hoisted too.
 const {
-  DASHBOARD, REVIEWER_STATS, FEED, FILTER_OPTIONS, CLEANUP_STATS, SYSTEMONE_STATS,
+  DASHBOARD, REVIEWER_STATS, FEED, FILTER_OPTIONS, CLEANUP_STATS, SYSTEMONE_STATS, LLM_STATS,
   mockGetAddressingStats, mockGetDashboardStats, mockGetStatsByDay,
   mockGetModelUsageStats, mockGetEpisodeCostStats, mockGetLedgerFilterOptions,
   mockGetEpisodeCostRuns, mockGetStatsByPodcast, mockGetSpendAttempts,
   mockGetReviewerStats,
   mockGetCleanupStats,
   mockGetSystemOneStats,
+  mockGetLlmStats,
 } = vi.hoisted(() => {
   const dashboard: DashboardStats = {
     totalEpisodesProcessed: 0,
@@ -101,7 +103,7 @@ const {
     },
   };
   const systemOneStats: SystemOneStats = {
-    calls: 0, requests: 0, dispatchLatencyMsTotal: 0, logicalLatencyMsTotal: 0,
+    calls: 0, requests: 0, dispatchLatencyMsTotal: 0, dispatchLatencyMsAverage: null, logicalLatencyMsTotal: 0,
     logicalLatencyMsAverage: null,
     tokens: { input: 0, output: 0, unknownRequestCount: 0 },
     costUsd: '0', unknownCostRequestCount: 0,
@@ -109,6 +111,13 @@ const {
     reviewReasons: {},
     refinements: { attempted: 0, completed: 0, skipped: 0, inconclusive: 0, upstream_error: 0 },
     refinementSkipReasons: {},
+  };
+  const llmStats: LlmStats = {
+    calls: 0, requests: 0,
+    outcomes: { success: 0, failure: 0, inconclusive: 0, inFlight: 0 },
+    callLatencyMsAverage: null, dispatchLatencyMsAverage: null,
+    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, unknownRequestCount: 0 },
+    costUsd: '0', unknownCostRequestCount: 0, byPhase: {},
   };
   const filterOptions: LedgerFilterOptions = {
     providers: ['anthropic', 'openrouter'],
@@ -124,6 +133,8 @@ const {
     FILTER_OPTIONS: filterOptions,
     CLEANUP_STATS: cleanupStats,
     SYSTEMONE_STATS: systemOneStats,
+    LLM_STATS: llmStats,
+    mockGetLlmStats: vi.fn().mockResolvedValue(llmStats),
     mockGetAddressingStats: vi.fn().mockResolvedValue(addressingStats),
     mockGetDashboardStats: vi.fn().mockResolvedValue(dashboard),
     mockGetStatsByDay: vi.fn().mockResolvedValue({ days: [] }),
@@ -155,6 +166,7 @@ vi.mock('../api/stats', () => ({
   getSpendAttempts: (...args: unknown[]) => mockGetSpendAttempts(...args),
   getCleanupStats: (...args: unknown[]) => mockGetCleanupStats(...args),
   getSystemOneStats: (...args: unknown[]) => mockGetSystemOneStats(...args),
+  getLlmStats: (...args: unknown[]) => mockGetLlmStats(...args),
 }));
 vi.mock('../api/cueDetections', () => ({
   getCueAggregateStats: vi.fn().mockResolvedValue({
@@ -324,6 +336,8 @@ describe('StatsPage LLM cost ledger', () => {
     mockGetCleanupStats.mockResolvedValue(CLEANUP_STATS);
     mockGetSystemOneStats.mockReset();
     mockGetSystemOneStats.mockResolvedValue(SYSTEMONE_STATS);
+    mockGetLlmStats.mockReset();
+    mockGetLlmStats.mockResolvedValue(LLM_STATS);
   });
 
   it('paginates and sorts the model-usage list server-side, keyed by its params', async () => {
@@ -662,8 +676,52 @@ describe('StatsPage ledger filters', () => {
       ...SYSTEMONE_STATS, calls: 1, logicalLatencyMsAverage: average,
     });
     renderPage();
-    const value = await screen.findByText(expected);
-    expect(document.getElementById('stats-systemone')?.contains(value)).toBe(true);
+    const values = await screen.findAllByText(expected);
+    expect(values.some((value) => document.getElementById('stats-systemone')?.contains(value))).toBe(true);
+  });
+
+  it('shows the average request time per HTTP request', async () => {
+    mockGetSystemOneStats.mockResolvedValue({
+      ...SYSTEMONE_STATS, calls: 1, requests: 2, dispatchLatencyMsAverage: 1250,
+    });
+    renderPage();
+    const value = await screen.findByText('1,250 ms');
+    const native = within(document.getElementById('stats-systemone')!);
+    expect(native.getByText('Average request time')).toBeTruthy();
+    expect(native.getByText('Per HTTP request')).toBeTruthy();
+    expect(native.getByText('1,250 ms')).toBe(value);
+  });
+
+  it('renders the LLM calls section with its empty state', async () => {
+    renderPage();
+    const section = await waitFor(() => {
+      const el = document.getElementById('stats-llm');
+      expect(el).not.toBeNull();
+      return within(el!);
+    });
+    expect(section.getByRole('heading', { level: 2, name: 'LLM calls' })).toBeTruthy();
+    expect(await section.findByText('No LLM calls recorded for this filter.')).toBeTruthy();
+  });
+
+  it('renders LLM call cards and calls by phase', async () => {
+    mockGetLlmStats.mockResolvedValue({
+      ...LLM_STATS, calls: 3, requests: 4,
+      outcomes: { success: 2, failure: 1, inconclusive: 0, inFlight: 1 },
+      callLatencyMsAverage: 2000, dispatchLatencyMsAverage: 90,
+      costUsd: '0.75', byPhase: { detection: { calls: 2, costUsd: '0.5' } },
+    });
+    renderPage();
+    const section = within(await waitFor(() => {
+      const el = document.getElementById('stats-llm');
+      expect(el).not.toBeNull();
+      return el!;
+    }));
+    expect(await section.findByText('2 / 1 / 0')).toBeTruthy();
+    expect(section.getByText('1 in flight')).toBeTruthy();
+    expect(section.getByText('2,000 ms')).toBeTruthy();
+    expect(section.getByText('90 ms')).toBeTruthy();
+    expect(section.getByText('Calls by phase')).toBeTruthy();
+    expect(section.getByText(/^detection:/)).toBeTruthy();
   });
 
   it('does not imply measured usage when a logical call sends no HTTP request', async () => {
@@ -766,7 +824,7 @@ describe('StatsPage spend section: copy, labels and table chrome', () => {
 
   it('names the section for spend rather than for the table it is stored in', async () => {
     renderPage();
-    expect(await screen.findByRole('heading', { name: 'LLM spend' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Spend' })).toBeTruthy();
     expect(screen.queryByText(/ledger/i)).toBeNull();
   });
 
@@ -871,7 +929,7 @@ describe('StatsPage with populated spend data', () => {
     expect(spendCard.contains(native)).toBe(false);
     expect(container.querySelectorAll('#stats-systemone')).toHaveLength(1);
     expect(within(native as HTMLElement).getByRole('heading', { level: 2, name: 'System One calls' })).toBeTruthy();
-    expect(within(native as HTMLElement).getByText(/Uses the LLM spend filters above/)).toBeTruthy();
+    expect(within(native as HTMLElement).getByText(/Uses the Spend filters above/)).toBeTruthy();
     expect(within(index).getByRole('link', { name: 'System One' }).getAttribute('href')).toBe('#stats-systemone');
     // Every listed anchor exists on the page.
     for (const link of within(index).getAllByRole('link')) {

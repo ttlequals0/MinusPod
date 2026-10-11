@@ -164,6 +164,22 @@ def get_systemone_stats():
     return json_response(db.get_systemone_stats(**params))
 
 
+@api.route('/stats/llm', methods=['GET'])
+@log_request
+def get_llm_stats():
+    """Aggregate LLM calls, excluding System One rows."""
+    db = get_database()
+    params = {
+        **_date_scope_params(),
+        'provider': request.args.get('provider'),
+        'model': request.args.get('model'),
+    }
+    invalid = _invalid_date_param(params)
+    if invalid:
+        return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
+    return json_response(db.get_llm_stats(**params))
+
+
 @api.route('/stats/cleanup', methods=['GET'])
 @log_request
 def get_cleanup_stats():

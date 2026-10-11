@@ -718,7 +718,7 @@ export type LowAdYieldAction = 'nothing' | 'redetect' | 'reprocess' | 'full';
 // Per-feed run log storage (#660); null means "follow the global setting".
 export type EpisodeLogsOverride = 'on' | 'off';
 export type EpisodeLogLevel = 'debug' | 'info';
-export type WhisperBackend = 'local' | 'openai-api';
+export type WhisperBackend = 'local' | 'openai-api' | 'parakeet';
 
 export interface WhisperApiConfig {
   baseUrl: string;
@@ -804,6 +804,7 @@ export const SLOT_LABELS: Record<ProviderSlot | 'failover', string> = {
 export const WHISPER_BACKENDS = {
   LOCAL: 'local' as const,
   OPENAI_API: 'openai-api' as const,
+  PARAKEET: 'parakeet' as const,
 };
 
 export interface Settings {
@@ -1438,7 +1439,7 @@ export interface SystemStatus {
   };
   transcriber?: {
     available: boolean;
-    backend: 'local' | 'openai-api';
+    backend: 'local' | 'openai-api' | 'parakeet';
     // Local backend only; the remote one reports probe state instead.
     device?: string | null;
     // Local backend only: set when the local Whisper packages are missing.
@@ -1732,6 +1733,7 @@ export interface SystemOneStats {
   calls: number;
   requests: number;
   dispatchLatencyMsTotal: number;
+  dispatchLatencyMsAverage: number | null;
   logicalLatencyMsTotal: number;
   logicalLatencyMsAverage: number | null;
   tokens: { input: number; output: number; unknownRequestCount: number };
@@ -1741,6 +1743,21 @@ export interface SystemOneStats {
   reviewReasons: Record<string, number>;
   refinements: { attempted: number; completed: number; skipped: number; inconclusive: number; upstream_error: number };
   refinementSkipReasons: Record<string, number>;
+}
+
+export interface LlmStats {
+  calls: number;
+  requests: number;
+  outcomes: { success: number; failure: number; inconclusive: number; inFlight: number };
+  callLatencyMsAverage: number | null;
+  dispatchLatencyMsAverage: number | null;
+  tokens: {
+    input: number; output: number; cacheRead: number; cacheWrite: number;
+    reasoning: number; unknownRequestCount: number;
+  };
+  costUsd: string;
+  unknownCostRequestCount: number;
+  byPhase: Record<string, { calls: number; costUsd: string }>;
 }
 
 export interface CleanupStatsUsage {

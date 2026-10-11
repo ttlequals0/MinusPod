@@ -135,7 +135,7 @@ All settings are under `PUT /api/v1/settings/ad-detection`; database-only, no en
 | Payload key | Kind / range | Default |
 |---|---|---|
 | `failoverWhisperEnabled` | bool | `false` |
-| `failoverWhisperBackend` | `local` or `openai-api` | `openai-api` |
+| `failoverWhisperBackend` | `local`, `parakeet` or `openai-api` | `openai-api` |
 | `failoverWhisperModel` | string (local backend) | - |
 | `failoverWhisperApiBaseUrl` | string (API backend) | - |
 | `failoverWhisperApiKey` | secret; write-only, omit to leave unchanged | - |
@@ -144,7 +144,7 @@ All settings are under `PUT /api/v1/settings/ad-detection`; database-only, no en
 | `failoverWhisperMaxAttempts` | int 1-10 or null; blank inherits `whisperMaxAttempts` | null |
 | `failoverWhisperLanguage` | string, blank matches the active transcriber's language | - |
 
-A local failover transcriber requires its switch enabled and the local Whisper stack available. An API failover transcriber requires its switch enabled and a base URL. Disabling or clearing a failover configuration sends subsequent calls to the original transcriber, even if its failover state remains active.
+A local failover transcriber requires its switch enabled and the local Whisper stack available. A `parakeet` failover transcriber needs no model or endpoint settings. An API failover transcriber requires its switch enabled and a base URL. Disabling or clearing a failover configuration sends subsequent calls to the original transcriber, even if its failover state remains active.
 
 **Policy:**
 

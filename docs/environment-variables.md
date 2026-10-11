@@ -33,7 +33,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `UI_BASE_URL` | _(falls back to BASE_URL)_ | Public URL for UI links in webhooks (set if UI is on a different domain than feeds) |
 | `WHISPER_MODEL` | `small` | Whisper model size. `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, plus `.en` variants |
 | `WHISPER_DEVICE` | `cuda` | `cuda` or `cpu`. Set to `cpu` when using API backend to skip GPU init. |
-| `WHISPER_BACKEND` | `local` | `local` (faster-whisper) or `openai-api` (remote HTTP) |
+| `WHISPER_BACKEND` | `local` | `local` (faster-whisper), `parakeet` (built-in Parakeet TDT 0.6B v3), or `openai-api` (remote HTTP). `WHISPER_MODEL` and `WHISPER_COMPUTE_TYPE` apply to `local` only. See [Parakeet (built in)](transcription.md#parakeet-built-in). |
 | `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API |
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |

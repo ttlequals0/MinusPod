@@ -41,6 +41,7 @@ services:
       - WHISPER_DEVICE=${WHISPER_DEVICE:-cuda}
 
       # Option 2: External OpenAI-compatible Whisper API (Groq, OpenAI, whisper.cpp)
+      # WHISPER_BACKEND takes local (faster-whisper), parakeet (built-in Parakeet TDT 0.6B v3), or openai-api
       # - WHISPER_BACKEND=openai-api
       # - WHISPER_API_BASE_URL=https://api.groq.com/openai/v1
       # - WHISPER_API_KEY=${WHISPER_API_KEY}

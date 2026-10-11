@@ -4,6 +4,7 @@ import {
   CleanupStats, EpisodeProcessingRun, LedgerFilterOptions, ModelUsageResponse, ModelUsageSortField,
   PodcastStats, ReviewerStats, SpendAttemptsResponse,
   SystemOneStats,
+  LlmStats,
 } from './types';
 
 // Shared page/filter params for the ledger list endpoints below. Mirrors
@@ -69,6 +70,13 @@ export async function getSystemOneStats(
 ): Promise<SystemOneStats> {
   const qs = buildQueryString({ ...params });
   return apiRequest<SystemOneStats>(`/stats/systemone${qs}`);
+}
+
+export async function getLlmStats(
+  params: Pick<LedgerListParams<never>, 'from' | 'to' | 'podcastSlug' | 'provider' | 'model'> = {},
+): Promise<LlmStats> {
+  const qs = buildQueryString({ ...params });
+  return apiRequest<LlmStats>(`/stats/llm${qs}`);
 }
 
 export async function getCleanupStats(

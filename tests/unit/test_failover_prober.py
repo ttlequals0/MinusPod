@@ -1054,3 +1054,22 @@ def test_local_probe_config_matches_runtime_normalization():
 
 def test_probe_waiters_outlast_a_worst_case_http_probe():
     assert failover._PROBE_WAIT_SECONDS > 2 * failover.HTTP_TIMEOUT_PROBE
+
+
+@pytest.mark.parametrize('available', [True, False])
+def test_is_configured_parakeet_failover_follows_availability(available):
+    db = Database()
+    db.set_setting('failover_whisper_enabled', 'true', is_default=False)
+    db.set_setting('failover_whisper_backend', 'parakeet', is_default=False)
+    db.clear_setting('failover_whisper_api_base_url')
+    failover.invalidate_cache()
+    try:
+        with patch.object(transcriber.parakeet_transcriber, 'parakeet_available', return_value=available):
+            assert failover.is_configured(failover.TARGET_WHISPER) is available
+    finally:
+        db.clear_setting('failover_whisper_enabled')
+
+
+def test_parakeet_runtime_config_is_device_only():
+    config = failover._local_runtime_config({}, {'WHISPER_DEVICE': 'cpu'}, 'parakeet')
+    assert config == {'device': 'cpu'}

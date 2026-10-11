@@ -8,6 +8,8 @@
 # Core transcription
 faster-whisper>=1.1.0
 ctranslate2==4.8.2
+# Parakeet backend; onnxruntime comes via faster-whisper, GPU image swaps in onnxruntime-gpu
+onnx-asr>=0.12.0
 
 # API and web
 anthropic>=1.11.0

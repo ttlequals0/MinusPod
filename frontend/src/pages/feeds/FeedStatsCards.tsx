@@ -63,7 +63,7 @@ function FeedStatsCards({ feed, slug }: Props) {
           <StatCard value={stats.totalEpisodesProcessed} label="episodes processed" />
           <StatCard value={stats.totalAdsRemoved} label="ads removed" />
           <StatCard value={formatStatsDuration(stats.totalTimeSavedSeconds)} label="time saved" />
-          <StatCard value={formatCost(stats.totalLlmCost)} label="LLM cost" />
+          <StatCard value={formatCost(stats.totalLlmCost)} label="Cost" />
         </div>
       )}
     </div>

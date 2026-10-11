@@ -18,6 +18,7 @@ import webhook_service
 import transcriber
 from config import (
     FAILOVER_API_TARGET_NAMES, HTTP_TIMEOUT_PROBE, WHISPER_BACKEND_API, WHISPER_BACKEND_LOCAL,
+    PARAKEET_MODEL_NAME, WHISPER_BACKEND_PARAKEET, WHISPER_LOCAL_BACKENDS,
     WHISPER_DEVICE_DEFAULT, DEFAULT_OPENAI_BASE_URL, coerce_bool_setting, normalize_whisper_device,
     PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE, TYPESAFE_SYSTEMONE_URL,
 )
@@ -88,8 +89,9 @@ def is_configured(target: str, cfg: dict | None = None) -> bool:
     if target == TARGET_WHISPER:
         if not coerce_bool_setting(_setting('failover_whisper_enabled')):
             return False
-        if (_setting('failover_whisper_backend') or 'openai-api') == WHISPER_BACKEND_LOCAL:
-            return transcriber.local_transcription_available()
+        backend = _setting('failover_whisper_backend') or WHISPER_BACKEND_API
+        if backend in (WHISPER_BACKEND_PARAKEET, WHISPER_BACKEND_LOCAL):
+            return transcriber.local_transcription_available(backend)
         return bool(_setting('failover_whisper_api_base_url'))
     return False
 
@@ -121,8 +123,8 @@ def _configured_in_transaction(conn, target: str) -> bool:
     if not coerce_bool_setting(_setting_in_transaction(conn, 'failover_whisper_enabled')):
         return False
     backend = _setting_in_transaction(conn, 'failover_whisper_backend') or WHISPER_BACKEND_API
-    if backend == WHISPER_BACKEND_LOCAL:
-        return transcriber.local_transcription_available()
+    if backend in (WHISPER_BACKEND_PARAKEET, WHISPER_BACKEND_LOCAL):
+        return transcriber.local_transcription_available(backend)
     return bool(_setting_in_transaction(conn, 'failover_whisper_api_base_url'))
 
 
@@ -510,32 +512,39 @@ def _probe_request_config(db, target: str, settings: dict[str, str],
             'api_key': _probe_secret(db, settings.get('failover_llm_api_key')) or '',
         }
     if target == 'whisper:active':
+        active_backend = (settings.get('whisper_backend') or
+                          environment.get('WHISPER_BACKEND') or WHISPER_BACKEND_LOCAL)
         return {
-            'backend': settings.get('whisper_backend') or
-                       environment.get('WHISPER_BACKEND') or WHISPER_BACKEND_LOCAL,
+            'backend': active_backend,
             'api_base_url': settings.get('whisper_api_base_url') or
                             environment.get('WHISPER_API_BASE_URL') or '',
             'api_key': _probe_secret(db, settings.get('whisper_api_key')) or
                        environment.get('WHISPER_API_KEY') or '',
-            'local_model': settings.get('whisper_model') or
+            'local_model': PARAKEET_MODEL_NAME if active_backend == WHISPER_BACKEND_PARAKEET else
+                           settings.get('whisper_model') or
                            environment.get('WHISPER_MODEL') or 'small',
-            **_local_runtime_config(settings, environment),
+            **_local_runtime_config(settings, environment, active_backend),
         }
+    failover_backend = settings.get('failover_whisper_backend') or WHISPER_BACKEND_API
     return {
-        'backend': settings.get('failover_whisper_backend') or WHISPER_BACKEND_API,
+        'backend': failover_backend,
         'api_base_url': settings.get('failover_whisper_api_base_url') or '',
         'api_key': _probe_secret(db, settings.get('failover_whisper_api_key')) or '',
-        'local_model': settings.get('failover_whisper_model') or
+        'local_model': PARAKEET_MODEL_NAME if failover_backend == WHISPER_BACKEND_PARAKEET else
+                       settings.get('failover_whisper_model') or
                        settings.get('whisper_model') or
                        environment.get('WHISPER_MODEL') or 'small',
-        **_local_runtime_config(settings, environment),
+        **_local_runtime_config(settings, environment, failover_backend),
     }
 
 
-def _local_runtime_config(settings: dict, environment: dict) -> dict:
+def _local_runtime_config(settings: dict, environment: dict, backend: str) -> dict:
     """Device and compute type normalized the way the runtime loads them."""
+    device = normalize_whisper_device(environment.get('WHISPER_DEVICE')) or WHISPER_DEVICE_DEFAULT
+    if backend == WHISPER_BACKEND_PARAKEET:
+        return {'device': device}
     return {
-        'device': normalize_whisper_device(environment.get('WHISPER_DEVICE')) or WHISPER_DEVICE_DEFAULT,
+        'device': device,
         'compute_type': transcriber.canonical_compute_type(
             settings.get('whisper_compute_type') or environment.get('WHISPER_COMPUTE_TYPE')),
     }
@@ -604,7 +613,7 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
                 result = provider_probe.probe_models_endpoint(norm, key)
         else:
             settings = request_config
-            if settings['backend'] == WHISPER_BACKEND_LOCAL:
+            if settings['backend'] in WHISPER_LOCAL_BACKENDS:
                 return transcriber.probe_local_transcription(settings)
             if not settings['api_base_url']:
                 return {'reachable': None, 'status': None, 'detail': 'Not configured'}
@@ -738,7 +747,7 @@ def _record_probe(db, target: str, result: dict, context: dict) -> tuple[dict, s
         if (target == 'whisper:active' and result.get('reachable') is True
                 and isinstance(local_outcome, dict)
                 and local_outcome.get('outcome') == 'success'
-                and local_outcome.get('backend') == WHISPER_BACKEND_LOCAL
+                and local_outcome.get('backend') in WHISPER_LOCAL_BACKENDS
                 and local_outcome.get('model') == request_config.get('local_model')
                 and local_outcome.get('device') == request_config.get('device')
                 and local_outcome.get('compute_type') == request_config.get('compute_type')):

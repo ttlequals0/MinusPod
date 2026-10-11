@@ -405,6 +405,7 @@ function FailoverSection({
                   className={`w-full ${selectBase}`}
                 >
                   <option value={WHISPER_BACKENDS.LOCAL}>Local (faster-whisper)</option>
+                  <option value={WHISPER_BACKENDS.PARAKEET}>Local (Parakeet TDT 0.6B v3)</option>
                   <option value={WHISPER_BACKENDS.OPENAI_API}>Remote API (OpenAI-compatible)</option>
                 </select>
               </div>
@@ -425,6 +426,8 @@ function FailoverSection({
                   />
                   <p className="mt-1 text-sm text-muted-foreground">faster-whisper model name, such as small or large-v3.</p>
                 </div>
+              ) : whisper.backend === WHISPER_BACKENDS.PARAKEET ? (
+                <p className="text-sm text-muted-foreground">Runs in this container; no model or endpoint settings.</p>
               ) : (
                 <>
                   <div>

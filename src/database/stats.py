@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from config import normalize_model_key
+from config import SYSTEMONE_PROVIDERS, normalize_model_key
 from utils.app_version import APP_VERSION as __version__
 from utils.time import parse_iso_utc
 
@@ -84,6 +84,26 @@ def _utc_day_start(value: str) -> str | None:
     return dt.astimezone(timezone.utc).strftime('%Y-%m-%dT00:00:00Z')
 
 
+def _date_range_clauses(column, from_date, to_date) -> tuple[list, list]:
+    """Half-open UTC-day range clauses and params for a created_at column."""
+    clauses = []
+    params: list = []
+    if from_date:
+        clauses.append(f'{column} >= ?')
+        params.append(_utc_day_start(from_date) or from_date)
+    if to_date:
+        start = _utc_day_start(to_date)
+        if start:
+            next_day = (datetime.strptime(start, '%Y-%m-%dT00:00:00Z')
+                        + timedelta(days=1)).strftime('%Y-%m-%dT00:00:00Z')
+            clauses.append(f'{column} < ?')
+            params.append(next_day)
+        else:
+            clauses.append(f'{column} <= ?')
+            params.append(to_date)
+    return clauses, params
+
+
 def _build_ledger_filters(from_date=None, to_date=None, podcast_slug=None,
                           provider=None, model=None) -> tuple[str, list]:
     """WHERE-clause fragment (leading ' AND ...') and params for the
@@ -95,22 +115,7 @@ def _build_ledger_filters(from_date=None, to_date=None, podcast_slug=None,
     second of the selected day is included regardless of whether the caller
     sends a bare date, a whole-second, or a fractional-second timestamp
     (textual comparison otherwise dropped 'T23:59:59Z' under 'T23:59:59.999Z')."""
-    clauses = []
-    params: list = []
-    if from_date:
-        start = _utc_day_start(from_date)
-        clauses.append("created_at >= ?")
-        params.append(start if start is not None else from_date)
-    if to_date:
-        start = _utc_day_start(to_date)
-        if start is not None:
-            next_day = (datetime.strptime(start, '%Y-%m-%dT00:00:00Z')
-                        + timedelta(days=1)).strftime('%Y-%m-%dT00:00:00Z')
-            clauses.append("created_at < ?")
-            params.append(next_day)
-        else:
-            clauses.append("created_at <= ?")
-            params.append(to_date)
+    clauses, params = _date_range_clauses('created_at', from_date, to_date)
     if podcast_slug:
         clauses.append("podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)")
         params.append(podcast_slug)
@@ -1130,33 +1135,106 @@ class StatsMixin:
         } for row in rows]
         return items, total
 
-    def get_systemone_stats(self, *, from_date=None, to_date=None,
-                            podcast_slug=None, provider=None, model=None) -> dict:
-        """Aggregate logical adapter calls separately from their HTTP rows."""
-        clauses = []
-        params = []
-        if from_date:
-            clauses.append('d.created_at >= ?')
-            params.append(_utc_day_start(from_date) or from_date)
-        if to_date:
-            start = _utc_day_start(to_date)
-            if start:
-                next_day = (datetime.strptime(start, '%Y-%m-%dT00:00:00Z')
-                            + timedelta(days=1)).strftime('%Y-%m-%dT00:00:00Z')
-                clauses.append('d.created_at < ?')
-                params.append(next_day)
-            else:
-                clauses.append('d.created_at <= ?')
-                params.append(to_date)
+    @staticmethod
+    def _ledger_scope_clauses(alias, from_date, to_date, podcast_slug, provider, model):
+        """WHERE clauses and params shared by the ledger stats queries."""
+        clauses, params = _date_range_clauses(f'{alias}.created_at', from_date, to_date)
         if podcast_slug:
             clauses.append('p.slug = ?')
             params.append(podcast_slug)
         if provider:
-            clauses.append('d.provider_key = ?')
+            clauses.append(f'{alias}.provider_key = ?')
             params.append(provider)
         if model:
-            clauses.append('d.configured_model = ?')
+            clauses.append(f'{alias}.configured_model = ?')
             params.append(model)
+        return clauses, params
+
+    def get_llm_stats(self, *, from_date=None, to_date=None,
+                      podcast_slug=None, provider=None, model=None) -> dict:
+        """Aggregate non-System One ledger rows as LLM calls."""
+        clauses, params = self._ledger_scope_clauses(
+            'u', from_date, to_date, podcast_slug, provider, model)
+        clauses.append(f"u.provider_key NOT IN ({','.join('?' * len(SYSTEMONE_PROVIDERS))})")
+        params += list(SYSTEMONE_PROVIDERS)
+        where_sql = ' AND '.join(clauses)
+        conn = self.get_connection()
+        row = conn.execute(
+            f"""SELECT COUNT(*) AS calls,
+                       COALESCE(SUM(u.dispatch_count), 0) AS requests,
+                       COALESCE(SUM(u.dispatch_latency_ms), 0) AS dispatch_latency_ms,
+                       COALESCE(SUM(u.state = 'success'), 0) AS success,
+                       COALESCE(SUM(u.state = 'failure'), 0) AS failure,
+                       COALESCE(SUM(u.state = 'inconclusive'), 0) AS inconclusive,
+                       COALESCE(SUM(u.state = 'in_flight'), 0) AS in_flight,
+                       AVG(u.call_latency_ms) AS call_latency_ms,
+                       COALESCE(SUM(u.input_tokens), 0) AS input_tokens,
+                       COALESCE(SUM(u.output_tokens), 0) AS output_tokens,
+                       COALESCE(SUM(u.cache_read_tokens), 0) AS cache_read_tokens,
+                       COALESCE(SUM(u.cache_write_tokens), 0) AS cache_write_tokens,
+                       COALESCE(SUM(u.reasoning_tokens), 0) AS reasoning_tokens,
+                       COALESCE(SUM(CASE WHEN u.dispatch_count > 0 AND
+                                    (u.input_tokens IS NULL OR u.output_tokens IS NULL)
+                                THEN 1 ELSE 0 END), 0) AS unknown_usage_count,
+                       COALESCE(SUM(CASE WHEN u.dispatch_count > 0 AND u.cost_usd IS NULL
+                                THEN 1 ELSE 0 END), 0) AS unknown_cost_count
+                FROM llm_call_usage u
+                LEFT JOIN podcasts p ON p.id = u.podcast_id
+                WHERE {where_sql}""",  # noqa: S608
+            params,
+        ).fetchone()
+        phase_rows = conn.execute(
+            f"""SELECT u.phase_key, COUNT(*) AS calls
+                FROM llm_call_usage u
+                LEFT JOIN podcasts p ON p.id = u.podcast_id
+                WHERE {where_sql}
+                GROUP BY u.phase_key
+                ORDER BY calls DESC, MIN(u.rowid)""",  # noqa: S608
+            params).fetchall()
+        phases = {item['phase_key']: {'calls': item['calls'], 'cost': Decimal('0')}
+                  for item in phase_rows}
+        cost_rows = conn.execute(
+            f"""SELECT u.phase_key, u.cost_usd FROM llm_call_usage u
+                LEFT JOIN podcasts p ON p.id = u.podcast_id
+                WHERE {where_sql} AND u.cost_usd IS NOT NULL""",  # noqa: S608
+            params).fetchall()
+        total_cost = Decimal('0')
+        for item in cost_rows:
+            amount = Decimal(item['cost_usd'])
+            phases[item['phase_key']]['cost'] += amount
+            total_cost += amount
+        requests = row['requests']
+        return {
+            'calls': row['calls'],
+            'requests': requests,
+            'outcomes': {
+                'success': row['success'], 'failure': row['failure'],
+                'inconclusive': row['inconclusive'], 'inFlight': row['in_flight'],
+            },
+            'callLatencyMsAverage': (
+                round(row['call_latency_ms']) if row['call_latency_ms'] is not None else None),
+            'dispatchLatencyMsAverage': (
+                round(row['dispatch_latency_ms'] / requests) if requests else None),
+            'tokens': {
+                'input': row['input_tokens'], 'output': row['output_tokens'],
+                'cacheRead': row['cache_read_tokens'],
+                'cacheWrite': row['cache_write_tokens'],
+                'reasoning': row['reasoning_tokens'],
+                'unknownRequestCount': row['unknown_usage_count'],
+            },
+            'costUsd': str(total_cost),
+            'unknownCostRequestCount': row['unknown_cost_count'],
+            'byPhase': {
+                key: {'calls': value['calls'], 'costUsd': str(value['cost'])}
+                for key, value in phases.items()
+            },
+        }
+
+    def get_systemone_stats(self, *, from_date=None, to_date=None,
+                            podcast_slug=None, provider=None, model=None) -> dict:
+        """Aggregate logical adapter calls separately from their HTTP rows."""
+        clauses, params = self._ledger_scope_clauses(
+            'd', from_date, to_date, podcast_slug, provider, model)
         where_sql = ' AND '.join(clauses) if clauses else '1 = 1'
         conn = self.get_connection()
         row = conn.execute(
@@ -1219,6 +1297,8 @@ class StatsMixin:
             'calls': row['calls'],
             'requests': row['requests'],
             'dispatchLatencyMsTotal': row['dispatch_latency_ms'],
+            'dispatchLatencyMsAverage': (
+                round(row['dispatch_latency_ms'] / row['requests']) if row['requests'] else None),
             'logicalLatencyMsTotal': sum(logical_latencies),
             'logicalLatencyMsAverage': (
                 sum(logical_latencies) / len(logical_latencies)

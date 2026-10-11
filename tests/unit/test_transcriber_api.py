@@ -1,4 +1,5 @@
 """Tests for the OpenAI-compatible whisper API transcription backend."""
+import logging
 import os
 import subprocess
 import tempfile
@@ -158,6 +159,26 @@ class TestTranscribeViaApi:
             assert result[1]['words'] == []
         finally:
             os.unlink(temp_path)
+
+    @pytest.mark.parametrize("vad_filter,level", [(True, logging.WARNING), (False, logging.DEBUG)])
+    def test_zero_segments_log_level(self, caplog, vad_filter, level):
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(b'fake audio data' * 200)
+            temp_path = f.name
+        mock_response = MagicMock(status_code=200, text='{}')
+        mock_response.json.return_value = self._make_api_response([])
+        try:
+            with patch('transcriber.safe_post', return_value=mock_response), \
+                    caplog.at_level(logging.DEBUG):
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                transcriber._transcribe_via_api(
+                    temp_path, self._make_settings(), vad_filter=vad_filter)
+        finally:
+            os.unlink(temp_path)
+        records = [r for r in caplog.records if '0 usable segments' in r.getMessage()
+                   or '0 segments for repair span' in r.getMessage()]
+        assert [r.levelno for r in records] == [level]
 
     def test_sends_no_prompt_field(self):
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:

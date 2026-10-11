@@ -20,7 +20,7 @@ from api import (
     get_database, _enrich_models_with_pricing, limiter,
 )
 from config import (
-    WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
+    WHISPER_BACKENDS,
     SYSTEMONE_TUNABLE_DEFAULTS,
     WHISPER_COMPUTE_TYPES,
     OPENROUTER_BASE_URL, OPENROUTER_ROUTER_ALIASES,
@@ -1017,7 +1017,9 @@ def _mark_whisper_for_reload():
     """Next transcription reloads the Whisper model."""
     try:
         from transcriber import WhisperModelSingleton
+        from parakeet_transcriber import ParakeetModelSingleton
         WhisperModelSingleton.mark_for_reload()
+        ParakeetModelSingleton.mark_for_reload()
     except Exception as e:
         logger.warning(f"Could not mark Whisper model for reload: {e}")
 
@@ -2692,11 +2694,10 @@ def _validate_failover_settings_payload(data, db=None):
         if key in data and len(data[key]) > 200:
             return f'{key} must be a string of at most 200 characters', 400
     if ('failoverWhisperBackend' in data
-            and data['failoverWhisperBackend'] not in (
-                WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API)):
+            and data['failoverWhisperBackend'] not in WHISPER_BACKENDS):
         return (
             'failoverWhisperBackend must be one of: '
-            f'{WHISPER_BACKEND_LOCAL}, {WHISPER_BACKEND_API}', 400)
+            f'{", ".join(WHISPER_BACKENDS)}', 400)
     if ('failoverWhisperModel' in data and len(data['failoverWhisperModel']) > 200):
         return 'failoverWhisperModel must be at most 200 characters', 400
     if 'failoverWhisperApiModel' in data:
@@ -2730,10 +2731,9 @@ def _validate_failover_settings_payload(data, db=None):
                 and not _native_timeout_field(db, data, key)
                 and not low <= data[key] <= high):
             return f'{key} must be between {low} and {high}', 400
-    if 'whisperBackend' in data and data['whisperBackend'] not in (
-            WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API):
+    if 'whisperBackend' in data and data['whisperBackend'] not in WHISPER_BACKENDS:
         return (
-            f'whisperBackend must be one of: {WHISPER_BACKEND_LOCAL}, {WHISPER_BACKEND_API}', 400)
+            f'whisperBackend must be one of: {", ".join(WHISPER_BACKENDS)}', 400)
     if 'whisperApiModel' in data:
         model = str(data['whisperApiModel']).strip()
         if not model or len(model) > 200:
@@ -3027,10 +3027,9 @@ def _apply_failover_whisper_fields(db, data):
             _after_commit(lambda: failover.cancel(failover.TARGET_WHISPER, source='manual'))
         changed = True
     if 'failoverWhisperBackend' in data:
-        valid_backends = (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API)
-        if data['failoverWhisperBackend'] not in valid_backends:
+        if data['failoverWhisperBackend'] not in WHISPER_BACKENDS:
             return error_response(
-                f'failoverWhisperBackend must be one of: {", ".join(valid_backends)}', 400)
+                f'failoverWhisperBackend must be one of: {", ".join(WHISPER_BACKENDS)}', 400)
         db.set_setting('failover_whisper_backend', data['failoverWhisperBackend'], is_default=False)
         changed = True
     if 'failoverWhisperModel' in data:
@@ -3097,10 +3096,9 @@ def _apply_failover_policy_fields(db, data):
 def _apply_whisper_fields(db, data):
     """Persist whisper backend selection, API endpoint, key, model, language, compute type."""
     if 'whisperBackend' in data:
-        valid_whisper_backends = (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API)
-        if data['whisperBackend'] not in valid_whisper_backends:
+        if data['whisperBackend'] not in WHISPER_BACKENDS:
             return json_response(
-                {'error': f'whisperBackend must be one of: {", ".join(valid_whisper_backends)}'}, 400
+                {'error': f'whisperBackend must be one of: {", ".join(WHISPER_BACKENDS)}'}, 400
             )
         db.set_setting('whisper_backend', data['whisperBackend'], is_default=False)
         logger.info(f"Updated whisper backend to: {data['whisperBackend']}")
@@ -3880,12 +3878,7 @@ def reset_ad_detection_settings():
     if hasattr(client, 'probe_json_format_support'):
         client.probe_json_format_support()
 
-    # Mark whisper model for reload
-    try:
-        from transcriber import WhisperModelSingleton
-        WhisperModelSingleton.mark_for_reload()
-    except Exception as e:
-        logger.warning(f"Could not mark model for reload: {e}")
+    _mark_whisper_for_reload()
 
     logger.info("Reset all settings to defaults")
     return json_response({'message': 'Settings reset to defaults'})

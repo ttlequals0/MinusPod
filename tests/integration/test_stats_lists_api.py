@@ -104,6 +104,7 @@ class TestModelUsageStats:
         result = response.get_json()
         assert (result['calls'], result['requests']) == (1, 1)
         assert result['dispatchLatencyMsTotal'] == 120
+        assert result['dispatchLatencyMsAverage'] == 120
         assert result['logicalLatencyMsTotal'] == 350
         assert result['logicalLatencyMsAverage'] == 350
         assert result['tokens'] == {
@@ -113,6 +114,21 @@ class TestModelUsageStats:
         assert result['outcomes']['inconclusive'] == 1
         assert result['reviewReasons'] == {'choice_inconclusive': 1}
         assert result['refinements']['attempted'] == 1
+
+    def test_llm_stats_route_excludes_system_one_and_rejects_bad_dates(self, app_client, temp_db):
+        _authed(app_client)
+        for provider in ('openai', 'typesafe'):
+            attempt_id = temp_db.begin_llm_attempt(
+                run_id=None, podcast_id=None, episode_id=None, phase_key='detection',
+                invoking_pass=1, provider_key=provider, configured_model='m1')
+            temp_db.finalize_llm_attempt(attempt_id, state='success', input_tokens=3,
+                                         output_tokens=2, dispatch_latency_ms=40)
+        result = app_client.get('/api/v1/stats/llm').get_json()
+        assert (result['calls'], result['requests']) == (1, 1)
+        assert result['dispatchLatencyMsAverage'] == 40
+        assert result['outcomes']['success'] == 1
+        assert list(result['byPhase']) == ['detection']
+        assert app_client.get('/api/v1/stats/llm?from=nope').status_code == 400
 
     def test_unknown_sort_by_falls_back_to_a_safe_default(self, app_client, temp_db):
         _authed(app_client)

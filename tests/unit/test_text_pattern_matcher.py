@@ -1095,3 +1095,50 @@ class TestRefineBoundariesWholeSpan:
         assert hits[0][1] <= hits[1][0]
         assert text[hits[1][0]:hits[1][1]].startswith("go to joindeleteme")
         assert matcher._fuzzy_find_all(text, "completely different phrase about gardening tools", 90) == []
+
+
+class TestCharPosToTimeWordLevel:
+    """_char_pos_to_time resolves word times inside long segments (#838)."""
+
+    TOKENS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet"]
+
+    def _segment(self, start=100.0, words=True, tokens=None, lead_space=True):
+        tokens = tokens or self.TOKENS
+        seg = {'start': start, 'end': start + 25.0, 'text': ' '.join(self.TOKENS)}
+        if words:
+            seg['words'] = [
+                {'word': (' ' if lead_space else '') + t,
+                 'start': start + i * 2.5, 'end': start + i * 2.5 + 2.0}
+                for i, t in enumerate(tokens)
+            ]
+        return seg
+
+    def _convert(self, segments, phrase):
+        full_text, segment_map = TextPatternMatcher._concat_segments(segments)
+        start_char = full_text.index(phrase)
+        matcher = TextPatternMatcher.__new__(TextPatternMatcher)
+        return matcher._char_pos_to_time(
+            start_char, start_char + len(phrase), segment_map, segments)
+
+    def test_phrase_start_and_end_use_word_times(self):
+        segs = [self._segment()]
+        assert self._convert(segs, "foxtrot golf") == (112.5, 117.0)
+
+    def test_word_times_without_leading_space(self):
+        segs = [self._segment(lead_space=False)]
+        assert self._convert(segs, "foxtrot golf hotel") == (112.5, 119.5)
+
+    def test_no_words_falls_back_to_segment_edges(self):
+        segs = [self._segment(words=False)]
+        assert self._convert(segs, "foxtrot golf") == (100.0, 125.0)
+
+    def test_misaligned_words_fall_back_to_segment_edges(self):
+        tokens = list(self.TOKENS)
+        tokens[6] = "zulu"
+        segs = [self._segment(tokens=tokens)]
+        assert self._convert(segs, "foxtrot golf") == (100.0, 125.0)
+
+    def test_phrase_spanning_two_segments(self):
+        first = self._segment(start=100.0)
+        second = self._segment(start=125.0)
+        assert self._convert([first, second], "juliet alpha bravo") == (122.5, 125.0 + 2.5 + 2.0)

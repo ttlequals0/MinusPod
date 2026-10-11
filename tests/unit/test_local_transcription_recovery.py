@@ -23,7 +23,7 @@ CONFIG = {'local_model': 'original-model', 'device': 'cpu', 'compute_type': 'int
 def local_state(monkeypatch):
     monkeypatch.setattr(transcriber, '_LOCAL_IMPORT_ERROR', None)
     monkeypatch.setattr(transcriber, '_last_local_transcription_outcome', None)
-    monkeypatch.setattr(transcriber, '_latest_local_outcome', lambda device: None)
+    monkeypatch.setattr(transcriber, '_latest_local_outcome', lambda device, backend: None)
     monkeypatch.setattr(transcriber, '_local_decode_count', 0)
     monkeypatch.setattr(transcriber, '_local_probe_active', False)
     monkeypatch.setattr(transcriber, '_GPU_ADMISSION_SEMAPHORE', threading.Semaphore(1))
@@ -42,7 +42,7 @@ def test_import_health_does_not_load_a_model_without_recorded_failure(monkeypatc
 def test_original_recovery_decodes_after_standby_success_without_persisting_evidence(temp_db, monkeypatch):
     previous = {'outcome': 'failed', 'model': 'original-model', 'device': 'cpu'}
     temp_db.set_setting(transcriber.LOCAL_OUTCOME_SETTING, json.dumps(previous))
-    monkeypatch.setattr(transcriber, '_latest_local_outcome', lambda device: {
+    monkeypatch.setattr(transcriber, '_latest_local_outcome', lambda device, backend: {
         'outcome': 'success', 'model': 'standby-model', 'device': device})
     consumed = []
     def decode(audio, **kwargs):
@@ -64,7 +64,7 @@ def test_original_recovery_decodes_after_standby_success_without_persisting_evid
 
 
 def test_lazy_decode_failure_does_not_clear_local_failure(monkeypatch):
-    monkeypatch.setattr(transcriber, '_latest_local_outcome', lambda device: {
+    monkeypatch.setattr(transcriber, '_latest_local_outcome', lambda device, backend: {
         'outcome': 'failed', 'model': 'original-model', 'device': device})
     def segments():
         raise RuntimeError('decoder failed')
@@ -210,7 +210,7 @@ def test_real_failure_after_diagnostic_success_in_same_second_wins(monkeypatch):
         2026, 1, 1, 0, 0, 0, 200000, tzinfo=timezone.utc))
     monkeypatch.setattr(transcriber.database, 'Database', MagicMock())
     transcriber._record_local_transcription_outcome({'outcome': 'failed', 'device': 'cpu'})
-    assert transcriber._latest_local_outcome('cpu')['outcome'] == 'failed'
+    assert transcriber._latest_local_outcome('cpu', transcriber.WHISPER_BACKEND_LOCAL)['outcome'] == 'failed'
 
 
 def test_web_worker_never_runs_the_diagnostic_decode(monkeypatch):

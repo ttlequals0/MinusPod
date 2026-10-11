@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.99.6
+  version: 2.100.0
   contact:
     name: MinusPod
   license:
@@ -2851,14 +2851,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - corrections
-              properties:
-                corrections:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/AdCorrection'
+              $ref: '#/components/schemas/AdCorrection'
       responses:
         '200':
           description: Corrections submitted successfully
@@ -2869,29 +2862,38 @@ paths:
                 properties:
                   message:
                     type: string
-                  processed:
+                    description: Human-readable result, returned by every type
+                  pattern_id:
                     type: integer
-                    description: Number of corrections processed
-                  patternsCreated:
-                    type: integer
-                    description: New patterns created from confirmations
-                  patternsUpdated:
-                    type: integer
-                    description: Existing patterns updated
+                    description: Pattern created or updated; returned by confirm, adjust, and create
+                  sponsor:
+                    type: string
+                    description: Canonical sponsor name; returned by create
                   patternIds:
                     type: array
                     items:
                       type: integer
-                    description: >-
-                      create type only (2.70.0+): every pattern created or
-                      reused for this correction, in segment order. Length 1
-                      unless the submitted text contained multiple ad
-                      transition phrases and was auto-split; pattern_id is
-                      always one of these (the sponsor-matched primary).
+                    description: Patterns created or reused; returned by create (2.70.0+) and split
+                  markerCount:
+                    type: integer
+                    description: Number of markers that replaced the original; returned by split
+                  category:
+                    type: string
+                    description: New segment category; returned by recategorize
+                  previousCategory:
+                    type: string
+                    description: Segment category before the change; returned by recategorize
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: >-
+            Segment is kept for this feed; recategorize instead of confirm, reject, adjust, or split
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /episodes/processing:
     get:
@@ -3278,6 +3280,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SystemOneStats'
+        '400':
+          $ref: '#/components/responses/LedgerDateBadRequest'
+  /stats/llm:
+    get:
+      tags:
+      - Stats
+      summary: Get LLM call statistics
+      description: Counts ledger rows from non-System One providers as calls; requests count actual dispatches.
+        Latencies are in milliseconds, known cost is a decimal USD sum, and unknown usage and cost counts
+        include failed and cancelled requests.
+      parameters: *id001
+      responses:
+        '200':
+          description: LLM call and request aggregates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmStats'
         '400':
           $ref: '#/components/responses/LedgerDateBadRequest'
   /stats/cleanup:
@@ -6100,8 +6120,8 @@ paths:
                   example: small
                 whisperBackend:
                   type: string
-                  description: Whisper backend to use (local uses local GPU/CPU, openai-api uses an external OpenAI-compatible API)
-                  enum: [local, openai-api]
+                  description: Whisper backend to use (local uses local GPU/CPU, openai-api uses an external OpenAI-compatible API, parakeet runs NVIDIA Parakeet TDT 0.6B v3 in-process)
+                  enum: [local, openai-api, parakeet]
                   example: local
                 whisperApiBaseUrl:
                   type: string
@@ -6882,8 +6902,8 @@ paths:
                   description: Enable or disable the transcriber failover provider. Off by default.
                 failoverWhisperBackend:
                   type: string
-                  enum: [local, openai-api]
-                  description: Transcriber failover backend.
+                  enum: [local, openai-api, parakeet]
+                  description: Transcriber failover backend (parakeet runs NVIDIA Parakeet TDT 0.6B v3 in-process).
                 failoverWhisperModel:
                   type: string
                   description: Local model name for the transcriber failover, when its backend is local.
@@ -11954,6 +11974,7 @@ components:
       - calls
       - requests
       - dispatchLatencyMsTotal
+      - dispatchLatencyMsAverage
       - logicalLatencyMsTotal
       - logicalLatencyMsAverage
       - tokens
@@ -11973,6 +11994,11 @@ components:
         dispatchLatencyMsTotal:
           type: integer
           minimum: 0
+        dispatchLatencyMsAverage:
+          type:
+          - integer
+          - 'null'
+          description: Mean dispatch latency per HTTP request in milliseconds, null without requests
         logicalLatencyMsTotal:
           type: integer
           minimum: 0
@@ -12042,6 +12068,103 @@ components:
           additionalProperties:
             type: integer
             minimum: 0
+    LlmStats:
+      type: object
+      required:
+      - calls
+      - requests
+      - outcomes
+      - callLatencyMsAverage
+      - dispatchLatencyMsAverage
+      - tokens
+      - costUsd
+      - unknownCostRequestCount
+      - byPhase
+      properties:
+        calls:
+          type: integer
+          minimum: 0
+        requests:
+          type: integer
+          minimum: 0
+        outcomes:
+          type: object
+          required:
+          - success
+          - failure
+          - inconclusive
+          - inFlight
+          properties:
+            success:
+              type: integer
+              minimum: 0
+            failure:
+              type: integer
+              minimum: 0
+            inconclusive:
+              type: integer
+              minimum: 0
+            inFlight:
+              type: integer
+              minimum: 0
+        callLatencyMsAverage:
+          type:
+          - integer
+          - 'null'
+          description: Mean measured call duration in milliseconds, null when no duration is available
+        dispatchLatencyMsAverage:
+          type:
+          - integer
+          - 'null'
+          description: Mean dispatch latency per HTTP request in milliseconds, null without requests
+        tokens:
+          type: object
+          required:
+          - input
+          - output
+          - cacheRead
+          - cacheWrite
+          - reasoning
+          - unknownRequestCount
+          properties:
+            input:
+              type: integer
+              minimum: 0
+            output:
+              type: integer
+              minimum: 0
+            cacheRead:
+              type: integer
+              minimum: 0
+            cacheWrite:
+              type: integer
+              minimum: 0
+            reasoning:
+              type: integer
+              minimum: 0
+            unknownRequestCount:
+              type: integer
+              minimum: 0
+        costUsd:
+          type: string
+          description: Exact decimal sum in USD of known call costs.
+        unknownCostRequestCount:
+          type: integer
+          minimum: 0
+        byPhase:
+          type: object
+          description: Calls and known cost per pipeline phase, ordered by calls descending.
+          additionalProperties:
+            type: object
+            required:
+            - calls
+            - costUsd
+            properties:
+              calls:
+                type: integer
+                minimum: 0
+              costUsd:
+                type: string
     CleanupStats:
       type: object
       required:
@@ -15434,7 +15557,7 @@ components:
           properties:
             value:
               type: string
-              description: Whisper backend to use (local, openai-api)
+              description: Whisper backend to use (local, openai-api, parakeet; parakeet runs NVIDIA Parakeet TDT 0.6B v3 in-process)
             isDefault:
               type: boolean
         whisperApiBaseUrl:
@@ -16692,7 +16815,8 @@ components:
           properties:
             value:
               type: string
-              enum: [local, openai-api]
+              enum: [local, openai-api, parakeet]
+              description: Backend value; parakeet runs NVIDIA Parakeet TDT 0.6B v3 in-process.
             isDefault:
               type: boolean
         failoverWhisperModel:
@@ -16934,7 +17058,8 @@ components:
               type: boolean
             failoverWhisperBackend:
               type: string
-              enum: [local, openai-api]
+              enum: [local, openai-api, parakeet]
+              description: Failover transcriber backend; parakeet runs NVIDIA Parakeet TDT 0.6B v3 in-process.
             failoverWhisperModel:
               type: string
             failoverWhisperApiBaseUrl:
@@ -17106,7 +17231,7 @@ components:
               description: Local compute device, or "remote" when transcription runs on a remote whisper API
             whisperBackend:
               type: string
-              description: Transcription backend in use (local or openai-api)
+              description: Transcription backend in use (local, openai-api or parakeet; parakeet runs NVIDIA Parakeet TDT 0.6B v3 in-process)
             whisperApiHost:
               type: [string, 'null']
               description: scheme://host of the remote whisper endpoint, or null when transcription is local
@@ -17237,8 +17362,8 @@ components:
           properties:
             backend:
               type: string
-              enum: [local, openai-api]
-              description: The configured backend, which is what decides the rest of this object.
+              enum: [local, openai-api, parakeet]
+              description: The configured backend, which is what decides the rest of this object; parakeet runs NVIDIA Parakeet TDT 0.6B v3 in-process.
             available:
               type: boolean
               description: >-

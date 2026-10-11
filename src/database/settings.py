@@ -21,7 +21,7 @@ from config import (
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OLLAMA,
     SYSTEMONE_PROVIDERS,
-    WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
+    WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API, WHISPER_BACKEND_PARAKEET,
     WHISPER_COMPUTE_TYPE_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
@@ -363,7 +363,8 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         payload_key='failoverWhisperEnabled', payload_kind='bool'),
     'failover_whisper_backend': SettingSpec(
         default='openai-api', seeded=True, payload_key='failoverWhisperBackend',
-        validator=_one_of(WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API)),
+        validator=_one_of(WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
+                          WHISPER_BACKEND_PARAKEET)),
     'failover_whisper_model': SettingSpec(
         default='', seeded=True, payload_key='failoverWhisperModel'),
     'failover_whisper_api_base_url': SettingSpec(
@@ -666,7 +667,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         seeded=True, in_ad_reset=True, payload_key='whisperLanguage'),
     'whisper_backend': SettingSpec(
         default='local', env='WHISPER_BACKEND', in_ad_reset=True,
-        payload_key='whisperBackend'),
+        payload_key='whisperBackend',
+        validator=_one_of(WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
+                          WHISPER_BACKEND_PARAKEET)),
     'whisper_api_base_url': SettingSpec(
         default='', env='WHISPER_API_BASE_URL', in_ad_reset=True,
         payload_key='whisperApiBaseUrl'),

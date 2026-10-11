@@ -208,3 +208,24 @@ describe('TranscriptionSection whisper model select', () => {
     expect(screen.queryByRole('option', { name: /not in list/ })).toBeNull();
   });
 });
+
+describe('TranscriptionSection parakeet backend', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('offers three backend options', () => {
+    renderSection({ whisperBackend: 'local' });
+    const select = screen.getByLabelText('Backend') as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['local', 'parakeet', 'openai-api']);
+    expect(screen.getByRole('option', { name: 'Local (Parakeet TDT 0.6B v3)' })).toBeDefined();
+  });
+
+  it('hides model, compute and API fields and shows the helper text', () => {
+    renderSection({ whisperBackend: 'parakeet' });
+    expect(screen.queryByLabelText('Whisper Model')).toBeNull();
+    expect(screen.queryByLabelText('API base URL')).toBeNull();
+    expect(screen.queryByLabelText('GPU compute type')).toBeNull();
+    expect(screen.getByText(/The model downloads into the data directory on first use/)).toBeDefined();
+  });
+});

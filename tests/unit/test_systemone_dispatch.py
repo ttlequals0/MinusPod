@@ -473,6 +473,7 @@ def test_running_native_reservation_counts_for_quota_but_not_actual_http_stats(t
     assert temp_db.count_recent_llm_attempts('typesafe', 'primary', '2000-01-01T00:00:00Z') == 1
     stats = temp_db.get_systemone_stats()
     assert stats['requests'] == 0
+    assert stats['dispatchLatencyMsAverage'] is None
     assert stats['unknownCostRequestCount'] == 0
     assert stats['tokens']['unknownRequestCount'] == 0
 

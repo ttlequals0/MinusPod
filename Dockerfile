@@ -155,6 +155,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     pip install -r requirements.txt
+# Parakeet CUDA provider. Same version as the CPU pin; links cudart 12, cudnn 9,
+# cublas 12, cufft 11, curand 10 from the torch nvidia wheels.
+RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
+    pip uninstall -y onnxruntime && pip install onnxruntime-gpu==1.24.4
 COPY --from=core-security-builder /out/packages/ /opt/core-security-packages/
 COPY --from=core-security-builder /out/provenance/ /usr/share/minuspod/core-security/
 RUN apt-get update \
@@ -209,6 +213,7 @@ RUN apt-get update \
 # LD_LIBRARY_PATH: venv nvidia pip dirs for ctranslate2, which dlopens cuDNN 9
 # and cuBLAS and statically links the rest. torch pins these via its
 # cuda-toolkit metapackage dep; re-check the paths on the next torch bump.
+# onnxruntime-gpu (Parakeet) also needs cufft and curand from the same dirs.
 # cuda_runtime is unused today (ct2 links cudart statically) but kept on the
 # path so a future ctranslate2 that links it dynamically still resolves.
 # NVIDIA_*: make the NVIDIA container runtime inject the driver under
@@ -227,7 +232,7 @@ ENV HOME=/app/data \
     NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility \
     NVIDIA_REQUIRE_CUDA="cuda>=12.0" \
-    LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cublas/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cuda_runtime/lib
+    LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cublas/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cuda_runtime/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cufft/lib:/opt/venv/lib/python3.12/site-packages/nvidia/curand/lib
 
 # Copy application code
 COPY src/ ./src/

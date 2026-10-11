@@ -36,7 +36,7 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 - Every marker carries a segment category (sponsor, cross-promo, self-promo, interaction, and opt-in intro/outro/recap), each resolving to remove, beep, keep, or mark (left in the audio and published as a skippable chapter when chapters are enabled), set globally or per feed and defaulting to remove until configured
 
 **Transcription**
-- Local Whisper on GPU or CPU via faster-whisper, or a remote OpenAI-compatible API
+- Local Whisper or Parakeet TDT 0.6B v3 on GPU or CPU, or a remote OpenAI-compatible API
 - Works with whisper.cpp, Groq, OpenAI Whisper, and OpenVINO (Intel GPU)
 
 **LLM providers**

@@ -1139,9 +1139,14 @@ numpy==1.26.4 \
     # via
     #   -r requirements.in
     #   ctranslate2
+    #   onnx-asr
     #   onnxruntime
     #   scikit-learn
     #   scipy
+onnx-asr==0.12.0 \
+    --hash=sha256:5e7ceca454609819ea7833f61e2302e0c8f6ece4f8a78b66c5daba53cb51de4a \
+    --hash=sha256:c1fcacddbced392f9f769ed5c6223f4ce739a6e4549346de33b9b520d4ead713
+    # via -r requirements.in
 onnxruntime==1.24.4 \
     --hash=sha256:046ff290045a387676941a02a8ae5c3ebec6b4f551ae228711968c4a69d8f6b7 \
     --hash=sha256:0bdfce8e9a6497cec584aab407b71bf697dac5e1b7b7974adc50bf7533bdb3a2 \

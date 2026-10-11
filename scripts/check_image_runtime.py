@@ -26,7 +26,7 @@ for record in sorted(Path('/usr/share/minuspod').glob('*-security/built-packages
     run('/opt/venv/bin/python', str(record.parent / 'build_media_security_packages.py'), '--verify-installed')
     provenance[record.parent.name] = json.loads(record.read_text())
 assert set(provenance) == set(options.expected_families), sorted(provenance)
-modules = ['torch', 'ctranslate2', 'faster_whisper', 'av', 'numpy', 'scipy', 'onnxruntime']
+modules = ['torch', 'ctranslate2', 'faster_whisper', 'av', 'numpy', 'scipy', 'onnxruntime', 'onnx_asr']
 versions = {}
 for name in modules:
     module = importlib.import_module(name)

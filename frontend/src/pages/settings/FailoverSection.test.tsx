@@ -243,6 +243,16 @@ describe('FailoverSection transcription failover', () => {
     expect(screen.queryByLabelText('API base URL')).toBeNull();
   });
 
+  it('offers parakeet and hides model and API fields for it', async () => {
+    renderSection({ whisper: { ...baseWhisper, enabled: true, backend: 'parakeet' } });
+    await openSection();
+    const select = screen.getByLabelText('Failover backend') as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['local', 'parakeet', 'openai-api']);
+    expect(screen.queryByLabelText('Local model')).toBeNull();
+    expect(screen.queryByLabelText('API base URL')).toBeNull();
+    expect(screen.getByText('Runs in this container; no model or endpoint settings.')).toBeDefined();
+  });
+
   it('shows the API fields for the API backend', async () => {
     renderSection({ whisper: { ...baseWhisper, enabled: true, backend: 'openai-api' } });
     await openSection();

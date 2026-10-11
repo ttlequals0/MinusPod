@@ -5934,10 +5934,10 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     processing_time = time.time() - start_time
 
     try:
-        from transcriber import WhisperModelSingleton
+        from transcriber import _unload_local_models
         from utils.gpu import clear_gpu_memory
         clear_gpu_memory()
-        WhisperModelSingleton.unload_model()
+        _unload_local_models()
         audio_logger.info(f"[{slug}:{episode_id}] Cleaned up GPU memory after failure")
     except Exception as cleanup_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up GPU memory: {cleanup_err}")

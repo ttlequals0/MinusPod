@@ -45,10 +45,14 @@ import utils.subprocess_registry
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.ttl_cache import TTLCache
 from whisper_pool import get_pool
+import parakeet_transcriber
+from parakeet_transcriber import ParakeetModelSingleton
 from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
     WHISPER_BACKEND_API,
+    WHISPER_BACKEND_PARAKEET,
+    PARAKEET_MODEL_NAME,
     WHISPER_COMPUTE_TYPES,
     WHISPER_COMPUTE_TYPE_DEFAULT,
     WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN,
@@ -99,7 +103,9 @@ except ImportError as e:
 logger = logging.getLogger(__name__)
 
 
-def _local_unavailable_message() -> str:
+def _local_unavailable_message(backend: str) -> str:
+    if backend == WHISPER_BACKEND_PARAKEET:
+        return parakeet_transcriber.parakeet_unavailable_message()
     return (
         f"Local Whisper backend needs faster-whisper and ctranslate2 "
         f"({_LOCAL_IMPORT_ERROR}); install them or set WHISPER_BACKEND=openai-api "
@@ -107,13 +113,15 @@ def _local_unavailable_message() -> str:
     )
 
 
-def local_transcription_available() -> bool:
+def local_transcription_available(backend: str) -> bool:
+    if backend == WHISPER_BACKEND_PARAKEET:
+        return parakeet_transcriber.parakeet_available()
     return _LOCAL_IMPORT_ERROR is None
 
 
-def _require_local_transcription() -> None:
-    if _LOCAL_IMPORT_ERROR is not None:
-        raise LocalTranscriptionUnavailableError(_local_unavailable_message())
+def _require_local_transcription(backend: str) -> None:
+    if not local_transcription_available(backend):
+        raise LocalTranscriptionUnavailableError(_local_unavailable_message(backend))
 
 # Whisper's encoder window. A clip handed to BatchedInferencePipeline longer
 # than this is silently truncated to its first 30s.
@@ -208,13 +216,22 @@ def _all_admission_permits():
             _GPU_ADMISSION_SEMAPHORE.release()
 
 
+def _unload_local_models() -> bool:
+    """Unload the Whisper and Parakeet singletons; True if either was loaded."""
+    unloaded = False
+    for singleton in (WhisperModelSingleton, ParakeetModelSingleton):
+        if singleton.is_loaded():
+            singleton.unload_model()
+            unloaded = True
+    return unloaded
+
+
 def unload_whisper_if_idle() -> bool:
     """Unload the local model when no transcription holds an admission permit; True if one was unloaded."""
     with _idle_local_probe() as free:
-        if not free or not WhisperModelSingleton.is_loaded():
+        if not free:
             return False
-        WhisperModelSingleton.unload_model()
-        return True
+        return _unload_local_models()
 
 
 # Last local transcription outcome, mirrored at module scope so
@@ -234,7 +251,6 @@ def _record_local_transcription_outcome(outcome: dict) -> None:
     """Keep the last local outcome in-process and in cross-worker state."""
     global _last_local_transcription_outcome
     record = dict(outcome)
-    record['backend'] = WHISPER_BACKEND_LOCAL
     if not record.get('device'):
         record['device'] = resolve_whisper_device()
     record['observed_at'] = utc_now().isoformat().replace('+00:00', 'Z')
@@ -262,19 +278,20 @@ def _read_persisted_local_outcome() -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def _latest_local_outcome(device: str) -> dict | None:
-    """Newest persisted or in-process outcome for the configured device."""
+def _latest_local_outcome(device: str, backend: str) -> dict | None:
+    """Newest persisted or in-process outcome for the device and backend."""
     with _local_transcription_state_lock:
         in_process = dict(_last_local_transcription_outcome) if _last_local_transcription_outcome else None
     candidates = [c for c in (in_process, _read_persisted_local_outcome())
-                  if c and c.get('device') == device]
+                  if c and c.get('device') == device
+                  and c.get('backend', WHISPER_BACKEND_LOCAL) == backend]
     if not candidates:
         return None
     return max(candidates, key=lambda c: (stamp.timestamp()
                if (stamp := parse_iso_utc(c.get('observed_at'))) else 0))
 
 
-def get_local_transcriber_health() -> dict:
+def get_local_transcriber_health(backend: str | None = None) -> dict:
     """Local-backend transcriber health for /system/status.
 
     The local model runs in-process with no endpoint to probe, so 'available'
@@ -283,15 +300,16 @@ def get_local_transcriber_health() -> dict:
     reports the latest one; no attempt yet reads as available.
     """
     device = resolve_whisper_device()
-    if _LOCAL_IMPORT_ERROR is not None:
+    backend = backend or _get_whisper_settings()['backend']
+    if not local_transcription_available(backend):
         return {
-            'backend': WHISPER_BACKEND_LOCAL,
+            'backend': backend,
             'device': device,
             'available': False,
-            'reason': _local_unavailable_message(),
+            'reason': _local_unavailable_message(backend),
             'lastOutcome': None,
         }
-    outcome = _latest_local_outcome(device)
+    outcome = _latest_local_outcome(device, backend)
     last_outcome = None
     if outcome is not None:
         last_outcome = {
@@ -301,7 +319,7 @@ def get_local_transcriber_health() -> dict:
             'observedAt': outcome.get('observed_at'),
         }
     return {
-        'backend': WHISPER_BACKEND_LOCAL,
+        'backend': backend,
         'device': device,
         'available': outcome is None or outcome.get('outcome') != 'failed',
         'lastOutcome': last_outcome,
@@ -310,11 +328,12 @@ def get_local_transcriber_health() -> dict:
 
 def probe_local_transcription(request_config: dict) -> dict:
     """Probe the captured local config without interrupting active decodes."""
-    if not local_transcription_available():
+    backend = request_config.get('backend', WHISPER_BACKEND_LOCAL)
+    if not local_transcription_available(backend):
         return {'reachable': False, 'status': None, 'detail': 'Local stack unavailable'}
     load_config = {'model': request_config['local_model'], 'device': request_config['device'],
-                   'compute_type': request_config['compute_type']}
-    outcome = _latest_local_outcome(load_config['device'])
+                   'compute_type': request_config.get('compute_type')}
+    outcome = _latest_local_outcome(load_config['device'], backend)
     failed = (outcome and outcome.get('outcome') == 'failed'
               and outcome.get('model') in (None, load_config['model']))
     if not request_config.get('recover_runtime') and not failed:
@@ -328,15 +347,21 @@ def probe_local_transcription(request_config: dict) -> dict:
         if not free:
             return {'reachable': None, 'status': None, 'detail': 'Local transcription busy'}
         try:
-            model, _pipeline = WhisperModelSingleton.get_instance(load_config=load_config)
-            segments, _info = model.transcribe(
-                io.BytesIO(_probe_wav_bytes()), language='en', beam_size=1, vad_filter=False)
-            list(segments)
+            if backend == WHISPER_BACKEND_PARAKEET:
+                with tempfile.NamedTemporaryFile(suffix='.wav') as probe_wav:
+                    probe_wav.write(_probe_wav_bytes())
+                    probe_wav.flush()
+                    parakeet_transcriber.decode(probe_wav.name, 'en')
+            else:
+                model, _pipeline = WhisperModelSingleton.get_instance(load_config=load_config)
+                segments, _info = model.transcribe(
+                    io.BytesIO(_probe_wav_bytes()), language='en', beam_size=1, vad_filter=False)
+                list(segments)
         except Exception as exc:
             logger.warning('Local recovery decode failed: %s', exc)
             return {'reachable': False, 'status': None, 'detail': f'Local decode failed: {type(exc).__name__}'}
     return {'reachable': True, 'status': None, 'detail': 'Local diagnostic decode succeeded',
-            'local_outcome': {'outcome': 'success', 'backend': WHISPER_BACKEND_LOCAL,
+            'local_outcome': {'outcome': 'success', 'backend': backend,
                               'model': load_config['model'], 'device': load_config['device'],
                               'compute_type': load_config['compute_type'],
                               'observed_at': utc_now().isoformat().replace('+00:00', 'Z')}}
@@ -365,9 +390,10 @@ def get_remote_transcriber_health() -> dict:
 def get_transcriber_health() -> dict:
     """Health of the configured backend. The local reading (last in-process
     outcome) means nothing when transcription runs on a remote API."""
-    if _get_whisper_settings()['backend'] == WHISPER_BACKEND_API:
-        return get_remote_transcriber_health()
-    return get_local_transcriber_health()
+    backend = _get_whisper_settings()['backend']
+    if backend == WHISPER_BACKEND_API:
+        return get_remote_transcriber_health()  # parakeet reads the in-process health below
+    return get_local_transcriber_health(backend)
 
 # Whisper artifacts on silence and music. Matched after trailing punctuation
 # is stripped, so a bare phrase or bare punctuation is an artifact.
@@ -1462,7 +1488,7 @@ class WhisperModelSingleton:
             cls.unload_model()
 
         if cls._instance is None:
-            _require_local_transcription()
+            _require_local_transcription(WHISPER_BACKEND_LOCAL)
             model_size = requested_config['model']
             device = requested_config['device']
             configured_compute_type = requested_config['compute_type']
@@ -1643,9 +1669,9 @@ class Transcriber:
         # Last local transcribe() outcome (batch_size/retry_count/device/etc),
         # read by callers that want it beside the per-phase stats (#519).
         self.last_transcription_stats = None
-        if (_LOCAL_IMPORT_ERROR is not None
-                and _get_whisper_settings()['backend'] != WHISPER_BACKEND_API):
-            logger.warning(_local_unavailable_message())
+        backend = _get_whisper_settings()['backend']
+        if backend != WHISPER_BACKEND_API and not local_transcription_available(backend):
+            logger.warning(_local_unavailable_message(backend))
 
     def _transcribe_via_api(
         self,
@@ -1908,13 +1934,16 @@ class Transcriber:
 
             # response is a 200 here; non-200/None returned above
             if not result:
-                body_len = len(response.text) if response.text else 0
-                logger.warning(
-                    "Whisper API returned 200 but 0 usable segments (body %d chars). "
-                    "This often means the server failed to decode the audio "
-                    "(e.g. --convert writing to a non-writable directory).",
-                    body_len,
-                )
+                if not vad_filter:
+                    logger.debug("Whisper API returned 0 segments for repair span (no speech)")
+                else:
+                    body_len = len(response.text) if response.text else 0
+                    logger.warning(
+                        "Whisper API returned 200 but 0 usable segments (body %d chars). "
+                        "This often means the server failed to decode the audio "
+                        "(e.g. --convert writing to a non-writable directory).",
+                        body_len,
+                    )
 
             # Filter hallucinations
             original_count = len(result)
@@ -1937,7 +1966,7 @@ class Transcriber:
             _unlink_quiet(flac_path)
 
     def _record_local_stats(self, outcome, batch_size, retry_count, device, model,
-                            error=None) -> None:
+                            backend, error=None) -> None:
         """Store and persist the outcome of a local batched transcription."""
         stats = {
             'outcome': outcome,
@@ -1947,6 +1976,7 @@ class Transcriber:
             'device': device,
             'gpu_device_name': get_gpu_device_name() if device == 'cuda' else None,
             'model': model,
+            'backend': backend,
         }
         if error is not None:
             stats['error'] = error[:500]
@@ -1964,7 +1994,7 @@ class Transcriber:
             return self._transcribe_via_api(
                 audio_path, whisper_settings, language_override=language_override,
                 vad_filter=False)
-        _require_local_transcription()
+        _require_local_transcription(whisper_settings['backend'])
         language_setting = _effective_language(language_override, whisper_settings)
         language = None if language_setting == 'auto' else (language_setting or 'en')
         preprocessed_path = None
@@ -1972,6 +2002,10 @@ class Transcriber:
             acquired = _gpu_admission_acquire(resolve_whisper_device())
             try:
                 preprocessed_path = self.preprocess_audio(audio_path)
+                if whisper_settings['backend'] == WHISPER_BACKEND_PARAKEET:
+                    _note_whisper_settings(whisper_settings)
+                    return parakeet_transcriber.decode(
+                        preprocessed_path or audio_path, language_setting or 'en')
                 model, _batched = WhisperModelSingleton.get_instance()
                 _note_whisper_settings(whisper_settings)
                 segments, _info = model.transcribe(
@@ -2056,8 +2090,7 @@ class Transcriber:
             if not free:
                 logger.debug("Skipping the post-repair Whisper unload: a local transcription holds the GPU")
                 return
-            if WhisperModelSingleton.is_loaded():
-                WhisperModelSingleton.unload_model()
+            if _unload_local_models():
                 logger.info("Whisper model unloaded after transcript repair")
 
     def repair_gaps(self, audio_path: str, segments: list[dict], min_s: float,
@@ -2485,7 +2518,7 @@ class Transcriber:
                 vad_filter=vad_filter,
             )
         # Outside the try below so the actionable message is not swallowed.
-        _require_local_transcription()
+        _require_local_transcription(whisper_settings['backend'])
 
         # Local decode under the failover config pins the configured failover
         # model; reset in the finally below so later calls see the primary
@@ -2516,6 +2549,18 @@ class Transcriber:
 
             # Get audio duration for adaptive batch sizing
             audio_duration = self.get_audio_duration(audio_path)
+
+            if whisper_settings['backend'] == WHISPER_BACKEND_PARAKEET:
+                device = resolve_whisper_device()
+                current_model = PARAKEET_MODEL_NAME
+                if not preprocessed:
+                    preprocessed_path = self.preprocess_audio(audio_path)
+                _note_whisper_settings(whisper_settings)
+                result = self.filter_hallucinations(parakeet_transcriber.decode(
+                    preprocessed_path or audio_path, language_setting or 'en'))
+                self._record_local_stats('success', None, 0, device, current_model,
+                                         backend=WHISPER_BACKEND_PARAKEET)
+                return result
 
             # Get the batched pipeline for efficient transcription
             model = WhisperModelSingleton.get_batched_pipeline()
@@ -2682,7 +2727,8 @@ class Transcriber:
                         self.record_batch_size_ceiling(batch_size)
 
                     self._record_local_stats('success', batch_size, retry_count,
-                                             device, current_model)
+                                             device, current_model,
+                                             backend=whisper_settings['backend'])
 
                     return result
 
@@ -2714,12 +2760,13 @@ class Transcriber:
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
             self._record_local_stats('failed', batch_size, retry_count, device,
-                                     current_model, error=str(e))
+                                     current_model, error=str(e),
+                                     backend=whisper_settings['backend'])
             # Clean up GPU memory on ANY failure to prevent memory leaks
             # This is critical for OOM recovery - free memory before retry
             try:
                 clear_gpu_memory()
-                WhisperModelSingleton.unload_model()
+                _unload_local_models()
                 logger.info("Cleaned up GPU memory after transcription failure")
             except Exception as cleanup_err:
                 logger.warning(f"Failed to clean up GPU memory: {cleanup_err}")
@@ -3056,7 +3103,7 @@ class Transcriber:
         # Set for the whole body so chunk sizing also sees the failover model.
         override_token = _local_model_override.set(failover_local_model) if failover_local_model else None
         try:
-            _require_local_transcription()
+            _require_local_transcription(whisper_settings['backend'])
             with _local_decode_activity():
                 return self._transcribe_chunked_local_body(
                     audio_path, duration, whisper_settings, language_override)
@@ -3080,13 +3127,15 @@ class Transcriber:
     ) -> list[dict] | None:
         """Decode memory-sized chunks, reducing their size after OOM."""
         # Get current model and device for memory calculation
-        model_name = WhisperModelSingleton.get_configured_model()
         device = resolve_whisper_device()
 
-        # Calculate optimal chunk duration based on available memory
-        chunk_duration, memory_reason = calculate_optimal_chunk_duration(
-            model_name, device
-        )
+        if whisper_settings['backend'] == WHISPER_BACKEND_PARAKEET:
+            chunk_duration, memory_reason = CHUNK_DEFAULT_DURATION_SECONDS, 'parakeet fixed windows'
+        else:
+            model_name = WhisperModelSingleton.get_configured_model()
+            chunk_duration, memory_reason = calculate_optimal_chunk_duration(
+                model_name, device
+            )
         overlap = CHUNK_OVERLAP_SECONDS
 
         # If calculated chunk can handle the entire audio, try regular transcription first
@@ -3109,7 +3158,7 @@ class Transcriber:
                     # Reduce chunk size for chunked attempt
                     chunk_duration = max(CHUNK_MIN_DURATION_SECONDS, chunk_duration // 2)
                     clear_gpu_memory()
-                    WhisperModelSingleton.unload_model()
+                    _unload_local_models()
                 else:
                     raise
 
@@ -3268,7 +3317,7 @@ class Transcriber:
 
                         # Clean up and retry this chunk with smaller size
                         clear_gpu_memory()
-                        WhisperModelSingleton.unload_model()
+                        _unload_local_models()
                         # Don't advance chunk_start - retry from same position
                         continue
                     # Non-OOM error or max retries reached

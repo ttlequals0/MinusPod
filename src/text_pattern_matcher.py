@@ -49,6 +49,58 @@ from utils.time import overlap_seconds, utc_now_iso
 logger = logging.getLogger('podcast.textmatch')
 
 
+def _align_segment_words(segment):
+    """Return (char_start, char_end, start, end) per word, or None if words do not align to the text."""
+    words = segment.get('words')
+    source = segment.get('text') or ''
+    if not isinstance(words, list) or not words or not source:
+        return None
+    seg_start = segment.get('start', 0)
+    seg_end = segment.get('end', 0)
+    cursor = 0
+    previous_end = seg_start
+    aligned = []
+    for word in words:
+        if not isinstance(word, dict):
+            return None
+        word_start = word.get('start')
+        word_end = word.get('end')
+        token = word.get('word')
+        if (not isinstance(word_start, (int, float))
+                or not isinstance(word_end, (int, float))
+                or not isinstance(token, str) or not token.strip()
+                or not all(map(math.isfinite, (word_start, word_end)))
+                or word_start < seg_start - 0.01
+                or word_end > seg_end + 0.01
+                or word_start < previous_end - 0.01
+                or word_end <= word_start):
+            return None
+        match = re.compile(re.escape(token.strip()), re.IGNORECASE).search(source, cursor)
+        if not match or re.search(r'\w', source[cursor:match.start()]):
+            return None
+        aligned.append((match.start(), match.end(), word_start, word_end))
+        cursor = match.end()
+        previous_end = word_end
+    if re.search(r'\w', source[cursor:]):
+        return None
+    return aligned
+
+
+def _word_time(aligned, offset, want_end):
+    """Word start covering offset (next word in a gap) or end of the last word starting at or before it; None if absent."""
+    if want_end:
+        found = None
+        for char_start, _ce, _ws, word_end in aligned:
+            if char_start > offset:
+                break
+            found = word_end
+        return found
+    for _cs, char_end, word_start, _we in aligned:
+        if offset < char_end:
+            return word_start
+    return None
+
+
 def _segments_for_pattern_learning(segments, start, end):
     """Use timed words where available and decline ambiguous boundary text."""
     clipped = []
@@ -58,46 +110,18 @@ def _segments_for_pattern_learning(segments, start, end):
         if seg_end <= start or seg_start >= end:
             continue
         partial = seg_start < start or seg_end > end
-        words = segment.get('words')
-        if not words and not partial:
+        if not segment.get('words') and not partial:
             clipped.append(segment)
             continue
-        source = segment.get('text') or ''
-        if not isinstance(words, list) or not words or not source:
+        aligned = _align_segment_words(segment)
+        if aligned is None:
             return None
-        cursor = 0
-        previous_end = seg_start
-        aligned = []
-        for word in words:
-            if not isinstance(word, dict):
-                return None
-            word_start = word.get('start')
-            word_end = word.get('end')
-            token = word.get('word')
-            if (not isinstance(word_start, (int, float))
-                    or not isinstance(word_end, (int, float))
-                    or not isinstance(token, str) or not token.strip()
-                    or not all(map(math.isfinite, (word_start, word_end)))
-                    or word_start < seg_start - 0.01
-                    or word_end > seg_end + 0.01
-                    or word_start < previous_end - 0.01
-                    or word_end <= word_start):
-                return None
-            match = re.search(re.escape(token.strip()), source[cursor:], re.IGNORECASE)
-            if not match or re.search(r'\w', source[cursor:cursor + match.start()]):
-                return None
-            char_start = cursor + match.start()
-            char_end = cursor + match.end()
-            cursor = char_end
-            previous_end = word_end
-            aligned.append((word_start, word_end, char_start))
-        if re.search(r'\w', source[cursor:]):
-            return None
-        for index, (word_start, word_end, char_start) in enumerate(aligned):
+        source = segment['text']
+        for index, (char_start, _ce, word_start, word_end) in enumerate(aligned):
             if (word_start < start - 0.01 or word_end > end + 0.01
                     or word_end <= start or word_start >= end):
                 continue
-            char_end = aligned[index + 1][2] if index + 1 < len(aligned) else len(source)
+            char_end = aligned[index + 1][0] if index + 1 < len(aligned) else len(source)
             clipped.append({
                 'start': max(start, word_start),
                 'end': min(end, word_end),
@@ -502,6 +526,7 @@ class TextPatternMatcher:
         """
         self.db = db
         self._match_lock = threading.RLock()
+        self._aligned_cache: dict[int, list | None] = {}
         self.sponsor_service = sponsor_service
         self._vectorizer = None
         self._pattern_vectors = None
@@ -717,6 +742,7 @@ class TextPatternMatcher:
         matches = []
 
         # Build full transcript with segment mapping
+        self._aligned_cache = {}
         full_text, segment_map = self._concat_segments(segments)
 
         if len(full_text.strip()) < MIN_TEXT_LENGTH:
@@ -1246,6 +1272,15 @@ class TextPatternMatcher:
         duration = pattern.avg_duration if pattern.avg_duration is not None else DEFAULT_AD_DURATION_ESTIMATE
         return max(0, end_time - duration)
 
+    def _word_time(self, seg, offset, want_end):
+        """Word time for a segment offset using the per-run alignment cache."""
+        cache = self.__dict__.setdefault('_aligned_cache', {})
+        key = id(seg)
+        if key not in cache:
+            cache[key] = _align_segment_words(seg)
+        aligned = cache[key]
+        return _word_time(aligned, offset, want_end) if aligned else None
+
     def _char_pos_to_time(
         self,
         start_char: int,
@@ -1255,21 +1290,25 @@ class TextPatternMatcher:
     ) -> tuple[float, float]:
         """Convert character positions to timestamps.
 
-        Maps character positions in concatenated text back to segment timestamps.
+        Maps character positions in concatenated text back to word timestamps,
+        falling back to segment edges when words are missing or misaligned.
         Uses consistent boundary comparison (< for exclusive upper bound).
         """
         start_time = 0.0
         end_time = 0.0
 
         for seg_start, seg_end, seg_idx in segment_map:
+            seg = segments[seg_idx]
             # Start time: find segment containing start_char
             if seg_start <= start_char < seg_end:
-                start_time = segments[seg_idx]['start']
+                word_time = self._word_time(seg, start_char - seg_start, False)
+                start_time = seg['start'] if word_time is None else word_time
 
             # End time: find segment containing end_char
             # Use < for consistency with start_char boundary handling
             if seg_start <= end_char < seg_end or end_char == seg_end and seg_idx == len(segments) - 1:
-                end_time = segments[seg_idx]['end']
+                word_time = self._word_time(seg, end_char - 1 - seg_start, True) if end_char > seg_start else None
+                end_time = seg['end'] if word_time is None else word_time
                 break
 
         # Fallback if not found

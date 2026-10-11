@@ -513,3 +513,57 @@ def test_api_backend_health_uses_a_cached_probe_not_a_fresh_request(monkeypatch)
         transcriber_mod._health_cache.delete('http://whisper.invalid/v1')
         db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
         db.set_setting('whisper_api_base_url', '')
+
+
+def test_health_reports_parakeet_backend(monkeypatch):
+    _clear_outcome_state(monkeypatch)
+    monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
+    monkeypatch.setattr(transcriber_mod.parakeet_transcriber, 'parakeet_available', lambda: True)
+    db = _db()
+    try:
+        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_PARAKEET)
+        health = transcriber_mod.get_transcriber_health()
+        assert health['backend'] == 'parakeet'
+        assert health['available'] is True
+        monkeypatch.setattr(transcriber_mod.parakeet_transcriber, 'parakeet_available', lambda: False)
+        health = transcriber_mod.get_transcriber_health()
+        assert health['available'] is False
+        assert 'onnx-asr' in health['reason']
+    finally:
+        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
+
+
+def test_health_ignores_other_backend_outcome(monkeypatch):
+    _clear_outcome_state(monkeypatch)
+    monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
+    monkeypatch.setattr(transcriber_mod.parakeet_transcriber, 'parakeet_available', lambda: True)
+    transcriber_mod._record_local_transcription_outcome(
+        {'outcome': 'success', 'backend': transcriber_mod.WHISPER_BACKEND_LOCAL, 'device': 'cpu'})
+    health = transcriber_mod.get_local_transcriber_health('parakeet')
+    assert health['lastOutcome'] is None
+    assert health['available'] is True
+
+
+def test_transcribe_routes_to_parakeet_decoder(monkeypatch, tmp_path):
+    import wave
+    wav = tmp_path / 'p.wav'
+    with wave.open(str(wav), 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b'\x00\x00' * 1600)
+    _clear_outcome_state(monkeypatch)
+    monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
+    monkeypatch.setattr(transcriber_mod, '_require_local_transcription', lambda backend=None: None)
+    seg = {'start': 0.0, 'end': 1.0, 'text': 'Hello there', 'words': []}
+    decode = MagicMock(return_value=[seg])
+    monkeypatch.setattr(transcriber_mod.parakeet_transcriber, 'decode', decode)
+    settings = {'backend': 'parakeet', 'language': 'en'}
+    with patch.object(transcriber_mod.WhisperModelSingleton, 'get_batched_pipeline',
+                      side_effect=AssertionError('faster-whisper must not load')):
+        t = transcriber_mod.Transcriber()
+        result = t.transcribe(str(wav), preprocessed=True, whisper_settings=settings)
+    assert [s['text'] for s in result] == ['Hello there']
+    decode.assert_called_once_with(str(wav), 'en')
+    assert t.last_transcription_stats['backend'] == 'parakeet'
+    assert t.last_transcription_stats['model'] == 'nemo-parakeet-tdt-0.6b-v3'

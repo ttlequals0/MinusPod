@@ -246,3 +246,14 @@ def test_disabling_provider_b_cancels_active_secondary_failover(app_client, hdr)
     fire.assert_called_once_with('cancel', 'llm:secondary', 'manual', None)
     event = db.get_failover_events(1)[0]
     assert (event['target'], event['action'], event['source']) == ('llm:secondary', 'cancel', 'manual')
+
+
+def test_put_accepts_parakeet_backends(app_client, hdr):
+    r = app_client.put('/api/v1/settings/ad-detection',
+                       json={'failoverWhisperBackend': 'parakeet', 'whisperBackend': 'parakeet'},
+                       headers=hdr)
+    assert r.status_code == 200, r.get_json()
+    db = get_database()
+    assert db.get_setting('failover_whisper_backend') == 'parakeet'
+    assert db.get_setting('whisper_backend') == 'parakeet'
+    db.clear_setting('whisper_backend')

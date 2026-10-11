@@ -426,6 +426,26 @@ describe('Settings: standby upload attempts', () => {
     ));
   });
 
+  it('loads and saves the parakeet failover backend', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      whisperBackend: sv('local', false),
+      failoverWhisperEnabled: { value: true, isDefault: false },
+      failoverWhisperBackend: sv('openai-api', false),
+    }));
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByLabelText('First Pass System Prompt');
+    await user.click(screen.getByRole('button', { name: /^Failover/ }));
+    const select = screen.getByLabelText('Failover backend') as HTMLSelectElement;
+    expect(select.value).toBe('openai-api');
+    await user.selectOptions(select, 'parakeet');
+    expect(select.value).toBe('parakeet');
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() => expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ failoverWhisperBackend: 'parakeet' }),
+    ));
+  });
+
   it('shows a rejected standby limit and keeps the edit available to correct', async () => {
     mockGetSettings.mockResolvedValue(makeSettings({
       whisperBackend: sv('local', false),

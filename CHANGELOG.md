@@ -11,6 +11,21 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.0] - 2026-10-11
+
+### Added
+- Parakeet TDT 0.6B v3 as a built-in transcription backend, selectable under Transcription or with `WHISPER_BACKEND=parakeet`. It runs in-process through ONNX Runtime, on CUDA in the GPU image and on CPU in the CPU image, and can also be the failover transcriber. English transcripts drop words in non-Latin scripts. (#834)
+- LLM calls section on the Stats page, served by `GET /stats/llm`: calls, requests, outcomes, average call and request time, token usage, known cost and a per-phase breakdown, using the same filters as System One calls.
+- System One stats report the average dispatch time per HTTP request (`dispatchLatencyMsAverage`); the Stats card shows that instead of the running total.
+
+### Changed
+- Cost labels on Stats, History, feed stats and System Status drop the "LLM" prefix because the ledger covers LLM and System One spend.
+
+### Fixed
+- Text pattern intro and outro refinement maps a phrase hit to the matching word's timestamp instead of the containing transcript segment's edge, so a 20 to 30 second segment no longer pulls an ad start into show content. Segment edges remain the fallback when word timestamps are missing. (#838)
+- Gap repair logs a zero-segment transcription response at debug instead of warning, since a silent span legitimately returns no speech.
+- The corrections endpoint in `openapi.yaml` documents the flat correction object the server reads, the fields each correction type returns, and the 409 for a kept segment, instead of a `corrections` array the server never accepted.
+
 ## [2.99.6] - 2026-10-11
 
 ### Fixed

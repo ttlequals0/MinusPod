@@ -8,7 +8,7 @@ import {
 import {
   getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats, getAddressingStats, getCleanupStats,
   getModelUsageStats, getEpisodeCostStats, getEpisodeCostRuns, getLedgerFilterOptions,
-  getSpendAttempts, getSystemOneStats, ModelUsageQueryParams, EpisodeCostQueryParams,
+  getSpendAttempts, getSystemOneStats, getLlmStats, ModelUsageQueryParams, EpisodeCostQueryParams,
 } from '../api/stats';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import { getCueAggregateStats } from '../api/cueDetections';
@@ -154,6 +154,14 @@ function withSelection(options: string[], selected: string): { value: string; in
 
 function modelUsageKey(stat: ModelUsageStat): string {
   return `${stat.provider}::${stat.model}`;
+}
+
+function requestCount(n: number): string {
+  return `${n} ${n === 1 ? 'request' : 'requests'}`;
+}
+
+function formatMs(value: number | null): string {
+  return value === null ? 'Unknown' : `${value.toLocaleString()} ms`;
 }
 
 // Counts the calls that were billable but came back without a price, so an
@@ -810,6 +818,21 @@ export default function StatsPage() {
     queryKey: ['stats-systemone', systemOneParams],
     queryFn: () => getSystemOneStats(systemOneParams),
   });
+  const {
+    data: llmStats, isLoading: llmLoading,
+    error: llmError, refetch: refetchLlm,
+  } = useQuery({
+    queryKey: ['stats-llm', systemOneParams],
+    queryFn: () => getLlmStats(systemOneParams),
+  });
+  const llmTokenDetails = !llmStats ? undefined : !llmStats.requests
+    ? 'No recorded requests'
+    : [
+      llmStats.tokens.cacheRead > 0 ? `${formatTokenCount(llmStats.tokens.cacheRead)} cache read` : null,
+      llmStats.tokens.cacheWrite > 0 ? `${formatTokenCount(llmStats.tokens.cacheWrite)} cache write` : null,
+      llmStats.tokens.reasoning > 0 ? `${formatTokenCount(llmStats.tokens.reasoning)} reasoning` : null,
+      llmStats.tokens.unknownRequestCount ? `Usage unavailable for ${requestCount(llmStats.tokens.unknownRequestCount)}` : null,
+    ].filter(Boolean).join(', ') || undefined;
   const cleanupStatsParams = {
     ...ledgerScope,
     provider: ledgerProvider || undefined,
@@ -881,6 +904,7 @@ export default function StatsPage() {
     { id: 'stats-cues', label: 'Audio cues',
       show: !!cueStats && (cueStats.total > 0 || cueStats.nearMissTotal > 0) },
     { id: 'stats-spend', label: 'Spend', show: true },
+    { id: 'stats-llm', label: 'LLM', show: true },
     { id: 'stats-systemone', label: 'System One', show: true },
     { id: 'stats-cleanup', label: 'Cleanup', show: true },
     { id: 'stats-podcasts', label: 'Podcasts', show: sortedPodcasts.length > 0 },
@@ -895,7 +919,7 @@ export default function StatsPage() {
         <select
           id="stats-summary-podcast"
           aria-label="Filter summary cards, charts, reviewer and addressing sections by podcast"
-          title="Applies to the summary cards, charts, reviewer and addressing sections. The LLM spend section has its own podcast filter."
+          title="Applies to the summary cards, charts, reviewer and addressing sections. The Spend section has its own podcast filter."
           value={podcastFilter}
           onChange={(e) => setPodcastFilter(e.target.value)}
           className={`${filterControl} ${selectBase}`}
@@ -997,7 +1021,7 @@ export default function StatsPage() {
               )}
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
-            <p className="text-sm text-muted-foreground">Total LLM Cost</p>
+            <p className="text-sm text-muted-foreground">Total Cost</p>
             <p className="text-xl font-bold tabular-nums text-foreground">{formatCost(dashboard.totalLlmCost)}</p>
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
@@ -1181,10 +1205,10 @@ export default function StatsPage() {
           paginated and sorted server-side over the llm_call_usage ledger.
           Includes failed and cancelled runs that incurred cost. */}
       <div id="stats-spend" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-1">LLM spend</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-1">Spend</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Spend by provider, model, and episode, including failed or cancelled runs that incurred cost.
-          The filters below apply to LLM spend, System One calls, and pattern cleanup activity. Dates select whole UTC days.
+          Spend by provider, model, and episode across LLM and System One calls, including failed or cancelled runs that incurred cost.
+          The filters below apply to spend, LLM calls, System One calls, and pattern cleanup activity. Dates select whole UTC days.
         </p>
 
         <div className={`${filterGrid} lg:grid-cols-5 mb-3`}>
@@ -1321,10 +1345,52 @@ export default function StatsPage() {
         )}
       </div>
 
+      <div id="stats-llm" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+        <h2 className="text-lg font-semibold text-foreground mb-1">LLM calls</h2>
+        <p className="text-sm text-muted-foreground mb-3">
+          Uses the Spend filters above. One call may send several requests.
+        </p>
+        {llmLoading && <SkeletonRows count={2} />}
+        {llmError && (
+          <QueryErrorPanel
+            message={`Could not load LLM call stats: ${getErrorMessage(llmError)}.`}
+            onRetry={() => { void refetchLlm(); }}
+            retryLabel="Retry LLM stats"
+          />
+        )}
+        {llmStats && (
+          llmStats.calls === 0 ? (
+            <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">No LLM calls recorded for this filter.</p>
+          ) : (
+            <div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatCard label="Calls" value={String(llmStats.calls)} />
+                <StatCard label="HTTP requests" value={String(llmStats.requests)} />
+                <StatCard label="Success / failed / inconclusive" value={`${llmStats.outcomes.success} / ${llmStats.outcomes.failure} / ${llmStats.outcomes.inconclusive}`} details={llmStats.outcomes.inFlight > 0 ? `${llmStats.outcomes.inFlight} in flight` : undefined} />
+                <StatCard label="Average call time" value={formatMs(llmStats.callLatencyMsAverage)} />
+                <StatCard label="Average request time" value={formatMs(llmStats.dispatchLatencyMsAverage)} details="Per HTTP request" />
+                <StatCard label="Token usage" value={`${formatTokenCount(llmStats.tokens.input)} in / ${formatTokenCount(llmStats.tokens.output)} out`} details={llmTokenDetails} />
+                <StatCard label="Known cost" value={formatKnownCallCost(llmStats.costUsd)} details={!llmStats.requests ? 'No recorded requests' : llmStats.unknownCostRequestCount ? `${requestCount(llmStats.unknownCostRequestCount)} unpriced` : undefined} />
+              </div>
+              {Object.keys(llmStats.byPhase).length > 0 && (
+                <div className="mt-4 border-t border-border pt-3">
+                  <h4 className="text-sm font-medium text-foreground mb-2">Calls by phase</h4>
+                  <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                    {Object.entries(llmStats.byPhase).map(([phase, entry]) => (
+                      <li key={phase}>{phase}: <span className="tabular-nums text-foreground">{entry.calls}, {formatKnownCallCost(entry.costUsd)}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )
+        )}
+      </div>
+
       <div id="stats-systemone" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-semibold text-foreground mb-1">System One calls</h2>
         <p className="text-sm text-muted-foreground mb-3">
-          Uses the LLM spend filters above. One call may send several requests.
+          Uses the Spend filters above. One call may send several requests.
         </p>
         {systemOneLoading && <SkeletonRows count={2} />}
         {systemOneError && (
@@ -1343,10 +1409,10 @@ export default function StatsPage() {
                 <StatCard label="Calls" value={String(systemOneStats.calls)} />
                 <StatCard label="HTTP requests" value={String(systemOneStats.requests)} />
                 <StatCard label="Completed / failed / inconclusive" value={`${systemOneStats.outcomes.completed} / ${systemOneStats.outcomes.failed} / ${systemOneStats.outcomes.inconclusive}`} />
-                <StatCard label="Average call time" value={systemOneStats.logicalLatencyMsAverage === null ? 'Unknown' : `${systemOneStats.logicalLatencyMsAverage.toLocaleString()} ms`} />
-                <StatCard label="Token usage" value={`${formatTokenCount(systemOneStats.tokens.input)} in / ${formatTokenCount(systemOneStats.tokens.output)} out`} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.tokens.unknownRequestCount ? `Usage unavailable for ${systemOneStats.tokens.unknownRequestCount} requests` : undefined} />
-                <StatCard label="Known cost" value={formatKnownCallCost(systemOneStats.costUsd)} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.unknownCostRequestCount ? `${systemOneStats.unknownCostRequestCount} requests unpriced` : undefined} />
-                <StatCard label="HTTP dispatch time" value={formatDuration(systemOneStats.dispatchLatencyMsTotal / 1000)} details="Sum across requests" />
+                <StatCard label="Average call time" value={formatMs(systemOneStats.logicalLatencyMsAverage)} />
+                <StatCard label="Token usage" value={`${formatTokenCount(systemOneStats.tokens.input)} in / ${formatTokenCount(systemOneStats.tokens.output)} out`} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.tokens.unknownRequestCount ? `Usage unavailable for ${requestCount(systemOneStats.tokens.unknownRequestCount)}` : undefined} />
+                <StatCard label="Known cost" value={formatKnownCallCost(systemOneStats.costUsd)} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.unknownCostRequestCount ? `${requestCount(systemOneStats.unknownCostRequestCount)} unpriced` : undefined} />
+                <StatCard label="Average request time" value={formatMs(systemOneStats.dispatchLatencyMsAverage)} details="Per HTTP request" />
                 <StatCard label="Review refinements" value={`${systemOneStats.refinements.completed} / ${systemOneStats.refinements.attempted}`} details={`${systemOneStats.refinements.skipped} skipped, ${systemOneStats.refinements.inconclusive} inconclusive, ${systemOneStats.refinements.upstream_error} upstream errors`} />
               </div>
               {Object.keys(systemOneStats.reviewReasons).length > 0 && (
@@ -1377,7 +1443,7 @@ export default function StatsPage() {
       <div id="stats-cleanup" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
         <h2 className="text-lg font-semibold text-foreground mb-1">Pattern cleanup activity</h2>
         <p className="text-sm text-muted-foreground mb-3">
-          Uses the LLM spend filters above.
+          Uses the Spend filters above.
         </p>
         {cleanupStatsLoading && <SkeletonRows count={2} />}
         {cleanupStatsError && (

@@ -111,6 +111,7 @@ def test_call_llm_returns_native_adapter_envelope_and_accounts_http_dispatch(
     summary = temp_db.get_systemone_stats(provider=PROVIDER_TYPESAFE)
     assert (summary['calls'], summary['requests']) == (1, 1)
     assert summary['requests'] == 1
+    assert isinstance(summary['dispatchLatencyMsAverage'], int)
     assert summary['logicalLatencyMsTotal'] > 0
     assert temp_db.delete_podcast('example-podcast')
     assert temp_db.get_connection().execute(

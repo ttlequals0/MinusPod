@@ -132,8 +132,14 @@ function TranscriptionSection({
             className={`w-full ${selectBase}`}
           >
             <option value={WHISPER_BACKENDS.LOCAL}>Local (faster-whisper)</option>
+            <option value={WHISPER_BACKENDS.PARAKEET}>Local (Parakeet TDT 0.6B v3)</option>
             <option value={WHISPER_BACKENDS.OPENAI_API}>Remote API (OpenAI-compatible)</option>
           </select>
+          {whisperBackend === WHISPER_BACKENDS.PARAKEET && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Runs in this container on the configured device. The model downloads into the data directory on first use. English transcripts drop words in other scripts.
+            </p>
+          )}
         </div>
 
         {whisperBackend === WHISPER_BACKENDS.LOCAL && (

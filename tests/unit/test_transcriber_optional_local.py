@@ -65,7 +65,7 @@ def test_model_singleton_backstop(missing_stack):
 
 def test_error_text_avoids_classifier_trigger_words(missing_stack):
     with pytest.raises(LocalTranscriptionUnavailableError) as exc:
-        transcriber._require_local_transcription()
+        transcriber._require_local_transcription(WHISPER_BACKEND_LOCAL)
     message = str(exc.value).lower()
     assert 'cuda' not in message
     assert 'oom' not in message

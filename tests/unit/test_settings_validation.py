@@ -516,6 +516,27 @@ class TestPartialUpdatePreservesOtherFields:
         assert db.get_setting('whisper_api_model') == 'whisper-1'
 
 
+class TestParakeetBackendSetting:
+    def test_whisper_backend_accepts_parakeet(self, client):
+        db = database.Database()
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'whisperBackend': 'parakeet'}),
+            content_type='application/json',
+        )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('whisper_backend') == 'parakeet'
+        db.set_setting('whisper_backend', 'local', is_default=False)
+
+    def test_whisper_backend_rejects_unknown(self, client):
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'whisperBackend': 'nemo'}),
+            content_type='application/json',
+        )
+        assert response.status_code == 400
+
+
 class TestProviderChangeModelIdentity:
     """Provider identity changes clear stale models without a catalog request."""
 
