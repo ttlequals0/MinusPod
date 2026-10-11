@@ -1068,6 +1068,24 @@ class TestRefineBoundariesWholeSpan:
             [match], segments, [self._pattern()], full_text, segment_map)
         assert out[0].start == 180.0
 
+    def test_long_segment_hits_outside_the_window_are_ignored(self):
+        # 30s segments: the intro sits in a segment starting 28s before the span and the
+        # outro in one ending 30s after it; neither edge may snap to those segment bounds.
+        show = "Welcome back to the show, today we dig into a long running network mystery."
+        ad = "DeleteMe removes your data from broker sites, save with the discount code."
+        segments = [
+            {'start': 100.0, 'end': 130.0, 'text': show},
+            {'start': 130.0, 'end': 160.0, 'text': show + " " + self.INTRO},
+            {'start': 160.0, 'end': 190.0, 'text': ad},
+            {'start': 190.0, 'end': 220.0, 'text': self.OUTRO + " " + show},
+        ]
+        full_text, segment_map = TextPatternMatcher._concat_segments(segments)
+        match = TextMatch(pattern_id=1, start=158.0, end=190.0, confidence=0.84,
+                          sponsor="DeleteMe", match_type="content")
+        out = self._matcher()._refine_boundaries(
+            [match], segments, [self._pattern(outro=True)], full_text, segment_map)
+        assert (out[0].start, out[0].end) == (158.0, 190.0)
+
     def test_fuzzy_find_all_returns_every_alignment_in_order(self):
         text = (f"{self.OUTRO.lower()} some unrelated filler about network routers "
                 f"and courtrooms here {self.OUTRO.lower()} the end")

@@ -1433,12 +1433,10 @@ class TextPatternMatcher:
 
     @staticmethod
     def _char_range(segment_map, segments, start, end):
-        """Char and time bounds of the segments overlapping [start, end], or None."""
-        rows = [(s, e, segments[i]) for s, e, i in segment_map
-                if segments[i]['end'] > start and segments[i]['start'] < end]
-        if not rows:
-            return None
-        return rows[0][0], rows[-1][1], rows[0][2]['start'], rows[-1][2]['end']
+        """Char bounds in full_text of segments overlapping [start, end], or None."""
+        spans = [(s, e) for s, e, i in segment_map
+                 if segments[i]['end'] > start and segments[i]['start'] < end]
+        return (spans[0][0], spans[-1][1]) if spans else None
 
     def _refine_edge(self, text_lower, segment_map, segments, variants,
                      lo_t, hi_t, extract_time, pick):
@@ -1446,14 +1444,15 @@ class TextPatternMatcher:
         bounds = self._char_range(segment_map, segments, lo_t, hi_t)
         if bounds is None:
             return None
-        lo, hi, t_lo, t_hi = bounds
+        lo, hi = bounds
         region = text_lower[lo:hi]
         times = []
         for phrase, cutoff in self._eligible_phrases(variants):
             for start, end, _ in self._fuzzy_find_all(region, phrase, cutoff):
                 t = extract_time(lo, start, region[start:end], segment_map, segments)
-                # _char_pos_to_time falls back to 0.0; only trust hits inside the region.
-                if t_lo <= t <= t_hi:
+                # Hits snap to 20-30s segment edges and _char_pos_to_time falls back
+                # to 0.0, so only a time inside the requested window counts.
+                if lo_t <= t <= hi_t:
                     times.append(t)
         return pick(times) if times else None
 
