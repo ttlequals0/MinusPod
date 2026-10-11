@@ -301,6 +301,7 @@ def test_get_instance_offline_without_local_copy_fails(monkeypatch, clean_single
 
 
 def test_words_from_tokens_accepts_sentencepiece_marker_and_skips_specials():
+    # A bare marker opens an empty word that is dropped when nothing fills it.
     words = pt.words_from_tokens([MARK + 'Hi', '<unk>', MARK, MARK + 'there', '<|en|>'],
                                  [0.0, 0.1, 0.2, 0.4, 0.5])
     assert [w['word'] for w in words] == ['Hi', 'there']
@@ -316,3 +317,10 @@ def test_decode_window_of_space_prefixed_tokens_splits_into_segments(tmp_path, m
     segs = pt.decode(path, 'en')
     assert [len(s['words']) for s in segs] == [7, 5]
     assert [w['start'] for w in segs[1]['words']] == stamps[7:]
+
+
+def test_words_from_tokens_bare_marker_starts_digit_word():
+    words = pt.words_from_tokens([' to', ' ', '1', '4', ' inches', ' '], [0.0, 0.3, 0.4, 0.5, 0.8, 1.0])
+    assert [w['word'] for w in words] == ['to', '14', 'inches']
+    assert words[1]['start'] == 0.3
+    assert words[0]['end'] == 0.3

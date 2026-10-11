@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.4] - 2026-10-11
+
+### Fixed
+- Parakeet keeps the word boundary the tokenizer emits before numbers, so "Android 16" no longer comes out as "Android16".
+
 ## [2.100.3] - 2026-10-11
 
 ### Fixed

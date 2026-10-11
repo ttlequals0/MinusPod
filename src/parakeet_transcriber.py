@@ -134,13 +134,15 @@ def words_from_tokens(tokens, timestamps, offset_s=0.0):
         text = tok.lstrip(' ' + WORD_MARKER)
         # onnx-asr turns the SentencePiece marker into a leading space, so accept both.
         starts_word = tok[:1] in (' ', WORD_MARKER)
-        if not text or _SPECIAL_TOKEN.match(tok.strip()):
+        if _SPECIAL_TOKEN.match(tok.strip()):
             continue
         if starts_word or not groups:
             groups.append({'text': text, 'start': ts, 'last': ts})
         else:
             groups[-1]['text'] += tok
             groups[-1]['last'] = ts
+    # A bare marker opens a word that unmarked pieces (digits) fill; still-empty ones are dropped.
+    groups = [g for g in groups if g['text']]
     words = []
     for i, g in enumerate(groups):
         start = g['start'] + offset_s
@@ -148,8 +150,7 @@ def words_from_tokens(tokens, timestamps, offset_s=0.0):
             end = min(groups[i + 1]['start'] + offset_s, start + PARAKEET_WORD_MAX_S)
         else:
             end = g['last'] + offset_s + PARAKEET_TOKEN_STEP_S
-        if g['text']:
-            words.append({'word': g['text'], 'start': start, 'end': end})
+        words.append({'word': g['text'], 'start': start, 'end': end})
     return words
 
 
