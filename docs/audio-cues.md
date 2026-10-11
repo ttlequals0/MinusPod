@@ -52,9 +52,12 @@ There are two ways to find a cue, both gated by the master toggle.
 
 After detection, a boundary-snap pass moves the start and end of a detected ad to
 the nearest high-confidence cue, capped by the reviewer's Max boundary shift, so
-the cut lands on the chime rather than a beat into or out of the spoken read. An
-ad whose edge was moved this way shows a "Cue snapped" badge in the detected-ads
-list on the episode page.
+the cut lands on the chime rather than a beat into or out of the spoken read. A
+text pattern ad whose outro phrase pulled the end inside the matched read may
+also snap to an end cue anywhere between that end and the match boundary, past
+the shift cap, since the matched text already covered the cue. An ad whose edge
+was moved this way shows a "Cue snapped" badge in the detected-ads list on the
+episode page.
 
 ### Remove cue with ad
 

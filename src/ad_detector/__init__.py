@@ -2794,6 +2794,7 @@ class AdDetector:
             'span_estimated': span_estimated,
             'text_start': getattr(match, 'text_start', None),
             'text_end': getattr(match, 'text_end', None),
+            'content_end': getattr(match, 'content_end', None),
         }
         if (detection_stage == 'text_pattern' and span_estimated
                 and not getattr(match, 'defined', False)):
@@ -3359,6 +3360,9 @@ class AdDetector:
                     for key in ('text_start', 'text_end'):
                         if key in current:
                             last[key] = current[key]
+                    # A member without a content match must not erase the bound.
+                    if current.get('content_end') is not None:
+                        last['content_end'] = current['content_end']
 
                 # Keep sponsor and reason as a consistent pair from the SAME
                 # member, so a merged marker never shows one ad's sponsor with

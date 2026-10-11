@@ -1042,6 +1042,15 @@ class TestRefineBoundariesWholeSpan:
         out = self._matcher()._refine_boundaries(
             [self._match()], segments, [self._pattern()], full_text, segment_map)
         assert (out[0].start, out[0].end) == (125.0, 315.0)
+        assert out[0].content_end is None
+
+    def test_refined_match_keeps_content_span(self):
+        segments, full_text, segment_map = self._build(intro_at=(), outro_at=(265,))
+        out = self._matcher()._refine_boundaries(
+            [self._match(end=325.0)], segments, [self._pattern(outro=True)],
+            full_text, segment_map)
+        assert (out[0].start, out[0].end) == (125.0, 270.0)
+        assert out[0].content_end == 325.0
 
     def test_outro_found_inside_span_end(self):
         segments, full_text, segment_map = self._build(intro_at=(), outro_at=(265,))

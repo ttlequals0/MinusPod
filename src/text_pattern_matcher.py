@@ -481,6 +481,9 @@ class TextMatch:
     # span_estimated is True. None when not applicable.
     text_start: float | None = None
     text_end: float | None = None
+    # Content-match end before outro refinement pulled the end in, so an
+    # end cue inside the matched text can still bound the ad (#838).
+    content_end: float | None = None
 
 
 @dataclass
@@ -1570,12 +1573,15 @@ class TextPatternMatcher:
                 if outro is not None and outro - new_start >= MIN_AD_DURATION:
                     new_end = outro
 
-                if new_start != match.start or new_end != match.end:
+                changed = new_start != match.start or new_end != match.end
+                if changed:
                     logger.info(
                         f"Refined text match {match.start:.1f}-{match.end:.1f}s -> "
                         f"{new_start:.1f}-{new_end:.1f}s via intro/outro phrase"
                     )
-                refined.append(replace(match, start=new_start, end=new_end))
+                refined.append(replace(
+                    match, start=new_start, end=new_end,
+                    content_end=match.end if new_end < match.end else None))
 
         except Exception as e:
             logger.error(f"Boundary refinement failed: {e}")

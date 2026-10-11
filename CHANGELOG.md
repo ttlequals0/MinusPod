@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.9] - 2026-10-11
+
+### Fixed
+- A template ad-break cue that lies inside a text pattern's content match may set the ad edge even when it is farther from the refined edge than the maximum boundary shift, so an outro phrase learned from a shorter read no longer leaves the rest of the read in when the end sting is within the matched text. (#838)
+
 ## [2.100.8] - 2026-10-11
 
 ### Fixed

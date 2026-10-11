@@ -8,7 +8,10 @@ rather than a beat into / out of the spoken copy.
 
 Both edges are bounded by ``max_boundary_shift_seconds`` (the same setting
 the reviewer pass honors) so a misfiring cue cannot warp the boundary by
-more than the user-permitted amount.
+more than the user-permitted amount. A text pattern ad whose outro phrase
+pulled the end inside its content match keeps ``content_end``; an end cue
+between the refined end and that bound is evidence the matched text already
+covered, so it may set the end past the cap (#838).
 
 Pure function over ad dicts and audio signals; no DB, no LLM, no IO.
 """
@@ -88,6 +91,22 @@ def _snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -
     return rec
 
 
+def _end_proposal(cue, original_end: float, ad_start: float, content_end,
+                  max_shift_s: float):
+    """(proposed_end, within_content_span) for an accepted end cue, else None."""
+    if cue is None:
+        return None
+    removed = cue_removal_enabled(cue.details)
+    proposed = cue.end + SNAP_GAP_SECONDS if removed else cue.start - SNAP_GAP_SECONDS
+    shift = abs(proposed - original_end)
+    allowed = max_shift_s + removed_cue_cap_allowance(cue.start, cue.end, removed)
+    # The content match already covered a cue inside it, so the cap does not apply.
+    in_span = content_end is not None and original_end < proposed <= content_end
+    if proposed > ad_start and shift >= 0.01 and (shift <= allowed or in_span):
+        return proposed, in_span
+    return None
+
+
 def snap_ad_boundaries_to_cues(
     ads: list[dict],
     audio_analysis_result,
@@ -156,34 +175,36 @@ def snap_ad_boundaries_to_cues(
                 )
 
         # --- End edge ---------------------------------------------------
+        content_end = ad.get('content_end')
         end_cue, end_n = _pick_cue_for_end(
             cues, original_end, new_start, snap_lead_s, snap_lag_s,
             exclude_ids=used_cue_ids,
             allow_transition=allow_transition,
         )
+        proposal = _end_proposal(end_cue, original_end, new_start, content_end, max_boundary_shift_s)
+        if proposal is None and content_end is not None and content_end > original_end:
+            # Nothing usable in the lead/lag band: an end cue the text match
+            # already covered may bound the edge instead (#838).
+            end_cue, end_n = _pick_cue_for_end(
+                cues, original_end, new_start, snap_lead_s, snap_lag_s,
+                exclude_ids=used_cue_ids, allow_transition=allow_transition,
+                window=(original_end, content_end),
+            )
+            proposal = _end_proposal(end_cue, original_end, new_start, content_end, max_boundary_shift_s)
         new_end = original_end
-        if end_cue is not None:
-            end_cue_removed = cue_removal_enabled(end_cue.details)
-            proposed_end = (end_cue.end + SNAP_GAP_SECONDS
-                            if end_cue_removed
-                            else end_cue.start - SNAP_GAP_SECONDS)
-            shift = abs(proposed_end - original_end)
-            allowed_shift = max_boundary_shift_s + removed_cue_cap_allowance(
-                end_cue.start, end_cue.end, end_cue_removed)
-            if (
-                proposed_end > new_start
-                and shift <= allowed_shift
-                and shift >= 0.01
-            ):
-                new_end = round(proposed_end, 3)
-                snap_record['end'] = _snap_record(
-                    original_end, proposed_end, end_cue, n_candidates=end_n)
-                logger.info(
-                    f"Cue snap (end): {original_end:.3f}s -> {new_end:.3f}s "
-                    f"(delta={new_end - original_end:+.3f}s, "
-                    f"cue={snap_record['end'].get('label') or 'spectral'}, "
-                    f"conf={end_cue.confidence:.2f})"
-                )
+        if proposal is not None:
+            proposed_end, end_in_span = proposal
+            new_end = round(proposed_end, 3)
+            snap_record['end'] = _snap_record(
+                original_end, proposed_end, end_cue, n_candidates=end_n)
+            if end_in_span:
+                snap_record['end']['within_content_span'] = True
+            logger.info(
+                f"Cue snap (end): {original_end:.3f}s -> {new_end:.3f}s "
+                f"(delta={new_end - original_end:+.3f}s, "
+                f"cue={snap_record['end'].get('label') or 'spectral'}, "
+                f"conf={end_cue.confidence:.2f})"
+            )
 
         if snap_record:
             ad['start'] = new_start
@@ -246,6 +267,7 @@ def _pick_cue_for_end(
     snap_lead_s: float, snap_lag_s: float,
     exclude_ids: set,
     allow_transition: bool = False,
+    window: tuple[float, float] | None = None,
 ):
     """Find the best cue to snap ``ad_end`` to.
 
@@ -269,8 +291,8 @@ def _pick_cue_for_end(
     # because the LLM tends to overshoot into post-break silence, or a beat
     # after it (snap_lead) because the LLM sometimes cuts at the last word
     # of the ad copy and the stinger plays a moment later.
-    low = ad_end - snap_lag_s
-    high = ad_end + snap_lead_s
+    # window replaces the lag/lead band, e.g. with the content-match span.
+    low, high = window or (ad_end - snap_lag_s, ad_end + snap_lead_s)
     eligible = []
     for cue in cues:
         if id(cue) in exclude_ids:
