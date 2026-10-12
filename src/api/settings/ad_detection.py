@@ -47,7 +47,7 @@ from llm_route import (
 )
 from tools.reviewer_calibration import calibration_revision, trigger_reviewer_calibration
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from api.settings import common, provider_phases
+from api.settings import common, systemone_phases, provider_phases
 
 logger = logging.getLogger('podcast.api')
 
@@ -106,21 +106,17 @@ def update_ad_detection_settings():
     if provider_endpoint_error is not None:
         return error_response(*provider_endpoint_error)
 
-    buckets = {name: [] for name in common._POST_COMMIT_BUCKETS}
-    common._deferred.buckets = buckets
-    try:
-        with db.settings_transaction():
-            changed_stages, previous_calibration = apply_settings_payload_in_transaction(db, data)
-    except common._PhaseRejected as rejected:
-        return rejected.response
-    except sqlite3.Error:
-        logger.exception("Settings save failed; no field was persisted")
-        return error_response('Settings could not be saved', 500)
-    finally:
-        common._deferred.buckets = None
+    with common.post_commit_scope() as pending:
+        try:
+            with db.settings_transaction():
+                changed_stages, previous_calibration = apply_settings_payload_in_transaction(db, data)
+        except common._PhaseRejected as rejected:
+            return rejected.response
+        except sqlite3.Error:
+            logger.exception("Settings save failed; no field was persisted")
+            return error_response('Settings could not be saved', 500)
 
-    common._run_post_commit(buckets['side_effects'])
-    common._run_post_commit(buckets['holds'])
+    common.run_post_commit(pending)
 
     finish_settings_payload_after_commit(db, changed_stages, previous_calibration)
 
@@ -155,7 +151,7 @@ def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=F
         provider_phases._apply_failover_whisper_fields,
         provider_phases._apply_failover_policy_fields,
         provider_phases._apply_provider_timeout_fields,
-        provider_phases._apply_systemone_connection_fields,
+        systemone_phases._apply_systemone_connection_fields,
         provider_phases._apply_provider_fields,
         provider_phases._apply_whisper_fields,
         _apply_vad_gap_fields,
@@ -165,7 +161,7 @@ def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=F
         _apply_transcribe_chunk_fields,
         lambda target_db, payload: _apply_stage_tunables(
             target_db, payload, allow_inactive_tunables=allow_inactive_tunables),
-        provider_phases._apply_systemone_tunables,
+        systemone_phases._apply_systemone_tunables,
         _apply_opening_exclusion_fields,
         _apply_ad_merge_fields,
         _apply_max_ad_duration_fields,
@@ -422,7 +418,7 @@ def _apply_model_fields(db, data):
     if 'whisperModel' in data:
         db.set_setting('whisper_model', data['whisperModel'], is_default=False)
         logger.info(f"Updated Whisper model to: {data['whisperModel']}")
-        common._after_commit(provider_phases._mark_whisper_for_reload)
+        common.after_commit(provider_phases._mark_whisper_for_reload)
 
     if 'chaptersModel' in data:
         db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
@@ -551,7 +547,7 @@ def _apply_user_agent_fields(db, data):
             db.clear_setting(db_key)
             logger.info(f"Reset {db_key} to the default")
     if writes:
-        common._after_commit(invalidate_user_agent_cache)
+        common.after_commit(invalidate_user_agent_cache)
 
 
 def _user_agent_values(data):
@@ -609,7 +605,7 @@ def _apply_processing_flags(db, data):
         if changed:
             # Inheriting feeds 304-skip the rebuild that would hide or show
             # unprocessed episodes; force the next refresh to fetch in full.
-            common._after_commit(db.clear_all_podcast_etags)
+            common.after_commit(db.clear_all_podcast_etags)
         logger.info(f"Updated only-expose-processed default to: {value}")
 
     if 'detectShowSegments' in data:
@@ -652,7 +648,7 @@ def _apply_processing_flags(db, data):
         # The badge state is part of the cover URL token, and a steady feed
         # 304-skips the re-render that would move it, so apps would keep
         # fetching the old image. Same reason as the feed-auth clear below.
-        common._after_commit(db.clear_all_podcast_etags)
+        common.after_commit(db.clear_all_podcast_etags)
         logger.info(f"Updated artwork watermark to: {value}")
 
     if 'artworkBadgePosition' in data:
@@ -661,7 +657,7 @@ def _apply_processing_flags(db, data):
                 f'artworkBadgePosition must be one of: {", ".join(BADGE_POSITIONS)}', 400)
         db.set_setting('artwork_badge_position', data['artworkBadgePosition'],
                        is_default=False)
-        common._after_commit(db.clear_all_podcast_etags)
+        common.after_commit(db.clear_all_podcast_etags)
         logger.info(f"Updated artwork badge position to: {data['artworkBadgePosition']}")
 
     if 'lowAdYieldAction' in data:
@@ -712,7 +708,7 @@ def _apply_processing_flags(db, data):
             db.set_setting('feed_auth_enabled', value, is_default=False)
             # Clear conditional-GET validators so the scheduled refresher
             # cannot 304-skip re-rendering served feeds with the new state.
-            common._after_commit(db.clear_all_podcast_etags)
+            common.after_commit(db.clear_all_podcast_etags)
             logger.info(f"Updated feed auth to: {value}")
 
     if 'vttTranscriptsEnabled' in data:
@@ -759,7 +755,7 @@ def _apply_processing_flags(db, data):
         if changed:
             # Re-render now (local feeds included) rather than wait for a
             # scheduled refresh that would 304-skip the change.
-            common._after_commit(_rebuild_served_feeds)
+            common.after_commit(_rebuild_served_feeds)
 
     if 'omitTemperature' in data:
         value = 'true' if data['omitTemperature'] else 'false'
@@ -1191,7 +1187,7 @@ def _apply_transcribe_chunk_fields(db, data):
         db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
     if pool_touched:
-        common._after_commit(provider_phases._refresh_whisper_pool)
+        common.after_commit(provider_phases._refresh_whisper_pool)
     return None
 
 
@@ -1251,10 +1247,10 @@ def validate_settings_payload(
     issue = _validate_ad_chapter_payload(db, data)
     if issue is not None:
         return issue
-    issue = provider_phases._validate_systemone_phase_enables(db, data, prospective_feed_modes)
+    issue = systemone_phases._validate_systemone_phase_enables(db, data, prospective_feed_modes)
     if issue is not None:
         return issue
-    issue = provider_phases._validate_systemone_tunables_payload(db, data)
+    issue = systemone_phases._validate_systemone_tunables_payload(db, data)
     if issue is not None:
         return issue
     issue = _validate_stage_tunables_payload(

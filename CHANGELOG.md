@@ -25,10 +25,10 @@ release notes.
 - README Documentation table and docs/README.md list the System One, Failover, Pattern Cleanup, Transcript Differential, Glossary, and Container Security pages, ordered from first install through pipeline, tuning, and maintainer topics.
 - Dependency updates: anthropic 1.12.1, openai 3.26.1, tldextract 5.4.0, fsspec 2026.9.0, python-slugify 9.1.3; frontend wavesurfer.js 8.0.2, vite-plugin-pwa 2.0.0, @vitejs/plugin-react 6.1.2, @tanstack/react-query 5.104.1, eslint 10.12.0; GitHub Actions upload-artifact 7.0.2, download-artifact 8.0.2, setup-node 7.1.0.
 - The settings API module is split into a package by settings area (core, ad detection, notifications, providers, operations) with shared helpers in one module. No behavior change.
-- Episode run serialization lives in its own module under the episodes API package, so the stats API imports it directly instead of reaching into the route module.
+- Episode run serialization lives in a top-level `episode_runs` module, so the episode and stats APIs import it directly instead of reaching into a route package.
 - The episodes API module is split into a package (core, runs, chapters, media). No behavior change.
 - The transcriber module is split into a package: the Transcriber class stays at the top with settings, local-backend, remote-backend and chunking helpers in their own modules. No behavior change.
-- The ad-detection settings module keeps the detection-tuning phases; provider, failover, System One and whisper phases live in their own module, with the post-commit hooks shared from the common module.
+- The ad-detection settings module keeps the detection-tuning phases; provider, failover and whisper phases live in their own module and System One phases in another. Post-commit hooks are a scope in the common module (`post_commit_scope`, `run_post_commit`) used by both the settings save and config import.
 
 ### Fixed
 - Saving the provider budget with USD as the display currency no longer fails with a database constraint error.

@@ -13,7 +13,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='failover-api
 
 import api
 import failover
-from api.episodes.run_view import _run_stats_to_api
+from episode_runs import run_stats_to_api
 
 
 @pytest.fixture
@@ -233,7 +233,7 @@ def test_targets_report_whether_the_original_is_enabled(app_client, hdr, configu
 
 
 def test_run_stats_expose_failover_usage():
-    out = _run_stats_to_api({'mode': 'auto', 'failover': {'llm': ['primary', 'secondary'],
+    out = run_stats_to_api({'mode': 'auto', 'failover': {'llm': ['primary', 'secondary'],
                                                           'whisper': True}})
     assert out['failover'] == {'llm': ['llm-a', 'llm-b'], 'whisper': True}
-    assert 'failover' not in _run_stats_to_api({'mode': 'auto'})
+    assert 'failover' not in run_stats_to_api({'mode': 'auto'})

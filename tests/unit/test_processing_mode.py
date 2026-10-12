@@ -695,8 +695,8 @@ class TestCueOnlyPipelineWiring:
         assert segments == []
 
     def test_run_stats_to_api_carries_cue_only_flags(self):
-        from api.episodes.run_view import _run_stats_to_api
-        out = _run_stats_to_api({'mode': 'auto', 'cue_only': True,
+        from episode_runs import run_stats_to_api
+        out = run_stats_to_api({'mode': 'auto', 'cue_only': True,
                                  'transcription_skipped': True})
         assert out['cueOnly'] is True
         assert out['transcriptionSkipped'] is True
