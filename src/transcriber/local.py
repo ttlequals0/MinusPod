@@ -8,11 +8,12 @@ import os
 import threading
 import time
 from contextlib import contextmanager
+from datetime import timedelta
 import database
 import run_context
 from utils.errors import LocalTranscriptionUnavailableError, ModelLoadError
-from utils.time import parse_iso_utc, utc_now
-from utils.gpu import clear_gpu_memory, get_gpu_memory_info
+from utils.time import parse_iso_utc, utc_now, utc_now_iso
+from utils.gpu import clear_gpu_memory, get_gpu_device_name, get_gpu_memory_info
 import parakeet_transcriber
 from parakeet_transcriber import ParakeetModelSingleton
 from config import (
@@ -448,3 +449,95 @@ class WhisperModelSingleton:
     def get_current_model_name(cls) -> str | None:
         """Get the name of the currently loaded model."""
         return cls._current_model_name
+
+
+# Batch size tiers based on audio duration (in seconds)
+# Longer episodes need smaller batches to avoid CUDA OOM
+BATCH_SIZE_TIERS = [
+    (60 * 60, 16),      # < 60 min: batch_size=16
+    (90 * 60, 12),      # 60-90 min: batch_size=12
+    (120 * 60, 8),      # 90-120 min: batch_size=8
+]
+
+# Largest batch size proven to fit this device's VRAM: recorded when a run
+# completes below the duration tier, so later episodes start at a size that
+# fits. After the TTL the next run probes one size up, so a transient OOM
+# cannot pin every later episode for good.
+BATCH_CEILING_SETTING = 'transcribe_batch_size_ceiling'
+BATCH_CEILING_TTL_DAYS = 2
+
+
+def batch_ceiling_device() -> str:
+    """Device name the stored ceiling applies to; VRAM differs per GPU model."""
+    return get_gpu_device_name()
+
+
+def read_ceiling() -> dict | None:
+    """Stored ceiling for this device as {'size', 'recorded_at'}, or None
+    when unset, malformed, or recorded for a different device. recorded_at
+    is None for pre-2.96.0 payloads, which read as expired."""
+    try:
+        raw = database.Database().get_setting(BATCH_CEILING_SETTING)
+    except Exception as e:
+        logger.debug(f"Could not read batch size ceiling: {e}")
+        return None
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        parsed = None
+    if not isinstance(parsed, dict) or parsed.get('device') != batch_ceiling_device():
+        return None
+    try:
+        size = max(1, int(parsed['size']))
+    except (KeyError, TypeError, ValueError):
+        return None
+    return {'size': size, 'recorded_at': parsed.get('recorded_at')}
+
+
+def ceiling_expired(entry: dict) -> bool:
+    recorded_at = parse_iso_utc(entry['recorded_at'])
+    return (recorded_at is None
+            or utc_now() - recorded_at > timedelta(days=BATCH_CEILING_TTL_DAYS))
+
+
+def record_batch_size_ceiling(batch_size: int) -> None:
+    """Persist batch_size as this device's ceiling. Called only after a
+    completed run, since only completion proves a size fits; ratchets down
+    against an unexpired ceiling and keeps its timestamp so it still ages out.
+    """
+    candidate = max(1, int(batch_size))
+    entry = read_ceiling()
+    live = entry if entry and not ceiling_expired(entry) else None
+    value = min(live['size'], candidate) if live else candidate
+    recorded_at = live['recorded_at'] if live and value == live['size'] else utc_now_iso()
+    payload = json.dumps({
+        'device': batch_ceiling_device(), 'size': value, 'recorded_at': recorded_at,
+    })
+    try:
+        database.Database().set_setting(BATCH_CEILING_SETTING, payload)
+    except Exception as e:
+        logger.debug(f"Could not persist batch size ceiling: {e}")
+
+
+def tier_batch_size(duration_seconds: float | None) -> int:
+    """Batch size from audio duration alone; longer episodes need smaller batches."""
+    if duration_seconds is None:
+        return 8
+    for threshold, batch_size in BATCH_SIZE_TIERS:
+        if duration_seconds < threshold:
+            return batch_size
+    return 4
+
+
+def get_batch_size_for_duration(duration_seconds: float | None) -> int:
+    """Duration tier, clamped by an unexpired ceiling; an expired one is
+    probed one size up."""
+    tier = tier_batch_size(duration_seconds)
+    entry = read_ceiling()
+    if entry is None:
+        return tier
+    if ceiling_expired(entry):
+        return min(tier, entry['size'] * 2)
+    return min(tier, entry['size'])

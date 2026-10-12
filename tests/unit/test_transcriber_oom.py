@@ -29,7 +29,7 @@ import database  # noqa: E402
 import main_app.processing as processing  # noqa: E402
 from main_app.pipeline import common, finalize, failure
 import transcriber as transcriber_mod  # noqa: E402
-from transcriber import Transcriber  # noqa: E402
+from transcriber import Transcriber, local  # noqa: E402
 from main_app.pipeline.common import is_transient_error
 from utils.errors import ModelLoadError  # noqa: E402
 
@@ -39,7 +39,7 @@ def _db():
 
 
 def _fresh():
-    _db().set_setting(Transcriber.BATCH_CEILING_SETTING, '')
+    _db().set_setting(local.BATCH_CEILING_SETTING, '')
     _clear_outcome_state()
     return Transcriber()
 

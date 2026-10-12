@@ -140,7 +140,7 @@ class TestTranscribeViaApi:
             mock_response.status_code = 200
             mock_response.json.return_value = self._make_api_response(api_segments)
 
-            with patch('transcriber.safe_post', return_value=mock_response):
+            with patch('transcriber.remote.safe_post', return_value=mock_response):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 result = transcriber._transcribe_via_api(
@@ -165,7 +165,7 @@ class TestTranscribeViaApi:
         mock_response = MagicMock(status_code=200, text='{}')
         mock_response.json.return_value = self._make_api_response([])
         try:
-            with patch('transcriber.safe_post', return_value=mock_response), \
+            with patch('transcriber.remote.safe_post', return_value=mock_response), \
                     caplog.at_level(logging.DEBUG):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
@@ -184,7 +184,7 @@ class TestTranscribeViaApi:
         mock_response = MagicMock(status_code=200)
         mock_response.json.return_value = self._make_api_response([])
         try:
-            with patch('transcriber.safe_post', return_value=mock_response) as mock_post:
+            with patch('transcriber.remote.safe_post', return_value=mock_response) as mock_post:
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 transcriber._transcribe_via_api(temp_path, self._make_settings())
@@ -200,7 +200,7 @@ class TestTranscribeViaApi:
         mock_response = MagicMock(status_code=200)
         mock_response.json.return_value = self._make_api_response([])
         try:
-            with patch('transcriber.safe_post', return_value=mock_response) as mock_post:
+            with patch('transcriber.remote.safe_post', return_value=mock_response) as mock_post:
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 transcriber._transcribe_via_api(
@@ -228,7 +228,7 @@ class TestTranscribeViaApi:
             [{'start': 0.0, 'end': 1.0, 'text': 'hi', 'words': []}]
         )
         try:
-            with patch('transcriber.safe_post',
+            with patch('transcriber.remote.safe_post',
                        side_effect=[rejected, accepted]) as mock_post:
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
@@ -244,7 +244,7 @@ class TestTranscribeViaApi:
         assert 'vad_filter' not in mock_post.call_args_list[1].kwargs['data']
 
     def test_returns_none_on_missing_base_url(self):
-        with patch('transcriber.safe_post') as mock_post:
+        with patch('transcriber.remote.safe_post') as mock_post:
             transcriber = Transcriber()
             result = transcriber._transcribe_via_api(
                 '/tmp/test.wav', whisper_settings=self._make_settings(api_base_url='')
@@ -259,7 +259,7 @@ class TestTranscribeViaApi:
             temp_path = f.name
 
         try:
-            with patch('transcriber.safe_post', return_value=None):
+            with patch('transcriber.remote.safe_post', return_value=None):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 result = transcriber._transcribe_via_api(
@@ -279,7 +279,7 @@ class TestTranscribeViaApi:
             mock_response.status_code = 200
             mock_response.json.return_value = {'segments': []}
 
-            with patch('transcriber.safe_post', return_value=mock_response) as mock_post:
+            with patch('transcriber.remote.safe_post', return_value=mock_response) as mock_post:
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 transcriber._transcribe_via_api(
@@ -300,7 +300,7 @@ class TestTranscribeViaApi:
             mock_response.status_code = 200
             mock_response.json.return_value = {'segments': []}
 
-            with patch('transcriber.safe_post', return_value=mock_response) as mock_post:
+            with patch('transcriber.remote.safe_post', return_value=mock_response) as mock_post:
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 transcriber._transcribe_via_api(
@@ -328,7 +328,7 @@ class TestTranscribeViaApi:
             mock_response.status_code = 200
             mock_response.json.return_value = self._make_api_response(api_segments)
 
-            with patch('transcriber.safe_post', return_value=mock_response):
+            with patch('transcriber.remote.safe_post', return_value=mock_response):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 result = transcriber._transcribe_via_api(
@@ -684,7 +684,7 @@ class TestSkipFlacCompressionSetting:
                 {'start': 0.0, 'end': 1.0, 'text': ' hi', 'words': []},
             ])
 
-            with patch('transcriber.safe_post', return_value=mock_response), \
+            with patch('transcriber.remote.safe_post', return_value=mock_response), \
                  patch('transcriber.utils.subprocess_registry.tracked_run') as mock_tracked_run:
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
@@ -722,7 +722,7 @@ class TestSkipFlacCompressionSetting:
             ffmpeg_result = MagicMock()
             ffmpeg_result.returncode = 1  # Force fallback path so no flac file lookup needed.
 
-            with patch('transcriber.safe_post', return_value=mock_response), \
+            with patch('transcriber.remote.safe_post', return_value=mock_response), \
                  patch('transcriber.utils.subprocess_registry.tracked_run', return_value=ffmpeg_result) as mock_tracked_run:
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
@@ -766,7 +766,7 @@ class TestWhisperServiceUnavailable:
     def test_all_attempts_connection_error_raises(self):
         temp_path = self._make_audio_file()
         try:
-            with patch('transcriber.safe_post',
+            with patch('transcriber.remote.safe_post',
                        side_effect=requests_lib.exceptions.ConnectionError('refused')):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
@@ -782,7 +782,7 @@ class TestWhisperServiceUnavailable:
         try:
             mock_response = MagicMock()
             mock_response.status_code = 503
-            with patch('transcriber.safe_post', return_value=mock_response):
+            with patch('transcriber.remote.safe_post', return_value=mock_response):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 with pytest.raises(ServiceUnavailableError) as exc:
@@ -798,7 +798,7 @@ class TestWhisperServiceUnavailable:
             mock_response = MagicMock()
             mock_response.status_code = 400
             mock_response.text = 'bad request'
-            with patch('transcriber.safe_post', return_value=mock_response):
+            with patch('transcriber.remote.safe_post', return_value=mock_response):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 result = transcriber._transcribe_via_api(
@@ -808,7 +808,7 @@ class TestWhisperServiceUnavailable:
             os.unlink(temp_path)
 
     def test_missing_base_url_returns_none(self):
-        with patch('transcriber.safe_post') as mock_post:
+        with patch('transcriber.remote.safe_post') as mock_post:
             transcriber = Transcriber()
             result = transcriber._transcribe_via_api(
                 '/tmp/test.wav',
@@ -843,7 +843,7 @@ class TestTranscriptionRejected:
         try:
             mock_response = MagicMock()
             mock_response.status_code = status
-            with patch('transcriber.safe_post', return_value=mock_response):
+            with patch('transcriber.remote.safe_post', return_value=mock_response):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 with pytest.raises(TranscriptionRejectedError) as exc:
@@ -859,7 +859,7 @@ class TestTranscriptionRejected:
         try:
             mock_response = MagicMock()
             mock_response.status_code = 413
-            with patch('transcriber.safe_post', return_value=mock_response):
+            with patch('transcriber.remote.safe_post', return_value=mock_response):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 result = transcriber._transcribe_via_api(
@@ -872,7 +872,7 @@ class TestTranscriptionRejected:
         temp_path = self._make_audio_file()
         try:
             post = MagicMock(side_effect=requests_lib.exceptions.ConnectionError('down'))
-            with patch('transcriber.safe_post', post):
+            with patch('transcriber.remote.safe_post', post):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 with pytest.raises(ServiceUnavailableError):
@@ -1032,7 +1032,7 @@ class TestChunkedSinglePass:
 
         with patch('transcriber.utils.subprocess_registry.tracked_run',
                    side_effect=self._fake_run_factory(ffmpeg_cmds)), \
-             patch('transcriber.safe_post', return_value=self._mock_api_response()), \
+             patch('transcriber.remote.safe_post', return_value=self._mock_api_response()), \
              patch('transcriber.settings._get_chunk_settings', return_value=chunk_settings):
             result = transcriber._transcribe_chunked_parallel_api(
                 '/tmp/full.mp3', 180.036, self._make_settings()
@@ -1052,7 +1052,7 @@ class TestChunkedSinglePass:
 
         with patch('transcriber.utils.subprocess_registry.tracked_run',
                    side_effect=self._fake_run_factory(ffmpeg_cmds)), \
-             patch('transcriber.safe_post', return_value=self._mock_api_response()), \
+             patch('transcriber.remote.safe_post', return_value=self._mock_api_response()), \
              patch('transcriber.settings._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
             result = transcriber._transcribe_chunked_parallel_api(
                 '/tmp/full.mp3', 50.0, self._make_settings()
@@ -1074,7 +1074,7 @@ class TestChunkedSinglePass:
 
         with patch('transcriber.utils.subprocess_registry.tracked_run',
                    side_effect=self._fake_run_factory(ffmpeg_cmds)), \
-             patch('transcriber.safe_post', return_value=self._mock_api_response()), \
+             patch('transcriber.remote.safe_post', return_value=self._mock_api_response()), \
              patch('transcriber.settings._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
             result = transcriber._transcribe_chunked_parallel_api(
                 '/tmp/full.mp3', 50.0,
@@ -1098,7 +1098,7 @@ class TestChunkedSinglePass:
 
         with patch('transcriber.utils.subprocess_registry.tracked_run',
                    side_effect=self._fake_run_factory(ffmpeg_cmds)), \
-             patch('transcriber.safe_post', return_value=self._mock_api_response()), \
+             patch('transcriber.remote.safe_post', return_value=self._mock_api_response()), \
              patch('transcriber.settings._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
             transcriber._transcribe_chunked_parallel_api(
                 '/tmp/full.mp3', 50.0, self._make_settings()
@@ -1137,7 +1137,7 @@ class TestChunkedSinglePass:
         try:
             transcriber = Transcriber()
             transcriber.preprocess_audio = MagicMock(return_value=None)
-            with patch('transcriber.safe_post', return_value=self._mock_api_response()), \
+            with patch('transcriber.remote.safe_post', return_value=self._mock_api_response()), \
                  patch('transcriber.utils.subprocess_registry.tracked_run') as mock_run:
                 result = transcriber._transcribe_via_api(
                     temp_path, self._make_settings(),

@@ -1,19 +1,14 @@
 """Transcription using Faster Whisper."""
 
-import json
-from datetime import timedelta
 import logging
 import tempfile
 import os
-import re
 import subprocess
 import threading
-import time
 from contextlib import ExitStack
 from dataclasses import dataclass, field, replace
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import database
 import failover
 import run_context
 from user_agent import download_user_agent
@@ -24,21 +19,20 @@ from utils.errors import (
     TranscriptionRejectedError,
 )
 from utils.text import transcript_gaps
-from utils.time import format_vtt_timestamp, parse_iso_utc, utc_now, utc_now_iso
+from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_gpu_device_name
 from utils.url import SSRFError
 from utils.http import redirect_chain_for_log, safe_url_for_log
 from utils.safe_http import (
-    URLTrust, safe_get, safe_post, stream_to_file_capped,
+    URLTrust, safe_get, stream_to_file_capped,
     ResponseTooLargeError,
 )
-from utils.rate_limit import parse_retry_after
 import utils.subprocess_registry
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from whisper_pool import get_pool
 import parakeet_transcriber
 from parakeet_transcriber import ParakeetModelSingleton
-from transcriber import common, settings, local, remote, chunking
+from transcriber import common, settings, local, remote, chunking, segments
 from config import (
     WHISPER_BACKEND_API,
     WHISPER_BACKEND_PARAKEET,
@@ -49,7 +43,6 @@ from config import (
     CHUNK_DEFAULT_DURATION_SECONDS,
     FFMPEG_LONG_TIMEOUT,
     FFMPEG_SHORT_TIMEOUT,
-    HTTP_MAX_REDIRECTS_API,
     HTTP_MAX_REDIRECTS_FEED,
     log_download_query_enabled,
     HOLE_RETRANSCRIBE_MAX_HOLES, HOLE_RETRANSCRIBE_MAX_SECONDS, HOLE_RETRANSCRIBE_QUIET_DB,
@@ -71,25 +64,6 @@ logger = logging.getLogger(__name__)
 # retry classifier matches on. Shared so rewording one cannot silently flip the
 # other's verdict.
 CDN_REFUSED_PREFIX = 'CDN refused'
-
-# Batch size tiers based on audio duration (in seconds)
-# Longer episodes need smaller batches to avoid CUDA OOM
-BATCH_SIZE_TIERS = [
-    (60 * 60, 16),      # < 60 min: batch_size=16
-    (90 * 60, 12),      # 60-90 min: batch_size=12
-    (120 * 60, 8),      # 90-120 min: batch_size=8
-]
-
-# Whisper artifacts on silence and music. Matched after trailing punctuation
-# is stripped, so a bare phrase or bare punctuation is an artifact.
-HALLUCINATION_PATTERNS = re.compile(
-    r'^(?:thanks for watching|thank you for watching|please subscribe|'
-    r'like and subscribe|see you next time|bye|'
-    r'subtitles by the amara\.org community|'
-    r'\[music\]|\[applause\]|\[laughter\]|\[silence\]|you)?$',
-    re.IGNORECASE
-)
-TRAILING_PUNCTUATION = '.!?,;:\u2026'
 
 # Chunk extraction (ffmpeg with the normalization filter chain) is CPU-bound
 # and takes longer than GPU inference on a chunk, so it runs ahead of the GPU
@@ -333,71 +307,15 @@ class Transcriber:
                         **form_data_base,
                         'timestamp_granularities[]': granularities,
                     }
-                    # Wall-clock deadline for 429 retries (which do not consume an
-                    # attempt slot, see below) so a Retry-After: 0 loop cannot spin.
-                    # Set on the first permit below, per granularity mode.
-                    retry_deadline = None
-                    attempt = 0
-                    while attempt < max_attempts:
-                        try:
-                            with open(transcribe_path, 'rb') as audio_file:
-                                permit_wait_start = time.monotonic()
-                                with get_pool().slot():
-                                    # Waiting on our own admission control is not
-                                    # the provider throttling us, so it never
-                                    # eats the 429 window.
-                                    now = time.monotonic()
-                                    if retry_deadline is None:
-                                        retry_deadline = now + settings._api_timeout(whisper_settings)
-                                    else:
-                                        retry_deadline += now - permit_wait_start
-                                    settings._note_whisper_settings(whisper_settings)
-                                    response = safe_post(
-                                        url,
-                                        trust=URLTrust.OPERATOR_CONFIGURED,
-                                        timeout=settings._api_timeout(whisper_settings),
-                                        max_redirects=HTTP_MAX_REDIRECTS_API,
-                                        files={'file': (os.path.basename(transcribe_path), audio_file)},
-                                        data=form_data,
-                                        headers=headers,
-                                    )
-                        except SSRFError as exc:
-                            logger.warning(f"Whisper API URL blocked: {exc}")
-                            return None
-                        except requests.RequestException as exc:
-                            logger.warning(
-                                "Whisper API attempt %d/%d failed: %s",
-                                attempt + 1, max_attempts, exc,
-                            )
-                            last_request_exc = exc
-                            response = None
-                            attempt += 1
-                            continue
-                        if response.status_code == 429 and get_pool().active:
-                            if time.monotonic() >= retry_deadline:
-                                logger.warning(
-                                    "%sWhisper API still busy (429) after the "
-                                    "retry deadline; giving up", settings._log_prefix())
-                                raise TranscriptionRejectedError(429, 'retry deadline exceeded')
-                            # Floor so a Retry-After: 0 (or absent) header still yields.
-                            parsed_retry_after = parse_retry_after(
-                                (response.headers or {}).get('Retry-After'), max_seconds=300.0)
-                            retry_after = max(
-                                parsed_retry_after if parsed_retry_after is not None else 5.0, 0.5)
-                            logger.warning(
-                                "%sWhisper API busy (429); waiting %.1fs before retrying",
-                                settings._log_prefix(), retry_after)
-                            time.sleep(retry_after)
-                            response = None
-                            continue
-                        if response.status_code < 500 and response.status_code != 408:
-                            break
-                        logger.warning(
-                            "Whisper API attempt %d/%d returned %d",
-                            attempt + 1, max_attempts, response.status_code,
-                        )
-                        attempt += 1
-
+                    try:
+                        response, attempt_exc = remote.post_transcription(
+                            url, headers, transcribe_path, form_data, whisper_settings,
+                            max_attempts)
+                    except SSRFError as exc:
+                        logger.warning(f"Whisper API URL blocked: {exc}")
+                        return None
+                    if attempt_exc is not None:
+                        last_request_exc = attempt_exc
                     if response is None:
                         # Every attempt raised at the transport layer, so the
                         # endpoint is unreachable. The offline queue (#482) must
@@ -658,88 +576,8 @@ class Transcriber:
                 empty.append({'start': hole_start, 'end': hole_end, 'reason': reason})
         return added, empty
 
-    def filter_hallucinations(self, segments: list[dict]) -> list[dict]:
-        """Filter out common Whisper hallucinations and artifacts."""
-        filtered = []
-        for seg in segments:
-            text = seg.get('text', '').strip()
-            if not text:
-                continue
-            if HALLUCINATION_PATTERNS.match(text.rstrip(TRAILING_PUNCTUATION)):
-                logger.debug("Filtered hallucination segment (%d chars)", len(text))
-                continue
-            # Skip repeated segments (Whisper loop artifacts)
-            if filtered and text == filtered[-1].get('text', '').strip():
-                logger.debug("Filtered repeated segment (%d chars)", len(text))
-                continue
-            filtered.append(seg)
-        return filtered
-
-    @staticmethod
-    def _should_detect_foreign_language(transcribe_language, detected_lang) -> bool:
-        """Run the foreign-language DAI detector only when the audio is English.
-
-        The detector flags non-English ad insertions inside English podcasts.
-        On a non-English podcast its heuristics match every segment, so we
-        skip it unless the user pinned ``whisper_language='en'`` or chose
-        ``'auto'`` and Whisper detected an English variant.
-        """
-        if transcribe_language == 'en':
-            return True
-        if transcribe_language is None:
-            return (detected_lang or '').lower().startswith('en')
-        return False
-
-    def _detect_non_english_segment(self, text: str, primary_language: str) -> bool:
-        """Detect if a segment is likely non-English (potential DAI ad).
-
-        Uses multiple heuristics:
-        1. High ratio of non-ASCII characters (Spanish, etc.)
-        2. Common Spanish/other language patterns
-        3. If primary detected language is not English and segment has markers
-
-        Args:
-            text: The segment text
-            primary_language: The overall detected language from Whisper
-
-        Returns:
-            True if segment appears to be non-English
-        """
-        if not text or len(text) < 10:
-            return False
-
-        # Check for high ratio of accented/non-ASCII characters
-        non_ascii_chars = sum(1 for c in text if ord(c) > 127)
-        non_ascii_ratio = non_ascii_chars / len(text)
-
-        # Spanish and other language indicators
-        spanish_patterns = [
-            'usted', 'puede', 'para', 'como', 'ahora', 'llame', 'gratis',
-            'oferta', 'hoy', 'desde', 'hasta', 'numero', 'telefono',
-            'visite', 'compre', 'ahorre', 'descuento', 'promocion'
-        ]
-
-        text_lower = text.lower()
-
-        # Check for Spanish ad patterns
-        spanish_word_count = sum(1 for word in spanish_patterns if word in text_lower)
-
-        # Heuristics for non-English detection
-        is_likely_foreign = (
-            # High non-ASCII ratio suggests accented language
-            non_ascii_ratio > 0.05 or
-            # Multiple Spanish words detected
-            spanish_word_count >= 2 or
-            # Primary language is not English and segment has some markers
-            (primary_language not in ['en', 'english', 'unknown'] and
-             (non_ascii_ratio > 0.02 or spanish_word_count >= 1))
-        )
-
-        if is_likely_foreign:
-            logger.debug(f"Non-English segment detected: non_ascii={non_ascii_ratio:.2f}, "
-                        f"spanish_words={spanish_word_count}, primary_lang={primary_language}")
-
-        return is_likely_foreign
+    def filter_hallucinations(self, segs: list[dict]) -> list[dict]:
+        return segments.filter_hallucinations(segs)
 
     def get_audio_duration(self, audio_path: str) -> float | None:
         """Get audio duration in seconds using ffprobe.
@@ -751,85 +589,11 @@ class Transcriber:
             logger.info(f"Audio duration: {duration:.1f}s ({duration/60:.1f} min)")
         return duration
 
-    # Largest batch size proven to fit this device's VRAM: recorded when a run
-    # completes below the duration tier, so later episodes start at a size that
-    # fits. After the TTL the next run probes one size up, so a transient OOM
-    # cannot pin every later episode for good.
-    BATCH_CEILING_SETTING = 'transcribe_batch_size_ceiling'
-    BATCH_CEILING_TTL_DAYS = 2
-
-    @staticmethod
-    def _batch_ceiling_device() -> str:
-        """Device name the stored ceiling applies to; VRAM differs per GPU model."""
-        return get_gpu_device_name()
-
-    def _read_ceiling(self) -> dict | None:
-        """Stored ceiling for this device as {'size', 'recorded_at'}, or None
-        when unset, malformed, or recorded for a different device. recorded_at
-        is None for pre-2.96.0 payloads, which read as expired."""
-
-        try:
-            raw = database.Database().get_setting(self.BATCH_CEILING_SETTING)
-        except Exception as e:
-            logger.debug(f"Could not read batch size ceiling: {e}")
-            return None
-        if not raw:
-            return None
-        try:
-            parsed = json.loads(raw)
-        except (TypeError, ValueError):
-            parsed = None
-        if not isinstance(parsed, dict) or parsed.get('device') != self._batch_ceiling_device():
-            return None
-        try:
-            size = max(1, int(parsed['size']))
-        except (KeyError, TypeError, ValueError):
-            return None
-        return {'size': size, 'recorded_at': parsed.get('recorded_at')}
-
-    def _ceiling_expired(self, entry: dict) -> bool:
-        recorded_at = parse_iso_utc(entry['recorded_at'])
-        return (recorded_at is None
-                or utc_now() - recorded_at > timedelta(days=self.BATCH_CEILING_TTL_DAYS))
-
     def record_batch_size_ceiling(self, batch_size: int) -> None:
-        """Persist batch_size as this device's ceiling. Called only after a
-        completed run, since only completion proves a size fits; ratchets down
-        against an unexpired ceiling and keeps its timestamp so it still ages out.
-        """
-        candidate = max(1, int(batch_size))
-        entry = self._read_ceiling()
-        live = entry if entry and not self._ceiling_expired(entry) else None
-        value = min(live['size'], candidate) if live else candidate
-        recorded_at = live['recorded_at'] if live and value == live['size'] else utc_now_iso()
-        payload = json.dumps({
-            'device': self._batch_ceiling_device(), 'size': value, 'recorded_at': recorded_at,
-        })
-        try:
-            database.Database().set_setting(self.BATCH_CEILING_SETTING, payload)
-        except Exception as e:
-            logger.debug(f"Could not persist batch size ceiling: {e}")
-
-    @staticmethod
-    def _tier_batch_size(duration_seconds: float | None) -> int:
-        """Batch size from audio duration alone; longer episodes need smaller batches."""
-        if duration_seconds is None:
-            return 8
-        for threshold, batch_size in BATCH_SIZE_TIERS:
-            if duration_seconds < threshold:
-                return batch_size
-        return 4
+        local.record_batch_size_ceiling(batch_size)
 
     def get_batch_size_for_duration(self, duration_seconds: float | None) -> int:
-        """Duration tier, clamped by an unexpired ceiling; an expired one is
-        probed one size up."""
-        tier = self._tier_batch_size(duration_seconds)
-        entry = self._read_ceiling()
-        if entry is None:
-            return tier
-        if self._ceiling_expired(entry):
-            return min(tier, entry['size'] * 2)
-        return min(tier, entry['size'])
+        return local.get_batch_size_for_duration(duration_seconds)
 
     def clear_cuda_cache(self):
         """Clear CUDA cache to free GPU memory.
@@ -1111,7 +875,7 @@ class Transcriber:
             else:
                 batch_size = 8  # Smaller batch for CPU
 
-            tier_batch_size = self._tier_batch_size(audio_duration)
+            tier_batch_size = local.tier_batch_size(audio_duration)
 
             # Retry logic for CUDA OOM errors
             max_retries = 3
@@ -1168,7 +932,7 @@ class Transcriber:
                     lang_prob = info.language_probability if hasattr(info, 'language_probability') else 0
                     logger.info(f"Detected primary language: {detected_lang} (probability: {lang_prob:.2f})")
 
-                    should_detect_foreign = self._should_detect_foreign_language(
+                    should_detect_foreign = segments.should_detect_foreign_language(
                         transcribe_language, detected_lang
                     )
                     logger.info(
@@ -1199,7 +963,7 @@ class Transcriber:
                         # detect non-English by checking for non-ASCII characters or
                         # using the overall detected language with segment analysis.
                         segment_text = segment.text.strip()
-                        is_foreign = should_detect_foreign and self._detect_non_english_segment(
+                        is_foreign = should_detect_foreign and segments.detect_non_english_segment(
                             segment_text, detected_lang
                         )
 

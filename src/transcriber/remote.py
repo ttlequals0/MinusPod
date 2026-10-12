@@ -1,6 +1,6 @@
 """Remote transcription backend: health probes, endpoint probes and failover.
 
-Tests of the health or endpoint probes patch transcriber.remote.safe_get / safe_post; tests of Transcriber methods patch them on transcriber.
+Tests patch transcriber.remote.safe_post for every Whisper API upload and probe; safe_get patches for probes target transcriber.remote.safe_get.
 """
 
 import io
@@ -18,8 +18,11 @@ from utils.errors import (
 )
 from utils.http import safe_url_for_log
 from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
+from utils.rate_limit import parse_retry_after
 from utils.safe_http import URLTrust, safe_get, safe_post
 import utils.subprocess_registry
+import requests
+from whisper_pool import get_pool
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.ttl_cache import TTLCache
 from config import (
@@ -421,3 +424,75 @@ def _whisper_api_rejects_vad_filter(response) -> bool:
     except Exception:
         return False
     return 'vad_filter' in body
+
+
+def post_transcription(url, headers, transcribe_path, form_data, whisper_settings, max_attempts):
+    """POST one audio file to the Whisper API with transport retries and pool-aware 429 waits.
+
+    Returns (response, last_request_exc); response is None when every attempt
+    failed at the transport layer. SSRFError propagates to the caller.
+    """
+    response = None
+    last_request_exc = None
+    # Wall-clock deadline for 429 retries (which do not consume an
+    # attempt slot, see below) so a Retry-After: 0 loop cannot spin.
+    # Set on the first permit below, per granularity mode.
+    retry_deadline = None
+    attempt = 0
+    while attempt < max_attempts:
+        try:
+            with open(transcribe_path, 'rb') as audio_file:
+                permit_wait_start = time.monotonic()
+                with get_pool().slot():
+                    # Waiting on our own admission control is not
+                    # the provider throttling us, so it never
+                    # eats the 429 window.
+                    now = time.monotonic()
+                    if retry_deadline is None:
+                        retry_deadline = now + settings._api_timeout(whisper_settings)
+                    else:
+                        retry_deadline += now - permit_wait_start
+                    settings._note_whisper_settings(whisper_settings)
+                    response = safe_post(
+                        url,
+                        trust=URLTrust.OPERATOR_CONFIGURED,
+                        timeout=settings._api_timeout(whisper_settings),
+                        max_redirects=HTTP_MAX_REDIRECTS_API,
+                        files={'file': (os.path.basename(transcribe_path), audio_file)},
+                        data=form_data,
+                        headers=headers,
+                    )
+        except requests.RequestException as exc:
+            logger.warning(
+                "Whisper API attempt %d/%d failed: %s",
+                attempt + 1, max_attempts, exc,
+            )
+            last_request_exc = exc
+            response = None
+            attempt += 1
+            continue
+        if response.status_code == 429 and get_pool().active:
+            if time.monotonic() >= retry_deadline:
+                logger.warning(
+                    "%sWhisper API still busy (429) after the "
+                    "retry deadline; giving up", settings._log_prefix())
+                raise TranscriptionRejectedError(429, 'retry deadline exceeded')
+            # Floor so a Retry-After: 0 (or absent) header still yields.
+            parsed_retry_after = parse_retry_after(
+                (response.headers or {}).get('Retry-After'), max_seconds=300.0)
+            retry_after = max(
+                parsed_retry_after if parsed_retry_after is not None else 5.0, 0.5)
+            logger.warning(
+                "%sWhisper API busy (429); waiting %.1fs before retrying",
+                settings._log_prefix(), retry_after)
+            time.sleep(retry_after)
+            response = None
+            continue
+        if response.status_code < 500 and response.status_code != 408:
+            break
+        logger.warning(
+            "Whisper API attempt %d/%d returned %d",
+            attempt + 1, max_attempts, response.status_code,
+        )
+        attempt += 1
+    return response, last_request_exc

@@ -5,7 +5,7 @@ non-English podcasts, where it would false-positive every segment.
 """
 import pytest
 
-from transcriber import Transcriber
+from transcriber import segments
 
 
 @pytest.mark.parametrize(
@@ -33,6 +33,6 @@ from transcriber import Transcriber
     ],
 )
 def test_should_detect_foreign_language(transcribe_language, detected_lang, expected):
-    assert Transcriber._should_detect_foreign_language(
+    assert segments.should_detect_foreign_language(
         transcribe_language, detected_lang
     ) is expected
