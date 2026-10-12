@@ -6,7 +6,7 @@ from ad_yield import latest_completed_run
 from processing_queue import ProcessingQueue
 
 
-def _upstream_transcript_to_api(payload):
+def upstream_transcript_to_api(payload):
     """Shape the stored upstream transcript diff for the episode detail (or None)."""
     if not isinstance(payload, dict):
         return None
@@ -20,7 +20,7 @@ def _upstream_transcript_to_api(payload):
     }
 
 
-def _run_stats_to_api(stats):
+def run_stats_to_api(stats):
     """Rename the pipeline's snake_case stats blob to API casing (or None)."""
     if not stats:
         return None
@@ -121,7 +121,7 @@ def _run_stats_to_api(stats):
     return result
 
 
-def _processing_runs(db, episode, run_totals=None):
+def processing_runs(db, episode, run_totals=None):
     """Serialize run history, retaining totals for runs without ledger rows."""
     podcast_id = episode['podcast_id']
     episode_id = episode['episode_id']
@@ -163,14 +163,14 @@ def _processing_runs(db, episode, run_totals=None):
             'outputTokens': output_tokens,
             'llmCost': llm_cost,
             'hasLog': bool(row.get('log_file')),
-            'stats': _run_stats_to_api(stats),
+            'stats': run_stats_to_api(stats),
             'phases': phases,
             'breakdownAvailable': bool(phases),
         })
     return runs
 
 
-def _ledger_spend(run_id, totals):
+def ledger_spend(run_id, totals):
     """Ledger subtotal for one run in the shared spend shape."""
     return {
         'runId': run_id,
@@ -182,14 +182,14 @@ def _ledger_spend(run_id, totals):
     }
 
 
-def _run_spend(run, totals):
+def run_spend(run, totals):
     """One finished run's spend as {runId, inputTokens, outputTokens, costUsd,
     breakdownAvailable, hasUnknownCost}. Uses the ledger subtotal (the same
     source phase rows reconcile to) when available, else the run's known
     processing_history total. ``totals`` is this run's entry from
     get_episode_run_usage_totals, so no second per-run query is needed."""
     if run['breakdownAvailable'] and totals:
-        return _ledger_spend(run['runId'], totals)
+        return ledger_spend(run['runId'], totals)
     return {
         'runId': run['runId'],
         'inputTokens': run['inputTokens'],
@@ -202,17 +202,17 @@ def _run_spend(run, totals):
     }
 
 
-def _active_run_spend(db, slug, episode_id):
+def active_run_spend(db, slug, episode_id):
     """Live ledger spend of the run that currently owns this episode, or None
     when no run does. Reads the ledger directly: the history row that
-    _run_spend needs is only written when a run finishes."""
+    run_spend needs is only written when a run finishes."""
     run_id = ProcessingQueue().active_run_id(slug, episode_id)
     if not run_id or run_id == '__database_unavailable__':
         return None
-    return _ledger_spend(run_id, db.get_run_usage_totals(run_id))
+    return ledger_spend(run_id, db.get_run_usage_totals(run_id))
 
 
-def _partial_detection(episode, runs):
+def partial_detection(episode, runs):
     """Degraded pass-1 completion (episodes.detection_degraded). Window
     counts come from the run that produced the served audio (the latest
     completed one, same lookup low_ad_yield uses), when available."""
@@ -229,7 +229,7 @@ def _partial_detection(episode, runs):
     }
 
 
-def _incomplete_coverage(runs):
+def incomplete_coverage(runs):
     """Windows the latest completed run lost, per pass. Independent of
     detection_degraded: a run that answered most windows still completes, so
     the skipped stretches were never examined for ads."""

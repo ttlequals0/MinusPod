@@ -19,7 +19,8 @@ from utils.markers import parse_ad_markers
 from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
-from api.episodes import common, run_view
+import episode_runs
+from api.episodes import common
 
 logger = logging.getLogger('podcast.api')
 
@@ -312,7 +313,7 @@ def get_episode(slug, episode_id):
         except (json.JSONDecodeError, TypeError):
             dai_differential = None
 
-    upstream_transcript = run_view._upstream_transcript_to_api(
+    upstream_transcript = episode_runs.upstream_transcript_to_api(
         db.get_episode_upstream_transcript(slug, episode_id))
 
     splice_calibration = db.get_episode_splice_calibration(slug, episode_id)
@@ -351,13 +352,13 @@ def get_episode(slug, episode_id):
         episode['podcast_id'], episode_id)
 
     run_totals = db.get_episode_run_usage_totals(episode['podcast_id'], episode_id)
-    processing_runs = run_view._processing_runs(db, episode, run_totals)
+    processing_runs = episode_runs.processing_runs(db, episode, run_totals)
     # Latest attempted run, failures and zero-LLM runs included; the completed
     # run below is a different question (which run produced the served audio).
     latest_run = processing_runs[-1] if processing_runs else None
-    latest_run_spend = (run_view._run_spend(latest_run, run_totals.get(latest_run['runId']))
+    latest_run_spend = (episode_runs.run_spend(latest_run, run_totals.get(latest_run['runId']))
                         if latest_run else None)
-    active_run_spend = run_view._active_run_spend(db, slug, episode_id)
+    active_run_spend = episode_runs.active_run_spend(db, slug, episode_id)
     cumulative_spend = db.get_episode_cumulative_usage(episode['podcast_id'], episode_id)
 
     return json_response({
@@ -385,8 +386,8 @@ def get_episode(slug, episode_id):
         'corrections': corrections,
         'cueDetections': cue_detections,
         'adDetectionStatus': episode.get('ad_detection_status'),
-        'partialDetection': run_view._partial_detection(episode, processing_runs),
-        'incompleteCoverage': run_view._incomplete_coverage(processing_runs),
+        'partialDetection': episode_runs.partial_detection(episode, processing_runs),
+        'incompleteCoverage': episode_runs.incomplete_coverage(processing_runs),
         'daiDifferential': dai_differential,
         'upstreamTranscript': upstream_transcript,
         'spliceCalibration': splice_calibration,

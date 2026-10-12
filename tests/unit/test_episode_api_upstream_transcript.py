@@ -8,7 +8,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('episode_upstream_transcript_api_test_')
 
 from api import get_database  # noqa: E402
-from api.episodes.run_view import _run_stats_to_api
+from episode_runs import run_stats_to_api
 
 SLUG = 'example-podcast'
 PAYLOAD = {
@@ -69,7 +69,7 @@ def test_null_without_a_stored_result(app_client, seeded):
 
 
 def test_run_stats_carry_transcript_diff():
-    out = _run_stats_to_api({
+    out = run_stats_to_api({
         'mode': 'auto',
         'stage_hits': {'fingerprint': 0, 'text_pattern': 1, 'differential': 0,
                        'llm': 2, 'transcript_differential': 3},
@@ -82,7 +82,7 @@ def test_run_stats_carry_transcript_diff():
 
 
 def test_run_stats_without_transcript_diff():
-    out = _run_stats_to_api({'mode': 'auto', 'stage_hits': {'llm': 1}, 'timings': {}})
+    out = run_stats_to_api({'mode': 'auto', 'stage_hits': {'llm': 1}, 'timings': {}})
     assert out['stageHits']['transcriptDifferential'] == 0
     assert out['timings']['transcriptDiffSeconds'] is None
     assert 'transcriptDiff' not in out

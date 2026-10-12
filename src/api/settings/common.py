@@ -1,6 +1,7 @@
 """Shared settings helpers: setting views, clamping and phase rejection."""
 
 import logging
+from contextlib import contextmanager
 import threading
 from dataclasses import dataclass
 from typing import Any
@@ -121,7 +122,7 @@ _POST_COMMIT_BUCKETS = ('side_effects', 'holds')
 _deferred = threading.local()
 
 
-def _after_commit(fn, bucket: str = 'side_effects'):
+def after_commit(fn, bucket: str = 'side_effects'):
     """Hold a phase side effect until the settings transaction commits.
 
     Runs inline when no transaction is open, so a phase helper called
@@ -134,10 +135,22 @@ def _after_commit(fn, bucket: str = 'side_effects'):
     buckets[bucket].append(fn)
 
 
-def _run_post_commit(callbacks):
+@contextmanager
+def post_commit_scope():
+    """Collect deferred side effects for one settings save; always clears the scope."""
+    buckets = {name: [] for name in _POST_COMMIT_BUCKETS}
+    _deferred.buckets = buckets
+    try:
+        yield buckets
+    finally:
+        _deferred.buckets = None
+
+
+def run_post_commit(buckets):
     """Writes are already durable here, so a failing side effect must not 500."""
-    for fn in callbacks:
-        try:
-            fn()
-        except Exception:
-            logger.exception("Post-commit settings side effect failed")
+    for name in _POST_COMMIT_BUCKETS:
+        for fn in buckets[name]:
+            try:
+                fn()
+            except Exception:
+                logger.exception("Post-commit settings side effect failed")

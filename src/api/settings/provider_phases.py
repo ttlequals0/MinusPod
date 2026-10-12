@@ -1,39 +1,34 @@
 """Provider, failover, System One and whisper settings phases."""
 
-import json
 import logging
 import math
 import os
 import threading
 from urllib.parse import urlsplit
-from api import (
-    json_response, error_response,
-)
+from api import json_response, error_response
 from config import (
     WHISPER_BACKENDS,
-    SYSTEMONE_TUNABLE_DEFAULTS,
     WHISPER_COMPUTE_TYPES,
     PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
     SYSTEMONE_PROVIDERS,
-    PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE,
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
     coerce_bool_setting,
-)
-from systemone.tuning import (
-    SystemOneSettingsError, merge_profile, profile_from_snapshot,
-    profile_key,
 )
 from rate_limit_hold import clear_holds_for_provider_change
 from pricing_fetcher import force_refresh_pricing
 from whisper_pool import get_pool
 from llm_client import (
-    get_effective_provider, get_effective_provider_from_snapshot, get_effective_base_url, get_llm_client, _JSON_FORMAT_SETTING_KEY, _JSON_SCHEMA_SETTING_KEY,
-    invalidate_provider_cache, reset_schema_probe_memo,
+    get_effective_provider,
+    get_effective_base_url,
+    get_llm_client,
+    _JSON_FORMAT_SETTING_KEY,
+    _JSON_SCHEMA_SETTING_KEY,
+    invalidate_provider_cache,
+    reset_schema_probe_memo,
 )
 from llm_route import (
-    VALID_SLOTS, SAME_AS_DETECTION, SLOT_PRIMARY, SLOT_SECONDARY, resolved_stage_slot,
+    VALID_SLOTS, SAME_AS_DETECTION, SLOT_SECONDARY,
 )
-from llm_capabilities import systemone_supported_phases
 import failover
 from utils.language import LANGUAGE_CODE_RE
 from utils.url import (
@@ -184,8 +179,8 @@ def _clear_format_probes(db) -> None:
     """Forget every response_format probe answer, stored and in-process."""
     db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
     db.clear_setting(_JSON_SCHEMA_SETTING_KEY)
-    common._after_commit(reset_schema_probe_memo)
-    common._after_commit(invalidate_provider_cache)
+    common.after_commit(reset_schema_probe_memo)
+    common.after_commit(invalidate_provider_cache)
 
 
 def _base_url_error(value, label):
@@ -304,142 +299,6 @@ def validate_provider_endpoint_security(data):
         issue = _base_url_error(value, label)
         if issue is not None:
             return issue
-    return None
-
-
-def _validate_systemone_phase_enables(db, data, prospective_feed_modes=None):
-    projected = {key: entry.get('value') for key, entry in db.get_all_settings().items()}
-    field_map = {
-        'llmProvider': 'llm_provider',
-        'secondaryProviderEnabled': 'secondary_provider_enabled',
-        'secondaryProvider': 'secondary_provider',
-        'detectionProvider': 'detection_provider',
-        'verificationProvider': 'verification_provider',
-        'chaptersProvider': 'chapters_provider',
-        'reviewProvider': 'review_provider',
-        'patternCleanupProvider': 'pattern_cleanup_provider',
-        'claudeModel': 'claude_model',
-        'verificationModel': 'verification_model',
-        'chaptersModel': 'chapters_model',
-        'patternCleanupModel': 'pattern_cleanup_model',
-        'failoverLlmEnabled': 'failover_llm_enabled',
-        'failoverLlmProvider': 'failover_llm_provider',
-        'failoverLlmDetectionModel': 'failover_llm_detection_model',
-        'failoverLlmVerificationModel': 'failover_llm_verification_model',
-        'failoverLlmReviewModel': 'failover_llm_review_model',
-        'failoverLlmChaptersModel': 'failover_llm_chapters_model',
-        'chaptersEnabled': 'chapters_enabled',
-        'chaptersMode': 'chapters_mode',
-        'patternCleanupEnabled': 'pattern_cleanup_enabled',
-    }
-    for payload_key, db_key in field_map.items():
-        if payload_key not in data:
-            continue
-        value = data[payload_key]
-        if payload_key in ('secondaryProviderEnabled', 'failoverLlmEnabled',
-                           'chaptersEnabled', 'patternCleanupEnabled'):
-            value = 'true' if value else 'false'
-        projected[db_key] = value
-
-    projected['llm_provider'] = get_effective_provider_from_snapshot(projected)
-
-    class ProjectedSettings:
-        def get_setting(self, key):
-            return projected.get(key)
-
-    view = ProjectedSettings()
-    chapters_enabled = coerce_bool_setting(projected.get('chapters_enabled'))
-    global_mode = projected.get('chapters_mode') or 'auto'
-    has_active_feed_mode = global_mode != 'off'
-    if chapters_enabled and global_mode == 'off':
-        current_modes = {row.get('slug'): row.get('chapters_mode')
-                         for row in db.get_all_podcasts()}
-        current_modes.update(prospective_feed_modes or {})
-        has_active_feed_mode = any(mode in ('auto', 'generate') for mode in current_modes.values())
-    if chapters_enabled and has_active_feed_mode:
-        slot = resolved_stage_slot(view, 'chapters')
-        provider_key = (projected.get('secondary_provider') if slot == SLOT_SECONDARY
-                        else projected.get('llm_provider'))
-        model = projected.get('chapters_model')
-        if model is None:
-            model = projected.get('claude_model')
-        supported = systemone_supported_phases(provider_key or '', model)
-        if supported is not None and 'chapters' not in supported:
-            return (f"chapters is unsupported for effective provider {provider_key!r} and "
-                    f"model {model!r}; choose a supported chat provider and model", 400)
-
-    if coerce_bool_setting(projected.get('pattern_cleanup_enabled')):
-        slot = resolved_stage_slot(view, 'pattern_cleanup')
-        provider_key = (projected.get('secondary_provider') if slot == SLOT_SECONDARY
-                        else projected.get('llm_provider'))
-        model = projected.get('pattern_cleanup_model')
-        if model is None:
-            model = projected.get('claude_model')
-        supported = systemone_supported_phases(provider_key or '', model)
-        if supported is not None and 'pattern_cleanup' not in supported:
-            return (f"pattern_cleanup is unsupported for effective provider {provider_key!r} and "
-                    f"model {model!r}; choose a supported chat provider and model", 400)
-
-    if coerce_bool_setting(projected.get('failover_llm_enabled')):
-        provider = projected.get('failover_llm_provider') or ''
-        if systemone_supported_phases(provider, None) is not None:
-            return (f"failover LLM is chat-only and cannot use effective provider {provider!r}", 400)
-        for model_key in (
-            'failover_llm_detection_model', 'failover_llm_verification_model',
-            'failover_llm_review_model', 'failover_llm_chapters_model',
-        ):
-            model = projected.get(model_key)
-            if model is not None and systemone_supported_phases(provider, model) is not None:
-                return (f"failover LLM is chat-only and cannot use effective provider {provider!r} "
-                        f"with model {model!r}", 400)
-    return None
-
-
-def _systemone_tunable_values(db, data):
-    patch = data.get('systemOneTunables')
-    if patch is None:
-        return {}, None
-    if not isinstance(patch, dict):
-        return None, ('systemOneTunables must be an object', 400)
-    if set(patch) - {'primary', 'secondary'}:
-        return None, ('systemOneTunables contains an unsupported slot', 400)
-    snapshot = db.get_all_settings()
-    values = {}
-    try:
-        for slot, providers in patch.items():
-            if not isinstance(providers, dict):
-                return None, (f'systemOneTunables.{slot} must be an object', 400)
-            if set(providers) - {'typesafe', 'systemone-compatible'}:
-                return None, (f'systemOneTunables.{slot} contains an unsupported provider', 400)
-            for provider, profile_patch in providers.items():
-                key = profile_key(slot, provider)
-                current = profile_from_snapshot(snapshot, slot, provider)
-                defaults = SYSTEMONE_TUNABLE_DEFAULTS[provider]
-                if profile_patch is None:
-                    merged = dict(defaults)
-                    is_default = True
-                else:
-                    merged = merge_profile(defaults, current, profile_patch)
-                    is_default = merged == defaults
-                values[key] = (merged, is_default)
-    except SystemOneSettingsError as exc:
-        return None, (str(exc), 400)
-    return values, None
-
-
-def _validate_systemone_tunables_payload(db, data):
-    _values, issue = _systemone_tunable_values(db, data)
-    return issue
-
-
-def _apply_systemone_tunables(db, data):
-    values, issue = _systemone_tunable_values(db, data)
-    if issue is not None:
-        return error_response(*issue)
-    for key, (profile, is_default) in values.items():
-        db.set_setting(
-            key, json.dumps(profile, separators=(',', ':'), sort_keys=True),
-            is_default=is_default)
     return None
 
 
@@ -597,7 +456,7 @@ def _apply_provider_fields(db, data):
         credentials_changed = True
 
     if credentials_changed:
-        common._after_commit(
+        common.after_commit(
             lambda: clear_holds_for_provider_change(
                 db, 'LLM provider settings changed', affected_providers),
             bucket='holds')
@@ -607,13 +466,13 @@ def _apply_provider_fields(db, data):
         # a stored false against a model name the new endpoint also serves
         # would otherwise pin it to the fallback format forever.
         _clear_format_probes(db)
-        common._after_commit(_probe_after_provider_change)
+        common.after_commit(_probe_after_provider_change)
     # The TTL cache backing get_effective_base_url / get_effective_provider
     # lags writes by up to 5s. Without this invalidation, the GET /settings
     # response that fires right after this PUT returns the pre-write value,
     # the UI re-hydrates state to the stale value, hasChanges flips back to
     # false, and the Save Changes button vanishes (issue #234).
-    common._after_commit(invalidate_provider_cache)
+    common.after_commit(invalidate_provider_cache)
     return None
 
 
@@ -644,7 +503,7 @@ def _apply_secondary_provider_fields(db, data):
         db.set_setting('secondary_provider_enabled', value, is_default=False)
         logger.info(f"Updated secondary_provider_enabled to: {value}")
         if value == 'false':
-            common._after_commit(lambda: failover.cancel(failover.TARGET_LLM_SECONDARY, source='manual'))
+            common.after_commit(lambda: failover.cancel(failover.TARGET_LLM_SECONDARY, source='manual'))
         changed = True
 
     if 'secondaryProvider' in data:
@@ -679,11 +538,11 @@ def _apply_secondary_provider_fields(db, data):
         changed = True
 
     if changed:
-        common._after_commit(invalidate_provider_cache)
+        common.after_commit(invalidate_provider_cache)
         # No secondary type configured: nothing to lift, and a null provider
         # would target the unscoped blanket marker, which may be primary's.
         known = [p for p in affected_providers if p]
-        common._after_commit(
+        common.after_commit(
             lambda: clear_holds_for_provider_change(
                 db, 'secondary provider settings changed', known,
                 credential_slot='secondary'),
@@ -735,41 +594,6 @@ def _apply_provider_timeout_fields(db, data):
     return None
 
 
-def _apply_systemone_connection_fields(db, data):
-    changed = False
-    changed_providers = set()
-    for payload_key, setting_key in (
-        ('typesafeApiKey', 'typesafe_api_key'),
-        ('systemoneApiKey', 'systemone_api_key'),
-    ):
-        if payload_key not in data:
-            continue
-        try:
-            set_or_clear_secret(db, setting_key, data[payload_key])
-        except SecretWriteRejected:
-            return error_response('provider_crypto_unavailable', 409)
-        changed = True
-        changed_providers.add(
-            PROVIDER_TYPESAFE if payload_key == 'typesafeApiKey'
-            else PROVIDER_SYSTEMONE_COMPATIBLE)
-    if 'systemoneBaseUrl' in data:
-        value = (data['systemoneBaseUrl'] or '').strip()
-        if value:
-            db.set_setting('systemone_base_url', value, is_default=False)
-        else:
-            db.clear_setting('systemone_base_url')
-        changed = True
-        changed_providers.add(PROVIDER_SYSTEMONE_COMPATIBLE)
-    if changed:
-        common._after_commit(invalidate_provider_cache)
-        common._after_commit(
-            lambda: clear_holds_for_provider_change(
-                db, 'System One provider settings changed', changed_providers,
-                credential_slot=SLOT_PRIMARY),
-            bucket='holds')
-    return None
-
-
 def _apply_failover_llm_fields(db, data):
     """Persist LLM failover settings and clear active state when disabled."""
     changed = False
@@ -778,7 +602,7 @@ def _apply_failover_llm_fields(db, data):
         db.set_setting('failover_llm_enabled', 'true' if enabled else 'false', is_default=False)
         if not enabled:
             for target in (failover.TARGET_LLM_PRIMARY, failover.TARGET_LLM_SECONDARY):
-                common._after_commit(lambda t=target: failover.cancel(t, source='manual'))
+                common.after_commit(lambda t=target: failover.cancel(t, source='manual'))
         changed = True
     if 'failoverLlmProvider' in data:
         value = data['failoverLlmProvider']
@@ -818,7 +642,7 @@ def _apply_failover_llm_fields(db, data):
             return error_response('provider_crypto_unavailable', 409)
         changed = True
     if changed:
-        common._after_commit(invalidate_provider_cache)
+        common.after_commit(invalidate_provider_cache)
     return None
 
 
@@ -834,7 +658,7 @@ def _apply_failover_whisper_fields(db, data):
         enabled = data['failoverWhisperEnabled']
         db.set_setting('failover_whisper_enabled', 'true' if enabled else 'false', is_default=False)
         if not enabled:
-            common._after_commit(lambda: failover.cancel(failover.TARGET_WHISPER, source='manual'))
+            common.after_commit(lambda: failover.cancel(failover.TARGET_WHISPER, source='manual'))
         changed = True
     if 'failoverWhisperBackend' in data:
         if data['failoverWhisperBackend'] not in WHISPER_BACKENDS:
@@ -883,7 +707,7 @@ def _apply_failover_whisper_fields(db, data):
             return error_response('provider_crypto_unavailable', 409)
         changed = True
     if changed:
-        common._after_commit(_refresh_whisper_pool)
+        common.after_commit(_refresh_whisper_pool)
     return None
 
 
@@ -912,7 +736,7 @@ def _apply_whisper_fields(db, data):
             )
         db.set_setting('whisper_backend', data['whisperBackend'], is_default=False)
         logger.info(f"Updated whisper backend to: {data['whisperBackend']}")
-        common._after_commit(_refresh_whisper_pool)
+        common.after_commit(_refresh_whisper_pool)
 
     if 'whisperApiBaseUrl' in data:
         # Checked by _validate_provider_payload before the transaction opens.
@@ -949,7 +773,7 @@ def _apply_whisper_fields(db, data):
                 {'error': f'whisperComputeType must be one of: {", ".join(WHISPER_COMPUTE_TYPES)}'}, 400
             )
         db.set_setting('whisper_compute_type', ct_val, is_default=False)
-        common._after_commit(_mark_whisper_for_reload)
+        common.after_commit(_mark_whisper_for_reload)
         logger.info(f"Updated whisper compute type to: {ct_val}")
 
     if 'skipFlacCompression' in data:
