@@ -1,4 +1,4 @@
-from api.settings import validate_jit_blocked_user_agents
+from api.settings.ad_detection import validate_jit_blocked_user_agents
 from config import resolve_jit_blocked_user_agents, user_agent_is_jit_blocked
 
 

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='ad_merge_fields_test_'))
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 
-from api.settings import _apply_ad_merge_fields
+from api.settings.ad_detection import _apply_ad_merge_fields
 
 
 def _call(value):

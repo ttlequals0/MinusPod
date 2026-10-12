@@ -75,7 +75,7 @@ The transcriber (faster-whisper, Parakeet, or a remote API) transcribes the epis
 
 ## Requirements
 
-- Docker with NVIDIA GPU support (for local transcription), **or** a [remote transcription backend](docs/transcription.md) (no GPU needed)
+- Docker on any amd64 or arm64 host; an NVIDIA GPU is recommended for local transcription but not required
 - Anthropic API key, [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, a System One credential, **or** any OpenAI-compatible endpoint
 
 Memory and VRAM tables are in [docs/installation.md](docs/installation.md).
@@ -96,17 +96,21 @@ EOF
 # 2. Create data directory
 mkdir -p data
 
-# 3. Run
-docker-compose up -d
+# 3. Run (pick one)
+docker compose up -d                              # NVIDIA GPU image
+docker compose -f docker-compose.cpu.yml up -d    # CPU image, no GPU needed
 ```
+
+- `docker-compose.cpu.yml` is the CPU image: multi-arch, runs natively on amd64 and arm64, transcribes locally or through a remote API.
+- `docker-compose.yml` is the GPU image: amd64 with the NVIDIA container runtime. Recommended, not required.
+
+Both read the same `.env` and `data/` directory. See [docs/installation.md](docs/installation.md) for the rest.
 
 Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
 Compose requires an application password before it serves the normal API. Set the first password from the same host. For remote setup, put a temporary `MINUSPOD_SETUP_TOKEN` in `.env`, send it in the `X-MinusPod-Setup-Token` header when setting the first password, then remove it. Compose also prevents unauthenticated feed requests from starting paid processing. Enable Authenticated Feeds, or set `MINUSPOD_ALLOW_PUBLIC_PROCESSING=true` if public just-in-time processing is intentional.
 
 `MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring an encrypted API download requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
-
-**No NVIDIA GPU?** Pull the CPU variant (`docker compose -f docker-compose.cpu.yml up -d`; multi-arch, runs natively on amd64 and arm64) and offload transcription to a remote API. Full CPU setup is in [docs/installation.md](docs/installation.md).
 
 **Stable or edge?** `:latest` (GPU) and `:cpu` follow every release; several can land in one day. For a slower, vetted track, set `MINUSPOD_VERSION=stable` (GPU compose) or `MINUSPOD_VERSION=stable-cpu` (CPU compose) in your `.env` to pin `ttlequals0/minuspod:stable` / `:stable-cpu` instead. Stable tags only move to releases that have soaked in production; see the [releases page](https://github.com/ttlequals0/MinusPod/releases) for curated notes on each.
 

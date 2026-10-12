@@ -135,7 +135,7 @@ class TestSecondaryModelListing:
 
         calls = []
         monkeypatch.setattr(
-            'api.settings.create_client_for_provider',
+            'api.settings.providers.create_client_for_provider',
             self._fake_client_factory(calls, [LLMModel(id='secondary-model-1', name='Secondary Model', created=None)]))
 
         r = app_client.get('/api/v1/settings/models?provider=openai-compatible&slot=secondary')
@@ -149,7 +149,7 @@ class TestSecondaryModelListing:
 
         calls = []
         monkeypatch.setattr(
-            'api.settings.create_client_for_provider', self._fake_client_factory(calls, []))
+            'api.settings.providers.create_client_for_provider', self._fake_client_factory(calls, []))
 
         r = app_client.get('/api/v1/settings/models?provider=ollama&slot=secondary')
         assert r.status_code == 200
@@ -160,7 +160,7 @@ class TestSecondaryModelListing:
         secondary-credential path at all."""
         calls = []
         monkeypatch.setattr(
-            'api.settings.create_client_for_provider', self._fake_client_factory(calls, []))
+            'api.settings.providers.create_client_for_provider', self._fake_client_factory(calls, []))
 
         r = app_client.get('/api/v1/settings/models?provider=anthropic')
         assert r.status_code == 200

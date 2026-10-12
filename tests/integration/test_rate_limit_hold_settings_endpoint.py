@@ -146,7 +146,7 @@ def test_put_enabled_false_clears_the_pause_marker(app_client, _clean_settings):
     db = _clean_settings
     db.set_setting('rate_limit_hold_until', '2999-01-01T00:00:00Z')
     db.set_setting('rate_limit_hold_since', '2999-01-01T00:00:00Z')
-    with patch('api.settings.fire_queue_resumed_event') as fire:
+    with patch('api.settings.operations.fire_queue_resumed_event') as fire:
         r = app_client.put('/api/v1/settings/rate-limit-hold',
                            json={'enabled': False}, headers=hdr)
     assert r.status_code == 200
@@ -158,7 +158,7 @@ def test_put_enabled_false_clears_the_pause_marker(app_client, _clean_settings):
 def test_put_enabled_false_without_a_pause_stays_quiet(app_client, _clean_settings):
     from unittest.mock import patch
     hdr = _csrf(app_client)
-    with patch('api.settings.fire_queue_resumed_event') as fire:
+    with patch('api.settings.operations.fire_queue_resumed_event') as fire:
         r = app_client.put('/api/v1/settings/rate-limit-hold',
                            json={'enabled': False}, headers=hdr)
     assert r.status_code == 200

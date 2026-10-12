@@ -16,7 +16,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='pattern-clea
 
 import config_transfer  # noqa: E402
 import api  # noqa: E402
-import api.settings as api_settings  # noqa: E402
+from api.settings import operations  # noqa: E402
 import pattern_cleanup  # noqa: E402
 from llm_client import clear_settings_cache  # noqa: E402
 from utils.time import ISO_FORMAT, utc_now  # noqa: E402
@@ -515,7 +515,7 @@ def _clock(dt):
         return dt.strftime(ISO_FORMAT)
     return (patch.object(pattern_cleanup, 'utc_now', return_value=dt),
             patch.object(pattern_cleanup, 'utc_now_iso', iso),
-            patch.object(api_settings, 'utc_now_iso', iso),
+            patch.object(operations, 'utc_now_iso', iso),
             patch('database.pattern_cleanup.utc_now_iso', iso))
 
 

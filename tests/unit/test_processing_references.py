@@ -1,4 +1,6 @@
-"""Guards patch targets: tests must not patch a processing.<name> that processing.py no longer has."""
+"""Guards patch targets that name an attribute the module no longer has."""
+import functools
+import importlib
 import pathlib
 import re
 
@@ -6,22 +8,33 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('refs_test_')
 
-from main_app import processing  # noqa: E402
-
 TESTS = pathlib.Path(__file__).resolve().parents[1]
-PATTERNS = (re.compile(r"main_app\.processing\.(\w+)"),
-            re.compile(r"setattr\(processing, '(\w+)'"),
-            re.compile(r"patch\.object\(processing, '(\w+)'"))
+TARGET_RE = re.compile(r"""['"]((?:api\.settings|main_app\.processing)(?:\.\w+)+)['"]""")
 
 
-def test_no_stale_processing_attribute_references():
-    stale = set()
-    for path in TESTS.rglob('*.py'):
-        text = path.read_text()
-        if 'processing' not in text:
+@functools.lru_cache(maxsize=None)
+def _test_sources():
+    return [(path, path.read_text()) for path in sorted(TESTS.rglob('*.py'))]
+
+
+def _resolves(target):
+    parts = target.split('.')
+    for i in range(len(parts), 0, -1):
+        try:
+            obj = importlib.import_module('.'.join(parts[:i]))
+        except ImportError:
             continue
-        for pattern in PATTERNS:
-            for name in pattern.findall(text):
-                if not hasattr(processing, name):
-                    stale.add(f'{path.relative_to(TESTS)}: processing.{name}')
-    assert not stale, '\n'.join(sorted(stale))
+        for attr in parts[i:]:
+            if not hasattr(obj, attr):
+                return False
+            obj = getattr(obj, attr)
+        return True
+    return False
+
+
+def test_no_stale_patch_targets():
+    stale = sorted({f'{path.relative_to(TESTS.parent)}: {target}'
+                    for path, text in _test_sources()
+                    for target in TARGET_RE.findall(text)
+                    if not _resolves(target)})
+    assert not stale, '\n'.join(stale)

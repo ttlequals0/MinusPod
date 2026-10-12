@@ -141,7 +141,7 @@ class TestPutEmailSettings:
 
 class TestEmailTestEndpoint:
     def test_success(self, client):
-        with patch('api.settings.email_service.send_test_email',
+        with patch('api.settings.notifications.email_service.send_test_email',
                    return_value=(True, 'Test email sent to 1 recipient(s)')):
             response = client.post(f'{BASE}/test')
         assert response.status_code == 200
@@ -149,7 +149,7 @@ class TestEmailTestEndpoint:
         assert data['success'] is True
 
     def test_failure_message(self, client):
-        with patch('api.settings.email_service.send_test_email',
+        with patch('api.settings.notifications.email_service.send_test_email',
                    return_value=(False, 'Sending failed: refused')):
             response = client.post(f'{BASE}/test')
         data = json.loads(response.data)

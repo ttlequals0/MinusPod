@@ -101,7 +101,7 @@ def test_ad_addressing_mode_persists_via_apply_processing_flags():
     # validated field to combine with adAddressingMode in one payload for an
     # end-to-end "reject leaves it unpersisted" check, so this unit-tests the
     # phase helper directly against a fake db.
-    from api.settings import _apply_processing_flags
+    from api.settings.ad_detection import _apply_processing_flags
 
     calls = []
 

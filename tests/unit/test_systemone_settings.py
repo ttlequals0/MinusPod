@@ -5,7 +5,7 @@ import pytest
 import llm_client
 import provider_probe
 import failover
-import api.settings as settings_api
+from api.settings import ad_detection
 import config_transfer
 import systemone.settings as settings_module
 from config import (
@@ -47,13 +47,13 @@ def test_profile_null_resets_and_nullable_field_null_is_retained(temp_db):
     data = {'systemOneTunables': {'primary': {'typesafe': {
         'detectionEnter': 0.90,
     }}}}
-    values, issue = settings_api._systemone_tunable_values(temp_db, data)
+    values, issue = ad_detection._systemone_tunable_values(temp_db, data)
     assert issue is None
     profile, is_default = values['systemone_tunables_primary_typesafe']
     assert profile['detectionEnter'] == 0.90
     assert is_default is False
 
-    reset, issue = settings_api._systemone_tunable_values(
+    reset, issue = ad_detection._systemone_tunable_values(
         temp_db, {'systemOneTunables': {'primary': {'typesafe': None}}})
     assert issue is None
     assert reset['systemone_tunables_primary_typesafe'] == (
@@ -89,11 +89,11 @@ def test_enabled_chapters_rejects_systemone_route_with_effective_identity(temp_d
     temp_db.set_setting('llm_provider', 'typesafe')
     temp_db.set_setting('claude_model', 'jev-latest')
     temp_db.set_setting('chapters_model', 'jev-latest')
-    issue = settings_api._validate_systemone_phase_enables(temp_db, {'chaptersEnabled': True})
+    issue = ad_detection._validate_systemone_phase_enables(temp_db, {'chaptersEnabled': True})
     assert issue == (
         "chapters is unsupported for effective provider 'typesafe' and model 'jev-latest'; "
         'choose a supported chat provider and model', 400)
-    assert settings_api._validate_systemone_phase_enables(
+    assert ad_detection._validate_systemone_phase_enables(
         temp_db, {'chaptersEnabled': False}) is None
 
 
@@ -103,9 +103,9 @@ def test_global_chapter_mode_off_allows_systemone_until_feed_override(temp_db):
     temp_db.set_setting('chapters_model', 'jev-latest')
     temp_db.set_setting('chapters_enabled', 'true')
     temp_db.set_setting('chapters_mode', 'off')
-    assert settings_api._validate_systemone_phase_enables(
+    assert ad_detection._validate_systemone_phase_enables(
         temp_db, {'chaptersEnabled': True, 'chaptersMode': 'off'}) is None
-    issue = settings_api._validate_systemone_phase_enables(
+    issue = ad_detection._validate_systemone_phase_enables(
         temp_db, {'chaptersEnabled': True, 'chaptersMode': 'off'},
         {'example-feed': 'generate'})
     assert issue and issue[0].startswith('chapters is unsupported')
@@ -128,13 +128,13 @@ def test_feed_only_import_cannot_enable_unsupported_chapters(temp_db):
 def test_enabled_cleanup_rejects_known_jev_model_through_compatible_provider(temp_db):
     temp_db.set_setting('llm_provider', 'openai-compatible')
     temp_db.set_setting('claude_model', 'jev-preview')
-    issue = settings_api._validate_systemone_phase_enables(
+    issue = ad_detection._validate_systemone_phase_enables(
         temp_db, {'patternCleanupEnabled': True})
     assert issue and issue[0].startswith('pattern_cleanup is unsupported')
 
 
 def test_failover_cannot_target_systemone_provider(temp_db):
-    issue = settings_api._validate_systemone_phase_enables(temp_db, {
+    issue = ad_detection._validate_systemone_phase_enables(temp_db, {
         'failoverLlmEnabled': True,
         'failoverLlmProvider': 'typesafe',
         'failoverLlmDetectionModel': 'jev-latest',
@@ -148,15 +148,15 @@ def test_native_fractional_timeout_roundtrips_and_chat_limits_stay_int(temp_db, 
     timeout_field = 'providerATimeoutSeconds' if slot == 'primary' else 'providerBTimeoutSeconds'
     key = 'llm_timeout_seconds' if slot == 'primary' else 'secondary_llm_timeout_seconds'
     data = {provider_field: 'typesafe', timeout_field: 0.125}
-    assert settings_api._validate_failover_settings_payload(data, temp_db) is None
-    assert settings_api._apply_provider_timeout_fields(temp_db, data) is None
+    assert ad_detection._validate_failover_settings_payload(data, temp_db) is None
+    assert ad_detection._apply_provider_timeout_fields(temp_db, data) is None
     assert temp_db.get_setting(key) == '0.125'
     native = settings_module.get_systemone_settings(PROVIDER_TYPESAFE, slot, 'jev-latest')
     assert native.request_timeout == 0.125
     for invalid in [0, -1, float('nan'), float('inf'), True]:
-        assert settings_api._validate_failover_settings_payload(
+        assert ad_detection._validate_failover_settings_payload(
             {provider_field: 'typesafe', timeout_field: invalid}, temp_db)
-    assert settings_api._validate_failover_settings_payload(
+    assert ad_detection._validate_failover_settings_payload(
         {provider_field: 'openai-compatible', timeout_field: 0.125}, temp_db)
 
 
@@ -194,7 +194,7 @@ def test_typesafe_missing_key_cannot_build_or_probe_and_does_not_use_openai_key(
 def test_phase_validation_reads_feeds_only_for_enabled_global_off_mode(temp_db, monkeypatch, enabled, mode):
     monkeypatch.setattr(temp_db, 'get_all_podcasts',
                         lambda: (_ for _ in ()).throw(AssertionError('feed rows cannot affect this mode')))
-    settings_api._validate_systemone_phase_enables(temp_db, {'chaptersEnabled': enabled, 'chaptersMode': mode})
+    ad_detection._validate_systemone_phase_enables(temp_db, {'chaptersEnabled': enabled, 'chaptersMode': mode})
 
 
 def test_native_probes_resolve_each_slots_configured_stage_and_freeze_health_model(temp_db, monkeypatch):
@@ -273,14 +273,14 @@ def test_env_only_native_primary_cannot_enable_global_or_import_chat_only_stages
     temp_db.set_setting('chapters_enabled', 'false', is_default=False)
     temp_db.set_setting('pattern_cleanup_enabled', 'false', is_default=False)
     for payload in [{'chaptersEnabled': True, 'chaptersMode': 'auto'}, {'patternCleanupEnabled': True}]:
-        issue = settings_api._validate_systemone_phase_enables(temp_db, payload)
+        issue = ad_detection._validate_systemone_phase_enables(temp_db, payload)
         assert issue and 'unsupported' in issue[0]
     document = config_transfer.export_config(temp_db, '2.98.7')
     document['settings']['chapters_enabled'] = True
     document['settings']['chapters_mode'] = 'auto'
     with pytest.raises(config_transfer.ConfigTransferError, match='chapters is unsupported'):
         config_transfer.build_preview(temp_db, document, 'global')
-    assert settings_api._validate_systemone_phase_enables(
+    assert ad_detection._validate_systemone_phase_enables(
         temp_db, {'llmProvider': 'openai-compatible', 'chaptersEnabled': True, 'chaptersMode': 'auto'}) is None
 
 
@@ -308,7 +308,7 @@ def test_real_profile_import_keeps_reset_metadata_and_omitted_newer_fields(temp_
     document = config_transfer.export_config(temp_db, '2.98.7')
     document['settings'] = {key: profile_patch}
     preview = config_transfer.build_preview(temp_db, document, 'global')
-    monkeypatch.setattr(settings_api, 'trigger_reviewer_calibration', lambda *_args: None)
+    monkeypatch.setattr(ad_detection, 'trigger_reviewer_calibration', lambda *_args: None)
     config_transfer.apply_config(temp_db, document, 'global', None, preview['previewToken'])
     stored = temp_db.get_all_settings()[key]
     profile = json.loads(stored['value'])

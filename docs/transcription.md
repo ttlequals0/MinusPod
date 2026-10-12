@@ -30,6 +30,8 @@ MinusPod has three transcription backends. Pick one with `WHISPER_BACKEND` or in
 | Parakeet TDT 0.6B v3 | `parakeet` | In the container through onnx-asr: CUDA in the GPU image, CPU in the CPU image | Speed on a GPU; fewer repetition loops | `WHISPER_DEVICE`, language |
 | Remote API | `openai-api` | A separate server (whisper.cpp, Groq, OpenAI, OpenVINO) | Hosts with no GPU; offloading to another machine | `WHISPER_API_BASE_URL`, `WHISPER_API_KEY`, `WHISPER_API_MODEL`, `whisperMaxAttempts` |
 
+Every backend runs without a GPU.
+
 A local model, from either local backend, stays loaded while the queue has work and unloads 300 seconds after the queue empties.
 
 ## Choosing between Whisper and Parakeet

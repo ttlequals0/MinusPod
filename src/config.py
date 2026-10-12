@@ -2133,7 +2133,7 @@ def get_stage_tunable(key: str, settings: dict | None = None) -> Any:
         if isinstance(entry, dict):
             db_val = entry.get('value')
         elif hasattr(entry, 'value'):
-            # SettingEntry dataclass (api.settings._settings_view wraps the
+            # SettingEntry dataclass (api.settings.common._settings_view wraps the
             # raw dict shape into typed entries). hasattr check keeps the
             # resolver pluggable to other entry shapes consumers add.
             db_val = entry.value
@@ -2185,7 +2185,7 @@ def stage_tunable_env_override(key: str) -> str | None:
 
 
 # Public mapping: payload key (camelCase) + DB key (snake_case) + kind tag used
-# by the settings API to dispatch validation. Single source of truth; api/settings
+# by the settings API to dispatch validation. Single source of truth; api/settings/ad_detection.py
 # imports this rather than maintaining a parallel list.
 STAGE_TUNABLE_PAYLOAD_KEYS = (
     ('detectionTemperature',           'detection_temperature',           'float'),

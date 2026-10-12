@@ -184,7 +184,7 @@ class TestSaveReportsAndResolvesAffectedRuns:
     def test_endpoint_change_clears_models_bound_to_primary_only(
             self, client, primary_stage_models):
         db = primary_stage_models
-        with patch('api.settings.trigger_reviewer_calibration'):
+        with patch('api.settings.ad_detection.trigger_reviewer_calibration'):
             r = client.put('/api/v1/settings/providers/openai', json={
                 'apiKey': 'sk-new-account-key', 'baseUrl': NEW_BASE,
             })
@@ -202,7 +202,7 @@ class TestSaveReportsAndResolvesAffectedRuns:
             self, client, primary_stage_models):
         db = primary_stage_models
         db.set_setting('review_model', 'same_as_pass', is_default=False)
-        with patch('api.settings.trigger_reviewer_calibration'):
+        with patch('api.settings.ad_detection.trigger_reviewer_calibration'):
             r = client.put('/api/v1/settings/providers/openai', json={'baseUrl': NEW_BASE})
 
         assert r.status_code == 200
@@ -213,7 +213,7 @@ class TestSaveReportsAndResolvesAffectedRuns:
             self, client, primary_stage_models):
         db = primary_stage_models
         db.clear_setting('pattern_cleanup_model')
-        with patch('api.settings.trigger_reviewer_calibration'):
+        with patch('api.settings.ad_detection.trigger_reviewer_calibration'):
             r = client.put('/api/v1/settings/providers/openai',
                            json={'baseUrl': NEW_BASE})
 
@@ -227,7 +227,7 @@ class TestSaveReportsAndResolvesAffectedRuns:
         db.set_setting('claude_model', 'secondary-detection-model', is_default=False)
         db.set_setting('chapters_provider', 'primary', is_default=False)
         db.set_setting('chapters_model', 'primary-chapter-model', is_default=False)
-        with patch('api.settings.trigger_reviewer_calibration'):
+        with patch('api.settings.ad_detection.trigger_reviewer_calibration'):
             r = client.put('/api/v1/settings/providers/openai',
                            json={'baseUrl': NEW_BASE})
 
@@ -242,7 +242,7 @@ class TestSaveReportsAndResolvesAffectedRuns:
 
     def test_delete_endpoint_clears_models_bound_to_primary(self, client, primary_stage_models):
         db = primary_stage_models
-        with patch('api.settings.trigger_reviewer_calibration'):
+        with patch('api.settings.ad_detection.trigger_reviewer_calibration'):
             r = client.delete('/api/v1/settings/providers/openai')
 
         assert r.status_code == 200

@@ -163,7 +163,7 @@ class TestResetClearsStageTunables:
         db.set_setting('reviewer_reasoning_level', 'high', is_default=False)
 
         # Patch out the LLM-client recreation so the reset doesn't touch a provider.
-        with patch('api.settings.get_llm_client', return_value=MagicMock()):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=MagicMock()):
             r = client.post('/api/v1/settings/ad-detection/reset')
         assert r.status_code == 200, r.data
 

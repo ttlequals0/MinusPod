@@ -4,7 +4,7 @@ Covers the SETTINGS_REGISTRY / SettingSpec + PUT-phase pattern (mirroring
 segment_category_actions), including the top-level _sv entry in GET
 /settings, plus the dedicated /settings/community-sync GET/PUT surface the
 CommunityPatternsSection UI talks to. Each test patches
-api.settings.get_database to a fresh temp_db to avoid order-dependence
+the settings group modules' get_database to a fresh temp_db to avoid order-dependence
 between tests sharing the same setting key.
 """
 import json
@@ -32,7 +32,7 @@ class TestGetSettingsTopLevelEntry:
     no corresponding top-level _sv(...) entry in the GET /settings payload."""
 
     def test_top_level_key_present_alongside_defaults_block(self, client, temp_db):
-        with patch('api.settings.get_database', return_value=temp_db):
+        with patch('api.settings.core.get_database', return_value=temp_db):
             s = client.get('/api/v1/settings').get_json()
         assert 'communitySyncCategories' in s
         assert s['communitySyncCategories']['value'] == list(SEGMENT_CATEGORIES)
@@ -48,36 +48,34 @@ class TestAdDetectionPutPhase:
             content_type='application/json',
         )
 
-    def test_put_roundtrip(self, client, temp_db):
-        with patch('api.settings.get_database', return_value=temp_db):
-            r = self._put(client, {'communitySyncCategories': ['sponsor', 'cross_promo']})
-            assert r.status_code == 200, r.data
-            s = client.get('/api/v1/settings').get_json()
+    def test_put_roundtrip(self, client, patch_settings_db):
+        r = self._put(client, {'communitySyncCategories': ['sponsor', 'cross_promo']})
+        assert r.status_code == 200, r.data
+        s = client.get('/api/v1/settings').get_json()
         assert s['communitySyncCategories']['value'] == ['sponsor', 'cross_promo']
         assert s['communitySyncCategories']['isDefault'] is False
 
     def test_rejects_unknown_category(self, client, temp_db):
-        with patch('api.settings.get_database', return_value=temp_db):
+        with patch('api.settings.ad_detection.get_database', return_value=temp_db):
             r = self._put(client, {'communitySyncCategories': ['not-a-category']})
         assert r.status_code == 400
         assert 'not-a-category' in r.get_json()['error']
 
     def test_rejects_non_list(self, client, temp_db):
-        with patch('api.settings.get_database', return_value=temp_db):
+        with patch('api.settings.ad_detection.get_database', return_value=temp_db):
             r = self._put(client, {'communitySyncCategories': 'sponsor'})
         assert r.status_code == 400
 
-    def test_empty_list_is_a_valid_accept_nothing_choice(self, client, temp_db):
-        with patch('api.settings.get_database', return_value=temp_db):
-            r = self._put(client, {'communitySyncCategories': []})
-            assert r.status_code == 200, r.data
-            s = client.get('/api/v1/settings').get_json()
+    def test_empty_list_is_a_valid_accept_nothing_choice(self, client, patch_settings_db):
+        r = self._put(client, {'communitySyncCategories': []})
+        assert r.status_code == 200, r.data
+        s = client.get('/api/v1/settings').get_json()
         assert s['communitySyncCategories']['value'] == []
 
 
 class TestCommunitySyncEndpoint:
     def test_get_includes_categories_and_breakdown(self, client, temp_db):
-        with patch('api.settings.get_database', return_value=temp_db):
+        with patch('api.settings.operations.get_database', return_value=temp_db):
             r = client.get('/api/v1/settings/community-sync')
         assert r.status_code == 200, r.data
         body = r.get_json()
@@ -85,7 +83,7 @@ class TestCommunitySyncEndpoint:
         assert body['categoryBreakdown'] == {cat: 0 for cat in SEGMENT_CATEGORIES}
 
     def test_put_categories_validates_and_persists(self, client, temp_db):
-        with patch('api.settings.get_database', return_value=temp_db):
+        with patch('api.settings.operations.get_database', return_value=temp_db):
             r = client.put(
                 '/api/v1/settings/community-sync',
                 data=json.dumps({'categories': ['sponsor', 'interaction']}),
@@ -97,7 +95,7 @@ class TestCommunitySyncEndpoint:
         assert r2.get_json()['categories'] == ['sponsor', 'interaction']
 
     def test_put_rejects_unknown_category(self, client, temp_db):
-        with patch('api.settings.get_database', return_value=temp_db):
+        with patch('api.settings.operations.get_database', return_value=temp_db):
             r = client.put(
                 '/api/v1/settings/community-sync',
                 data=json.dumps({'categories': ['bogus']}),
@@ -120,7 +118,7 @@ class TestCommunitySyncEndpoint:
         )
         temp_db.update_ad_pattern(inactive_id, is_active=0)
 
-        with patch('api.settings.get_database', return_value=temp_db):
+        with patch('api.settings.operations.get_database', return_value=temp_db):
             body = client.get('/api/v1/settings/community-sync').get_json()
         assert body['categoryBreakdown']['sponsor'] == 1
         # Only the active cross_promo row counts; the deactivated one does not.
@@ -134,7 +132,7 @@ class TestCommunitySyncEndpoint:
             source='community', community_id='cid-none',
         )
 
-        with patch('api.settings.get_database', return_value=temp_db):
+        with patch('api.settings.operations.get_database', return_value=temp_db):
             resp = client.get('/api/v1/settings/community-sync')
 
         assert resp.status_code == 200, resp.data
