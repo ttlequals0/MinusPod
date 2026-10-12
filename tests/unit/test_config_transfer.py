@@ -280,7 +280,7 @@ def test_nullable_models_remain_inherited_during_provider_restore(temp_db, monke
     temp_db.set_setting('llm_provider', 'anthropic')
     temp_db.set_setting('verification_model', 'old-model')
     temp_db.set_setting('chapters_model', 'old-model')
-    monkeypatch.setattr('api.settings.ad_detection._probe_after_provider_change', lambda: None)
+    monkeypatch.setattr('api.settings.provider_phases._probe_after_provider_change', lambda: None)
     document = _document({'llm_provider': 'ollama', 'claude_model': 'new-model',
                           'verification_model': None, 'chapters_model': None})
     preview = config_transfer.build_preview(temp_db, document, 'global')

@@ -26,6 +26,7 @@ release notes.
 - The settings API module is split into a package by settings area (core, ad detection, notifications, providers, operations) with shared helpers in one module. No behavior change.
 - The episodes API module is split into a package (core, runs, chapters, media). No behavior change.
 - The transcriber module is split into a package: the Transcriber class stays at the top with settings, local-backend, remote-backend and chunking helpers in their own modules. No behavior change.
+- The ad-detection settings module keeps the detection-tuning phases; provider, failover, System One and whisper phases live in their own module, with the post-commit hooks shared from the common module.
 
 ### Fixed
 - Saving the provider budget with USD as the display currency no longer fails with a database constraint error.

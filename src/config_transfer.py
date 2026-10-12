@@ -1194,7 +1194,7 @@ def _phase_applied_setting_keys(settings):
 
 
 def apply_config(db, document, scope, selected_feeds, preview_token):
-    from api.settings import ad_detection, common
+    from api.settings import ad_detection, common, provider_phases
 
     plan = _validate_document(document)
     settings, feeds = _resolve_scope(plan, scope, selected_feeds)
@@ -1208,7 +1208,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
     issue = _settings_validation_error(db, payload, feeds)
     if issue:
         raise issue
-    endpoint_issue = ad_detection.validate_provider_endpoint_security(payload)
+    endpoint_issue = provider_phases.validate_provider_endpoint_security(payload)
     if endpoint_issue:
         raise ConfigTransferError(*endpoint_issue)
     if any(key in SECRET_SETTING_KEYS and value for key, value in settings.items()) and not is_available():
@@ -1219,8 +1219,8 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
             fx_rate = get_usd_rate(settings['provider_budget_display_currency'])
         except FxRateError as exc:
             raise ConfigTransferError(str(exc), 503) from exc
-    _deferred = {name: [] for name in ad_detection._POST_COMMIT_BUCKETS}
-    ad_detection._deferred.buckets = _deferred
+    _deferred = {name: [] for name in common._POST_COMMIT_BUCKETS}
+    common._deferred.buckets = _deferred
     changed_stages = []
     previous_calibration = None
     changed_feeds = []
@@ -1275,7 +1275,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                     except SecretWriteRejected:
                         raise ConfigTransferError('Destination secret encryption is unavailable', 409) from None
                     if key in primary_credentials and (old_secret or '') != (value or ''):
-                        ad_detection._after_commit(
+                        common._after_commit(
                             partial(clear_hold_for_provider_change, db, 'Provider credentials restored',
                                     provider_key=primary_credentials[key]), bucket='holds')
                 elif key == 'pattern_cleanup_provider' and value == '':
@@ -1298,7 +1298,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
             if any(key in settings for key in (
                     'anthropic_api_key', 'openai_api_key', 'ollama_api_key',
                     'typesafe_api_key', 'systemone_api_key', 'systemone_base_url')):
-                ad_detection._after_commit(ad_detection.invalidate_provider_cache)
+                common._after_commit(provider_phases.invalidate_provider_cache)
             null_keys = {key for key, value in settings.items() if value is None}
             if null_keys & {'llm_provider', 'openai_base_url', 'claude_model',
                             'verification_model', 'review_model', 'chapters_model',
@@ -1306,15 +1306,15 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                             'anthropic_api_key', 'openai_api_key', 'openrouter_api_key',
                             'ollama_api_key', 'secondary_provider_api_key', 'failover_llm_api_key',
                             'typesafe_api_key', 'systemone_api_key', 'systemone_base_url'}:
-                ad_detection._after_commit(ad_detection.invalidate_provider_cache)
+                common._after_commit(provider_phases.invalidate_provider_cache)
             if null_keys & {'whisper_model', 'whisper_backend', 'whisper_api_base_url',
                             'whisper_api_key', 'whisper_api_model', 'failover_whisper_api_key'}:
-                ad_detection._after_commit(ad_detection._mark_whisper_for_reload)
-                ad_detection._after_commit(ad_detection._refresh_whisper_pool)
+                common._after_commit(provider_phases._mark_whisper_for_reload)
+                common._after_commit(provider_phases._refresh_whisper_pool)
             if null_keys & {'download_user_agent', 'feed_user_agent'}:
-                ad_detection._after_commit(ad_detection.invalidate_user_agent_cache)
+                common._after_commit(ad_detection.invalidate_user_agent_cache)
             if 'feed_auth_key' in settings:
-                ad_detection._after_commit(db.clear_all_podcast_etags)
+                common._after_commit(db.clear_all_podcast_etags)
             for feed in feeds:
                 slug = feed['slug']
                 current_row = conn.execute(
@@ -1385,18 +1385,18 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                 transfer_revision = 0
             db.set_setting('config_transfer_revision', str(transfer_revision + 1), is_default=False)
     except common._PhaseRejected as rejected:
-        ad_detection._deferred.buckets = None
+        common._deferred.buckets = None
         response = rejected.response
         body = response.get_json(silent=True) if hasattr(response, 'get_json') else {}
         status = getattr(response, 'status_code', 400)
         raise ConfigTransferError(
             (body or {}).get('error', 'Settings failed validation'), status) from rejected
     except BaseException:
-        ad_detection._deferred.buckets = None
+        common._deferred.buckets = None
         raise
-    ad_detection._deferred.buckets = None
-    ad_detection._run_post_commit(_deferred['side_effects'])
-    ad_detection._run_post_commit(_deferred['holds'])
+    common._deferred.buckets = None
+    common._run_post_commit(_deferred['side_effects'])
+    common._run_post_commit(_deferred['holds'])
     if previous_calibration is not None:
         ad_detection.finish_settings_payload_after_commit(db, changed_stages, previous_calibration)
     warnings = _after_feed_commit(
