@@ -62,7 +62,7 @@ code or passes vacuously. Two mechanisms keep the 81 test modules meaningful:
    `shutdown_event`) are read through lazy proxies in `main_app.pipeline.shared`. Each
    proxy resolves `main_app.processing.<name>` on every access, so a test that rebinds
    `processing.db` reaches every stage, as it did when the stages were one module.
-   The proxies forward attribute access and truthiness only; stage code calls methods
+   The proxies forward attribute reads, writes and truthiness; stage code calls methods
    on them and never tests identity or type.
 
 Nothing is re-exported from `main_app.processing`. A stale

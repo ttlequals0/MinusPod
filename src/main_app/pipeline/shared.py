@@ -20,6 +20,12 @@ class SharedSingleton:
     def __bool__(self):
         return bool(self._target())
 
+    def __setattr__(self, attr, value):
+        if attr == '_name':
+            object.__setattr__(self, attr, value)
+            return
+        setattr(self._target(), attr, value)
+
 
 db = SharedSingleton('db')
 storage = SharedSingleton('storage')
@@ -30,4 +36,3 @@ audio_analyzer = SharedSingleton('audio_analyzer')
 sponsor_service = SharedSingleton('sponsor_service')
 status_service = SharedSingleton('status_service')
 pattern_service = SharedSingleton('pattern_service')
-shutdown_event = SharedSingleton('shutdown_event')

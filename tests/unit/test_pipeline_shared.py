@@ -19,3 +19,12 @@ def test_shared_singleton_forwards_and_follows_rebind(monkeypatch):
     assert bool(proxy) is True
     fake_processing.db = None
     assert bool(proxy) is False
+
+
+def test_shared_singleton_forwards_writes(monkeypatch):
+    fake_processing = types.SimpleNamespace(db=types.SimpleNamespace())
+    monkeypatch.setitem(sys.modules, 'main_app.processing', fake_processing)
+    proxy = SharedSingleton('db')
+    proxy.last_stats = 'x'
+    assert fake_processing.db.last_stats == 'x'
+    assert 'last_stats' not in vars(proxy)
