@@ -12,6 +12,7 @@ from api import (
 )
 # The ledger's own billable predicate, so this endpoint lists exactly the rows
 # the totals are summed from rather than re-deriving the rule.
+from api.episodes.run_view import _processing_runs
 from database.stats import _ledger_row_is_billable
 from utils.time import parse_iso_utc
 
@@ -223,7 +224,6 @@ def get_episode_cost_runs():
     """Per-run, per-phase cost breakdown for one episode, for the expandable
     Episode-costs row. Same run shape as the episode detail page so both
     surfaces render an identical table."""
-    from api.episodes.core import _processing_runs
     slug = request.args.get('slug')
     episode_id = request.args.get('episodeId')
     if not slug or not episode_id:

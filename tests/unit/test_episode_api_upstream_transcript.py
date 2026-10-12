@@ -8,7 +8,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('episode_upstream_transcript_api_test_')
 
 from api import get_database  # noqa: E402
-from api.episodes.core import _run_stats_to_api
+from api.episodes.run_view import _run_stats_to_api
 
 SLUG = 'example-podcast'
 PAYLOAD = {
