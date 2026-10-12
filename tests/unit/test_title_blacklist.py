@@ -15,7 +15,7 @@ from config import (
     title_matches_skip_patterns, description_matches_skip_patterns,
     duration_outside_feed_range,
 )
-from api.episodes import _episode_base_json
+from api.episodes.core import _episode_base_json
 import main_app.feeds as feeds_mod
 from main_app import app, background
 from rss_parser import RSSParser

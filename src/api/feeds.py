@@ -59,7 +59,8 @@ from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
 from utils.paths import RECENTS_ARTWORK_PATH
 from utils.text import truncate
-from api.episodes import _episode_base_json, _job_state
+from api.episodes.core import _episode_base_json
+from api.episodes.common import _job_state
 from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, is_local_feed,
                                is_recents_feed, recents_cutoff)
 from podping_listener import feed_url_domain
@@ -2813,7 +2814,7 @@ def rerender_segments(slug):
     if not podcast:
         return error_response('Feed not found', 404)
 
-    from api.episodes import _check_recut_preconditions
+    from api.episodes.runs import _check_recut_preconditions
     from main_app.processing import start_background_processing
 
     # get_episodes defaults to a 50-row page; a feed's processed backlog can

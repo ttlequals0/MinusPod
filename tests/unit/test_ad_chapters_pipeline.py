@@ -267,9 +267,9 @@ def _post_regenerate(app_client, generated, ad_config=_UNSET):
     resolved = AD_CFG if ad_config is _UNSET else ad_config
     headers = _authed(app_client)
     with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
-         patch('api.episodes.ChaptersGenerator') as generator, \
-         patch('api.episodes.embed_chapters', return_value=False), \
-         patch('api.episodes.resolve_ad_chapter_config',
+         patch('api.episodes.chapters.ChaptersGenerator') as generator, \
+         patch('api.episodes.chapters.embed_chapters', return_value=False), \
+         patch('api.episodes.chapters.resolve_ad_chapter_config',
                lambda db, row: resolved), \
          patch('main_app.processing._refresh_rss_for_slug'):
         generator.return_value.chapters_degraded = False
@@ -341,8 +341,8 @@ def test_degraded_manual_regeneration_keeps_existing_chapters_and_recovers(app_c
     headers = _authed(app_client)
 
     with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
-         patch('api.episodes.ChaptersGenerator') as generator, \
-         patch('api.episodes.embed_chapters') as embed, \
+         patch('api.episodes.chapters.ChaptersGenerator') as generator, \
+         patch('api.episodes.chapters.embed_chapters') as embed, \
          patch('main_app.processing._refresh_rss_for_slug') as refresh:
         generator.return_value.chapters_degraded = True
         generator.return_value.generate_chapters.return_value = {
@@ -393,8 +393,8 @@ def test_incomplete_titles_preserve_existing_chapters(app_client, seeded, monkey
         SimpleNamespace(content=response), None))
     headers = _authed(app_client)
     with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
-         patch('api.episodes.ChaptersGenerator', return_value=generator), \
-         patch('api.episodes.embed_chapters') as embed, \
+         patch('api.episodes.chapters.ChaptersGenerator', return_value=generator), \
+         patch('api.episodes.chapters.embed_chapters') as embed, \
          patch('main_app.processing._refresh_rss_for_slug') as refresh:
         result = app_client.post(
             f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters', headers=headers)
@@ -511,7 +511,7 @@ def test_regen_job_records_the_hold_on_a_provider_rate_limit(app_client, seeded)
         with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
              patch('main_app.processing._resolve_or_load_route_snapshot',
                    return_value={'chapters': CHAPTERS_ROUTE}), \
-             patch('api.episodes.ChaptersGenerator') as generator, \
+             patch('api.episodes.chapters.ChaptersGenerator') as generator, \
              patch('rate_limit_hold.fire_queue_held_event') as fire, \
              patch('rate_limit_hold.get_llm_usage_url', lambda _db: ''):
             generator.return_value.generate_chapters.side_effect = error
@@ -556,13 +556,13 @@ def test_regen_job_under_an_active_hold_does_not_alert_again(app_client, seeded)
     try:
         with patch('main_app.processing._resolve_or_load_route_snapshot',
                    return_value={'chapters': CHAPTERS_ROUTE}), \
-             patch('api.episodes.ChaptersGenerator') as generator, \
+             patch('api.episodes.chapters.ChaptersGenerator') as generator, \
              patch('rate_limit_hold.fire_queue_held_event') as fire, \
              patch('rate_limit_hold.get_llm_usage_url', lambda _db: ''):
             generator.return_value.generate_chapters.side_effect = error
             record_hold_until(seeded, CHAPTERS_ROUTE['provider_key'], active_until,
                               credential_slot=CHAPTERS_ROUTE['credential_slot'])
-            from api.episodes import _regenerate_chapters_job
+            from api.episodes.chapters import _regenerate_chapters_job
             _regenerate_chapters_job(SLUG, EPISODE_ID, stamp)
         held_until = get_hold_until(seeded, CHAPTERS_HOLD_KEY)
     finally:
@@ -668,9 +668,9 @@ def test_regenerate_merges_the_markers_as_of_the_save(app_client, seeded):
         return {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
 
     with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
-         patch('api.episodes.ChaptersGenerator') as generator, \
-         patch('api.episodes.embed_chapters', return_value=False), \
-         patch('api.episodes.resolve_ad_chapter_config',
+         patch('api.episodes.chapters.ChaptersGenerator') as generator, \
+         patch('api.episodes.chapters.embed_chapters', return_value=False), \
+         patch('api.episodes.chapters.resolve_ad_chapter_config',
                lambda db, row: AD_CFG), \
          patch('main_app.processing._refresh_rss_for_slug'):
         generator.return_value.generate_chapters.side_effect = reject_the_marker
@@ -696,7 +696,7 @@ def test_regenerate_does_not_save_once_its_stamp_was_taken_over(app_client, seed
         return {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
 
     with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
-         patch('api.episodes.ChaptersGenerator') as generator, \
+         patch('api.episodes.chapters.ChaptersGenerator') as generator, \
          patch('main_app.processing._refresh_rss_for_slug'):
         generator.return_value.generate_chapters.side_effect = take_the_stamp_over
         resp = app_client.post(
@@ -730,11 +730,11 @@ def test_regen_job_records_the_error_when_the_hold_write_fails(app_client, seede
     error = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
     stamp = seeded.claim_chapters_regen(SLUG, EPISODE_ID)
 
-    with patch('api.episodes.ChaptersGenerator') as generator, \
-         patch('api.episodes.hold_queue_for_provider_limit',
+    with patch('api.episodes.chapters.ChaptersGenerator') as generator, \
+         patch('api.episodes.chapters.hold_queue_for_provider_limit',
                side_effect=RuntimeError('settings write failed')):
         generator.return_value.generate_chapters.side_effect = error
-        from api.episodes import _regenerate_chapters_job
+        from api.episodes.chapters import _regenerate_chapters_job
         _regenerate_chapters_job(SLUG, EPISODE_ID, stamp)
 
     row = seeded.get_episode(SLUG, EPISODE_ID)

@@ -223,7 +223,7 @@ def get_episode_cost_runs():
     """Per-run, per-phase cost breakdown for one episode, for the expandable
     Episode-costs row. Same run shape as the episode detail page so both
     surfaces render an identical table."""
-    from api.episodes import _processing_runs
+    from api.episodes.core import _processing_runs
     slug = request.args.get('slug')
     episode_id = request.args.get('episodeId')
     if not slug or not episode_id:

@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='normalize_markers_test_'))
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 
-from api.episodes import _markers_from_row  # noqa: E402
+from api.episodes.common import _markers_from_row
 from api.patterns import _insert_manual_marker, _load_episode_markers  # noqa: E402
 from main_app import processing  # noqa: E402
 from utils.markers import (DAI_PROBE_SPANS, clip_dai_core_spans,  # noqa: E402

@@ -3,7 +3,7 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('incomplete_coverage_test_')
 
-from api.episodes import _incomplete_coverage  # noqa: E402
+from api.episodes.core import _incomplete_coverage
 
 
 def _run(stats):
