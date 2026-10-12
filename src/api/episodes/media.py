@@ -9,9 +9,7 @@ from api import (
 from audio_peaks import compute_peaks, PeaksError
 from split_planning import build_split_candidates, build_split_pieces
 from utils.markers import find_marker_in_list
-from utils.text import (
-    extract_timed_spans_in_range,
-)
+from utils.text import extract_timed_spans_in_range
 from api.episodes import common
 
 

@@ -9,9 +9,10 @@ from api import (
     get_database, get_storage, get_status_service,
 )
 from config import (
-    is_keep_like, is_pending_review, normalize_segment_category, resolve_processing_mode, DEFAULT_SEGMENT_ACTION,
+    episode_matches_feed_filters, is_keep_like, is_pending_review, normalize_segment_category, resolve_processing_mode, DEFAULT_SEGMENT_ACTION,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
+from database.podcasts import is_local_feed
 from ad_validator import user_trimmed_keep_ranges
 from audio_processor import AudioProcessor
 from cancel import request_cancellation, wait_for_cancellation
@@ -19,17 +20,13 @@ from database.queue import (
     compute_queue_priority, PENDING_QUEUE_LIMIT,
     QUEUE_PRIORITY_MAX, QUEUE_PRIORITY_MIN,
 )
-from llm_client import (
-    start_episode_token_tracking, get_episode_token_totals,
-)
+from llm_client import start_episode_token_tracking, get_episode_token_totals
 import run_context
 from reprocess_modes import (
-    REPROCESS_MODE_NEEDS_TRANSCRIPT, clear_episode_for_mode, reset_episode_for_reprocess,
+    REPROCESS_MODE_NEEDS_TRANSCRIPT, batch_clear_episodes_for_mode, clear_episode_for_mode, reset_episode_for_reprocess,
 )
 from utils.constants import EpisodeStatus
-from utils.text import (
-    parse_transcript_segments,
-)
+from utils.text import parse_transcript_segments
 from utils.time import epoch_to_iso, utc_now_iso
 from api.episodes import common
 
@@ -285,6 +282,202 @@ def reprocess_all_episodes(slug):
             'skipped': skipped
         }
     })
+
+
+# Terminal statuses a user can act on in bulk (reprocess/delete).
+# 'deferred' episodes (#482) are included so a stuck offline queue
+# can be force-retried or cleaned up by hand.
+REPROCESSABLE_STATUSES = ('processed', 'failed', 'permanently_failed', 'deferred')
+
+@api.route('/feeds/<slug>/episodes/bulk', methods=['POST'])
+@limiter.limit("5 per minute")
+@log_request
+def bulk_episode_action(slug):
+    """Bulk actions on episodes: process, reprocess, reprocess_full, reprocess_llm, delete.
+
+    reprocess_llm re-detects + re-cuts using each saved transcript, skipping
+    re-transcription (issue #349); episodes without a transcript are skipped.
+    """
+    db = get_database()
+    storage = get_storage()
+
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('Feed not found', 404)
+
+    data = request.get_json()
+    if not data:
+        return error_response('Request body required', 400)
+
+    episode_ids = data.get('episodeIds', [])
+    action = data.get('action', '')
+
+    if not episode_ids:
+        return error_response('episodeIds is required and must be non-empty', 400)
+    if len(episode_ids) > 500:
+        return error_response('Maximum 500 episodes per bulk action', 400)
+    if action not in ('process', 'reprocess', 'reprocess_full', 'reprocess_llm', 'delete'):
+        return error_response('Invalid action. Use: process, reprocess, reprocess_full, reprocess_llm, delete', 400)
+
+    queued = 0
+    skipped = 0
+    freed_mb = 0.0
+    errors = []
+    skipped_episodes = []
+    eligible_ids = []
+    enqueue_ids = []
+
+    # Batch-fetch all episodes upfront to avoid N+1 queries
+    all_episodes = db.get_episodes_by_ids(slug, episode_ids)
+    episodes_by_id = {ep['episode_id']: ep for ep in all_episodes}
+
+    if action == 'process':
+        # Discovered rows follow the existing bulk path. Pending rows can only
+        # be restored when no queue entry or active run already owns them.
+        eligible_ids = []
+        stranded_pending = []
+        for episode_id in episode_ids:
+            episode = episodes_by_id.get(episode_id)
+            if not episode:
+                skipped += 1
+                continue
+            if episode_matches_feed_filters(episode, podcast):
+                skipped += 1
+                skipped_episodes.append({
+                    'episodeId': episode_id,
+                    'reason': 'Episode matches feed filters',
+                })
+                continue
+            if episode.get('status') == EpisodeStatus.DISCOVERED.value:
+                eligible_ids.append(episode_id)
+            elif episode.get('status') == EpisodeStatus.PENDING.value:
+                stranded_pending.append({
+                    'episode_id': episode_id,
+                    'priority': compute_queue_priority(
+                        podcast.get('queue_priority'), episode.get('published_at'), bulk=True),
+                })
+            else:
+                skipped += 1
+        if eligible_ids:
+            # reprocess_requested_at marks the row as user-initiated so the
+            # background drainer's auto-process-disabled gate bypasses it.
+            queued = db.batch_set_episodes_pending(slug, eligible_ids,
+                                                    reprocess_requested_at=utc_now_iso())
+            skipped += len(eligible_ids) - queued
+            if queued:
+                enqueue_ids = eligible_ids
+        pending_result = db.requeue_stranded_pending_episodes(
+            slug, stranded_pending, utc_now_iso())
+        queued += len(pending_result['queued'])
+        skipped += len(pending_result['skipped'])
+        skipped_episodes.extend(pending_result['skipped'])
+
+    elif action in ('reprocess', 'reprocess_full', 'reprocess_llm'):
+        # File cleanup must be per-episode, but DB updates are batched
+        mode = {'reprocess_full': 'full', 'reprocess_llm': 'llm'}.get(action, 'reprocess')
+        eligible_ids = []
+        for episode_id in episode_ids:
+            try:
+                episode = episodes_by_id.get(episode_id)
+                if not episode or episode.get('status') not in REPROCESSABLE_STATUSES:
+                    skipped += 1
+                    continue
+                # LLM-only reprocess needs a saved transcript; skip episodes without one.
+                if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] and not db.has_transcript(slug, episode_id):
+                    skipped += 1
+                    continue
+                # Keep existing audio until the new version is durable (orchestration-5).
+                eligible_ids.append(episode_id)
+            except Exception as e:
+                logger.error(f"Bulk action error for {slug}:{episode_id}: {e}")
+                errors.append(f"{episode_id}: bulk action failed")
+        if eligible_ids:
+            batch_clear_episodes_for_mode(db, slug, eligible_ids, mode)
+            now_str = utc_now_iso()
+            queued = db.batch_set_episodes_pending(slug, eligible_ids,
+                                                    reprocess_mode=mode,
+                                                    reprocess_requested_at=now_str)
+            if queued:
+                enqueue_ids = eligible_ids
+
+    elif action == 'delete':
+        # Collect eligible IDs, let delete_episodes handle batching
+        eligible_ids = []
+        for episode_id in episode_ids:
+            episode = episodes_by_id.get(episode_id)
+            if not episode or episode.get('status') not in REPROCESSABLE_STATUSES:
+                skipped += 1
+                continue
+            eligible_ids.append(episode_id)
+        if eligible_ids:
+            try:
+                active = db.mark_episodes_for_deletion(slug, eligible_ids)
+                try:
+                    busy = set(active['processing']) | set(active['uploading'])
+                    ready_ids = [episode_id for episode_id in eligible_ids
+                                 if episode_id not in busy]
+                    skipped += len(busy)
+                    # Local feeds retain their only original and delete processed output only.
+                    local_feed = is_local_feed(podcast)
+                    reset, freed = db.delete_episodes(
+                        slug, ready_ids, storage, keep_original=local_feed)
+                    queued += reset
+                    freed_mb += freed
+                    if local_feed and reset:
+                        from local_feed_builder import rebuild_local_feed
+                        rebuild_local_feed(slug)
+                    if reset:
+                        from recents_feed import rebuild_recents_feed
+                        rebuild_recents_feed()
+                finally:
+                    db.clear_episode_deletion_requests(slug, eligible_ids)
+            except Exception as e:
+                logger.error(f"Bulk delete error for {slug}: {e}")
+                errors.append('bulk delete failed')
+
+    # Enqueue episodes into auto_process_queue so the background processor
+    # picks them up sequentially. Previously this called start_background_processing()
+    # with no arguments (a TypeError silently swallowed by `except Exception: pass`),
+    # which meant episodes were marked pending in the DB but never actually processed.
+    if action in ('process', 'reprocess', 'reprocess_full', 'reprocess_llm') and enqueue_ids:
+        for episode_id in enqueue_ids:
+            try:
+                ep = episodes_by_id.get(episode_id)
+                if ep:
+                    # Bulk work enqueues at base + fresh only. Stamping a
+                    # whole backlog with the manual boost starved JIT plays
+                    # and single reprocesses for days (93 two-year-old
+                    # episodes at +20 once pinned a fresh episode 94th).
+                    priority = compute_queue_priority(
+                        podcast.get('queue_priority'), ep.get('published_at'), bulk=True)
+                    db.upsert_episode_for_processing(
+                        slug, episode_id,
+                        ep.get('original_url', ''),
+                        ep.get('title'),
+                        ep.get('published_at'),
+                        ep.get('description'),
+                        priority=priority,
+                    )
+            except Exception as e:
+                logger.warning(f"[{slug}:{episode_id}] Could not enqueue for processing: {e}")
+
+    logger.info(f"Bulk {action} on {slug}: {queued} queued, {skipped} skipped, {freed_mb:.1f} MB freed")
+
+    response = {
+        'queued': queued,
+        'skipped': skipped,
+        'freedMb': round(freed_mb, 2),
+        'errors': errors,
+        'skippedEpisodes': skipped_episodes,
+    }
+    # Bulk enqueues never start processing synchronously (unlike the single
+    # reprocess endpoint), so the authoritative state is 'queued' whenever
+    # anything was queued, else 'idle'. Not applicable to 'delete'.
+    if action in ('process', 'reprocess', 'reprocess_full', 'reprocess_llm'):
+        response['jobState'] = common._job_state(EpisodeStatus.PENDING.value,
+                                                 'queued' if queued else None)
+
+    return json_response(response)
 
 
 @api.route('/feeds/<slug>/episodes/passthrough', methods=['POST'])

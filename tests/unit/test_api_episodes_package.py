@@ -2,7 +2,7 @@
 import pathlib
 
 from tests.app_bootstrap import bootstrap
-from tests.import_graph import assert_acyclic, module_imports, package_modules
+from tests.import_graph import assert_acyclic, module_imports, package_import_graph, package_modules, registered_rules
 
 bootstrap('episodes_pkg_')
 
@@ -42,16 +42,11 @@ EXPECTED_RULES = [
 
 
 def test_api_episodes_routes_registered():
-    actual = sorted(
-        (r.rule, tuple(sorted(m for m in r.methods if m not in ('HEAD', 'OPTIONS'))))
-        for r in app.url_map.iter_rules()
-        if app.view_functions[r.endpoint].__module__.startswith('api.episodes'))
-    assert actual == sorted(EXPECTED_RULES)
+    assert registered_rules(app, 'api.episodes') == sorted(EXPECTED_RULES)
 
 
 def test_api_episodes_import_graph_is_acyclic():
-    graph = {name: module_imports(PKG / f'{name}.py', 'api.episodes') & set(GROUPS) for name in GROUPS}
-    assert_acyclic(graph)
+    assert_acyclic(package_import_graph(PKG, 'api.episodes'))
 
 
 def test_init_imports_every_group_module():

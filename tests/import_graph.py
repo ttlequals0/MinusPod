@@ -17,6 +17,20 @@ def module_imports(path, package):
             for alias in node.names}
 
 
+def package_import_graph(pkg_dir, package):
+    names = package_modules(pkg_dir)
+    return {name: module_imports(pathlib.Path(pkg_dir) / f'{name}.py', package) & set(names)
+            for name in names}
+
+
+def registered_rules(app, module_prefix):
+    """Sorted (rule, methods) for every route whose view lives under module_prefix."""
+    return sorted(
+        (r.rule, tuple(sorted(r.methods - {'HEAD', 'OPTIONS'})))
+        for r in app.url_map.iter_rules()
+        if app.view_functions[r.endpoint].__module__.startswith(module_prefix))
+
+
 def assert_acyclic(graph):
     try:
         list(graphlib.TopologicalSorter(graph).static_order())

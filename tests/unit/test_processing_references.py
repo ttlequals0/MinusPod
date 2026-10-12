@@ -1,5 +1,4 @@
 """Guards patch targets that name an attribute the module no longer has."""
-import functools
 import importlib
 import pathlib
 import re
@@ -10,11 +9,6 @@ bootstrap('refs_test_')
 
 TESTS = pathlib.Path(__file__).resolve().parents[1]
 TARGET_RE = re.compile(r"""['"]((?:api\.settings|api\.episodes|main_app\.processing)(?:\.\w+)+)['"]""")
-
-
-@functools.lru_cache(maxsize=None)
-def _test_sources():
-    return [(path, path.read_text()) for path in sorted(TESTS.rglob('*.py'))]
 
 
 def _resolves(target):
@@ -33,8 +27,10 @@ def _resolves(target):
 
 
 def test_no_stale_patch_targets():
-    stale = sorted({f'{path.relative_to(TESTS.parent)}: {target}'
-                    for path, text in _test_sources()
-                    for target in TARGET_RE.findall(text)
-                    if not _resolves(target)})
-    assert not stale, '\n'.join(stale)
+    sources = [(path, path.read_text()) for path in sorted(TESTS.rglob('*.py'))]
+    targets = {t for _, text in sources for t in TARGET_RE.findall(text)}
+    stale = {t for t in targets if not _resolves(t)}
+    report = sorted(f'{path.relative_to(TESTS.parent)}: {t}'
+                    for path, text in sources
+                    for t in stale if t in TARGET_RE.findall(text))
+    assert not report, '\n'.join(report)

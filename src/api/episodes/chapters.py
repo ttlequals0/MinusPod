@@ -26,9 +26,7 @@ from rate_limit_hold import (
     resolve_hold_scope,
 )
 from utils.constants import EpisodeStatus
-from utils.text import (
-    truncate,
-)
+from utils.text import truncate
 from api.episodes import common
 
 logger = logging.getLogger('podcast.api')
