@@ -170,7 +170,7 @@ def test_pre_pass_skips_episodes_still_within_original_window(db):
 
 def test_clamp_caps_original_to_processed():
     """API clamp helper: original > processed => clamp to processed."""
-    from api.settings import _clamp_original_retention
+    from api.settings.operations import _clamp_original_retention
     assert _clamp_original_retention(10, 30) == 10
     assert _clamp_original_retention(30, 10) == 10  # under cap untouched
     assert _clamp_original_retention(30, 30) == 30
@@ -179,7 +179,7 @@ def test_clamp_caps_original_to_processed():
 def test_clamp_passes_through_when_retention_disabled():
     """When retention_days=0 (disabled), original is passed through unchanged
     because there is no processed peer to outlive."""
-    from api.settings import _clamp_original_retention
+    from api.settings.operations import _clamp_original_retention
     assert _clamp_original_retention(0, 7) == 7
     assert _clamp_original_retention(0, 365) == 365
 

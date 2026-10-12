@@ -30,8 +30,8 @@ def client():
 @pytest.fixture(autouse=True)
 def _disable_settings_background_jobs(monkeypatch):
     monkeypatch.setattr(
-        'api.settings.trigger_reviewer_calibration', lambda *args: None)
-    monkeypatch.setattr('api.settings.force_refresh_pricing', lambda: None)
+        'api.settings.ad_detection.trigger_reviewer_calibration', lambda *args: None)
+    monkeypatch.setattr('api.settings.ad_detection.force_refresh_pricing', lambda: None)
 
 
 class TestOpenRouterKeyValidation:
@@ -422,8 +422,8 @@ class TestWebhookTestEndpointMessage:
     @staticmethod
     def _post_test(client, results):
         webhook = {'id': 'wh1', 'url': 'https://hook.example.com', 'events': []}
-        with patch('api.settings.load_webhooks', return_value=[webhook]), \
-             patch('api.settings.fire_test_event', return_value=results):
+        with patch('api.settings.notifications.load_webhooks', return_value=[webhook]), \
+             patch('api.settings.notifications.fire_test_event', return_value=results):
             response = client.post('/api/v1/settings/webhooks/wh1/test')
         assert response.status_code == 200
         return json.loads(response.data)
@@ -1125,9 +1125,9 @@ class TestOpenaiBaseUrlValidation:
             settings_api, 'validate_base_url',
             lambda *_args: pytest.fail('pure settings validation must not resolve provider URLs'))
 
-        assert settings_api.validate_settings_payload(
+        assert settings_api.ad_detection.validate_settings_payload(
             db, {'openaiBaseUrl': 'https://provider.example/v1'}) is None
-        assert settings_api.validate_settings_payload(
+        assert settings_api.ad_detection.validate_settings_payload(
             db, {'openaiBaseUrl': 'file:///etc/passwd'}) == (
                 "Invalid base URL: Blocked URL scheme: 'file'", 400)
 
@@ -1161,7 +1161,7 @@ class TestOpenaiBaseUrlValidation:
         db = database.Database()
         before = db.get_all_settings()
 
-        issue = settings_api.validate_settings_payload(db, payload)
+        issue = settings_api.ad_detection.validate_settings_payload(db, payload)
 
         assert issue is not None
         assert issue[0].startswith(expected)
@@ -1181,9 +1181,9 @@ class TestOpenaiBaseUrlValidation:
         db.set_setting('chapter_window_seconds', '2700')
         db.set_setting('chapter_min_duration_seconds', '700')
 
-        window_issue = settings_api.validate_settings_payload(
+        window_issue = settings_api.ad_detection.validate_settings_payload(
             db, {'windowSizeSeconds': None})
-        chapter_issue = settings_api.validate_settings_payload(
+        chapter_issue = settings_api.ad_detection.validate_settings_payload(
             db, {'chapterTargetSeconds': None})
 
         assert window_issue == (
@@ -1201,7 +1201,7 @@ class TestOpenaiBaseUrlValidation:
         db.set_setting('window_size_seconds', '3600')
         db.set_setting('window_overlap_seconds', '1500')
 
-        assert settings_api.validate_settings_payload(db, {
+        assert settings_api.ad_detection.validate_settings_payload(db, {
             'windowSizeSeconds': None,
             'windowOverlapSeconds': None,
         }) is None

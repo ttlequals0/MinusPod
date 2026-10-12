@@ -87,7 +87,7 @@ def test_reset_leaves_no_row_so_the_env_var_still_wins(monkeypatch):
     user_agent.invalidate_cache()
     assert user_agent.download_user_agent() == 'CustomAgent/9.9'
 
-    from api.settings import _apply_user_agent_fields
+    from api.settings.ad_detection import _apply_user_agent_fields
     assert _apply_user_agent_fields(db, {'downloadUserAgent': ''}) is None
 
     assert db.get_setting(user_agent.DOWNLOAD_UA_SETTING) is None

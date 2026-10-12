@@ -12,9 +12,9 @@ from flask import request
 import failover
 import transcriber
 from api import api, error_response, json_response, limiter
-from api.settings import (
-    SLOT_ALIASES, _clear_models_for_identity_changes,
-    _model_identity_snapshot, calibration_revision,
+from api.settings.common import SLOT_ALIASES
+from api.settings.ad_detection import (
+    _clear_models_for_identity_changes, _model_identity_snapshot, calibration_revision,
     finish_settings_payload_after_commit,
 )
 from config import (

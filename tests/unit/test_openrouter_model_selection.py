@@ -2,7 +2,7 @@
 model dropdown list, and the model-not-found hint on all-windows-failed."""
 import ad_detector
 from ad_detector import _model_not_found_hint
-from api.settings import _ensure_openrouter_aliases_present
+from api.settings.providers import _ensure_openrouter_aliases_present
 from config import OPENROUTER_ROUTER_ALIASES
 from llm_client import is_not_found_error
 

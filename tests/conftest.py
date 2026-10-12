@@ -42,7 +42,7 @@ def _isolate_reviewer_calibration(request, monkeypatch, _reset_rate_limiter):
     """Only scheduler tests may start automatic calibration workers."""
     settings_module = sys.modules.get('api.settings')
     if settings_module is not None and 'calibration_runs' not in request.fixturenames:
-        monkeypatch.setattr(settings_module, 'trigger_reviewer_calibration', lambda *args: None)
+        monkeypatch.setattr(settings_module.ad_detection, 'trigger_reviewer_calibration', lambda *args: None)
 
 
 @pytest.fixture

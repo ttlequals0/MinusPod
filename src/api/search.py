@@ -7,7 +7,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database,
 )
-from api.settings import _clamped_int
+from api.settings.common import _clamped_int
 from database.search import SEARCH_GROUP_NAMES
 from utils.constants import EpisodeStatus
 

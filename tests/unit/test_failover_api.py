@@ -184,16 +184,16 @@ def test_probe_now_requeues_deferred_episode_without_maintenance_tick(app_client
 
 
 def test_models_slot_failover_uses_failover_client(app_client, hdr, configured):
-    with patch('api.settings.create_client_for_provider') as make, \
-            patch('api.settings._models_from_client', return_value=[{'id': 'qwen3:8b'}]):
+    with patch('api.settings.providers.create_client_for_provider') as make, \
+            patch('api.settings.providers._models_from_client', return_value=[{'id': 'qwen3:8b'}]):
         r = app_client.get('/api/v1/settings/models?provider=openai-compatible&slot=failover')
     assert r.status_code == 200
     assert make.call_args.kwargs['credential_slot'] == 'failover'
 
 
 def test_models_slot_alias_b(app_client, hdr):
-    with patch('api.settings.create_client_for_provider'), \
-            patch('api.settings._models_from_client', return_value=[]):
+    with patch('api.settings.providers.create_client_for_provider'), \
+            patch('api.settings.providers._models_from_client', return_value=[]):
         assert app_client.get('/api/v1/settings/models?provider=ollama&slot=b').status_code == 200
 
 
