@@ -6,7 +6,7 @@ import requests
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('error_class_test_')
-from main_app.processing import is_transient_error
+from main_app.pipeline.common import is_transient_error
 from transcriber import TranscriptionRejectedError
 
 

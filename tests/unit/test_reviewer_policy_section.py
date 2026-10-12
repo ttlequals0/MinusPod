@@ -10,6 +10,9 @@ from ad_reviewer import (POLICY_LINE_CAP, _capped_line, _edge_item,
                          _format_policy_section)
 from database import DEFAULT_REVIEW_PROMPT
 from main_app import processing
+from main_app.pipeline import common, review
+from main_app.pipeline import detect, verify, publish
+from main_app.pipeline import review as review_stage
 from utils.markers import hard_members, note_merged_members
 from tests.unit.reviewer_test_utils import _reviewer
 
@@ -172,18 +175,21 @@ def test_pass1_reviewer_gets_keeps_and_user_rejections(monkeypatch):
 
     reviewer.review.side_effect = review
     monkeypatch.setattr(processing, 'db', MagicMock())
-    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, det: reviewer)
-    monkeypatch.setattr(processing, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(processing, '_publish_status', lambda *args: None)
-    monkeypatch.setattr(processing, '_merge_reviewer_result', lambda *args: None)
+    monkeypatch.setattr(review_stage, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(review_stage, '_build_reviewer', lambda db, det: reviewer)
+    monkeypatch.setattr(detect, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(review_stage, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(verify, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(publish, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(common, '_publish_status', lambda *args: None)
+    monkeypatch.setattr(review_stage, '_merge_reviewer_result', lambda *args: None)
     monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
     keep = {'start': 3450.0, 'end': 3480.0, 'category': 'self_promo'}
-    processing._run_ad_reviewer(
+    review_stage._run_ad_reviewer(
         'example-podcast', 'a1b2c3d4e5f6', 1, [_ad()], [_ad()], SEGMENTS,
         'Example Podcast', 'Episode', '', '', 0.8, 1, 'test-model',
         segment_actions=ACTIONS, keep_ads=[keep],
-        user_rejects=processing._pass1_user_rejects([{'start': 3700.0, 'end': 3710.0}], []))
+        user_rejects=review_stage._pass1_user_rejects([{'start': 3700.0, 'end': 3710.0}], []))
     assert captured['protected_spans'] == [
         {'start': 3450.0, 'end': 3480.0, 'kind': 'keep', 'category': 'self_promo'},
         {'start': 3700.0, 'end': 3710.0, 'kind': 'user_reject'},
@@ -197,19 +203,22 @@ def test_pass1_reviewer_widen_stops_at_a_user_rejection(monkeypatch):
         content='[{"start": 3492.9, "end": 3620.0, "confidence": 0.95}]',
         model='test-model')
     monkeypatch.setattr(processing, 'db', MagicMock())
-    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, det: reviewer)
-    monkeypatch.setattr(processing, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(processing, '_publish_status', lambda *args: None)
+    monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, det: reviewer)
+    monkeypatch.setattr(detect, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(review, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(verify, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(publish, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(common, '_publish_status', lambda *args: None)
     monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
     ad = {'start': 3492.9, 'end': 3573.2, 'confidence': 0.95,
           'detection_stage': 'claude', 'category': 'sponsor'}
 
-    cuts, _ = processing._run_ad_reviewer(
+    cuts, _ = review._run_ad_reviewer(
         'example-podcast', 'a1b2c3d4e5f6', 1, [ad], [ad], SEGMENTS,
         'Example Podcast', 'Episode', '', '', 0.8, 1, 'test-model',
         segment_actions=ACTIONS,
-        user_rejects=processing._pass1_user_rejects([{'start': 3590.0, 'end': 3610.0}], []))
+        user_rejects=review._pass1_user_rejects([{'start': 3590.0, 'end': 3610.0}], []))
 
     assert [(c['start'], c['end']) for c in cuts] == [(3492.9, 3590.0)]
 

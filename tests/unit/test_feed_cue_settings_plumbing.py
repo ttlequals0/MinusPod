@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from unittest.mock import MagicMock, patch
 import main_app.processing as processing
+from main_app.pipeline import detect
 from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
 
 
@@ -66,9 +67,9 @@ def test_per_feed_snap_values_reach_snap_function():
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.ad_detector, 'process_transcript',
                       return_value=ad_result_stub), \
-         patch('main_app.processing.resolve_feed_cue_settings', mock_resolve), \
-         patch('main_app.processing.snap_ad_boundaries_to_cues', mock_snap):
-        processing._detect_ads_first_pass(
+         patch('main_app.pipeline.detect.resolve_feed_cue_settings', mock_resolve), \
+         patch('main_app.pipeline.detect.snap_ad_boundaries_to_cues', mock_snap):
+        detect._detect_ads_first_pass(
             ctx, [], '/fake/audio.mp3',
             skip_patterns=[], audio_analysis_result=audio_result,
             progress_callback=None,
@@ -115,10 +116,10 @@ def test_per_feed_create_from_pairs_off_skips_synthesis():
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.ad_detector, 'process_transcript',
                       return_value=ad_result_stub), \
-         patch('main_app.processing.resolve_feed_cue_settings', mock_resolve), \
-         patch('main_app.processing.snap_ad_boundaries_to_cues', MagicMock()), \
-         patch('main_app.processing.synthesize_ads_from_cue_pairs', mock_synth):
-        processing._detect_ads_first_pass(
+         patch('main_app.pipeline.detect.resolve_feed_cue_settings', mock_resolve), \
+         patch('main_app.pipeline.detect.snap_ad_boundaries_to_cues', MagicMock()), \
+         patch('main_app.pipeline.detect.synthesize_ads_from_cue_pairs', mock_synth):
+        detect._detect_ads_first_pass(
             ctx, [], '/fake/audio.mp3',
             skip_patterns=[], audio_analysis_result=audio_result,
             progress_callback=None,
@@ -158,10 +159,10 @@ def test_per_feed_create_from_pairs_on_calls_synthesis_with_feed_values():
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.ad_detector, 'process_transcript',
                       return_value=ad_result_stub), \
-         patch('main_app.processing.resolve_feed_cue_settings', mock_resolve), \
-         patch('main_app.processing.snap_ad_boundaries_to_cues', MagicMock()), \
-         patch('main_app.processing.synthesize_ads_from_cue_pairs', mock_synth):
-        processing._detect_ads_first_pass(
+         patch('main_app.pipeline.detect.resolve_feed_cue_settings', mock_resolve), \
+         patch('main_app.pipeline.detect.snap_ad_boundaries_to_cues', MagicMock()), \
+         patch('main_app.pipeline.detect.synthesize_ads_from_cue_pairs', mock_synth):
+        detect._detect_ads_first_pass(
             ctx, [], '/fake/audio.mp3',
             skip_patterns=[], audio_analysis_result=audio_result,
             progress_callback=None,

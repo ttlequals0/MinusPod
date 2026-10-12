@@ -13,7 +13,9 @@ from config import MAX_EPISODE_RETRIES, ModelNotConfiguredError
 from llm_client import is_retryable_error
 from main_app import db, processing
 from main_app.episode_context import EpisodeContext
-from main_app.processing import _handle_processing_failure, is_transient_error
+from main_app.pipeline.failure import _handle_processing_failure
+from main_app.pipeline.common import is_transient_error
+from main_app.pipeline import detect
 
 
 def _detector(settings):
@@ -222,7 +224,7 @@ class TestDetectAdsFirstPassPreservesModelNotConfiguredType:
             p(processing, 'storage')
             p(processing, 'status_service')
             ad_detector_mock.process_transcript.return_value = ad_result
-            processing._detect_ads_first_pass(
+            detect._detect_ads_first_pass(
                 ctx, self.SEGMENTS, '/tmp/ep.mp3', skip_patterns=False,
                 audio_analysis_result=None, progress_callback=None,
             )

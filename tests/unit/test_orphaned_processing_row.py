@@ -15,6 +15,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('orphan_row_test_')
 
 from main_app import background
+from main_app.pipeline import finalize
 
 
 def test_periodic_block_resets_stuck_processing_rows():
@@ -173,7 +174,7 @@ def test_finalize_clears_a_stale_crash_message():
     mock_storage = MagicMock()
     with patch.object(processing, 'db', mock_db), \
          patch.object(processing, 'storage', mock_storage):
-        processing._persist_episode_state(
+        finalize._persist_episode_state(
             'example-podcast', 'a1b2c3d4e5f6', 2, 1, 1, 100.0, 90.0, 1)
 
     assert mock_db.upsert_episode.call_args.kwargs['error_message'] is None

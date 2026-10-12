@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from unittest.mock import MagicMock, patch
 
 import main_app.processing as processing
+from main_app.pipeline import signals, detect
 from audio_analysis.base import AudioAnalysisResult
 
 _RESULT = {'status': 'ok',
@@ -25,11 +26,11 @@ _RESULT = {'status': 'ok',
 
 def test_gate_off_skips_fetch():
     mock_fetch = MagicMock()
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='off'), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
     assert result is None
     mock_fetch.assert_not_called()
@@ -61,12 +62,12 @@ def test_mode_read_failure_fails_closed():
 def test_flag_unset_non_dai_feed_skips_fetch():
     """Tri-state gate (#519): unset flag + no DAI signal = stage stays off."""
     mock_fetch = MagicMock()
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='auto'), \
-         patch('main_app.processing.is_likely_dai_feed', return_value=False), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch('main_app.pipeline.signals.is_likely_dai_feed', return_value=False), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
     assert result is None
     mock_fetch.assert_not_called()
@@ -76,13 +77,13 @@ def test_flag_unset_non_dai_feed_skips_fetch():
 def test_flag_unset_dai_url_auto_enables():
     """Unset flag + DAI-prefix enclosure URL runs the stage (#519)."""
     mock_fetch = MagicMock(return_value=_RESULT)
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='auto'), \
-         patch('main_app.processing.is_likely_dai_feed', return_value=True), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch('main_app.pipeline.signals.is_likely_dai_feed', return_value=True), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential'):
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
     assert result == _RESULT
 
@@ -90,13 +91,13 @@ def test_flag_unset_dai_url_auto_enables():
 def test_flag_unset_dai_platform_auto_enables():
     """Unset flag + detected DAI platform on the feed runs the stage (#519)."""
     mock_fetch = MagicMock(return_value=_RESULT)
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='auto'), \
-         patch('main_app.processing.is_likely_dai_feed', return_value=False), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch('main_app.pipeline.signals.is_likely_dai_feed', return_value=False), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential'):
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7,
             dai_platform='acast')
     assert result == _RESULT
@@ -105,12 +106,12 @@ def test_flag_unset_dai_platform_auto_enables():
 def test_explicit_off_beats_dai_signal():
     """A per-feed 0 opts out even when the feed looks DAI-served (#519)."""
     mock_fetch = MagicMock()
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='off'), \
-         patch('main_app.processing.is_likely_dai_feed', return_value=True), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch('main_app.pipeline.signals.is_likely_dai_feed', return_value=True), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7,
             dai_platform='acast')
     assert result is None
@@ -120,12 +121,12 @@ def test_explicit_off_beats_dai_signal():
 
 def test_gate_on_fetches_and_persists():
     mock_fetch = MagicMock(return_value=_RESULT)
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='on'), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
     assert result == _RESULT
     url_arg, audio_arg = mock_fetch.call_args.args[0:2]
@@ -142,12 +143,12 @@ def test_unreliable_reencode_status_persists_with_zero_regions():
     unreliable = {'status': 'unreliable_reencode', 'regions': [],
                   'refetch_meta': {'ua': 'Overcast/3.0'}, 'error': None}
     mock_fetch = MagicMock(return_value=unreliable)
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='on'), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
     assert result['status'] == 'unreliable_reencode'
     assert result['regions'] == []
@@ -157,13 +158,13 @@ def test_unreliable_reencode_status_persists_with_zero_regions():
 
 
 def test_unexpected_error_recorded_not_raised():
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='on'), \
-         patch('main_app.processing.fetch_and_diff',
+         patch('main_app.pipeline.signals.fetch_and_diff',
                side_effect=RuntimeError('decoder exploded')), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
     assert result['status'] == 'error'
     assert 'decoder exploded' in result['error']
@@ -173,22 +174,22 @@ def test_unexpected_error_recorded_not_raised():
 
 def test_store_failure_is_nonfatal():
     mock_fetch = MagicMock(return_value=_RESULT)
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='on'), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential',
                       side_effect=RuntimeError('db gone')):
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
     assert result == _RESULT
 
 
 def test_flag_read_failure_is_nonfatal():
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                side_effect=RuntimeError('db gone')), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
     assert result is None
     mock_save.assert_not_called()
@@ -209,21 +210,21 @@ class TestMakeValidatorAudioAnalysis:
         diff = {'status': 'ok', 'regions': [
             {'start_s': 10.0, 'end_s': 20.0, 'kind': 'differential', 'corr': 0.0}
         ]}
-        result = processing._make_validator_audio_analysis(None, diff)
+        result = signals._make_validator_audio_analysis(None, diff)
         assert result == {'dai_differential': diff}
 
     def test_none_result_none_diff_returns_none(self):
-        assert processing._make_validator_audio_analysis(None, None) is None
+        assert signals._make_validator_audio_analysis(None, None) is None
 
     def test_non_none_result_returns_to_dict(self):
         r = AudioAnalysisResult()
         r.dai_differential = _RESULT
-        out = processing._make_validator_audio_analysis(r, _RESULT)
+        out = signals._make_validator_audio_analysis(r, _RESULT)
         assert out['dai_differential'] == _RESULT
 
     def test_detect_first_pass_accepts_dai_differential_kwarg(self):
         # After the fix, _detect_ads_first_pass has a dai_differential= param
         # so the outer pipeline can pass Layer 3 data when Layer 2 is None.
         import inspect
-        sig = inspect.signature(processing._detect_ads_first_pass)
+        sig = inspect.signature(detect._detect_ads_first_pass)
         assert 'dai_differential' in sig.parameters

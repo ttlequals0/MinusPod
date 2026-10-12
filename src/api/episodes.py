@@ -182,9 +182,7 @@ def chapters_only_decisions(markers, applied_cuts, original_duration,
 def _apply_needs_chapters_only(db, slug, episode_id, episode, markers) -> bool:
     """chapters_only_decisions for one pending-recut episode."""
     # Module-level import would be a cycle: main_app imports this package.
-    from main_app.processing import (
-        _keep_overridden, _load_stored_dai_differential, _make_keep_differential_override,
-    )
+    from main_app.pipeline.keep_rules import _keep_overridden, _load_stored_dai_differential, _make_keep_differential_override
     differential_override = _make_keep_differential_override(
         _load_stored_dai_differential(slug, episode_id))
     return chapters_only_decisions(
@@ -1365,7 +1363,7 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
     podcast_name = slug
     episode = None
     ctx = run_context.begin(slug, episode_id, run_id=uuid.uuid4().hex)
-    from main_app.processing import _end_run_log, _record_history_row, _start_run_log
+    from main_app.pipeline.finalize import _end_run_log, _record_history_row, _start_run_log
     recorder = _start_run_log(slug, episode_id)
     started = time.perf_counter()
     start_episode_token_tracking()
@@ -1436,7 +1434,7 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
     marker_cuts = storage.get_applied_cuts(slug, episode_id)
 
     # Reuse the job context so route, usage, and logs share one run ID.
-    from main_app.processing import _resolve_or_load_route_snapshot
+    from main_app.pipeline.admission import _resolve_or_load_route_snapshot
     ctx = run_context.current()
     if ctx is None or not ctx.run_id:
         raise RuntimeError('Chapter regeneration has no run context')
@@ -1515,7 +1513,7 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
     if processed_path.exists():
         embed_chapters(str(processed_path), public_chapters(chapters['chapters']))
     # Refresh the served feed if it includes chapters.
-    from main_app.processing import _refresh_rss_for_slug
+    from main_app.pipeline.common import _refresh_rss_for_slug
     _refresh_rss_for_slug(slug, episode_id)
 
 
@@ -2039,9 +2037,7 @@ def _annotate_queue_admission(db, queued: list[dict], pending_rows: list[dict]) 
     one settings read per row. Never raises: an unexplained entry reports
     unblocked rather than failing the panel.
     """
-    from main_app.processing import (
-        _admission_gates, _resolve_route_snapshot, admission_explanation,
-    )
+    from main_app.pipeline.admission import _admission_gates, _resolve_route_snapshot, admission_explanation
     from processing_queue import is_processing_paused
     idle = {'blocked': False, 'phase': None, 'slot': None,
             'reason': None, 'resumesAt': None}
@@ -2316,7 +2312,7 @@ def _start_chapter_rebuilds(db, rows):
     """
     if not rows:
         return
-    from main_app.processing import rebuild_ad_chapters
+    from main_app.pipeline.publish import rebuild_ad_chapters
 
     def _run():
         for slug, episode_id, stamp, episode, markers in rows:

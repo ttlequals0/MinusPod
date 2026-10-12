@@ -8,6 +8,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('recents_builder_test_')
 
 import main_app.feeds as mf  # noqa: E402
+from main_app.pipeline import common
 from database.podcasts import RECENTS_SLUG, recents_cutoff  # noqa: E402
 from recents_feed import build_recents_feed_xml, rebuild_recents_feed  # noqa: E402
 
@@ -103,6 +104,5 @@ def test_rebuild_persists_the_cached_rss_and_refresh_routes_to_it(recents):
 def test_source_episode_completion_rebuilds_the_recents_feed(recents):
     mf.storage.save_rss(RECENTS_SLUG, 'stale')
     mf.invalidate_feed_cache()
-    from main_app import processing
-    processing._refresh_rss_for_slug('alpha', 'aaaaaaaaaaa2')
+    common._refresh_rss_for_slug('alpha', 'aaaaaaaaaaa2')
     assert 'stale' not in (mf.storage.get_rss(RECENTS_SLUG) or 'stale')

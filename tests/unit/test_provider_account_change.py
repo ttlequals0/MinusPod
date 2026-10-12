@@ -16,6 +16,7 @@ from llm_route import (
     Route, account_identity, account_identity_for_slot, client_for_route,
     current_account_identity, route_account_mismatch,
 )
+from main_app.pipeline import common, admission, failure
 
 
 @pytest.fixture
@@ -153,24 +154,18 @@ class TestSnapshotGuard:
     """A recovered run reloads its persisted routes, so the guard must catch a
     change that landed while it was not running."""
 
-    def _processing(self):
-        import main_app.processing as processing
-        return processing
-
     def test_recovered_snapshot_with_a_changed_account_raises(self, provider_settings):
-        processing = self._processing()
         snapshot = {'detection': _openai_route('https://old.example/v1')}
         provider_settings['openai_base_url'] = 'https://new.example/v1'
         with pytest.raises(ProviderAccountChangedError):
-            processing._assert_route_snapshot_current(snapshot)
+            admission._assert_route_snapshot_current(snapshot)
 
     def test_unchanged_snapshot_passes(self, provider_settings):
-        processing = self._processing()
         snapshot = {'detection': _openai_route('https://old.example/v1')}
-        processing._assert_route_snapshot_current(snapshot)
+        admission._assert_route_snapshot_current(snapshot)
 
     def test_no_snapshot_passes(self, provider_settings):
-        self._processing()._assert_route_snapshot_current(None)
+        admission._assert_route_snapshot_current(None)
 
 
 class TestFailureHandlerRequeues:
@@ -184,11 +179,11 @@ class TestFailureHandlerRequeues:
         provider_settings['openai_base_url'] = 'https://new.example/v1'
         try:
             with patch.object(processing, 'db', fake_db), \
-                    patch.object(processing, '_publish_status'), \
-                    patch.object(processing, '_require_publication_owner'), \
-                    patch.object(processing, 'clear_route_snapshot') as clear, \
-                    patch.object(processing, '_requeue_episode_after_hold') as requeue:
-                processing._handle_processing_failure(
+                    patch.object(common, '_publish_status'), \
+                    patch.object(common, '_require_publication_owner'), \
+                    patch.object(admission, 'clear_route_snapshot') as clear, \
+                    patch.object(failure, '_requeue_episode_after_hold') as requeue:
+                failure._handle_processing_failure(
                     'example-podcast', 'a1b2c3d4e5f6', 'An episode', 'A Show',
                     {}, RuntimeError('detection failed'), 0.0)
         finally:

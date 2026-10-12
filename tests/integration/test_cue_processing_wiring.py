@@ -16,6 +16,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='cue-wire-test-'))
 
 from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal  # noqa: E402
+from main_app.pipeline import detect
+from main_app.pipeline import review, verify, publish
 
 
 def _cue(start, end, conf=0.95, label='ding'):
@@ -67,7 +69,10 @@ def test_first_pass_applies_cue_pair_and_snap(monkeypatch):
     monkeypatch.setattr(processing.ad_detector, 'process_transcript', lambda *a, **k: ad_result)
     monkeypatch.setattr(processing.storage, 'save_ads_json', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
-    monkeypatch.setattr(processing, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
     monkeypatch.setattr(processing, 'db', _StubDB(create_from_pairs=True))
 
     analysis = AudioAnalysisResult()
@@ -79,7 +84,7 @@ def test_first_pass_applies_cue_pair_and_snap(monkeypatch):
     ]
 
     ctx = types.SimpleNamespace(slug='wire-feed', episode_id='abcdef012345', podcast_id=1)
-    ads, count, _ = processing._detect_ads_first_pass(
+    ads, count, _ = detect._detect_ads_first_pass(
         ctx, segments=[], audio_path='x.mp3', skip_patterns=False,
         audio_analysis_result=analysis, progress_callback=None,
     )
@@ -111,14 +116,17 @@ def test_first_pass_no_cue_pair_when_setting_off(monkeypatch):
     monkeypatch.setattr(processing.ad_detector, 'process_transcript', lambda *a, **k: ad_result)
     monkeypatch.setattr(processing.storage, 'save_ads_json', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
-    monkeypatch.setattr(processing, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
     monkeypatch.setattr(processing, 'db', _StubDB(create_from_pairs=False))
 
     analysis = AudioAnalysisResult()
     analysis.signals = [_cue(300.0, 300.5), _cue(360.0, 360.5)]
 
     ctx = types.SimpleNamespace(slug='wire-feed', episode_id='abcdef012345', podcast_id=1)
-    ads, _, _ = processing._detect_ads_first_pass(
+    ads, _, _ = detect._detect_ads_first_pass(
         ctx, segments=[], audio_path='x.mp3', skip_patterns=False,
         audio_analysis_result=analysis, progress_callback=None,
     )
@@ -134,7 +142,10 @@ def test_pair_fraction_uses_audio_duration_with_transcript_fallback(monkeypatch,
     monkeypatch.setattr(processing.ad_detector, 'process_transcript', lambda *a, **k: ad_result)
     monkeypatch.setattr(processing.storage, 'save_ads_json', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
-    monkeypatch.setattr(processing, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
     db = _StubDB(create_from_pairs=True)
     overrides = db.get_podcast_cue_settings_overrides(1)
     overrides['cue_pair_max_break_fraction_override'] = 0.4
@@ -142,7 +153,7 @@ def test_pair_fraction_uses_audio_duration_with_transcript_fallback(monkeypatch,
     monkeypatch.setattr(processing, 'db', db)
     analysis = AudioAnalysisResult(signals=[_cue(100.0, 110.0), _cue(162.0, 170.0)])
     ctx = types.SimpleNamespace(slug='wire-feed', episode_id='abcdef012345', podcast_id=1)
-    ads, _, _ = processing._detect_ads_first_pass(
+    ads, _, _ = detect._detect_ads_first_pass(
         ctx, segments=[{'start': 0.0, 'end': 165.0, 'text': 'Episode speech'}],
         audio_path='x.mp3', skip_patterns=False, audio_analysis_result=analysis,
         progress_callback=None, episode_duration=episode_duration)

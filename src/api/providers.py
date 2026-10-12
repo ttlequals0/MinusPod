@@ -95,7 +95,7 @@ def _affected_runs(account_id: str | None, credential_slot: str) -> list[dict]:
     """Active runs whose frozen routes still name this account."""
     if not account_id:
         return []
-    from main_app.processing import runs_for_account
+    from main_app.pipeline.admission import runs_for_account
     return runs_for_account(account_id, credential_slot)
 
 
@@ -106,7 +106,7 @@ def _apply_affected_runs_action(runs: list[dict], action: str) -> None:
     asks the owner to stop now rather than at its next provider call.
     """
     from cancel import request_cancellation
-    from main_app.processing import clear_route_snapshot
+    from main_app.pipeline.admission import clear_route_snapshot
     for run in runs:
         clear_route_snapshot(run['runId'])
         if action == 'cancel':

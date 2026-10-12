@@ -25,6 +25,7 @@ from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2  # noqa: E
 from llm_client import invalidate_provider_cache  # noqa: E402
 from llm_route import account_identity  # noqa: E402
 from main_app import processing  # noqa: E402
+from main_app.pipeline import admission
 from processing_queue import _pid_start_time  # noqa: E402
 
 
@@ -122,7 +123,7 @@ class TestRouteSnapshotResolutionAndPersistence:
         db.set_secret('anthropic_api_key', 'sk-ant-should-not-appear')
         db.set_secret('openrouter_api_key', 'sk-or-should-not-appear')
 
-        snapshot = processing._resolve_or_load_route_snapshot(run_row['run_id'])
+        snapshot = admission._resolve_or_load_route_snapshot(run_row['run_id'])
 
         assert snapshot['detection'] == {
             'provider_key': 'anthropic', 'configured_model': 'claude-detect',
@@ -152,14 +153,14 @@ class TestRouteSnapshotResolutionAndPersistence:
         # Same fixture, spelled out for the "review=openrouter" case: review
         # already targets openrouter here (mixed_provider_settings),
         # distinct from detection's anthropic.
-        snapshot = processing._resolve_or_load_route_snapshot(run_row['run_id'])
+        snapshot = admission._resolve_or_load_route_snapshot(run_row['run_id'])
         assert snapshot['detection']['provider_key'] == 'anthropic'
         assert snapshot['review']['provider_key'] == 'openrouter'
         assert snapshot['detection']['provider_key'] != snapshot['review']['provider_key']
 
     def test_recovery_reuses_persisted_snapshot_over_current_settings(self, run_row):
         db = run_row['db']
-        first = processing._resolve_or_load_route_snapshot(run_row['run_id'])
+        first = admission._resolve_or_load_route_snapshot(run_row['run_id'])
         assert first['detection'] == {
             'provider_key': 'anthropic', 'configured_model': 'claude-detect',
             'base_url': None, 'credential_slot': 'primary',
@@ -172,7 +173,7 @@ class TestRouteSnapshotResolutionAndPersistence:
         db.set_setting('claude_model', 'or-detect-model', is_default=False)
         invalidate_provider_cache()
 
-        second = processing._resolve_or_load_route_snapshot(run_row['run_id'])
+        second = admission._resolve_or_load_route_snapshot(run_row['run_id'])
         assert second == first
 
 
@@ -342,7 +343,7 @@ class TestReviewerGateFrozenAtRunStart:
 
         # Snapshot resolved once at run start: review_provider=secondary,
         # review_model=or-review-model (mixed_provider_settings).
-        snapshot = processing._resolve_or_load_route_snapshot(run_id)
+        snapshot = admission._resolve_or_load_route_snapshot(run_id)
         assert snapshot['review']['gate'] == {
             'review_provider': 'secondary', 'review_model': 'or-review-model'}
 
@@ -379,7 +380,7 @@ class TestReviewerGateFrozenAtRunStart:
         db.set_setting('verification_provider', 'secondary', is_default=False)
         db.set_setting('verification_model', 'or-verify-model', is_default=False)
 
-        snapshot = processing._resolve_or_load_route_snapshot(run_id)
+        snapshot = admission._resolve_or_load_route_snapshot(run_id)
         assert snapshot['review']['gate'] == {
             'review_provider': None, 'review_model': None}
 

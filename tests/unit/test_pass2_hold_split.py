@@ -15,6 +15,7 @@ from ad_validator import AdValidator, Decision
 from audio_processor import AudioProcessor, get_replacement_duration
 from config import is_pending_review
 from main_app import processing
+from main_app.pipeline import review, verify
 from main_app.verification_reconciliation import (
     Pass2Ledger, _gate_hold_split_fragments, _gate_verification_ads_by_confidence,
     _split_pass2_candidates_around_holds, _split_pass2_candidates_around_spans,
@@ -265,7 +266,7 @@ def test_corroborated_hold_confirm_is_not_extended_by_the_fragment(monkeypatch):
     db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
     monkeypatch.setattr(processing, 'db', db)
     monkeypatch.setattr(processing, 'storage', MagicMock())
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
+    assert verify._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     kwargs = db.create_pattern_correction.call_args.kwargs
     assert kwargs['original_bounds'] == {'start': 2124.95, 'end': 2198.87}
     assert kwargs['corrected_bounds'] is None
@@ -350,7 +351,7 @@ def test_every_pass2_validation_gets_the_run_fp_snapshot():
 
 
 def _protection(*holds):
-    return processing.build_protection(
+    return verify.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=list(holds),
         pass1_cuts=[])
 
@@ -438,17 +439,17 @@ def test_parent_copy_is_unaffected_by_later_fragment_mutation():
 def _release(monkeypatch, hold, subs, verdicts):
     pairs = [_pair(*sub) for sub in subs]
     *_rest, candidates = _gate(pairs, [hold])
-    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, det: SimpleNamespace(
+    monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, det: SimpleNamespace(
         review=lambda **kw: ReviewResult(verdicts=list(verdicts))))
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
                         lambda: 'test-model')
     monkeypatch.setattr(processing.ad_detector, 'get_verification_provider',
                         lambda: None)
-    protection = processing.build_protection(
+    protection = verify.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[], holds=[hold],
         pass1_cuts=[])
-    released, _pairs = processing._review_hold_release_candidates(
+    released, _pairs = review._review_hold_release_candidates(
         _ctx(), candidates, [], protection)
     return candidates, released
 
@@ -468,7 +469,7 @@ def test_every_approved_subspan_of_a_hold_is_released(monkeypatch):
     assert is_pending_review(hold)
 
     db = _approval_db(monkeypatch)
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
+    assert verify._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     filed = [c.kwargs for c in db.create_pattern_correction.call_args_list]
     assert [f['corrected_bounds'] for f in filed] == [
         {'start': 1992.9, 'end': 2103.5}, {'start': 2124.9, 'end': 2195.4}]

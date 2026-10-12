@@ -64,7 +64,7 @@ def test_regenerating_chapters_force_refreshes_the_served_feed(app_client, seede
     with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
          patch('api.episodes.ChaptersGenerator') as generator, \
          patch('api.episodes.embed_chapters', return_value=False), \
-         patch('main_app.processing._refresh_rss_for_slug') as refresh:
+         patch('main_app.pipeline.common._refresh_rss_for_slug') as refresh:
         generator.return_value.generate_chapters.return_value = CHAPTERS
         resp = app_client.post(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
                                headers=headers)

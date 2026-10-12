@@ -11,7 +11,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from unittest.mock import patch  # noqa: E402
 
-import main_app.processing as processing  # noqa: E402
+from main_app.pipeline import keep_rules, verify
+from main_app.pipeline import review, cuts, publish
 from utils.markers import fold_marker_pair  # noqa: E402
 from config import (  # noqa: E402
     HOLD_REASON_VERIFICATION_KEPT_CONFLICT, HOLD_REASON_VERIFICATION_MISS,
@@ -30,9 +31,9 @@ PASS1_CUTS = [{'start': 100.0, 'end': 200.0, 'replacement_duration': 1.0}]
 def _seam(all_ads, v_ads_for_ui, v_ads_held):
     """The pass-2 merge seam in process_episode (the 'Merge pass 2 ads into
     combined list for UI' block), on the same inputs."""
-    merge_v = processing._dedupe_pass2_markers(
-        processing._stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held))
-    to_append, folded = processing._merge_pass2_markers(all_ads, merge_v)
+    merge_v = verify._dedupe_pass2_markers(
+        verify._stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held))
+    to_append, folded = verify._merge_pass2_markers(all_ads, merge_v)
     saved = list(all_ads) + to_append
     saved.sort(key=lambda x: x['start'])
     return saved, folded
@@ -41,14 +42,17 @@ def _seam(all_ads, v_ads_for_ui, v_ads_held):
 def test_kept_span_redetected_by_pass2_persists_once():
     keep_marker = {'start': 500.0, 'end': 520.0, 'category': 'recap',
                    'confidence': 0.9, 'detection_stage': 'llm'}
-    keep_ads, remove_ads = processing._partition_keep_ads([keep_marker], ACTIONS)
+    keep_ads, remove_ads = keep_rules._partition_keep_ads([keep_marker], ACTIONS)
     assert (keep_ads, remove_ads) == ([keep_marker], [])
 
     proc = {'start': 401.2, 'end': 420.8, 'confidence': 0.95,
             'validation': {'decision': 'ACCEPT', 'adjusted_confidence': 0.95}}
     orig = {'start': 500.2, 'end': 519.8, 'confidence': 0.95, 'sponsor': 'Acme'}
-    with patch.object(processing, 'get_replacement_duration', return_value=1.0):
-        surviving, _o, conflicts = processing._exclude_kept_spans_from_verification(
+    with patch.object(review, 'get_replacement_duration', return_value=1.0), \
+         patch.object(cuts, 'get_replacement_duration', return_value=1.0), \
+         patch.object(verify, 'get_replacement_duration', return_value=1.0), \
+         patch.object(publish, 'get_replacement_duration', return_value=1.0):
+        surviving, _o, conflicts = verify._exclude_kept_spans_from_verification(
             [proc], [orig], keep_ads, PASS1_CUTS)
     # A category keep is a settled decision, so the re-detection is dropped.
     assert surviving == []
@@ -80,7 +84,7 @@ def test_pass2_category_keep_folds_into_the_pass1_hold():
     proc = {'start': 401.2, 'end': 420.8, 'category': 'recap', 'confidence': 0.95}
     orig = {'start': 500.2, 'end': 519.8, 'category': 'recap', 'confidence': 0.95,
             'sponsor': 'Acme'}
-    _rp, _ro, _kp, category_kept = processing._partition_pass2_category_actions(
+    _rp, _ro, _kp, category_kept = verify._partition_pass2_category_actions(
         [proc], [orig], ACTIONS)
     assert len(category_kept) == 1
 
@@ -101,7 +105,7 @@ def test_second_hold_for_the_same_span_is_not_counted_twice():
     proc = {'start': 401.2, 'end': 420.8, 'confidence': 0.95,
             'held_for_review': True, 'hold_reason': 'cue_unproven'}
     orig = {'start': 500.2, 'end': 519.8, 'confidence': 0.95, 'sponsor': 'Acme'}
-    _cut, ui, gated_held, _n, _rel = processing._gate_verification_ads_by_confidence(
+    _cut, ui, gated_held, _n, _rel = verify._gate_verification_ads_by_confidence(
         [proc], [orig], 0.7, pass1_held_markers=[held])
 
     saved, folded = _seam([held], ui, gated_held)
@@ -252,7 +256,7 @@ def test_a_pass2_hold_survives_a_fold_into_a_rejected_pass1_marker():
                 'validation': {'decision': 'REJECT', 'flags': ['REJECT: no evidence']}}
     proc = {'start': 401.2, 'end': 420.8, 'confidence': 0.62}
     orig = {'start': 500.2, 'end': 519.8, 'confidence': 0.62, 'sponsor': 'Acme'}
-    _cut, ui, gated_held, _n, _rel = processing._gate_verification_ads_by_confidence(
+    _cut, ui, gated_held, _n, _rel = verify._gate_verification_ads_by_confidence(
         [proc], [orig], 0.7, verification_miss_hold_min_confidence=0.5,
         verification_miss_autocut_min_confidence=0.0)
     assert gated_held == [orig]

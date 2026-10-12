@@ -16,6 +16,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='cue-nm-test-'))
 
 from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal  # noqa: E402
+from main_app.pipeline import detect
+from main_app.pipeline import review, verify, publish
 
 
 def _match(start, end, conf=0.95, label='ding'):
@@ -54,7 +56,10 @@ def test_near_miss_is_advisory_only(monkeypatch):
     monkeypatch.setattr(processing.ad_detector, 'process_transcript', lambda *a, **k: ad_result)
     monkeypatch.setattr(processing.storage, 'save_ads_json', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
-    monkeypatch.setattr(processing, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
     monkeypatch.setattr(processing, 'db', _StubDB())
 
     analysis = AudioAnalysisResult()
@@ -69,7 +74,7 @@ def test_near_miss_is_advisory_only(monkeypatch):
     assert len(analysis.get_signals_by_type('audio_cue')) == 1
 
     ctx = types.SimpleNamespace(slug='nm-feed', episode_id='abcdef012345', podcast_id=1)
-    ads, _, _ = processing._detect_ads_first_pass(
+    ads, _, _ = detect._detect_ads_first_pass(
         ctx, segments=[], audio_path='x.mp3', skip_patterns=False,
         audio_analysis_result=analysis, progress_callback=None,
     )

@@ -15,6 +15,8 @@ _test_data_dir = bootstrap('recut_test_')
 
 from config import PASS2_REVIEWED_RELEASE_HOLD_REASONS
 from main_app import processing
+from main_app.pipeline import detect, cuts, publish, recut
+from main_app.pipeline import common, review, verify, finalize
 from utils.markers import explicit_override
 from tests.unit.pass2_test_utils import _user_corrections
 from tests.unit.recut_test_utils import _recut_render_call
@@ -55,7 +57,7 @@ def test_apply_boundary_adjustments_overrides_bounds(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
     assert ads[0]['start'] == 105.0
     assert ads[0]['end'] == 150.0
     assert ads[0]['dai_core_spans'] == [{'start': 105.0, 'end': 150.0}]
@@ -82,7 +84,7 @@ def test_apply_boundary_adjustments_narrows_the_merge_records(monkeypatch):
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
 
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
 
     assert ads[0]['merged_member_spans'] == [
         {'start': 105.0, 'end': 120.0, 'stage': 'claude'}]
@@ -100,7 +102,7 @@ def test_apply_boundary_adjustments_skips_unmatched(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
     assert ads[0]['start'] == 100.0
     assert ads[0]['end'] == 160.0
 
@@ -119,7 +121,7 @@ def test_apply_boundary_adjustments_newest_wins(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_podcast_by_slug', lambda slug: {'id': 42})
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections', lambda podcast_id, eid: corrections)
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
     assert ads[0]['start'] == 110.0
     assert ads[0]['end'] == 150.0
 
@@ -143,7 +145,7 @@ def test_apply_boundary_adjustments_leaves_split_pieces_alone(monkeypatch):
            {'start': 1150.0, 'end': 1400.0, 'sponsor': 'Acme'}]
     _pin_corrections(monkeypatch, [_boundary_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
     for _ in range(2):
-        processing._apply_boundary_adjustments('slug', 'ep', ads)
+        recut._apply_boundary_adjustments('slug', 'ep', ads)
         assert [(a['start'], a['end']) for a in ads] == [(1000.0, 1150.0), (1150.0, 1400.0)]
 
 
@@ -151,7 +153,7 @@ def test_apply_boundary_adjustments_leaves_three_split_pieces_alone(monkeypatch)
     ads = [{'start': 1000.0, 'end': 1100.0}, {'start': 1100.0, 'end': 1300.0},
            {'start': 1300.0, 'end': 1400.0}]
     _pin_corrections(monkeypatch, [_boundary_adjustment(1000.0, 1400.0, 1000.0, 1100.0)])
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
     assert [(a['start'], a['end']) for a in ads] == [
         (1000.0, 1100.0), (1100.0, 1300.0), (1300.0, 1400.0)]
 
@@ -159,7 +161,7 @@ def test_apply_boundary_adjustments_leaves_three_split_pieces_alone(monkeypatch)
 def test_apply_boundary_adjustments_boundless_marker_not_satisfied(monkeypatch):
     ads = [{'start': None, 'end': None}]
     _pin_corrections(monkeypatch, [_boundary_adjustment(0.0, 20.0, 0.0, 10.0)])
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
     assert ads == [{'start': None, 'end': None}]
 
 
@@ -170,8 +172,8 @@ def test_apply_boundary_adjustments_already_trimmed_is_idempotent(monkeypatch):
         _boundary_adjustment(100.0, 160.0, 105.0, 150.0),
         _boundary_adjustment(100.0, 160.0, 101.0, 159.0),
     ])
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
     assert (ads[0]['start'], ads[0]['end']) == (105.0, 150.0)
 
 
@@ -181,7 +183,7 @@ def test_apply_boundary_adjustments_split_then_adjust_leaves_sibling(monkeypatch
         _boundary_adjustment(1000.0, 1150.0, 1000.0, 1100.0),
         _boundary_adjustment(1000.0, 1400.0, 1000.0, 1150.0),
     ])
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
     assert [(a['start'], a['end']) for a in ads] == [(1000.0, 1100.0), (1150.0, 1400.0)]
 
 
@@ -189,7 +191,7 @@ def test_apply_boundary_adjustments_coincident_marker_does_not_steal(monkeypatch
     target = {'start': 100.0, 'end': 160.0, 'sponsor': 'Acme'}
     other = {'start': 100.0, 'end': 130.0, 'sponsor': 'Other'}
     _pin_corrections(monkeypatch, [_boundary_adjustment(100.0, 160.0, 100.0, 130.0)])
-    processing._apply_boundary_adjustments('slug', 'ep', [other, target])
+    recut._apply_boundary_adjustments('slug', 'ep', [other, target])
     assert (target['start'], target['end']) == (100.0, 130.0)
     assert (other['start'], other['end']) == (100.0, 130.0)
 
@@ -197,7 +199,7 @@ def test_apply_boundary_adjustments_coincident_marker_does_not_steal(monkeypatch
 def test_apply_boundary_adjustments_moves_single_marker_to_disjoint_span(monkeypatch):
     ads = [{'start': 100.0, 'end': 160.0}]
     _pin_corrections(monkeypatch, [_boundary_adjustment(100.0, 160.0, 200.0, 240.0)])
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
     assert (ads[0]['start'], ads[0]['end']) == (200.0, 240.0)
 
 
@@ -205,7 +207,7 @@ def test_apply_boundary_adjustments_skips_ambiguous_disjoint_move(monkeypatch, c
     ads = [{'start': 1000.0, 'end': 1150.0}, {'start': 1150.0, 'end': 1400.0}]
     _pin_corrections(monkeypatch, [_boundary_adjustment(1000.0, 1400.0, 2000.0, 2100.0)])
     caplog.set_level('INFO')
-    processing._apply_boundary_adjustments('slug', 'ep', ads)
+    recut._apply_boundary_adjustments('slug', 'ep', ads)
     assert [(a['start'], a['end']) for a in ads] == [(1000.0, 1150.0), (1150.0, 1400.0)]
     assert 'spans several markers and matches none' in caplog.text
 
@@ -221,7 +223,7 @@ def test_build_recut_ad_list_cuts_both_split_pieces(monkeypatch):
     monkeypatch.setattr(
         processing.db, 'get_episode_corrections',
         lambda podcast_id, eid: [_boundary_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
     assert sorted((a['start'], a['end']) for a in ads_to_remove) == [
@@ -262,7 +264,7 @@ def test_final_confirmed_bounds_sync_cut_and_master(monkeypatch):
         processing.storage, 'save_combined_ads',
         lambda *args: saves.append(args))
 
-    result = processing._finalize_user_confirmed_bounds(
+    result = cuts._finalize_user_confirmed_bounds(
         'feed', 'episode', [cut], [master], corrections)
 
     assert result[0]['start'] == 1361.5
@@ -304,7 +306,7 @@ def test_plain_confirmed_fragments_keep_their_own_bounds(monkeypatch):
         processing.storage, 'save_combined_ads',
         lambda *args: saves.append(args))
 
-    result = processing._finalize_user_confirmed_bounds(
+    result = cuts._finalize_user_confirmed_bounds(
         'feed', 'episode', [first, second], [first, second], [])
 
     assert [(ad['start'], ad['end']) for ad in result] == [
@@ -327,7 +329,7 @@ def test_final_confirmed_bounds_ignores_untrusted_marker(monkeypatch):
         processing.storage, 'save_combined_ads',
         lambda *args: pytest.fail('unchanged markers must not be persisted'))
 
-    processing._finalize_user_confirmed_bounds(
+    cuts._finalize_user_confirmed_bounds(
         'feed', 'episode', [marker], [marker], corrections)
 
     assert marker['end'] == 1406.753
@@ -351,7 +353,7 @@ def test_final_confirmed_bounds_uses_carried_span_after_large_extension(monkeypa
     }]
     monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
 
-    processing._finalize_user_confirmed_bounds(
+    cuts._finalize_user_confirmed_bounds(
         'feed', 'episode', [marker], [marker], corrections)
 
     assert marker['start'] == 101.0
@@ -382,7 +384,7 @@ def test_final_confirmed_bounds_narrows_the_merge_records(monkeypatch):
     }]
     monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
 
-    processing._finalize_user_confirmed_bounds(
+    cuts._finalize_user_confirmed_bounds(
         'feed', 'episode', [marker], [marker], corrections)
 
     assert (marker['start'], marker['end']) == (100.0, 140.0)
@@ -414,7 +416,7 @@ def test_final_confirmed_bounds_does_not_restore_older_trim_after_new_plain_conf
         processing.storage, 'save_combined_ads',
         lambda *args: pytest.fail('newest plain confirm must keep its bounds'))
 
-    processing._finalize_user_confirmed_bounds(
+    cuts._finalize_user_confirmed_bounds(
         'feed', 'episode', [marker], [marker], corrections)
 
     assert marker['start'] == 100.0
@@ -434,7 +436,7 @@ def test_final_confirmed_bounds_clamps_carried_span_to_episode(monkeypatch):
     }
     monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
 
-    processing._finalize_user_confirmed_bounds(
+    cuts._finalize_user_confirmed_bounds(
         'feed', 'episode', [marker], [marker], [], episode_duration=105.0)
 
     assert marker['start'] == 101.0
@@ -460,7 +462,7 @@ def test_final_confirmed_bounds_persists_metadata_only_cleanup(monkeypatch):
         processing.storage, 'save_combined_ads',
         lambda *args: saves.append(args))
 
-    processing._finalize_user_confirmed_bounds(
+    cuts._finalize_user_confirmed_bounds(
         'feed', 'episode', [marker], [marker], [])
 
     assert 'end_extended_by_content' not in marker
@@ -484,7 +486,7 @@ def test_final_confirmed_bounds_ignores_collapsed_duration_clamp(monkeypatch):
         processing.storage, 'save_combined_ads',
         lambda *args: pytest.fail('a collapsed clamp must not be persisted'))
 
-    processing._finalize_user_confirmed_bounds(
+    cuts._finalize_user_confirmed_bounds(
         'feed', 'episode', [marker], [marker], [], episode_duration=100.0)
 
     assert marker['start'] == 101.0
@@ -511,7 +513,7 @@ def test_final_confirmed_bounds_master_fallback_requires_overlap(monkeypatch):
     related_master = marker(100.0, 140.0)
     monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
 
-    processing._finalize_user_confirmed_bounds(
+    cuts._finalize_user_confirmed_bounds(
         'feed', 'episode', [cut], [unrelated, related_master], [])
 
     assert cut['end'] == 111.0
@@ -536,7 +538,7 @@ def test_build_recut_ad_list_drops_rejected(monkeypatch):
         {'start': 30.0, 'end': 90.0, 'text': 'sponsor a'},
         {'start': 300.0, 'end': 360.0, 'text': 'sponsor b'},
     ]
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', segments, 600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -559,7 +561,7 @@ def test_build_recut_ad_list_keeps_confirmed(monkeypatch):
         processing.db, 'get_confirmed_corrections',
         lambda podcast_id, eid: [{'start': 30.0, 'end': 90.0}])
     segments = [{'start': 30.0, 'end': 90.0, 'text': 'maybe an ad'}]
-    ads_to_remove, _, *_ = processing._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
+    ads_to_remove, _, *_ = recut._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
     assert {a['start'] for a in ads_to_remove} == {30.0}
 
 
@@ -576,13 +578,13 @@ def test_build_recut_ad_list_keeps_manual_add(monkeypatch):
     monkeypatch.setattr(
         processing.db, 'get_confirmed_corrections', lambda podcast_id, eid: [])
     segments = [{'start': 120.0, 'end': 180.0, 'text': 'manual'}]
-    ads_to_remove, _, *_ = processing._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
+    ads_to_remove, _, *_ = recut._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
     assert {a['start'] for a in ads_to_remove} == {120.0}
 
 
 def test_build_recut_ad_list_empty_when_no_markers(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_episode', lambda s, e: {'ad_markers_json': None})
-    assert processing._build_recut_ad_list('slug', 'ep', [], 600.0, '', 0.80, corrections=_user_corrections('slug', 'ep')) == ([], [], [], [])
+    assert recut._build_recut_ad_list('slug', 'ep', [], 600.0, '', 0.80, corrections=_user_corrections('slug', 'ep')) == ([], [], [], [])
 
 
 @pytest.mark.parametrize('toggle,expect_spans', [(0, None), (1, True)])
@@ -603,14 +605,14 @@ def test_recut_gates_stored_transcript_spans_on_toggle(monkeypatch, toggle, expe
     monkeypatch.setattr(processing.db, 'get_episode_upstream_transcript',
                         lambda s, e: stored_diff)
     captured = {}
-    real_build_validator = processing._build_validator
+    real_build_validator = detect._build_validator
 
     def _spy(*args, **kwargs):
         captured['transcript_spans'] = kwargs.get('transcript_spans')
         return real_build_validator(*args, **kwargs)
-    monkeypatch.setattr(processing, '_build_validator', _spy)
+    monkeypatch.setattr(detect, '_build_validator', _spy)
     segments = [{'start': 30.0, 'end': 90.0, 'text': 'sponsor a'}]
-    processing._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80,
+    recut._build_recut_ad_list('slug', 'ep', segments, 600.0, '', 0.80,
                                     corrections=_user_corrections('slug', 'ep'))
     if expect_spans is None:
         assert captured['transcript_spans'] is None
@@ -659,7 +661,7 @@ def test_build_recut_held_confirm_is_cut(monkeypatch):
     _stub_recut_db(monkeypatch, ads,
                    confirmed=[{'start': 100.0, 'end': 400.0}],
                    overrides={'max_ad_duration_override': 240.0})
-    ads_to_remove, _, *_ = processing._build_recut_ad_list(
+    ads_to_remove, _, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -676,7 +678,7 @@ def test_build_recut_held_fp_is_uncut_reject(monkeypatch):
     _stub_recut_db(monkeypatch, ads,
                    fp=[{'start': 100.0, 'end': 400.0}],
                    overrides={'max_ad_duration_override': 240.0})
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -710,7 +712,7 @@ def test_build_recut_respects_splice_veto_disabled(monkeypatch):
     except AttributeError:
         pass
     segments = [{'start': 1800.0, 'end': 1890.0, 'text': 'vacation rental'}]
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', segments, 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -734,7 +736,7 @@ def test_build_recut_waives_the_splice_veto_on_baked_in_audio(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_episode_dai_differential',
                         lambda s, e: json.dumps(dd))
     segments = [{'start': 1800.0, 'end': 1890.0, 'text': 'a host read'}]
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', segments, 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
     assert len(ads_to_remove) == 1
@@ -749,7 +751,7 @@ def test_build_recut_held_nothing_stays_held_uncut(monkeypatch):
             'reason': 'BetterHelp sponsor'}]
     _stub_recut_db(monkeypatch, ads,
                    overrides={'max_ad_duration_override': 240.0})
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -765,7 +767,7 @@ def test_build_recut_manual_on_cue_gated_feed_is_cut(monkeypatch):
             'reason': 'Manual Co: manually added ad'}]
     _stub_recut_db(monkeypatch, ads,
                    overrides={'cue_gated_approval': 1})
-    ads_to_remove, _, *_ = processing._build_recut_ad_list(
+    ads_to_remove, _, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -789,7 +791,7 @@ def test_gate_held_ad_not_cut_despite_high_confidence():
             'adjusted_confidence': 0.95,
         },
     }
-    ads_to_remove, _ = processing._gate_validation_by_confidence(
+    ads_to_remove, _ = detect._gate_validation_by_confidence(
         'slug', 'ep', [ad], 0.80
     )
     assert ads_to_remove == [], (
@@ -804,7 +806,7 @@ def test_build_recut_previously_cut_stays_cut_when_cue_gate_enabled(monkeypatch)
     ads = [{'start': 100.0, 'end': 160.0, 'confidence': 0.95,
             'reason': 'promotional read', 'was_cut': True}]
     _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -823,7 +825,7 @@ def test_build_recut_previously_cut_stays_cut_after_boundary_clamp(monkeypatch):
     ads = [{'start': 3540.0, 'end': 3603.0, 'confidence': 0.95,
             'reason': 'promotional read', 'was_cut': True}]
     _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -841,7 +843,7 @@ def test_build_recut_preserves_trusted_short_cut(monkeypatch):
     }]
     _stub_recut_db(monkeypatch, ads)
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -859,7 +861,7 @@ def test_build_recut_trusted_short_cut_still_honors_fp(monkeypatch):
     }]
     _stub_recut_db(monkeypatch, ads, fp=[{'start': 100.0, 'end': 106.0}])
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -879,7 +881,7 @@ def test_build_recut_no_merge_across_saved_cut_status_keeps_both_outcomes(monkey
          'reason': 'promo two', 'was_cut': True},  # previously cut
     ]
     _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -900,7 +902,7 @@ def test_build_recut_previously_cut_review_not_held_by_cue_gate(monkeypatch):
     ads = [{'start': 500.0, 'end': 560.0, 'confidence': 0.60,
             'reason': 'possible sponsor mention', 'was_cut': True}]
     _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -916,7 +918,7 @@ def test_build_recut_previously_held_still_re_held(monkeypatch):
             'held_for_review': True, 'hold_reason': 'max_duration'}]
     _stub_recut_db(monkeypatch, ads,
                    overrides={'max_ad_duration_override': 240.0})
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep')
     )
@@ -932,7 +934,7 @@ def test_gate_review_fallthrough_no_cue_is_held_on_cue_gated_feed():
         'start': 500.0, 'end': 560.0, 'confidence': 0.80,
         'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.80},
     }
-    ads_to_remove, _ = processing._gate_validation_by_confidence(
+    ads_to_remove, _ = detect._gate_validation_by_confidence(
         'slug', 'ep', [ad], 0.80, cue_gate_enabled=True
     )
     assert ads_to_remove == [], "No-cue REVIEW ad must not be cut on a cue-gated feed"
@@ -948,7 +950,7 @@ def test_gate_review_fallthrough_cue_backed_is_cut_on_cue_gated_feed():
         'cue_snap': {'start': 498.0, 'end': 562.0},
         'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.80},
     }
-    ads_to_remove, _ = processing._gate_validation_by_confidence(
+    ads_to_remove, _ = detect._gate_validation_by_confidence(
         'slug', 'ep', [ad], 0.80, cue_gate_enabled=True
     )
     assert {a['start'] for a in ads_to_remove} == {500.0}
@@ -961,7 +963,7 @@ def test_gate_review_fallthrough_no_cue_cut_when_gate_off():
         'start': 500.0, 'end': 560.0, 'confidence': 0.80,
         'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.80},
     }
-    ads_to_remove, _ = processing._gate_validation_by_confidence(
+    ads_to_remove, _ = detect._gate_validation_by_confidence(
         'slug', 'ep', [ad], 0.80, cue_gate_enabled=False
     )
     assert {a['start'] for a in ads_to_remove} == {500.0}
@@ -995,7 +997,7 @@ def test_build_recut_merges_dai_differential_into_audio_analysis(monkeypatch):
                         lambda s, e: json.dumps(dd))
     captured = {}
     _spy_validate(monkeypatch, captured)
-    processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
+    recut._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
     assert captured['called']
     assert captured['audio_analysis'] is not None
     assert 'dai_differential' in captured['audio_analysis']
@@ -1014,7 +1016,7 @@ def test_build_recut_dai_differential_none_does_not_crash(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_episode_dai_differential', lambda s, e: None)
     captured = {}
     _spy_validate(monkeypatch, captured)
-    processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
+    recut._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
     assert captured['called']
     assert captured['audio_analysis'] is None
 
@@ -1033,7 +1035,7 @@ def test_build_recut_dai_differential_attribute_error_does_not_crash(monkeypatch
     monkeypatch.setattr(processing.db, 'get_episode_dai_differential', _raise)
     captured = {}
     _spy_validate(monkeypatch, captured)
-    processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
+    recut._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
     assert captured['called']
     assert captured['audio_analysis'] is None
 
@@ -1049,7 +1051,7 @@ def test_build_recut_dai_differential_malformed_json_does_not_crash(monkeypatch)
                         lambda s, e: '{not valid json')
     captured = {}
     _spy_validate(monkeypatch, captured)
-    processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
+    recut._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep'))
     assert captured['called']
     assert captured['audio_analysis'] is None
 
@@ -1059,7 +1061,7 @@ def test_generate_assets_skips_chapters_when_disabled(monkeypatch):
     counters = {}
     _stub_assets_io(monkeypatch, counters)
     segments = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
-    processing._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title',
+    publish._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title',
                                 regenerate_chapters=False)
     assert counters.get('chapters', 0) == 0
     assert counters.get('save_chapters', 0) == 0
@@ -1070,7 +1072,7 @@ def test_generate_assets_generates_chapters_by_default(monkeypatch):
     counters = {}
     _stub_assets_io(monkeypatch, counters)
     segments = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
-    processing._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title')
+    publish._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title')
     assert counters.get('chapters', 0) == 1
 
 
@@ -1084,14 +1086,14 @@ def test_generate_assets_embeds_chapters_into_audio(monkeypatch):
         chapters_generator.ChaptersGenerator, 'generate_chapters',
         lambda self, *a, **k: {'chapters': [{'startTime': 0, 'title': 'Intro'}]})
     embedded = {}
-    monkeypatch.setattr(processing, 'embed_chapters',
+    monkeypatch.setattr(publish, 'embed_chapters',
                         lambda path, chapters, duration=None: embedded.update(
                             path=path, chapters=chapters, duration=duration) or True)
     segments = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
     # chapters_mode='generate' forces the generator path deterministically:
     # default 'auto' would probe audio_path for publisher chapters first,
     # and this path does not exist on disk so the probe would fail (#560).
-    processing._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title',
+    publish._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title',
                                 audio_path='/data/slug/episodes/ep-v1.mp3',
                                 audio_duration=1800.0,
                                 podcast_row={'chapters_mode': 'generate'})
@@ -1108,10 +1110,10 @@ def test_generate_assets_skips_embed_without_audio_path(monkeypatch):
         chapters_generator.ChaptersGenerator, 'generate_chapters',
         lambda self, *a, **k: {'chapters': [{'startTime': 0, 'title': 'Intro'}]})
     embedded = {}
-    monkeypatch.setattr(processing, 'embed_chapters',
+    monkeypatch.setattr(publish, 'embed_chapters',
                         lambda path, chapters, duration=None: embedded.update(path=path) or True)
     segments = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
-    processing._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title')
+    publish._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title')
     assert embedded == {}
 
 
@@ -1173,7 +1175,7 @@ def test_recut_preserves_reviewer_rejects_among_confirmed_adjusted_and_held(monk
     _stub_recut_db(monkeypatch, ads, confirmed=confirmed)
     _stub_adjustment(monkeypatch, (395.0, 465.0), (400.0, 460.0))
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1189,7 +1191,7 @@ def test_recut_preserves_reviewer_rejects_among_confirmed_adjusted_and_held(monk
 def test_recut_auto_filed_confirm_does_not_cut_reject(monkeypatch):
     _stub_recut_db(monkeypatch, [_reject(R1)], confirmed=[_auto_confirm(*R1)])
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1204,7 +1206,7 @@ def test_recut_user_confirm_overrides_reject(monkeypatch):
     _stub_recut_db(monkeypatch, [stale],
                    confirmed=[{'start': R1[0], 'end': R1[1], 'correction_type': 'confirm'}])
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1221,7 +1223,7 @@ def test_recut_boundary_adjustment_overrides_reject(monkeypatch):
                                'confirmed_span': {'start': corrected[0], 'end': corrected[1]}}])
     _stub_adjustment(monkeypatch, R1, corrected)
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1234,12 +1236,12 @@ def test_recut_reject_preservation_is_idempotent(monkeypatch):
            _corroborated_hold(1000.0, 1100.0)]
     confirmed = [_auto_confirm(1000.0, 1100.0)]
     _stub_recut_db(monkeypatch, ads, confirmed=confirmed)
-    first_cut, first_all, *_ = processing._build_recut_ad_list(
+    first_cut, first_all, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
     _stub_recut_db(monkeypatch, json.loads(json.dumps(first_all)), confirmed=confirmed)
-    second_cut, second_all, *_ = processing._build_recut_ad_list(
+    second_cut, second_all, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1255,7 +1257,7 @@ def test_recut_reject_preservation_is_idempotent(monkeypatch):
 def test_recut_reject_never_merges_into_adjacent_cut(monkeypatch, neighbor, saved_cut):
     _stub_recut_db(monkeypatch, [neighbor, _reject(R1, was_cut=saved_cut)])
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1277,11 +1279,14 @@ def test_recut_episode_keeps_rejects_out_of_saved_markers_and_applied_cuts(tmp_p
         db = p(processing, 'db')
         storage = p(processing, 'storage')
         p(processing, 'status_service')
-        p(processing, '_finalize_episode')
-        p(processing, 'get_min_cut_confidence', return_value=0.80)
-        p(processing, 'embed_chapters', return_value=True)
-        p(processing, 'get_replacement_duration', return_value=1.0)
-        p(processing, 'resolve_ad_chapter_config', return_value=None)
+        p(finalize, '_finalize_episode')
+        p(common, 'get_min_cut_confidence', return_value=0.80)
+        p(publish, 'embed_chapters', return_value=True)
+        p(review, 'get_replacement_duration', return_value=1.0)
+        p(cuts, 'get_replacement_duration', return_value=1.0)
+        p(verify, 'get_replacement_duration', return_value=1.0)
+        p(publish, 'get_replacement_duration', return_value=1.0)
+        p(publish, 'resolve_ad_chapter_config', return_value=None)
         db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                        'ad_markers_json': json.dumps(ads)}
         db.get_podcast_by_slug.return_value = {'id': 1}
@@ -1307,7 +1312,7 @@ def test_recut_episode_keeps_rejects_out_of_saved_markers_and_applied_cuts(tmp_p
         db.save_processing_assets.side_effect = (
             lambda s, e, assets: saved.__setitem__('cuts', assets['applied_cuts']))
 
-        assert processing._recut_episode(
+        assert recut._recut_episode(
             'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
         # The recut reads the episode row once and builds its ad list from that read.
         assert db.get_episode.call_count == 1
@@ -1333,7 +1338,7 @@ def test_build_recut_ad_list_keeps_kept_markers_out_of_validation(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_false_positive_corrections', lambda p, e: [])
     monkeypatch.setattr(processing.db, 'get_confirmed_corrections', lambda p, e: [])
     seen = []
-    real_build = processing._build_validator
+    real_build = detect._build_validator
 
     def spy_build(*args, **kwargs):
         validator = real_build(*args, **kwargs)
@@ -1341,10 +1346,10 @@ def test_build_recut_ad_list_keeps_kept_markers_out_of_validation(monkeypatch):
         validator.validate = lambda ads, **kw: (seen.extend(ads), real_validate(ads, **kw))[1]
         return validator
 
-    monkeypatch.setattr(processing, '_build_validator', spy_build)
+    monkeypatch.setattr(detect, '_build_validator', spy_build)
     segments = [{'start': 100.0, 'end': 190.0, 'text': 'promo then sponsor read'}]
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', segments, 600.0, '', 0.80,
         segment_actions={'self_promo': 'keep', 'sponsor': 'remove'},
         corrections=_user_corrections('slug', 'ep'))
@@ -1360,8 +1365,8 @@ def test_pass1_carve_saves_trusted_fragments_that_a_recut_keeps_cut(monkeypatch)
     keep = {'start': 12.0, 'end': 40.0, 'confidence': 0.98, 'category': 'self_promo',
             'action_applied': 'keep', 'was_cut': False, 'reason': 'show promo'}
     all_ads = [cut, keep]
-    pieces = processing._carve_cuts_around([cut], all_ads, [keep])
-    processing._finalize_cut_state(
+    pieces = cuts._carve_cuts_around([cut], all_ads, [keep])
+    cuts._finalize_cut_state(
         all_ads, pieces, [{'start': 10.0, 'end': 12.0}, {'start': 40.0, 'end': 60.0}], 600.0)
     fragments = [a for a in all_ads if a is not keep]
     assert [(a['start'], a['end'], a['was_cut']) for a in fragments] == [
@@ -1369,7 +1374,7 @@ def test_pass1_carve_saves_trusted_fragments_that_a_recut_keeps_cut(monkeypatch)
     assert all(a.get('_measured_split_fragment') for a in fragments)
 
     _stub_recut_db(monkeypatch, json.loads(json.dumps(all_ads)))
-    ads_to_remove, _, *_ = processing._build_recut_ad_list(
+    ads_to_remove, _, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [{'start': 0.0, 'end': 60.0, 'text': 'Acme promo code'}], 600.0,
         '', 0.80, segment_actions={'self_promo': 'keep', 'sponsor': 'remove'},
         corrections=_user_corrections('slug', 'ep'))
@@ -1395,11 +1400,14 @@ def test_manual_approve_reject_and_adjust_recut_twice_is_identical(tmp_path, ret
             db = p(processing, 'db')
             storage = p(processing, 'storage')
             p(processing, 'status_service')
-            p(processing, '_finalize_episode')
-            p(processing, 'get_min_cut_confidence', return_value=0.80)
-            p(processing, 'embed_chapters', return_value=True)
-            p(processing, 'get_replacement_duration', return_value=1.0)
-            p(processing, 'resolve_ad_chapter_config', return_value=None)
+            p(finalize, '_finalize_episode')
+            p(common, 'get_min_cut_confidence', return_value=0.80)
+            p(publish, 'embed_chapters', return_value=True)
+            p(review, 'get_replacement_duration', return_value=1.0)
+            p(cuts, 'get_replacement_duration', return_value=1.0)
+            p(verify, 'get_replacement_duration', return_value=1.0)
+            p(publish, 'get_replacement_duration', return_value=1.0)
+            p(publish, 'resolve_ad_chapter_config', return_value=None)
             db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                            'ad_markers_json': json.dumps(markers)}
             db.get_podcast_by_slug.return_value = {'id': 1}
@@ -1425,7 +1433,7 @@ def test_manual_approve_reject_and_adjust_recut_twice_is_identical(tmp_path, ret
                 lambda s, e, m: saved.__setitem__('markers', json.loads(json.dumps(m))))
             db.save_processing_assets.side_effect = (
                 lambda s, e, assets: saved.__setitem__('cuts', assets['applied_cuts']))
-            assert processing._recut_episode(
+            assert recut._recut_episode(
                 'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
         return saved
 
@@ -1467,7 +1475,7 @@ def test_recut_keeps_each_hold_identity(monkeypatch):
     _stub_recut_db(monkeypatch, [reviewer, long_hold],
                    overrides={'max_ad_duration_override': 240.0})
 
-    _cut, all_ads, *_ = processing._build_recut_ad_list(
+    _cut, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1483,7 +1491,7 @@ def test_unrelated_auto_confirm_recut_leaves_reviewer_hold_held(monkeypatch, rea
                       hold_reason='differential_uncorroborated')]
     _stub_recut_db(monkeypatch, ads, confirmed=confirmed)
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1496,7 +1504,7 @@ def test_user_confirm_releases_reviewer_hold(monkeypatch, reason):
     _stub_recut_db(monkeypatch, [_reviewer_hold(reason)],
                    confirmed=[{'start': HELD[0], 'end': HELD[1], 'correction_type': 'confirm'}])
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1509,7 +1517,7 @@ def test_matching_auto_confirm_releases_only_a_releasable_reviewer_hold(monkeypa
     _stub_recut_db(monkeypatch, [_reviewer_hold(reason)],
                    confirmed=[dict(_auto_confirm(*HELD), hold_reason=reason)])
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1525,7 +1533,7 @@ def test_auto_confirm_filed_for_another_reason_does_not_release_hold(monkeypatch
     _stub_recut_db(monkeypatch, [_reviewer_hold(reason)],
                    confirmed=[dict(_auto_confirm(*HELD), hold_reason='no_splice_evidence')])
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1540,12 +1548,12 @@ def test_reviewer_hold_recut_is_idempotent(monkeypatch):
     confirmed = [dict(_auto_confirm(1000.0, 1100.0),
                       hold_reason='differential_uncorroborated')]
     _stub_recut_db(monkeypatch, ads, confirmed=confirmed)
-    first_cut, first_all, *_ = processing._build_recut_ad_list(
+    first_cut, first_all, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
     _stub_recut_db(monkeypatch, json.loads(json.dumps(first_all)), confirmed=confirmed)
-    second_cut, second_all, *_ = processing._build_recut_ad_list(
+    second_cut, second_all, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1569,11 +1577,14 @@ def test_approval_fold_recut_keeps_reviewer_reject_conflict_hold(tmp_path, retai
         db = p(processing, 'db')
         storage = p(processing, 'storage')
         p(processing, 'status_service')
-        p(processing, '_finalize_episode')
-        p(processing, 'get_min_cut_confidence', return_value=0.80)
-        p(processing, 'embed_chapters', return_value=True)
-        p(processing, 'get_replacement_duration', return_value=1.0)
-        p(processing, 'resolve_ad_chapter_config', return_value=None)
+        p(finalize, '_finalize_episode')
+        p(common, 'get_min_cut_confidence', return_value=0.80)
+        p(publish, 'embed_chapters', return_value=True)
+        p(review, 'get_replacement_duration', return_value=1.0)
+        p(cuts, 'get_replacement_duration', return_value=1.0)
+        p(verify, 'get_replacement_duration', return_value=1.0)
+        p(publish, 'get_replacement_duration', return_value=1.0)
+        p(publish, 'resolve_ad_chapter_config', return_value=None)
         db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 1,
                                        'ad_markers_json': json.dumps(ads)}
         db.get_podcast_by_slug.return_value = {'id': 1}
@@ -1602,7 +1613,7 @@ def test_approval_fold_recut_keeps_reviewer_reject_conflict_hold(tmp_path, retai
         db.save_processing_assets.side_effect = (
             lambda s, e, assets: saved.__setitem__('cuts', assets['applied_cuts']))
 
-        assert processing._recut_episode(
+        assert recut._recut_episode(
             'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time(),
             owns_failure=False)
 
@@ -1623,7 +1634,7 @@ def test_recut_does_not_stamp_reviewer_rejected(monkeypatch):
     monkeypatch.setattr(ad_validator.AdValidator, 'validate', spy)
     _stub_recut_db(monkeypatch, [_cut(100.0, 160.0), _reject(R1, was_cut=True)])
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', _reject_segments(), 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
 
@@ -1666,7 +1677,7 @@ def test_recut_keeps_a_cut_that_is_long_only_by_absorbed_silence(monkeypatch):
               'was_cut': True, 'silent_absorbed_spans': [{'start': 1850.0, 'end': 1950.0}]}
     _stub_recut_db(monkeypatch, [marker])
 
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', [{'start': 1000.0, 'end': 1850.0, 'text': 'Acme read'}], 3600.0, '',
         0.80, corrections=_user_corrections('slug', 'ep'))
 
@@ -1682,7 +1693,7 @@ def test_build_recut_keeps_an_uncategorised_echo_marker_held(monkeypatch):
     _stub_recut_db(monkeypatch, ads)
     segments = [{'start': 1250.0, 'end': 1300.0,
                  'text': "and that's how we ended up moving the studio across town last spring"}]
-    ads_to_remove, all_ads, *_ = processing._build_recut_ad_list(
+    ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
         'slug', 'ep', segments, 3600.0, '', 0.80,
         corrections=_user_corrections('slug', 'ep'))
     assert ads_to_remove == []

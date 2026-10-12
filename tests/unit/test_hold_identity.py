@@ -5,7 +5,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('hold_identity_test_')
 
 from ad_validator import AdValidator
-from main_app import processing
+from main_app.pipeline import cuts, verify
 from main_app.verification_reconciliation import _split_pass2_candidates_around_holds
 from tests.unit.marker_test_utils import applied_cut
 from tests.unit.db_test_utils import _rebuild_pre_migration_shape, _seed
@@ -64,7 +64,7 @@ def test_a_hold_stamped_outside_the_validator_gets_an_identity_at_render():
     hold = {'start': 500.0, 'end': 560.0, 'held_for_review': True,
             'hold_reason': 'differential_uncorroborated'}
     cut = {'start': 10.0, 'end': 40.0}
-    processing._finalize_cut_state([cut, hold], [cut], [applied_cut(10.0, 40.0)], 3000.0)
+    cuts._finalize_cut_state([cut, hold], [cut], [applied_cut(10.0, 40.0)], 3000.0)
     assert len(hold['hold_id']) == 12
     assert 'hold_id' not in cut
 
@@ -115,7 +115,7 @@ def test_filing_records_the_hold_identity(monkeypatch):
                                       {'start': 1100.0, 'end': 1150.0}],
                 pass2_reviewed_release={'start': 1010.0, 'end': 1050.0})
     db = _approval_db(monkeypatch)
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
+    assert verify._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     assert {c.kwargs['hold_id'] for c in db.create_pattern_correction.call_args_list} == {
         'a1b2c3d4e5f6'}
 

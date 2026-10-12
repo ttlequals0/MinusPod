@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import main_app.processing as processing
+from main_app.pipeline import common, transcribe
 import transcriber as transcriber_mod
 from transcriber import Transcriber
 from utils import audio as audio_utils
@@ -155,7 +156,7 @@ def _hole_min(setting):
     mock_db.get_setting.return_value = setting
     with patch.object(processing, 'transcriber', mock_t), \
          patch.object(processing, 'db', mock_db):
-        processing._retranscribe_holes_no_vad('/audio.mp3', _production_shape(), None)
+        transcribe._retranscribe_holes_no_vad('/audio.mp3', _production_shape(), None)
     return mock_t.repair_gaps.call_args.args[2]
 
 
@@ -236,12 +237,12 @@ def _reuse(tmp_path, holes):
          patch.object(processing, 'db', mock_db), \
          patch.object(processing, 'transcriber', mock_t), \
          patch.object(processing, 'sponsor_service', mock_sponsor), \
-         patch.object(processing, '_copy_retained_original_to_temp',
+         patch.object(common, '_copy_retained_original_to_temp',
                       return_value='/tmp/work.mp3'), \
-         patch.object(processing, 'get_feed_language_override',
+         patch.object(transcribe, 'get_feed_language_override',
                       return_value=None), \
-         patch.object(processing, '_retranscribe_tail_no_vad', return_value=[]):
-        _, segments = processing._download_and_transcribe(
+         patch.object(transcribe, '_retranscribe_tail_no_vad', return_value=[]):
+        _, segments = transcribe._download_and_transcribe(
             'show', 'ep1', 'http://example.com/e.mp3')
     return segments, mock_storage, mock_db, mock_t
 
@@ -291,11 +292,11 @@ def test_first_run_writes_originals_once_and_records_empty_holes():
          patch.object(processing, 'transcriber', mock_t), \
          patch.object(processing, 'sponsor_service', mock_sponsor), \
          patch.object(processing, 'status_service', MagicMock()), \
-         patch.object(processing, 'get_feed_language_override', return_value=None), \
-         patch.object(processing, '_retranscribe_holes_no_vad',
+         patch.object(transcribe, 'get_feed_language_override', return_value=None), \
+         patch.object(transcribe, '_retranscribe_holes_no_vad',
                       return_value=([], empty)) as holes, \
-         patch.object(processing, '_retranscribe_tail_no_vad', return_value=[]):
-        processing._download_and_transcribe('show', 'ep1', 'http://example.com/e.mp3')
+         patch.object(transcribe, '_retranscribe_tail_no_vad', return_value=[]):
+        transcribe._download_and_transcribe('show', 'ep1', 'http://example.com/e.mp3')
     assert holes.call_args.args[3] == ()
     mock_storage.save_original_transcript.assert_called_once_with('show', 'ep1', 'joined')
     mock_storage.save_original_segments.assert_called_once_with('show', 'ep1', base)

@@ -9,6 +9,8 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='timing_test_
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 import main_app.processing as processing
+from main_app.pipeline import publish, finalize, recut
+from main_app.pipeline import common, review, cuts, keep_rules, verify
 import run_context
 from utils import subprocess_registry
 
@@ -272,11 +274,11 @@ def test_failed_history_persists_partial_timings(monkeypatch):
         record_processing_history=lambda **kwargs: captured.update(kwargs) or 11,
         set_history_log_pointer=lambda *args: None,
     )
-    monkeypatch.setattr(processing.run_log, 'current_recorder', lambda: None)
+    monkeypatch.setattr(finalize.run_log, 'current_recorder', lambda: None)
     ctx = run_context.begin('example-podcast', 'failed', run_id='run-failed')
     ctx.timing.add('transcription', 7.5)
     try:
-        processing._record_history_row(
+        finalize._record_history_row(
             fake_db, 'example-podcast', 'failed', 'Episode', 'Example',
             status='failed', processing_time=8.0, ads_detected=0,
             token_totals={'input_tokens': 0, 'output_tokens': 0, 'cost': 0},
@@ -300,15 +302,15 @@ def test_finalize_timing_is_complete_before_history_snapshot():
     try:
         with ExitStack() as stack:
             p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
-            p(processing, '_persist_episode_state')
-            p(processing, '_refresh_rss_for_slug')
-            p(processing, '_log_completion_summary', return_value={
+            p(finalize, '_persist_episode_state')
+            p(common, '_refresh_rss_for_slug')
+            p(finalize, '_log_completion_summary', return_value={
                 'input_tokens': 0, 'output_tokens': 0, 'cost': 0,
             })
-            p(processing, '_record_history_and_event',
+            p(finalize, '_record_history_and_event',
               side_effect=lambda *args, **kwargs: snapshots.append(ctx.timing.snapshot()))
 
-            processing._finalize_episode(
+            finalize._finalize_episode(
                 'example-podcast', 'finalize', 'Episode', 'Example',
                 0, 0, 0, 60.0, 60.0, 0.0, run_stats={'mode': 'auto'},
             )
@@ -333,12 +335,14 @@ def test_recut_records_cut_and_asset_stages():
             db = p(processing, 'db')
             storage = p(processing, 'storage')
             p(processing, 'status_service')
-            p(processing, '_copy_retained_original_to_temp', return_value='/tmp/work.mp3')
-            p(processing, '_build_recut_ad_list', return_value=([marker], [marker], [], []))
-            p(processing, '_partition_keep_ads', return_value=([], [marker]))
-            p(processing, '_generate_assets')
-            p(processing, '_finalize_episode')
-            audio_processor = p(processing, 'AudioProcessor').return_value
+            p(common, '_copy_retained_original_to_temp', return_value='/tmp/work.mp3')
+            p(recut, '_build_recut_ad_list', return_value=([marker], [marker], [], []))
+            p(keep_rules, '_partition_keep_ads', return_value=([], [marker]))
+            p(publish, '_generate_assets')
+            p(finalize, '_finalize_episode')
+            ap_cls = p(processing, 'AudioProcessor')
+            p(recut, 'AudioProcessor', new=ap_cls)
+            audio_processor = ap_cls.return_value
             p(processing.os.path, 'exists', return_value=False)
             p(processing.shutil, 'move')
 
@@ -354,7 +358,7 @@ def test_recut_records_cut_and_asset_stages():
                 '/tmp/cut.mp3', [{'start': 10.0, 'end': 20.0}],
             )
 
-            assert processing._recut_episode(
+            assert recut._recut_episode(
                 'example-podcast', 'recut', 'Episode', 'Example', 'Description',
                 0.0, podcast_row={'id': 1},
             ) is True
@@ -382,9 +386,12 @@ def _stub_chapters_assets_io(monkeypatch, counters, chapters_enabled=True):
                         lambda s, e, assets: counters.__setitem__('assets', assets))
     monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts', lambda *a, **k: None)
     monkeypatch.setattr(processing.storage, 'save_chapters_json', lambda *a, **k: None)
-    monkeypatch.setattr(processing, 'get_audio_duration', lambda p: None)
-    monkeypatch.setattr(processing, 'embed_chapters', lambda *a, **k: True)
-    monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(publish, 'get_audio_duration', lambda p: None)
+    monkeypatch.setattr(publish, 'embed_chapters', lambda *a, **k: True)
+    monkeypatch.setattr(review, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(cuts, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(verify, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(publish, 'get_replacement_duration', lambda: 2.0)
 
 
 _CHAPTERS_SEGMENTS = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
@@ -395,7 +402,7 @@ def test_generate_assets_records_chapters_stage(monkeypatch):
     _stub_chapters_assets_io(monkeypatch, counters)
     ctx = run_context.begin('example-podcast', 'chapters-on')
     try:
-        processing._generate_assets(
+        publish._generate_assets(
             'example-podcast', 'chapters-on', _CHAPTERS_SEGMENTS, [], '', 'Pod', 'Title')
     finally:
         run_context.end(ctx)
@@ -408,7 +415,7 @@ def test_generate_assets_chapters_disabled_leaves_chapters_unrecorded(monkeypatc
     _stub_chapters_assets_io(monkeypatch, counters, chapters_enabled=False)
     ctx = run_context.begin('example-podcast', 'chapters-off')
     try:
-        processing._generate_assets(
+        publish._generate_assets(
             'example-podcast', 'chapters-off', _CHAPTERS_SEGMENTS, [], '', 'Pod', 'Title')
     finally:
         run_context.end(ctx)

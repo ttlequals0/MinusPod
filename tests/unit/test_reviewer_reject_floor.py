@@ -4,7 +4,7 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('reviewer_reject_floor_test_')
 
-import main_app.processing as processing
+from main_app.pipeline import review
 from ad_reviewer import ReviewVerdict, reject_hold_evidence
 from config import HOLD_REASON_REVIEWER_REJECT_CONFLICT
 from tests.unit.reviewer_test_utils import _mock_episode_meta, _resp, _reviewer
@@ -92,7 +92,7 @@ def test_the_apply_path_stamps_the_hold_on_the_master_marker():
         reject_hold_reason=HOLD_REASON_REVIEWER_REJECT_CONFLICT,
     )
 
-    processing._apply_reviewer_verdict_to_ad(marker, verdict)
+    review._apply_reviewer_verdict_to_ad(marker, verdict)
 
     assert marker['was_cut'] is False
     assert marker['held_for_review'] is True
@@ -106,7 +106,7 @@ def test_a_plain_reject_leaves_no_hold_on_the_master_marker():
         original_start=120.0, original_end=180.0,
     )
 
-    processing._apply_reviewer_verdict_to_ad(marker, verdict)
+    review._apply_reviewer_verdict_to_ad(marker, verdict)
 
     assert marker['was_cut'] is False
     assert 'held_for_review' not in marker
@@ -138,7 +138,7 @@ def test_a_snap_between_review_and_merge_still_yields_a_held_marker():
     )
     result = type('R', (), {'verdicts': [verdict], 'resurrected': []})()
 
-    processing._merge_reviewer_result(result, [marker])
+    review._merge_reviewer_result(result, [marker])
 
     assert marker['held_for_review'] is True
     assert marker['hold_reason'] == HOLD_REASON_REVIEWER_REJECT_CONFLICT
@@ -162,7 +162,7 @@ def test_two_snapped_twins_take_one_verdict_each():
     ]
     result = type('R', (), {'verdicts': verdicts, 'resurrected': []})()
 
-    processing._merge_reviewer_result(result, [first, second])
+    review._merge_reviewer_result(result, [first, second])
 
     assert (second['held_for_review'], second['was_cut']) == (True, False)
     assert 'held_for_review' not in first
@@ -187,7 +187,7 @@ def test_a_tolerance_verdict_listed_first_leaves_the_exact_key_alone():
     ]
     result = type('R', (), {'verdicts': verdicts, 'resurrected': []})()
 
-    processing._merge_reviewer_result(result, [exact, twin])
+    review._merge_reviewer_result(result, [exact, twin])
 
     assert (exact['start'], exact['end']) == (130.0, 170.0)
     assert 'held_for_review' not in exact
@@ -204,7 +204,7 @@ def test_a_marker_nowhere_near_the_verdict_is_not_touched():
     )
     result = type('R', (), {'verdicts': [verdict], 'resurrected': []})()
 
-    processing._merge_reviewer_result(result, [marker])
+    review._merge_reviewer_result(result, [marker])
 
     assert marker['was_cut'] is True
     assert 'held_for_review' not in marker

@@ -2,7 +2,7 @@
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('detection_notes_test_')
-from main_app.processing import build_podcast_context  # noqa: E402
+from main_app.pipeline.admission import build_podcast_context
 
 
 def test_notes_appended_after_description():

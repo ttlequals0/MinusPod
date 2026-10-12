@@ -5,13 +5,8 @@ bootstrap('mark_action_test_', passphrase='mark-action-test-pass')
 
 from ad_detector.boundaries import effective_resolved_action  # noqa: E402
 from config import SEGMENT_ACTIONS, is_keep_like  # noqa: E402
-from main_app.processing import (  # noqa: E402
-    KeepDifferentialOverride,
-    _apply_late_keep_safety_net,
-    _partition_keep_ads,
-    _partition_pass2_category_actions,
-    _stamp_and_carve_cuts,
-)
+from main_app.pipeline.keep_rules import KeepDifferentialOverride, _apply_late_keep_safety_net, _partition_keep_ads, _stamp_and_carve_cuts
+from main_app.pipeline.verify import _partition_pass2_category_actions
 
 
 def _marker(**kw):

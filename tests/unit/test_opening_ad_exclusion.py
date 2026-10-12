@@ -3,7 +3,7 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('opening_ad_exclusion_test_')
 
-from main_app.processing import _exclude_opening_ads  # noqa: E402
+from main_app.pipeline.detect import _exclude_opening_ads
 
 
 def test_excludes_ads_starting_in_opening_window():

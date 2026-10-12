@@ -8,12 +8,8 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('keep_differential_test_', passphrase='keep-differential-test-pass')
 
-from main_app.processing import (  # noqa: E402
-    KeepDifferentialOverride,
-    _apply_late_keep_safety_net,
-    _partition_keep_ads,
-    _partition_pass2_category_actions,
-)
+from main_app.pipeline.keep_rules import KeepDifferentialOverride, _apply_late_keep_safety_net, _partition_keep_ads
+from main_app.pipeline.verify import _partition_pass2_category_actions
 
 ACTIONS = {'cross_promo': 'keep', 'self_promo': 'keep', 'sponsor': 'remove'}
 

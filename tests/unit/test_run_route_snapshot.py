@@ -11,6 +11,9 @@ bootstrap('run_route_snapshot_test_')
 import run_context
 from database import Database
 from main_app import processing
+from main_app.pipeline import common, finalize, admission, failure
+from main_app.pipeline import publish
+from main_app.pipeline import failure as failure_stage
 from llm_client import ProviderAccountChangedError, ProviderRateLimitedError
 from utils.errors import ServiceUnavailableError
 from cancel import ProcessingCancelled
@@ -168,15 +171,15 @@ def test_legacy_standby_snapshot_requeues_without_spending_retry_budget(monkeypa
     conn.commit()
     ctx = run_context.begin(slug, episode_id, run_id=run_id)
     try:
-        loaded = processing._resolve_or_load_route_snapshot(run_id)
+        loaded = admission._resolve_or_load_route_snapshot(run_id)
         with pytest.raises(ProviderAccountChangedError) as caught:
-            processing._assert_route_snapshot_current(loaded)
-        with patch.object(processing, '_require_publication_owner'), \
-                patch.object(processing, '_publish_status'):
-            processing._handle_processing_failure(
+            admission._assert_route_snapshot_current(loaded)
+        with patch.object(common, '_require_publication_owner'), \
+                patch.object(common, '_publish_status'):
+            failure._handle_processing_failure(
                 slug, episode_id, 'Episode', 'Route Test', db.get_episode(slug, episode_id),
                 caught.value, 0.0)
-        assert processing._load_route_snapshot(run_id) is None
+        assert admission._load_route_snapshot(run_id) is None
         episode = db.get_episode(slug, episode_id)
         assert episode['status'] == 'pending'
         assert episode['retry_count'] == 2
@@ -184,9 +187,9 @@ def test_legacy_standby_snapshot_requeues_without_spending_retry_budget(monkeypa
                                  'credential_slot': 'primary'},
                     'verification': {'provider_key': 'openai-compatible',
                                      'configured_model': 'secondary-model', 'credential_slot': 'secondary'}}
-        with patch.object(processing, '_resolve_route_snapshot', return_value=original):
-            assert processing._resolve_or_load_route_snapshot(run_id) == original
-        assert processing._load_route_snapshot(run_id) == original
+        with patch.object(admission, '_resolve_route_snapshot', return_value=original):
+            assert admission._resolve_or_load_route_snapshot(run_id) == original
+        assert admission._load_route_snapshot(run_id) == original
     finally:
         run_context.end(ctx)
         db.delete_podcast(slug)
@@ -199,13 +202,14 @@ def test_deferred_held_or_requeued_standby_run_writes_no_failed_history(temp_db,
                            original_url='https://example.com/episode.mp3')
     temp_db.set_setting('offline_queue_enabled', 'true')
     monkeypatch.setattr(processing, 'db', temp_db)
-    monkeypatch.setattr(processing, '_require_publication_owner', lambda *a: None)
-    monkeypatch.setattr(processing, '_publish_status', lambda *a: None)
-    monkeypatch.setattr(processing, '_finalize_run_log', lambda *a: None)
-    monkeypatch.setattr(processing, 'clear_route_snapshot', lambda *a: None)
+    monkeypatch.setattr(common, '_require_publication_owner', lambda *a: None)
+    monkeypatch.setattr(common, '_publish_status', lambda *a: None)
+    monkeypatch.setattr(finalize, '_finalize_run_log', lambda *a: None)
+    monkeypatch.setattr(admission, 'clear_route_snapshot', lambda *a: None)
     monkeypatch.setattr('transcriber.WhisperModelSingleton.unload_model', lambda: None)
     monkeypatch.setattr('utils.gpu.clear_gpu_memory', lambda: None)
-    monkeypatch.setattr(processing, 'hold_queue_for_provider_limit', lambda *a, **k: '2999-01-01T00:00:00Z')
+    monkeypatch.setattr(publish, 'hold_queue_for_provider_limit', lambda *a, **k: '2999-01-01T00:00:00Z')
+    monkeypatch.setattr(failure_stage, 'hold_queue_for_provider_limit', lambda *a, **k: '2999-01-01T00:00:00Z')
     ctx = run_context.begin('usage-history', 'episode', run_id='usage-history-run')
     ctx.set_route_snapshot({'detection': {'credential_slot': 'primary'}})
     ctx.note_llm_failover('detection', 1)
@@ -213,7 +217,7 @@ def test_deferred_held_or_requeued_standby_run_writes_no_failed_history(temp_db,
               'hold': ProviderRateLimitedError('standby429', 300, credential_slot='failover'),
               'account': ProviderAccountChangedError('account changed')}
     try:
-        processing._handle_processing_failure(
+        failure_stage._handle_processing_failure(
             'usage-history', 'episode', 'Episode', 'Route Test',
             temp_db.get_episode('usage-history', 'episode'), errors[failure], 0.0)
         assert temp_db.get_connection().execute(
@@ -228,9 +232,9 @@ def test_cancellation_writes_no_history_row(temp_db, monkeypatch, dispatched):
     temp_db.create_podcast('cancel-usage', 'https://example.com/feed.xml', 'Route Test')
     temp_db.upsert_episode('cancel-usage', 'episode', status='processing', retry_count=2)
     monkeypatch.setattr(processing, 'db', temp_db)
-    monkeypatch.setattr(processing, '_start_run_log', lambda *a: None)
-    monkeypatch.setattr(processing, '_end_run_log', lambda *a: None)
-    monkeypatch.setattr(processing, '_finalize_run_log', lambda *a: None)
+    monkeypatch.setattr(finalize, '_start_run_log', lambda *a: None)
+    monkeypatch.setattr(finalize, '_end_run_log', lambda *a: None)
+    monkeypatch.setattr(finalize, '_finalize_run_log', lambda *a: None)
     monkeypatch.setattr(processing, 'ProcessingQueue', MagicMock())
     monkeypatch.setattr(processing, 'status_service', MagicMock())
     monkeypatch.setattr(processing, '_cleanup_cancelled_processing_output', lambda *a, **k: (True, False))
@@ -255,6 +259,6 @@ def test_route_snapshot_holds_only_episode_phases():
     def fake_resolve(phase, **_):
         return Route(phase=phase, provider_key='anthropic', model_id='m', base_url=None,
                      slot='primary', credential_slot='primary', account_id='a')
-    with patch.object(processing, 'resolve_route', side_effect=fake_resolve):
-        snapshot = processing._resolve_route_snapshot()
+    with patch.object(admission, 'resolve_route', side_effect=fake_resolve):
+        snapshot = admission._resolve_route_snapshot()
     assert set(snapshot) == {'detection', 'review', 'verification', 'chapters'}

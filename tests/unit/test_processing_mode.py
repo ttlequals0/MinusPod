@@ -39,6 +39,13 @@ from config import (
 )
 from ad_detector import AdDetector
 import main_app.processing as processing
+from main_app.pipeline import common, transcribe, signals, detect, admission, recut
+from main_app.pipeline import recut as recut_stage
+from main_app.pipeline import finalize as finalize_stage
+from main_app.pipeline import verify as verify_stage
+from main_app.pipeline import detect as detect_stage
+from main_app.pipeline import review, cuts, publish, failure
+from main_app.pipeline import admission as admission_stage
 import run_context
 from api.feeds import _normalize_processing_mode, _normalize_detection_mode
 
@@ -143,10 +150,10 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         )
         ensure_probes = p(processing.failover, 'ensure_fresh_probes')
         if probe_phases is not _PROBE_PHASES_UNSET:
-            p(processing, '_active_phases_for_admission', return_value=probe_phases)
+            p(admission_stage, '_active_phases_for_admission', return_value=probe_phases)
         if route_snapshot is not None:
-            p(processing, '_resolve_or_load_route_snapshot', return_value=route_snapshot)
-            p(processing, '_assert_route_snapshot_current')
+            p(admission_stage, '_resolve_or_load_route_snapshot', return_value=route_snapshot)
+            p(admission_stage, '_assert_route_snapshot_current')
         if failover_state is not None:
             p(processing.failover, 'state',
               side_effect=lambda t: failover_state.get(t, _INACTIVE_FAILOVER_STATE))
@@ -158,45 +165,50 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         p(processing.ad_detector, 'get_verification_model', return_value='test-model')
         if not real_token_tracking:
             p(processing, 'start_episode_token_tracking')
-            p(processing, 'get_episode_token_totals', return_value={
+            p(finalize_stage, 'get_episode_token_totals', return_value={
+                'input_tokens': 1, 'output_tokens': 1, 'cost': token_cost,
+            })
+            p(failure, 'get_episode_token_totals', return_value={
                 'input_tokens': 1, 'output_tokens': 1, 'cost': token_cost,
             })
         p(processing, 'get_available_memory_gb', return_value=None)
-        p(processing, 'get_min_cut_confidence', return_value=0.8)
-        dat = p(processing, '_download_and_transcribe',
+        p(finalize_stage, 'get_available_memory_gb', return_value=None)
+        p(common, 'get_min_cut_confidence', return_value=0.8)
+        dat = p(transcribe, '_download_and_transcribe',
                 return_value=('/tmp/mode.mp3', SEGMENTS))
-        p(processing, '_run_differential_fetch', return_value=None)
-        analyze = p(processing, '_run_audio_analysis', return_value=None)
+        p(signals, '_run_differential_fetch', return_value=None)
+        analyze = p(signals, '_run_audio_analysis', return_value=None)
         p(processing, 'load_positional_prior', return_value=None)
         if real_token_tracking:
             def detect_with_usage(*args, **kwargs):
                 run_context.current().tokens.add(120, 30, token_cost)
                 return [], 0, None
 
-            detect = p(processing, '_detect_ads_first_pass',
+            detect = p(detect_stage, '_detect_ads_first_pass',
                        side_effect=detect_with_usage)
         else:
-            detect = p(processing, '_detect_ads_first_pass',
+            detect = p(detect_stage, '_detect_ads_first_pass',
                        return_value=([], 0, None))
-        refine = p(processing, '_refine_and_validate', return_value=([], []))
-        reviewer = p(processing, '_run_ad_reviewer', return_value=([], []))
-        p(processing, '_snap_terminal_starts', return_value=[])
-        p(processing, '_complete_cut_tails', return_value=[])
+        refine = p(detect_stage, '_refine_and_validate', return_value=([], []))
+        reviewer = p(review, '_run_ad_reviewer', return_value=([], []))
+        p(cuts, '_snap_terminal_starts', return_value=[])
+        p(cuts, '_complete_cut_tails', return_value=[])
         local_ap_cls = p(processing, 'AudioProcessor')
-        verify = p(processing, '_run_verification_pass',
+        p(recut_stage, 'AudioProcessor', new=local_ap_cls)
+        verify = p(verify_stage, '_run_verification_pass',
                    return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
-        p(processing, '_generate_assets')
+        p(publish, '_generate_assets')
         if real_token_tracking:
-            finalize = p(processing, '_finalize_episode',
+            finalize = p(finalize_stage, '_finalize_episode',
                          side_effect=lambda *args, **kwargs:
-                         processing.get_episode_token_totals())
+                         finalize_stage.get_episode_token_totals())
         else:
-            finalize = p(processing, '_finalize_episode')
+            finalize = p(finalize_stage, '_finalize_episode')
         recut = None
         if approval_recut:
-            p(processing, '_file_corroborated_hold_approvals', return_value=1)
-            recut = p(processing, '_recut_episode', side_effect=lambda *args, **kwargs:
-                      (processing.get_episode_token_totals(), True)[1])
+            p(verify_stage, '_file_corroborated_hold_approvals', return_value=1)
+            recut = p(recut_stage, '_recut_episode', side_effect=lambda *args, **kwargs:
+                      (finalize_stage.get_episode_token_totals(), True)[1])
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
         path_exists = processing.os.path.exists
@@ -258,7 +270,7 @@ def _row(pt=None, skip=None, mode=None):
 class TestProcessEpisodeModePlumbing:
     def test_passthrough_wins_over_skip_and_keep_content(self):
         with patch.object(processing, 'db') as db, \
-             patch.object(processing, '_passthrough_episode') as pt, \
+             patch.object(recut, '_passthrough_episode') as pt, \
              patch.object(processing, 'start_episode_token_tracking'), \
              patch.object(processing.failover, 'run_probe_targets') as select_probes, \
              patch.object(processing.failover, 'ensure_fresh_probes') as ensure_probes:
@@ -277,7 +289,7 @@ class TestProcessEpisodeModePlumbing:
         # Issue #746: the per-episode flag must win even though the feed
         # itself is in standard mode (no feed-level flags set).
         with patch.object(processing, 'db') as db, \
-             patch.object(processing, '_passthrough_episode') as pt, \
+             patch.object(recut, '_passthrough_episode') as pt, \
              patch.object(processing, 'start_episode_token_tracking'):
             db.get_episode.return_value = {'passthrough_enabled': 1}
             db.get_podcast_by_slug.return_value = _row()
@@ -312,7 +324,7 @@ class TestProcessEpisodeModePlumbing:
 
     def test_transcript_spans_reach_detection_and_validation(self):
         span = {'start': 10.0, 'end': 40.0, 'words': 80, 'offset_confirmed': False}
-        with patch.object(processing, '_run_transcript_diff',
+        with patch.object(signals, '_run_transcript_diff',
                           return_value={'status': 'ok', 'spans': [span]}) as stage:
             m = _run_pipeline(_row())
         stage.assert_called_once()
@@ -320,7 +332,7 @@ class TestProcessEpisodeModePlumbing:
         assert m['refine'].call_args.kwargs['transcript_spans'] == [span]
 
     def test_unreliable_transcript_diff_passes_no_spans(self):
-        with patch.object(processing, '_run_transcript_diff',
+        with patch.object(signals, '_run_transcript_diff',
                           return_value={'status': 'unreliable', 'spans': []}):
             m = _run_pipeline(_row())
         assert m['detect'].call_args.kwargs['transcript_spans'] == []
@@ -329,7 +341,7 @@ class TestProcessEpisodeModePlumbing:
         row = dict(_row(), transcript_differential=1)
         episode = {'upstream_transcript_url': 'https://cdn.example.com/ep1.vtt',
                    'upstream_transcript_type': 'text/vtt'}
-        with patch.object(processing, 'fetch_upstream_transcript',
+        with patch.object(signals, 'fetch_upstream_transcript',
                           side_effect=RuntimeError('upstream down')) as fetch:
             m = _run_pipeline(row, episode_row=episode)
         fetch.assert_called_once()
@@ -340,7 +352,7 @@ class TestProcessEpisodeModePlumbing:
         assert saved['status'] == 'error'
 
     def test_skip_detection_skips_transcript_diff(self):
-        with patch.object(processing, '_run_transcript_diff') as stage:
+        with patch.object(signals, '_run_transcript_diff') as stage:
             _run_pipeline(_row(skip=1))
         stage.assert_not_called()
 
@@ -370,9 +382,9 @@ class TestProcessEpisodeModePlumbing:
 
     def test_recut_skips_pre_run_probes(self):
         with patch.object(processing, 'db') as db, \
-             patch.object(processing, '_recut_episode', return_value=True) as recut, \
-             patch.object(processing, '_resolve_or_load_route_snapshot', return_value={}), \
-             patch.object(processing, '_assert_route_snapshot_current'), \
+             patch.object(recut, '_recut_episode', return_value=True) as recut_mock, \
+             patch.object(admission, '_resolve_or_load_route_snapshot', return_value={}), \
+             patch.object(admission, '_assert_route_snapshot_current'), \
              patch.object(processing, 'start_episode_token_tracking'), \
              patch.object(processing.failover, 'run_probe_targets') as select_probes, \
              patch.object(processing.failover, 'ensure_fresh_probes') as ensure_probes:
@@ -380,7 +392,7 @@ class TestProcessEpisodeModePlumbing:
             result = processing.process_episode(
                 'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
         assert result is True
-        recut.assert_called_once()
+        recut_mock.assert_called_once()
         select_probes.assert_not_called()
         ensure_probes.assert_not_called()
 
@@ -658,23 +670,23 @@ class TestCueOnlyResolution:
 
 class TestCueOnlyPipelineWiring:
     def test_download_and_transcribe_skip_returns_empty_segments(self):
-        with patch.object(processing, '_download_episode_audio', return_value='/tmp/a.mp3'), \
+        with patch.object(transcribe, '_download_episode_audio', return_value='/tmp/a.mp3'), \
              patch.object(processing.storage, 'get_original_path', return_value=None), \
              patch.object(processing.transcriber, 'transcribe_chunked') as tr:
-            path, segments = processing._download_and_transcribe(
+            path, segments = transcribe._download_and_transcribe(
                 'slug', 'ep1', 'http://example.com/e.mp3', skip_transcription=True)
         tr.assert_not_called()
         assert path == '/tmp/a.mp3'
         assert segments == []
 
     def test_download_and_transcribe_skip_reuses_retained_original(self):
-        with patch.object(processing, '_download_episode_audio') as dl, \
+        with patch.object(transcribe, '_download_episode_audio') as dl, \
              patch.object(processing.storage, 'get_original_path', return_value='/tmp/orig.mp3'), \
              patch.object(processing.os.path, 'exists', return_value=True), \
-             patch.object(processing, '_copy_retained_original_to_temp',
+             patch.object(common, '_copy_retained_original_to_temp',
                           return_value='/tmp/copy.mp3') as copy, \
              patch.object(processing.transcriber, 'transcribe_chunked') as tr:
-            path, segments = processing._download_and_transcribe(
+            path, segments = transcribe._download_and_transcribe(
                 'slug', 'ep1', 'http://example.com/e.mp3', skip_transcription=True)
         dl.assert_not_called()
         copy.assert_called_once_with('/tmp/orig.mp3')
@@ -768,9 +780,9 @@ class TestRefineAndValidateHeuristicRollGating:
     all_ads list so the function returns before touching the validator."""
 
     def _call(self, **kwargs):
-        with patch.object(processing, '_apply_heuristic_rolls') as rolls, \
+        with patch.object(detect, '_apply_heuristic_rolls') as rolls, \
              patch.object(processing, 'db'):
-            result = processing._refine_and_validate(
+            result = detect._refine_and_validate(
                 'slug', 'ep1', [], SEGMENTS, '/tmp/a.mp3',
                 'desc', 100.0, 0.8, 'Pod', corrections=([], []), **kwargs)
         return result, rolls

@@ -575,12 +575,12 @@ def test_unresolved_route_fallback_probes_the_effective_configured_slot():
         'reason': 'outage',
     }), is_default=False)
     failover.invalidate_cache()
-    with patch('main_app.processing._resolve_route_snapshot', return_value=None):
+    with patch('main_app.pipeline.admission._resolve_route_snapshot', return_value=None):
         assert failover.run_probe_targets(None, whisper_required=False) == ['llm:failover']
 
     db.set_setting('failover_llm_enabled', 'false', is_default=False)
     failover.invalidate_cache()
-    with patch('main_app.processing._resolve_route_snapshot', return_value=None):
+    with patch('main_app.pipeline.admission._resolve_route_snapshot', return_value=None):
         assert failover.run_probe_targets(None, whisper_required=False) == ['llm:primary']
 
 

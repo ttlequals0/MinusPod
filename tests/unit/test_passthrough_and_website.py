@@ -16,6 +16,8 @@ from unittest.mock import MagicMock, patch
 
 import main_app.feeds as feeds_mod
 import main_app.processing as processing
+from main_app.pipeline import common, transcribe, failure, recut
+from main_app.pipeline import finalize as finalize_stage
 
 
 def _run_passthrough(download_result='/tmp/pt.mp3', duration=3305.7,
@@ -29,9 +31,9 @@ def _run_passthrough(download_result='/tmp/pt.mp3', duration=3305.7,
          patch.object(processing, 'audio_processor') as audio_processor, \
          patch.object(processing, 'storage') as storage, \
          patch.object(processing, 'status_service'), \
-         patch.object(processing, 'get_audio_codec', side_effect=codec_effect), \
-         patch.object(processing, '_finalize_episode') as finalize, \
-         patch.object(processing, '_copy_retained_original_to_temp',
+         patch.object(recut, 'get_audio_codec', side_effect=codec_effect), \
+         patch.object(finalize_stage, '_finalize_episode') as finalize, \
+         patch.object(common, '_copy_retained_original_to_temp',
                       return_value='/tmp/retained.mp3') as copy_retained, \
          patch.object(processing.shutil, 'move') as move, \
          patch.object(processing.os, 'unlink'), \
@@ -40,7 +42,7 @@ def _run_passthrough(download_result='/tmp/pt.mp3', duration=3305.7,
         transcriber.download_audio.return_value = download_result
         audio_processor.get_audio_duration.return_value = duration
         storage.get_episode_path.return_value = '/data/pt/episodes/ep1.mp3'
-        result = processing._passthrough_episode(
+        result = recut._passthrough_episode(
             'pt-feed', 'ep1', 'https://example.com/ep1.mp3', 'Episode One',
             'PT Feed', None, None, None, start_time=0.0,
             episode_data={'processed_version': 0}, podcast=podcast)
@@ -81,7 +83,8 @@ class TestPassthroughEpisode:
                                      '/data/pt/episodes/ep1.mp3')
 
     def test_non_mp3_enclosure_is_converted(self):
-        with patch.object(processing, 'AudioProcessor') as ap_cls:
+        with patch.object(processing, 'AudioProcessor'), \
+             patch.object(recut, 'AudioProcessor') as ap_cls:
             ap_cls.return_value.convert_to_mp3.return_value = '/tmp/pt.converted.mp3'
             result, _, finalize, move, _, _ = _run_passthrough(codec='aac')
 
@@ -94,7 +97,8 @@ class TestPassthroughEpisode:
         # ffprobe could not determine the codec (returns None). The output path
         # is forced to .mp3, so the bytes must be converted rather than moved
         # through raw -- otherwise a non-mp3 enclosure is served as audio/mpeg.
-        with patch.object(processing, 'AudioProcessor') as ap_cls:
+        with patch.object(processing, 'AudioProcessor'), \
+             patch.object(recut, 'AudioProcessor') as ap_cls:
             ap_cls.return_value.convert_to_mp3.return_value = '/tmp/pt.converted.mp3'
             result, _, _, move, _, _ = _run_passthrough(codec=None)
 
@@ -106,7 +110,8 @@ class TestPassthroughEpisode:
     def test_transient_codec_miss_passes_through_untouched(self):
         # First probe returns None (transient ffprobe miss), retry sees 'mp3'.
         # The file must be served untouched, not re-encoded.
-        with patch.object(processing, 'AudioProcessor') as ap_cls:
+        with patch.object(processing, 'AudioProcessor'), \
+             patch.object(recut, 'AudioProcessor') as ap_cls:
             result, _, _, move, _, _ = _run_passthrough(codec_seq=[None, 'mp3'])
 
         assert result is True
@@ -114,7 +119,7 @@ class TestPassthroughEpisode:
         move.assert_called_once_with('/tmp/pt.mp3', '/data/pt/episodes/ep1.mp3')
 
     def test_unplayable_download_fails_loudly(self):
-        with patch.object(processing, '_handle_processing_failure') as fail:
+        with patch.object(failure, '_handle_processing_failure') as fail:
             result, _, finalize, _, _, _ = _run_passthrough(duration=None)
 
         assert result is False
@@ -127,10 +132,10 @@ class TestPassthroughEpisode:
              patch.object(processing, 'status_service'), \
              patch.object(processing, 'storage'), \
              patch.object(processing.os.path, 'exists', return_value=False), \
-             patch.object(processing, '_handle_processing_failure') as fail:
+             patch.object(failure, '_handle_processing_failure') as fail:
             transcriber.check_audio_availability.return_value = (True, None)
             transcriber.download_audio.return_value = None
-            result = processing._passthrough_episode(
+            result = recut._passthrough_episode(
                 'pt-feed', 'ep1', 'https://example.com/ep1.mp3', 'Episode One',
                 'PT Feed', None, None, None, start_time=0.0, episode_data=None)
 
@@ -141,7 +146,7 @@ class TestPassthroughEpisode:
 class TestProcessEpisodeBranch:
     def test_passthrough_flag_routes_to_passthrough(self):
         with patch.object(processing, 'db') as db, \
-             patch.object(processing, '_passthrough_episode') as pt, \
+             patch.object(recut, '_passthrough_episode') as pt, \
              patch.object(processing, 'start_episode_token_tracking'):
             db.get_episode.return_value = {}
             db.get_podcast_by_slug.return_value = {'id': 1,
@@ -155,11 +160,11 @@ class TestProcessEpisodeBranch:
 
     def test_flag_off_does_not_route_to_passthrough(self):
         with patch.object(processing, 'db') as db, \
-             patch.object(processing, '_passthrough_episode') as pt, \
+             patch.object(recut, '_passthrough_episode') as pt, \
              patch.object(processing, 'start_episode_token_tracking'), \
-             patch.object(processing, '_download_and_transcribe',
+             patch.object(transcribe, '_download_and_transcribe',
                           side_effect=RuntimeError('stop here')), \
-             patch.object(processing, '_handle_processing_failure'), \
+             patch.object(failure, '_handle_processing_failure'), \
          patch.object(processing, 'status_service'):
             db.get_episode.return_value = {}
             db.get_podcast_by_slug.return_value = {'id': 1,

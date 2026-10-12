@@ -249,7 +249,7 @@ def test_queued_entries_carry_an_admission_explanation(app_client, seeded_feed):
 
     blocked = {'blocked': True, 'phase': 'detection', 'slot': 'primary',
                'reason': 'manual_rate_limit', 'resumesAt': '2026-09-16T12:00:00Z'}
-    with patch('main_app.processing.admission_explanation', return_value=blocked):
+    with patch('main_app.pipeline.admission.admission_explanation', return_value=blocked):
         queued = [e for e in app_client.get('/api/v1/episodes/processing').get_json()
                   if e['stage'] == 'queued']
     assert queued[0]['admission'] == blocked
@@ -260,7 +260,7 @@ def test_admission_failure_reports_unblocked_instead_of_failing(app_client, seed
     _queue_row(db, podcast_id, 'ep-waiting')
     _authed(app_client)
 
-    with patch('main_app.processing.admission_explanation',
+    with patch('main_app.pipeline.admission.admission_explanation',
                side_effect=RuntimeError('settings unavailable')):
         resp = app_client.get('/api/v1/episodes/processing')
     assert resp.status_code == 200

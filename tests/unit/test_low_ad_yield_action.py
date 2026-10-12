@@ -17,6 +17,9 @@ from config import (  # noqa: E402
 )
 from database import Database  # noqa: E402
 import main_app.processing as processing  # noqa: E402
+from main_app.pipeline import common, finalize
+from main_app.pipeline import finalize as finalize_stage
+from main_app.pipeline import transcribe, signals, detect, review, cuts, verify, publish, recut
 from reprocess_modes import clear_episode_for_mode  # noqa: E402
 from utils.constants import REPROCESS_SOURCE_JIT  # noqa: E402
 
@@ -178,28 +181,30 @@ class TestCompletionPathWiring:
             p(processing.ad_detector, 'get_verification_model', return_value='test-model')
             p(processing, 'start_episode_token_tracking')
             p(processing, 'get_available_memory_gb', return_value=None)
-            p(processing, 'get_min_cut_confidence', return_value=0.8)
-            p(processing, '_download_and_transcribe',
+            p(finalize_stage, 'get_available_memory_gb', return_value=None)
+            p(common, 'get_min_cut_confidence', return_value=0.8)
+            p(transcribe, '_download_and_transcribe',
               return_value=('/tmp/wiring.mp3', SEGMENTS))
-            p(processing, '_run_differential_fetch', return_value=None)
-            p(processing, '_run_audio_analysis', return_value=None)
+            p(signals, '_run_differential_fetch', return_value=None)
+            p(signals, '_run_audio_analysis', return_value=None)
             p(processing, 'load_positional_prior', return_value=None)
-            p(processing, '_detect_ads_first_pass', return_value=([], 0, None))
-            p(processing, '_refine_and_validate', return_value=([], []))
-            p(processing, '_run_ad_reviewer', return_value=([], []))
-            p(processing, '_snap_terminal_starts', return_value=[])
-            p(processing, '_complete_cut_tails', return_value=[])
+            p(detect, '_detect_ads_first_pass', return_value=([], 0, None))
+            p(detect, '_refine_and_validate', return_value=([], []))
+            p(review, '_run_ad_reviewer', return_value=([], []))
+            p(cuts, '_snap_terminal_starts', return_value=[])
+            p(cuts, '_complete_cut_tails', return_value=[])
             local_ap_cls = p(processing, 'AudioProcessor')
-            p(processing, '_run_verification_pass',
+            p(recut, 'AudioProcessor', new=local_ap_cls)
+            p(verify, '_run_verification_pass',
               return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
-            p(processing, '_generate_assets')
-            finalize = p(processing, '_finalize_episode')
-            hook = p(processing, '_maybe_fire_low_ad_yield_action')
+            p(publish, '_generate_assets')
+            finalize = p(finalize_stage, '_finalize_episode')
+            hook = p(finalize_stage, '_maybe_fire_low_ad_yield_action')
             # Filing zero approvals is what keeps the normal runs off the
             # recut exit, rather than a MagicMock's default truthiness.
-            p(processing, '_file_corroborated_hold_approvals',
+            p(verify, '_file_corroborated_hold_approvals',
               return_value=1 if approval_recut else 0)
-            p(processing, '_recut_episode', return_value=True)
+            p(recut, '_recut_episode', return_value=True)
             p(processing.shutil, 'move')
             p(processing.os, 'unlink')
             p(processing.os.path, 'exists', return_value=False)
@@ -346,8 +351,8 @@ class TestFireLowAdYieldAction:
             db.get_episode.return_value = dict(episode or self.EPISODE)
             db.get_recent_ad_yields.return_value = list(yields)
             db.has_transcript.return_value = has_transcript
-            p(processing, 'resolve_low_ad_yield_action', return_value=action)
-            processing._maybe_fire_low_ad_yield_action(
+            p(finalize_stage, 'resolve_low_ad_yield_action', return_value=action)
+            finalize._maybe_fire_low_ad_yield_action(
                 'a-feed', 'ep1', 'https://example.com/ep1.mp3', 'Ep Title',
                 'A Podcast', 'desc', '2026-01-01T00:00:00Z',
                 episode_data if episode_data is not None else {},
@@ -477,7 +482,7 @@ class TestFireLowAdYieldAction:
             db = p(processing, 'db')
             p(processing, 'status_service')
             db.get_podcast_by_slug.side_effect = RuntimeError('db is down')
-            processing._maybe_fire_low_ad_yield_action(
+            finalize._maybe_fire_low_ad_yield_action(
                 'a-feed', 'ep1', 'https://example.com/ep1.mp3', 'Ep Title',
                 'A Podcast', 'desc', None, {}, {'mode': 'auto'})
 
@@ -500,8 +505,8 @@ class TestPublishStatusRunIdForwarding:
         ctx = run_context.begin('a-feed', 'ep1', run_id='run-1')
         try:
             with patch.object(processing, 'status_service', real_status_service), \
-                 patch.object(processing, '_require_publication_owner'):
-                processing._publish_status(
+                 patch.object(common, '_require_publication_owner'):
+                common._publish_status(
                     'queue_episode', 'a-feed', 'ep1', 'Ep Title', 'A Podcast')
         finally:
             run_context.end(ctx)
@@ -519,8 +524,8 @@ class TestPublishStatusRunIdForwarding:
         ctx = run_context.begin('a-feed', 'ep1', run_id='run-2')
         try:
             with patch.object(processing, 'status_service', mock_status_service), \
-                 patch.object(processing, '_require_publication_owner'):
-                processing._publish_status('complete_job', 'a-feed', 'ep1')
+                 patch.object(common, '_require_publication_owner'):
+                common._publish_status('complete_job', 'a-feed', 'ep1')
         finally:
             run_context.end(ctx)
 
@@ -533,19 +538,19 @@ class TestPublishStatusRunIdForwarding:
         import status_service as status_service_mod
         mock_status_service = create_autospec(status_service_mod.StatusService,
                                               instance=True)
-        processing._method_accepts_run_id.cache_clear()
+        common._method_accepts_run_id.cache_clear()
 
         ctx = run_context.begin('a-feed', 'ep1', run_id='run-3')
         try:
             with patch.object(processing, 'status_service', mock_status_service), \
-                 patch.object(processing, '_require_publication_owner'), \
-                 patch.object(processing.inspect, 'signature',
+                 patch.object(common, '_require_publication_owner'), \
+                 patch.object(common.inspect, 'signature',
                               wraps=inspect_mod.signature) as sig:
-                processing._publish_status('complete_job', 'a-feed', 'ep1')
-                processing._publish_status('complete_job', 'a-feed', 'ep1')
+                common._publish_status('complete_job', 'a-feed', 'ep1')
+                common._publish_status('complete_job', 'a-feed', 'ep1')
         finally:
             run_context.end(ctx)
-            processing._method_accepts_run_id.cache_clear()
+            common._method_accepts_run_id.cache_clear()
 
         assert sig.call_count == 1
         assert mock_status_service.complete_job.call_count == 2

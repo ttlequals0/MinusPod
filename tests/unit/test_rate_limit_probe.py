@@ -13,7 +13,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('rate_limit_probe_test_')
 from llm_client import ProviderRateLimitedError
 from main_app import db
-from main_app.processing import _handle_processing_failure
+from main_app.pipeline.failure import _handle_processing_failure
 from rate_limit_hold import MAX_HOLD_SECONDS, probe_rate_limit
 from tests.unit.provider_error_fakes import FakeProviderError, FakeResponse
 from utils.time import parse_iso_utc, utc_now, utc_now_iso

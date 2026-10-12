@@ -21,6 +21,7 @@ from utils.episode_paths import episode_relative_path, published_episode_version
 _test_data_dir = bootstrap('local_jit_test_', reset_storage=True)
 
 import main_app.processing as processing  # noqa: E402
+from main_app.pipeline import common, transcribe
 import main_app.routes as routes_mod  # noqa: E402
 from main_app import app, db, storage  # noqa: E402
 
@@ -89,14 +90,14 @@ def test_fresh_episode_reuses_retained_original_no_download(tmp_path):
          patch.object(processing, 'transcriber', mock_t), \
          patch.object(processing, 'sponsor_service', mock_sponsor), \
          patch.object(processing, 'status_service', MagicMock()), \
-         patch.object(processing, 'get_feed_language_override',
+         patch.object(transcribe, 'get_feed_language_override',
                       return_value=None), \
-         patch.object(processing, '_retranscribe_tail_no_vad',
+         patch.object(transcribe, '_retranscribe_tail_no_vad',
                       return_value=[]), \
-         patch.object(processing, '_copy_retained_original_to_temp',
+         patch.object(common, '_copy_retained_original_to_temp',
                       return_value='/tmp/reused.mp3') as copy_fn, \
-         patch.object(processing, '_download_episode_audio') as download_fn:
-        audio_path, out_segments = processing._download_and_transcribe(
+         patch.object(transcribe, '_download_episode_audio') as download_fn:
+        audio_path, out_segments = transcribe._download_and_transcribe(
             'show', 'ep1', 'http://example.com/e.mp3')
 
     assert audio_path == '/tmp/reused.mp3'
@@ -111,9 +112,9 @@ def test_local_missing_original_raises_without_downloading():
     mock_storage.get_original_path.return_value = None
 
     with patch.object(processing, 'storage', mock_storage), \
-         patch.object(processing, '_download_episode_audio') as download_fn:
+         patch.object(transcribe, '_download_episode_audio') as download_fn:
         with pytest.raises(Exception, match='original audio missing'):
-            processing._download_and_transcribe(
+            transcribe._download_and_transcribe(
                 'arc', 's01e01', 'local://s01e01',
                 podcast=_local('arc'))
 
@@ -139,13 +140,13 @@ def test_non_local_missing_original_still_downloads():
          patch.object(processing, 'transcriber', mock_t), \
          patch.object(processing, 'sponsor_service', mock_sponsor), \
          patch.object(processing, 'status_service', MagicMock()), \
-         patch.object(processing, 'get_feed_language_override',
+         patch.object(transcribe, 'get_feed_language_override',
                       return_value=None), \
-         patch.object(processing, '_retranscribe_tail_no_vad',
+         patch.object(transcribe, '_retranscribe_tail_no_vad',
                       return_value=[]), \
-         patch.object(processing, '_download_episode_audio',
+         patch.object(transcribe, '_download_episode_audio',
                       return_value='/tmp/dl.mp3') as download_fn:
-        audio_path, _ = processing._download_and_transcribe(
+        audio_path, _ = transcribe._download_and_transcribe(
             'sub', 'abc123def456', 'http://cdn.example.com/e.mp3',
             podcast=podcast, outcome=outcome)
 
@@ -162,9 +163,9 @@ def test_skip_transcription_local_missing_original_raises_without_downloading():
     mock_storage.get_original_path.return_value = None
 
     with patch.object(processing, 'storage', mock_storage), \
-         patch.object(processing, '_download_episode_audio') as download_fn:
+         patch.object(transcribe, '_download_episode_audio') as download_fn:
         with pytest.raises(Exception, match='original audio missing'):
-            processing._download_and_transcribe(
+            transcribe._download_and_transcribe(
                 'arc', 's01e01', 'local://s01e01',
                 skip_transcription=True, podcast=_local('arc'))
 
@@ -185,9 +186,9 @@ def test_existing_transcript_local_missing_original_raises_without_downloading()
 
     with patch.object(processing, 'storage', mock_storage), \
          patch.object(processing, 'db', mock_db), \
-         patch.object(processing, '_download_episode_audio') as download_fn:
+         patch.object(transcribe, '_download_episode_audio') as download_fn:
         with pytest.raises(Exception, match='original audio missing'):
-            processing._download_and_transcribe(
+            transcribe._download_and_transcribe(
                 'arc', 's01e01', 'local://s01e01',
                 podcast=_local('arc'))
 

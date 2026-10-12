@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('history_ad_count_test_')
-from main_app.processing import _record_history_and_event, _log_completion_summary
+from main_app.pipeline.finalize import _record_history_and_event, _log_completion_summary
 
 
 def _make_db():
@@ -49,7 +49,7 @@ class TestHistoryAdCountIncludesVerification:
 
         # _record_history_and_event also fires a webhook; stub it so the
         # test isolates the DB write contract.
-        with patch('main_app.processing.fire_event'):
+        with patch('main_app.pipeline.finalize.fire_event'):
             _record_history_and_event(
                 slug='daily-show', episode_id='ep1',
                 episode_title='Episode One',
@@ -74,7 +74,7 @@ class TestHistoryAdCountIncludesVerification:
         guard so the fix doesn't break the simple case)."""
         db = _make_db()
 
-        with patch('main_app.processing.fire_event'):
+        with patch('main_app.pipeline.finalize.fire_event'):
             _record_history_and_event(
                 slug='s', episode_id='e', episode_title='t', podcast_name='p',
                 pass1_cut_count=1, verification_count=0,
@@ -92,7 +92,7 @@ class TestHistoryAdCountIncludesVerification:
         verification cuts, not the pre-reviewer 0."""
         db = _make_db()
 
-        with patch('main_app.processing.fire_event'):
+        with patch('main_app.pipeline.finalize.fire_event'):
             _record_history_and_event(
                 slug='s', episode_id='e', episode_title='t', podcast_name='p',
                 pass1_cut_count=0, verification_count=1,
@@ -117,7 +117,7 @@ class TestCompletionLogLineIncludesVerification:
         # calling thread's run-context token accumulator.
         token_stub = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
         with caplog.at_level(logging.INFO, logger='podcast.audio'), \
-                patch('main_app.processing.get_episode_token_totals',
+                patch('main_app.pipeline.finalize.get_episode_token_totals',
                       return_value=token_stub):
             _log_completion_summary(
                 slug='s', episode_id='e',
@@ -138,7 +138,7 @@ class TestCompletionLogLineIncludesVerification:
         db = MagicMock()
         token_stub = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
         with caplog.at_level(logging.INFO, logger='podcast.audio'), \
-                patch('main_app.processing.get_episode_token_totals',
+                patch('main_app.pipeline.finalize.get_episode_token_totals',
                       return_value=token_stub):
             _log_completion_summary(
                 slug='s', episode_id='e',
@@ -162,7 +162,7 @@ class TestCreditTimeSavedIsUnconditional:
     def test_positive_saving_credits_the_delta(self):
         db = MagicMock()
         token_stub = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
-        with patch('main_app.processing.get_episode_token_totals', return_value=token_stub):
+        with patch('main_app.pipeline.finalize.get_episode_token_totals', return_value=token_stub):
             _log_completion_summary(
                 slug='s', episode_id='e',
                 pass1_cut_count=1, verification_count=0,
@@ -176,7 +176,7 @@ class TestCreditTimeSavedIsUnconditional:
         credit_time_saved(0.0) so a prior positive credit is subtracted."""
         db = MagicMock()
         token_stub = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
-        with patch('main_app.processing.get_episode_token_totals', return_value=token_stub):
+        with patch('main_app.pipeline.finalize.get_episode_token_totals', return_value=token_stub):
             _log_completion_summary(
                 slug='s', episode_id='e',
                 pass1_cut_count=0, verification_count=0,

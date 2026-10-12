@@ -8,7 +8,7 @@ import pytest
 
 import failover
 from llm_client import LLMResponse, ProviderRateLimitedError, invalidate_provider_cache
-from main_app.processing import _required_providers_for_admission, _resolve_route_snapshot
+from main_app.pipeline.admission import _required_providers_for_admission, _resolve_route_snapshot
 from tests.unit.test_llm_call_window_loss import _FakeLLMClient, _window_call
 
 FAILOVER_CFG = {'provider': 'openai-compatible', 'base_url': 'http://127.0.0.1:11434/v1',

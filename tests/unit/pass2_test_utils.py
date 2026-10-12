@@ -7,6 +7,8 @@ from ad_reviewer import ReviewResult, ReviewVerdict
 from ad_validator import AdValidator
 from audio_processor import AudioProcessor, get_replacement_duration
 from main_app import processing
+from main_app.pipeline import detect, verify
+from main_app.pipeline import review
 from utils.time import adjust_timestamp
 
 NO_SPLICE = 'no_splice_evidence'
@@ -45,7 +47,7 @@ def _spans(ads):
 
 def _user_corrections(slug, episode_id):
     """The (fp, confirmed) corrections the test's db holds."""
-    return processing._load_user_corrections(slug, episode_id, processing.db)
+    return detect._load_user_corrections(slug, episode_id, processing.db)
 
 
 def _approval_db(monkeypatch, confirmed=None):
@@ -142,14 +144,14 @@ def drive_verification_pass(findings=(), *, pairs=None, holds=(), cuts=(), kept=
         p(processing, 'db', fake_db)
         p(processing, 'storage')
         verifier_cls = stack.enter_context(patch('verification_pass.VerificationPass'))
-        p(processing, '_apply_pass2_heuristic_rolls')
-        p(processing, '_validate_verification_ads', side_effect=run_validate)
+        p(verify, '_apply_pass2_heuristic_rolls')
+        p(verify, '_validate_verification_ads', side_effect=run_validate)
         if gate:
-            p(processing, '_gate_verification_ads_by_confidence', side_effect=gate)
-        p(processing, '_apply_pass2_reviewer',
+            p(verify, '_gate_verification_ads_by_confidence', side_effect=gate)
+        p(review, '_apply_pass2_reviewer',
           side_effect=pass2_reviewer or (lambda *a, **k: None))
-        p(processing, '_ad_review_enabled', lambda db: hold_verdicts is not None)
-        p(processing, '_build_reviewer', lambda db, det: SimpleNamespace(review=hold_review))
+        p(review, '_ad_review_enabled', lambda db: hold_verdicts is not None)
+        p(review, '_build_reviewer', lambda db, det: SimpleNamespace(review=hold_review))
         p(processing.ad_detector, 'get_verification_model', lambda: 'test-model')
         p(processing.ad_detector, 'get_verification_provider', lambda: None)
         for extra in extra_patches:
@@ -168,7 +170,7 @@ def drive_verification_pass(findings=(), *, pairs=None, holds=(), cuts=(), kept=
             false_positive_corrections=list(fp), cue_gate_enabled=cue_gate_enabled,
             run_stats=run_stats)
         kwargs.update(pass_kwargs)
-        output = processing._run_verification_pass(
+        output = verify._run_verification_pass(
             _ctx(), '/tmp/pass1-output.mp3', cut_list, False, 0.8, audio, None, **kwargs)
     return SimpleNamespace(output=output, rendered=rendered, validated=validated,
                            hold_reviews=hold_reviews, stats=run_stats, audio=audio,

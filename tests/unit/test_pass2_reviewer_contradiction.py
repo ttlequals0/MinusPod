@@ -19,7 +19,10 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from main_app import processing
+from main_app.pipeline import common, review
 from main_app.verification_reconciliation import Pass2Ledger
+from main_app.pipeline import detect, verify, publish
+from main_app.pipeline import cuts as cuts_stage
 from ad_reviewer import ReviewResult, log_contradiction_event
 from tests.unit.pass2_test_utils import _ctx, _verdict, drive_verification_pass
 from tests.unit.reviewer_test_utils import _build_reviewer, _resp
@@ -39,11 +42,14 @@ def _pair(o_start, o_end, p_start, p_end):
 def _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                ads_processed, ads_original, resurrection_eligible=None, **kwargs):
     result = ReviewResult(verdicts=list(verdicts))
-    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
-    monkeypatch.setattr(processing, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage',
                         lambda *a, **k: None)
-    monkeypatch.setattr(processing, 'split_resurrection_pool',
+    monkeypatch.setattr(review, 'split_resurrection_pool',
                         lambda *a, **k: resurrection_eligible or [])
     def _review(**kw):
         # Stands in for AdReviewer.review's accepted-pool loop, the single
@@ -56,10 +62,10 @@ def _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         return result
 
     stub = SimpleNamespace(review=_review)
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, det: stub)
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, det: stub)
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
                         lambda: 'test-model')
-    processing._apply_pass2_reviewer(
+    review._apply_pass2_reviewer(
         _ctx(), v_ads_to_cut, v_ads_for_ui, v_ads_held,
         ads_processed, ads_original, [], 0.80, **kwargs,
     )
@@ -202,7 +208,7 @@ def test_pass2_boundary_conflict_blocks_later_adjustment(monkeypatch):
     _run_pass2(monkeypatch, verdicts, cuts, ui, held,
                [held_processed, adjusted_processed],
                [held_original, adjusted_original])
-    processing._hold_adjustments_crossing_final_holds(cuts, ui, held)
+    review._hold_adjustments_crossing_final_holds(cuts, ui, held)
 
     assert cuts == []
     assert ui == []
@@ -256,7 +262,10 @@ def test_pass2_adjust_maps_only_surviving_audio(monkeypatch):
     original, processed = _pair(250.0, 310.0, 151.0, 211.0)
     cuts, ui, held = [processed], [original], []
     verdict = _verdict('adjust', 250.0, 310.0, reasoning=AFFIRMING, adjusted=(260.0, 300.0))
-    monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(review, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(cuts_stage, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(verify, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(publish, 'get_replacement_duration', lambda: 1.0)
 
     _run_pass2(monkeypatch, [verdict], cuts, ui, held, [processed], [original],
                pass1_cuts=[{'start': 100.0, 'end': 200.0}])
@@ -320,7 +329,7 @@ def test_adjustment_is_reconciled_against_later_sibling_hold():
     held = [{'start': 235.0, 'end': 245.0, 'held_for_review': True}]
     cuts, ui = [processed], [original]
 
-    processing._hold_adjustments_crossing_final_holds(cuts, ui, held)
+    review._hold_adjustments_crossing_final_holds(cuts, ui, held)
 
     assert cuts == []
     assert ui == []
@@ -344,7 +353,7 @@ def test_adjustment_hold_reconciliation_repeats_for_hold_chain():
     held = [{'start': 200.0, 'end': 220.0, 'held_for_review': True}]
     cuts, ui = [first_processed, second_processed], [first_original, second_original]
 
-    processing._hold_adjustments_crossing_final_holds(cuts, ui, held)
+    review._hold_adjustments_crossing_final_holds(cuts, ui, held)
 
     assert cuts == []
     assert ui == []
@@ -356,11 +365,14 @@ def _run_real_pass2_review(monkeypatch, proposed, **kwargs):
                                 'review_max_boundary_shift': '60'})
     reviewer._llm_client.messages_create.return_value = _resp(
         f'[{{"start": {proposed[0]}, "end": {proposed[1]}, "confidence": 0.96}}]')
-    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
-    monkeypatch.setattr(processing, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(processing, '_publish_status', lambda *a, **k: None)
-    monkeypatch.setattr(processing, 'split_resurrection_pool', lambda *a, **k: [])
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, det: reviewer)
+    monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(common, '_publish_status', lambda *a, **k: None)
+    monkeypatch.setattr(review, 'split_resurrection_pool', lambda *a, **k: [])
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, det: reviewer)
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model', lambda: 'test-model')
     monkeypatch.setattr(processing.ad_detector, 'get_verification_provider', lambda: None)
     original, processed = _pair(250.0, 310.0, 250.0, 310.0)
@@ -368,7 +380,7 @@ def _run_real_pass2_review(monkeypatch, proposed, **kwargs):
     cuts, ui, held = [processed], [original], []
     segments = [{'start': 200.0, 'end': 250.0, 'text': 'Show talk.'},
                 {'start': 250.0, 'end': 310.0, 'text': 'A message from Acme.'}]
-    processing._apply_pass2_reviewer(
+    review._apply_pass2_reviewer(
         _ctx(), cuts, ui, held, [processed], [original], segments, 0.80,
         pass1_cuts=[], **kwargs)
     return cuts, ui, held, processed

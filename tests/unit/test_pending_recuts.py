@@ -18,6 +18,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='pending_recu
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 from main_app import app
+from main_app.pipeline import publish
 from api.episodes import chapters_only_decisions
 
 SLUG = 'pending-recut-test'
@@ -342,9 +343,8 @@ def _reject_held(client, episode_id=EPISODE_ID, held=HELD[0]):
 
 @pytest.fixture
 def rebuilds(monkeypatch):
-    from main_app import processing
     calls = []
-    monkeypatch.setattr(processing, 'rebuild_ad_chapters',
+    monkeypatch.setattr(publish, 'rebuild_ad_chapters',
                         lambda slug, episode_id, markers, episode=None:
                         calls.append(markers) or True)
     return calls
@@ -392,7 +392,6 @@ class TestChaptersOnlyRunInTheBackground:
 
     def test_the_request_returns_before_the_remux_finishes(
             self, client, reviewable, monkeypatch):
-        from main_app import processing
         release, started = threading.Event(), threading.Event()
 
         def _slow_rebuild(slug, episode_id, markers, episode=None):
@@ -400,7 +399,7 @@ class TestChaptersOnlyRunInTheBackground:
             release.wait(5)
             return True
 
-        monkeypatch.setattr(processing, 'rebuild_ad_chapters', _slow_rebuild)
+        monkeypatch.setattr(publish, 'rebuild_ad_chapters', _slow_rebuild)
         _reject_held(client)
         began = time.monotonic()
         body = client.post('/api/v1/episodes/pending-recuts/apply').get_json()
@@ -414,7 +413,6 @@ class TestChaptersOnlyRunInTheBackground:
 
     def test_a_batch_is_rebuilt_one_episode_at_a_time(
             self, client, reviewable_pair, monkeypatch):
-        from main_app import processing
         counter_lock = threading.Lock()
         state = {'active': 0, 'peak': 0}
         order = []
@@ -429,7 +427,7 @@ class TestChaptersOnlyRunInTheBackground:
             order.append(episode_id)
             return True
 
-        monkeypatch.setattr(processing, 'rebuild_ad_chapters', _tracked_rebuild)
+        monkeypatch.setattr(publish, 'rebuild_ad_chapters', _tracked_rebuild)
         _reject_held(client)
         _reject_held(client, EPISODE_ID_2)
         client.post('/api/v1/episodes/pending-recuts/apply')
@@ -440,7 +438,6 @@ class TestChaptersOnlyRunInTheBackground:
 
     def test_a_failed_rebuild_keeps_its_stamp_and_the_batch_goes_on(
             self, client, reviewable_pair, monkeypatch):
-        from main_app import processing
         done = []
 
         def _failing_first(slug, episode_id, markers, episode=None):
@@ -449,7 +446,7 @@ class TestChaptersOnlyRunInTheBackground:
             done.append(episode_id)
             return True
 
-        monkeypatch.setattr(processing, 'rebuild_ad_chapters', _failing_first)
+        monkeypatch.setattr(publish, 'rebuild_ad_chapters', _failing_first)
         _reject_held(client)
         _reject_held(client, EPISODE_ID_2)
         client.post('/api/v1/episodes/pending-recuts/apply')

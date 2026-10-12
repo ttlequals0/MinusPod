@@ -16,7 +16,7 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('admission_mode_test_')
 from main_app import background, db
-from main_app.processing import _required_providers_for_admission
+from main_app.pipeline.admission import _required_providers_for_admission
 
 SLUG = 'admission-mode-feed'
 EP = 'aa11bb22cc33'

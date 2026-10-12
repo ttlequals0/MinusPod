@@ -11,7 +11,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector.boundaries import merge_ads_across_short_content_gaps
-import main_app.processing as _proc  # noqa: E402  # after env setup above
+from main_app.pipeline import detect
 
 
 # Helpers
@@ -226,7 +226,7 @@ class TestMergeGapSettingPlumbing:
         mock_db.get_setting = MagicMock(return_value='15.0')
 
         captured = {}
-        original = _proc.merge_ads_across_short_content_gaps
+        original = detect.merge_ads_across_short_content_gaps
 
         def spy(ads, segs, min_content_seconds, max_merged_seconds=300.0,
                 false_positive_corrections=None):
@@ -234,8 +234,8 @@ class TestMergeGapSettingPlumbing:
             return original(ads, segs, min_content_seconds, max_merged_seconds,
                             false_positive_corrections=false_positive_corrections)
 
-        with patch.object(_proc, 'merge_ads_across_short_content_gaps', spy):
-            _proc._refine_boundaries(ads_in, segments, db=mock_db)
+        with patch.object(detect, 'merge_ads_across_short_content_gaps', spy):
+            detect._refine_boundaries(ads_in, segments, db=mock_db)
 
         assert 'min_content_seconds' in captured, "_refine_boundaries did not call merge_ads_across_short_content_gaps"
         assert captured['min_content_seconds'] == 15.0
@@ -250,7 +250,7 @@ class TestMergeGapSettingPlumbing:
         mock_db.get_setting = MagicMock(return_value='0.0')
 
         captured = {}
-        original = _proc.merge_ads_across_short_content_gaps
+        original = detect.merge_ads_across_short_content_gaps
 
         def spy(ads, segs, min_content_seconds, max_merged_seconds=300.0,
                 false_positive_corrections=None):
@@ -258,8 +258,8 @@ class TestMergeGapSettingPlumbing:
             return original(ads, segs, min_content_seconds, max_merged_seconds,
                             false_positive_corrections=false_positive_corrections)
 
-        with patch.object(_proc, 'merge_ads_across_short_content_gaps', spy):
-            result = _proc._refine_boundaries(ads_in, segments, db=mock_db)
+        with patch.object(detect, 'merge_ads_across_short_content_gaps', spy):
+            result = detect._refine_boundaries(ads_in, segments, db=mock_db)
 
         assert captured['min_content_seconds'] == 0.0
         assert len(result) == 2, "Setting 0 must disable merging end-to-end"

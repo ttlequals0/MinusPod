@@ -5,6 +5,8 @@ from contextlib import ExitStack
 from unittest.mock import patch
 
 import main_app.processing as processing
+from main_app.pipeline import keep_rules, publish, finalize, recut
+from main_app.pipeline import common
 from config import DEFAULT_SEGMENT_ACTION, SEGMENT_CATEGORIES
 
 ALL_REMOVE = {cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES}
@@ -17,11 +19,13 @@ def stub_recut(stack, ads_to_remove, all_ads, keep_ads=(), *, episode_row, durat
     db = p(processing, 'db')
     storage = p(processing, 'storage')
     p(processing, 'status_service')
-    p(processing, '_copy_retained_original_to_temp', return_value='/tmp/recut-work.mp3')
-    p(processing, '_build_recut_ad_list',
+    p(common, '_copy_retained_original_to_temp', return_value='/tmp/recut-work.mp3')
+    p(recut, '_build_recut_ad_list',
       return_value=(ads_to_remove, all_ads, list(keep_ads), []))
     p(processing.os.path, 'exists', return_value=False)
-    local_ap = p(processing, 'AudioProcessor').return_value
+    ap_cls = p(processing, 'AudioProcessor')
+    p(recut, 'AudioProcessor', new=ap_cls)
+    local_ap = ap_cls.return_value
     db.get_episode.return_value = episode_row
     db.get_original_segments.return_value = [{'start': 0.0, 'end': duration}]
     db.get_all_settings.return_value = {}
@@ -38,7 +42,7 @@ def run_action_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
                      confirmed_corrections=(), render_calls=None, fp_corrections=(),
                      podcast_row=None):
     """Recut after the builder's keep partition; returns (rendered segments, saved markers)."""
-    keep_ads, _rest = processing._partition_keep_ads(all_ads, segment_actions)
+    keep_ads, _rest = keep_rules._partition_keep_ads(all_ads, segment_actions)
     keep_ids = {id(ad) for ad in keep_ads}
     ads_to_remove = [ad for ad in ads_to_remove if id(ad) not in keep_ids]
     with ExitStack() as stack:
@@ -47,15 +51,15 @@ def run_action_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1,
             episode_row={'podcast_id': podcast_id, 'processed_version': 0}, duration=60.0,
             segment_actions=segment_actions, confirmed=confirmed_corrections,
             fp=fp_corrections)
-        stack.enter_context(patch.object(processing, '_generate_assets'))
-        stack.enter_context(patch.object(processing, '_finalize_episode'))
+        stack.enter_context(patch.object(publish, '_generate_assets'))
+        stack.enter_context(patch.object(finalize, '_finalize_episode'))
         stack.enter_context(patch.object(processing.shutil, 'move'))
         local_ap.get_audio_duration.return_value = 60.0
         local_ap.process_episode.side_effect = (
             lambda work_path, segs, cut_barriers=None, hard_barriers=None: (
                 '/tmp/recut-cut.mp3', [{'start': s['start'], 'end': s['end']} for s in segs]))
 
-        result = processing._recut_episode(
+        result = recut._recut_episode(
             'segrerender-feed', 'ep1', 'Episode', 'Podcast', 'desc',
             time.time(), cancel_event=None, podcast_row=podcast_row)
 
@@ -75,13 +79,15 @@ def _recut_render_call(tmp_path, markers, confirmed):
         db = p(processing, 'db')
         storage = p(processing, 'storage')
         p(processing, 'status_service')
-        p(processing, '_finalize_episode')
-        p(processing, '_generate_assets')
-        p(processing, '_copy_retained_original_to_temp', return_value=str(tmp_path / 'w.mp3'))
-        p(processing, 'get_min_cut_confidence', return_value=0.80)
+        p(finalize, '_finalize_episode')
+        p(publish, '_generate_assets')
+        p(common, '_copy_retained_original_to_temp', return_value=str(tmp_path / 'w.mp3'))
+        p(common, 'get_min_cut_confidence', return_value=0.80)
         p(processing.os.path, 'exists', return_value=False)
         p(processing.shutil, 'move')
-        local_ap = p(processing, 'AudioProcessor').return_value
+        ap_cls = p(processing, 'AudioProcessor')
+        p(recut, 'AudioProcessor', new=ap_cls)
+        local_ap = ap_cls.return_value
         local_ap.get_audio_duration.return_value = 600.0
         local_ap.process_episode.side_effect = (
             lambda path, segs, cut_barriers=None, hard_barriers=None: (
@@ -103,6 +109,6 @@ def _recut_render_call(tmp_path, markers, confirmed):
         storage.get_applied_cuts.return_value = []
         storage.get_episode_path.return_value = str(tmp_path / 'final.mp3')
 
-        assert processing._recut_episode(
+        assert recut._recut_episode(
             'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
     return local_ap.process_episode.call_args

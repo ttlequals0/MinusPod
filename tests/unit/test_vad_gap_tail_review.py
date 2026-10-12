@@ -22,6 +22,7 @@ from config import (
     HOLD_REASON_UNCORROBORATED_TAIL, count_pending_review, is_pending_review,
 )
 from main_app import processing
+from main_app.pipeline import detect, recut
 from tests.unit.pass2_test_utils import _user_corrections
 
 
@@ -42,11 +43,11 @@ def test_refine_and_validate_passes_audio_analysis_to_validator(monkeypatch):
         captured['audio_analysis'] = audio_analysis
         return ValidationResult(ads=[])
 
-    monkeypatch.setattr(processing, '_load_user_corrections',
+    monkeypatch.setattr(detect, '_load_user_corrections',
                         lambda *a, **k: ([], []))
-    monkeypatch.setattr(processing, '_refine_boundaries',
+    monkeypatch.setattr(detect, '_refine_boundaries',
                         lambda ads, *a, **k: ads)
-    monkeypatch.setattr(processing, '_apply_heuristic_rolls',
+    monkeypatch.setattr(detect, '_apply_heuristic_rolls',
                         lambda *a, **k: None)
     monkeypatch.setattr(processing.storage, 'save_combined_ads',
                         lambda *a, **k: None)
@@ -54,7 +55,7 @@ def test_refine_and_validate_passes_audio_analysis_to_validator(monkeypatch):
 
     analysis = {'signals': [], 'loudness_baseline': -16.0,
                 'analysis_time_seconds': 1.0, 'errors': []}
-    processing._refine_and_validate(
+    detect._refine_and_validate(
         'slug', 'ep',
         [{'start': 1.0, 'end': 40.0, 'confidence': 0.9, 'reason': 'sponsor read'}],
         [], 'unused.mp3', '', 3600.0, 0.80, 'Pod',
@@ -79,15 +80,19 @@ def test_build_recut_ad_list_passes_stored_audio_analysis(monkeypatch):
     monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda eid: [])
     monkeypatch.setattr(processing.db, 'get_episode_audio_analysis',
                         lambda slug, eid: json.dumps(stored))
-    monkeypatch.setattr(processing, '_load_user_corrections',
+    monkeypatch.setattr(detect, '_load_user_corrections',
                         lambda *a, **k: ([], []))
     monkeypatch.setattr(processing, 'resolve_max_ad_duration_override',
                         lambda *a: None)
+    monkeypatch.setattr(recut, 'resolve_max_ad_duration_override',
+                        lambda *a: None)
     monkeypatch.setattr(processing, 'resolve_cue_gated_approval',
+                        lambda *a: False)
+    monkeypatch.setattr(recut, 'resolve_cue_gated_approval',
                         lambda *a: False)
     monkeypatch.setattr(ad_validator.AdValidator, 'validate', fake_validate)
 
-    processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80,
+    recut._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80,
                                     podcast_id=1,
                                     corrections=_user_corrections('slug', 'ep'))
     assert captured['audio_analysis'] == stored
@@ -139,7 +144,7 @@ def test_uncorroborated_tail_marker_lands_in_pending_review():
     # the marker in audio AND surface it to the review queue.
     validator = AdValidator(episode_duration=10600.0, segments=TAIL_SEGMENTS)
     result = validator.validate([_tail_marker()])
-    ads_to_remove, _ = processing._gate_validation_by_confidence(
+    ads_to_remove, _ = detect._gate_validation_by_confidence(
         'slug', 'ep', result.ads, 0.80
     )
     ad = result.ads[0]
@@ -155,7 +160,7 @@ def test_corroborated_tail_marker_is_cut_not_pending():
     validator = AdValidator(episode_duration=10600.0, segments=TAIL_SEGMENTS)
     result = validator.validate([_tail_marker()],
                                 audio_analysis=_tail_transition_analysis())
-    ads_to_remove, _ = processing._gate_validation_by_confidence(
+    ads_to_remove, _ = detect._gate_validation_by_confidence(
         'slug', 'ep', result.ads, 0.80
     )
     ad = result.ads[0]

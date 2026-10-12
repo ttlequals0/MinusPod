@@ -15,7 +15,7 @@ _test_data_dir = bootstrap('beep_timeline_mapping_test_')
 
 from audio_processor import AudioProcessor
 from embedded_chapters import remap_chapters
-from main_app import processing
+from main_app.pipeline import verify, publish
 from utils.time import adjust_timestamp, merge_cut_spans
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 
@@ -145,26 +145,26 @@ class TestVerificationPassMappingMixedCutList:
         # zero-shift beep span, so it maps back with the remove span's
         # 28s shift only.
         recut = [{'start': 150.0, 'end': 160.0}]
-        out = processing._pass2_cuts_in_original(recut, MIXED_CUTS)
+        out = verify._pass2_cuts_in_original(recut, MIXED_CUTS)
         assert out == [{'start': 178.0, 'end': 188.0,
                         'detection_stage': 'verification',
                         'replacement_duration': None}]
 
 
 class TestUnadjustTimestampMixedRecut:
-    """processing._unadjust_timestamp (recut chapter remap's inverse) must
+    """publish._unadjust_timestamp (recut chapter remap's inverse) must
     also honor per-span replacement duration, not one constant for every
     cut in the list."""
 
     def test_roundtrip_outside_cuts(self):
         for t in (50.0, 167.0, 187.0, 300.0):
             p = adjust_timestamp(t, MIXED_CUTS)
-            assert processing._unadjust_timestamp(p, MIXED_CUTS) == pytest.approx(t)
+            assert publish._unadjust_timestamp(p, MIXED_CUTS) == pytest.approx(t)
 
     def test_inside_beeped_span_maps_to_its_start(self):
         # 1s into the second (beep) span's replacement audio.
         p = adjust_timestamp(200.0, MIXED_CUTS) + 1.0
-        assert processing._unadjust_timestamp(p, MIXED_CUTS) == 200.0
+        assert publish._unadjust_timestamp(p, MIXED_CUTS) == 200.0
 
 
 class TestLegacyMetadataDefaultsToAllRemove:
@@ -180,7 +180,7 @@ class TestLegacyMetadataDefaultsToAllRemove:
 
     def test_unadjust_timestamp_uses_scalar_for_every_span(self):
         p = adjust_timestamp(250.0, self.LEGACY_CUTS, replacement_duration=BEEP)
-        assert processing._unadjust_timestamp(p, self.LEGACY_CUTS, BEEP) \
+        assert publish._unadjust_timestamp(p, self.LEGACY_CUTS, BEEP) \
             == pytest.approx(250.0)
 
     def test_persisted_legacy_cuts_round_trip_without_the_key(self, temp_db, mock_episode):

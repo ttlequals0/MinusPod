@@ -3,7 +3,7 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('reviewer_boundary_cue_floor_test_')
 
-from main_app import processing
+from main_app.pipeline import review
 from utils.markers import DAI_PROBE_SPANS
 from tests.unit.pipeline_test_utils import _run_pipeline
 from tests.unit.reviewer_test_utils import _LLMResp, _reviewer, _worded
@@ -59,7 +59,7 @@ def test_start_edge_mirror():
 
 def test_pipeline_renders_the_cut_to_the_cue(monkeypatch):
     reviewer = _reviewer()
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, detector: reviewer)
     body = '[{"start": 1816.0, "end": 1895.0, "is_ad": true, "confidence": 0.94}]'
     monkeypatch.setattr('ad_reviewer.call_llm_for_window',
                         lambda **kwargs: (_LLMResp(body), None))

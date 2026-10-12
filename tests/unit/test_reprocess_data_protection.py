@@ -10,7 +10,7 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('reprocess_data_protection_')
 from main_app import db
-from main_app.processing import _download_and_transcribe
+from main_app.pipeline.transcribe import _download_and_transcribe
 from reprocess_modes import (
     clear_episode_for_mode, batch_clear_episodes_for_mode,
     reset_episode_for_reprocess,
@@ -101,9 +101,9 @@ class TestTranscribeStageClear:
     def _run_forced(self, episode_id, new_segments):
         with patch('main_app.processing.transcriber.transcribe_chunked',
                    return_value=new_segments), \
-             patch('main_app.processing._retranscribe_tail_no_vad', return_value=[]), \
-             patch('main_app.processing._retranscribe_holes_no_vad', return_value=([], [])), \
-             patch('main_app.processing._download_episode_audio',
+             patch('main_app.pipeline.transcribe._retranscribe_tail_no_vad', return_value=[]), \
+             patch('main_app.pipeline.transcribe._retranscribe_holes_no_vad', return_value=([], [])), \
+             patch('main_app.pipeline.transcribe._download_episode_audio',
                    return_value='/tmp/fake-audio.mp3'), \
              patch('main_app.processing.status_service'):
             return _download_and_transcribe(
@@ -124,7 +124,7 @@ class TestTranscribeStageClear:
 
     def test_unforced_run_reuses_saved_transcript(self, seeded_episode):
         with patch('main_app.processing.transcriber.transcribe_chunked') as mock_tx, \
-             patch('main_app.processing._download_episode_audio',
+             patch('main_app.pipeline.transcribe._download_episode_audio',
                    return_value='/tmp/fake-audio.mp3'), \
              patch('main_app.processing.status_service'):
             audio_path, segments = _download_and_transcribe(
@@ -134,7 +134,7 @@ class TestTranscribeStageClear:
         assert _details_row(seeded_episode)['transcript_text'] == 'old transcript'
 
     def test_skip_transcription_with_forced_mode_clears(self, seeded_episode):
-        with patch('main_app.processing._download_episode_audio',
+        with patch('main_app.pipeline.transcribe._download_episode_audio',
                    return_value='/tmp/fake-audio.mp3'), \
              patch('main_app.processing.status_service'):
             _download_and_transcribe(
@@ -157,7 +157,7 @@ class TestRetryReusesForcedTranscript:
         conn.commit()
 
     def test_stale_pre_request_transcript_still_forces(self, seeded_episode):
-        from main_app.processing import _forced_transcription_already_done
+        from main_app.pipeline.transcribe import _forced_transcription_already_done
         self._set_details_created_at(seeded_episode, '2026-01-01T00:00:00Z')
         assert _forced_transcription_already_done(
             SLUG, seeded_episode, '2026-06-01T00:00:00Z') is False
@@ -170,7 +170,7 @@ class TestRetryReusesForcedTranscript:
         return path
 
     def test_fresh_transcript_from_this_request_is_reused(self, seeded_episode):
-        from main_app.processing import _forced_transcription_already_done
+        from main_app.pipeline.transcribe import _forced_transcription_already_done
         self._retain_original(seeded_episode)
         self._set_details_created_at(seeded_episode, '2026-06-01T00:10:00Z')
         assert _forced_transcription_already_done(
@@ -180,18 +180,18 @@ class TestRetryReusesForcedTranscript:
         """Without the retained original the retry re-downloads, and a DAI
         feed's fresh file shifts; the transcript must match the audio."""
         from main_app import storage
-        from main_app.processing import _forced_transcription_already_done
+        from main_app.pipeline.transcribe import _forced_transcription_already_done
         storage.get_original_path(SLUG, seeded_episode).unlink(missing_ok=True)
         self._set_details_created_at(seeded_episode, '2026-06-01T00:10:00Z')
         assert _forced_transcription_already_done(
             SLUG, seeded_episode, '2026-06-01T00:00:00Z') is False
 
     def test_no_request_time_always_forces(self, seeded_episode):
-        from main_app.processing import _forced_transcription_already_done
+        from main_app.pipeline.transcribe import _forced_transcription_already_done
         assert _forced_transcription_already_done(SLUG, seeded_episode, None) is False
 
     def test_details_without_transcript_do_not_count(self, seeded_episode):
-        from main_app.processing import _forced_transcription_already_done
+        from main_app.pipeline.transcribe import _forced_transcription_already_done
         self._retain_original(seeded_episode)
         conn = db.get_connection()
         conn.execute("UPDATE episode_details SET transcript_text = NULL")

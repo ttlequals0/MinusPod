@@ -9,6 +9,7 @@ import llm_route
 import run_context
 from llm_route import Route, apply_failover, apply_failover_dict
 from main_app import processing
+from main_app.pipeline import admission
 from ad_reviewer import AdReviewer
 
 PRIMARY = Route(phase='detection', provider_key='anthropic', model_id='claude-sonnet-5',
@@ -128,11 +129,11 @@ def test_new_snapshot_retains_original_routes_while_standby_is_active():
     routes = {phase: Route(**{**PRIMARY.__dict__, 'phase': phase})
               for phase in ('detection', 'review', 'chapters')}
     routes['verification'] = secondary
-    with patch.object(processing, 'resolve_route', side_effect=lambda phase, **kw: routes[phase]), \
-            patch.object(processing, 'Database', return_value=MagicMock()), \
+    with patch.object(admission, 'resolve_route', side_effect=lambda phase, **kw: routes[phase]), \
+            patch.object(admission, 'Database', return_value=MagicMock()), \
             _active({'llm:primary', 'llm:secondary'}), _configured(), \
             patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
-        snapshot = processing._resolve_route_snapshot()
+        snapshot = admission._resolve_route_snapshot()
         ctx = run_context.RunContext('example-podcast', 'a1b2c3d4e5f6')
         ctx.route_snapshot = snapshot
         with patch.object(run_context, 'current', return_value=ctx):
@@ -171,14 +172,16 @@ def test_admission_uses_live_standby_without_mutating_original_snapshot():
     snapshot = {'detection': {'provider_key': PRIMARY.provider_key,
                              'configured_model': PRIMARY.model_id,
                              'base_url': PRIMARY.base_url, 'credential_slot': 'primary'}}
-    with patch.object(processing, 'Database'), \
-            patch.object(processing, '_admission_mode_rows', return_value=({}, {})), \
+    with patch.object(admission, 'Database'), \
+            patch.object(admission, '_admission_mode_rows', return_value=({}, {})), \
             patch.object(processing, 'resolve_processing_mode', return_value='standard'), \
+            patch.object(admission, 'resolve_processing_mode', return_value='standard'), \
             patch.object(processing, 'resolve_skip_second_pass', return_value=True), \
-            patch.object(processing, '_chapters_enabled_for_admission', return_value=False), \
+            patch.object(admission, 'resolve_skip_second_pass', return_value=True), \
+            patch.object(admission, '_chapters_enabled_for_admission', return_value=False), \
             _active({'llm:primary'}), _configured(), \
             patch.object(failover, 'failover_llm_config', return_value=FAILOVER_CFG):
-        routes = processing._active_phases_for_admission(
+        routes = admission._active_phases_for_admission(
             'example-podcast', snapshot=snapshot, gates={'review': False, 'chapters_enabled': False})
     assert routes['detection']['credential_slot'] == 'failover'
     assert routes['detection']['configured_model'] == 'qwen3:8b'

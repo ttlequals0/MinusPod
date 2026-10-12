@@ -21,6 +21,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import main_app.processing as processing
+from main_app.pipeline import verify
+from main_app.pipeline import finalize as finalize_stage
+from main_app.pipeline import verify as verify_stage
+from main_app.pipeline import common, transcribe, signals, detect, review, cuts, publish
+from main_app.pipeline import recut
 from config import resolve_skip_second_pass
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
@@ -42,25 +47,27 @@ def _run_pipeline(skip_second_pass):
         p(processing.ad_detector, 'get_verification_model', return_value='test-model')
         p(processing, 'start_episode_token_tracking')
         p(processing, 'get_available_memory_gb', return_value=None)
-        p(processing, 'get_min_cut_confidence', return_value=0.8)
-        p(processing, '_download_and_transcribe',
+        p(finalize_stage, 'get_available_memory_gb', return_value=None)
+        p(common, 'get_min_cut_confidence', return_value=0.8)
+        p(transcribe, '_download_and_transcribe',
           return_value=('/tmp/skip2.mp3', SEGMENTS))
-        p(processing, '_run_differential_fetch', return_value=None)
-        p(processing, '_run_audio_analysis', return_value=None)
+        p(signals, '_run_differential_fetch', return_value=None)
+        p(signals, '_run_audio_analysis', return_value=None)
         p(processing, 'load_positional_prior', return_value=None)
-        p(processing, '_detect_ads_first_pass', return_value=([], 0, None))
-        p(processing, '_refine_and_validate', return_value=([], []))
-        p(processing, '_run_ad_reviewer', return_value=([], []))
-        p(processing, '_snap_terminal_starts', return_value=[])
-        p(processing, '_complete_cut_tails', return_value=[])
+        p(detect, '_detect_ads_first_pass', return_value=([], 0, None))
+        p(detect, '_refine_and_validate', return_value=([], []))
+        p(review, '_run_ad_reviewer', return_value=([], []))
+        p(cuts, '_snap_terminal_starts', return_value=[])
+        p(cuts, '_complete_cut_tails', return_value=[])
         local_ap_cls = p(processing, 'AudioProcessor')
+        p(recut, 'AudioProcessor', new=local_ap_cls)
         # Mirrors the real skip path: verification_ok is False when the
         # pass did not run, so the caller records no verification stat.
-        verify = p(processing, '_run_verification_pass',
+        verify = p(verify_stage, '_run_verification_pass',
                    return_value=(0, [], [], [], '/tmp/cut.mp3', 0,
                                  not skip_second_pass, 0))
-        p(processing, '_generate_assets')
-        finalize = p(processing, '_finalize_episode')
+        p(publish, '_generate_assets')
+        finalize = p(finalize_stage, '_finalize_episode')
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
         p(processing.os.path, 'exists', return_value=False)
@@ -123,7 +130,7 @@ class TestSkipSecondPass:
         # transcription and no LLM call; processed_path passes through.
         ctx = SimpleNamespace(slug='skip2-feed', episode_id='ep1')
         with patch('verification_pass.VerificationPass') as verifier_cls:
-            result = processing._run_verification_pass(
+            result = verify._run_verification_pass(
                 ctx, '/tmp/skip2-cut.mp3', [], False, 0.8, None, None,
                 skip_verification=True,
                 false_positive_corrections=[])

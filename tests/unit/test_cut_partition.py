@@ -6,7 +6,7 @@ this only distinguishes remove from beep on markers that already cut,
 reusing the same per-episode segment_actions map.
 
 Under test:
-- main_app.processing._partition_cut_actions (pure partition helper)
+- main_app.pipeline.keep_rules._partition_cut_actions (pure partition helper)
 - main_app.processing.process_episode integration: the audio-processor
   'beep' flag reaches AudioProcessor.process_episode, and action_applied
   is persisted on saved markers without leaking that transient flag
@@ -14,7 +14,7 @@ Under test:
   shortens the episode (fixed-length beep clip), 'beep' pads that clip
   with silence to the span's own length so duration is preserved, and an
   empty cut list leaves the audio byte-identical
-- main_app.processing._recut_episode: a marker saved with
+- main_app.pipeline.recut._recut_episode: a marker saved with
   action_applied='beep' in an earlier pass still renders as beep on
   recut, not a silent full remove
 - call-site uniformity: every AudioProcessor.process_episode call in
@@ -37,6 +37,8 @@ _test_data_dir = bootstrap(
     'cut_partition_test_', passphrase='cut-partition-test-passphrase')
 
 import main_app.processing as processing
+from main_app.pipeline import keep_rules, recut
+from main_app.pipeline import common, transcribe, signals, detect, review, cuts, verify, publish, finalize
 from audio_processor import AudioProcessor
 from config import DEFAULT_SEGMENT_ACTION
 from tests.unit.recut_test_utils import ALL_REMOVE
@@ -49,7 +51,7 @@ class TestPartitionCutActions:
         sponsor_ad = {'start': 0.0, 'end': 10.0, 'category': 'sponsor'}
         promo_ad = {'start': 20.0, 'end': 30.0, 'category': 'cross_promo'}
 
-        processing._partition_cut_actions([sponsor_ad, promo_ad], actions)
+        keep_rules._partition_cut_actions([sponsor_ad, promo_ad], actions)
 
         assert sponsor_ad['action_applied'] == 'remove'
         assert promo_ad['action_applied'] == 'beep'
@@ -59,7 +61,7 @@ class TestPartitionCutActions:
         actions = dict(ALL_REMOVE, sponsor='beep')
         heuristic_ad = {'start': 5.0, 'end': 15.0}
 
-        processing._partition_cut_actions([heuristic_ad], actions)
+        keep_rules._partition_cut_actions([heuristic_ad], actions)
 
         assert heuristic_ad['action_applied'] == 'beep'
 
@@ -67,7 +69,7 @@ class TestPartitionCutActions:
         actions = dict(ALL_REMOVE, sponsor='beep')
         ad = {'start': 0.0, 'end': 10.0, 'category': 'not-a-real-category'}
 
-        processing._partition_cut_actions([ad], actions)
+        keep_rules._partition_cut_actions([ad], actions)
 
         assert ad['action_applied'] == 'beep'
 
@@ -78,7 +80,7 @@ class TestPartitionCutActions:
         actions = dict(ALL_REMOVE, sponsor='keep')
         ad = {'start': 0.0, 'end': 10.0, 'category': 'sponsor'}
 
-        processing._partition_cut_actions([ad], actions)
+        keep_rules._partition_cut_actions([ad], actions)
 
         assert ad['action_applied'] == 'remove'
 
@@ -86,7 +88,7 @@ class TestPartitionCutActions:
         actions = dict(ALL_REMOVE, sponsor='not-a-real-action')
         ad = {'start': 0.0, 'end': 10.0, 'category': 'sponsor'}
 
-        processing._partition_cut_actions([ad], actions)
+        keep_rules._partition_cut_actions([ad], actions)
 
         assert ad['action_applied'] == DEFAULT_SEGMENT_ACTION
 
@@ -94,14 +96,14 @@ class TestPartitionCutActions:
         actions = dict(ALL_REMOVE, sponsor='beep')
         ad = {'start': 0.0, 'end': 10.0, 'category': 'sponsor'}
 
-        processing._partition_cut_actions([ad], actions)
+        keep_rules._partition_cut_actions([ad], actions)
 
         assert ad['action_applied'] == 'beep'
         assert 'beep' not in ad
 
     def test_returns_same_list_object(self):
         ads = [{'start': 0.0, 'end': 10.0, 'category': 'sponsor'}]
-        result = processing._partition_cut_actions(ads, ALL_REMOVE)
+        result = keep_rules._partition_cut_actions(ads, ALL_REMOVE)
         assert result is ads
 
 
@@ -152,24 +154,26 @@ def _run_pipeline(first_pass_ads, segment_actions, feed_actions=None):
         p(processing.ad_detector, 'get_verification_model', return_value='test-model')
         p(processing, 'start_episode_token_tracking')
         p(processing, 'get_available_memory_gb', return_value=None)
-        p(processing, 'get_min_cut_confidence', return_value=0.8)
-        p(processing, '_download_and_transcribe',
+        p(finalize, 'get_available_memory_gb', return_value=None)
+        p(common, 'get_min_cut_confidence', return_value=0.8)
+        p(transcribe, '_download_and_transcribe',
           return_value=('/tmp/cutpart.mp3', SEGMENTS))
-        p(processing, '_run_differential_fetch', return_value=None)
-        p(processing, '_run_audio_analysis', return_value=None)
+        p(signals, '_run_differential_fetch', return_value=None)
+        p(signals, '_run_audio_analysis', return_value=None)
         p(processing, 'load_positional_prior', return_value=None)
-        p(processing, '_detect_ads_first_pass',
+        p(detect, '_detect_ads_first_pass',
           return_value=(first_pass_ads, len(first_pass_ads), {}))
-        p(processing, '_refine_and_validate',
+        p(detect, '_refine_and_validate',
           side_effect=_fake_refine_and_validate)
-        p(processing, '_run_ad_reviewer', side_effect=_fake_run_ad_reviewer)
-        p(processing, '_snap_terminal_starts', side_effect=_pass_through_ads)
-        p(processing, '_complete_cut_tails', side_effect=_pass_through_ads)
+        p(review, '_run_ad_reviewer', side_effect=_fake_run_ad_reviewer)
+        p(cuts, '_snap_terminal_starts', side_effect=_pass_through_ads)
+        p(cuts, '_complete_cut_tails', side_effect=_pass_through_ads)
         local_ap_cls = p(processing, 'AudioProcessor')
-        p(processing, '_run_verification_pass',
+        p(recut, 'AudioProcessor', new=local_ap_cls)
+        p(verify, '_run_verification_pass',
           return_value=(0, [], [], [], '/tmp/cutpart-cut.mp3', 0, True, 0))
-        p(processing, '_generate_assets')
-        p(processing, '_finalize_episode')
+        p(publish, '_generate_assets')
+        p(finalize, '_finalize_episode')
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
         p(processing.os.path, 'exists', return_value=False)
@@ -332,15 +336,15 @@ class TestAudioProcessorCutPartition:
 
 
 class TestProcessEpisodeCallSiteUniformity:
-    """Every AudioProcessor.process_episode call in processing.py must pass
+    """Every AudioProcessor.process_episode call in processing.py and the pipeline modules must pass
     a beep-derived audio_segments list, not a raw marker list, or a future
     call site could silently reintroduce a saved 'beep' marker rendering
     as a full remove."""
 
     def test_every_call_site_passes_audio_segments(self):
-        source = inspect.getsource(processing)
+        sources = [inspect.getsource(m) for m in (processing, verify, recut)]
         calls = [
-            node for node in ast.walk(ast.parse(source))
+            node for source in sources for node in ast.walk(ast.parse(source))
             if isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == 'process_episode'
@@ -388,10 +392,10 @@ class TestRecutPreservesBeepAction:
             db = p(processing, 'db')
             storage = p(processing, 'storage')
             p(processing, 'status_service')
-            p(processing, '_build_recut_ad_list',
+            p(recut, '_build_recut_ad_list',
               return_value=([marker], [marker], [], []))
-            p(processing, '_generate_assets')
-            p(processing, '_finalize_episode')
+            p(publish, '_generate_assets')
+            p(finalize, '_finalize_episode')
 
             db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 0}
             db.get_original_segments.return_value = [{'start': 0.0, 'end': 60.0}]
@@ -404,7 +408,7 @@ class TestRecutPreservesBeepAction:
             storage.get_applied_cuts.return_value = None
             storage.get_episode_path.return_value = str(final_path)
 
-            result = processing._recut_episode(
+            result = recut._recut_episode(
                 'recut-feed', 'ep1', 'Episode', 'Podcast', 'desc',
                 time.time(), cancel_event=None)
 

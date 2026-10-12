@@ -564,6 +564,7 @@ def test_without_anchor_the_same_fixture_needs_the_widened_reprobe(monkeypatch):
 # --- 3a. Pipeline plumbing (_run_differential_fetch) --------------------------
 
 import main_app.processing as processing  # noqa: E402
+from main_app.pipeline import signals
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher  # noqa: E402
 
 
@@ -581,15 +582,15 @@ def test_pipeline_scans_refetch_persists_cues_and_removes_work_dir(tmp_path):
                     'refetch_meta': {'ua': 'AntennaPod/3.4.0'}, 'error': None,
                     'refetch_cues': [{'time': 12.5, 'template_id': 5}]}
     mock_fetch = MagicMock(return_value=fetch_result)
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='on'), \
-         patch('main_app.processing._feed_cue_matcher', return_value=matcher), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
-         patch.object(processing.tempfile, 'mkdtemp',
+         patch('main_app.pipeline.signals._feed_cue_matcher', return_value=matcher), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
+         patch.object(signals.tempfile, 'mkdtemp',
                       return_value=str(work_dir)), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
 
     assert result == fetch_result
@@ -612,15 +613,15 @@ def test_pipeline_primary_scan_failure_never_fails_differential(tmp_path):
     fetch_result = {'status': 'ok', 'regions': [],
                     'refetch_meta': {}, 'error': None, 'refetch_cues': []}
     mock_fetch = MagicMock(return_value=fetch_result)
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='on'), \
-         patch('main_app.processing._feed_cue_matcher', return_value=matcher), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
-         patch.object(processing.tempfile, 'mkdtemp',
+         patch('main_app.pipeline.signals._feed_cue_matcher', return_value=matcher), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
+         patch.object(signals.tempfile, 'mkdtemp',
                       return_value=str(work_dir)), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential'):
-        result = processing._run_differential_fetch(
+        result = signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
 
     assert result == fetch_result
@@ -632,13 +633,13 @@ def test_pipeline_without_matcher_passes_no_cue_hooks():
     mock_fetch = MagicMock(return_value={'status': 'no_differential',
                                          'regions': [], 'refetch_meta': {},
                                          'error': None})
-    with patch('main_app.processing.resolve_differential_fetch_mode',
+    with patch('main_app.pipeline.signals.resolve_differential_fetch_mode',
                return_value='on'), \
-         patch('main_app.processing._feed_cue_matcher', return_value=None), \
-         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch('main_app.pipeline.signals._feed_cue_matcher', return_value=None), \
+         patch('main_app.pipeline.signals.fetch_and_diff', mock_fetch), \
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.db, 'save_episode_dai_differential'):
-        processing._run_differential_fetch(
+        signals._run_differential_fetch(
             'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
     kwargs = mock_fetch.call_args.kwargs
     assert kwargs.get('cue_scan') is None
@@ -650,14 +651,14 @@ def test_feed_cue_matcher_only_returns_template_matchers():
     matcher = AudioCueTemplateMatcher(templates=[])
     with patch.object(processing.audio_analyzer, '_load_cue_config',
                       return_value=(True, matcher)):
-        assert processing._feed_cue_matcher(7) is matcher
+        assert signals._feed_cue_matcher(7) is matcher
     with patch.object(processing.audio_analyzer, '_load_cue_config',
                       return_value=(True, object())):
-        assert processing._feed_cue_matcher(7) is None
+        assert signals._feed_cue_matcher(7) is None
     with patch.object(processing.audio_analyzer, '_load_cue_config',
                       side_effect=RuntimeError('db gone')):
-        assert processing._feed_cue_matcher(7) is None
-    assert processing._feed_cue_matcher(None) is None
+        assert signals._feed_cue_matcher(7) is None
+    assert signals._feed_cue_matcher(None) is None
 
 
 class TestPrimaryCuesMustBeCallable:

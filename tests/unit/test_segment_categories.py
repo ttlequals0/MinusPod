@@ -26,7 +26,7 @@ from config import (
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS, DEFAULT_SEGMENT_ACTION,
     normalize_segment_category,
 )
-from main_app.processing import _partition_keep_ads
+from main_app.pipeline.keep_rules import _partition_keep_ads
 
 
 class TestNormalizeSegmentCategory:
@@ -601,7 +601,7 @@ class TestUnsetStaysUnsetOnEverySavePath:
     """The merge seam is not the only place a marker's category is settled."""
 
     def test_a_pass2_marker_with_no_category_stays_unset(self):
-        from main_app.processing import _stamp_pass2_marker_categories
+        from main_app.pipeline.verify import _stamp_pass2_marker_categories
 
         markers = [{'start': 1.0, 'end': 2.0},
                    {'start': 3.0, 'end': 4.0, 'category': 'not-a-category'},
@@ -678,7 +678,7 @@ class TestUnsetHasOneRepresentation:
             assert 'category' not in temp_db.get_ad_pattern_by_id(pid)
 
     def test_markers_and_patterns_agree_on_absence(self, temp_db):
-        from main_app.processing import _stamp_pass2_marker_categories
+        from main_app.pipeline.verify import _stamp_pass2_marker_categories
 
         pid = temp_db.create_ad_pattern(
             scope='global', text_template='agreement row ' * 4)

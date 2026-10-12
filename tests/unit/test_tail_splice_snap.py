@@ -13,6 +13,7 @@ from ad_detector.boundaries import (
 )
 from ad_validator import AdValidator, ValidationResult
 from main_app import processing
+from main_app.pipeline import cuts
 
 
 def _event(time, depth=-120.0, event_type='digital_silence'):
@@ -310,13 +311,13 @@ def test_processing_skips_destructive_tail_snap_during_cold_start(monkeypatch):
         raise AssertionError('cold-start events must not drive a cut extension')
 
     monkeypatch.setattr(
-        processing, 'snap_extended_ad_tails_to_splice', unexpected_snap)
+        cuts, 'snap_extended_ad_tails_to_splice', unexpected_snap)
     analysis = SimpleNamespace(splice_evidence={
         'events': [_event(2415.85)],
         'calibration': {'status': 'cold_start'},
     })
 
-    result = processing._snap_completed_cut_tails_to_splice(
+    result = cuts._snap_completed_cut_tails_to_splice(
         'feed', 'episode', [marker], [marker], segments, analysis)
 
     assert result == [marker]
@@ -332,7 +333,7 @@ def test_processing_allows_tail_snap_after_calibration(monkeypatch, status):
         'depth_dbfs': -120.0,
     })
     monkeypatch.setattr(
-        processing, 'snap_extended_ad_tails_to_splice',
+        cuts, 'snap_extended_ad_tails_to_splice',
         lambda *args, **kwargs: [snapped])
     saves = []
     monkeypatch.setattr(
@@ -343,7 +344,7 @@ def test_processing_allows_tail_snap_after_calibration(monkeypatch, status):
         'calibration': {'status': status},
     })
 
-    result = processing._snap_completed_cut_tails_to_splice(
+    result = cuts._snap_completed_cut_tails_to_splice(
         'feed', 'episode', [marker], [marker], segments, analysis)
 
     assert result[0]['end'] == 2415.85

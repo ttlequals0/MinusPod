@@ -13,6 +13,7 @@ bootstrap('verify_status_test_')
 import ad_detector
 from llm_client import ProviderRateLimitedError
 from main_app import processing
+from main_app.pipeline import verify
 from utils.errors import ModelLoadError
 from verification_pass import VerificationPass
 
@@ -39,7 +40,7 @@ def _run(verification_result, run_stats=None):
         else:
             verifier_cls.return_value.verify.return_value = verification_result
 
-        result = processing._run_verification_pass(
+        result = verify._run_verification_pass(
             _ctx(), '/tmp/verify-status-cut.mp3', [], False, 0.8,
             MagicMock(), None, run_stats=run_stats,
             false_positive_corrections=[]

@@ -18,7 +18,7 @@ bootstrap('admission_explain_test_')
 from datetime import timedelta  # noqa: E402
 
 from main_app import db  # noqa: E402
-from main_app.processing import admission_explanation  # noqa: E402
+from main_app.pipeline.admission import admission_explanation
 from llm_route import account_identity  # noqa: E402
 from rate_limit_hold import clear_all_holds, record_hold_until  # noqa: E402
 from utils.time import ISO_FORMAT, utc_now  # noqa: E402

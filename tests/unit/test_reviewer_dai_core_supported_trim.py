@@ -15,7 +15,7 @@ from ad_reviewer import (AdReviewer, TranscriptIndex,
 from ad_validator import AdValidator, ValidationResult
 from audio_analysis.base import AudioAnalysisResult
 from audio_processor import AudioProcessor
-from main_app import processing
+from main_app.pipeline import review, cuts
 from utils.markers import (DAI_PROBE_SPANS, EDGE_TOLERANCE, carve_fragment,
                            clip_dai_core_spans, drop_stale_reviewer_locks, merge_dai_core_spans,
                            reviewer_edge_locked, reviewer_independent_spans, TimedWords)
@@ -53,7 +53,7 @@ def _marker(**overrides):
 
 def _run(monkeypatch, marker, end=58.2):
     reviewer = _reviewer()
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, detector: reviewer)
     body = f'[{{"start": 3.2, "end": {end}, "is_ad": true, "confidence": 0.94}}]'
     monkeypatch.setattr('ad_reviewer.call_llm_for_window',
                         lambda **kwargs: (_LLMResp(body), None))
@@ -305,7 +305,7 @@ def test_unsupported_start_capped_at_previous_spoken_word():
 
 def test_unsupported_end_render_keeps_next_spoken_word(monkeypatch):
     reviewer = _reviewer()
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, detector: reviewer)
     body = '[{"start": 0.0, "end": 94.2, "is_ad": true, "confidence": 0.94}]'
     monkeypatch.setattr('ad_reviewer.call_llm_for_window',
                         lambda **kwargs: (_LLMResp(body), None))
@@ -402,7 +402,7 @@ def _splice(events):
 
 def _run_reviewed(monkeypatch, marker, segments, bounds, duration, events=()):
     reviewer = _reviewer()
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, detector: reviewer)
     body = f'[{{"start": {bounds[0]}, "end": {bounds[1]}, "is_ad": true, "confidence": 0.94}}]'
     monkeypatch.setattr('ad_reviewer.call_llm_for_window',
                         lambda **kwargs: (_LLMResp(body), None))
@@ -489,11 +489,11 @@ def test_splice_snap_keeps_reviewer_locked_end():
     ad = {'start': 10.0, 'end': 40.0, 'end_extended_by_content': True,
           'reviewer_locked_end': 40.0}
     events = [{'time': 42.0, 'type': 'deep_silence', 'depth_dbfs': -70.0}]
-    snapped = processing._snap_completed_cut_tails_to_splice(
+    snapped = cuts._snap_completed_cut_tails_to_splice(
         's', 'e', [ad], [ad], [], _splice(events))
     assert snapped[0]['end'] == 40.0
     unlocked = dict(ad, reviewer_locked_end=None)
-    snapped = processing._snap_completed_cut_tails_to_splice(
+    snapped = cuts._snap_completed_cut_tails_to_splice(
         's', 'e', [unlocked], [unlocked], [], _splice(events))
     assert snapped[0]['end'] == 42.0
 

@@ -8,9 +8,10 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('cdn_403_test_')
 
 import main_app.processing as processing  # noqa: E402
-from main_app.processing import (  # noqa: E402
-    CDN_BLOCKED_MESSAGE, _download_episode_audio, is_transient_error,
-)
+from main_app.pipeline import transcribe
+from main_app.pipeline.transcribe import CDN_BLOCKED_MESSAGE, _download_episode_audio
+from main_app.pipeline.common import is_transient_error
+from main_app.pipeline import signals, publish
 
 URL = 'https://cdn.example/media.mp3'
 
@@ -30,8 +31,10 @@ class FakeTranscriber:
 
 @pytest.fixture
 def agents(monkeypatch):
-    monkeypatch.setattr(processing, 'download_user_agent', lambda podcast=None: (podcast or {}).get('download_user_agent_override') or 'Browser/1')
-    monkeypatch.setattr(processing, 'feed_user_agent', lambda podcast=None: 'Podcaster/1')
+    monkeypatch.setattr(transcribe, 'download_user_agent', lambda podcast=None: (podcast or {}).get('download_user_agent_override') or 'Browser/1')
+    monkeypatch.setattr(signals, 'download_user_agent', lambda podcast=None: (podcast or {}).get('download_user_agent_override') or 'Browser/1')
+    monkeypatch.setattr(publish, 'download_user_agent', lambda podcast=None: (podcast or {}).get('download_user_agent_override') or 'Browser/1')
+    monkeypatch.setattr(transcribe, 'feed_user_agent', lambda podcast=None: 'Podcaster/1')
 
 
 def test_user_agent_floor_downloads_with_the_accepted_string(monkeypatch, agents, caplog):

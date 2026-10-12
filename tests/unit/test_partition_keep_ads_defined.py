@@ -2,7 +2,7 @@
 from tests.app_bootstrap import bootstrap
 bootstrap('partition_keep_test_')
 
-from main_app.processing import _partition_keep_ads, _apply_late_keep_safety_net
+from main_app.pipeline.keep_rules import _partition_keep_ads, _apply_late_keep_safety_net
 
 
 def _marker(**kw):

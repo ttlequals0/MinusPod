@@ -10,8 +10,10 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('pass2_outcome_ledger_test_')
 
-from main_app import app, processing
+from main_app import app
 from main_app.verification_reconciliation import Pass2Ledger, _drop_uncovered_pass2_ads
+from main_app.pipeline import verify
+from main_app.pipeline import cuts as cuts_stage
 from tests.unit.pass2_test_utils import NO_SPLICE, _hold, _pair, drive_verification_pass
 from utils.markers import subtract_spans
 
@@ -169,7 +171,7 @@ def test_failure_after_the_recut_saves_the_pass2_markers_as_cut(monkeypatch, cap
     def boom(*args, **kwargs):
         raise RuntimeError('boom')
 
-    monkeypatch.setattr(processing, '_drop_uncovered_pass2_ads', boom)
+    monkeypatch.setattr(verify, '_drop_uncovered_pass2_ads', boom)
     # The 4 s finding is too short and too weak for the render, so the recut audio never cut it.
     run = _run([(200.0, 260.0), (500.0, 504.0, 0.85)], caplog=caplog)
     verification_count, ui, cuts, _held, path, *_rest = run.output
@@ -178,7 +180,7 @@ def test_failure_after_the_recut_saves_the_pass2_markers_as_cut(monkeypatch, cap
     assert [(m['start'], m['end'], m['pass2_outcome']) for m in ui] == [(200.0, 260.0, 'cut')]
     assert sorted(run.lines) == [(200.0, 260.0, 'cut'), (500.0, 504.0, 'dropped:recut_filtered')]
     all_ads = list(ui)
-    processing._finalize_cut_state(all_ads, list(ui), cuts, 6000.0)
+    cuts_stage._finalize_cut_state(all_ads, list(ui), cuts, 6000.0)
     assert all_ads[0]['was_cut'] is True
 
 
@@ -255,7 +257,7 @@ def test_a_filtered_cut_without_a_ui_twin_is_recorded_in_original_time(caplog):
 def test_helper_records_into_the_ledger_it_is_given(caplog):
     ledger = Pass2Ledger()
     with caplog.at_level(logging.INFO, logger='podcast.audio'):
-        processing._gate_verification_ads_by_confidence(
+        verify._gate_verification_ads_by_confidence(
             [{'start': 10.0, 'end': 40.0, 'confidence': 0.2}],
             [{'start': 10.0, 'end': 40.0, 'confidence': 0.2}], min_cut_confidence=0.8,
             ledger=ledger)
@@ -282,7 +284,7 @@ def test_carving_a_recorded_span_removes_its_earlier_line(caplog):
     orig = {'start': 100.0, 'end': 160.0}
     ledger.record(orig, 'dropped:below_miss_floor')
     beep = {'start': 140.0, 'end': 200.0}
-    _proc, fragments = processing._split_pass2_candidates_around_spans(
+    _proc, fragments = verify._split_pass2_candidates_around_spans(
         [dict(orig)], [orig], [beep], [], 'beep-replacement audio', ledger=ledger,
         carved_labels=[dict(beep, label='covered:beep')])
     ledger.settle(cut=fragments, held=[], kept=[])
@@ -363,7 +365,7 @@ def _validate_with_ledger(processed, original, fp_corrections=()):
     ledger = Pass2Ledger()
     segments = [{'start': t, 'end': t + 30.0, 'text': 'spoken content here'}
                 for t in range(0, 600, 30)]
-    kept = processing._validate_verification_ads(
+    kept = verify._validate_verification_ads(
         'example-podcast', 'a1b2c3d4e5f6', processed, original, segments,
         ads_to_remove=[], episode_description=None, min_cut_confidence=0.8,
         db=fake_db, processed_duration=600.0, ledger=ledger,

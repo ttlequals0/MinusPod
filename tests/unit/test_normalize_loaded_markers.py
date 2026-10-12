@@ -13,6 +13,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 from api.episodes import _markers_from_row  # noqa: E402
 from api.patterns import _insert_manual_marker, _load_episode_markers  # noqa: E402
 from main_app import processing  # noqa: E402
+from main_app.pipeline import recut
 from utils.markers import (DAI_PROBE_SPANS, clip_dai_core_spans,  # noqa: E402
                            dai_probe_spans, normalize_loaded_markers, parse_ad_markers)
 
@@ -76,9 +77,9 @@ def test_restore_saved_markers_logs_unreadable_json(monkeypatch, caplog):
     monkeypatch.setattr(processing.storage, 'save_combined_ads',
                         lambda *a: saved.append(a))
     with caplog.at_level(logging.ERROR, logger='podcast.audio'):
-        processing._restore_saved_markers('example-podcast', 'a1b2c3d4e5f6',
+        recut._restore_saved_markers('example-podcast', 'a1b2c3d4e5f6',
                                           {'ad_markers_json': '{bad json'})
-        processing._restore_saved_markers('example-podcast', 'a1b2c3d4e5f6',
+        recut._restore_saved_markers('example-podcast', 'a1b2c3d4e5f6',
                                           {'ad_markers_json': None})
     assert saved == []
     assert [r.getMessage() for r in caplog.records].count(

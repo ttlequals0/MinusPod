@@ -27,10 +27,7 @@ from whisper_pool import get_pool
 # is loaded by the explicit `from main_app.background import ...` at
 # the bottom of that file, so the apparent circular import is safe.
 from main_app import db, storage, shutdown_event
-from main_app.processing import (
-    _active_phases_for_admission, _admission_gates, _required_providers_for_admission,
-    _resolve_route_snapshot,
-)
+from main_app.pipeline.admission import _active_phases_for_admission, _admission_gates, _required_providers_for_admission, _resolve_route_snapshot
 from recents_feed import rebuild_recents_feed
 
 refresh_logger = logging.getLogger('podcast.refresh')

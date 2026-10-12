@@ -130,8 +130,10 @@ from main_app.episode_context import EpisodeContext
 
 from main_app.pipeline import common, transcribe, signals, detect, review, cuts, keep_rules, verify, publish, finalize, admission, failure, recut
 from main_app.pipeline import admission as admission_stage  # local `admission` shadows the module in _reserve_provider
-from main_app import (db, storage, transcriber, ad_detector, audio_processor,
-                      status_service, shutdown_event)
+# Stage modules resolve every singleton through this module (pipeline.shared).
+from main_app import (db, storage, transcriber, ad_detector, audio_processor,  # noqa: F401
+                      audio_analyzer, sponsor_service, status_service, pattern_service,
+                      shutdown_event)
 
 
 

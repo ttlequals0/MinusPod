@@ -9,7 +9,7 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('pass2_standalone_misses_')
 from config import HOLD_REASON_VERIFICATION_MISS, is_pending_review
-from main_app.processing import _gate_verification_ads_by_confidence
+from main_app.pipeline.verify import _gate_verification_ads_by_confidence
 
 
 def _proc(start, end, confidence):

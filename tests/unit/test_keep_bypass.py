@@ -25,6 +25,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from unittest.mock import patch
 
 import main_app.processing as processing
+from main_app.pipeline import common, cuts, keep_rules, verify, finalize
+from main_app.pipeline import review, publish
+import main_app.verification_reconciliation
+from main_app.pipeline import cuts as cuts_stage
 from api.patterns import _matches_held_marker
 from audio_analysis.base import AudioAnalysisResult
 from audio_processor import AudioProcessor
@@ -250,12 +254,12 @@ class TestKeepBypass:
 
     def test_finalize_reports_persistence_before_the_summary_can_fail(self):
         persisted = []
-        with patch.object(processing, '_persist_episode_state'), \
-             patch.object(processing, '_refresh_rss_for_slug'), \
-             patch.object(processing, '_log_completion_summary',
+        with patch.object(finalize, '_persist_episode_state'), \
+             patch.object(common, '_refresh_rss_for_slug'), \
+             patch.object(finalize, '_log_completion_summary',
                           side_effect=RuntimeError('credit failed')), \
              pytest.raises(RuntimeError):
-            processing._finalize_episode(
+            finalize._finalize_episode(
                 'keep-feed', 'ep1', 'Episode', 'Podcast', 1, 0, 1, 100.0, 90.0,
                 0.0, on_persisted=lambda: persisted.append(True))
         assert persisted == [True]
@@ -537,7 +541,7 @@ class TestKeepMarkersBlockTerminalSnap:
         with patch.object(processing, 'db') as db, \
                 patch.object(processing, 'storage'):
             db.get_setting_float.return_value = 30.0
-            result = processing._snap_terminal_starts(
+            result = cuts._snap_terminal_starts(
                 'keep-feed', 'ep1', ads_to_remove, all_ads_with_validation,
                 segments, audio_analysis_result, 100.0)
 
@@ -583,7 +587,7 @@ class TestKeepMarkersBlockTerminalSnap:
         with patch.object(processing, 'db') as db, \
                 patch.object(processing, 'storage') as storage:
             db.get_setting_float.return_value = 30.0
-            out = processing._snap_terminal_starts(
+            out = cuts._snap_terminal_starts(
                 'feed', 'episode', [cut], [master], segments, analysis,
                 5485.17)
 
@@ -628,7 +632,7 @@ class TestKeepMarkersBlockTerminalSnap:
         with patch.object(processing, 'db') as db, \
                 patch.object(processing, 'storage') as storage:
             db.get_setting_float.return_value = 30.0
-            out = processing._snap_terminal_starts(
+            out = cuts._snap_terminal_starts(
                 'feed', 'episode', [terminal], [rejected, terminal], [],
                 analysis, 5485.17)
 
@@ -671,7 +675,7 @@ class TestKeepMarkersBlockTerminalSnap:
         with patch.object(processing, 'db') as db, \
                 patch.object(processing, 'storage') as storage:
             db.get_setting_float.return_value = 30.0
-            out = processing._snap_terminal_starts(
+            out = cuts._snap_terminal_starts(
                 'feed', 'episode', [terminal], [unclassified, terminal], [],
                 analysis, 5485.17)
 
@@ -707,7 +711,7 @@ class TestKeepMarkersBlockTerminalSnap:
         with patch.object(processing, 'db') as db, \
                 patch.object(processing, 'storage'):
             db.get_setting.return_value = 'true'
-            result = processing._complete_cut_tails(
+            result = cuts._complete_cut_tails(
                 'keep-feed', 'ep1', ads_to_remove, all_ads_with_validation,
                 segments)
 
@@ -740,7 +744,7 @@ class TestLateKeepSafetyNet:
         all_ads_with_validation = [real_cut, synthesized]
 
         with caplog.at_level(logging.DEBUG, logger='podcast.audio'):
-            result = processing._apply_late_keep_safety_net(
+            result = keep_rules._apply_late_keep_safety_net(
                 ads_to_remove, all_ads_with_validation, actions_map)
 
         assert result == [real_cut]
@@ -761,7 +765,7 @@ class TestLateKeepSafetyNet:
         synthesized = {'start': 90.0, 'end': 99.0, 'was_cut': True}
         master_twin = {'start': 90.0, 'end': 99.0, 'was_cut': True}
 
-        result = processing._apply_late_keep_safety_net(
+        result = keep_rules._apply_late_keep_safety_net(
             [synthesized], [master_twin], actions_map)
 
         assert result == []
@@ -779,7 +783,7 @@ class TestLateKeepSafetyNet:
                 'held_for_review': True, 'hold_reason': 'max_duration'}
         master_twin = dict(held)
 
-        result = processing._apply_late_keep_safety_net(
+        result = keep_rules._apply_late_keep_safety_net(
             [held], [master_twin], actions_map)
 
         assert result == []
@@ -796,7 +800,7 @@ class TestLateKeepSafetyNet:
                        'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
         ads_to_remove = [{'start': 10.0, 'end': 20.0}]
 
-        result = processing._apply_late_keep_safety_net(
+        result = keep_rules._apply_late_keep_safety_net(
             ads_to_remove, ads_to_remove, actions_map)
 
         assert result is ads_to_remove
@@ -890,7 +894,7 @@ class TestLateKeepPartitionBeforeSweeps:
         assert len(audio_segments) == 1
         assert audio_segments[0]['start'] == 90.0
         assert not any(
-            processing.ranges_overlap(s['start'], s['end'], 70.0, 85.0)
+            verify.ranges_overlap(s['start'], s['end'], 70.0, 85.0)
             for s in audio_segments
         )
 
@@ -916,7 +920,7 @@ class TestPartitionKeepAdsClearsHold:
                        'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
         marker = self._held_keep_marker()
 
-        keep_ads, remove_ads = processing._partition_keep_ads([marker], actions_map)
+        keep_ads, remove_ads = keep_rules._partition_keep_ads([marker], actions_map)
 
         assert keep_ads == [marker]
         assert remove_ads == []
@@ -935,7 +939,7 @@ class TestPartitionKeepAdsClearsHold:
                        'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
         marker = self._held_keep_marker()
 
-        processing._partition_keep_ads([marker], actions_map)
+        keep_rules._partition_keep_ads([marker], actions_map)
 
         assert _matches_held_marker(
             marker, marker['start'], marker['end'], 0.5) is False
@@ -950,7 +954,7 @@ class TestPartitionKeepAdsClearsHold:
                   'confidence': 0.9, 'held_for_review': True,
                   'hold_reason': 'max_duration', 'was_cut': False}
 
-        keep_ads, remove_ads = processing._partition_keep_ads([marker], actions_map)
+        keep_ads, remove_ads = keep_rules._partition_keep_ads([marker], actions_map)
 
         assert keep_ads == []
         assert remove_ads == [marker]
@@ -971,7 +975,7 @@ class TestPartitionKeepAdsClearsHold:
         marker = self._held_keep_marker()
         all_ads = [marker]
 
-        keep_ads, remove_ads = processing._partition_keep_ads(all_ads, actions_map)
+        keep_ads, remove_ads = keep_rules._partition_keep_ads(all_ads, actions_map)
 
         assert keep_ads == []
         assert remove_ads is all_ads
@@ -1000,10 +1004,13 @@ class TestExcludeKeptSpansFromVerification:
         orig_overlap = {'start': 504.0, 'end': 514.0, 'confidence': 0.95,
                         'sponsor': 'Acme'}
 
-        ledger = processing.Pass2Ledger()
-        with patch.object(processing, 'get_replacement_duration', return_value=1.0), \
+        ledger = verify.Pass2Ledger()
+        with patch.object(review, 'get_replacement_duration', return_value=1.0), \
+             patch.object(cuts, 'get_replacement_duration', return_value=1.0), \
+             patch.object(verify, 'get_replacement_duration', return_value=1.0), \
+             patch.object(publish, 'get_replacement_duration', return_value=1.0), \
                 caplog.at_level(logging.DEBUG, logger='podcast.audio'):
-            out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
+            out_proc, out_orig, conflicts = verify._exclude_kept_spans_from_verification(
                 [proc_overlap], [orig_overlap], [self.KEPT_MARKER], self.PASS1_CUTS,
                 ledger=ledger)
             ledger.emit('example-podcast', 'a1b2c3d4e5f6')
@@ -1016,7 +1023,7 @@ class TestExcludeKeptSpansFromVerification:
                    for r in caplog.records)
 
         # Nothing routes to a cut: the kept span is never cut through.
-        v_ads_to_cut, v_ads_for_ui, v_ads_held, n, _rel = processing._gate_verification_ads_by_confidence(
+        v_ads_to_cut, v_ads_for_ui, v_ads_held, n, _rel = verify._gate_verification_ads_by_confidence(
             out_proc, out_orig, min_cut_confidence=0.5)
         assert v_ads_to_cut == []
         assert n == 0
@@ -1027,8 +1034,11 @@ class TestExcludeKeptSpansFromVerification:
         orig_clear = {'start': 51.0, 'end': 61.0, 'confidence': 0.95,
                      'sponsor': 'Acme'}
 
-        with patch.object(processing, 'get_replacement_duration', return_value=1.0):
-            out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
+        with patch.object(review, 'get_replacement_duration', return_value=1.0), \
+             patch.object(cuts, 'get_replacement_duration', return_value=1.0), \
+             patch.object(verify, 'get_replacement_duration', return_value=1.0), \
+             patch.object(publish, 'get_replacement_duration', return_value=1.0):
+            out_proc, out_orig, conflicts = verify._exclude_kept_spans_from_verification(
                 [proc_clear], [orig_clear], [self.KEPT_MARKER], self.PASS1_CUTS)
 
         assert out_proc == [proc_clear]
@@ -1037,7 +1047,7 @@ class TestExcludeKeptSpansFromVerification:
 
         # Confidence 0.95 >= min_cut_confidence 0.5: confirmed-cut path,
         # unaffected since this finding never overlapped a kept span.
-        v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = processing._gate_verification_ads_by_confidence(
+        v_ads_to_cut, v_ads_for_ui, v_ads_held, _n, _rel = verify._gate_verification_ads_by_confidence(
             out_proc, out_orig, min_cut_confidence=0.5)
         assert v_ads_to_cut == [proc_clear]
         assert v_ads_for_ui == [orig_clear]
@@ -1047,7 +1057,7 @@ class TestExcludeKeptSpansFromVerification:
         proc = [{'start': 1.0, 'end': 2.0}]
         orig = [{'start': 1.0, 'end': 2.0}]
 
-        out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
+        out_proc, out_orig, conflicts = verify._exclude_kept_spans_from_verification(
             proc, orig, [], self.PASS1_CUTS)
 
         assert out_proc is proc
@@ -1055,8 +1065,11 @@ class TestExcludeKeptSpansFromVerification:
         assert conflicts == []
 
     def _exclude(self, proc, orig, kept=None, cuts=None):
-        with patch.object(processing, 'get_replacement_duration', return_value=1.0):
-            return processing._exclude_kept_spans_from_verification(
+        with patch.object(review, 'get_replacement_duration', return_value=1.0), \
+             patch.object(cuts_stage, 'get_replacement_duration', return_value=1.0), \
+             patch.object(verify, 'get_replacement_duration', return_value=1.0), \
+             patch.object(publish, 'get_replacement_duration', return_value=1.0):
+            return verify._exclude_kept_spans_from_verification(
                 [proc], [orig], kept or [self.KEPT_MARKER],
                 self.PASS1_CUTS if cuts is None else cuts)
 
@@ -1098,8 +1111,11 @@ class TestExcludeKeptSpansFromVerification:
         proc = {'start': 101.0, 'end': 150.0, 'confidence': 0.95}
         orig = {'start': 100.5, 'end': 147.5, 'confidence': 0.95}
 
-        with patch.object(processing, 'get_replacement_duration', return_value=3.0):
-            out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
+        with patch.object(review, 'get_replacement_duration', return_value=3.0), \
+             patch.object(cuts_stage, 'get_replacement_duration', return_value=3.0), \
+             patch.object(verify, 'get_replacement_duration', return_value=3.0), \
+             patch.object(publish, 'get_replacement_duration', return_value=3.0):
+            out_proc, out_orig, conflicts = verify._exclude_kept_spans_from_verification(
                 [proc], [orig], kept, cuts)
 
         assert [(a['start'], a['end']) for a in out_orig] == [(120.0, 147.5)]
@@ -1126,8 +1142,11 @@ class TestContainmentIsMeasuredAgainstEveryOverlappingKeep:
                     {'start': 520.0, 'end': 540.0, 'action_applied': 'keep'}]
 
     def _exclude(self, proc, orig):
-        with patch.object(processing, 'get_replacement_duration', return_value=1.0):
-            return processing._exclude_kept_spans_from_verification(
+        with patch.object(review, 'get_replacement_duration', return_value=1.0), \
+             patch.object(cuts, 'get_replacement_duration', return_value=1.0), \
+             patch.object(verify, 'get_replacement_duration', return_value=1.0), \
+             patch.object(publish, 'get_replacement_duration', return_value=1.0):
+            return verify._exclude_kept_spans_from_verification(
                 [proc], [orig], self.KEPT_MARKERS, self.PASS1_CUTS)
 
     def test_a_finding_the_union_covers_is_dropped(self):
@@ -1159,7 +1178,7 @@ class TestStampPass2MarkerCategories:
     def test_a_missing_category_stays_missing(self):
         markers = [{'start': 1.0, 'end': 2.0}]
 
-        out = processing._stamp_pass2_marker_categories(markers)
+        out = verify._stamp_pass2_marker_categories(markers)
 
         assert out is markers
         assert 'category' not in markers[0]
@@ -1168,7 +1187,7 @@ class TestStampPass2MarkerCategories:
         markers = [{'start': 1.0, 'end': 2.0, 'category': 'cross_promo'},
                   {'start': 3.0, 'end': 4.0, 'category': 'not-a-real-category'}]
 
-        processing._stamp_pass2_marker_categories(markers)
+        verify._stamp_pass2_marker_categories(markers)
 
         assert markers[0]['category'] == 'cross_promo'
         assert 'category' not in markers[1]
@@ -1195,7 +1214,7 @@ class TestPartitionPass2CategoryActions:
         processed, original = self._pair(
             'self_promo', held_for_review=True, hold_reason='max_duration')
 
-        out_p, out_o, kept_p, kept_o = processing._partition_pass2_category_actions(
+        out_p, out_o, kept_p, kept_o = verify._partition_pass2_category_actions(
             [processed], [original], self.ACTIONS)
 
         assert out_p == []
@@ -1215,7 +1234,7 @@ class TestPartitionPass2CategoryActions:
             self, category, expected):
         processed, original = self._pair(category)
 
-        out_p, out_o, kept_p, kept_o = processing._partition_pass2_category_actions(
+        out_p, out_o, kept_p, kept_o = verify._partition_pass2_category_actions(
             [processed], [original], self.ACTIONS)
 
         assert out_p == [processed]
@@ -1225,7 +1244,7 @@ class TestPartitionPass2CategoryActions:
         assert 'action_applied' not in processed
         assert 'action_applied' not in original
 
-        processing._partition_cut_actions([*out_p, *out_o], self.ACTIONS)
+        keep_rules._partition_cut_actions([*out_p, *out_o], self.ACTIONS)
 
         assert processed['action_applied'] == expected
         assert original['action_applied'] == expected
@@ -1233,7 +1252,7 @@ class TestPartitionPass2CategoryActions:
     def test_defined_pattern_overrides_keep(self):
         processed, original = self._pair('self_promo', pattern_defined=True)
 
-        out_p, out_o, kept_p, kept_o = processing._partition_pass2_category_actions(
+        out_p, out_o, kept_p, kept_o = verify._partition_pass2_category_actions(
             [processed], [original], self.ACTIONS)
 
         assert out_p == [processed]
@@ -1244,7 +1263,7 @@ class TestPartitionPass2CategoryActions:
             assert 'action_applied' not in marker
             assert marker['keep_overridden_by_pattern'] is True
 
-        processing._partition_cut_actions([*out_p, *out_o], self.ACTIONS)
+        keep_rules._partition_cut_actions([*out_p, *out_o], self.ACTIONS)
         assert processed['action_applied'] == 'remove'
         assert original['action_applied'] == 'remove'
 
@@ -1252,7 +1271,7 @@ class TestPartitionPass2CategoryActions:
         processed = {'start': 10.0, 'end': 20.0}
         original = {'start': 110.0, 'end': 120.0}
 
-        out_p, out_o, kept_p, kept_o = processing._partition_pass2_category_actions(
+        out_p, out_o, kept_p, kept_o = verify._partition_pass2_category_actions(
             [processed], [original], self.ACTIONS)
 
         assert out_p == [processed]
@@ -1262,7 +1281,7 @@ class TestPartitionPass2CategoryActions:
         assert 'action_applied' not in processed
         assert 'action_applied' not in original
 
-        processing._partition_cut_actions([*out_p, *out_o], self.ACTIONS)
+        keep_rules._partition_cut_actions([*out_p, *out_o], self.ACTIONS)
         assert processed['action_applied'] == 'remove'
         assert original['action_applied'] == 'remove'
 
@@ -1274,7 +1293,7 @@ class TestPartitionPass2CategoryActions:
             {'start': 50.0, 'end': 70.0, 'replacement_duration': 1.0},
         ]
 
-        out_p, out_o = processing._exclude_category_kept_spans(
+        out_p, out_o = verify._exclude_category_kept_spans(
             [processed], [original], [kept], pass1_cuts)
 
         assert [(ad['start'], ad['end']) for ad in out_p] == [
@@ -1291,7 +1310,7 @@ class TestPartitionPass2CategoryActions:
         processed, original = self._pair(None)
         kept = {'start': 5.0, 'end': 25.0, 'category': 'self_promo'}
 
-        out_p, out_o = processing._exclude_category_kept_spans(
+        out_p, out_o = verify._exclude_category_kept_spans(
             [processed], [original], [kept], [])
 
         assert out_p == []
@@ -1303,7 +1322,7 @@ class TestPartitionPass2CategoryActions:
             {'start': 20.0, 'end': 40.0, 'replacement_duration': 1.0},
         ]
 
-        barriers = processing._pass2_keep_barriers_processed([pass1_keep], pass1_cuts)
+        barriers = main_app.verification_reconciliation._pass2_keep_barriers_processed([pass1_keep], pass1_cuts)
 
         assert [(marker['start'], marker['end']) for marker in barriers] == [(81.0, 101.0)]
         assert (pass1_keep['start'], pass1_keep['end']) == (100.0, 120.0)
@@ -1325,7 +1344,7 @@ class TestPartitionPass2CategoryActions:
             {'start': 50.0, 'end': 70.0, 'replacement_duration': 1.0},
         ]
 
-        out_p, out_o = processing._reconcile_pass2_cut_actions(
+        out_p, out_o = verify._reconcile_pass2_cut_actions(
             [remove_processed, beep_processed],
             [remove_original, beep_original],
             pass1_cuts,
@@ -1357,7 +1376,7 @@ class TestPartitionPass2CategoryActions:
         }
         beep_original = dict(beep_processed)
 
-        out_p, out_o = processing._reconcile_pass2_cut_actions(
+        out_p, out_o = verify._reconcile_pass2_cut_actions(
             [remove_processed, beep_processed],
             [remove_original, beep_original], [],
         )
@@ -1384,7 +1403,7 @@ class TestPartitionPass2CategoryActions:
             db = stack.enter_context(patch.object(processing, 'db'))
             stack.enter_context(patch.object(processing, 'storage'))
             stack.enter_context(patch.object(
-                processing, '_apply_pass2_heuristic_rolls'))
+                verify, '_apply_pass2_heuristic_rolls'))
             verifier_cls = stack.enter_context(
                 patch('verification_pass.VerificationPass'))
             verifier_cls.return_value.verify.return_value = {
@@ -1395,7 +1414,7 @@ class TestPartitionPass2CategoryActions:
             }
             db.get_setting_float.return_value = 0.6
 
-            result = processing._run_verification_pass(
+            result = verify._run_verification_pass(
                 ctx, '/tmp/pass2-actions.mp3', [], False, 0.8,
                 audio_processor, None, segment_actions=self.ACTIONS,
                 false_positive_corrections=[]
@@ -1425,7 +1444,7 @@ class TestPartitionPass2CategoryActions:
             db = stack.enter_context(patch.object(processing, 'db'))
             stack.enter_context(patch.object(processing, 'storage'))
             stack.enter_context(patch.object(
-                processing, '_apply_pass2_heuristic_rolls'))
+                verify, '_apply_pass2_heuristic_rolls'))
             verifier_cls = stack.enter_context(
                 patch('verification_pass.VerificationPass'))
             verifier_cls.return_value.verify.return_value = {
@@ -1436,7 +1455,7 @@ class TestPartitionPass2CategoryActions:
             }
             db.get_setting_float.return_value = 0.6
 
-            result = processing._run_verification_pass(
+            result = verify._run_verification_pass(
                 ctx, '/tmp/pass2-actions.mp3', [], False, 0.8,
                 types.SimpleNamespace(), None,
                 pass1_kept_markers=[{
@@ -1463,7 +1482,7 @@ def test_dedupe_pass2_markers_collapses_repeats():
     other = {'start': 2032.18, 'end': 2131.08, 'hold_reason': 'verification_kept_conflict'}
     different_reason = {'start': 1076.22, 'end': 1231.18, 'hold_reason': 'verification_miss'}
 
-    out = processing._dedupe_pass2_markers([a, dup, other, different_reason])
+    out = verify._dedupe_pass2_markers([a, dup, other, different_reason])
 
     assert out == [a, other, different_reason]
     assert len(out) == 3
@@ -1471,7 +1490,7 @@ def test_dedupe_pass2_markers_collapses_repeats():
 
 def test_dedupe_pass2_markers_leaves_distinct_spans_alone():
     markers = [{'start': 1.0, 'end': 2.0}, {'start': 3.0, 'end': 4.0}]
-    assert processing._dedupe_pass2_markers(markers) == markers
+    assert verify._dedupe_pass2_markers(markers) == markers
 
 
 def test_a_finding_inside_a_kept_span_leaves_the_surviving_lists():
@@ -1482,8 +1501,11 @@ def test_a_finding_inside_a_kept_span_leaves_the_surviving_lists():
     proc_clear = {'start': 50.0, 'end': 60.0, 'confidence': 0.95}
     orig_clear = {'start': 50.0, 'end': 60.0, 'confidence': 0.95}
 
-    with patch.object(processing, 'get_replacement_duration', return_value=0.0):
-        surv_proc, surv_orig, conflicts = processing._exclude_kept_spans_from_verification(
+    with patch.object(review, 'get_replacement_duration', return_value=0.0), \
+         patch.object(cuts, 'get_replacement_duration', return_value=0.0), \
+         patch.object(verify, 'get_replacement_duration', return_value=0.0), \
+         patch.object(publish, 'get_replacement_duration', return_value=0.0):
+        surv_proc, surv_orig, conflicts = verify._exclude_kept_spans_from_verification(
             [proc_overlap, proc_clear], [orig_overlap, orig_clear], [kept], [])
 
     assert surv_orig == [orig_clear]

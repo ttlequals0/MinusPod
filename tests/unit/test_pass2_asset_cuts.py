@@ -10,23 +10,30 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from main_app import processing
+from main_app.pipeline import verify
+from main_app.pipeline import review, cuts, publish
 
 
 def test_pass2_rendered_cuts_map_to_original(monkeypatch):
-    monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(review, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(cuts, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(verify, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(publish, 'get_replacement_duration', lambda: 1.0)
     pass1 = [{'start': 100.0, 'end': 200.0}]
     recut = [{'start': 150.0, 'end': 180.0}]  # processed-audio coordinates
-    out = processing._pass2_cuts_in_original(recut, pass1)
+    out = verify._pass2_cuts_in_original(recut, pass1)
     # Processed 150s sits after the pass-1 beep: original = 150 + (100 - 1).
     assert out == [{'start': 249.0, 'end': 279.0, 'detection_stage': 'verification',
                      'replacement_duration': None}]
 
 
 def test_pass2_cuts_empty_when_no_recut(monkeypatch):
-    monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 1.0)
-    assert processing._pass2_cuts_in_original(None, [{'start': 0.0, 'end': 10.0}]) == []
-    assert processing._pass2_cuts_in_original([], []) == []
+    monkeypatch.setattr(review, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(cuts, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(verify, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(publish, 'get_replacement_duration', lambda: 1.0)
+    assert verify._pass2_cuts_in_original(None, [{'start': 0.0, 'end': 10.0}]) == []
+    assert verify._pass2_cuts_in_original([], []) == []
 
 
 def test_pass2_rendered_cuts_carry_replacement_duration(monkeypatch):
@@ -34,9 +41,12 @@ def test_pass2_rendered_cuts_carry_replacement_duration(monkeypatch):
     padded to its own length) must survive into the mapped output, instead
     of being dropped and falling back to the fixed beep-clip default at
     every downstream mapper."""
-    monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(review, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(cuts, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(verify, 'get_replacement_duration', lambda: 1.0)
+    monkeypatch.setattr(publish, 'get_replacement_duration', lambda: 1.0)
     pass1 = [{'start': 100.0, 'end': 200.0}]
     recut = [{'start': 150.0, 'end': 180.0, 'replacement_duration': 30.0}]
-    out = processing._pass2_cuts_in_original(recut, pass1)
+    out = verify._pass2_cuts_in_original(recut, pass1)
     assert out == [{'start': 249.0, 'end': 279.0, 'detection_stage': 'verification',
                      'replacement_duration': 30.0}]

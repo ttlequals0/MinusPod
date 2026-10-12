@@ -7,6 +7,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('protection_contract_test_')
 
 from main_app import processing
+from main_app.pipeline import common, detect, keep_rules, verify
 from ad_detector import AdDetector, AddressingStats
 from ad_detector.boundaries import removal_coverage_regions
 from ad_validator import AdValidator, ValidationResult
@@ -26,7 +27,7 @@ def test_hard_orig_and_hard_proc_cover_the_same_audio_under_shifted_cuts():
     ]
     hold = {'start': 300.0, 'end': 310.0, 'held_for_review': True}
 
-    protection = processing.build_protection(
+    protection = verify.build_protection(
         kept=[{'start': 200.0, 'end': 220.0}],
         category_kept=[{'start': 215.0, 'end': 240.0}],
         user_trims=[{'start': 120.0, 'end': 140.0}],
@@ -48,7 +49,7 @@ def test_hard_orig_and_hard_proc_cover_the_same_audio_under_shifted_cuts():
 def test_barriers_include_holds_except_the_owning_hold():
     owning = {'start': 300.0, 'end': 310.0}
     other = {'start': 400.0, 'end': 410.0}
-    protection = processing.build_protection(
+    protection = verify.build_protection(
         kept=[{'start': 200.0, 'end': 220.0}], category_kept=[], user_trims=[],
         fp_corrections=[], holds=[owning, other],
         pass1_cuts=[{'start': 100.0, 'end': 130.0, 'replacement_duration': 0.0}])
@@ -72,7 +73,7 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
     audio.get_audio_duration.return_value = 600.0
     audio.process_episode.return_value = ('/tmp/recut.mp3', [dict(sponsor)])
     built = []
-    real_build = processing.build_protection
+    real_build = verify.build_protection
 
     def spy_build(**kwargs):
         protection = real_build(**kwargs)
@@ -86,8 +87,8 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
         holds=[pass1_hold], fp=[{'start': 500.0, 'end': 510.0}], audio=audio,
         gate=gate_passthrough, pass2_reviewer=reviewer, segment_actions=ACTIONS,
         segments=[{'start': 100.0, 'end': 150.0, 'text': 'Sponsor'}],
-        extra_patches=[patch.object(processing, '_crosspass_cut_plan', crosspass),
-                       patch.object(processing, 'build_protection', side_effect=spy_build)])
+        extra_patches=[patch.object(verify, '_crosspass_cut_plan', crosspass),
+                       patch.object(verify, 'build_protection', side_effect=spy_build)])
     output = run.output
 
     # Hard sources are built once, after the category partition.
@@ -123,17 +124,17 @@ def _promo_defined():
 
 
 def test_pattern_defined_keep_category_resolves_to_remove_in_every_helper():
-    keep_ads, remove_ads = processing._partition_keep_ads(
+    keep_ads, remove_ads = keep_rules._partition_keep_ads(
         [_promo_defined()], ACTIONS)
     assert keep_ads == [] and len(remove_ads) == 1
 
-    assert len(processing._apply_late_keep_safety_net(
+    assert len(keep_rules._apply_late_keep_safety_net(
         [_promo_defined()], [], ACTIONS)) == 1
 
-    [cut] = processing._partition_cut_actions([_promo_defined()], ACTIONS)
+    [cut] = keep_rules._partition_cut_actions([_promo_defined()], ACTIONS)
     assert cut['action_applied'] == 'remove'
 
-    remaining_p, _, kept_p, _ = processing._partition_pass2_category_actions(
+    remaining_p, _, kept_p, _ = verify._partition_pass2_category_actions(
         [_promo_defined()], [_promo_defined()], ACTIONS)
     assert kept_p == [] and len(remaining_p) == 1
 
@@ -222,7 +223,7 @@ def test_verification_pass_forwards_the_resolved_actions():
         verifier_cls.return_value.verify.return_value = {
             'ads': [], 'ads_processed': [], 'segments': [],
             'status': 'no_segments'}
-        processing._run_verification_pass(
+        verify._run_verification_pass(
             _ctx(), '/tmp/pass1-output.mp3', [], False, 0.8, MagicMock(), None,
             segment_actions=ACTIONS,
             false_positive_corrections=[])
@@ -238,8 +239,8 @@ def test_first_pass_detection_forwards_the_resolved_actions():
     with patch.object(processing, 'ad_detector', detector), \
          patch.object(processing, 'db'), \
          patch.object(processing, 'storage'), \
-         patch.object(processing, '_publish_status'):
-        processing._detect_ads_first_pass(
+         patch.object(common, '_publish_status'):
+        detect._detect_ads_first_pass(
             _ctx(), [], '/tmp/original.mp3', False, None, None,
             action_map=ACTIONS)
 

@@ -18,6 +18,7 @@ from webhook_service import (
 from tests.unit.thread_fakes import SyncThread
 
 import main_app.processing as processing
+from main_app.pipeline import detect
 
 
 @pytest.fixture(autouse=True)
@@ -110,22 +111,22 @@ class TestQuietTemplatesToNotify:
             {'templateId': 2, 'quiet': False, 'lastMatchAt': 'y', 'matchedEpisodes': 5},
             {'templateId': 3, 'quiet': True, 'lastMatchAt': 'z', 'matchedEpisodes': 1},
         ]
-        result = processing._quiet_templates_to_notify(activity, enabled_template_ids={1})
+        result = detect._quiet_templates_to_notify(activity, enabled_template_ids={1})
         assert [a['templateId'] for a in result] == [1]
 
     def test_quiet_but_disabled_template_excluded(self):
         activity = [{'templateId': 9, 'quiet': True, 'lastMatchAt': 'x', 'matchedEpisodes': 2}]
-        result = processing._quiet_templates_to_notify(activity, enabled_template_ids=set())
+        result = detect._quiet_templates_to_notify(activity, enabled_template_ids=set())
         assert result == []
 
     def test_no_activity_yields_nothing(self):
-        assert processing._quiet_templates_to_notify([], enabled_template_ids={1, 2}) == []
+        assert detect._quiet_templates_to_notify([], enabled_template_ids={1, 2}) == []
 
 
 class TestNotifyQuietCueTemplates:
     def test_fires_for_each_enabled_quiet_template(self):
         with patch.object(processing, 'db') as db, \
-             patch.object(processing, 'fire_cue_template_quiet_event') as fire:
+             patch.object(detect, 'fire_cue_template_quiet_event') as fire:
             db.cue_template_recent_activity.return_value = [
                 {'templateId': 1, 'quiet': True, 'lastMatchAt': '2026-01-01T00:00:00Z',
                  'matchedEpisodes': 3},
@@ -136,7 +137,7 @@ class TestNotifyQuietCueTemplates:
                 {'id': 1, 'label': 'ding', 'enabled': True},
                 {'id': 2, 'label': 'dong', 'enabled': True},
             ]
-            processing._notify_quiet_cue_templates(
+            detect._notify_quiet_cue_templates(
                 'show-a', 'Show A', podcast_id=1, cue_templates=cue_templates,
                 threshold_suggestions={1: 0.58})
 
@@ -147,22 +148,22 @@ class TestNotifyQuietCueTemplates:
 
     def test_disabled_quiet_template_not_fired(self):
         with patch.object(processing, 'db') as db, \
-             patch.object(processing, 'fire_cue_template_quiet_event') as fire:
+             patch.object(detect, 'fire_cue_template_quiet_event') as fire:
             db.cue_template_recent_activity.return_value = [
                 {'templateId': 1, 'quiet': True, 'lastMatchAt': '2026-01-01T00:00:00Z',
                  'matchedEpisodes': 3},
             ]
             cue_templates = [{'id': 1, 'label': 'ding', 'enabled': False}]
-            processing._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1,
+            detect._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1,
                                                     cue_templates=cue_templates)
 
         fire.assert_not_called()
 
     def test_db_failure_is_swallowed(self):
         with patch.object(processing, 'db') as db, \
-             patch.object(processing, 'fire_cue_template_quiet_event') as fire:
+             patch.object(detect, 'fire_cue_template_quiet_event') as fire:
             db.cue_template_recent_activity.side_effect = RuntimeError('boom')
-            processing._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1,
+            detect._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1,
                                                     cue_templates=[])
 
         fire.assert_not_called()

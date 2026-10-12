@@ -3,6 +3,11 @@ from contextlib import ExitStack
 from unittest.mock import patch
 
 import main_app.processing as processing
+from main_app.pipeline import review
+from main_app.pipeline import finalize as finalize_stage
+from main_app.pipeline import detect as detect_stage
+from main_app.pipeline import common, transcribe, signals, cuts, verify, publish
+from main_app.pipeline import recut
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
@@ -64,37 +69,39 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
         p(processing.ad_detector, 'get_verification_model', return_value='test-model')
         p(processing, 'start_episode_token_tracking')
         p(processing, 'get_available_memory_gb', return_value=None)
-        p(processing, 'get_min_cut_confidence', return_value=0.8)
-        p(processing, '_download_and_transcribe',
+        p(finalize_stage, 'get_available_memory_gb', return_value=None)
+        p(common, 'get_min_cut_confidence', return_value=0.8)
+        p(transcribe, '_download_and_transcribe',
           return_value=('/tmp/keep.mp3', segments))
-        p(processing, '_run_differential_fetch', return_value=None)
-        p(processing, '_run_audio_analysis', return_value=audio_analysis_result)
+        p(signals, '_run_differential_fetch', return_value=None)
+        p(signals, '_run_audio_analysis', return_value=audio_analysis_result)
         p(processing, 'load_positional_prior', return_value=None)
-        detect = p(processing, '_detect_ads_first_pass',
+        detect = p(detect_stage, '_detect_ads_first_pass',
                   return_value=(first_pass_ads, len(first_pass_ads), {}))
-        refine = p(processing, '_refine_and_validate',
-                  side_effect=(processing._refine_and_validate
+        refine = p(detect_stage, '_refine_and_validate',
+                  side_effect=(detect_stage._refine_and_validate
                                if real_refine_reviewer else _fake_refine_and_validate))
-        reviewer = p(processing, '_run_ad_reviewer',
-                     side_effect=(processing._run_ad_reviewer
+        reviewer = p(review, '_run_ad_reviewer',
+                     side_effect=(review._run_ad_reviewer
                                   if real_refine_reviewer and reviewer_side_effect is None
                                   else _fake_run_ad_reviewer))
         if real_refine_reviewer:
-            p(processing, '_apply_heuristic_rolls')
+            p(detect_stage, '_apply_heuristic_rolls')
         if not real_sweeps:
-            p(processing, '_snap_terminal_starts', side_effect=_pass_through_ads)
-            p(processing, '_complete_cut_tails', side_effect=_pass_through_ads)
+            p(cuts, '_snap_terminal_starts', side_effect=_pass_through_ads)
+            p(cuts, '_complete_cut_tails', side_effect=_pass_through_ads)
         local_ap_cls = p(processing, 'AudioProcessor')
+        p(recut, 'AudioProcessor', new=local_ap_cls)
         if verification_side_effect:
-            p(processing, '_run_verification_pass',
+            p(verify, '_run_verification_pass',
               side_effect=verification_side_effect)
         else:
-            p(processing, '_run_verification_pass',
+            p(verify, '_run_verification_pass',
               return_value=(verification_return
                             or (0, [], [], [], '/tmp/cut.mp3', 0, True, 0)))
-        generate_assets = p(processing, '_generate_assets',
+        generate_assets = p(publish, '_generate_assets',
                             side_effect=assets_side_effect)
-        finalize = p(processing, '_finalize_episode', side_effect=finalize_side_effect)
+        finalize = p(finalize_stage, '_finalize_episode', side_effect=finalize_side_effect)
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
         p(processing.os.path, 'exists', return_value=False)

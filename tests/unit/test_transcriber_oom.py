@@ -27,9 +27,10 @@ _test_data_dir = bootstrap('transcriber_oom_test_')
 
 import database  # noqa: E402
 import main_app.processing as processing  # noqa: E402
+from main_app.pipeline import common, finalize, failure
 import transcriber as transcriber_mod  # noqa: E402
 from transcriber import Transcriber  # noqa: E402
-from main_app.processing import is_transient_error  # noqa: E402
+from main_app.pipeline.common import is_transient_error
 from utils.errors import ModelLoadError  # noqa: E402
 
 
@@ -285,15 +286,18 @@ def test_chunked_model_load_failure_is_raised_without_shrinking_chunks():
 def _handle_failure(error, retry_count=0):
     episode_data = {'retry_count': retry_count}
     with patch.object(processing, 'db') as db, \
-            patch.object(processing, '_record_history_row'), \
-            patch.object(processing, '_require_publication_owner'), \
-            patch.object(processing, '_publish_status'), \
-            patch.object(processing, 'get_episode_token_totals',
+            patch.object(finalize, '_record_history_row'), \
+            patch.object(common, '_require_publication_owner'), \
+            patch.object(common, '_publish_status'), \
+            patch.object(finalize, 'get_episode_token_totals',
                          return_value={'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}), \
-            patch.object(processing, 'is_offline_queue_enabled', return_value=False), \
-            patch.object(processing, 'fire_event'):
+            patch.object(failure, 'get_episode_token_totals',
+                         return_value={'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}), \
+            patch.object(failure, 'is_offline_queue_enabled', return_value=False), \
+            patch.object(finalize, 'fire_event'), \
+            patch.object(failure, 'fire_event'):
         db.get_episode.return_value = episode_data
-        processing._handle_processing_failure(
+        failure._handle_processing_failure(
             'example-podcast', 'a1b2c3d4e5f6', 'An Episode', 'Example Show',
             episode_data, error, start_time=0.0)
         return db.upsert_episode.call_args.kwargs
@@ -309,7 +313,7 @@ def test_model_load_failure_is_retried_not_permanently_failed(caplog):
 
 def test_model_load_failure_respects_the_retry_cap():
     status = _handle_failure(ModelLoadError('Whisper model could not be loaded'),
-                             retry_count=processing.MAX_EPISODE_RETRIES - 1)
+                             retry_count=failure.MAX_EPISODE_RETRIES - 1)
     assert status['status'] == processing.EpisodeStatus.PERMANENTLY_FAILED.value
 
 

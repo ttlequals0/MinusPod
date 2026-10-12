@@ -14,6 +14,7 @@ _data_dir = bootstrap('queue_verdict_test_')
 
 import main_app.background as background  # noqa: E402
 import main_app.processing as processing  # noqa: E402
+from main_app.pipeline import finalize
 from database import Database  # noqa: E402
 from whisper_pool import WhisperPool  # noqa: E402
 
@@ -117,7 +118,7 @@ class TestDegradedRedetectSurvives:
         db.upsert_episode(slug, 'ep1', status='processed')
 
         with patch.object(processing, 'db', db):
-            processing._maybe_enqueue_degraded_redetect(
+            finalize._maybe_enqueue_degraded_redetect(
                 slug, 'ep1', URL, 'Episode One', 'A Podcast', None, None,
                 {'detection_degraded': None}, {'detection_degraded': 'boom'})
 
@@ -152,7 +153,7 @@ class TestLowYieldRerunSurvives:
 
         with patch.object(processing, 'db', db), \
              patch.object(processing, 'status_service', MagicMock()):
-            processing._maybe_fire_low_ad_yield_action(
+            finalize._maybe_fire_low_ad_yield_action(
                 slug, 'flat-copy', URL, 'Episode One', 'A Podcast', None, None,
                 {}, {'mode': 'auto'})
 
@@ -313,7 +314,7 @@ class TestPolicyRerunKeepsTheEpisodePublished:
 
         with patch.object(processing, 'db', db), \
              patch.object(processing, 'status_service', MagicMock()):
-            processing._maybe_fire_low_ad_yield_action(
+            finalize._maybe_fire_low_ad_yield_action(
                 slug, 'flat-copy', URL, 'Episode One', 'A Podcast', None, None,
                 {}, {'mode': 'auto'})
 

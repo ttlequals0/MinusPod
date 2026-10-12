@@ -22,6 +22,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_chapters import AdChapterConfig
 from main_app import processing
+from main_app.pipeline import publish
+from main_app.pipeline import review, cuts, verify
 from utils.time import adjust_timestamp
 
 BEEP = 2.0
@@ -41,19 +43,19 @@ def test_unadjust_is_inverse_of_adjust_outside_cuts():
     cuts = [{'start': 100.0, 'end': 200.0}, {'start': 500.0, 'end': 560.0}]
     for t in (0.0, 50.0, 250.0, 499.0, 600.0, 1000.0):
         p = adjust_timestamp(t, cuts, BEEP)
-        assert processing._unadjust_timestamp(p, cuts, BEEP) == pytest.approx(t)
+        assert publish._unadjust_timestamp(p, cuts, BEEP) == pytest.approx(t)
 
 
 def test_unadjust_inside_beep_maps_to_cut_start():
     cuts = [{'start': 100.0, 'end': 200.0}]
     # Beep occupies [100, 102) on the processed timeline (BEEP=2).
-    assert processing._unadjust_timestamp(101.0, cuts, BEEP) == 100.0
+    assert publish._unadjust_timestamp(101.0, cuts, BEEP) == 100.0
     # End of the beep is where content resumes: original 200.
-    assert processing._unadjust_timestamp(102.0, cuts, BEEP) == pytest.approx(200.0)
+    assert publish._unadjust_timestamp(102.0, cuts, BEEP) == pytest.approx(200.0)
 
 
 def test_unadjust_no_cuts_identity():
-    assert processing._unadjust_timestamp(123.4, [], BEEP) == 123.4
+    assert publish._unadjust_timestamp(123.4, [], BEEP) == 123.4
 
 
 # ---------- _remap_chapters_for_recut ----------
@@ -63,7 +65,7 @@ def test_chapter_before_cut_unchanged_and_after_cut_shifted():
     chapters = [{'startTime': 10, 'title': 'Intro'},
                 {'startTime': 400, 'title': 'Topic'}]
     new_cuts = [{'start': 100.0, 'end': 200.0}]
-    out = processing._remap_chapters_for_recut(
+    out = publish._remap_chapters_for_recut(
         chapters, [], new_cuts, BEEP, 1000.0, 902.0)
     # After the cut: shifted by (cut length - beep) = 98s.
     assert out == [{'startTime': 10, 'title': 'Intro'},
@@ -76,7 +78,7 @@ def test_chapter_inside_cut_dropped_folds_into_predecessor():
                 {'startTime': 180, 'title': 'PartlyCut'},
                 {'startTime': 300, 'title': 'After'}]
     new_cuts = [{'start': 100.0, 'end': 200.0}]
-    out = processing._remap_chapters_for_recut(
+    out = publish._remap_chapters_for_recut(
         chapters, [], new_cuts, BEEP, 1000.0, 902.0)
     titles = [ch['title'] for ch in out]
     # 'Swallowed' spans [120, 180], entirely inside the cut -> dropped.
@@ -94,7 +96,7 @@ def test_remap_through_previous_cuts_composition():
                 {'startTime': 700, 'title': 'C'}]  # orig 798
     previous_cuts = [{'start': 100.0, 'end': 200.0}]
     new_cuts = [{'start': 100.0, 'end': 200.0}, {'start': 500.0, 'end': 600.0}]
-    out = processing._remap_chapters_for_recut(
+    out = publish._remap_chapters_for_recut(
         chapters, previous_cuts, new_cuts, BEEP, 1000.0, 804.0)
     # A: orig 50 -> before both cuts, unchanged. B: orig 400 -> only first cut
     # before it, still 302. C: orig 798 -> both cuts before it: 798 - 98 - 98.
@@ -108,7 +110,7 @@ def test_sliver_chapter_dropped():
     # the new timeline -> dropped, mirroring embedded remap policy.
     chapters = [{'startTime': 100, 'title': 'A'}, {'startTime': 150, 'title': 'B'}]
     new_cuts = [{'start': 100.2, 'end': 149.5}]
-    out = processing._remap_chapters_for_recut(
+    out = publish._remap_chapters_for_recut(
         chapters, [], new_cuts, 0.0, 1000.0, 950.7)
     # A -> 100.0; B -> 150 - 49.3 = 100.7; gap 0.7 < 1.0 -> A dropped.
     assert [ch['title'] for ch in out] == ['B']
@@ -118,7 +120,7 @@ def test_extra_keys_preserved():
     chapters = [{'startTime': 10, 'title': 'Intro', 'url': 'https://x.example/a'},
                 {'startTime': 400, 'title': 'Topic', 'img': 'https://x.example/i.png'}]
     new_cuts = [{'start': 100.0, 'end': 200.0}]
-    out = processing._remap_chapters_for_recut(
+    out = publish._remap_chapters_for_recut(
         chapters, [], new_cuts, BEEP, 1000.0, 902.0)
     assert out[0]['url'] == 'https://x.example/a'
     assert out[1]['img'] == 'https://x.example/i.png'
@@ -126,7 +128,7 @@ def test_extra_keys_preserved():
 
 def test_no_cuts_at_all_is_identity_apart_from_int_floor():
     chapters = [{'startTime': 10, 'title': 'A'}, {'startTime': 500, 'title': 'B'}]
-    out = processing._remap_chapters_for_recut(chapters, [], [], BEEP, 1000.0, 1000.0)
+    out = publish._remap_chapters_for_recut(chapters, [], [], BEEP, 1000.0, 1000.0)
     assert out == chapters
 
 
@@ -163,15 +165,18 @@ def _stub_assets_io(monkeypatch, counters, embed_ok=True):
     monkeypatch.setattr(processing.db, 'save_processing_assets', _publish)
     # Default: no probe (callers pass audio_duration). Overridden where the
     # duration=None consistency path is exercised.
-    monkeypatch.setattr(processing, 'get_audio_duration', lambda p: None)
+    monkeypatch.setattr(publish, 'get_audio_duration', lambda p: None)
 
     def _embed(path, chapters, duration=None):
         counters['embedded'] = {'path': path, 'chapters': chapters,
                                 'duration': duration}
         return embed_ok
-    monkeypatch.setattr(processing, 'embed_chapters', _embed)
+    monkeypatch.setattr(publish, 'embed_chapters', _embed)
     # Beep is 2.0s in these tests regardless of the real replacement file.
-    monkeypatch.setattr(processing, 'get_replacement_duration', lambda: BEEP)
+    monkeypatch.setattr(review, 'get_replacement_duration', lambda: BEEP)
+    monkeypatch.setattr(cuts, 'get_replacement_duration', lambda: BEEP)
+    monkeypatch.setattr(verify, 'get_replacement_duration', lambda: BEEP)
+    monkeypatch.setattr(publish, 'get_replacement_duration', lambda: BEEP)
 
 
 SEGMENTS = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
@@ -187,7 +192,7 @@ def test_generate_assets_recut_remaps_saves_and_embeds(monkeypatch):
                         lambda s, e: stored)
     previous_cuts = [{'start': 100.0, 'end': 200.0}]
     new_cuts = [{'start': 100.0, 'end': 200.0}, {'start': 500.0, 'end': 600.0}]
-    processing._generate_assets(
+    publish._generate_assets(
         'slug', 'ep', SEGMENTS, new_cuts, '', 'Pod', 'Title',
         regenerate_chapters=False,
         audio_path='/data/slug/episodes/ep-v2.mp3', audio_duration=804.0,
@@ -217,7 +222,7 @@ def test_generate_assets_recut_shifts_chapters_after_new_cut(monkeypatch):
                         lambda s, e: stored)
     previous_cuts = [{'start': 100.0, 'end': 200.0}]
     new_cuts = [{'start': 100.0, 'end': 200.0}, {'start': 500.0, 'end': 600.0}]
-    processing._generate_assets(
+    publish._generate_assets(
         'slug', 'ep', SEGMENTS, new_cuts, '', 'Pod', 'Title',
         regenerate_chapters=False,
         audio_path='/x.mp3', audio_duration=804.0,
@@ -230,7 +235,7 @@ def test_generate_assets_recut_no_stored_chapters_noop(monkeypatch):
     counters = {}
     _stub_assets_io(monkeypatch, counters)
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: None)
-    processing._generate_assets(
+    publish._generate_assets(
         'slug', 'ep', SEGMENTS, [{'start': 100.0, 'end': 200.0}], '', 'Pod',
         'Title', regenerate_chapters=False,
         previous_cuts=[], original_duration=1000.0)
@@ -248,7 +253,7 @@ def test_generate_assets_recut_remap_error_keeps_old_json(monkeypatch):
 
     monkeypatch.setattr(processing.storage, 'get_chapters_json', boom)
     # Must not raise: the recut proceeds and the old JSON stays.
-    processing._generate_assets(
+    publish._generate_assets(
         'slug', 'ep', SEGMENTS, [{'start': 100.0, 'end': 200.0}], '', 'Pod',
         'Title', regenerate_chapters=False,
         previous_cuts=[], original_duration=1000.0)
@@ -266,7 +271,7 @@ def test_generate_assets_regenerate_true_unchanged(monkeypatch):
         raise AssertionError("remap path must not run when regenerating")
 
     monkeypatch.setattr(processing.storage, 'get_chapters_json', fail_if_called)
-    processing._generate_assets('slug', 'ep', SEGMENTS, [], '', 'Pod', 'Title')
+    publish._generate_assets('slug', 'ep', SEGMENTS, [], '', 'Pod', 'Title')
     assert counters.get('generated', 0) == 1
 
 
@@ -283,7 +288,7 @@ def test_generate_assets_recut_no_persisted_cuts_leaves_topic_chapters_untouched
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
     new_cuts = [{'start': 100.0, 'end': 200.0}, {'start': 500.0, 'end': 600.0}]
     # Must not raise.
-    processing._generate_assets(
+    publish._generate_assets(
         'slug', 'ep', SEGMENTS, new_cuts, '', 'Pod', 'Title',
         regenerate_chapters=False,
         audio_path='/x.mp3', audio_duration=804.0,
@@ -309,7 +314,7 @@ def test_remap_none_previous_cuts_still_rebuilds_the_ad_entries(monkeypatch):
     markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     pending = {}
-    processing._remap_stored_chapters(
+    publish._remap_stored_chapters(
         'slug', 'ep', all_cuts=[], replacement_duration=BEEP,
         previous_cuts=None, original_duration=1000.0, audio_path='/x.mp3',
         audio_duration=804.0, markers=markers, pending_assets=pending)
@@ -337,7 +342,7 @@ def test_remap_none_previous_cuts_writes_nothing_when_unchanged(monkeypatch):
     markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     pending = {}
-    processing._remap_stored_chapters(
+    publish._remap_stored_chapters(
         'slug', 'ep', all_cuts=[], replacement_duration=BEEP,
         previous_cuts=None, original_duration=1000.0, audio_path='/x.mp3',
         audio_duration=804.0, markers=markers, pending_assets=pending)
@@ -359,7 +364,7 @@ def test_generate_assets_recut_embed_failure_keeps_old_json(monkeypatch):
                         lambda s, e: stored)
     previous_cuts = [{'start': 100.0, 'end': 200.0}]
     new_cuts = [{'start': 100.0, 'end': 200.0}, {'start': 500.0, 'end': 600.0}]
-    processing._generate_assets(
+    publish._generate_assets(
         'slug', 'ep', SEGMENTS, new_cuts, '', 'Pod', 'Title',
         regenerate_chapters=False,
         audio_path='/x.mp3', audio_duration=804.0,
@@ -378,7 +383,7 @@ def test_generate_assets_recut_duration_none_uses_probed_value(monkeypatch):
     # served and embedded chapter sets trim against the same tail bound.
     counters = {}
     _stub_assets_io(monkeypatch, counters)
-    monkeypatch.setattr(processing, 'get_audio_duration', lambda p: 804.0)
+    monkeypatch.setattr(publish, 'get_audio_duration', lambda p: 804.0)
     stored = {'version': '1.2.0',
               'chapters': [{'startTime': 10, 'title': 'Intro'},
                            {'startTime': 700, 'title': 'Late'}]}
@@ -386,7 +391,7 @@ def test_generate_assets_recut_duration_none_uses_probed_value(monkeypatch):
                         lambda s, e: stored)
     previous_cuts = [{'start': 100.0, 'end': 200.0}]
     new_cuts = [{'start': 100.0, 'end': 200.0}, {'start': 500.0, 'end': 600.0}]
-    processing._generate_assets(
+    publish._generate_assets(
         'slug', 'ep', SEGMENTS, new_cuts, '', 'Pod', 'Title',
         regenerate_chapters=False,
         audio_path='/x.mp3', audio_duration=None,
@@ -407,7 +412,7 @@ AD_CFG = AdChapterConfig(
 
 
 def _use_config(monkeypatch, cfg):
-    monkeypatch.setattr(processing, 'resolve_ad_chapter_config',
+    monkeypatch.setattr(publish, 'resolve_ad_chapter_config',
                         lambda db, row: cfg)
 
 
@@ -422,11 +427,11 @@ def test_remap_strips_stale_ad_chapters_and_rebuilds_from_markers(monkeypatch):
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
     monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
                         lambda s, e, cj, cuts: saved.update(cj))
-    monkeypatch.setattr(processing, 'embed_chapters', lambda *a, **k: True)
+    monkeypatch.setattr(publish, 'embed_chapters', lambda *a, **k: True)
     markers = [{'start': 2000.0, 'end': 2060.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     pending = {}
-    processing._remap_stored_chapters(
+    publish._remap_stored_chapters(
         'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
         previous_cuts=[], original_duration=3600.0, audio_path=None,
         audio_duration=3600.0, markers=markers, pending_assets=pending)
@@ -448,7 +453,7 @@ def test_remap_with_only_ad_chapters_stored_still_rebuilds(monkeypatch):
     markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     pending = {}
-    processing._remap_stored_chapters(
+    publish._remap_stored_chapters(
         'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
         previous_cuts=[], original_duration=3600.0, audio_duration=3600.0,
         markers=markers, pending_assets=pending)
@@ -463,7 +468,7 @@ def test_remap_without_ad_chapters_keeps_previous_behavior(monkeypatch):
     monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
                         lambda s, e, cj, cuts: calls.append(cj))
     pending = {}
-    processing._remap_stored_chapters(
+    publish._remap_stored_chapters(
         'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
         previous_cuts=[], original_duration=3600.0, audio_duration=3600.0, pending_assets=pending)
     assert pending['chapters']['chapters'] == [{'startTime': 1, 'title': 'Intro'}]
@@ -483,7 +488,7 @@ def test_remap_disabled_ad_config_strips_stale_ad_chapters(monkeypatch):
     markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     pending = {}
-    processing._remap_stored_chapters(
+    publish._remap_stored_chapters(
         'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
         previous_cuts=[], original_duration=3600.0, audio_duration=3600.0,
         markers=markers, pending_assets=pending)
@@ -501,13 +506,13 @@ def test_remap_ad_only_stored_list_with_no_replacement_writes_empty_set(monkeypa
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
     monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
                         lambda s, e, cj, cuts: saved.update(cj))
-    monkeypatch.setattr(processing, 'embed_chapters',
+    monkeypatch.setattr(publish, 'embed_chapters',
                         lambda p, ch, duration=None: embedded.update(
                             {'path': p, 'chapters': ch}) or True)
     markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'mark',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': False}]
     pending = {}
-    processing._remap_stored_chapters(
+    publish._remap_stored_chapters(
         'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
         previous_cuts=[], original_duration=3600.0, audio_path='/x.mp3',
         audio_duration=3600.0, markers=markers, pending_assets=pending)
@@ -525,14 +530,14 @@ def test_remap_ad_only_stored_list_with_no_eligible_marker_writes_empty_set(monk
     monkeypatch.setattr(processing.storage, 'get_chapters_json', lambda s, e: stored)
     monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
                         lambda s, e, cj, cuts: saved.update(cj))
-    monkeypatch.setattr(processing, 'embed_chapters',
+    monkeypatch.setattr(publish, 'embed_chapters',
                         lambda p, ch, duration=None: embedded.update(
                             {'path': p, 'chapters': ch}) or True)
     # Cut, not kept: nothing is left in the audio to publish as an ad chapter.
     markers = [{'start': 500.0, 'end': 530.0, 'action_applied': 'remove',
                 'category': 'sponsor', 'confidence': 0.95, 'was_cut': True}]
     pending = {}
-    processing._remap_stored_chapters(
+    publish._remap_stored_chapters(
         'example-podcast', 'a1b2c3d4e5f6', all_cuts=[], replacement_duration=BEEP,
         previous_cuts=[], original_duration=3600.0, audio_path='/x.mp3',
         audio_duration=3600.0, markers=markers, pending_assets=pending)

@@ -15,6 +15,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from unittest.mock import patch
 
 import main_app.processing as processing
+from main_app.pipeline import common, transcribe, signals, review, cuts, verify, publish, finalize
+from main_app.pipeline import detect as detect_stage
+from main_app.pipeline import recut
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
@@ -39,22 +42,24 @@ def _run_pipeline(differential_fn, audio_analysis_fn):
         p(processing.ad_detector, 'get_verification_model', return_value='test-model')
         p(processing, 'start_episode_token_tracking')
         p(processing, 'get_available_memory_gb', return_value=None)
-        p(processing, 'get_min_cut_confidence', return_value=0.8)
-        p(processing, '_download_and_transcribe',
+        p(finalize, 'get_available_memory_gb', return_value=None)
+        p(common, 'get_min_cut_confidence', return_value=0.8)
+        p(transcribe, '_download_and_transcribe',
           return_value=('/tmp/diff.mp3', SEGMENTS))
-        p(processing, '_run_differential_fetch', side_effect=differential_fn)
-        p(processing, '_run_audio_analysis', side_effect=audio_analysis_fn)
+        p(signals, '_run_differential_fetch', side_effect=differential_fn)
+        p(signals, '_run_audio_analysis', side_effect=audio_analysis_fn)
         p(processing, 'load_positional_prior', return_value=None)
-        detect = p(processing, '_detect_ads_first_pass', return_value=([], 0, None))
-        p(processing, '_refine_and_validate', return_value=([], []))
-        p(processing, '_run_ad_reviewer', return_value=([], []))
-        p(processing, '_snap_terminal_starts', return_value=[])
-        p(processing, '_complete_cut_tails', return_value=[])
+        detect = p(detect_stage, '_detect_ads_first_pass', return_value=([], 0, None))
+        p(detect_stage, '_refine_and_validate', return_value=([], []))
+        p(review, '_run_ad_reviewer', return_value=([], []))
+        p(cuts, '_snap_terminal_starts', return_value=[])
+        p(cuts, '_complete_cut_tails', return_value=[])
         local_ap_cls = p(processing, 'AudioProcessor')
-        p(processing, '_run_verification_pass',
+        p(recut, 'AudioProcessor', new=local_ap_cls)
+        p(verify, '_run_verification_pass',
           return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
-        p(processing, '_generate_assets')
-        p(processing, '_finalize_episode')
+        p(publish, '_generate_assets')
+        p(finalize, '_finalize_episode')
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
         p(processing.os.path, 'exists', return_value=False)

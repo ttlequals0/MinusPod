@@ -10,7 +10,7 @@ import pytest
 
 import ad_reviewer
 from ad_reviewer import TranscriptIndex
-from main_app import processing
+from main_app.pipeline import review
 from utils.markers import DAI_PROBE_SPANS
 from tests.unit.pipeline_test_utils import _run_pipeline
 from tests.unit.reviewer_test_utils import _LLMResp, _mock_episode_meta, _resp, _reviewer, _worded
@@ -37,7 +37,7 @@ def _marker():
 
 def test_reviewer_trim_across_the_hole_is_floored(monkeypatch):
     reviewer = _reviewer()
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, detector: reviewer)
     body = '[{"start": 752.5, "end": 937.8, "is_ad": true, "confidence": 0.94}]'
     monkeypatch.setattr('ad_reviewer.call_llm_for_window',
                         lambda **kwargs: (_LLMResp(body), None))

@@ -8,6 +8,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('audio_analysis_save_test_')
 
 from main_app import processing  # noqa: E402
+from main_app.pipeline import signals
 
 
 @pytest.mark.parametrize('save, read', [
@@ -45,7 +46,7 @@ def test_stage_failure_clears_a_leaked_transaction(monkeypatch):
             raise RuntimeError('boom')
 
     monkeypatch.setattr(processing, 'audio_analyzer', Boom())
-    assert processing._run_audio_analysis('example-podcast', 'a1b2c3d4e5f6', '/nonexistent.mp3', []) is None
+    assert signals._run_audio_analysis('example-podcast', 'a1b2c3d4e5f6', '/nonexistent.mp3', []) is None
     assert cleared == ['audio analysis']
 
 
@@ -55,11 +56,11 @@ def test_differential_store_failure_clears_a_leaked_transaction(monkeypatch):
                         lambda log, where: cleared.append(where))
     monkeypatch.setattr(processing.db, 'save_episode_dai_differential',
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError('locked')))
-    monkeypatch.setattr(processing, 'fetch_and_diff',
+    monkeypatch.setattr(signals, 'fetch_and_diff',
                         lambda *a, **k: {'status': 'ok', 'regions': [], 'refetch_meta': {}})
     monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
-    monkeypatch.setattr(processing, 'resolve_differential_fetch_mode', lambda db, pid: 'on')
-    monkeypatch.setattr(processing, 'differential_fetch_effective', lambda *a, **k: True)
-    processing._run_differential_fetch('example-podcast', 'a1b2c3d4e5f6',
+    monkeypatch.setattr(signals, 'resolve_differential_fetch_mode', lambda db, pid: 'on')
+    monkeypatch.setattr(signals, 'differential_fetch_effective', lambda *a, **k: True)
+    signals._run_differential_fetch('example-podcast', 'a1b2c3d4e5f6',
                                        'https://example.com/ep.mp3', '/nonexistent.mp3', 1)
     assert 'differential store' in cleared

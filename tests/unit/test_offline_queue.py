@@ -25,7 +25,9 @@ from config import MAX_EPISODE_RETRIES
 from main_app import db
 import main_app.background as background
 from main_app.episode_context import EpisodeContext
-from main_app.processing import _detect_ads_first_pass, _handle_processing_failure, is_transient_error
+from main_app.pipeline.detect import _detect_ads_first_pass
+from main_app.pipeline.failure import _handle_processing_failure
+from main_app.pipeline.common import is_transient_error
 from utils import llm_call
 from offline_queue import offline_queue_tick
 from utils.circuit_breaker import CircuitBreakerOpen
@@ -502,7 +504,7 @@ class TestServiceAlerts:
             call(service='whisper', requeued=2),
         ]
 
-    @patch('main_app.processing.fire_service_offline_event')
+    @patch('main_app.pipeline.failure.fire_service_offline_event')
     def test_deferral_fires_service_offline(self, mock_fire, seeded_episode):
         db.set_setting('offline_queue_enabled', 'true')
         _fail(seeded_episode, ServiceUnavailableError('whisper', 'down'))
@@ -514,7 +516,7 @@ class TestServiceAlerts:
         assert db.get_setting('offline_probe_whisper_reachable') == 'false'
 
     @patch('offline_queue.fire_service_reachable_event')
-    @patch('main_app.processing.fire_service_offline_event')
+    @patch('main_app.pipeline.failure.fire_service_offline_event')
     def test_recovery_within_one_tick_fires_reachable(self, _offline, mock_fire, seeded_episode):
         """The deferral seeds the outage verdict, so the first probe after
         a recovery reads False -> True even with no earlier tick."""

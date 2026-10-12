@@ -11,6 +11,8 @@ from ad_validator import (AdValidator, ValidationResult, restore_uncovered_confi
                           user_trimmed_keep_ranges)
 from config import is_pending_review
 from main_app import processing
+from main_app.pipeline import review
+from main_app.pipeline import verify, recut
 from tests.unit.marker_test_utils import _ad
 from tests.unit.pipeline_test_utils import _run_pipeline
 from tests.unit.recut_test_utils import ALL_REMOVE, _recut_render_call, run_action_recut
@@ -35,7 +37,7 @@ def _candidate(start, end, confidence=0.98):
 
 def _run(monkeypatch, candidates, confirmed=(CONFIRM,), review_body='[]',
          review_error=None, false_positives=None):
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: _reviewer())
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, detector: _reviewer())
     monkeypatch.setattr(
         'ad_reviewer.call_llm_for_window',
         lambda **kwargs: ((None, review_error) if review_error
@@ -162,12 +164,20 @@ def test_held_marker_is_carved_around_restored_piece(monkeypatch):
 def test_opening_exclusion_clips_confirm(monkeypatch, exclusion, expected):
     monkeypatch.setattr(processing, 'resolve_ad_detection_exclude_start_seconds',
                         lambda db, podcast_id: exclusion)
+    monkeypatch.setattr(verify, 'resolve_ad_detection_exclude_start_seconds',
+                        lambda db, podcast_id: exclusion)
+    monkeypatch.setattr(recut, 'resolve_ad_detection_exclude_start_seconds',
+                        lambda db, podcast_id: exclusion)
     _, cuts = _run(monkeypatch, [])
     assert cuts == expected
 
 
 def test_recut_respects_opening_exclusion(monkeypatch):
     monkeypatch.setattr(processing, 'resolve_ad_detection_exclude_start_seconds',
+                        lambda db, podcast_id: 40.0)
+    monkeypatch.setattr(verify, 'resolve_ad_detection_exclude_start_seconds',
+                        lambda db, podcast_id: 40.0)
+    monkeypatch.setattr(recut, 'resolve_ad_detection_exclude_start_seconds',
                         lambda db, podcast_id: 40.0)
     confirm = {'start': 30.0, 'end': 50.0, 'correction_type': 'confirm'}
     cuts, _ = run_action_recut([], [], ALL_REMOVE, confirmed_corrections=[confirm])

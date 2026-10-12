@@ -5,7 +5,7 @@ bootstrap('pass1_extension_into_hold_test_')
 
 from audio_processor import AudioProcessor
 from config import is_pending_review
-from main_app import processing
+from main_app.pipeline import cuts
 from tests.unit.marker_test_utils import applied_cut
 from tests.unit.pipeline_test_utils import _run_pipeline
 from tests.unit.recut_test_utils import ALL_REMOVE
@@ -106,7 +106,7 @@ def test_carved_hold_keeps_its_identity_and_diagnostics():
             'hold_reason': 'no_splice_evidence', 'hold_id': 'a1b2c3d4e5f6',
             'pass2_hold_review': {'span': [45.0, 55.0], 'verdict': 'reject', 'reason': 'x'}}
     all_ads = [cut, hold]
-    processing._finalize_cut_state(all_ads, [cut], [applied_cut(10.0, 40.0)], 600.0)
+    cuts._finalize_cut_state(all_ads, [cut], [applied_cut(10.0, 40.0)], 600.0)
     [_cut_marker, rest] = all_ads
     assert (rest['start'], rest['end']) == (40.0, 60.0)
     assert rest['hold_id'] == 'a1b2c3d4e5f6'
@@ -122,7 +122,7 @@ def test_carved_pieces_keep_only_the_approval_stamps_inside_them():
             'pass2_corroborated': True, 'pass2_reviewed_release': dict(span),
             'pass2_corroborated_span': dict(span), 'pass2_released_spans': [dict(span)]}
     all_ads = [cut, hold]
-    processing._finalize_cut_state(all_ads, [cut], [applied_cut(150.0, 180.0)], 600.0)
+    cuts._finalize_cut_state(all_ads, [cut], [applied_cut(150.0, 180.0)], 600.0)
     pieces = {(m['start'], m['end']): m for m in all_ads if m is not cut}
     first, second = pieces[(140.0, 150.0)], pieces[(180.0, 200.0)]
     assert first['pass2_corroborated'] is True

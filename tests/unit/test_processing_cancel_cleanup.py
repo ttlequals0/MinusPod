@@ -8,6 +8,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('processing_cancel_cleanup_')
 
 from main_app import processing
+from main_app.pipeline import transcribe, finalize
 from utils.episode_paths import episode_relative_path
 
 SLUG = 'processing-cancel-cleanup'
@@ -30,8 +31,8 @@ def _cancel_run(db, queue):
         patch.object(processing, 'process_episode',
                      side_effect=processing.ProcessingCancelled),
         patch.object(processing, 'pattern_catalog_scope', return_value=nullcontext()),
-        patch.object(processing, '_start_run_log', return_value=None),
-        patch.object(processing, '_end_run_log'),
+        patch.object(finalize, '_start_run_log', return_value=None),
+        patch.object(finalize, '_end_run_log'),
         patch.object(processing.status_service, 'complete_job'),
     ):
         processing._process_episode_background(
@@ -59,7 +60,7 @@ def test_cancelled_rerun_deletes_only_replacement_and_preserves_published_files(
         SLUG, EPISODE_ID,
         processed_file=episode_relative_path(EPISODE_ID, version),
         processed_version=version, reprocess_requested_at=reprocess_at)
-    replacement_version = processing._next_processed_version(
+    replacement_version = transcribe._next_processed_version(
         db.get_episode(SLUG, EPISODE_ID))
     replacement = processing.storage.get_episode_path(
         SLUG, EPISODE_ID, version=replacement_version)
@@ -89,7 +90,7 @@ def test_first_run_cancel_keeps_existing_cleanup_behavior(db, feed_type,
         SLUG, 'https://example.com/feed.xml', 'Cancel cleanup',
         feed_type=feed_type)
     db.upsert_episode(SLUG, EPISODE_ID, status='processing')
-    assert processing._next_processed_version(db.get_episode(SLUG, EPISODE_ID)) == 0
+    assert transcribe._next_processed_version(db.get_episode(SLUG, EPISODE_ID)) == 0
     unversioned = processing.storage.get_episode_path(SLUG, EPISODE_ID)
     unversioned.parent.mkdir(parents=True, exist_ok=True)
     unversioned.write_bytes(b'partial output')
@@ -123,8 +124,8 @@ def test_cancel_after_publication_preserves_newly_published_output(db):
         patch.object(processing, 'ProcessingQueue', return_value=queue),
         patch.object(processing, 'process_episode', side_effect=publish_then_cancel),
         patch.object(processing, 'pattern_catalog_scope', return_value=nullcontext()),
-        patch.object(processing, '_start_run_log', return_value=None),
-        patch.object(processing, '_end_run_log'),
+        patch.object(finalize, '_start_run_log', return_value=None),
+        patch.object(finalize, '_end_run_log'),
         patch.object(processing.status_service, 'complete_job'),
     ):
         processing._process_episode_background(
@@ -217,8 +218,8 @@ def test_missing_publication_pointer_during_rerun_preserves_all_audio(db):
         patch.object(processing, 'ProcessingQueue', return_value=queue),
         patch.object(processing, 'process_episode', side_effect=remove_pointer_then_cancel),
         patch.object(processing, 'pattern_catalog_scope', return_value=nullcontext()),
-        patch.object(processing, '_start_run_log', return_value=None),
-        patch.object(processing, '_end_run_log'),
+        patch.object(finalize, '_start_run_log', return_value=None),
+        patch.object(finalize, '_end_run_log'),
         patch.object(processing.status_service, 'complete_job'),
     ):
         processing._process_episode_background(
@@ -238,7 +239,7 @@ def test_unstamped_version_zero_publication_uses_new_version_on_cancel(db):
     published = processing.storage.get_episode_path(SLUG, EPISODE_ID, version=0)
     published.parent.mkdir(parents=True, exist_ok=True)
     published.write_bytes(b'published audio')
-    assert processing._next_processed_version(db.get_episode(SLUG, EPISODE_ID)) == 1
+    assert transcribe._next_processed_version(db.get_episode(SLUG, EPISODE_ID)) == 1
     replacement = processing.storage.get_episode_path(SLUG, EPISODE_ID, version=1)
     replacement.write_bytes(b'partial replacement')
     queue = MagicMock()

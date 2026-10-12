@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from unittest.mock import MagicMock, patch
 
 import main_app.processing as processing
+from main_app.pipeline import common, transcribe
 
 
 def _seg(start, end, text):
@@ -31,9 +32,9 @@ def _run_tail(segments, duration, span_result=(None, None)):
     mock_t.get_audio_duration.return_value = duration
     mock_t.transcribe_span_no_vad.return_value = span_result
     with patch.object(processing, 'transcriber', mock_t), \
-         patch.object(processing, 'resolve_tail_retranscribe_tunables',
+         patch.object(transcribe, 'resolve_tail_retranscribe_tunables',
                       return_value=_TUNABLES):
-        tail = processing._retranscribe_tail_no_vad(
+        tail = transcribe._retranscribe_tail_no_vad(
             'show', 'ep1', '/audio.mp3', segments, None)
     return tail, mock_t
 
@@ -89,12 +90,12 @@ def test_fresh_transcription_appends_tail_before_persist():
          patch.object(processing, 'transcriber', mock_t), \
          patch.object(processing, 'sponsor_service', mock_sponsor), \
          patch.object(processing, 'status_service', MagicMock()), \
-         patch.object(processing, 'get_feed_language_override',
+         patch.object(transcribe, 'get_feed_language_override',
                       return_value=None), \
-         patch.object(processing, '_retranscribe_holes_no_vad', return_value=([], [])), \
-         patch.object(processing, '_retranscribe_tail_no_vad',
+         patch.object(transcribe, '_retranscribe_holes_no_vad', return_value=([], [])), \
+         patch.object(transcribe, '_retranscribe_tail_no_vad',
                       return_value=[tail_seg]) as tail:
-        audio_path, segments = processing._download_and_transcribe(
+        audio_path, segments = transcribe._download_and_transcribe(
             'show', 'ep1', 'http://example.com/e.mp3')
     assert segments == base + [tail_seg]
     tail.assert_called_once_with('show', 'ep1', '/tmp/dl.mp3', base, None)
@@ -123,14 +124,14 @@ def test_reuse_branch_extends_in_memory_and_stores_the_repair(tmp_path):
          patch.object(processing, 'db', mock_db), \
          patch.object(processing, 'transcriber', mock_t), \
          patch.object(processing, 'sponsor_service', mock_sponsor), \
-         patch.object(processing, '_copy_retained_original_to_temp',
+         patch.object(common, '_copy_retained_original_to_temp',
                       return_value='/tmp/work.mp3'), \
-         patch.object(processing, 'get_feed_language_override',
+         patch.object(transcribe, 'get_feed_language_override',
                       return_value=None), \
-         patch.object(processing, '_retranscribe_holes_no_vad', return_value=([], [])), \
-         patch.object(processing, '_retranscribe_tail_no_vad',
+         patch.object(transcribe, '_retranscribe_holes_no_vad', return_value=([], [])), \
+         patch.object(transcribe, '_retranscribe_tail_no_vad',
                       return_value=[tail_seg]) as tail:
-        audio_path, segments = processing._download_and_transcribe(
+        audio_path, segments = transcribe._download_and_transcribe(
             'show', 'ep1', 'http://example.com/e.mp3')
     assert audio_path == '/tmp/work.mp3'
     assert segments == base + [tail_seg]

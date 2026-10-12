@@ -4,7 +4,7 @@ import unittest
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('run_window_stats_')
-from main_app.processing import _window_stats  # noqa: E402
+from main_app.pipeline.detect import _window_stats
 from utils.llm_call import LOSS_RATE_LIMIT, LOSS_SERVER_ERROR  # noqa: E402
 
 

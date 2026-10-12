@@ -6,6 +6,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('crosspass_consolidation_test_')
 
 from main_app import processing
+from main_app.pipeline import verify
 from audio_processor import AudioProcessor
 from tests.unit.pass2_test_utils import _spans, drive_verification_pass, gate_passthrough
 
@@ -18,7 +19,7 @@ def test_crosspass_plan_joins_touching_and_filler_gap_cuts():
     pass1 = [_cut(100.0, 150.0, replacement_duration=1.0)]
     markers = [_cut(100.0, 150.0)]
     pass2 = [_cut(150.0, 180.0), _cut(185.0, 220.0)]
-    plan = processing._crosspass_cut_plan(
+    plan = verify._crosspass_cut_plan(
         pass1, markers, pass2,
         [{'start': 0.0, 'end': 90.0, 'text': 'content'}], [], 12.0)
 
@@ -27,7 +28,7 @@ def test_crosspass_plan_joins_touching_and_filler_gap_cuts():
 
 
 def test_crosspass_plan_joins_overlapping_cuts():
-    plan = processing._crosspass_cut_plan(
+    plan = verify._crosspass_cut_plan(
         [_cut(100.0, 160.0, replacement_duration=1.0)],
         [_cut(100.0, 160.0)], [_cut(150.0, 190.0)],
         [{'start': 0.0, 'end': 90.0, 'text': 'content'}], [], 12.0)
@@ -40,16 +41,16 @@ def test_crosspass_plan_does_not_cross_protected_or_mixed_action_audio():
     markers = [_cut(100.0, 150.0)]
     pass2 = [_cut(150.0, 180.0)]
 
-    assert processing._crosspass_cut_plan(
+    assert verify._crosspass_cut_plan(
         pass1, markers, pass2, [{'start': 0.0, 'end': 90.0, 'text': 'content'}],
         [{'start': 145.0, 'end': 155.0}], 12.0) is None
-    assert processing._crosspass_cut_plan(
+    assert verify._crosspass_cut_plan(
         pass1, markers, [_cut(150.0, 180.0, 'beep')],
         [{'start': 0.0, 'end': 90.0, 'text': 'content'}], [], 12.0) is None
 
 
 def test_crosspass_plan_falls_back_for_mixed_overlap_even_with_other_join():
-    assert processing._crosspass_cut_plan(
+    assert verify._crosspass_cut_plan(
         [_cut(100.0, 150.0, replacement_duration=1.0),
          _cut(300.0, 350.0, replacement_duration=1.0)],
         [_cut(100.0, 150.0), _cut(300.0, 350.0)],
@@ -62,14 +63,14 @@ def test_crosspass_plan_respects_speech_threshold_and_duration_cap():
     markers = [_cut(100.0, 150.0)]
     pass2 = [_cut(160.0, 220.0)]
 
-    assert processing._crosspass_cut_plan(pass1, markers, pass2, [], [], 12.0) is None
-    assert processing._crosspass_cut_plan(
+    assert verify._crosspass_cut_plan(pass1, markers, pass2, [], [], 12.0) is None
+    assert verify._crosspass_cut_plan(
         pass1, markers, pass2, [{'start': 150.0, 'end': 160.0, 'text': 'speech'}],
         [], 0.0) is None
-    assert processing._crosspass_cut_plan(
+    assert verify._crosspass_cut_plan(
         pass1, markers, pass2, [{'start': 150.0, 'end': 160.0, 'text': 'speech'}],
         [], 10.0) is None
-    assert processing._crosspass_cut_plan(
+    assert verify._crosspass_cut_plan(
         [_cut(0.0, 200.0, replacement_duration=1.0)], [_cut(0.0, 200.0)],
         [_cut(201.0, 320.0)], [{'start': 200.0, 'end': 201.0, 'text': ''}], [], 12.0) is None
 
@@ -79,30 +80,30 @@ def test_touching_cuts_merge_without_transcript_or_enabled_gap_setting():
     markers = [_cut(100.0, 150.0)]
     pass2 = [_cut(150.0, 180.0)]
 
-    assert processing._crosspass_cut_plan(pass1, markers, pass2, [], [], 0.0)
-    assert processing._crosspass_cut_plan(pass1, markers, pass2, [], [], 12.0)
+    assert verify._crosspass_cut_plan(pass1, markers, pass2, [], [], 0.0)
+    assert verify._crosspass_cut_plan(pass1, markers, pass2, [], [], 12.0)
 
 
 def test_crosspass_plan_keeps_reviewer_locked_pass1_edges():
     show = [{'start': 0.0, 'end': 2780.0, 'text': 'content'}]
     end_locked = [_cut(2802.09, 2959.57, reviewer_locked_end=2959.57)]
-    assert processing._crosspass_cut_plan(
+    assert verify._crosspass_cut_plan(
         [_cut(2802.09, 2959.57, replacement_duration=1.0)], end_locked,
         [_cut(2966.47, 2990.0)], show, [], 12.0) is None
 
     start_locked = [_cut(2802.09, 2959.57, reviewer_locked_start=2802.09)]
-    assert processing._crosspass_cut_plan(
+    assert verify._crosspass_cut_plan(
         [_cut(2802.09, 2959.57, replacement_duration=1.0)], start_locked,
         [_cut(2790.0, 2800.0)], show, [], 12.0) is None
 
-    unlocked = processing._crosspass_cut_plan(
+    unlocked = verify._crosspass_cut_plan(
         [_cut(2802.09, 2959.57, replacement_duration=1.0)], [_cut(2802.09, 2959.57)],
         [_cut(2790.0, 2800.0), _cut(2966.47, 2990.0)], show, [], 12.0)
     assert [(cut['start'], cut['end']) for cut in unlocked] == [(2790.0, 2990.0)]
 
 
 def test_crosspass_union_keeps_trusted_pass1_short_cut(monkeypatch):
-    plan = processing._crosspass_cut_plan(
+    plan = verify._crosspass_cut_plan(
         [_cut(105.0, 108.0, replacement_duration=1.0, beep=False)], [],
         [_cut(100.0, 105.0, confidence=0.1)], [], [], 0.0)
     processor = AudioProcessor()
@@ -117,11 +118,11 @@ def test_crosspass_union_keeps_trusted_pass1_short_cut(monkeypatch):
 def test_mapped_protection_blocks_processed_merge_and_tail_extension(monkeypatch):
     processor = AudioProcessor()
     monkeypatch.setattr(processor, 'get_beep_duration', lambda: 1.0)
-    barrier = processing._protected_ranges_in_processed_audio(
+    barrier = verify._protected_ranges_in_processed_audio(
         [{'start': 110.1, 'end': 110.4}], [])
     merged = processor.compute_applied_cuts(
         [_cut(100.0, 110.0), _cut(110.5, 121.0)], 300.0, barrier)
-    tail_barrier = processing._protected_ranges_in_processed_audio(
+    tail_barrier = verify._protected_ranges_in_processed_audio(
         [{'start': 285.0, 'end': 290.0}], [])
     tail = processor.compute_applied_cuts([_cut(250.0, 280.0)], 300.0, tail_barrier)
 
@@ -147,7 +148,7 @@ def test_verification_reviewer_cannot_restore_user_trimmed_audio():
 
 
 def test_crosspass_plan_joins_when_pass2_precedes_pass1():
-    plan = processing._crosspass_cut_plan(
+    plan = verify._crosspass_cut_plan(
         [_cut(150.0, 200.0, replacement_duration=1.0)], [_cut(150.0, 200.0)],
         [_cut(100.0, 150.0)], [{'start': 0.0, 'end': 90.0, 'text': 'content'}], [], 12.0)
 
@@ -162,7 +163,7 @@ def test_failed_crosspass_rerender_preserves_pass1_output(monkeypatch):
     monkeypatch.setattr(processing.os, 'unlink', unlink)
     cuts = [_cut(100.0, 200.0)]
 
-    output, applied, ok = processing._rerender_crosspass_from_original(
+    output, applied, ok = verify._rerender_crosspass_from_original(
         'test-feed', 'test-episode', '/tmp/original.mp3', '/tmp/pass1.mp3',
         cuts, audio, [])
 

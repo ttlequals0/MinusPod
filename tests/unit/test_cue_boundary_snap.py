@@ -20,6 +20,7 @@ from audio_processor import AudioProcessor
 from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
 from config import AUDIO_CUE_TYPE_CONTENT_TRANSITION
 from main_app import processing
+from main_app.pipeline import detect
 
 
 def _result_with(*signals):
@@ -309,7 +310,7 @@ def test_single_cue_no_ambiguous_key():
 
 
 def test_settings_plumbing_snap_receives_db_values():
-    """processing._detect_ads_first_pass threads DB lead/lag into snap_ad_boundaries_to_cues.
+    """detect._detect_ads_first_pass threads DB lead/lag into snap_ad_boundaries_to_cues.
 
     Patches the DB settings accessor and the snap function itself so that if
     processing.py stops reading or forwarding the DB values the mock assertion
@@ -342,8 +343,8 @@ def test_settings_plumbing_snap_receives_db_values():
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.ad_detector, 'process_transcript',
                       return_value=ad_result_stub), \
-         patch.object(processing, 'snap_ad_boundaries_to_cues', mock_snap):
-        processing._detect_ads_first_pass(
+         patch.object(detect, 'snap_ad_boundaries_to_cues', mock_snap):
+        detect._detect_ads_first_pass(
             ctx, [], '/fake/audio.mp3',
             skip_patterns=[], audio_analysis_result=audio_result,
             progress_callback=None,
@@ -566,10 +567,10 @@ def test_allow_transition_plumbing_reaches_snap():
          patch.object(processing.status_service, 'update_job_stage'), \
          patch.object(processing.ad_detector, 'process_transcript',
                       return_value=ad_result_stub), \
-         patch('main_app.processing.resolve_feed_cue_settings', mock_resolve_cue), \
-         patch('main_app.processing.snap_ad_boundaries_to_cues', mock_snap), \
-         patch('main_app.processing.snap_ad_boundaries_to_silence', MagicMock()):
-        processing._detect_ads_first_pass(
+         patch('main_app.pipeline.detect.resolve_feed_cue_settings', mock_resolve_cue), \
+         patch('main_app.pipeline.detect.snap_ad_boundaries_to_cues', mock_snap), \
+         patch('main_app.pipeline.detect.snap_ad_boundaries_to_silence', MagicMock()):
+        detect._detect_ads_first_pass(
             ctx, [], '/fake/audio.mp3',
             skip_patterns=[], audio_analysis_result=audio_result,
             progress_callback=None,

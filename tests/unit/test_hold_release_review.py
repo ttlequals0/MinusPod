@@ -20,10 +20,13 @@ from config import (
     PASS2_REVIEWED_RELEASE_HOLD_REASONS, is_pending_review,
 )
 from main_app import processing
+from main_app.pipeline import review, verify, recut
 from utils.markers import EDGE_TOLERANCE, is_reviewer_rejected, reviewer_hold_stands
 from main_app.verification_reconciliation import (
     Pass2Ledger, WordEdges, _gate_verification_ads_by_confidence,
 )
+from main_app.pipeline import detect, publish
+from main_app.pipeline import review as review_stage
 from utils.time import adjust_timestamp
 from verification_pass import _build_timestamp_map, _map_to_original
 from tests.unit.pass2_test_utils import (
@@ -63,18 +66,18 @@ def _review_pairs(monkeypatch, candidates, verdicts, protection=None, enabled=Tr
         calls.append(kwargs)
         return ReviewResult(verdicts=list(verdicts))
 
-    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: enabled)
-    monkeypatch.setattr(processing, '_build_reviewer',
+    monkeypatch.setattr(review_stage, '_ad_review_enabled', lambda db: enabled)
+    monkeypatch.setattr(review_stage, '_build_reviewer',
                         lambda db, det: SimpleNamespace(review=review))
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
                         lambda: 'test-model')
     monkeypatch.setattr(processing.ad_detector, 'get_verification_provider',
                         lambda: None)
     holds = [c[1] for c in candidates]
-    protection = protection or processing.build_protection(
+    protection = protection or verify.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[],
         holds=holds, pass1_cuts=[])
-    released, pairs = processing._review_hold_release_candidates(
+    released, pairs = review_stage._review_hold_release_candidates(
         _ctx(), candidates, [], protection, pass1_cuts=list(pass1_cuts),
         covered=list(covered), ledger=ledger)
     return released, pairs, calls
@@ -285,16 +288,19 @@ def test_resurrect_band_finding_over_a_hold_is_never_cut(monkeypatch):
     result = ReviewResult(verdicts=[ReviewVerdict(
         pool='resurrection', pass_num=2, verdict='resurrect',
         original_start=1040.0, original_end=1060.0, reasoning='Acme read')])
-    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
-    monkeypatch.setattr(processing, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
+    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage',
                         lambda *a, **k: None)
-    monkeypatch.setattr(processing, 'split_resurrection_pool', lambda *a, **k: orig)
-    monkeypatch.setattr(processing, '_build_reviewer',
+    monkeypatch.setattr(review, 'split_resurrection_pool', lambda *a, **k: orig)
+    monkeypatch.setattr(review, '_build_reviewer',
                         lambda db, det: SimpleNamespace(review=lambda **kw: result))
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
                         lambda: 'test-model')
-    processing._apply_pass2_reviewer(_ctx(), cut, ui, held, proc, orig, [], 0.8)
+    review._apply_pass2_reviewer(_ctx(), cut, ui, held, proc, orig, [], 0.8)
 
     assert cut == [] and ui == []
 
@@ -324,7 +330,7 @@ def test_confirmed_subspan_is_released_and_filed_trimmed(monkeypatch):
     assert is_pending_review(hold)
 
     db = _approval_db(monkeypatch)
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
+    assert verify._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     kwargs = db.create_pattern_correction.call_args.kwargs
     assert kwargs['original_bounds'] == {'start': 1000.0, 'end': 1100.0}
     assert kwargs['corrected_bounds'] == {'start': 1040.0, 'end': 1060.0}
@@ -336,7 +342,7 @@ def test_inconclusive_hold_reason_is_releasable(monkeypatch):
                                [_verdict('confirmed', 1040.0, 1060.0)])
     assert released == 1
     db = _approval_db(monkeypatch)
-    assert processing._file_corroborated_hold_approvals(
+    assert verify._file_corroborated_hold_approvals(
         's', 'e', [candidates[0][1]],
         corrections=_user_corrections('s', 'e')) == 1
     assert db.create_pattern_correction.called
@@ -363,7 +369,7 @@ def test_unsuccessful_review_keeps_the_whole_hold(monkeypatch, verdict):
     assert record['verdict'] == verdict.verdict and record['span'] == [1040.0, 1060.0]
     assert hold == before
     db = _approval_db(monkeypatch)
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 0
+    assert verify._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 0
     db.create_pattern_correction.assert_not_called()
 
 
@@ -379,7 +385,7 @@ def test_adjust_into_another_hold_keeps_the_whole_hold(monkeypatch):
     candidates = _candidate()
     hold = candidates[0][1]
     other = _hold(1062.0, 1070.0, 'max_duration')
-    protection = processing.build_protection(
+    protection = verify.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[],
         holds=[hold, other], pass1_cuts=[])
     released, _calls = _review(monkeypatch, candidates, [
@@ -393,7 +399,7 @@ def test_confirm_over_a_gated_pass2_hold_keeps_the_whole_hold(monkeypatch):
     candidates = _candidate()
     hold = candidates[0][1]
     pass2_hold = _hold(1050.0, 1055.0, 'verification_miss')
-    protection = processing.build_protection(
+    protection = verify.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[],
         holds=[hold, pass2_hold], pass1_cuts=[])
     released, _calls = _review(monkeypatch, candidates,
@@ -441,7 +447,7 @@ def test_covering_adjust_that_misses_the_subspan_or_meets_a_keep_is_not_released
         monkeypatch, adjusted, keep):
     candidates = _candidate(sub=(1060.0, 1080.0))
     hold = candidates[0][1]
-    protection = processing.build_protection(
+    protection = verify.build_protection(
         kept=[{'start': keep[0], 'end': keep[1]}] if keep else [], category_kept=[],
         user_trims=[], fp_corrections=[], holds=[hold], pass1_cuts=[])
     released, pairs, _calls = _review_pairs(monkeypatch, candidates, [
@@ -454,7 +460,7 @@ def test_covering_adjust_into_another_hold_is_not_released(monkeypatch):
     candidates = _candidate(sub=(1060.0, 1080.0))
     hold = candidates[0][1]
     other = _hold(1105.0, 1150.0, 'max_duration')
-    protection = processing.build_protection(
+    protection = verify.build_protection(
         kept=[], category_kept=[], user_trims=[], fp_corrections=[],
         holds=[hold, other], pass1_cuts=[])
     released, pairs, _calls = _review_pairs(monkeypatch, candidates, [
@@ -497,7 +503,7 @@ def test_short_outside_piece_is_dropped_with_a_reason(monkeypatch):
 def test_released_span_by_verdict(verdict, expected):
     hold = _hold(1000.0, 1100.0)
     sub = {'start': verdict.original_start, 'end': verdict.original_end}
-    got = processing._released_span(verdict, sub, hold, [])
+    got = review._released_span(verdict, sub, hold, [])
     if expected is None:
         assert got is None
     else:
@@ -524,7 +530,7 @@ def test_repeated_detection_files_one_confirm(monkeypatch):
 
     *_rest, again = _gate([_proc(1040.0, 1060.0)], [_orig(1040.0, 1060.0)], [hold])
     assert again == []
-    assert processing._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
+    assert verify._file_corroborated_hold_approvals('s', 'e', [hold], corrections=_user_corrections('s', 'e')) == 1
     db.create_pattern_correction.assert_not_called()
 
 
@@ -673,7 +679,7 @@ def test_recut_after_inconclusive_hold_review_keeps_the_hold_pending(monkeypatch
     monkeypatch.setattr(processing, 'db', db)
 
     ads_to_remove, all_ads, _keep, rejects = (
-        processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep')))
+        recut._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80, corrections=_user_corrections('slug', 'ep')))
     assert ads_to_remove == [] and rejects == []
     [after] = all_ads
     assert is_pending_review(after)
@@ -706,7 +712,7 @@ def _drive_covering(holds, findings, verdicts, **kwargs):
 
 def _filed_confirms(monkeypatch, holds):
     db = _approval_db(monkeypatch)
-    processing._file_corroborated_hold_approvals(
+    verify._file_corroborated_hold_approvals(
         's', 'e', holds, corrections=_user_corrections('s', 'e'))
     return [c.kwargs for c in db.create_pattern_correction.call_args_list]
 

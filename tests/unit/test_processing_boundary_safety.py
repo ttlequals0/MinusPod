@@ -16,7 +16,10 @@ from audio_processor import AudioProcessor
 from config import (HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
                     PASS2_AUTOAPPROVE_HOLD_REASONS, is_pending_review)
 from main_app import processing
+from main_app.pipeline import common, detect, review, cuts, keep_rules, verify
 from main_app.verification_reconciliation import _gate_verification_ads_by_confidence
+from main_app.pipeline import publish
+from main_app.pipeline import cuts as cuts_stage
 from tests.unit.pass2_test_utils import _ctx
 from tests.unit.pipeline_test_utils import _run_pipeline
 from tests.unit.reviewer_test_utils import (
@@ -54,7 +57,7 @@ def test_saved_trim_protects_audio_inside_longer_new_detection():
 
     accepted[0]['start'] = 100.0
     ranges = user_trimmed_keep_ranges(corrections)
-    final = processing._carve_cuts_around(accepted, result.ads, ranges, user_trim=True)
+    final = cuts._carve_cuts_around(accepted, result.ads, ranges, user_trim=True)
     applied = AudioProcessor().compute_applied_cuts(
         final, 600.0, cut_barriers=ranges)
     assert applied[0]['start'] == 101.7
@@ -66,7 +69,7 @@ def test_saved_trim_protects_audio_inside_longer_new_detection():
 def test_cut_wholly_inside_a_trim_keeps_its_saved_marker():
     cut = {'start': 110.0, 'end': 150.0, 'confidence': 0.95, 'was_cut': True}
     all_ads = [cut]
-    final = processing._carve_cuts_around(
+    final = cuts._carve_cuts_around(
         [cut], all_ads, [{'start': 100.0, 'end': 200.0}], user_trim=True)
     assert final == []
     assert all_ads == [cut] and cut['was_cut'] is False
@@ -77,7 +80,7 @@ def test_verification_keeps_trim_but_checks_remaining_ad():
                   'dai_core_spans': [{'start': 100.0, 'end': 290.0}]}]
     original = [dict(processed[0])]
     kept = [{'start': 100.0, 'end': 101.7}]
-    remaining, mapped = processing._split_pass2_candidates_around_spans(
+    remaining, mapped = verify._split_pass2_candidates_around_spans(
         processed, original, kept, [], 'user-trimmed audio')
     assert [(ad['start'], ad['end']) for ad in remaining] == [
         (101.7, 290.0)]
@@ -100,20 +103,23 @@ def test_abstained_pass1_and_adjacent_pass2_never_reach_render_or_learning(monke
     validation = AdValidator(
         1000.0, segments, episode_description='Acme sponsors this episode',
         splice_veto_enabled=False).validate([candidate])
-    cuts, _ = processing._gate_validation_by_confidence(
+    cuts, _ = detect._gate_validation_by_confidence(
         'example-podcast', 'episode-1', validation.ads, 0.80)
     assert len(cuts) == 1
 
     reviewer = _reviewer()
-    monkeypatch.setattr(processing, '_ad_review_enabled', lambda db: True)
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)
-    monkeypatch.setattr(processing, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(processing, '_publish_status', lambda *args: None)
+    monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, detector: reviewer)
+    monkeypatch.setattr(detect, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(review, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(verify, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(publish, 'clear_fallback', lambda *args: None)
+    monkeypatch.setattr(common, '_publish_status', lambda *args: None)
     monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
     monkeypatch.setattr('ad_reviewer.call_llm_for_window',
                         lambda **kwargs: (None, InconclusiveError()))
 
-    cuts, markers = processing._run_ad_reviewer(
+    cuts, markers = review._run_ad_reviewer(
         'example-podcast', 'episode-1', 1, cuts, validation.ads, segments,
         'Example Podcast', 'Episode', '', '', 0.80, 1, 'test-model')
     assert cuts == []
@@ -132,7 +138,7 @@ def test_abstained_pass1_and_adjacent_pass2_never_reach_render_or_learning(monke
     assert corroborated == 0
     monkeypatch.setattr(processing.ad_detector, 'get_verification_model',
                         lambda: 'test-model')
-    processing._apply_pass2_reviewer(
+    review._apply_pass2_reviewer(
         _ctx(), pass2_cuts, pass2_ui, pass2_held,
         [processed], [original], segments, 0.80, pass1_cuts=[])
     assert pass2_cuts == []
@@ -145,7 +151,7 @@ def test_abstained_pass1_and_adjacent_pass2_never_reach_render_or_learning(monke
 
     learn = MagicMock()
     monkeypatch.setattr(processing.ad_detector, 'learn_from_detections', learn)
-    assert processing._learn_from_applied_cut_ads(
+    assert keep_rules._learn_from_applied_cut_ads(
         'example-podcast', 'episode-1', cuts, markers,
         [], 1000.0, segments, 'unused.wav') == 0
     learn.assert_not_called()
@@ -232,7 +238,7 @@ def test_abstained_fingerprint_with_absorbed_llm_member_still_cuts(monkeypatch):
 
 def test_full_processing_pass_renders_no_abstained_cut(monkeypatch):
     reviewer = _reviewer()
-    monkeypatch.setattr(processing, '_build_reviewer', lambda db, detector: reviewer)
+    monkeypatch.setattr(review, '_build_reviewer', lambda db, detector: reviewer)
     monkeypatch.setattr('ad_reviewer.call_llm_for_window',
                         lambda **kwargs: (None, InconclusiveError()))
     candidate = {'start': 20.0, 'end': 60.0, 'confidence': 0.98,
@@ -303,7 +309,7 @@ def _spans(ads):
 def _render(merged, action_map, duration=2708.2445):
     keeps = [a for a in merged if action_map.get(a.get('category')) == 'keep']
     cuts = [dict(a) for a in merged if a not in keeps]
-    cuts = processing._carve_cuts_around(cuts, list(merged), keeps)
+    cuts = cuts_stage._carve_cuts_around(cuts, list(merged), keeps)
     return AudioProcessor().compute_applied_cuts(cuts, duration, hard_barriers=keeps)
 
 

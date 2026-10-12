@@ -16,7 +16,11 @@ from cancel import ProcessingOwnershipLost
 from llm_client import ProviderRateLimitedError
 from main_app import db
 import main_app.processing as processing
-from main_app.processing import _handle_processing_failure
+from main_app.pipeline.failure import _handle_processing_failure
+from main_app.pipeline import common, signals, detect, review, cuts, verify, publish, admission
+from main_app.pipeline import finalize as finalize_stage
+from main_app.pipeline import recut
+from main_app.pipeline import transcribe as transcribe_stage
 from rate_limit_hold import resolve_hold_scope
 
 SLUG = 'processing-fences-feed'
@@ -130,29 +134,31 @@ def _run_pipeline(stack, *, transcribe=None, owner_check=None, required=[]):
     p(processing.ad_detector, 'get_verification_model', return_value='test-model')
     p(processing, 'start_episode_token_tracking')
     p(processing, 'get_available_memory_gb', return_value=None)
-    p(processing, 'get_min_cut_confidence', return_value=0.8)
-    p(processing, '_download_and_transcribe',
+    p(finalize_stage, 'get_available_memory_gb', return_value=None)
+    p(common, 'get_min_cut_confidence', return_value=0.8)
+    p(transcribe_stage, '_download_and_transcribe',
       side_effect=transcribe or (lambda *a, **kw: ('/tmp/fences.mp3', _SEGMENTS)))
-    p(processing, '_run_differential_fetch', return_value=None)
-    p(processing, '_run_audio_analysis', return_value=None)
+    p(signals, '_run_differential_fetch', return_value=None)
+    p(signals, '_run_audio_analysis', return_value=None)
     p(processing, 'load_positional_prior', return_value=None)
-    p(processing, '_detect_ads_first_pass', return_value=([], 0, None))
-    p(processing, '_refine_and_validate', return_value=([], []))
-    p(processing, '_run_ad_reviewer', return_value=([], []))
-    p(processing, '_snap_terminal_starts', return_value=[])
-    p(processing, '_complete_cut_tails', return_value=[])
+    p(detect, '_detect_ads_first_pass', return_value=([], 0, None))
+    p(detect, '_refine_and_validate', return_value=([], []))
+    p(review, '_run_ad_reviewer', return_value=([], []))
+    p(cuts, '_snap_terminal_starts', return_value=[])
+    p(cuts, '_complete_cut_tails', return_value=[])
     local_ap_cls = p(processing, 'AudioProcessor')
-    p(processing, '_run_verification_pass',
+    p(recut, 'AudioProcessor', new=local_ap_cls)
+    p(verify, '_run_verification_pass',
       return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
-    p(processing, '_generate_assets')
-    finalize = p(processing, '_finalize_episode')
-    p(processing, '_required_providers_for_admission', return_value=required)
+    p(publish, '_generate_assets')
+    finalize = p(finalize_stage, '_finalize_episode')
+    p(admission, '_required_providers_for_admission', return_value=required)
     p(processing, 'get_effective_provider', return_value='provider-a')
     p(processing.shutil, 'move')
     unlink = p(processing.os, 'unlink')
     p(processing.os.path, 'exists', return_value=False)
     if owner_check is not None:
-        p(processing, '_require_publication_owner', side_effect=owner_check)
+        p(common, '_require_publication_owner', side_effect=owner_check)
 
     mock_db.get_episode.return_value = {}
     mock_db.get_podcast_by_slug.return_value = podcast_row
@@ -233,7 +239,7 @@ class TestUnpublishedRenderIsCleanedUp:
         with ExitStack() as stack:
             mocks = _run_pipeline(stack)
             stack.enter_context(patch.object(
-                processing, '_run_verification_pass',
+                verify, '_run_verification_pass',
                 side_effect=ProviderRateLimitedError(
                     'provider rate limit reached', retry_after_seconds=4499.0,
                     phase='verification')))

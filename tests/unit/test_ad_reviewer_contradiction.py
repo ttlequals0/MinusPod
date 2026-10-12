@@ -21,7 +21,7 @@ from unittest.mock import patch
 
 import pytest
 
-import main_app.processing as processing
+from main_app.pipeline import review
 from ad_reviewer import ReviewVerdict, reasoning_contradicts_cut, reasoning_affirms_ad
 from config import (HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
                     HOLD_REASON_REVIEWER_CONTRADICTION)
@@ -180,7 +180,7 @@ def test_apply_reviewer_verdict_contradiction_holds_master_ad():
         original_start=120.0, original_end=180.0,
         reasoning='Contains no ad content', confidence=0.9, model_used='m',
     )
-    processing._apply_reviewer_verdict_to_ad(ad, v)
+    review._apply_reviewer_verdict_to_ad(ad, v)
     assert ad['held_for_review'] is True
     assert ad['was_cut'] is False
     assert ad['hold_reason'] == HOLD_REASON_REVIEWER_CONTRADICTION
@@ -196,7 +196,7 @@ def test_apply_reviewer_verdict_contradicted_adjust_keeps_boundaries():
         adjusted_start=115.0, adjusted_end=185.0,
         reasoning='window contains no advertisement', model_used='m',
     )
-    processing._apply_reviewer_verdict_to_ad(ad, v)
+    review._apply_reviewer_verdict_to_ad(ad, v)
     assert ad['held_for_review'] is True
     assert ad['start'] == 120.0
     assert ad['end'] == 180.0
@@ -214,7 +214,7 @@ def test_contradicted_adjust_preserves_proposed_bounds():
         reasoning='the first 30s is not an ad, it is the show outro',
         model_used='m',
     )
-    processing._apply_reviewer_verdict_to_ad(ad, v)
+    review._apply_reviewer_verdict_to_ad(ad, v)
     assert ad['held_for_review'] is True
     assert ad['start'] == 120.0 and ad['end'] == 180.0  # unchanged
     assert ad['reviewer_proposed_start'] == 150.0
@@ -230,7 +230,7 @@ def test_apply_reviewer_verdict_confirmed_without_bounds_has_none():
         original_start=120.0, original_end=180.0,
         reasoning='window has no ad content', model_used='m',
     )
-    processing._apply_reviewer_verdict_to_ad(ad, v)
+    review._apply_reviewer_verdict_to_ad(ad, v)
     assert ad['held_for_review'] is True
     assert 'reviewer_proposed_start' not in ad
     assert 'reviewer_proposed_end' not in ad
@@ -248,7 +248,7 @@ def test_apply_reviewer_verdict_confirmed_with_recovered_bounds():
         reasoning='the ad ends at 150.0s; the rest is not an ad',
         model_used='m',
     )
-    processing._apply_reviewer_verdict_to_ad(ad, v)
+    review._apply_reviewer_verdict_to_ad(ad, v)
     assert ad['held_for_review'] is True
     assert ad['was_cut'] is False
     assert ad['start'] == 120.0 and ad['end'] == 180.0
@@ -498,7 +498,7 @@ def test_tracked_merge_conflict_marks_master_pending_review():
     )
     master = [dict(ad)]
 
-    processing._merge_reviewer_result(result, master)
+    review._merge_reviewer_result(result, master)
 
     assert result.accepted_after_review == []
     assert master[0]['was_cut'] is False
@@ -858,7 +858,7 @@ def test_reviewer_end_adjustment_clears_stale_tail_eligibility():
     assert 'end_extended_by_content' not in accepted
     assert 'tail_splice_snap' not in accepted
 
-    processing._apply_reviewer_verdict_to_ad(ad, result.verdicts[0])
+    review._apply_reviewer_verdict_to_ad(ad, result.verdicts[0])
     assert ad['end'] == pytest.approx(1040.9)
     assert ad['reviewer_moved'] is True
     assert 'end_extended_by_content' not in ad

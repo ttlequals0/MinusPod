@@ -34,6 +34,8 @@ from storage import Storage
 from utils.audio import get_audio_duration
 from cancel import ProcessingCancelled, ProcessingOwnershipLost
 from main_app import processing
+from main_app.pipeline import publish
+from main_app.pipeline import review, cuts, verify
 import rate_limit_hold
 from rate_limit_hold import hold_message
 from utils.time import utc_now_iso
@@ -112,15 +114,18 @@ def _run(monkeypatch, db, publisher_chapters, generator_chapters=None, podcast_r
 
     monkeypatch.setattr(processing, 'db', db)
     monkeypatch.setattr(processing, 'storage', storage_mock)
-    monkeypatch.setattr(processing, 'probe_chapters', probe_mock)
-    monkeypatch.setattr(processing, 'embed_chapters', embed_mock)
-    monkeypatch.setattr(processing, 'fetch_upstream_chapters', fetch_mock)
-    monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(publish, 'probe_chapters', probe_mock)
+    monkeypatch.setattr(publish, 'embed_chapters', embed_mock)
+    monkeypatch.setattr(publish, 'fetch_upstream_chapters', fetch_mock)
+    monkeypatch.setattr(review, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(cuts, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(verify, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(publish, 'get_replacement_duration', lambda: 2.0)
     monkeypatch.setattr(rate_limit_hold, 'get_llm_usage_url', lambda _db: '')
     monkeypatch.setattr('transcript_generator.TranscriptGenerator', transcript_gen_class)
     monkeypatch.setattr(chapters_generator, 'ChaptersGenerator', generator_class)
 
-    processing._generate_assets(
+    publish._generate_assets(
         'testslug', 'ep1', segments=[], all_cuts=[], episode_description='desc',
         podcast_name='Pod', episode_title='Title', regenerate_chapters=True,
         audio_path='/tmp/fake-processed.mp3', audio_duration=100.0,
@@ -179,15 +184,18 @@ def test_generator_chapters_degraded_flag_propagates_to_run_stats(monkeypatch):
 
     monkeypatch.setattr(processing, 'db', db)
     monkeypatch.setattr(processing, 'storage', storage_mock)
-    monkeypatch.setattr(processing, 'probe_chapters', MagicMock(return_value=[]))
-    monkeypatch.setattr(processing, 'embed_chapters', MagicMock())
-    monkeypatch.setattr(processing, 'fetch_upstream_chapters', MagicMock(return_value=None))
-    monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(publish, 'probe_chapters', MagicMock(return_value=[]))
+    monkeypatch.setattr(publish, 'embed_chapters', MagicMock())
+    monkeypatch.setattr(publish, 'fetch_upstream_chapters', MagicMock(return_value=None))
+    monkeypatch.setattr(review, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(cuts, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(verify, 'get_replacement_duration', lambda: 2.0)
+    monkeypatch.setattr(publish, 'get_replacement_duration', lambda: 2.0)
     monkeypatch.setattr('transcript_generator.TranscriptGenerator', transcript_gen_class)
     monkeypatch.setattr(chapters_generator, 'ChaptersGenerator', generator_class)
 
     run_stats = {}
-    processing._generate_assets(
+    publish._generate_assets(
         'testslug', 'ep1', segments=[], all_cuts=[], episode_description='desc',
         podcast_name='Pod', episode_title='Title', regenerate_chapters=True,
         audio_path='/tmp/fake-processed.mp3', audio_duration=100.0,
@@ -297,9 +305,9 @@ def test_source_tag_failure_publishes_no_asset_fields(monkeypatch):
     storage = MagicMock()
     monkeypatch.setattr(processing, 'db', db)
     monkeypatch.setattr(processing, 'storage', storage)
-    monkeypatch.setattr(processing, 'probe_chapters', MagicMock(side_effect=ChapterTagError('Unsupported chapter')))
+    monkeypatch.setattr(publish, 'probe_chapters', MagicMock(side_effect=ChapterTagError('Unsupported chapter')))
     with pytest.raises(ChapterTagError, match='Unsupported chapter'):
-        processing._generate_assets('testslug', 'ep1', [], [], '', 'Pod', 'Title',
+        publish._generate_assets('testslug', 'ep1', [], [], '', 'Pod', 'Title',
                                     audio_path='/tmp/fake-processed.mp3', audio_duration=100)
     db.save_processing_assets.assert_not_called()
     storage.save_transcript_vtt.assert_not_called()
@@ -313,7 +321,7 @@ def _real_asset_storage(monkeypatch, temp_db):
     storage.db = temp_db
     monkeypatch.setattr(processing, 'db', temp_db)
     monkeypatch.setattr(processing, 'storage', storage)
-    monkeypatch.setattr(processing, 'resolve_ad_chapter_config', lambda *args: None)
+    monkeypatch.setattr(publish, 'resolve_ad_chapter_config', lambda *args: None)
     temp_db.set_setting('chapters_enabled', 'true')
     temp_db.set_setting('vtt_transcripts_enabled', 'true')
     return storage
@@ -343,7 +351,7 @@ def test_recut_restores_previously_removed_chapter_artifacts_without_drift(monke
     staging = tmp_path / 'recut.mp3'
     for previous_cuts in ([{'start': 20, 'end': 30, 'replacement_duration': 1}], []):
         shutil.copyfile(source, staging)
-        processing._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode',
+        publish._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode',
                                     regenerate_chapters=False, audio_path=staging,
                                     audio_duration=get_audio_duration(str(staging)),
                                     previous_cuts=previous_cuts, original_duration=60)
@@ -363,7 +371,7 @@ def test_failed_rich_recut_preserves_prior_audio_and_all_published_fields(monkey
     storage = _real_asset_storage(monkeypatch, temp_db)
     source, _ = _long_fixture(tmp_path, 3)
     slug, ep_id = chapter_episode['slug'], chapter_episode['episode_id']
-    processing._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode', audio_path=source,
+    publish._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode', audio_path=source,
                                 audio_duration=60, podcast_row={'chapters_mode': 'auto'})
     conn = temp_db.get_connection()
     before = tuple(conn.execute('SELECT * FROM episode_details WHERE episode_id = ?', (chapter_episode['id'],)).fetchone())
@@ -374,9 +382,9 @@ def test_failed_rich_recut_preserves_prior_audio_and_all_published_fields(monkey
     shutil.copyfile(source, staging)
     save_image = MagicMock(wraps=storage.save_chapter_image)
     monkeypatch.setattr(storage, 'save_chapter_image', save_image)
-    monkeypatch.setattr(processing, 'embed_chapters', lambda *args, **kwargs: False)
+    monkeypatch.setattr(publish, 'embed_chapters', lambda *args, **kwargs: False)
     with pytest.raises(ChapterTagError, match='could not be embedded'):
-        processing._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode',
+        publish._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode',
                                     regenerate_chapters=False, audio_path=staging,
                                     audio_duration=60, previous_cuts=[], original_duration=60)
     assert tuple(conn.execute('SELECT * FROM episode_details WHERE episode_id = ?', (chapter_episode['id'],)).fetchone()) == before
@@ -391,12 +399,12 @@ def test_recut_clears_artifacts_when_all_publisher_chapters_are_cut(monkeypatch,
     storage = _real_asset_storage(monkeypatch, temp_db)
     source, _ = _long_fixture(tmp_path, 4)
     slug, ep_id = chapter_episode['slug'], chapter_episode['episode_id']
-    processing._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode', audio_path=source,
+    publish._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode', audio_path=source,
                                 audio_duration=60, podcast_row={'chapters_mode': 'auto'})
     output = tmp_path / 'all-cut.mp3'
     cuts = AudioProcessor().remove_ads(str(source), [{'start': 0, 'end': 60}], str(output))
     assert cuts
-    processing._generate_assets(slug, ep_id, [], cuts, '', 'Pod', 'Episode',
+    publish._generate_assets(slug, ep_id, [], cuts, '', 'Pod', 'Episode',
                                 regenerate_chapters=False, audio_path=output,
                                 audio_duration=get_audio_duration(str(output)),
                                 previous_cuts=[], original_duration=60)
@@ -406,7 +414,7 @@ def test_recut_clears_artifacts_when_all_publisher_chapters_are_cut(monkeypatch,
     assert chapter_frames(read_tag(output))[0] == {}
     assert temp_db.get_applied_cuts(slug, ep_id) == [
         {key: cut[key] for key in ('start', 'end', 'replacement_duration')} for cut in cuts]
-    processing._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode',
+    publish._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode',
                                 regenerate_chapters=False, audio_path=source,
                                 audio_duration=60, previous_cuts=cuts, original_duration=60)
     restored = json.loads(temp_db.get_episode(slug, ep_id)['chapters_json'])
@@ -422,7 +430,7 @@ def test_recut_preserves_generated_choice_even_when_current_mode_is_auto(monkeyp
     slug, ep_id = chapter_episode['slug'], chapter_episode['episode_id']
     chosen = {'version': '1.2.0', 'chapters': [{'startTime': 5, 'title': 'Chosen topic'}]}
     temp_db.save_processing_assets(slug, ep_id, {'chapters': chosen, 'applied_cuts': []})
-    processing._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode',
+    publish._generate_assets(slug, ep_id, [], [], '', 'Pod', 'Episode',
                                 regenerate_chapters=False, audio_path=source,
                                 audio_duration=60, previous_cuts=[], original_duration=60,
                                 podcast_row={'chapters_mode': 'auto'})
@@ -435,8 +443,8 @@ def test_unknown_empty_chapter_set_does_not_imply_publisher_choice(monkeypatch):
     monkeypatch.setattr(processing.storage, 'get_chapters_json',
                         lambda *args: {'version': '1.2.0', 'chapters': []})
     probe = MagicMock()
-    monkeypatch.setattr(processing, 'probe_chapters', probe)
-    processing._remap_stored_chapters('testslug', 'ep1', [], 1, [], 60,
+    monkeypatch.setattr(publish, 'probe_chapters', probe)
+    publish._remap_stored_chapters('testslug', 'ep1', [], 1, [], 60,
                                      audio_path='/tmp/fake-processed.mp3', audio_duration=60,
                                      pending_assets=pending)
     probe.assert_not_called()

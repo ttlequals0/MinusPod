@@ -14,7 +14,7 @@ _test_data_dir = bootstrap('auth_error_retry_budget_test_')
 from config import MAX_EPISODE_RETRIES
 from llm_client import is_auth_error
 from main_app import db
-from main_app.processing import _handle_processing_failure
+from main_app.pipeline.failure import _handle_processing_failure
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 
 

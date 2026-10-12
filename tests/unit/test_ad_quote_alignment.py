@@ -19,7 +19,7 @@ from ad_detector.prompts import (parse_ads_from_response,
                                  resolve_segment_id_ads)
 from ad_reviewer import AdReviewer, inconclusive_bounds_supported
 from ad_validator import AdValidator
-from main_app import processing
+from main_app.pipeline import review
 from text_pattern_matcher import TextMatch
 from tests.unit.pipeline_test_utils import _run_pipeline
 
@@ -223,7 +223,7 @@ def test_aligned_confirmed_ad_reaches_audio_renderer(monkeypatch):
     reviewer._llm_client.messages_create.return_value = _Response(
         '[{"start": 6.0, "end": 87.8, "confidence": 0.95, '
         '"reason": "Confirmed sponsor read"}]')
-    monkeypatch.setattr(processing, '_build_reviewer',
+    monkeypatch.setattr(review, '_build_reviewer',
                         lambda db, detector: reviewer)
     run = _run_pipeline([candidate], {'sponsor': 'remove'},
                         segments=segments, real_refine_reviewer=True)
@@ -314,7 +314,7 @@ def test_jev_detection_without_quotes_reaches_renderer(monkeypatch,
     reviewer._llm_client.messages_create.return_value = _Response(
         '[{"start": 6.0, "end": 87.8, "confidence": 0.95, '
         '"reason": "Confirmed sponsor read"}]')
-    monkeypatch.setattr(processing, '_build_reviewer',
+    monkeypatch.setattr(review, '_build_reviewer',
                         lambda db, detector: reviewer)
     run = _run_pipeline([candidate], {'sponsor': 'remove'},
                         segments=segments, real_refine_reviewer=True)

@@ -16,7 +16,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 import pytest
 
 import main_app.processing as processing
+from main_app.pipeline import common, detect, finalize, failure, recut
+from main_app.pipeline import finalize as finalize_stage
 from main_app.episode_context import EpisodeContext
+from main_app.pipeline import publish
 from llm_client import LimitExceededError, ProviderRequestRejectedError
 from utils.errors import ServiceUnavailableError
 
@@ -35,7 +38,7 @@ def _call_detect(ad_result, run_stats=None):
         p(processing, 'storage')
         p(processing, 'status_service')
         ad_detector.process_transcript.return_value = ad_result
-        result = processing._detect_ads_first_pass(
+        result = detect._detect_ads_first_pass(
             ctx, SEGMENTS, '/tmp/ep.mp3', skip_patterns=False,
             audio_analysis_result=None, progress_callback=None,
             run_stats=run_stats,
@@ -69,7 +72,7 @@ class TestDegradedContinue:
         with pytest.raises(Exception, match='Ad detection failed'):
             _call_detect(ad_result, run_stats)
         assert 'detection_degraded' not in run_stats
-        assert processing.is_transient_error(
+        assert common.is_transient_error(
             Exception(ad_result['error'])), "must stay on the retry ladder"
 
     def test_total_window_outage_still_degrades_with_markers(self):
@@ -116,7 +119,7 @@ class TestDegradedContinue:
             _call_detect(ad_result, {})
 
         assert exc_info.value.status_code == 422
-        assert processing.is_transient_error(exc_info.value) is False
+        assert common.is_transient_error(exc_info.value) is False
 
     def test_auth_class_failure_defers_does_not_degrade(self):
         ad_result = {'status': 'failed',
@@ -147,7 +150,7 @@ class TestPersistEpisodeStateClearsFlag:
             mock_path.exists.return_value = False
             storage.get_original_path.return_value = mock_path
 
-            processing._persist_episode_state(
+            finalize._persist_episode_state(
                 'degraded-feed', 'ep1', pass1_cut_count=1, verification_count=0,
                 first_pass_count=1, original_duration=100.0, new_duration=90.0,
                 processed_version=1, detection_degraded=detection_degraded)
@@ -181,32 +184,36 @@ class TestPersistEpisodeStateClearsFlag:
 
         with ExitStack() as stack:
             p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
-            p(processing, '_require_publication_owner')
-            p(processing, '_publish_status')
-            p(processing, 'get_episode_token_totals', return_value={
+            p(common, '_require_publication_owner')
+            p(common, '_publish_status')
+            p(finalize_stage, 'get_episode_token_totals', return_value={
                 'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0,
             })
-            p(processing, '_record_history_row')
-            p(processing, 'fire_event')
+            p(failure, 'get_episode_token_totals', return_value={
+                'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0,
+            })
+            p(finalize_stage, '_record_history_row')
+            p(finalize_stage, 'fire_event')
+            p(failure, 'fire_event')
 
             for attempt in range(3):
                 episode = db.get_episode(slug, episode_id)
-                processing._handle_processing_failure(
+                failure._handle_processing_failure(
                     slug, episode_id, 'Episode', 'Retry counter reset', episode,
-                    processing.AudioNotReadyError('CDN not ready (404)'),
+                    failure.AudioNotReadyError('CDN not ready (404)'),
                     start_time=processing.time.time())
                 if attempt < 2:
                     db.upsert_episode(slug, episode_id, status='processing')
             assert db.get_episode(slug, episode_id)['retry_count'] == 3
 
-            processing._persist_episode_state(
+            finalize._persist_episode_state(
                 slug, episode_id, pass1_cut_count=0, verification_count=0,
                 first_pass_count=0, original_duration=100.0, new_duration=100.0,
                 processed_version=1)
             assert db.get_episode(slug, episode_id)['retry_count'] == 0
 
             episode = db.get_episode(slug, episode_id)
-            processing._maybe_enqueue_degraded_redetect(
+            finalize._maybe_enqueue_degraded_redetect(
                 slug, episode_id, 'local://episode', 'Episode',
                 'Retry counter reset', None, None, episode,
                 {'detection_degraded': 'transient detection failure'})
@@ -219,9 +226,9 @@ class TestPersistEpisodeStateClearsFlag:
 
             db.upsert_episode(slug, episode_id, status='processing')
             episode = db.get_episode(slug, episode_id)
-            processing._handle_processing_failure(
+            failure._handle_processing_failure(
                 slug, episode_id, 'Episode', 'Retry counter reset', episode,
-                processing.AudioNotReadyError('CDN not ready (404)'),
+                failure.AudioNotReadyError('CDN not ready (404)'),
                 start_time=processing.time.time())
 
         episode = db.get_episode(slug, episode_id)
@@ -241,11 +248,11 @@ class TestFinalizeEpisodeComposesPersistDegradedFlag:
             mock_path = MagicMock()
             mock_path.exists.return_value = False
             storage.get_original_path.return_value = mock_path
-            p(processing, '_refresh_rss_for_slug')
-            p(processing, '_log_completion_summary')
-            p(processing, '_record_history_and_event')
+            p(common, '_refresh_rss_for_slug')
+            p(finalize_stage, '_log_completion_summary')
+            p(finalize_stage, '_record_history_and_event')
 
-            processing._finalize_episode(
+            finalize._finalize_episode(
                 'degraded-feed', 'ep1', 'Ep Title', 'Podcast',
                 pass1_cut_count=1, verification_count=0, first_pass_count=1,
                 original_duration=100.0, new_duration=90.0, start_time=0.0,
@@ -268,7 +275,7 @@ class TestMaybeEnqueueDegradedRedetect:
         with ExitStack() as stack:
             p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
             db = p(processing, 'db')
-            processing._maybe_enqueue_degraded_redetect(
+            finalize._maybe_enqueue_degraded_redetect(
                 'degraded-feed', 'ep1', 'https://example.com/ep1.mp3',
                 'Ep Title', 'Podcast', 'desc', '2026-01-01T00:00:00Z',
                 episode_data, run_stats)
@@ -312,12 +319,13 @@ class TestRecutPreservesDegradedFlag:
             db = p(processing, 'db')
             storage = p(processing, 'storage')
             p(processing, 'status_service')
-            p(processing, '_copy_retained_original_to_temp',
+            p(common, '_copy_retained_original_to_temp',
               return_value='/tmp/degraded-recut-work.mp3')
-            p(processing, '_build_recut_ad_list', return_value=([], [], [], []))
-            p(processing, '_generate_assets')
-            finalize = p(processing, '_finalize_episode')
+            p(recut, '_build_recut_ad_list', return_value=([], [], [], []))
+            p(publish, '_generate_assets')
+            finalize = p(finalize_stage, '_finalize_episode')
             local_ap_cls = p(processing, 'AudioProcessor')
+            p(recut, 'AudioProcessor', new=local_ap_cls)
             p(processing.os.path, 'exists', return_value=False)
             p(processing.shutil, 'move')
 
@@ -333,7 +341,7 @@ class TestRecutPreservesDegradedFlag:
             local_ap.get_audio_duration.return_value = 60.0
             local_ap.process_episode.return_value = ('/tmp/degraded-recut-cut.mp3', [])
 
-            processing._recut_episode(
+            recut._recut_episode(
                 'degraded-feed', 'ep1', 'Episode', 'Podcast', 'desc',
                 time.time(), cancel_event=None, run_stats=run_stats)
         return finalize

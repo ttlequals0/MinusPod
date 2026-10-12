@@ -18,9 +18,10 @@ from llm_client import (
 from llm_route import Route
 from database.queue import compute_queue_priority
 from main_app import db
-from main_app.processing import (
-    _handle_processing_failure, is_transient_error, start_background_processing,
-)
+from main_app.pipeline.failure import _handle_processing_failure
+from main_app.pipeline.common import is_transient_error
+from main_app.processing import start_background_processing
+from main_app.pipeline import admission
 from rate_limit_hold import (
     _probe_at_key,
     active_held_pairs,
@@ -432,9 +433,8 @@ def _admit_or_refuse(monkeypatch, snapshot, episode_id):
     gate's verdict without starting a real run: acquire() is stubbed to
     fail immediately, so any non-hold refusal proves the gate admitted it.
     """
-    from main_app import processing
     from processing_queue import ProcessingQueue
-    monkeypatch.setattr(processing, '_resolve_route_snapshot', lambda: snapshot)
+    monkeypatch.setattr(admission, '_resolve_route_snapshot', lambda: snapshot)
     monkeypatch.setattr(ProcessingQueue, 'acquire', lambda self, *a, **kw: None)
     return start_background_processing(
         SLUG, episode_id, 'https://example.com/e.mp3', 'E', 'P', None, None)

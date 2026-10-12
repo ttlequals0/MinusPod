@@ -10,6 +10,9 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('finalize_cut_state_test_')
 
 import main_app.processing as processing  # noqa: E402
+from main_app.pipeline import cuts, keep_rules, recut
+from main_app.pipeline import publish, finalize, failure
+from main_app.pipeline import cuts as cuts_stage
 from tests.unit.marker_test_utils import applied_cut  # noqa: E402
 from tests.unit.recut_test_utils import stub_recut  # noqa: E402
 
@@ -25,13 +28,13 @@ def _marker(start, end, **extra):
 class TestFinalizeCutState:
     def test_two_markers_under_one_rendered_cut_count_once(self):
         a, b = _marker(10.0, 40.0), _marker(40.5, 70.0)
-        groups = processing._finalize_cut_state([a, b], [a, b], [applied_cut(10.0, 70.0)], 600.0)
+        groups = cuts._finalize_cut_state([a, b], [a, b], [applied_cut(10.0, 70.0)], 600.0)
         assert groups == [[10.0, 70.0]]
         assert a['was_cut'] is True and b['was_cut'] is True
 
     def test_marker_outside_the_applied_cuts_is_not_cut(self):
         a, b = _marker(10.0, 40.0), _marker(100.0, 104.0)
-        processing._finalize_cut_state([a, b], [a, b], [applied_cut(10.0, 40.0)], 600.0)
+        cuts._finalize_cut_state([a, b], [a, b], [applied_cut(10.0, 40.0)], 600.0)
         assert a['was_cut'] is True
         assert b['was_cut'] is False
 
@@ -40,47 +43,47 @@ class TestFinalizeCutState:
         stale = _marker(20.0, 30.0, validation={'decision': 'REJECT'})
         held = _marker(30.0, 40.0, was_cut=False, held_for_review=True,
                        hold_reason='max_duration')
-        processing._finalize_cut_state([cut, stale, held], [cut], [applied_cut(10.0, 60.0)], 600.0)
+        cuts._finalize_cut_state([cut, stale, held], [cut], [applied_cut(10.0, 60.0)], 600.0)
         assert stale['was_cut'] is False
         assert held['was_cut'] is False
 
     def test_rebuilt_request_dict_resolves_its_master_by_span(self):
         master = _marker(10.0, 40.0, was_cut=False)
         rebuilt = dict(master)
-        processing._finalize_cut_state([master], [rebuilt], [applied_cut(10.0, 40.0)], 600.0)
+        cuts._finalize_cut_state([master], [rebuilt], [applied_cut(10.0, 40.0)], 600.0)
         assert master['was_cut'] is True
         assert rebuilt['was_cut'] is True
 
     def test_identity_wins_over_an_earlier_span_twin(self):
         twin = _marker(10.0, 40.0, was_cut=False, validation={'decision': 'REJECT'})
         master = _marker(10.0, 40.0)
-        processing._finalize_cut_state([twin, master], [master], [applied_cut(10.0, 40.0)], 600.0)
+        cuts._finalize_cut_state([twin, master], [master], [applied_cut(10.0, 40.0)], 600.0)
         assert master['was_cut'] is True
         assert twin['was_cut'] is False
 
     def test_edges_within_tolerance_are_covered(self):
         a = _marker(10.0, 70.0)
-        processing._finalize_cut_state([a], [a], [applied_cut(10.04, 69.96)], 600.0)
+        cuts._finalize_cut_state([a], [a], [applied_cut(10.04, 69.96)], 600.0)
         assert a['was_cut'] is True
         b = _marker(10.0, 70.0)
-        processing._finalize_cut_state([b], [b], [applied_cut(10.2, 70.0)], 600.0)
+        cuts._finalize_cut_state([b], [b], [applied_cut(10.2, 70.0)], 600.0)
         assert b['was_cut'] is False
 
     def test_touching_rendered_cuts_cover_a_marker_together(self):
         a = _marker(10.0, 70.0)
-        processing._finalize_cut_state(
+        cuts._finalize_cut_state(
             [a], [a], [applied_cut(10.0, 40.0), applied_cut(40.0, 70.0)], 600.0)
         assert a['was_cut'] is True
 
     def test_overrunning_marker_is_clamped_to_the_audio(self):
         a = _marker(580.0, 605.0)
-        processing._finalize_cut_state([a], [a], [applied_cut(580.0, 600.0)], 600.0)
+        cuts._finalize_cut_state([a], [a], [applied_cut(580.0, 600.0)], 600.0)
         assert a['was_cut'] is True
 
     def test_partial_coverage_carves_cut_and_uncut_fragments(self):
         a = _marker(10.0, 50.0, validation={'decision': 'ACCEPT', 'flags': []})
         all_ads, ads_to_remove = [a], [a]
-        processing._finalize_cut_state(all_ads, ads_to_remove, [applied_cut(10.0, 30.0)], 600.0)
+        cuts._finalize_cut_state(all_ads, ads_to_remove, [applied_cut(10.0, 30.0)], 600.0)
         assert [(m['start'], m['end'], m['was_cut']) for m in all_ads] == [
             (10.0, 30.0, True), (30.0, 50.0, False)]
         assert all(m['carved_from'] == {'start': 10.0, 'end': 50.0} for m in all_ads)
@@ -92,7 +95,7 @@ class TestFinalizeCutState:
     def test_middle_cut_leaves_two_remainders(self):
         a = _marker(10.0, 70.0)
         all_ads = [_marker(0.0, 5.0, was_cut=False), a, _marker(100.0, 110.0, was_cut=False)]
-        processing._finalize_cut_state(all_ads, [a], [applied_cut(30.0, 50.0)], 600.0)
+        cuts._finalize_cut_state(all_ads, [a], [applied_cut(30.0, 50.0)], 600.0)
         assert [(m['start'], m['end'], m['was_cut']) for m in all_ads] == [
             (0.0, 5.0, False), (10.0, 30.0, False), (30.0, 50.0, True),
             (50.0, 70.0, False), (100.0, 110.0, False)]
@@ -101,7 +104,7 @@ class TestFinalizeCutState:
         master = _marker(10.0, 50.0)
         rebuilt = dict(master)
         all_ads, ads_to_remove = [master], [rebuilt]
-        processing._finalize_cut_state(all_ads, ads_to_remove, [applied_cut(10.0, 30.0)], 600.0)
+        cuts._finalize_cut_state(all_ads, ads_to_remove, [applied_cut(10.0, 30.0)], 600.0)
         assert [(m['start'], m['end'], m['was_cut']) for m in all_ads] == [
             (10.0, 30.0, True), (30.0, 50.0, False)]
         assert [(m['start'], m['end'], m['was_cut']) for m in ads_to_remove] == [
@@ -110,16 +113,16 @@ class TestFinalizeCutState:
     def test_sliver_of_coverage_does_not_carve(self):
         a = _marker(10.0, 50.0)
         all_ads = [a]
-        processing._finalize_cut_state(all_ads, [a], [applied_cut(0.0, 10.03)], 600.0)
+        cuts._finalize_cut_state(all_ads, [a], [applied_cut(0.0, 10.03)], 600.0)
         assert all_ads == [a] and a['was_cut'] is False and 'carved_from' not in a
 
     def test_carve_is_idempotent_across_two_finalize_calls(self):
         a, b = _marker(10.0, 50.0), _marker(100.0, 120.0)
         all_ads, ads_to_remove = [a, b], [a, b]
         cuts = [applied_cut(10.0, 30.0), applied_cut(100.0, 120.0)]
-        processing._finalize_cut_state(all_ads, ads_to_remove, cuts, 600.0)
+        cuts_stage._finalize_cut_state(all_ads, ads_to_remove, cuts, 600.0)
         first = copy.deepcopy(all_ads)
-        processing._finalize_cut_state(all_ads, [*ads_to_remove], cuts, 600.0)
+        cuts_stage._finalize_cut_state(all_ads, [*ads_to_remove], cuts, 600.0)
         assert all_ads == first
         assert len(all_ads) == 3
 
@@ -127,22 +130,22 @@ class TestFinalizeCutState:
         a = _marker(10.0, 50.0, validation={'decision': 'ACCEPT', 'flags': []})
         all_ads, ads_to_remove = [a], [a]
         pass1 = [applied_cut(10.0, 30.0)]
-        processing._finalize_cut_state(all_ads, ads_to_remove, pass1, 600.0)
+        cuts._finalize_cut_state(all_ads, ads_to_remove, pass1, 600.0)
         final = [*pass1, applied_cut(40.0, 50.0)]
-        processing._finalize_cut_state(all_ads, [*ads_to_remove], final, 600.0)
+        cuts._finalize_cut_state(all_ads, [*ads_to_remove], final, 600.0)
         assert [(m['start'], m['end'], m['was_cut']) for m in all_ads] == [
             (10.0, 30.0, True), (30.0, 40.0, False), (40.0, 50.0, True)]
         assert all(m['carved_from'] == {'start': 10.0, 'end': 50.0} for m in all_ads)
         first = copy.deepcopy(all_ads)
-        processing._finalize_cut_state(all_ads, [*ads_to_remove], final, 600.0)
+        cuts._finalize_cut_state(all_ads, [*ads_to_remove], final, 600.0)
         assert all_ads == first
 
     def test_remainder_fully_cut_later_is_marked_cut(self):
         a = _marker(10.0, 50.0, validation={'decision': 'ACCEPT', 'flags': ['WARN: x']})
         all_ads, ads_to_remove = [a], [a]
         pass1 = [applied_cut(10.0, 30.0)]
-        processing._finalize_cut_state(all_ads, ads_to_remove, pass1, 600.0)
-        processing._finalize_cut_state(
+        cuts._finalize_cut_state(all_ads, ads_to_remove, pass1, 600.0)
+        cuts._finalize_cut_state(
             all_ads, [*ads_to_remove], [*pass1, applied_cut(30.0, 50.0)], 600.0)
         assert [(m['start'], m['end'], m['was_cut'], m['validation']['flags'])
                 for m in all_ads] == [(10.0, 30.0, True, ['WARN: x']),
@@ -152,10 +155,10 @@ class TestFinalizeCutState:
         a = _marker(10.0, 50.0)
         all_ads, ads_to_remove = [a], [a]
         cuts = [applied_cut(10.0, 30.0)]
-        processing._finalize_cut_state(all_ads, ads_to_remove, cuts, 600.0)
+        cuts_stage._finalize_cut_state(all_ads, ads_to_remove, cuts, 600.0)
         learn = MagicMock(return_value=1)
         monkeypatch.setattr(processing.ad_detector, 'learn_from_detections', learn)
-        assert processing._learn_from_applied_cut_ads(
+        assert keep_rules._learn_from_applied_cut_ads(
             'example-podcast', 'a1b2c3d4e5f6', ads_to_remove, all_ads,
             cuts, 600.0, [], 'unused.wav') == 0
         learn.assert_not_called()
@@ -164,27 +167,27 @@ class TestFinalizeCutState:
         markers = [_marker(10.0, 40.0), _marker(40.5, 70.0), _marker(100.0, 104.0),
                    _marker(200.0, 260.0), _marker(300.0, 340.0)]
         cuts = [applied_cut(10.0, 70.0), applied_cut(200.0, 230.0), applied_cut(320.0, 340.0)]
-        processing._finalize_cut_state(markers, list(markers), cuts, 600.0)
+        cuts_stage._finalize_cut_state(markers, list(markers), cuts, 600.0)
         first = copy.deepcopy(markers)
-        processing._finalize_cut_state(markers, list(markers), cuts, 600.0)
+        cuts_stage._finalize_cut_state(markers, list(markers), cuts, 600.0)
         assert markers == first
 
 
 class TestCutSeconds:
     def test_source_and_replacement_seconds(self):
         cuts = [applied_cut(10.0, 70.0, 1.0), applied_cut(100.0, 110.0, 10.0)]
-        assert processing._cut_seconds(cuts) == (70.0, 11.0)
+        assert cuts_stage._cut_seconds(cuts) == (70.0, 11.0)
 
     def test_overlapping_cuts_count_source_audio_once(self):
         cuts = [applied_cut(10.0, 70.0, 1.0), applied_cut(60.0, 80.0, 1.0)]
-        assert processing._cut_seconds(cuts) == (70.0, 2.0)
+        assert cuts_stage._cut_seconds(cuts) == (70.0, 2.0)
 
 
 class TestRecordCutSeconds:
     def test_failed_duration_probe_estimates_seconds_removed(self):
         run_stats = {}
         cuts = [applied_cut(10.0, 70.0, 1.0)]
-        processing._record_cut_seconds(run_stats, cuts, 600.0, None)
+        cuts_stage._record_cut_seconds(run_stats, cuts, 600.0, None)
         assert run_stats['source_seconds_removed'] == 60.0
         assert run_stats['replacement_seconds_added'] == 1.0
         assert run_stats['seconds_removed'] == 59.0
@@ -192,7 +195,7 @@ class TestRecordCutSeconds:
     def test_measured_duration_uses_the_probe(self):
         run_stats = {}
         cuts = [applied_cut(10.0, 70.0, 1.0)]
-        processing._record_cut_seconds(run_stats, cuts, 600.0, 541.0)
+        cuts_stage._record_cut_seconds(run_stats, cuts, 600.0, 541.0)
         assert run_stats['seconds_removed'] == 59.0
 
 
@@ -213,7 +216,7 @@ def _run_recut(ads_to_remove, all_ads, render, *, new_duration=600.0,
         _db, storage, local_ap = stub_recut(
             stack, ads_to_remove, all_ads, duration=600.0,
             episode_row={'podcast_id': 1, 'processed_version': 2, 'ad_markers_json': snapshot})
-        p(processing, '_handle_processing_failure')
+        p(failure, '_handle_processing_failure')
 
         def _assets(*args, **kwargs):
             captured['assets_cuts'] = args[3]
@@ -232,8 +235,8 @@ def _run_recut(ads_to_remove, all_ads, render, *, new_duration=600.0,
             if finalize_side_effect:
                 raise finalize_side_effect
 
-        p(processing, '_generate_assets', side_effect=_assets)
-        p(processing, '_finalize_episode', side_effect=_finalize)
+        p(publish, '_generate_assets', side_effect=_assets)
+        p(finalize, '_finalize_episode', side_effect=_finalize)
         move = p(processing.shutil, 'move', side_effect=lambda *a: calls.move())
         storage.save_combined_ads.side_effect = (
             lambda *a: calls.save(copy.deepcopy(a[2])))
@@ -248,7 +251,7 @@ def _run_recut(ads_to_remove, all_ads, render, *, new_duration=600.0,
 
         local_ap.process_episode.side_effect = _render
 
-        result = processing._recut_episode(
+        result = recut._recut_episode(
             'example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', 'desc',
             time.time(), cancel_event=None, run_stats=run_stats,
             progress=progress)

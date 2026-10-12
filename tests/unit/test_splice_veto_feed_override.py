@@ -13,6 +13,7 @@ _test_data_dir = bootstrap('splice_override_test_')
 
 from config import resolve_splice_veto_enabled  # noqa: E402
 from main_app import processing  # noqa: E402
+from main_app.pipeline import detect, verify, recut
 
 
 class _DB:
@@ -79,7 +80,7 @@ def test_build_validator_reads_the_stored_global(monkeypatch, stored_global, fee
     original = processing.db.get_setting('splice_veto_enabled')
     processing.db.set_setting('splice_veto_enabled', stored_global, is_default=False)
     try:
-        validator = processing._build_validator(
+        validator = detect._build_validator(
             600.0, [], '', false_positive_corrections=[], min_cut_confidence=0.8,
             max_ad_duration_override=None, cue_gate_enabled=False, podcast_id=1)
     finally:
@@ -89,7 +90,7 @@ def test_build_validator_reads_the_stored_global(monkeypatch, stored_global, fee
 
 @pytest.mark.parametrize("name", ['Example Cast', None])
 def test_build_validator_passes_the_show_name(name):
-    validator = processing._build_validator(
+    validator = detect._build_validator(
         600.0, [], '', false_positive_corrections=[], min_cut_confidence=0.8,
         max_ad_duration_override=None, cue_gate_enabled=False, splice_veto=False,
         podcast_name=name)
@@ -107,7 +108,7 @@ def _capture_show_name(monkeypatch):
         seen['podcast_name'] = kwargs.get('podcast_name')
         raise _Captured
 
-    monkeypatch.setattr(processing, '_build_validator', build)
+    monkeypatch.setattr(detect, '_build_validator', build)
     return seen
 
 
@@ -115,7 +116,7 @@ def test_pass2_validation_gets_the_show_name(monkeypatch):
     seen = _capture_show_name(monkeypatch)
     ad = {'start': 10.0, 'end': 40.0}
     with pytest.raises(_Captured):
-        processing._validate_verification_ads(
+        verify._validate_verification_ads(
             'example-podcast', 'a1b2c3d4e5f6', [dict(ad)], [dict(ad)],
             [{'start': 0.0, 'end': 60.0, 'text': 'x'}], [], None, 0.8, processing.db,
             podcast_name='Example Cast')
@@ -126,7 +127,7 @@ def test_recut_validation_gets_the_show_name_from_the_episode_row(monkeypatch):
     seen = _capture_show_name(monkeypatch)
     row = {'podcast_title': 'Example Cast', 'ad_markers_json': '[{"start": 10.0, "end": 40.0}]'}
     with pytest.raises(_Captured):
-        processing._build_recut_ad_list(
+        recut._build_recut_ad_list(
             'example-podcast', 'a1b2c3d4e5f6', [], 600.0, '', 0.8,
             segment_actions={}, corrections=([], []), episode_row=row)
     assert seen == {'podcast_name': 'Example Cast'}

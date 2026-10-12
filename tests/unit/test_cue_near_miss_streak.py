@@ -8,6 +8,8 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('cue_near_miss_streak_')
 import main_app.processing as processing  # noqa: E402
+from main_app.pipeline import detect
+from main_app.pipeline import review, verify, publish
 from audio_analysis.base import AudioAnalysisResult  # noqa: E402
 from audio_analysis.cue_threshold_suggest import (  # noqa: E402
     near_miss_streak_suggestion,
@@ -50,7 +52,7 @@ class TestPipelineWarning(unittest.TestCase):
         with patch.object(processing.db, 'cue_template_episode_peaks',
                           return_value={4: peaks}) as query, \
              self.assertLogs('podcast.audio', level=logging.WARNING) as logs:
-            suggestions = processing._suggest_cue_thresholds(
+            suggestions = detect._suggest_cue_thresholds(
                 'example-podcast', 'a1b2c3d4e5f6', 7, result)
         return query, logs.output, suggestions
 
@@ -73,7 +75,7 @@ class TestPipelineWarning(unittest.TestCase):
             {'id': 4, 'label': 'Outro sting', 'match_count': 2,
              'eff_threshold': 0.750}]
         with patch.object(processing.db, 'cue_template_episode_peaks') as query:
-            processing._suggest_cue_thresholds(
+            detect._suggest_cue_thresholds(
                 'example-podcast', 'a1b2c3d4e5f6', 7, result)
         query.assert_not_called()
 
@@ -84,7 +86,7 @@ class TestPipelineWarning(unittest.TestCase):
              'eff_threshold': 0.750}]
         with patch.object(processing.db, 'cue_template_episode_peaks',
                           side_effect=RuntimeError('no such column')):
-            processing._suggest_cue_thresholds(
+            detect._suggest_cue_thresholds(
                 'example-podcast', 'a1b2c3d4e5f6', 7, result)
 
 
@@ -148,8 +150,11 @@ class TestTheSuggestionIsBuiltWhereItIsUsed(unittest.TestCase):
                           return_value={'status': 'success', 'ads': []}), \
              patch.object(processing.storage, 'save_ads_json'), \
              patch.object(processing.status_service, 'update_job_stage'), \
-             patch.object(processing, 'clear_fallback'):
-            processing._detect_ads_first_pass(
+             patch.object(detect, 'clear_fallback'), \
+             patch.object(review, 'clear_fallback'), \
+             patch.object(verify, 'clear_fallback'), \
+             patch.object(publish, 'clear_fallback'):
+            detect._detect_ads_first_pass(
                 ctx, segments=[], audio_path='x.mp3', skip_patterns=False,
                 audio_analysis_result=analysis, progress_callback=None)
 
