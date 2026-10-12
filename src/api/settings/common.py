@@ -1,5 +1,7 @@
 """Shared settings helpers: setting views, clamping and phase rejection."""
 
+import logging
+import threading
 from dataclasses import dataclass
 from typing import Any
 from collections.abc import Mapping
@@ -9,6 +11,7 @@ from config import (
     SEGMENT_CATEGORIES,
 )
 
+logger = logging.getLogger('podcast.api')
 
 # Every LLM provider the settings API accepts.
 VALID_LLM_PROVIDERS = (
@@ -110,3 +113,31 @@ def validate_community_sync_categories(value) -> tuple:
     # Dedupe while keeping SEGMENT_CATEGORIES order, so the stored JSON list
     # is deterministic regardless of client submission order.
     return [c for c in SEGMENT_CATEGORIES if c in value], None
+
+
+# Post-commit ordering contract: caches are invalidated before holds lift, so
+# a resumed queue reads the configuration the save just committed.
+_POST_COMMIT_BUCKETS = ('side_effects', 'holds')
+_deferred = threading.local()
+
+
+def _after_commit(fn, bucket: str = 'side_effects'):
+    """Hold a phase side effect until the settings transaction commits.
+
+    Runs inline when no transaction is open, so a phase helper called
+    directly keeps its standalone behavior.
+    """
+    buckets = getattr(_deferred, 'buckets', None)
+    if buckets is None:
+        fn()
+        return
+    buckets[bucket].append(fn)
+
+
+def _run_post_commit(callbacks):
+    """Writes are already durable here, so a failing side effect must not 500."""
+    for fn in callbacks:
+        try:
+            fn()
+        except Exception:
+            logger.exception("Post-commit settings side effect failed")
