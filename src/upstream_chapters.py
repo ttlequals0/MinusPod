@@ -5,7 +5,7 @@ Some feeds publish chapters only as a separate podcast:chapters JSON file
 never sees these, so it falls back to AI-generated chapters even though the
 publisher's own chapters are available. rss_parser.py captures the file's URL
 at feed refresh (episodes.upstream_chapters_url); this module fetches it at
-processing time so main_app/processing.py can remap and preserve it the same
+processing time so main_app/pipeline/publish.py can remap and preserve it the same
 way it preserves embedded chapters.
 """
 import json

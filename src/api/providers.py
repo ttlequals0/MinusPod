@@ -539,7 +539,7 @@ def test_provider_connection(provider):
 
 
 # Provider types the secondary slot accepts, matching VALID_LLM_PROVIDERS
-# in api/settings.py (not importable here without a circular import).
+# in api/settings/common.py (not importable here without a circular import).
 _SECONDARY_PROVIDER_TYPES = (
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OLLAMA, PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE)

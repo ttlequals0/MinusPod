@@ -414,7 +414,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         audio_logger.debug(f"pre-run failover probe skipped: {exc}")
 
     # Per-run pipeline stats (#519), recorded as JSON with the history row
-    # and renamed to API casing in api/episodes.py. Defined before the try
+    # and renamed to API casing in api/episodes/core.py. Defined before the try
     # so the failure handler can persist whatever was gathered up to the
     # point of failure.
     run_stats = {'mode': reprocess_mode or 'auto'}
