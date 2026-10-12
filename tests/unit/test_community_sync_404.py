@@ -38,7 +38,7 @@ def _call_sync(app, sync_side_effect):
     from api.settings.core import trigger_community_pattern_sync
     with app.test_request_context('/api/v1/community-patterns/sync', method='POST'), \
          patch('community_sync.sync_now', side_effect=sync_side_effect), \
-         patch('api.settings.get_database', return_value=object()):
+         patch('api.settings.core.get_database', return_value=object()):
         return trigger_community_pattern_sync()
 
 

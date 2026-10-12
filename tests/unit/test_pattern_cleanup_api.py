@@ -515,7 +515,7 @@ def _clock(dt):
         return dt.strftime(ISO_FORMAT)
     return (patch.object(pattern_cleanup, 'utc_now', return_value=dt),
             patch.object(pattern_cleanup, 'utc_now_iso', iso),
-            patch.object(api_settings, 'utc_now_iso', iso),
+            patch.object(api_settings.operations, 'utc_now_iso', iso),
             patch('database.pattern_cleanup.utc_now_iso', iso))
 
 

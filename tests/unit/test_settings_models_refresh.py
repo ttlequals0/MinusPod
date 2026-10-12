@@ -66,8 +66,8 @@ def _secondary_client(calls):
 class TestRefreshModelsSlot:
     @pytest.mark.parametrize('body', [None, {'slot': 'primary'}])
     def test_primary_is_the_default_slot(self, client, db, body):
-        with patch('api.settings.get_llm_client') as get_primary, \
-                patch('api.settings.get_effective_provider', return_value='anthropic'), \
+        with patch('api.settings.providers.get_llm_client') as get_primary, \
+                patch('api.settings.providers.get_effective_provider', return_value='anthropic'), \
                 patch('api.settings.providers.AdDetector', _primary_detector()):
             response = _post(client, body)
         assert response.status_code == 200, response.data
@@ -80,7 +80,7 @@ class TestRefreshModelsSlot:
         db.set_setting('secondary_provider', 'ollama', is_default=False)
         calls = []
         with patch('api.settings.providers.get_client_for_provider', _secondary_client(calls)), \
-                patch('api.settings.get_llm_client') as get_primary:
+                patch('api.settings.providers.get_llm_client') as get_primary:
             response = _post(client, {'slot': 'secondary'})
         assert response.status_code == 200, response.data
         body = response.get_json()

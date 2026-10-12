@@ -2133,7 +2133,7 @@ def get_stage_tunable(key: str, settings: dict | None = None) -> Any:
         if isinstance(entry, dict):
             db_val = entry.get('value')
         elif hasattr(entry, 'value'):
-            # SettingEntry dataclass (api.settings._settings_view wraps the
+            # SettingEntry dataclass (api.settings.common._settings_view wraps the
             # raw dict shape into typed entries). hasattr check keeps the
             # resolver pluggable to other entry shapes consumers add.
             db_val = entry.value

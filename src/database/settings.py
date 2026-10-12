@@ -1393,7 +1393,7 @@ class SettingsMixin:
         if spec.stage_tunable:
             # Stage tunables resolve DB > env > default at read time. Clear the
             # row (empty value, is_default=True) so that resolution takes over --
-            # mirrors the clear path in api.settings._apply_stage_tunables and
+            # mirrors the clear path in api.settings.ad_detection._apply_stage_tunables and
             # avoids stringifying None for the reasoning budget/level defaults.
             self.set_setting(key, "", is_default=True)
             return True

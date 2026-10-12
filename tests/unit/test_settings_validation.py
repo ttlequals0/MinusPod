@@ -552,7 +552,7 @@ class TestProviderChangeModelIdentity:
         fake_client = MagicMock()
         fake_client.list_models.return_value = []
         fake_client.probe_json_format_support.return_value = None
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             response = client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps({'llmProvider': 'openai-compatible'}),
@@ -576,7 +576,7 @@ class TestProviderChangeModelIdentity:
         fake_client = MagicMock()
         fake_client.list_models.side_effect = RuntimeError('network down')
         fake_client.probe_json_format_support.return_value = None
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             response = client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps({'llmProvider': 'openai-compatible'}),
@@ -596,7 +596,7 @@ class TestProviderChangeModelIdentity:
         fake_client = MagicMock()
         fake_client.list_models.return_value = [fake_model_a, fake_model_b]
         fake_client.probe_json_format_support.return_value = None
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             response = client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps({'llmProvider': 'anthropic'}),
@@ -615,7 +615,7 @@ class TestProviderChangeModelIdentity:
         fake_client = MagicMock()
         fake_client.list_models.return_value = [fake_model]
         fake_client.probe_json_format_support.return_value = None
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             response = client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps({
@@ -640,7 +640,7 @@ class TestProviderChangeModelIdentity:
         fake_client = MagicMock()
         fake_client.list_models.return_value = [fake_model]
         fake_client.probe_json_format_support.return_value = None
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             response = client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps({'llmProvider': 'openrouter'}),
@@ -667,7 +667,7 @@ class TestProviderChangeModelIdentity:
         fake_client = MagicMock()
         fake_client.list_models.return_value = [fake_model]
         fake_client.probe_json_format_support.return_value = None
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             response = client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps({
@@ -687,7 +687,7 @@ class TestProviderChangeModelIdentity:
         fake_client = MagicMock()
         fake_client.list_models.return_value = []
         fake_client.probe_json_format_support.return_value = None
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             response = client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps({'llmProvider': 'openai-compatible'}),
@@ -709,7 +709,7 @@ class TestProviderChangeModelIdentity:
         fake_client = MagicMock()
         fake_client.list_models.return_value = [fake_model]
         fake_client.probe_json_format_support.return_value = None
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             response = client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps({'llmProvider': 'openai-compatible'}),
@@ -768,11 +768,11 @@ class TestProviderChangeModelIdentity:
         db = database.Database()
         db.set_setting('llm_provider', 'openrouter', is_default=False)
         db.set_setting('claude_model', 'private/openrouter-model', is_default=False)
-        monkeypatch.setattr('api.settings.set_or_clear_secret', lambda *_args: None)
+        monkeypatch.setattr('api.settings.ad_detection.set_or_clear_secret', lambda *_args: None)
         fake_client = MagicMock()
         fake_client.probe_json_format_support.return_value = None
 
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             response = client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps({'openrouterApiKey': 'sk-or-new-key'}),
@@ -829,7 +829,7 @@ class TestProviderChangeModelIdentity:
         fake_client = MagicMock()
         fake_client.list_models.return_value = [fake_model]
         fake_client.probe_json_format_support.return_value = None
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             response = client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps({'llmProvider': 'openai-compatible'}),
@@ -851,7 +851,7 @@ class TestProviderChangeModelIdentity:
         fake_client.list_models.return_value = [fake_model]
         fake_client.probe_json_format_support.return_value = None
         try:
-            with patch('api.settings.get_llm_client', return_value=fake_client):
+            with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
                 response = client.put(
                     '/api/v1/settings/ad-detection',
                     data=json.dumps({
@@ -889,7 +889,7 @@ class TestProviderSaveHoldInvalidation:
         fake_client.list_models.return_value = []
         fake_client.probe_json_format_support.return_value = None
         try:
-            with patch('api.settings.get_llm_client', return_value=fake_client):
+            with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
                 response = client.put(
                     '/api/v1/settings/ad-detection',
                     data=json.dumps({'openaiBaseUrl': 'http://localhost:9001/v1'}),
@@ -911,7 +911,7 @@ class TestProviderSaveHoldInvalidation:
         fake_client.list_models.return_value = []
         fake_client.probe_json_format_support.return_value = None
         try:
-            with patch('api.settings.get_llm_client', return_value=fake_client):
+            with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
                 response = client.put(
                     '/api/v1/settings/ad-detection',
                     data=json.dumps({'llmProvider': 'openai-compatible'}),
@@ -935,7 +935,7 @@ class TestProviderSaveHoldInvalidation:
         fake_client.list_models.return_value = []
         fake_client.probe_json_format_support.return_value = None
         try:
-            with patch('api.settings.get_llm_client', return_value=fake_client), \
+            with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client), \
                     patch('rate_limit_hold.fire_queue_resumed_event') as fire:
                 response = client.put(
                     '/api/v1/settings/ad-detection',
@@ -1122,7 +1122,7 @@ class TestOpenaiBaseUrlValidation:
     def test_pure_settings_validator_checks_url_syntax_without_dns(self, monkeypatch):
         db = database.Database()
         monkeypatch.setattr(
-            settings_api, 'validate_base_url',
+            settings_api.ad_detection, 'validate_base_url',
             lambda *_args: pytest.fail('pure settings validation must not resolve provider URLs'))
 
         assert settings_api.ad_detection.validate_settings_payload(
@@ -1138,7 +1138,7 @@ class TestOpenaiBaseUrlValidation:
         def validate_outside_transaction(value):
             assert not db.in_settings_transaction()
 
-        monkeypatch.setattr(settings_api, 'validate_base_url', validate_outside_transaction)
+        monkeypatch.setattr(settings_api.ad_detection, 'validate_base_url', validate_outside_transaction)
         response = client.put(
             '/api/v1/settings/ad-detection',
             data=json.dumps({'secondaryProviderBaseUrl': 'https://provider.example/v1'}),
@@ -2116,7 +2116,7 @@ class TestProviderChangeLiftsRateLimitHold:
         fake_client = MagicMock()
         fake_client.list_models.return_value = []
         fake_client.probe_json_format_support.return_value = None
-        with patch('api.settings.get_llm_client', return_value=fake_client):
+        with patch('api.settings.ad_detection.get_llm_client', return_value=fake_client):
             return client.put(
                 '/api/v1/settings/ad-detection',
                 data=json.dumps(payload),

@@ -140,7 +140,7 @@ class TestDbFallback:
         assert config.get_stage_tunable("detection_max_tokens", settings=settings) == 8192
 
     def test_caller_supplied_setting_entry_shape(self, monkeypatch):
-        # api.settings._settings_view wraps the raw dict into a SettingEntry
+        # api.settings.common._settings_view wraps the raw dict into a SettingEntry
         # dataclass. The resolver must read .value off it; before this
         # regression test, the resolver only handled the dict shape and
         # silently fell back to the default for the SettingEntry path.
@@ -200,7 +200,7 @@ class TestStageTunableReset:
         assert config.get_stage_tunable('reviewer_max_tokens', settings=settings) == 4096
 
     def test_reset_loop_clears_all_stage_tunables(self, temp_db):
-        # Mirrors the loop in api.settings.reset_ad_detection_settings.
+        # Mirrors the loop in api.settings.ad_detection.reset_ad_detection_settings.
         from config import STAGE_TUNABLE_PAYLOAD_KEYS
         temp_db.set_setting('reviewer_max_tokens', '16384', is_default=False)
         temp_db.set_setting('window_size_seconds', '900', is_default=False)
