@@ -42,23 +42,23 @@ def test_rss_cap_floors_at_one_mib(monkeypatch):
 def test_download_cap_prefers_db_setting(monkeypatch):
     monkeypatch.setenv('MAX_AUDIO_DOWNLOAD_MB', '900')
     monkeypatch.setattr(config, '_db_setting', lambda key: '250')
-    assert transcriber._max_download_mb() == 250
+    assert transcriber.settings._max_download_mb() == 250
 
 
 def test_download_cap_clamps_nonpositive_db_value_to_floor(monkeypatch):
     monkeypatch.delenv('MAX_AUDIO_DOWNLOAD_MB', raising=False)
     monkeypatch.setattr(config, '_db_setting', lambda key: '0')
-    assert transcriber._max_download_mb() == 1
+    assert transcriber.settings._max_download_mb() == 1
 
 
 def test_download_cap_malformed_db_value_uses_default(monkeypatch):
     monkeypatch.delenv('MAX_AUDIO_DOWNLOAD_MB', raising=False)
     monkeypatch.setattr(config, '_db_setting', lambda key: 'lots')
-    assert transcriber._max_download_mb() == 500
+    assert transcriber.settings._max_download_mb() == 500
 
 
 def test_download_cap_honors_values_above_10gb(monkeypatch):
     # No hard ceiling: deployments deliberately above 10 GB keep working
     # (advisory warning only), matching the pre-2.50.0 env behavior.
     monkeypatch.setattr(config, '_db_setting', lambda key: '20480')
-    assert transcriber._max_download_mb() == 20480
+    assert transcriber.settings._max_download_mb() == 20480

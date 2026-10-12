@@ -9,7 +9,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('whisper_health_test_', passphrase='whisper-health-test-pass')
 
 import transcriber  # noqa: E402
-from transcriber import probe_whisper_health  # noqa: E402
+from transcriber.remote import probe_whisper_health
 
 BASE = 'http://transcriber:8001/v1'
 
@@ -17,9 +17,9 @@ BASE = 'http://transcriber:8001/v1'
 @pytest.fixture(autouse=True)
 def _clear_health_cache():
     """The probe caches per base URL; tests share BASE, so start each clean."""
-    transcriber._health_cache.clear()
-    transcriber._health_last_good.clear()
-    transcriber._health_inflight.clear()
+    transcriber.remote._health_cache.clear()
+    transcriber.remote._health_last_good.clear()
+    transcriber.remote._health_inflight.clear()
     yield
 
 
@@ -259,39 +259,39 @@ class TestConcurrentProbes:
         # not blank the panel for as long as the running probe takes.
         with patch('transcriber.safe_get', return_value=_health('whisper-1')):
             probe_whisper_health(base_url=BASE, samples=1)
-        transcriber._health_cache.clear()
-        transcriber._health_inflight.add(BASE)
+        transcriber.remote._health_cache.clear()
+        transcriber.remote._health_inflight.add(BASE)
         try:
             with patch('transcriber.safe_get',
                        side_effect=AssertionError('must not probe')) as sg:
                 result = probe_whisper_health(base_url=BASE, samples=1)
             assert sg.call_count == 0
         finally:
-            transcriber._health_inflight.discard(BASE)
+            transcriber.remote._health_inflight.discard(BASE)
         assert result['available'] is True
 
     def test_a_probe_in_flight_on_another_backend_does_not_block(self):
         # The in-flight set is per backend: testing a new URL must not wait on
         # a probe hanging against the old one.
-        transcriber._health_inflight.add(BASE)
+        transcriber.remote._health_inflight.add(BASE)
         try:
             with patch('transcriber.safe_get', return_value=_health('whisper-9')) as sg:
                 result = probe_whisper_health(
                     base_url='http://other-transcriber:8001/v1', samples=1, refresh=True)
         finally:
-            transcriber._health_inflight.discard(BASE)
+            transcriber.remote._health_inflight.discard(BASE)
         assert sg.call_count == 1
         assert result['available'] is True
 
     def test_a_probe_in_flight_with_nothing_known_reports_unavailable(self):
-        transcriber._health_last_good.pop(BASE, None)
-        transcriber._health_inflight.add(BASE)
+        transcriber.remote._health_last_good.pop(BASE, None)
+        transcriber.remote._health_inflight.add(BASE)
         try:
             with patch('transcriber.safe_get',
                        side_effect=AssertionError('must not probe')) as sg:
                 result = probe_whisper_health(base_url=BASE, samples=1)
         finally:
-            transcriber._health_inflight.discard(BASE)
+            transcriber.remote._health_inflight.discard(BASE)
         # Without the count the probe's own except Exception would swallow the
         # side effect and this would pass with the guard ignored entirely.
         assert sg.call_count == 0
@@ -301,34 +301,34 @@ class TestConcurrentProbes:
         # A long-dead backend shown as healthy is worse than showing nothing.
         with patch('transcriber.safe_get', return_value=_health('whisper-1')):
             probe_whisper_health(base_url=BASE, samples=1)
-        transcriber._health_cache.clear()
-        stamped_at, result = transcriber._health_last_good[BASE]
-        age = transcriber._HEALTH_LAST_GOOD_MAX_AGE_SECONDS + 1
-        transcriber._health_last_good[BASE] = (stamped_at - age, result)
-        transcriber._health_inflight.add(BASE)
+        transcriber.remote._health_cache.clear()
+        stamped_at, result = transcriber.remote._health_last_good[BASE]
+        age = transcriber.remote._HEALTH_LAST_GOOD_MAX_AGE_SECONDS + 1
+        transcriber.remote._health_last_good[BASE] = (stamped_at - age, result)
+        transcriber.remote._health_inflight.add(BASE)
         try:
             with patch('transcriber.safe_get', side_effect=AssertionError('must not probe')):
                 assert probe_whisper_health(base_url=BASE, samples=1) == {'available': False}
         finally:
-            transcriber._health_inflight.discard(BASE)
+            transcriber.remote._health_inflight.discard(BASE)
 
     def test_eviction_keeps_the_most_recent_entries(self):
-        for i in range(transcriber._HEALTH_LAST_GOOD_MAX):
+        for i in range(transcriber.remote._HEALTH_LAST_GOOD_MAX):
             with patch('transcriber.safe_get', return_value=_health(f'w-{i}')):
                 probe_whisper_health(base_url=f'http://h{i}:8001/v1', samples=1, refresh=True)
         oldest = 'http://h0:8001/v1'
-        newest = f'http://h{transcriber._HEALTH_LAST_GOOD_MAX - 1}:8001/v1'
+        newest = f'http://h{transcriber.remote._HEALTH_LAST_GOOD_MAX - 1}:8001/v1'
         with patch('transcriber.safe_get', return_value=_health('w-new')):
             probe_whisper_health(base_url='http://h-new:8001/v1', samples=1, refresh=True)
-        assert oldest not in transcriber._health_last_good
-        assert newest in transcriber._health_last_good
-        assert 'http://h-new:8001/v1' in transcriber._health_last_good
+        assert oldest not in transcriber.remote._health_last_good
+        assert newest in transcriber.remote._health_last_good
+        assert 'http://h-new:8001/v1' in transcriber.remote._health_last_good
 
     def test_the_in_flight_marker_is_cleared_when_a_probe_raises(self):
-        with patch('transcriber._probe_whisper_health', side_effect=RuntimeError('boom')):
+        with patch('transcriber.remote._probe_whisper_health', side_effect=RuntimeError('boom')):
             with pytest.raises(RuntimeError):
                 probe_whisper_health(base_url=BASE, samples=1, refresh=True)
-        assert BASE not in transcriber._health_inflight
+        assert BASE not in transcriber.remote._health_inflight
 
 
 class TestConcurrencyCoercion:

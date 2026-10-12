@@ -10,7 +10,8 @@ _test_data_dir = bootstrap('whisper_idle_unload_test_')
 from main_app import background, db
 import transcriber as transcriber_mod
 from processing_queue import ProcessingQueue, set_processing_paused
-from transcriber import Transcriber, WhisperModelSingleton, unload_whisper_if_idle
+from transcriber import Transcriber
+from transcriber.local import WhisperModelSingleton, unload_whisper_if_idle
 from whisper_pool import WhisperPool
 
 SLUG = 'idle-unload-feed'
@@ -29,17 +30,17 @@ def loaded(monkeypatch):
 @pytest.fixture
 def stale(monkeypatch):
     """Last local decode finished long enough ago for the timer to have expired."""
-    monkeypatch.setattr(transcriber_mod, '_last_local_decode_at', time.monotonic() - 301)
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - 301)
 
 
 def test_idle_unload_skips_while_a_transcription_holds_the_gpu(loaded, stale):
     _state, unload = loaded
-    with patch.object(transcriber_mod, 'GPU_TRANSCRIBE_MAX_CONCURRENT', 1):
-        transcriber_mod._GPU_ADMISSION_SEMAPHORE.acquire()
+    with patch.object(transcriber_mod.local, 'GPU_TRANSCRIBE_MAX_CONCURRENT', 1):
+        transcriber_mod.local._GPU_ADMISSION_SEMAPHORE.acquire()
         try:
             assert unload_whisper_if_idle() is False
         finally:
-            transcriber_mod._GPU_ADMISSION_SEMAPHORE.release()
+            transcriber_mod.local._GPU_ADMISSION_SEMAPHORE.release()
         unload.assert_not_called()
         assert unload_whisper_if_idle() is True
     unload.assert_called_once()
@@ -48,7 +49,7 @@ def test_idle_unload_skips_while_a_transcription_holds_the_gpu(loaded, stale):
 
 def test_recent_decode_keeps_the_model_loaded(loaded, monkeypatch):
     state, unload = loaded
-    monkeypatch.setattr(transcriber_mod, '_last_local_decode_at', time.monotonic() - 10)
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - 10)
     assert unload_whisper_if_idle() is False
     unload.assert_not_called()
     assert state['loaded'] is True
@@ -62,10 +63,10 @@ def test_decode_301_seconds_ago_unloads(loaded, stale):
 
 
 def test_decode_exit_stamps_the_idle_timer(monkeypatch):
-    monkeypatch.setattr(transcriber_mod, '_last_local_decode_at', 0.0)
-    with transcriber_mod._local_decode_activity():
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', 0.0)
+    with transcriber_mod.local._local_decode_activity():
         pass
-    assert time.monotonic() - transcriber_mod._last_local_decode_at < 5
+    assert time.monotonic() - transcriber_mod.local._last_local_decode_at < 5
 
 
 @pytest.fixture
@@ -115,12 +116,12 @@ def test_idle_queue_unloads_whisper(feed, caplog):
 
 def test_idle_branch_unloads_only_after_the_timer(feed, loaded, monkeypatch, caplog):
     state, _unload = loaded
-    monkeypatch.setattr(transcriber_mod, '_last_local_decode_at', time.monotonic() - 10)
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - 10)
     with caplog.at_level('INFO'):
         _one_pass(real_unload=True)
     assert state['loaded'] is True
     assert 'unloaded the local transcription model' not in caplog.text
-    monkeypatch.setattr(transcriber_mod, '_last_local_decode_at', time.monotonic() - 301)
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_decode_at', time.monotonic() - 301)
     with caplog.at_level('INFO'):
         _one_pass(real_unload=True)
     assert state['loaded'] is False
@@ -156,9 +157,9 @@ def test_chunked_body_keeps_the_model_loaded_after_success(loaded, monkeypatch):
         handle.close()
         return handle.name
 
-    with patch('transcriber.calculate_optimal_chunk_duration', return_value=(1800.0, 'test')), \
-            patch('transcriber.extract_audio_chunk', side_effect=extract), \
-            patch('transcriber._get_whisper_settings', return_value={'backend': 'local'}), \
+    with patch('transcriber.chunking.calculate_optimal_chunk_duration', return_value=(1800.0, 'test')), \
+            patch('transcriber.chunking.extract_audio_chunk', side_effect=extract), \
+            patch('transcriber.settings._get_whisper_settings', return_value={'backend': 'local'}), \
             patch('transcriber.clear_gpu_memory'):
         result = t.transcribe_chunked('/tmp/input.mp3')
     assert result

@@ -208,7 +208,7 @@ def get_system_status():
         # transcription, not the process (episodes re-queue as transient).
         # Reports the configured backend, since the local reading says
         # nothing when transcription runs on a remote API.
-        'transcriber': transcriber.get_transcriber_health(),
+        'transcriber': transcriber.remote.get_transcriber_health(),
         'failover': {'targets': targets_view(), 'probes': probes_view()},
     })
 

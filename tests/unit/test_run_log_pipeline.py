@@ -314,7 +314,7 @@ class TestWorkerThreadRegistration:
         ctx = run_context.begin('w-feed', 'w-ep')
         recorder.attach()
         try:
-            with patch.object(transcriber_mod, 'extract_audio_chunk',
+            with patch.object(transcriber_mod.chunking, 'extract_audio_chunk',
                               return_value='/tmp/does-not-exist.flac'):
                 transcriber_mod.Transcriber._transcribe_chunked_parallel_api(
                     fake, '/tmp/audio.mp3', 1800.0,

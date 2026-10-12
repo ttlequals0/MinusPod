@@ -52,7 +52,7 @@ def _repair(tmp_path, segments, decoded, volume=-20.0, min_s=8.0, skip=()):
     else:
         decode.side_effect = lambda *a: [dict(s, words=[dict(w) for w in s['words']])
                                          for s in decoded] if decoded is not None else None
-    with patch.object(transcriber_mod, 'extract_audio_chunk', side_effect=_extract), \
+    with patch.object(transcriber_mod.chunking, 'extract_audio_chunk', side_effect=_extract), \
          patch.object(audio_utils, 'mean_volume_db', return_value=volume) as probe, \
          patch.object(Transcriber, '_transcribe_sequential', decode):
         added, empty = Transcriber().repair_gaps(
@@ -173,11 +173,11 @@ def test_sequential_decode_uses_the_base_model_without_batching():
     word = MagicMock(word='hi', start=0.1, end=0.4)
     seg = MagicMock(start=0.0, end=0.5, text=' hi ', words=[word])
     base.transcribe.return_value = (iter([seg]), MagicMock())
-    with patch.object(transcriber_mod, '_get_whisper_settings',
+    with patch.object(transcriber_mod.settings, '_get_whisper_settings',
                       return_value={'backend': 'local', 'language': 'en'}), \
-         patch.object(transcriber_mod.WhisperModelSingleton, 'get_instance',
+         patch.object(transcriber_mod.local.WhisperModelSingleton, 'get_instance',
                       return_value=(base, batched)), \
-         patch.object(transcriber_mod, '_record_local_transcription_outcome') as record, \
+         patch.object(transcriber_mod.local, '_record_local_transcription_outcome') as record, \
          patch.object(Transcriber, 'preprocess_audio', return_value=None), \
          patch.object(Transcriber, 'get_audio_duration') as probe:
         t = Transcriber()
@@ -197,11 +197,11 @@ def test_sequential_decode_uses_the_base_model_without_batching():
 def test_sequential_decode_failure_keeps_the_main_run_stats():
     base = MagicMock()
     base.transcribe.side_effect = RuntimeError('decoder broke')
-    with patch.object(transcriber_mod, '_get_whisper_settings',
+    with patch.object(transcriber_mod.settings, '_get_whisper_settings',
                       return_value={'backend': 'local', 'language': 'en'}), \
-         patch.object(transcriber_mod.WhisperModelSingleton, 'get_instance',
+         patch.object(transcriber_mod.local.WhisperModelSingleton, 'get_instance',
                       return_value=(base, MagicMock())), \
-         patch.object(transcriber_mod, '_record_local_transcription_outcome') as record, \
+         patch.object(transcriber_mod.local, '_record_local_transcription_outcome') as record, \
          patch.object(Transcriber, 'preprocess_audio', return_value=None):
         t = Transcriber()
         t.last_transcription_stats = {'outcome': 'success'}
@@ -211,7 +211,7 @@ def test_sequential_decode_failure_keeps_the_main_run_stats():
 
 
 def test_sequential_decode_on_the_api_backend_disables_vad():
-    with patch.object(transcriber_mod, '_get_whisper_settings',
+    with patch.object(transcriber_mod.settings, '_get_whisper_settings',
                       return_value={'backend': transcriber_mod.WHISPER_BACKEND_API}), \
          patch.object(Transcriber, '_transcribe_via_api', return_value=[]) as api:
         Transcriber()._transcribe_sequential('/hole.wav', 'de')

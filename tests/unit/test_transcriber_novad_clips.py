@@ -11,7 +11,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import transcriber as transcriber_mod
-from transcriber import Transcriber, _full_span_clips
+from transcriber import Transcriber
+from transcriber.chunking import _full_span_clips
 
 
 def test_full_span_clips_splits_at_chunk_length():
@@ -56,11 +57,11 @@ def _run_transcribe(vad_filter, duration=72.5):
     model = MagicMock()
     info = MagicMock(language='en', language_probability=0.99)
     model.transcribe.return_value = (iter([]), info)
-    with patch.object(transcriber_mod, '_get_whisper_settings',
+    with patch.object(transcriber_mod.settings, '_get_whisper_settings',
                       return_value={'backend': 'local', 'language': 'en'}), \
-         patch.object(transcriber_mod.WhisperModelSingleton,
+         patch.object(transcriber_mod.local.WhisperModelSingleton,
                       'get_batched_pipeline', return_value=model), \
-         patch.object(transcriber_mod.WhisperModelSingleton,
+         patch.object(transcriber_mod.local.WhisperModelSingleton,
                       'get_current_model_name', return_value='small'), \
          patch.object(Transcriber, 'get_audio_duration', return_value=duration):
         Transcriber().transcribe('/tail.wav', preprocessed=True,
@@ -100,11 +101,11 @@ def test_clips_cover_the_preprocessed_file_not_the_raw_chunk():
     model.transcribe.return_value = (iter([]), info)
     durations = {'/tail.wav': 60.0, '/tail.preprocessed.wav': 60.4}
 
-    with patch.object(transcriber_mod, '_get_whisper_settings',
+    with patch.object(transcriber_mod.settings, '_get_whisper_settings',
                       return_value={'backend': 'local', 'language': 'en'}), \
-         patch.object(transcriber_mod.WhisperModelSingleton,
+         patch.object(transcriber_mod.local.WhisperModelSingleton,
                       'get_batched_pipeline', return_value=model), \
-         patch.object(transcriber_mod.WhisperModelSingleton,
+         patch.object(transcriber_mod.local.WhisperModelSingleton,
                       'get_current_model_name', return_value='small'), \
          patch.object(Transcriber, 'get_audio_duration',
                       side_effect=lambda p: durations[p]), \

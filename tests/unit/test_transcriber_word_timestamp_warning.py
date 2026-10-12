@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('transcriber_word_ts_')
-from transcriber import _warn_if_word_timestamps_missing  # noqa: E402
+from transcriber.chunking import _warn_if_word_timestamps_missing
 
 
 SETTINGS = {'api_base_url': 'https://whisper.example.com/v1',

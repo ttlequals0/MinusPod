@@ -21,7 +21,7 @@ def _settings(backend):
 
 @pytest.fixture
 def missing_stack(monkeypatch):
-    monkeypatch.setattr(transcriber, '_LOCAL_IMPORT_ERROR',
+    monkeypatch.setattr(transcriber.local, '_LOCAL_IMPORT_ERROR',
                         ImportError('No module named faster_whisper'))
 
 
@@ -41,7 +41,7 @@ def test_module_imports_without_local_packages():
 
 
 def test_local_transcribe_raises_actionable_error(missing_stack):
-    with patch('transcriber._get_whisper_settings',
+    with patch('transcriber.settings._get_whisper_settings',
                return_value=_settings(WHISPER_BACKEND_LOCAL)):
         with pytest.raises(LocalTranscriptionUnavailableError) as exc:
             transcriber.Transcriber().transcribe('/nonexistent.mp3')
@@ -51,7 +51,7 @@ def test_local_transcribe_raises_actionable_error(missing_stack):
 
 def test_local_transcribe_chunked_raises_actionable_error(missing_stack):
     t = transcriber.Transcriber()
-    with patch('transcriber._get_whisper_settings',
+    with patch('transcriber.settings._get_whisper_settings',
                return_value=_settings(WHISPER_BACKEND_LOCAL)), \
             patch.object(t, 'get_audio_duration', return_value=600.0):
         with pytest.raises(LocalTranscriptionUnavailableError, match='WHISPER_BACKEND=openai-api'):
@@ -60,12 +60,12 @@ def test_local_transcribe_chunked_raises_actionable_error(missing_stack):
 
 def test_model_singleton_backstop(missing_stack):
     with pytest.raises(LocalTranscriptionUnavailableError):
-        transcriber.WhisperModelSingleton.get_instance()
+        transcriber.local.WhisperModelSingleton.get_instance()
 
 
 def test_error_text_avoids_classifier_trigger_words(missing_stack):
     with pytest.raises(LocalTranscriptionUnavailableError) as exc:
-        transcriber._require_local_transcription(WHISPER_BACKEND_LOCAL)
+        transcriber.local._require_local_transcription(WHISPER_BACKEND_LOCAL)
     message = str(exc.value).lower()
     assert 'cuda' not in message
     assert 'oom' not in message
@@ -74,7 +74,7 @@ def test_error_text_avoids_classifier_trigger_words(missing_stack):
 def test_api_backend_skips_the_guard(missing_stack):
     t = transcriber.Transcriber()
     sentinel = [{'start': 0.0, 'end': 1.0, 'text': 'hi'}]
-    with patch('transcriber._get_whisper_settings',
+    with patch('transcriber.settings._get_whisper_settings',
                return_value=_settings(WHISPER_BACKEND_API)), \
             patch.object(t, '_transcribe_via_api', return_value=sentinel), \
             patch.object(t, '_transcribe_chunked_parallel_api', return_value=sentinel), \
@@ -84,13 +84,13 @@ def test_api_backend_skips_the_guard(missing_stack):
 
 
 def test_local_health_reports_missing_packages(missing_stack):
-    health = transcriber.get_local_transcriber_health()
+    health = transcriber.local.get_local_transcriber_health()
     assert health['available'] is False
     assert 'faster-whisper' in health['reason']
 
 
 def test_init_warns_when_local_backend_lacks_packages(missing_stack, caplog):
-    with patch('transcriber._get_whisper_settings',
+    with patch('transcriber.settings._get_whisper_settings',
                return_value=_settings(WHISPER_BACKEND_LOCAL)), \
             caplog.at_level(logging.WARNING, logger='transcriber'):
         transcriber.Transcriber()
@@ -99,7 +99,7 @@ def test_init_warns_when_local_backend_lacks_packages(missing_stack, caplog):
 
 
 def test_init_silent_on_api_backend(missing_stack, caplog):
-    with patch('transcriber._get_whisper_settings',
+    with patch('transcriber.settings._get_whisper_settings',
                return_value=_settings(WHISPER_BACKEND_API)), \
             caplog.at_level(logging.WARNING, logger='transcriber'):
         transcriber.Transcriber()

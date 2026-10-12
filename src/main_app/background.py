@@ -21,7 +21,8 @@ from config import (
 from database.queue import PENDING_QUEUE_LIMIT
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 from utils.time import parse_iso_utc
-from transcriber import active_whisper_settings, unload_whisper_if_idle
+from transcriber.settings import active_whisper_settings
+from transcriber.local import unload_whisper_if_idle
 from whisper_pool import get_pool
 # Singletons are bound in main_app/__init__.py before this submodule
 # is loaded by the explicit `from main_app.background import ...` at

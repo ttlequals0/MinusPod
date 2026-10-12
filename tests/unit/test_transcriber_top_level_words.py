@@ -3,7 +3,7 @@ nested per segment (#755). They must be folded into their segments."""
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('transcriber_top_words_')
-from transcriber import _attach_top_level_words  # noqa: E402
+from transcriber.chunking import _attach_top_level_words
 
 
 def _segs():

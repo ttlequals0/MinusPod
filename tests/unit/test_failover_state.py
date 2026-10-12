@@ -177,9 +177,9 @@ def test_whisper_local_backend_requires_local_stack():
     db.set_setting('failover_whisper_enabled', 'true', is_default=False)
     db.set_setting('failover_whisper_backend', 'local', is_default=False)
     failover.invalidate_cache()
-    with patch.object(transcriber, 'local_transcription_available', return_value=False):
+    with patch.object(transcriber.local, 'local_transcription_available', return_value=False):
         assert failover.is_configured('whisper') is False
-    with patch.object(transcriber, 'local_transcription_available', return_value=True):
+    with patch.object(transcriber.local, 'local_transcription_available', return_value=True):
         assert failover.is_configured('whisper') is True
 
 

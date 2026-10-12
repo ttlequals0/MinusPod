@@ -14,7 +14,8 @@ from config import (
 )
 from ad_detector import AdDetector
 from database.settings import SETTINGS_REGISTRY
-from transcriber import _get_chunk_settings, probe_whisper_health
+from transcriber.settings import _get_chunk_settings
+from transcriber.remote import probe_whisper_health
 from whisper_pool import get_pool
 from llm_client import (
     get_effective_provider, get_llm_client, create_client_for_provider, get_client_for_provider,

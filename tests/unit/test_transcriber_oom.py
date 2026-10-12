@@ -46,11 +46,11 @@ def _fresh():
 
 def _clear_outcome_state(monkeypatch=None):
     """Drop both the in-process mirror and the shared outcome record."""
-    _db().set_setting(transcriber_mod.LOCAL_OUTCOME_SETTING, '')
+    _db().set_setting(transcriber_mod.local.LOCAL_OUTCOME_SETTING, '')
     if monkeypatch is not None:
-        monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome', None)
+        monkeypatch.setattr(transcriber_mod.local, '_last_local_transcription_outcome', None)
     else:
-        transcriber_mod._last_local_transcription_outcome = None
+        transcriber_mod.local._last_local_transcription_outcome = None
 
 
 def _no_network(*args, **kwargs):
@@ -75,11 +75,11 @@ class _FakePipeline:
 
 def _patch_common(monkeypatch, pipeline):
     monkeypatch.setenv('WHISPER_DEVICE', 'cuda')
-    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton,
                         'get_batched_pipeline', classmethod(lambda cls: pipeline))
-    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton,
                         'get_current_model_name', classmethod(lambda cls: 'fake-model'))
-    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton,
                         'unload_model', classmethod(lambda cls: None))
     monkeypatch.setattr(Transcriber, 'get_audio_duration', lambda self, p: 30 * 60)
     monkeypatch.setattr(Transcriber, 'preprocess_audio', lambda self, p: None)
@@ -123,7 +123,7 @@ def test_oom_releases_old_model_before_reload(monkeypatch):
         return _FakePipeline(failures=0)
 
     monkeypatch.setattr(
-        transcriber_mod.WhisperModelSingleton,
+        transcriber_mod.local.WhisperModelSingleton,
         'get_batched_pipeline',
         classmethod(load_pipeline),
     )
@@ -173,13 +173,13 @@ def _extract_chunk(*args, **kwargs):
 def test_chunked_parakeet_warm_up_never_loads_whisper(monkeypatch):
     """The warm-up that overlaps chunk extraction loads the selected backend only."""
     t = _chunked_transcriber([], {})
-    monkeypatch.setattr(transcriber_mod, '_require_local_transcription', lambda backend=None: None)
+    monkeypatch.setattr(transcriber_mod.local, '_require_local_transcription', lambda backend=None: None)
 
-    with patch('transcriber.extract_audio_chunk', side_effect=_extract_chunk), \
-            patch('transcriber._get_whisper_settings',
+    with patch('transcriber.chunking.extract_audio_chunk', side_effect=_extract_chunk), \
+            patch('transcriber.settings._get_whisper_settings',
                   return_value={'backend': 'parakeet'}), \
             patch('transcriber.clear_gpu_memory'), \
-            patch.object(transcriber_mod.WhisperModelSingleton, 'get_batched_pipeline',
+            patch.object(transcriber_mod.local.WhisperModelSingleton, 'get_batched_pipeline',
                          side_effect=AssertionError('faster-whisper must not load')), \
             patch.object(transcriber_mod.ParakeetModelSingleton, 'get_instance') as warm_up:
         t.transcribe_chunked('/tmp/input.mp3')
@@ -190,15 +190,15 @@ def test_chunked_parakeet_warm_up_never_loads_whisper(monkeypatch):
 def test_chunked_cuda_exhaustion_preserves_permanent_error(monkeypatch):
     t = _chunked_transcriber(None, {'error': 'CUDA failed with error out of memory'})
 
-    with patch('transcriber.calculate_optimal_chunk_duration',
+    with patch('transcriber.chunking.calculate_optimal_chunk_duration',
                return_value=(1800.0, 'test')), \
-            patch('transcriber.extract_audio_chunk', side_effect=_extract_chunk), \
-            patch('transcriber._get_whisper_settings',
+            patch('transcriber.chunking.extract_audio_chunk', side_effect=_extract_chunk), \
+            patch('transcriber.settings._get_whisper_settings',
                   return_value={'backend': 'local'}), \
             patch('transcriber.clear_gpu_memory'), \
-            patch.object(transcriber_mod.WhisperModelSingleton,
+            patch.object(transcriber_mod.local.WhisperModelSingleton,
                          'get_batched_pipeline', return_value=MagicMock()), \
-            patch.object(transcriber_mod.WhisperModelSingleton, 'unload_model'):
+            patch.object(transcriber_mod.local.WhisperModelSingleton, 'unload_model'):
         with pytest.raises(RuntimeError, match='CUDA.*out of memory') as exc_info:
             t.transcribe_chunked('/tmp/input.mp3')
 
@@ -211,7 +211,7 @@ LOAD_OOM = 'CUDA failed with error out of memory'
 def _load_model(monkeypatch, compute_type='auto', error=LOAD_OOM):
     """Run get_instance on CUDA with every WhisperModel construction raising error."""
     monkeypatch.setenv('WHISPER_DEVICE', 'cuda')
-    singleton = transcriber_mod.WhisperModelSingleton
+    singleton = transcriber_mod.local.WhisperModelSingleton
     for attr in ('_instance', '_base_model', '_current_model_name'):
         monkeypatch.setattr(singleton, attr, None)
     attempts = []
@@ -220,10 +220,10 @@ def _load_model(monkeypatch, compute_type='auto', error=LOAD_OOM):
         attempts.append(kwargs['compute_type'])
         raise RuntimeError(error)
 
-    with patch('transcriber._get_whisper_settings', return_value={'backend': 'local'}), \
-            patch('transcriber._get_whisper_compute_type', return_value=compute_type), \
-            patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
-            patch('transcriber.WhisperModel', side_effect=fake_model), \
+    with patch('transcriber.settings._get_whisper_settings', return_value={'backend': 'local'}), \
+            patch('transcriber.settings._get_whisper_compute_type', return_value=compute_type), \
+            patch('transcriber.local.ctranslate2.get_cuda_device_count', return_value=1), \
+            patch('transcriber.local.WhisperModel', side_effect=fake_model), \
             patch('transcriber.clear_gpu_memory'), \
             patch.object(singleton, 'get_configured_model', return_value='small'):
         singleton.get_instance()
@@ -252,7 +252,7 @@ def test_transcribe_propagates_a_model_load_failure(monkeypatch):
     def fail_load(cls):
         raise ModelLoadError('Whisper model could not be loaded')
 
-    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton,
                         'get_batched_pipeline', classmethod(fail_load))
     t = _fresh()
     with pytest.raises(ModelLoadError):
@@ -264,15 +264,15 @@ def _chunked(transcribe):
     t = _chunked_transcriber(None, {})
     t.transcribe = transcribe
 
-    with patch('transcriber.calculate_optimal_chunk_duration',
+    with patch('transcriber.chunking.calculate_optimal_chunk_duration',
                return_value=(1800.0, 'test')), \
-            patch('transcriber.extract_audio_chunk', side_effect=_extract_chunk), \
-            patch('transcriber._get_whisper_settings',
+            patch('transcriber.chunking.extract_audio_chunk', side_effect=_extract_chunk), \
+            patch('transcriber.settings._get_whisper_settings',
                   return_value={'backend': 'local'}), \
             patch('transcriber.clear_gpu_memory'), \
-            patch.object(transcriber_mod.WhisperModelSingleton,
+            patch.object(transcriber_mod.local.WhisperModelSingleton,
                          'get_batched_pipeline', return_value=MagicMock()), \
-            patch.object(transcriber_mod.WhisperModelSingleton, 'unload_model'):
+            patch.object(transcriber_mod.local.WhisperModelSingleton, 'unload_model'):
         t.transcribe_chunked('/tmp/input.mp3')
 
 
@@ -325,11 +325,11 @@ def test_chunk_oom_after_reductions_stays_permanent():
 def test_admission_guard_serializes_concurrent_cuda_transcriptions(monkeypatch):
     """Two local CUDA transcriptions must never run inside the pipeline at
     the same time: they would double-allocate VRAM on the same device."""
-    monkeypatch.setattr(transcriber_mod, '_GPU_ADMISSION_SEMAPHORE', threading.Semaphore(1))
+    monkeypatch.setattr(transcriber_mod.local, '_GPU_ADMISSION_SEMAPHORE', threading.Semaphore(1))
     monkeypatch.setenv('WHISPER_DEVICE', 'cuda')
-    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton,
                         'get_current_model_name', classmethod(lambda cls: 'fake-model'))
-    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton,
                         'unload_model', classmethod(lambda cls: None))
     monkeypatch.setattr(Transcriber, 'get_audio_duration', lambda self, p: 30 * 60)
     monkeypatch.setattr(Transcriber, 'preprocess_audio', lambda self, p: None)
@@ -349,7 +349,7 @@ def test_admission_guard_serializes_concurrent_cuda_transcriptions(monkeypatch):
             info = type('Info', (), {'language': 'en', 'language_probability': 0.99})()
             return iter([]), info
 
-    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton,
                         'get_batched_pipeline', classmethod(lambda cls: _SlowPipeline()))
 
     t = _fresh()
@@ -365,7 +365,7 @@ def test_admission_guard_serializes_concurrent_cuda_transcriptions(monkeypatch):
 
 def test_admission_guard_is_a_pass_through_on_cpu(monkeypatch):
     """CPU transcription shares no VRAM, so the guard must not serialize it."""
-    monkeypatch.setattr(transcriber_mod, '_GPU_ADMISSION_SEMAPHORE', threading.Semaphore(1))
+    monkeypatch.setattr(transcriber_mod.local, '_GPU_ADMISSION_SEMAPHORE', threading.Semaphore(1))
     pipeline = _FakePipeline(failures=0)
     _patch_common(monkeypatch, pipeline)
     monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
@@ -374,28 +374,28 @@ def test_admission_guard_is_a_pass_through_on_cpu(monkeypatch):
     t = _fresh()
     # A held permit (simulating another in-flight CUDA run) must not block a
     # CPU run at all.
-    transcriber_mod._GPU_ADMISSION_SEMAPHORE.acquire()
+    transcriber_mod.local._GPU_ADMISSION_SEMAPHORE.acquire()
     try:
         result = t.transcribe('/nonexistent/audio.mp3')
     finally:
-        transcriber_mod._GPU_ADMISSION_SEMAPHORE.release()
+        transcriber_mod.local._GPU_ADMISSION_SEMAPHORE.release()
 
     assert result == []
 
 
 def test_health_reports_available_with_no_prior_attempt(monkeypatch):
     _clear_outcome_state(monkeypatch)
-    health = transcriber_mod.get_local_transcriber_health()
+    health = transcriber_mod.local.get_local_transcriber_health()
     assert health['available'] is True
     assert health['lastOutcome'] is None
 
 
 def test_health_reports_available_after_a_successful_run(monkeypatch):
     _clear_outcome_state(monkeypatch)
-    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_transcription_outcome',
                         {'outcome': 'success', 'batch_size': 8, 'retry_count': 1,
                          'device': 'cpu'})
-    health = transcriber_mod.get_local_transcriber_health()
+    health = transcriber_mod.local.get_local_transcriber_health()
     assert health['available'] is True
     assert health['lastOutcome']['status'] == 'success'
 
@@ -404,10 +404,10 @@ def test_health_reports_unavailable_after_gpu_exhaustion(monkeypatch):
     """The single required guarantee: an OOM exhaustion must not read as a
     healthy transcriber quietly failing episode after episode."""
     _clear_outcome_state(monkeypatch)
-    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_transcription_outcome',
                         {'outcome': 'failed', 'batch_size': 4, 'retry_count': 2,
                          'retry_succeeded': False, 'device': 'cpu'})
-    health = transcriber_mod.get_local_transcriber_health()
+    health = transcriber_mod.local.get_local_transcriber_health()
     assert health['available'] is False
     assert health['lastOutcome']['status'] == 'failed'
 
@@ -416,10 +416,10 @@ def test_health_ignores_an_outcome_from_another_device(monkeypatch):
     """A record from a device no longer configured says nothing about the
     device now in use."""
     _clear_outcome_state(monkeypatch)
-    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_transcription_outcome',
                         {'outcome': 'failed', 'device': 'cuda'})
     monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
-    health = transcriber_mod.get_local_transcriber_health()
+    health = transcriber_mod.local.get_local_transcriber_health()
     assert health['available'] is True
     assert health['lastOutcome'] is None
 
@@ -433,7 +433,7 @@ def test_transcribe_records_outcome_into_module_level_health_state(monkeypatch):
     t = _fresh()
     t.transcribe('/nonexistent/audio.mp3')
 
-    health = transcriber_mod.get_local_transcriber_health()
+    health = transcriber_mod.local.get_local_transcriber_health()
     assert health['available'] is False
     assert health['lastOutcome']['status'] == 'failed'
 
@@ -448,9 +448,9 @@ def test_recorded_outcome_survives_a_worker_without_the_module_global(monkeypatc
     t.transcribe('/nonexistent/audio.mp3')
 
     # Stand in for a second gunicorn worker: same DB, no in-process mirror.
-    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome', None)
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_transcription_outcome', None)
 
-    health = transcriber_mod.get_local_transcriber_health()
+    health = transcriber_mod.local.get_local_transcriber_health()
     assert health['available'] is False
     assert health['lastOutcome']['status'] == 'failed'
     assert health['lastOutcome']['device'] == 'cuda'
@@ -463,14 +463,14 @@ def test_shared_outcome_wins_over_an_older_in_process_mirror(monkeypatch):
     older success."""
     _clear_outcome_state(monkeypatch)
     monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
-    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_transcription_outcome',
                         {'outcome': 'success', 'device': 'cpu',
                          'observed_at': '2026-01-01T00:00:00Z'})
-    _db().set_setting(transcriber_mod.LOCAL_OUTCOME_SETTING, json.dumps(
+    _db().set_setting(transcriber_mod.local.LOCAL_OUTCOME_SETTING, json.dumps(
         {'outcome': 'failed', 'device': 'cpu', 'backend': 'local',
          'observed_at': '2026-01-02T00:00:00Z'}))
 
-    health = transcriber_mod.get_local_transcriber_health()
+    health = transcriber_mod.local.get_local_transcriber_health()
     assert health['available'] is False
     assert health['lastOutcome']['observedAt'] == '2026-01-02T00:00:00Z'
 
@@ -478,12 +478,12 @@ def test_shared_outcome_wins_over_an_older_in_process_mirror(monkeypatch):
 def test_unreadable_shared_outcome_falls_back_to_the_in_process_mirror(monkeypatch):
     _clear_outcome_state(monkeypatch)
     monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
-    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_transcription_outcome',
                         {'outcome': 'failed', 'device': 'cpu',
                          'observed_at': '2026-01-01T00:00:00Z'})
-    _db().set_setting(transcriber_mod.LOCAL_OUTCOME_SETTING, 'banana')
+    _db().set_setting(transcriber_mod.local.LOCAL_OUTCOME_SETTING, 'banana')
 
-    health = transcriber_mod.get_local_transcriber_health()
+    health = transcriber_mod.local.get_local_transcriber_health()
     assert health['available'] is False
 
 
@@ -492,19 +492,19 @@ def test_health_follows_the_configured_backend(monkeypatch):
     be reported as it once the backend setting points at an API."""
     _clear_outcome_state(monkeypatch)
     monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
-    monkeypatch.setattr(transcriber_mod, '_last_local_transcription_outcome',
+    monkeypatch.setattr(transcriber_mod.local, '_last_local_transcription_outcome',
                         {'outcome': 'failed', 'device': 'cpu',
                          'observed_at': '2026-01-01T00:00:00Z'})
     db = _db()
     try:
         db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
-        local_health = transcriber_mod.get_transcriber_health()
+        local_health = transcriber_mod.remote.get_transcriber_health()
         assert local_health['backend'] == transcriber_mod.WHISPER_BACKEND_LOCAL
         assert local_health['available'] is False
 
         db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_API)
         db.set_setting('whisper_api_base_url', 'http://whisper.invalid/v1')
-        api_health = transcriber_mod.get_transcriber_health()
+        api_health = transcriber_mod.remote.get_transcriber_health()
         assert api_health['backend'] == transcriber_mod.WHISPER_BACKEND_API
         assert api_health['probed'] is False
         assert 'lastOutcome' not in api_health
@@ -521,16 +521,16 @@ def test_api_backend_health_uses_a_cached_probe_not_a_fresh_request(monkeypatch)
     try:
         db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_API)
         db.set_setting('whisper_api_base_url', 'http://whisper.invalid/v1')
-        transcriber_mod._health_cache.set(
+        transcriber_mod.remote._health_cache.set(
             'http://whisper.invalid/v1',
             {'available': False, 'instances': []})
 
-        health = transcriber_mod.get_transcriber_health()
+        health = transcriber_mod.remote.get_transcriber_health()
         assert health['available'] is False
         assert health['probed'] is True
         assert health['instanceCount'] == 0
     finally:
-        transcriber_mod._health_cache.delete('http://whisper.invalid/v1')
+        transcriber_mod.remote._health_cache.delete('http://whisper.invalid/v1')
         db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
         db.set_setting('whisper_api_base_url', '')
 
@@ -542,11 +542,11 @@ def test_health_reports_parakeet_backend(monkeypatch):
     db = _db()
     try:
         db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_PARAKEET)
-        health = transcriber_mod.get_transcriber_health()
+        health = transcriber_mod.remote.get_transcriber_health()
         assert health['backend'] == 'parakeet'
         assert health['available'] is True
         monkeypatch.setattr(transcriber_mod.parakeet_transcriber, 'parakeet_available', lambda: False)
-        health = transcriber_mod.get_transcriber_health()
+        health = transcriber_mod.remote.get_transcriber_health()
         assert health['available'] is False
         assert 'onnx-asr' in health['reason']
     finally:
@@ -557,9 +557,9 @@ def test_health_ignores_other_backend_outcome(monkeypatch):
     _clear_outcome_state(monkeypatch)
     monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
     monkeypatch.setattr(transcriber_mod.parakeet_transcriber, 'parakeet_available', lambda: True)
-    transcriber_mod._record_local_transcription_outcome(
+    transcriber_mod.local._record_local_transcription_outcome(
         {'outcome': 'success', 'backend': transcriber_mod.WHISPER_BACKEND_LOCAL, 'device': 'cpu'})
-    health = transcriber_mod.get_local_transcriber_health('parakeet')
+    health = transcriber_mod.local.get_local_transcriber_health('parakeet')
     assert health['lastOutcome'] is None
     assert health['available'] is True
 
@@ -574,12 +574,12 @@ def test_transcribe_routes_to_parakeet_decoder(monkeypatch, tmp_path):
         w.writeframes(b'\x00\x00' * 1600)
     _clear_outcome_state(monkeypatch)
     monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
-    monkeypatch.setattr(transcriber_mod, '_require_local_transcription', lambda backend=None: None)
+    monkeypatch.setattr(transcriber_mod.local, '_require_local_transcription', lambda backend=None: None)
     seg = {'start': 0.0, 'end': 1.0, 'text': 'Hello there', 'words': []}
     decode = MagicMock(return_value=[seg])
     monkeypatch.setattr(transcriber_mod.parakeet_transcriber, 'decode', decode)
     settings = {'backend': 'parakeet', 'language': 'en'}
-    with patch.object(transcriber_mod.WhisperModelSingleton, 'get_batched_pipeline',
+    with patch.object(transcriber_mod.local.WhisperModelSingleton, 'get_batched_pipeline',
                       side_effect=AssertionError('faster-whisper must not load')):
         t = transcriber_mod.Transcriber()
         result = t.transcribe(str(wav), preprocessed=True, whisper_settings=settings)

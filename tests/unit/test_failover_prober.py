@@ -551,9 +551,9 @@ def test_local_whisper_standby_does_not_probe_the_original_api():
         'reason': 'provider outage',
     }), is_default=False)
     failover.invalidate_cache()
-    with patch.object(transcriber, 'local_transcription_available', return_value=True):
+    with patch.object(transcriber.local, 'local_transcription_available', return_value=True):
         assert failover.run_probe_targets({}, whisper_required=True) == []
-    with patch.object(transcriber, 'local_transcription_available', return_value=False):
+    with patch.object(transcriber.local, 'local_transcription_available', return_value=False):
         assert failover.run_probe_targets({}, whisper_required=True) == ['whisper:active']
 
 
@@ -864,10 +864,10 @@ def test_local_whisper_probes_follow_local_stack():
     db.set_setting('failover_whisper_enabled', 'true', is_default=False)
     db.set_setting('failover_whisper_backend', 'local', is_default=False)
     failover.invalidate_cache()
-    with patch.object(transcriber, 'local_transcription_available', return_value=True):
+    with patch.object(transcriber.local, 'local_transcription_available', return_value=True):
         assert failover.probe_target('whisper:active')['reachable'] is True
         assert failover.probe_target('whisper:failover')['reachable'] is True
-    with patch.object(transcriber, 'local_transcription_available', return_value=False):
+    with patch.object(transcriber.local, 'local_transcription_available', return_value=False):
         assert failover.probe_target('whisper:active')['reachable'] is False
         assert failover.probe_target('whisper:failover')['reachable'] is False
 
@@ -885,7 +885,7 @@ def test_local_recovery_outcome_is_persisted_with_accepted_probe():
         'device': 'cpu', 'compute_type': 'auto',
         'observed_at': '2026-10-05T00:00:00.123456Z',
     }
-    with patch.object(transcriber, 'probe_local_transcription', return_value={
+    with patch.object(transcriber.local, 'probe_local_transcription', return_value={
         'reachable': True, 'status': None, 'detail': 'diagnostic decode succeeded',
         'local_outcome': outcome,
     }) as probe:
@@ -920,7 +920,7 @@ def test_stale_local_recovery_does_not_overwrite_new_failure():
         return {'reachable': True, 'status': None, 'detail': 'diagnostic decode succeeded',
                 'local_outcome': stale_success}
 
-    with patch.object(transcriber, 'probe_local_transcription', side_effect=delayed_probe):
+    with patch.object(transcriber.local, 'probe_local_transcription', side_effect=delayed_probe):
         failover.probe_tick(db, ['whisper:active'])
 
     assert json.loads(db.get_setting('transcribe_last_local_outcome')) == newer_failure
@@ -957,9 +957,9 @@ def test_web_worker_probe_defers_local_decode_to_leader():
     db = Database(); _reset(db)
     _whisper_failed_over(db)
     with patch.object(transcriber.run_context, 'in_background_thread', return_value=False), \
-            patch.object(transcriber, 'local_transcription_available', return_value=True), \
-            patch.object(transcriber, '_latest_local_outcome', return_value=None), \
-            patch.object(transcriber.WhisperModelSingleton, 'get_instance') as loader:
+            patch.object(transcriber.local, 'local_transcription_available', return_value=True), \
+            patch.object(transcriber.local, '_latest_local_outcome', return_value=None), \
+            patch.object(transcriber.local.WhisperModelSingleton, 'get_instance') as loader:
         result = failover.probe_tick(db, ['whisper:active'])
     loader.assert_not_called()
     assert result['whisper:active']['checked_at'] is None
@@ -974,7 +974,7 @@ def test_busy_local_probes_are_neutral_for_recovery():
     _whisper_failed_over(db)
     busy = {'reachable': None, 'status': None, 'detail': 'Local transcription busy'}
     healthy = {'reachable': True, 'status': None, 'detail': 'Local diagnostic decode succeeded'}
-    with patch.object(transcriber, 'probe_local_transcription',
+    with patch.object(transcriber.local, 'probe_local_transcription',
                       side_effect=[healthy, busy, busy, healthy]), \
             patch.object(failover.webhook_service, 'fire_failover_event'):
         for _ in range(3):
@@ -990,7 +990,7 @@ def test_busy_busy_healthy_healthy_recovers_with_two_probes():
     _whisper_failed_over(db)
     busy = {'reachable': None, 'status': None, 'detail': 'Local transcription busy'}
     healthy = {'reachable': True, 'status': None, 'detail': 'Local diagnostic decode succeeded'}
-    with patch.object(transcriber, 'probe_local_transcription',
+    with patch.object(transcriber.local, 'probe_local_transcription',
                       side_effect=[busy, busy, healthy, healthy]), \
             patch.object(failover.webhook_service, 'fire_failover_event'):
         for _ in range(4):
@@ -1009,7 +1009,7 @@ def test_standby_model_outcome_does_not_discard_inflight_original_probe():
                        is_default=False)
         return {'reachable': True, 'status': None, 'detail': 'Local diagnostic decode succeeded'}
 
-    with patch.object(transcriber, 'probe_local_transcription', side_effect=delayed_probe):
+    with patch.object(transcriber.local, 'probe_local_transcription', side_effect=delayed_probe):
         failover.probe_tick(db, ['whisper:active'])
     state = failover.probe_state('whisper:active')
     assert state['checked_at'] is not None and state['healthy_streak'] == 1
@@ -1049,7 +1049,7 @@ def test_local_probe_config_matches_runtime_normalization():
         config = failover._capture_probe_context(db, 'whisper:active')['request_config']
     db.clear_setting('whisper_compute_type')
     assert config['device'] == 'cuda'
-    assert config['compute_type'] == transcriber.WHISPER_COMPUTE_TYPE_DEFAULT
+    assert config['compute_type'] == transcriber.settings.WHISPER_COMPUTE_TYPE_DEFAULT
 
 
 def test_probe_waiters_outlast_a_worst_case_http_probe():

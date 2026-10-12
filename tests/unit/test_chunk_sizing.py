@@ -9,9 +9,9 @@ import transcriber as transcriber_mod  # noqa: E402
 
 
 def _chunk_seconds(loaded):
-    with patch('transcriber.get_available_memory_gb', return_value=(10.0, 'gpu')), \
-            patch.object(transcriber_mod.WhisperModelSingleton, 'is_loaded', return_value=loaded):
-        seconds, _reason = transcriber_mod.calculate_optimal_chunk_duration('large-v3', 'cuda')
+    with patch('transcriber.chunking.get_available_memory_gb', return_value=(10.0, 'gpu')), \
+            patch.object(transcriber_mod.local.WhisperModelSingleton, 'is_loaded', return_value=loaded):
+        seconds, _reason = transcriber_mod.chunking.calculate_optimal_chunk_duration('large-v3', 'cuda')
     return seconds
 
 

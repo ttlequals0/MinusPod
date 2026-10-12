@@ -153,7 +153,7 @@ def test_reviewer_explicit_slot_uses_frozen_review_route():
 
 
 def test_legacy_standby_snapshot_requeues_without_spending_retry_budget(monkeypatch):
-    monkeypatch.setattr('transcriber.WhisperModelSingleton.unload_model', lambda: None)
+    monkeypatch.setattr('transcriber.local.WhisperModelSingleton.unload_model', lambda: None)
     monkeypatch.setattr('utils.gpu.clear_gpu_memory', lambda: None)
     db = processing.db
     slug, episode_id, run_id = 'legacy-route', 'a1b2c3d4e5f6', 'legacy-route-run'
@@ -206,7 +206,7 @@ def test_deferred_held_or_requeued_standby_run_writes_no_failed_history(temp_db,
     monkeypatch.setattr(common, '_publish_status', lambda *a: None)
     monkeypatch.setattr(finalize, '_finalize_run_log', lambda *a: None)
     monkeypatch.setattr(admission, 'clear_route_snapshot', lambda *a: None)
-    monkeypatch.setattr('transcriber.WhisperModelSingleton.unload_model', lambda: None)
+    monkeypatch.setattr('transcriber.local.WhisperModelSingleton.unload_model', lambda: None)
     monkeypatch.setattr('utils.gpu.clear_gpu_memory', lambda: None)
     monkeypatch.setattr(publish, 'hold_queue_for_provider_limit', lambda *a, **k: '2999-01-01T00:00:00Z')
     monkeypatch.setattr(failure_stage, 'hold_queue_for_provider_limit', lambda *a, **k: '2999-01-01T00:00:00Z')

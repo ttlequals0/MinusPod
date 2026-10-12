@@ -10,7 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from transcriber import Transcriber, _max_download_mb
+from transcriber import Transcriber
+from transcriber.settings import _max_download_mb
 from utils.errors import AudioTooLargeError
 from utils.safe_http import ResponseTooLargeError
 

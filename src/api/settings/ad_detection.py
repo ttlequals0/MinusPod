@@ -110,7 +110,7 @@ def _run_post_commit(callbacks):
 def _mark_whisper_for_reload():
     """Next transcription reloads the Whisper model."""
     try:
-        from transcriber import WhisperModelSingleton
+        from transcriber.local import WhisperModelSingleton
         from parakeet_transcriber import ParakeetModelSingleton
         WhisperModelSingleton.mark_for_reload()
         ParakeetModelSingleton.mark_for_reload()

@@ -81,7 +81,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     processing_time = time.time() - start_time
 
     try:
-        from transcriber import _unload_local_models
+        from transcriber.local import _unload_local_models
         from utils.gpu import clear_gpu_memory
         clear_gpu_memory()
         _unload_local_models()

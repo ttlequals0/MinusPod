@@ -220,11 +220,11 @@ def _run_transcribe(monkeypatch, failures, error='CUDA out of memory', ceiling=N
 
     pipeline = _FakePipeline(failures, error)
     monkeypatch.setenv('WHISPER_DEVICE', 'cuda')
-    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton,
                         'get_batched_pipeline', classmethod(lambda cls: pipeline))
-    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton,
                         'get_current_model_name', classmethod(lambda cls: 'fake'))
-    monkeypatch.setattr(transcriber_mod.WhisperModelSingleton,
+    monkeypatch.setattr(transcriber_mod.local.WhisperModelSingleton,
                         'unload_model', classmethod(lambda cls: None))
     monkeypatch.setattr(Transcriber, 'get_audio_duration', lambda self, p: 30 * 60)
     monkeypatch.setattr(Transcriber, 'preprocess_audio', lambda self, p: None)

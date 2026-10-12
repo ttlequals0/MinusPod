@@ -70,7 +70,7 @@ def test_429_deadline_bounds_a_zero_retry_after_loop(pool, tmp_path, monkeypatch
         clock['t'] += 1.0
         return clock['t']
     monkeypatch.setattr(transcriber.time, 'monotonic', fake_monotonic)
-    monkeypatch.setattr(transcriber, '_api_timeout', lambda settings: 2.0)
+    monkeypatch.setattr(transcriber.settings, '_api_timeout', lambda settings: 2.0)
     calls = []
     def fake_post(*a, **k):
         calls.append(1)
@@ -101,11 +101,11 @@ def test_chunk_pool_size_comes_from_the_pool(pool, monkeypatch):
         def __init__(self, max_workers=None, **kw):
             sizes.append(max_workers); super().__init__(max_workers=max_workers, **kw)
     monkeypatch.setattr(transcriber, 'ThreadPoolExecutor', Spy)
-    monkeypatch.setattr(transcriber, '_get_chunk_settings',
+    monkeypatch.setattr(transcriber.settings, '_get_chunk_settings',
                         lambda: {'max_chunk_seconds': 10, 'concurrent_chunks': 8, 'chunk_overlap_seconds': 1})
     # Truthy path (not a real file) so chunks fail in _transcribe_via_api's
     # size check rather than tripping the unrelated extraction-failure abort.
-    monkeypatch.setattr(transcriber, 'extract_audio_chunk', lambda *a, **k: 'chunk.flac')
+    monkeypatch.setattr(transcriber.chunking, 'extract_audio_chunk', lambda *a, **k: 'chunk.flac')
     t = transcriber.Transcriber()
     with pool.transcribing():
         t._transcribe_chunked_parallel_api('x.wav', 25.0, _whisper_settings())
@@ -137,7 +137,7 @@ def test_permit_wait_does_not_consume_the_429_window(tmp_path, monkeypatch):
     monkeypatch.setattr(transcriber.time, 'monotonic', lambda: clock['t'])
     monkeypatch.setattr(transcriber.time, 'sleep',
                         lambda s: clock.__setitem__('t', clock['t'] + s))
-    monkeypatch.setattr(transcriber, '_api_timeout', lambda settings: 30.0)
+    monkeypatch.setattr(transcriber.settings, '_api_timeout', lambda settings: 30.0)
     posts = []
 
     def fake_post(*a, **k):

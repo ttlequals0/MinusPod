@@ -91,7 +91,7 @@ def is_configured(target: str, cfg: dict | None = None) -> bool:
             return False
         backend = _setting('failover_whisper_backend') or WHISPER_BACKEND_API
         if backend in (WHISPER_BACKEND_PARAKEET, WHISPER_BACKEND_LOCAL):
-            return transcriber.local_transcription_available(backend)
+            return transcriber.local.local_transcription_available(backend)
         return bool(_setting('failover_whisper_api_base_url'))
     return False
 
@@ -124,7 +124,7 @@ def _configured_in_transaction(conn, target: str) -> bool:
         return False
     backend = _setting_in_transaction(conn, 'failover_whisper_backend') or WHISPER_BACKEND_API
     if backend in (WHISPER_BACKEND_PARAKEET, WHISPER_BACKEND_LOCAL):
-        return transcriber.local_transcription_available(backend)
+        return transcriber.local.local_transcription_available(backend)
     return bool(_setting_in_transaction(conn, 'failover_whisper_api_base_url'))
 
 
@@ -545,7 +545,7 @@ def _local_runtime_config(settings: dict, environment: dict, backend: str) -> di
         return {'device': device}
     return {
         'device': device,
-        'compute_type': transcriber.canonical_compute_type(
+        'compute_type': transcriber.settings.canonical_compute_type(
             settings.get('whisper_compute_type') or environment.get('WHISPER_COMPUTE_TYPE')),
     }
 
@@ -614,7 +614,7 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         else:
             settings = request_config
             if settings['backend'] in WHISPER_LOCAL_BACKENDS:
-                return transcriber.probe_local_transcription(settings)
+                return transcriber.local.probe_local_transcription(settings)
             if not settings['api_base_url']:
                 return {'reachable': None, 'status': None, 'detail': 'Not configured'}
             result = provider_probe.probe_models_endpoint(

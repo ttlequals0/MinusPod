@@ -435,13 +435,13 @@ def _whisper_connection_test(saved: dict, body: dict):
     skip_flac = body.get('skipFlacCompression', saved['skip_flac_compression'])
     if not isinstance(skip_flac, bool):
         return error_response('skipFlacCompression must be a boolean', 400)
-    result = transcriber.probe_transcription_endpoint(
+    result = transcriber.remote.probe_transcription_endpoint(
         base, api_key=api_key, model=model, skip_flac_compression=skip_flac)
     if result.get('ok'):
         # refresh=True: re-probe rather than report a cached result. If a
         # probe for this backend is already running, that one's result is
         # reused instead.
-        health = transcriber.probe_whisper_health(
+        health = transcriber.remote.probe_whisper_health(
             base_url=base, api_key=api_key, refresh=True)
         result['health'] = health
         summary = _health_detail(health)
@@ -481,7 +481,7 @@ def test_provider_connection(provider):
         # path uses, so the probe cannot drift from what an episode upload
         # would do. Its base URL is empty when unconfigured, so the key
         # gate inside the helper fails closed.
-        return _whisper_connection_test(transcriber._get_whisper_settings(), body)
+        return _whisper_connection_test(transcriber.settings._get_whisper_settings(), body)
 
     if provider == PROVIDER_SYSTEMONE_COMPATIBLE:
         db = Database()
@@ -656,4 +656,4 @@ def test_failover_whisper_connection():
     """End-to-end probe of the whisper failover slot (#806); same contract as the
     primary whisper route, reading saved values via _get_failover_whisper_settings."""
     body = request.get_json(silent=True) or {}
-    return _whisper_connection_test(transcriber._get_failover_whisper_settings(), body)
+    return _whisper_connection_test(transcriber.settings._get_failover_whisper_settings(), body)

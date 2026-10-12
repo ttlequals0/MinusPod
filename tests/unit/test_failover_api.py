@@ -206,9 +206,9 @@ def test_failover_llm_test_connection(app_client, hdr, configured):
 
 
 def test_failover_whisper_test_connection(app_client, hdr):
-    with patch('api.providers.transcriber.probe_transcription_endpoint',
+    with patch('api.providers.transcriber.remote.probe_transcription_endpoint',
                return_value={'ok': True, 'reachable': True, 'status': 200, 'detail': 'ok'}), \
-            patch('api.providers.transcriber.probe_whisper_health', return_value={'available': False}):
+            patch('api.providers.transcriber.remote.probe_whisper_health', return_value={'available': False}):
         r = app_client.post('/api/v1/settings/providers/failover-whisper/test-connection',
                             json={'baseUrl': 'http://127.0.0.1:8001/v1', 'model': 'whisper-1'}, headers=hdr)
     assert r.status_code == 200 and r.get_json()['ok'] is True

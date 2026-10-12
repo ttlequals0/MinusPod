@@ -17,11 +17,8 @@ from unittest.mock import patch
 import pytest
 
 import run_context
-from transcriber import (
-    _chunk_bounds_ahead,
-    _ChunkPrefetcher,
-    EXTRACT_PREFETCH_AHEAD,
-)
+from transcriber.chunking import _chunk_bounds_ahead
+from transcriber import _ChunkPrefetcher, EXTRACT_PREFETCH_AHEAD
 from utils.errors import AudioExtractionTimeout
 
 
@@ -53,7 +50,7 @@ class TestChunkBoundsAhead:
 
 class TestChunkPrefetcher:
     def test_take_returns_the_extraction_result(self):
-        with patch('transcriber.extract_audio_chunk', return_value='/tmp/x.wav') as ex:
+        with patch('transcriber.chunking.extract_audio_chunk', return_value='/tmp/x.wav') as ex:
             p = _ChunkPrefetcher('/tmp/in.mp3')
             try:
                 assert p.take(0, 1800, 1800, 30) == '/tmp/x.wav'
@@ -69,7 +66,7 @@ class TestChunkPrefetcher:
             calls.append((start, end))
             return _tmp_wav()
 
-        with patch('transcriber.extract_audio_chunk', side_effect=extract):
+        with patch('transcriber.chunking.extract_audio_chunk', side_effect=extract):
             p = _ChunkPrefetcher('/tmp/in.mp3')
             try:
                 path = p.take(0, 1800, 7200, 30)
@@ -90,7 +87,7 @@ class TestChunkPrefetcher:
             release.wait(30)
             return _tmp_wav()
 
-        with patch('transcriber.extract_audio_chunk', side_effect=extract):
+        with patch('transcriber.chunking.extract_audio_chunk', side_effect=extract):
             p = _ChunkPrefetcher('/tmp/in.mp3')
             try:
                 p.prime(0, 1800, 1800, 30)   # returns while extract blocks
@@ -109,7 +106,7 @@ class TestChunkPrefetcher:
             made.append(f)
             return f
 
-        with patch('transcriber.extract_audio_chunk', side_effect=extract):
+        with patch('transcriber.chunking.extract_audio_chunk', side_effect=extract):
             p = _ChunkPrefetcher('/tmp/in.mp3')
             try:
                 consumed = p.take(0, 1800, 7200, 30)
@@ -126,7 +123,7 @@ class TestChunkPrefetcher:
 
     def test_prime_past_the_end_of_audio_is_a_no_op(self):
         # A zero-length file reaches prime() with nothing to extract.
-        with patch('transcriber.extract_audio_chunk') as ex:
+        with patch('transcriber.chunking.extract_audio_chunk') as ex:
             p = _ChunkPrefetcher('/tmp/in.mp3')
             try:
                 p.prime(0, 1800, 0, 30)
@@ -135,7 +132,7 @@ class TestChunkPrefetcher:
         ex.assert_not_called()
 
     def test_take_surfaces_extraction_timeout(self):
-        with patch('transcriber.extract_audio_chunk',
+        with patch('transcriber.chunking.extract_audio_chunk',
                    side_effect=AudioExtractionTimeout('ffmpeg exceeded budget')):
             p = _ChunkPrefetcher('/tmp/in.mp3')
             try:
@@ -152,7 +149,7 @@ class TestChunkPrefetcher:
             made.append(f)
             return f
 
-        with patch('transcriber.extract_audio_chunk', side_effect=extract):
+        with patch('transcriber.chunking.extract_audio_chunk', side_effect=extract):
             p = _ChunkPrefetcher('/tmp/in.mp3')
             p.prime(0, 1800, 1800, 30)
             _wait_for(lambda: len(made) == 1)
@@ -180,7 +177,7 @@ class TestChunkPrefetcher:
         ctx = run_context.begin('feed', 'ep')
         ctx.recorder = _FakeRecorder()
         try:
-            with patch('transcriber.extract_audio_chunk', side_effect=extract):
+            with patch('transcriber.chunking.extract_audio_chunk', side_effect=extract):
                 p = _ChunkPrefetcher('/tmp/in.mp3')
                 try:
                     p.take(0, 1800, 1800, 30)

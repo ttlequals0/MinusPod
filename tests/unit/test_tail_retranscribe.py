@@ -53,9 +53,9 @@ def _mock_model():
 def _transcribe_with(vad_kwargs):
     t = Transcriber()
     model = _mock_model()
-    with patch('transcriber._get_whisper_settings',
+    with patch('transcriber.settings._get_whisper_settings',
                return_value=_local_settings()), \
-         patch('transcriber.WhisperModelSingleton') as singleton, \
+         patch('transcriber.local.WhisperModelSingleton') as singleton, \
          patch.object(Transcriber, 'preprocess_audio', return_value=None), \
          patch.object(Transcriber, 'get_audio_duration', return_value=42.0):
         singleton.get_batched_pipeline.return_value = model
@@ -83,7 +83,7 @@ def test_api_backend_forwards_vad_filter_false():
     supports the switch never sees it and the pass is a normal one."""
     t = Transcriber()
     api_settings = dict(_local_settings(), backend='openai-api')
-    with patch('transcriber._get_whisper_settings',
+    with patch('transcriber.settings._get_whisper_settings',
                return_value=api_settings), \
          patch.object(Transcriber, '_transcribe_via_api',
                       return_value=[]) as api:
