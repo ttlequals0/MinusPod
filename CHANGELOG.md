@@ -18,6 +18,7 @@ release notes.
 - Design specs behind larger features now live in `docs/specs/`, with an index, and tests that pin a design decision cite the spec by path and heading instead of a bare section number.
 
 ### Changed
+- The episode processing module is split into stage modules under `main_app/pipeline/` (transcribe, signals, detect, review, cuts, keep rules, verify, publish, finalize, admission, failure, recut), with `processing.py` keeping the orchestrator and background start path. No behavior change.
 - README lists processing modes, configuration export and restore, podcast search, output audio controls, and queue resilience, and corrects stale statements about auth, backups, verification, and providers.
 - README Documentation table and docs/README.md list the System One, Failover, Pattern Cleanup, Transcript Differential, Glossary, and Container Security pages, ordered from first install through pipeline, tuning, and maintainer topics.
 - Dependency updates: anthropic 1.12.1, openai 3.26.1, tldextract 5.4.0, fsspec 2026.9.0, python-slugify 9.1.3; frontend wavesurfer.js 8.0.2, vite-plugin-pwa 2.0.0, @vitejs/plugin-react 6.1.2, @tanstack/react-query 5.104.1, eslint 10.12.0; GitHub Actions upload-artifact 7.0.2, download-artifact 8.0.2, setup-node 7.1.0.

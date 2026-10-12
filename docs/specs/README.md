@@ -22,3 +22,4 @@ and heading anchor when a test exists to pin a decision made here.
 | [2026-09-06 Recents feed](2026-09-06-recents-feed-design.md) | Opt-in combined feed of every processed episode | 2.96.1 |
 | [2026-09-08 Ad chapters](2026-09-08-ad-chapters-design.md) | Publishing kept segments as Podcasting 2.0 chapters | 2.96.8 |
 | [2026-10-11 Parakeet backend](2026-10-11-parakeet-backend-design.md) | In-process Parakeet transcription backend | 2.100.0 |
+| [2026-10-12 Processing split](2026-10-12-processing-split-design.md) | Splitting `main_app/processing.py` into pipeline stage modules | 2.100.11 |
