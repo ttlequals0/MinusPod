@@ -1,15 +1,15 @@
 """The settings API package registers every route and its group modules form an acyclic import graph."""
-import ast
 import pathlib
 
 from tests.app_bootstrap import bootstrap
+from tests.import_graph import assert_acyclic, module_imports, package_modules
 
 bootstrap('settings_pkg_')
 
 from main_app import app  # noqa: E402
 
 PKG = pathlib.Path(__file__).resolve().parents[2] / 'src/api/settings'
-GROUPS = sorted(p.stem for p in PKG.glob('*.py') if p.stem != '__init__')
+GROUPS = package_modules(PKG)
 
 # (rule, methods) of every view function under api.settings, recorded before the split.
 EXPECTED_RULES = [
@@ -69,18 +69,6 @@ EXPECTED_RULES = [
 ]
 
 
-def _tree(name):
-    return ast.parse((PKG / f'{name}.py').read_text())
-
-
-def _group_imports(name):
-    out = set()
-    for node in _tree(name).body:
-        if isinstance(node, ast.ImportFrom) and node.module == 'api.settings':
-            out.update(alias.name for alias in node.names if alias.name in GROUPS)
-    return out
-
-
 def test_api_settings_routes_registered():
     actual = sorted(
         (r.rule, tuple(sorted(m for m in r.methods if m not in ('HEAD', 'OPTIONS'))))
@@ -90,26 +78,9 @@ def test_api_settings_routes_registered():
 
 
 def test_api_settings_import_graph_is_acyclic():
-    graph = {name: _group_imports(name) for name in GROUPS}
-    done, active = set(), []
-
-    def visit(node):
-        assert node not in active, f'import cycle: {" -> ".join(active[active.index(node):] + [node])}'
-        if node in done:
-            return
-        active.append(node)
-        for dep in graph[node]:
-            visit(dep)
-        active.pop()
-        done.add(node)
-
-    for name in graph:
-        visit(name)
+    graph = {name: module_imports(PKG / f'{name}.py', 'api.settings') & set(GROUPS) for name in GROUPS}
+    assert_acyclic(graph)
 
 
 def test_init_imports_every_group_module():
-    imported = set()
-    for node in _tree('__init__').body:
-        if isinstance(node, ast.ImportFrom) and node.module == 'api.settings':
-            imported.update(alias.name for alias in node.names)
-    assert imported == set(GROUPS)
+    assert module_imports(PKG / '__init__.py', 'api.settings') == set(GROUPS)

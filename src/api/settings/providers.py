@@ -13,9 +13,7 @@ from config import (
     PROVIDERS_NON_ANTHROPIC, DEFAULT_OPENAI_BASE_URL,
 )
 from ad_detector import AdDetector
-from database.settings import (
-    SETTINGS_REGISTRY,
-)
+from database.settings import SETTINGS_REGISTRY
 from transcriber import _get_chunk_settings, probe_whisper_health
 from whisper_pool import get_pool
 from llm_client import (

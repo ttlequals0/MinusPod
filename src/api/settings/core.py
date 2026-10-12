@@ -28,9 +28,7 @@ from config import (
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
 )
-from systemone.tuning import (
-    profile_payload,
-)
+from systemone.tuning import profile_payload
 from api.podcast_search import resolve_search_provider, search_provider_ready
 from database.settings import (
     SETTINGS_REGISTRY,

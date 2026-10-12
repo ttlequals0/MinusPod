@@ -2185,7 +2185,7 @@ def stage_tunable_env_override(key: str) -> str | None:
 
 
 # Public mapping: payload key (camelCase) + DB key (snake_case) + kind tag used
-# by the settings API to dispatch validation. Single source of truth; api/settings
+# by the settings API to dispatch validation. Single source of truth; api/settings/ad_detection.py
 # imports this rather than maintaining a parallel list.
 STAGE_TUNABLE_PAYLOAD_KEYS = (
     ('detectionTemperature',           'detection_temperature',           'float'),

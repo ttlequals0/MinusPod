@@ -23,16 +23,10 @@ from rate_limit_hold import (
     get_llm_usage_url, get_rate_limit_probe_minutes,
     RATE_LIMIT_PROBE_MINUTES_MIN, RATE_LIMIT_PROBE_MINUTES_MAX,
 )
-from llm_route import (
-    VALID_SLOTS, SAME_AS_DETECTION,
-)
+from llm_route import VALID_SLOTS, SAME_AS_DETECTION
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
-from utils.url import (
-    SSRFError, validate_base_url,
-)
-from webhook_service import (
-    fire_queue_resumed_event,
-)
+from utils.url import SSRFError, validate_base_url
+from webhook_service import fire_queue_resumed_event
 from db_backup_service import (
     DEFAULT_CRON, KEEP_COUNT_MAX, KEEP_COUNT_MIN, dest_writable,
     validate_backup_dest,

@@ -48,12 +48,10 @@ class TestAdDetectionPutPhase:
             '^atc/', 'WordPress.com',
         ]
 
-    def test_put_then_get_roundtrip(self, client, temp_db):
-        with patch('api.settings.ad_detection.get_database', return_value=temp_db), \
-             patch('api.settings.core.get_database', return_value=temp_db):
-            r = self._put(client, {'jitBlockedUserAgents': ['^atc/']})
-            assert r.status_code == 200, r.data
-            s = client.get('/api/v1/settings').get_json()
+    def test_put_then_get_roundtrip(self, client, patch_settings_db):
+        r = self._put(client, {'jitBlockedUserAgents': ['^atc/']})
+        assert r.status_code == 200, r.data
+        s = client.get('/api/v1/settings').get_json()
         assert s['jitBlockedUserAgents']['value'] == ['^atc/']
         assert s['jitBlockedUserAgents']['isDefault'] is False
 
@@ -62,13 +60,11 @@ class TestAdDetectionPutPhase:
             r = self._put(client, {'jitBlockedUserAgents': 'not-a-list'})
         assert r.status_code == 400
 
-    def test_drops_blanks_and_rejects_over_length_entry(self, client, temp_db):
-        with patch('api.settings.ad_detection.get_database', return_value=temp_db), \
-             patch('api.settings.core.get_database', return_value=temp_db):
-            r = self._put(client, {'jitBlockedUserAgents': ['  Bot  ', '   ', '']})
-            assert r.status_code == 200, r.data
-            s = client.get('/api/v1/settings').get_json()
-            assert s['jitBlockedUserAgents']['value'] == ['Bot']
+    def test_drops_blanks_and_rejects_over_length_entry(self, client, patch_settings_db):
+        r = self._put(client, {'jitBlockedUserAgents': ['  Bot  ', '   ', '']})
+        assert r.status_code == 200, r.data
+        s = client.get('/api/v1/settings').get_json()
+        assert s['jitBlockedUserAgents']['value'] == ['Bot']
 
-            r2 = self._put(client, {'jitBlockedUserAgents': ['x' * 201]})
+        r2 = self._put(client, {'jitBlockedUserAgents': ['x' * 201]})
         assert r2.status_code == 400

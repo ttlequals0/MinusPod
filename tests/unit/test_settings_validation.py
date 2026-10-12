@@ -12,7 +12,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('settings_test_', passphrase='settings-validation-test-passphrase')
 
 import database
-from api import settings as settings_api
+from api.settings import ad_detection
 from main_app import app
 from rate_limit_hold import (
     clear_hold, get_hold_until, is_queue_paused, record_hold_until,
@@ -1122,12 +1122,12 @@ class TestOpenaiBaseUrlValidation:
     def test_pure_settings_validator_checks_url_syntax_without_dns(self, monkeypatch):
         db = database.Database()
         monkeypatch.setattr(
-            settings_api.ad_detection, 'validate_base_url',
+            ad_detection, 'validate_base_url',
             lambda *_args: pytest.fail('pure settings validation must not resolve provider URLs'))
 
-        assert settings_api.ad_detection.validate_settings_payload(
+        assert ad_detection.validate_settings_payload(
             db, {'openaiBaseUrl': 'https://provider.example/v1'}) is None
-        assert settings_api.ad_detection.validate_settings_payload(
+        assert ad_detection.validate_settings_payload(
             db, {'openaiBaseUrl': 'file:///etc/passwd'}) == (
                 "Invalid base URL: Blocked URL scheme: 'file'", 400)
 
@@ -1138,7 +1138,7 @@ class TestOpenaiBaseUrlValidation:
         def validate_outside_transaction(value):
             assert not db.in_settings_transaction()
 
-        monkeypatch.setattr(settings_api.ad_detection, 'validate_base_url', validate_outside_transaction)
+        monkeypatch.setattr(ad_detection, 'validate_base_url', validate_outside_transaction)
         response = client.put(
             '/api/v1/settings/ad-detection',
             data=json.dumps({'secondaryProviderBaseUrl': 'https://provider.example/v1'}),
@@ -1161,7 +1161,7 @@ class TestOpenaiBaseUrlValidation:
         db = database.Database()
         before = db.get_all_settings()
 
-        issue = settings_api.ad_detection.validate_settings_payload(db, payload)
+        issue = ad_detection.validate_settings_payload(db, payload)
 
         assert issue is not None
         assert issue[0].startswith(expected)
@@ -1181,9 +1181,9 @@ class TestOpenaiBaseUrlValidation:
         db.set_setting('chapter_window_seconds', '2700')
         db.set_setting('chapter_min_duration_seconds', '700')
 
-        window_issue = settings_api.ad_detection.validate_settings_payload(
+        window_issue = ad_detection.validate_settings_payload(
             db, {'windowSizeSeconds': None})
-        chapter_issue = settings_api.ad_detection.validate_settings_payload(
+        chapter_issue = ad_detection.validate_settings_payload(
             db, {'chapterTargetSeconds': None})
 
         assert window_issue == (
@@ -1201,7 +1201,7 @@ class TestOpenaiBaseUrlValidation:
         db.set_setting('window_size_seconds', '3600')
         db.set_setting('window_overlap_seconds', '1500')
 
-        assert settings_api.ad_detection.validate_settings_payload(db, {
+        assert ad_detection.validate_settings_payload(db, {
             'windowSizeSeconds': None,
             'windowOverlapSeconds': None,
         }) is None

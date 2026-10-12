@@ -122,8 +122,8 @@ DEFAULT_MODEL_PRICING = {
 # audio-cue reset gap for the drift bugs that motivated this):
 #   1. schema seeding: iter_seed_defaults() (database/schema/__init__.py)
 #   2. reset_setting() below
-#   3. the bulk reset endpoint key list: AD_RESET_SETTING_KEYS (api/settings.py)
-#   4. GET /settings 'defaults' payload: registry_get_default() (api/settings.py)
+#   3. the bulk reset endpoint key list: AD_RESET_SETTING_KEYS (api/settings/ad_detection.py)
+#   4. GET /settings 'defaults' payload: registry_get_default() (api/settings/core.py)
 #
 # Env-backed keys (ENV_BACKED_SETTINGS) and stage tunables
 # (STAGE_TUNABLE_DEFAULTS) keep their existing resolution mechanisms;

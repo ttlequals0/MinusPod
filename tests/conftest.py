@@ -1,5 +1,6 @@
 """Shared pytest fixtures for podcast server tests."""
 import os
+import pkgutil
 import sys
 import tempfile
 import shutil
@@ -62,6 +63,17 @@ def temp_db(temp_dir):
     yield db
 
     Database._instance = previous
+
+
+@pytest.fixture
+def patch_settings_db(temp_db, monkeypatch):
+    """Point get_database at temp_db in every api.settings group module."""
+    import api.settings
+    for info in pkgutil.iter_modules(api.settings.__path__):
+        module = getattr(api.settings, info.name, None)
+        if hasattr(module, 'get_database'):
+            monkeypatch.setattr(module, 'get_database', lambda: temp_db)
+    return temp_db
 
 
 @pytest.fixture

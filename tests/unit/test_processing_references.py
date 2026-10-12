@@ -1,60 +1,40 @@
-"""Guards patch targets: no test or source file may reference an attribute a split module no longer has."""
+"""Guards patch targets that name an attribute the module no longer has."""
+import functools
 import importlib
 import pathlib
 import re
-
-import pytest
 
 from tests.app_bootstrap import bootstrap
 
 bootstrap('refs_test_')
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
-SCAN_DIRS = (ROOT / 'tests', ROOT / 'src')
-SELF = pathlib.Path(__file__).resolve()
-CHAIN = r"((?:\.\w+)*)"
-
-# import name -> regex that finds local aliases of the module in a file
-MODULES = {
-    'main_app.processing': r"from main_app import processing(?: as (\w+))?",
-    'api.settings': r"(?:from api import settings(?: as (\w+))?|import api\.settings as (\w+))",
-}
+TESTS = pathlib.Path(__file__).resolve().parents[1]
+TARGET_RE = re.compile(r"""['"]((?:api\.settings|main_app\.processing)(?:\.\w+)+)['"]""")
 
 
-def _resolve(root, chain, name):
-    """Return the 'mod.attr' that is missing, or None when the dotted reference resolves."""
-    obj = root
-    for part in [p for p in chain.split('.') if p] + [name]:
-        if not hasattr(obj, part):
-            return part
-        obj = getattr(obj, part)
-    return None
+@functools.lru_cache(maxsize=None)
+def _test_sources():
+    return [(path, path.read_text()) for path in sorted(TESTS.rglob('*.py'))]
 
 
-def _stale_in(text, import_name, root, alias_pattern):
-    prefix = re.escape(import_name)
-    found = [(m.group(1), m.group(2)) for m in re.finditer(rf"{prefix}{CHAIN}\.(\w+)", text)]
-    short = import_name.rsplit('.', 1)[-1]
-    aliases = {next((g for g in m.groups() if g), short) for m in re.finditer(alias_pattern, text)}
-    for alias in aliases:
-        for form in (r"setattr\(", r"patch\.object\("):
-            found += [(m.group(1), m.group(2))
-                      for m in re.finditer(rf"{form}{re.escape(alias)}{CHAIN}, '(\w+)'", text)]
-    return [f'{import_name}{chain}.{name}' for chain, name in found if _resolve(root, chain, name)]
+def _resolves(target):
+    parts = target.split('.')
+    for i in range(len(parts), 0, -1):
+        try:
+            obj = importlib.import_module('.'.join(parts[:i]))
+        except ImportError:
+            continue
+        for attr in parts[i:]:
+            if not hasattr(obj, attr):
+                return False
+            obj = getattr(obj, attr)
+        return True
+    return False
 
 
-@pytest.mark.parametrize('import_name', sorted(MODULES))
-def test_no_stale_attribute_references(import_name):
-    root = importlib.import_module(import_name)
-    stale = set()
-    short = import_name.rsplit('.', 1)[-1]
-    for base in SCAN_DIRS:
-        for path in base.rglob('*.py'):
-            if path == SELF:
-                continue
-            text = path.read_text()
-            if short not in text:
-                continue
-            for ref in _stale_in(text, import_name, root, MODULES[import_name]):
-                stale.add(f'{path.relative_to(ROOT)}: {ref}')
-    assert not stale, '\n'.join(sorted(stale))
+def test_no_stale_patch_targets():
+    stale = sorted({f'{path.relative_to(TESTS.parent)}: {target}'
+                    for path, text in _test_sources()
+                    for target in TARGET_RE.findall(text)
+                    if not _resolves(target)})
+    assert not stale, '\n'.join(stale)

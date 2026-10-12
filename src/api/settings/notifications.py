@@ -9,9 +9,7 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, limiter,
 )
-from database.settings import (
-    SETTINGS_REGISTRY,
-)
+from database.settings import SETTINGS_REGISTRY
 from utils.url import (
     SSRFError, validate_base_url,
     validate_outbound_host,

@@ -48,12 +48,10 @@ class TestAdDetectionPutPhase:
             content_type='application/json',
         )
 
-    def test_put_roundtrip(self, client, temp_db):
-        with patch('api.settings.ad_detection.get_database', return_value=temp_db), \
-             patch('api.settings.core.get_database', return_value=temp_db):
-            r = self._put(client, {'communitySyncCategories': ['sponsor', 'cross_promo']})
-            assert r.status_code == 200, r.data
-            s = client.get('/api/v1/settings').get_json()
+    def test_put_roundtrip(self, client, patch_settings_db):
+        r = self._put(client, {'communitySyncCategories': ['sponsor', 'cross_promo']})
+        assert r.status_code == 200, r.data
+        s = client.get('/api/v1/settings').get_json()
         assert s['communitySyncCategories']['value'] == ['sponsor', 'cross_promo']
         assert s['communitySyncCategories']['isDefault'] is False
 
@@ -68,12 +66,10 @@ class TestAdDetectionPutPhase:
             r = self._put(client, {'communitySyncCategories': 'sponsor'})
         assert r.status_code == 400
 
-    def test_empty_list_is_a_valid_accept_nothing_choice(self, client, temp_db):
-        with patch('api.settings.ad_detection.get_database', return_value=temp_db), \
-             patch('api.settings.core.get_database', return_value=temp_db):
-            r = self._put(client, {'communitySyncCategories': []})
-            assert r.status_code == 200, r.data
-            s = client.get('/api/v1/settings').get_json()
+    def test_empty_list_is_a_valid_accept_nothing_choice(self, client, patch_settings_db):
+        r = self._put(client, {'communitySyncCategories': []})
+        assert r.status_code == 200, r.data
+        s = client.get('/api/v1/settings').get_json()
         assert s['communitySyncCategories']['value'] == []
 
 

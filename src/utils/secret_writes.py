@@ -5,7 +5,7 @@ Every secret-bearing route needs the same three rules:
 - encrypt when a value is provided, clear otherwise,
 - translate deep crypto failures into the same 409 the shallow gate returns.
 
-Putting the logic here keeps ``api/providers.py`` and ``api/settings.py``
+Putting the logic here keeps ``api/providers.py`` and ``api/settings/ad_detection.py``
 from drifting.
 """
 from __future__ import annotations

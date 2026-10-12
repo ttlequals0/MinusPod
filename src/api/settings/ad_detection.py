@@ -50,9 +50,7 @@ from database.settings import (
     registry_get_default,
 )
 from user_agent import invalidate_cache as invalidate_user_agent_cache
-from rate_limit_hold import (
-    clear_holds_for_provider_change,
-)
+from rate_limit_hold import clear_holds_for_provider_change
 from pricing_fetcher import force_refresh_pricing
 from whisper_pool import get_pool
 from llm_client import (
@@ -65,9 +63,7 @@ from llm_route import (
 )
 from llm_capabilities import systemone_supported_phases
 import failover
-from tools.reviewer_calibration import (
-    calibration_revision, trigger_reviewer_calibration,
-)
+from tools.reviewer_calibration import calibration_revision, trigger_reviewer_calibration
 from utils.language import LANGUAGE_CODE_RE
 from utils.url import (
     BASE_URL_USERINFO_ERROR, SSRFError, url_has_userinfo, validate_base_url,
