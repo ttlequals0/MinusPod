@@ -3,6 +3,7 @@ import ast
 import pathlib
 
 from tests.app_bootstrap import bootstrap
+from tests.import_graph import assert_acyclic, package_import_graph
 
 bootstrap('pipeline_order_')
 
@@ -14,30 +15,10 @@ def _tree(name):
     return ast.parse((PKG / f'{name}.py').read_text())
 
 
-def _stage_imports(name):
-    out = set()
-    for node in _tree(name).body:
-        if isinstance(node, ast.ImportFrom) and node.module == 'main_app.pipeline':
-            out.update(alias.name for alias in node.names if alias.name in STAGES)
-    return out
-
-
 def test_pipeline_import_graph_is_acyclic():
-    graph = {name: _stage_imports(name) for name in STAGES}
-    done, active = set(), []
-
-    def visit(node):
-        assert node not in active, f'import cycle: {" -> ".join(active[active.index(node):] + [node])}'
-        if node in done:
-            return
-        active.append(node)
-        for dep in graph[node]:
-            visit(dep)
-        active.pop()
-        done.add(node)
-
-    for name in graph:
-        visit(name)
+    graph = {name: deps - {'shared'} for name, deps in package_import_graph(PKG, 'main_app.pipeline').items()
+             if name != 'shared'}
+    assert_acyclic(graph)
 
 
 def test_stages_do_not_import_processing():
