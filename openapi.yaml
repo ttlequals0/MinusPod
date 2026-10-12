@@ -3682,6 +3682,55 @@ paths:
       responses:
         '200':
           description: Unassigned corrections and safe feed candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Total unassigned corrections, which may exceed the page returned
+                  corrections:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        episode_id:
+                          type: string
+                        podcast_title:
+                          type: [string, 'null']
+                        episode_title:
+                          type: [string, 'null']
+                        correction_type:
+                          type: string
+                        original_bounds:
+                          description: Parsed JSON when valid, otherwise the stored string
+                        corrected_bounds:
+                          description: Parsed JSON when valid, otherwise the stored string
+                        created_at:
+                          type: [string, 'null']
+                        candidates:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              slug:
+                                type: string
+                              podcast_title:
+                                type: [string, 'null']
+                              episode_title:
+                                type: [string, 'null']
+                              episode_available:
+                                type: boolean
+                              source:
+                                type: string
+                                enum: [current, history]
+                              history_run_count:
+                                type: [integer, 'null']
+                              history_latest_processed_at:
+                                type: [string, 'null']
 
   /patterns/corrections/unresolved/bulk:
     post:
@@ -10022,6 +10071,15 @@ paths:
       responses:
         '200':
           description: Updated tag breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  effective: { type: array, items: { type: string } }
+                  rss:       { type: array, items: { type: string } }
+                  episode:   { type: array, items: { type: string } }
+                  user:      { type: array, items: { type: string } }
         '400':
           description: Unknown or invalid tag(s)
 
@@ -10126,6 +10184,15 @@ paths:
       responses:
         '200':
           description: Updated settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updatePatternsFromReviewerAdjustments: { type: boolean }
+                  minTrimThreshold: { type: number }
+                  parallelAds: { type: integer, minimum: 1, maximum: 32 }
+                  parallelAdsDefault: { type: integer }
 
   /settings/community-sync:
     get:
@@ -10161,6 +10228,9 @@ paths:
       responses:
         '200':
           description: Updated settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunitySyncSettings' }
 
   /settings/replacement-audio:
     get:
@@ -15446,14 +15516,14 @@ components:
           type: object
           properties:
             value:
-              type: string
+              type: [string, 'null']
             isDefault:
               type: boolean
         verificationModel:
           type: object
           properties:
             value:
-              type: string
+              type: [string, 'null']
             isDefault:
               type: boolean
         detectionProvider:
@@ -15463,7 +15533,7 @@ components:
             `secondary`. Empty when unset, which resolves to primary.
           properties:
             value:
-              type: string
+              type: [string, 'null']
             isDefault:
               type: boolean
         verificationProvider:
@@ -15474,14 +15544,14 @@ components:
             same_as_detection.
           properties:
             value:
-              type: string
+              type: [string, 'null']
             isDefault:
               type: boolean
         chaptersModel:
           type: object
           properties:
             value:
-              type: string
+              type: [string, 'null']
               description: Model for chapter title generation and topic detection
             isDefault:
               type: boolean
@@ -15493,7 +15563,7 @@ components:
             resolves to same_as_detection.
           properties:
             value:
-              type: string
+              type: [string, 'null']
             isDefault:
               type: boolean
         patternCleanupEnabled:
