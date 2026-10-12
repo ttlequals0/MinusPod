@@ -172,7 +172,7 @@ function AdReviewModal({
   const selectionStopRef = useRef<(() => void) | null>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
-  const adRegionRef = useRef<ReturnType<RegionsPlugin['addRegion']> | null>(null);
+  const adRegionRef = useRef<ReturnType<InstanceType<typeof RegionsPlugin>['addRegion']> | null>(null);
 
   // Defaults derived from the original detection -- used by Reset.
   // Create mode defaults to the entire episode so the user can pin any
