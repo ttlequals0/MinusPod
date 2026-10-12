@@ -729,7 +729,7 @@ def test_patch_single_episode_not_found_404(app_client, local_feed):
 # -- GET /feeds/<slug>/episodes/<episode_id> (detail) --
 
 def test_get_episode_detail_includes_season_and_episode_numbers(app_client, local_feed):
-    """The detail GET (api/episodes.py's get_episode) must echo season/
+    """The detail GET (api.episodes.core's get_episode) must echo season/
     episode numbers, matching what upload/PATCH already return -- without
     this, EpisodeDetail.tsx's edit form falls back to parsing them out of
     the episode id, which is stale after any season/episode edit (the id is

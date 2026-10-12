@@ -266,7 +266,7 @@ _UNSET = object()
 def _post_regenerate(app_client, generated, ad_config=_UNSET):
     resolved = AD_CFG if ad_config is _UNSET else ad_config
     headers = _authed(app_client)
-    with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+    with patch('api.episodes.chapters.threading', SimpleNamespace(Thread=SyncThread)), \
          patch('api.episodes.chapters.ChaptersGenerator') as generator, \
          patch('api.episodes.chapters.embed_chapters', return_value=False), \
          patch('api.episodes.chapters.resolve_ad_chapter_config',
@@ -340,7 +340,7 @@ def test_degraded_manual_regeneration_keeps_existing_chapters_and_recovers(app_c
     storage.save_chapters_json(SLUG, EPISODE_ID, existing)
     headers = _authed(app_client)
 
-    with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+    with patch('api.episodes.chapters.threading', SimpleNamespace(Thread=SyncThread)), \
          patch('api.episodes.chapters.ChaptersGenerator') as generator, \
          patch('api.episodes.chapters.embed_chapters') as embed, \
          patch('main_app.processing._refresh_rss_for_slug') as refresh:
@@ -392,7 +392,7 @@ def test_incomplete_titles_preserve_existing_chapters(app_client, seeded, monkey
     monkeypatch.setattr(chapters_generator, 'call_llm', lambda **kwargs: (
         SimpleNamespace(content=response), None))
     headers = _authed(app_client)
-    with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+    with patch('api.episodes.chapters.threading', SimpleNamespace(Thread=SyncThread)), \
          patch('api.episodes.chapters.ChaptersGenerator', return_value=generator), \
          patch('api.episodes.chapters.embed_chapters') as embed, \
          patch('main_app.processing._refresh_rss_for_slug') as refresh:
@@ -452,7 +452,7 @@ def test_regenerate_endpoint_reports_the_run_on_the_episode(app_client, seeded):
     # Patch the module reference, not threading.Thread itself: a global patch
     # also breaks the rate limiter's expiry Timer on any concurrent request.
     thread = MagicMock()
-    with patch('api.episodes.threading', SimpleNamespace(Thread=thread)):
+    with patch('api.episodes.chapters.threading', SimpleNamespace(Thread=thread)):
         resp = app_client.post(
             f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
             headers=headers)
@@ -508,7 +508,7 @@ def test_regen_job_records_the_hold_on_a_provider_rate_limit(app_client, seeded)
     error = ProviderRateLimitedError('resets in 900s', retry_after_seconds=900.0)
     seeded.set_setting('rate_limit_hold_enabled', 'true')
     try:
-        with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+        with patch('api.episodes.chapters.threading', SimpleNamespace(Thread=SyncThread)), \
              patch('main_app.processing._resolve_or_load_route_snapshot',
                    return_value={'chapters': CHAPTERS_ROUTE}), \
              patch('api.episodes.chapters.ChaptersGenerator') as generator, \
@@ -667,7 +667,7 @@ def test_regenerate_merges_the_markers_as_of_the_save(app_client, seeded):
         seeded.save_episode_details(SLUG, EPISODE_ID, ad_markers=[])
         return {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
 
-    with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+    with patch('api.episodes.chapters.threading', SimpleNamespace(Thread=SyncThread)), \
          patch('api.episodes.chapters.ChaptersGenerator') as generator, \
          patch('api.episodes.chapters.embed_chapters', return_value=False), \
          patch('api.episodes.chapters.resolve_ad_chapter_config',
@@ -695,7 +695,7 @@ def test_regenerate_does_not_save_once_its_stamp_was_taken_over(app_client, seed
         conn.commit()
         return {'version': '1.2.0', 'chapters': [{'startTime': 1, 'title': 'Intro'}]}
 
-    with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+    with patch('api.episodes.chapters.threading', SimpleNamespace(Thread=SyncThread)), \
          patch('api.episodes.chapters.ChaptersGenerator') as generator, \
          patch('main_app.processing._refresh_rss_for_slug'):
         generator.return_value.generate_chapters.side_effect = take_the_stamp_over
@@ -714,7 +714,7 @@ def test_regenerate_does_not_save_once_its_stamp_was_taken_over(app_client, seed
 def test_regenerate_endpoint_reports_a_thread_that_will_not_start(app_client, seeded):
     """A refused thread leaves no stamp behind for the 15 minute takeover."""
     refuses = SimpleNamespace(Thread=MagicMock(side_effect=RuntimeError('no threads')))
-    with patch('api.episodes.threading', refuses):
+    with patch('api.episodes.chapters.threading', refuses):
         resp = app_client.post(
             f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters',
             headers=_authed(app_client))
@@ -912,7 +912,7 @@ def test_manual_native_chapters_reject_before_claim_thread_or_log_mutation(app_c
         headers = _authed(app_client)
         thread = MagicMock()
         with patch.object(seeded, 'claim_chapters_regen') as claim, \
-                patch('api.episodes.threading', SimpleNamespace(Thread=thread)):
+                patch('api.episodes.chapters.threading', SimpleNamespace(Thread=thread)):
             response = app_client.post(
                 f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/regenerate-chapters', headers=headers)
         assert response.status_code == 400

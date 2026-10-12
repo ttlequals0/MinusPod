@@ -61,7 +61,7 @@ def test_regenerating_chapters_force_refreshes_the_served_feed(app_client, seede
     from storage import Storage
     Storage().save_transcript_vtt(SLUG, EPISODE_ID, 'WEBVTT\n\n00:00.000 --> 00:01.000\nHi\n')
     headers = _authed(app_client)
-    with patch('api.episodes.threading', SimpleNamespace(Thread=SyncThread)), \
+    with patch('api.episodes.chapters.threading', SimpleNamespace(Thread=SyncThread)), \
          patch('api.episodes.chapters.ChaptersGenerator') as generator, \
          patch('api.episodes.chapters.embed_chapters', return_value=False), \
          patch('main_app.processing._refresh_rss_for_slug') as refresh:
