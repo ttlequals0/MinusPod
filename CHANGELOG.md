@@ -24,6 +24,7 @@ release notes.
 - README Documentation table and docs/README.md list the System One, Failover, Pattern Cleanup, Transcript Differential, Glossary, and Container Security pages, ordered from first install through pipeline, tuning, and maintainer topics.
 - Dependency updates: anthropic 1.12.1, openai 3.26.1, tldextract 5.4.0, fsspec 2026.9.0, python-slugify 9.1.3; frontend wavesurfer.js 8.0.2, vite-plugin-pwa 2.0.0, @vitejs/plugin-react 6.1.2, @tanstack/react-query 5.104.1, eslint 10.12.0; GitHub Actions upload-artifact 7.0.2, download-artifact 8.0.2, setup-node 7.1.0.
 - The settings API module is split into a package by settings area (core, ad detection, notifications, providers, operations) with shared helpers in one module. No behavior change.
+- Episode run serialization lives in its own module under the episodes API package, so the stats API imports it directly instead of reaching into the route module.
 - The episodes API module is split into a package (core, runs, chapters, media). No behavior change.
 - The transcriber module is split into a package: the Transcriber class stays at the top with settings, local-backend, remote-backend and chunking helpers in their own modules. No behavior change.
 

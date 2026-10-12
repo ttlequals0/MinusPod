@@ -3,7 +3,7 @@ from tests.app_bootstrap import bootstrap
 
 bootstrap('incomplete_coverage_test_')
 
-from api.episodes.core import _incomplete_coverage
+from api.episodes.run_view import _incomplete_coverage
 
 
 def _run(stats):
