@@ -342,3 +342,11 @@ def test_merge_windows_keeps_genuinely_new_leading_words():
     b = _ws(('the', 756.2), ('difference', 756.6))
     merged = pt._merge_windows([(0.0, 756.0, a), (756.0, 790.0, b)])
     assert ' '.join(w['word'] for w in merged) == 'your whole body the difference'
+
+
+def test_merge_windows_dedupes_past_a_drifted_earlier_word():
+    a = _ws(('so', 754.0), ('your', 755.3), ('whole', 755.6), ('body', 755.9), ('can', 756.1))
+    b = _ws(('uh', 755.9), ('can', 756.15), ('feel', 757.2))
+    merged = pt._merge_windows([(0.0, 756.0, a), (756.0, 790.0, b)])
+    assert [w['word'] for w in merged].count('can') == 1
+    assert merged[-1]['word'] == 'feel'

@@ -188,3 +188,12 @@ def test_unreadable_settings_leave_the_pool_off(monkeypatch):
     monkeypatch.setattr(database, 'Database', boom)
     assert whisper_pool._db_settings_reader()() == {
         'enabled': False, 'backend': 'local', 'max_requests': 4, 'max_episodes': 1}
+
+
+def test_leader_flag_is_tri_state(monkeypatch):
+    monkeypatch.setattr(whisper_pool, '_is_leader', None)
+    assert whisper_pool.is_background_follower() is False
+    whisper_pool.set_background_role(False)
+    assert whisper_pool.is_background_follower() is True
+    whisper_pool.set_background_role(True)
+    assert whisper_pool.is_background_follower() is False

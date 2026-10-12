@@ -1381,6 +1381,10 @@ def calculate_optimal_chunk_duration(
         logger.warning("Could not determine available memory, using default chunk size")
         return CHUNK_DEFAULT_DURATION_SECONDS, "memory detection failed, using default"
 
+    # A resident model's weights are already out of the free figure.
+    if WhisperModelSingleton.is_loaded():
+        base_memory_gb = 0.0
+
     # Apply safety margin
     usable_gb = available_gb * MEMORY_SAFETY_MARGIN
 
@@ -3187,7 +3191,10 @@ class Transcriber:
             # keeps its OOM handling.
             prefetcher.prime(chunk_start, chunk_duration, duration, overlap)
             try:
-                WhisperModelSingleton.get_batched_pipeline()
+                if whisper_settings['backend'] == WHISPER_BACKEND_PARAKEET:
+                    ParakeetModelSingleton.get_instance()
+                else:
+                    WhisperModelSingleton.get_batched_pipeline()
             except Exception as e:
                 logger.debug(f"Model warm-up deferred to first chunk: {e}")
 

@@ -51,15 +51,10 @@ def get_available_gpu_memory_gb() -> float | None:
     try:
         import torch
         if torch.cuda.is_available():
-            # Get total and reserved memory
-            device = torch.cuda.current_device()
-            total = torch.cuda.get_device_properties(device).total_memory
-            cached = torch.cuda.memory_reserved(device)
-
-            # Available = total - reserved; reserved covers allocated memory
-            # plus PyTorch's caching-allocator headroom.
-            available = total - cached
-            return available / (1024 ** 3)
+            # Device-wide free memory, so ctranslate2 and ONNX Runtime
+            # allocations count; torch's own counters cannot see them.
+            free, _total = torch.cuda.mem_get_info(torch.cuda.current_device())
+            return free / (1024 ** 3)
     except ImportError:
         pass
     except Exception as e:

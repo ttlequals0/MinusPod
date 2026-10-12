@@ -11,6 +11,16 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.10] - 2026-10-11
+
+### Fixed
+- Episode processing runs only in the background leader worker. A reprocess or play request that reaches another gunicorn worker is queued instead of started there, so two workers no longer load a transcription model each on the one GPU. The second load was failing Parakeet session creation with an ONNX Runtime allocation error and cost the episode two retries.
+- Chunked transcription on the Parakeet backend no longer loads the Whisper model before decoding. The warm-up that overlaps model loading with chunk extraction loads the selected backend's model.
+- The GPU free-memory check reads device-wide free memory instead of PyTorch's reserved counter, so memory held by ctranslate2 and ONNX Runtime counts.
+- Chunk sizing no longer subtracts the model's base memory again when the model is already resident, since device-wide free memory already excludes it.
+- Parakeet window merging checks every kept word near a seam for a duplicate instead of stopping at the first earlier-timed word. A word whose window-quantized time drifted earlier no longer lets the next duplicate through.
+- The pre-roll heuristic counts a detected ad inside the pre-roll zone as an ad indicator and treats a line that names the podcast as the show intro. A produced pre-roll whose copy carries one URL and a short tagline detection is cut from the episode start instead of rejected as a fragment under the minimum ad length.
+
 ## [2.100.9] - 2026-10-11
 
 ### Fixed

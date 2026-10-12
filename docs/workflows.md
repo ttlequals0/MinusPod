@@ -56,9 +56,13 @@ many transcription requests are in flight at once.
 By default one episode runs at a time. Turn on the Whisper pool and raise its
 per-episode limit to transcribe several at once; the rest wait in the queue and
 start as slots free. Each running episode still flows through the same pipeline
-once its transcript is ready. The pool is off by default and only the
-background leader process runs it, so a single instance never double-allocates
-the transcriber.
+once its transcript is ready. The pool is off by default.
+
+Whatever the backend, only the background leader worker runs episodes. A
+reprocess or play request that lands on another gunicorn worker is queued and
+the leader's dispatcher picks it up on its next pass, within 30 s. One process
+holds every per-run state and every local transcription model, so two workers
+can never load a model each on the same GPU.
 
 The pool only activates on the remote Whisper API backend. Turning it on while
 transcription runs locally leaves it inactive, because the local model runs

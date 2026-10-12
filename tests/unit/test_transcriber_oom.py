@@ -153,21 +153,45 @@ def test_exhaustion_records_failed_outcome_and_releases_gpu_memory(monkeypatch):
     assert len(clear_calls) >= 3
 
 
-def test_chunked_cuda_exhaustion_preserves_permanent_error(monkeypatch):
+def _chunked_transcriber(chunk_result, stats):
+    """A Transcriber whose per-chunk decode is stubbed, for the chunked-loop tests."""
     t = Transcriber.__new__(Transcriber)
     t.get_audio_duration = MagicMock(return_value=3600.0)
-    t.transcribe = MagicMock(return_value=None)
+    t.transcribe = MagicMock(return_value=chunk_result)
     t.filter_hallucinations = lambda segments: segments
-    t.last_transcription_stats = {'error': 'CUDA failed with error out of memory'}
+    t.last_transcription_stats = stats
+    return t
 
-    def extract(*args, **kwargs):
-        handle = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-        handle.close()
-        return handle.name
+
+def _extract_chunk(*args, **kwargs):
+    handle = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+    handle.close()
+    return handle.name
+
+
+def test_chunked_parakeet_warm_up_never_loads_whisper(monkeypatch):
+    """The warm-up that overlaps chunk extraction loads the selected backend only."""
+    t = _chunked_transcriber([], {})
+    monkeypatch.setattr(transcriber_mod, '_require_local_transcription', lambda backend=None: None)
+
+    with patch('transcriber.extract_audio_chunk', side_effect=_extract_chunk), \
+            patch('transcriber._get_whisper_settings',
+                  return_value={'backend': 'parakeet'}), \
+            patch('transcriber.clear_gpu_memory'), \
+            patch.object(transcriber_mod.WhisperModelSingleton, 'get_batched_pipeline',
+                         side_effect=AssertionError('faster-whisper must not load')), \
+            patch.object(transcriber_mod.ParakeetModelSingleton, 'get_instance') as warm_up:
+        t.transcribe_chunked('/tmp/input.mp3')
+
+    warm_up.assert_called_once()
+
+
+def test_chunked_cuda_exhaustion_preserves_permanent_error(monkeypatch):
+    t = _chunked_transcriber(None, {'error': 'CUDA failed with error out of memory'})
 
     with patch('transcriber.calculate_optimal_chunk_duration',
                return_value=(1800.0, 'test')), \
-            patch('transcriber.extract_audio_chunk', side_effect=extract), \
+            patch('transcriber.extract_audio_chunk', side_effect=_extract_chunk), \
             patch('transcriber._get_whisper_settings',
                   return_value={'backend': 'local'}), \
             patch('transcriber.clear_gpu_memory'), \
@@ -236,20 +260,12 @@ def test_transcribe_propagates_a_model_load_failure(monkeypatch):
 
 
 def _chunked(transcribe):
-    t = Transcriber.__new__(Transcriber)
-    t.get_audio_duration = MagicMock(return_value=3600.0)
+    t = _chunked_transcriber(None, {})
     t.transcribe = transcribe
-    t.filter_hallucinations = lambda segments: segments
-    t.last_transcription_stats = {}
-
-    def extract(*args, **kwargs):
-        handle = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-        handle.close()
-        return handle.name
 
     with patch('transcriber.calculate_optimal_chunk_duration',
                return_value=(1800.0, 'test')), \
-            patch('transcriber.extract_audio_chunk', side_effect=extract), \
+            patch('transcriber.extract_audio_chunk', side_effect=_extract_chunk), \
             patch('transcriber._get_whisper_settings',
                   return_value={'backend': 'local'}), \
             patch('transcriber.clear_gpu_memory'), \

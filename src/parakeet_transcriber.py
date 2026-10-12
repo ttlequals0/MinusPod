@@ -214,12 +214,13 @@ def read_wav_float32(path):
     return data, rate
 
 
+# Kept words interleave in time at a seam, so the lookback is bounded by count.
+_SEAM_LOOKBACK = 12
+
+
 def _recent_words(words, floor):
-    """Kept words, newest first, while their start is at or after floor."""
-    for k in reversed(words):
-        if k['start'] < floor:
-            return
-        yield k
+    """Kept words near the seam whose start is at or after floor."""
+    return [k for k in words[-_SEAM_LOOKBACK:] if k['start'] >= floor]
 
 
 def _merge_windows(decoded):

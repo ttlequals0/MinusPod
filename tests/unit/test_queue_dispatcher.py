@@ -1,4 +1,4 @@
-"""Dispatcher keeps up to max_episodes runs in flight; API workers enqueue while the pool is active."""
+"""Dispatcher keeps up to max_episodes runs in flight; follower workers always enqueue."""
 import signal
 import threading
 import time
@@ -194,9 +194,19 @@ def test_durable_pause_blocks_new_processing(feed, monkeypatch):
     assert ProcessingQueue().is_processing(SLUG, 'ep-paused') is False
 
 
-def test_start_outside_leader_runs_when_inactive(feed, monkeypatch):
+def test_follower_enqueues_even_with_the_pool_inactive(feed, monkeypatch):
+    """Local backends load the model in-process, so a follower must never run one."""
     monkeypatch.setattr('main_app.processing.get_pool', lambda: _pool(False, 2))
     monkeypatch.setattr(whisper_pool, '_is_leader', False)
+    with patch('main_app.processing.threading.Thread') as thread:
+        started, reason = start_background_processing(SLUG, 'ep-play', 'https://example.com/e.mp3', 'E', 'P', None, None)
+    assert (started, reason) == (False, 'queue_only')
+    thread.assert_not_called()
+
+
+def test_start_without_an_election_runs(feed, monkeypatch):
+    monkeypatch.setattr('main_app.processing.get_pool', lambda: _pool(False, 2))
+    monkeypatch.setattr(whisper_pool, '_is_leader', None)
     with patch('main_app.processing.threading.Thread') as thread:
         started, reason = start_background_processing(SLUG, 'ep-play', 'https://example.com/e.mp3', 'E', 'P', None, None)
     assert (started, reason) == (True, 'started')

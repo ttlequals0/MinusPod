@@ -62,6 +62,23 @@ AD_INDICATOR_PATTERNS = [
 MIN_AD_PATTERN_MATCHES = 2
 MAX_PREROLL_DURATION = 120.0   # seconds
 MAX_POSTROLL_DURATION = 120.0  # seconds
+MIN_SHOW_NAME_CHARS = 8
+_NON_ALNUM = re.compile(r'[^a-z0-9]+')
+_SHOW_NAME_AFFIXES = re.compile(r'^the | (podcast|show)$')
+
+
+def _plain_words(text: str) -> str:
+    return _NON_ALNUM.sub(' ', (text or '').lower()).strip()
+
+
+def _show_name_key(podcast_name: str) -> str:
+    """Podcast name reduced to the words a host would say when opening the show."""
+    key = _SHOW_NAME_AFFIXES.sub('', _plain_words(podcast_name))
+    return key if len(key) >= MIN_SHOW_NAME_CHARS else ''
+
+
+def _names_show(text: str, name_key: str) -> bool:
+    return bool(name_key) and name_key in _plain_words(text)
 
 
 def _region_covered(start: float, end: float, ads: list[dict],
@@ -103,8 +120,8 @@ def detect_preroll(
 
     Args:
         segments: Transcript segments with 'start', 'end', 'text' keys
-        existing_ads: Already-detected ads to avoid duplicates
-        podcast_name: Podcast name (unused, reserved for future filtering)
+        existing_ads: Already-detected ads; one inside the zone counts as an indicator
+        podcast_name: A line naming the show marks the intro, like the show-start patterns
         skip_patterns: When True (Full reprocess mode), lower match threshold
             from MIN_AD_PATTERN_MATCHES to 1 since Stages 1 & 2 are skipped
 
@@ -118,16 +135,14 @@ def detect_preroll(
     max_search_end = episode_start + MAX_PREROLL_DURATION
 
     # Find first show-start segment
+    name_key = _show_name_key(podcast_name)
     show_start_time = None
     for seg in segments:
         if seg['start'] > max_search_end:
             break
         text = seg.get('text', '')
-        for pattern in SHOW_START_PATTERNS:
-            if pattern.search(text):
-                show_start_time = seg['start']
-                break
-        if show_start_time is not None:
+        if _names_show(text, name_key) or any(p.search(text) for p in SHOW_START_PATTERNS):
+            show_start_time = seg['start']
             break
 
     if show_start_time is None or show_start_time <= episode_start + 5.0:
@@ -140,23 +155,27 @@ def detect_preroll(
     # Get text before show start and count ad patterns
     preroll_text = get_transcript_text_for_range(segments, episode_start, show_start_time)
     match_count = _count_ad_patterns(preroll_text)
+    # A detected ad inside the zone (often just the tagline) stands in for one pattern.
+    corroborated = any(overlap_seconds(episode_start, show_start_time, ad['start'], ad['end']) > 0
+                       for ad in existing_ads)
 
-    threshold = 1 if skip_patterns else MIN_AD_PATTERN_MATCHES
+    threshold = 1 if (skip_patterns or corroborated) else MIN_AD_PATTERN_MATCHES
     if match_count < threshold:
         return None
 
-    confidence = min(0.7 + (match_count * 0.05), 0.95)
+    confidence = min(0.7 + (match_count + corroborated) * 0.05, 0.95)
+    evidence = f'{match_count} ad indicators' + (' and a detected ad' if corroborated else '')
 
     logger.info(
         f"Heuristic pre-roll detected: {episode_start:.1f}s-{show_start_time:.1f}s "
-        f"({match_count} ad patterns, confidence={confidence:.2f})"
+        f"({evidence}, confidence={confidence:.2f})"
     )
 
     return {
         'start': episode_start,
         'end': show_start_time,
         'confidence': confidence,
-        'reason': f'Pre-roll ad ({match_count} ad indicators before show intro)',
+        'reason': f'Pre-roll ad ({evidence} before show intro)',
         'detection_stage': 'heuristic_preroll',
     }
 

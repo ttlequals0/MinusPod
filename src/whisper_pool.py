@@ -25,19 +25,23 @@ _FALLBACK_SETTINGS = {
     'enabled': False, 'backend': 'local', 'max_requests': 4, 'max_episodes': 1,
 }
 
-# Set once this process wins the background-leader lock at startup (see
-# _try_become_background_leader in main_app/__init__.py). Gates episode runs
-# while the whisper pool is active so per-run state stays in one process.
-_is_leader = False
+# True/False after the startup leader election (main_app/__init__.py), None where
+# none ran (tests, scripts). Followers never start episodes, so one process holds
+# every per-run state and every GPU model.
+_is_leader: bool | None = None
 
 
-def mark_background_leader() -> None:
+def set_background_role(is_leader: bool) -> None:
     global _is_leader
-    _is_leader = True
+    _is_leader = is_leader
 
 
 def is_background_leader() -> bool:
-    return _is_leader
+    return _is_leader is True
+
+
+def is_background_follower() -> bool:
+    return _is_leader is False
 
 
 def _pool_int(db, key: str, bounds: tuple[int, int]) -> int:

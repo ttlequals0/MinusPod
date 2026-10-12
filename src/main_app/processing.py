@@ -73,7 +73,7 @@ from utils.time import (
     parse_iso_utc, ranges_overlap, span_inside_any_cut, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
-from whisper_pool import get_pool, is_background_leader
+from whisper_pool import get_pool, is_background_follower
 from config import (
     log_download_query_enabled,
     resolve_max_boundary_shift,
@@ -568,7 +568,7 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         Tuple of (started: bool, reason: str)
         - (True, "started") if processing was started
         - (False, "already_processing") if this episode is already being processed
-        - (False, "queue_only") if the whisper pool is active and this process is not the leader
+        - (False, "queue_only") if this process is a background follower, not the leader
         - (False, "queue_busy:slug:episode_id") if another episode is processing
         - (False, "rate_limit_paused") while a rate-limit hold is active
     """
@@ -587,9 +587,9 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
     if queue.is_processing(slug, episode_id):
         return False, "already_processing"
 
-    # Pool active: only the background leader runs episodes, so every
-    # per-run state lives in one process. Callers enqueue on any refusal.
-    if get_pool().active and not is_background_leader():
+    # Only the background leader runs episodes, so every per-run state and
+    # every GPU model lives in one process. Callers enqueue on any refusal.
+    if is_background_follower():
         return False, "queue_only"
 
     # Rate-limit hold (#696): the one choke point every start goes through,

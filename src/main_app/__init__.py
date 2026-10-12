@@ -717,7 +717,7 @@ from main_app.background import (
     background_rss_refresh, background_queue_processor,
     reset_stuck_processing_episodes,
 )
-from whisper_pool import mark_background_leader
+from whisper_pool import set_background_role
 from podping_listener import podping_listener_loop
 import stall_watchdog
 from status_service import reconcile_startup_state
@@ -774,8 +774,7 @@ def _startup():
     """
 
     is_leader = _try_become_background_leader()
-    if is_leader:
-        mark_background_leader()
+    set_background_role(is_leader)
 
     # Reset any episodes stuck in 'processing' status from previous crash.
     # Leader-only - the followers would just race the same UPDATE.
