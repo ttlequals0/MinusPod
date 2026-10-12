@@ -17,7 +17,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='cue-nm-test-
 
 from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal  # noqa: E402
 from main_app.pipeline import detect
-from main_app.pipeline import review, verify, publish
+from tests.unit.pipeline_test_utils import stub_clear_fallback
 
 
 def _match(start, end, conf=0.95, label='ding'):
@@ -56,10 +56,7 @@ def test_near_miss_is_advisory_only(monkeypatch):
     monkeypatch.setattr(processing.ad_detector, 'process_transcript', lambda *a, **k: ad_result)
     monkeypatch.setattr(processing.storage, 'save_ads_json', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
-    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
+    stub_clear_fallback(monkeypatch)
     monkeypatch.setattr(processing, 'db', _StubDB())
 
     analysis = AudioAnalysisResult()

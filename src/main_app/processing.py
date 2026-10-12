@@ -65,11 +65,11 @@ audio_logger = logging.getLogger('podcast.audio')
 
 from main_app.episode_context import EpisodeContext
 from main_app.pipeline import common, transcribe, signals, detect, review, cuts, keep_rules, verify, publish, finalize, admission, failure, recut
-from main_app.pipeline import admission as admission_stage  # local `admission` shadows the module in _reserve_provider
 # Stage modules resolve every singleton through this module (pipeline.shared).
-from main_app import (db, storage, transcriber, ad_detector, audio_processor,  # noqa: F401
-                      audio_analyzer, sponsor_service, status_service, pattern_service,
-                      shutdown_event)
+from main_app import (db, storage, transcriber, ad_detector, audio_processor,
+                      status_service, shutdown_event)
+# Patch surface: tests rebind processing.<name>; pipeline.shared proxies read it here.
+from main_app import audio_analyzer, sponsor_service, pattern_service  # noqa: F401
 
 
 def _cleanup_cancelled_processing_output(slug, episode_id, run_id, queue,
@@ -440,23 +440,23 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     def _reserve_provider():
         if provider_reservations:
             return
-        pairs = admission_stage._required_providers_for_admission(slug, episode_id)
+        pairs = admission._required_providers_for_admission(slug, episode_id)
         if pairs is not None and not pairs:
             return  # No phase reaches an LLM, so there is no spend to reserve.
         provider_keys = (sorted({pk for pk, _slot in pairs}) if pairs
                          else [get_effective_provider()])
         acquired: dict[str, str] = {}
         for provider_key in provider_keys:
-            admission = db.reserve_provider_spend(
+            grant = db.reserve_provider_spend(
                 provider_key, None, run_id=run_id)
-            if not admission['allowed']:
+            if not grant['allowed']:
                 for rid in acquired.values():
                     db.release_provider_spend(rid)
                 raise RuntimeError(
                     f"Provider admission denied for {provider_key}: "
-                    f"{admission['reason']}")
-            if admission['reservation_id'] is not None:
-                acquired[provider_key] = admission['reservation_id']
+                    f"{grant['reason']}")
+            if grant['reservation_id'] is not None:
+                acquired[provider_key] = grant['reservation_id']
         provider_reservations.update(acquired)
 
     def _reconcile_provider_actuals():

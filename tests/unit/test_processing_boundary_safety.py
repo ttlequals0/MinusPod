@@ -18,10 +18,9 @@ from config import (HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
 from main_app import processing
 from main_app.pipeline import common, detect, review, cuts, keep_rules, verify
 from main_app.verification_reconciliation import _gate_verification_ads_by_confidence
-from main_app.pipeline import publish
 from main_app.pipeline import cuts as cuts_stage
 from tests.unit.pass2_test_utils import _ctx
-from tests.unit.pipeline_test_utils import _run_pipeline
+from tests.unit.pipeline_test_utils import _run_pipeline, stub_clear_fallback
 from tests.unit.reviewer_test_utils import (
     InconclusiveError, _build_reviewer, _meta, _mock_episode_meta, _resp, _reviewer,
 )
@@ -110,10 +109,7 @@ def test_abstained_pass1_and_adjacent_pass2_never_reach_render_or_learning(monke
     reviewer = _reviewer()
     monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
     monkeypatch.setattr(review, '_build_reviewer', lambda db, detector: reviewer)
-    monkeypatch.setattr(detect, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(review, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(verify, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(publish, 'clear_fallback', lambda *args: None)
+    stub_clear_fallback(monkeypatch)
     monkeypatch.setattr(common, '_publish_status', lambda *args: None)
     monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
     monkeypatch.setattr('ad_reviewer.call_llm_for_window',

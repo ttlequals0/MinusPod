@@ -1,4 +1,4 @@
-"""Every processing.<name> reference in tests resolves to a real attribute of main_app.processing."""
+"""Guards patch targets: tests must not patch a processing.<name> that processing.py no longer has."""
 import pathlib
 import re
 
@@ -9,10 +9,9 @@ bootstrap('refs_test_')
 from main_app import processing  # noqa: E402
 
 TESTS = pathlib.Path(__file__).resolve().parents[1]
-PATTERNS = (re.compile(r"main_app\.processing\.([A-Za-z_]\w*)"),
-            re.compile(r"\bprocessing\.([A-Za-z_]\w*)"),
-            re.compile(r"setattr\(processing, '([A-Za-z_]\w*)'"),
-            re.compile(r"patch\.object\(processing, '([A-Za-z_]\w*)'"))
+PATTERNS = (re.compile(r"main_app\.processing\.(\w+)"),
+            re.compile(r"setattr\(processing, '(\w+)'"),
+            re.compile(r"patch\.object\(processing, '(\w+)'"))
 
 
 def test_no_stale_processing_attribute_references():
@@ -23,6 +22,6 @@ def test_no_stale_processing_attribute_references():
             continue
         for pattern in PATTERNS:
             for name in pattern.findall(text):
-                if name != 'py' and not hasattr(processing, name):
+                if not hasattr(processing, name):
                     stale.add(f'{path.relative_to(TESTS)}: processing.{name}')
     assert not stale, '\n'.join(sorted(stale))

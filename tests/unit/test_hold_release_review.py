@@ -25,10 +25,10 @@ from utils.markers import EDGE_TOLERANCE, is_reviewer_rejected, reviewer_hold_st
 from main_app.verification_reconciliation import (
     Pass2Ledger, WordEdges, _gate_verification_ads_by_confidence,
 )
-from main_app.pipeline import detect, publish
 from main_app.pipeline import review as review_stage
 from utils.time import adjust_timestamp
 from verification_pass import _build_timestamp_map, _map_to_original
+from tests.unit.pipeline_test_utils import stub_clear_fallback
 from tests.unit.pass2_test_utils import (
     NO_SPLICE, _approval_db, _ctx, _hold, _recut_validate, _release_confirm, _spans,
     _user_corrections, _verdict, drive_verification_pass,
@@ -289,10 +289,7 @@ def test_resurrect_band_finding_over_a_hold_is_never_cut(monkeypatch):
         pool='resurrection', pass_num=2, verdict='resurrect',
         original_start=1040.0, original_end=1060.0, reasoning='Acme read')])
     monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
-    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
+    stub_clear_fallback(monkeypatch)
     monkeypatch.setattr(processing.status_service, 'update_job_stage',
                         lambda *a, **k: None)
     monkeypatch.setattr(review, 'split_resurrection_pool', lambda *a, **k: orig)

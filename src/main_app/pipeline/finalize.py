@@ -14,15 +14,11 @@ from config import (
     LOW_AD_YIELD_ACTION_MODES,
 )
 
-from llm_client import (
-    get_episode_token_totals,
-)
+from llm_client import get_episode_token_totals
 
 import run_context
 import run_log
-from reprocess_modes import (
-    REPROCESS_MODE_NEEDS_TRANSCRIPT,
-)
+from reprocess_modes import REPROCESS_MODE_NEEDS_TRANSCRIPT
 
 from utils.constants import (
     EpisodeStatus, PIPELINE_REPROCESS_SOURCES,
@@ -35,10 +31,10 @@ from webhook_service import (
     fire_event, EVENT_EPISODE_PROCESSED,
 )
 
-audio_logger = logging.getLogger('podcast.audio')
-
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage)
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,

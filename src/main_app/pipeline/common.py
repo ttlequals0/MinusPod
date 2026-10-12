@@ -8,9 +8,7 @@ import tempfile
 from contextlib import contextmanager
 import requests
 import requests.exceptions
-from cancel import (
-    _check_cancel,
-)
+from cancel import _check_cancel
 
 from config import (
     MIN_CUT_CONFIDENCE, ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS,
@@ -29,9 +27,9 @@ from utils.errors import (
     TranscriptionRejectedError,
 )
 
-audio_logger = logging.getLogger('podcast.audio')
-
 from main_app.pipeline.shared import (db, status_service)
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _require_publication_owner(slug: str, episode_id: str) -> None:

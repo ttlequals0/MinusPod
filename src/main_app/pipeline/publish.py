@@ -44,14 +44,12 @@ from rate_limit_hold import (
 )
 
 from user_agent import download_user_agent
-from utils.constants import (
-    EpisodeStatus,
-)
-
-audio_logger = logging.getLogger('podcast.audio')
+from utils.constants import EpisodeStatus
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage)
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _unadjust_timestamp(processed_time, cuts, replacement_duration=0.0):

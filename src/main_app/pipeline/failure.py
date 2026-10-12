@@ -2,13 +2,9 @@
 
 import logging
 import time
-from utils.time import (
-    utc_now_iso,
-)
+from utils.time import utc_now_iso
 
-from config import (
-    MAX_EPISODE_RETRIES,
-)
+from config import MAX_EPISODE_RETRIES
 
 from llm_client import (
     is_rate_limit_error,
@@ -38,10 +34,10 @@ from webhook_service import (
     fire_service_offline_event,
 )
 
-audio_logger = logging.getLogger('podcast.audio')
-
 from main_app.pipeline import common, finalize, admission
-from main_app.pipeline.shared import (db)
+from main_app.pipeline.shared import db
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _requeue_episode_after_hold(db, slug, episode_id, episode_title,

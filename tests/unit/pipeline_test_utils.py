@@ -1,4 +1,6 @@
 """Full pass-1 pipeline driver with every stage but the partition mocked; import after bootstrap."""
+import importlib
+import pkgutil
 from contextlib import ExitStack
 from unittest.mock import patch
 
@@ -8,9 +10,18 @@ from main_app.pipeline import finalize as finalize_stage
 from main_app.pipeline import detect as detect_stage
 from main_app.pipeline import common, transcribe, signals, cuts, verify, publish
 from main_app.pipeline import recut
+import main_app.pipeline as pipeline
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
+
+
+def stub_clear_fallback(monkeypatch):
+    """No-op clear_fallback on every pipeline module that imports it."""
+    for info in pkgutil.iter_modules(pipeline.__path__):
+        module = importlib.import_module(f'main_app.pipeline.{info.name}')
+        if hasattr(module, 'clear_fallback'):
+            monkeypatch.setattr(module, 'clear_fallback', lambda *a, **k: None)
 
 
 def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,

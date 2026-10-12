@@ -12,20 +12,16 @@ from database.podcasts import is_local_feed
 from transcriber import CDN_REFUSED_PREFIX
 from user_agent import download_user_agent, feed_user_agent
 from utils.episode_paths import published_episode_version
-from utils.errors import (
-    AudioNotReadyError,
-)
+from utils.errors import AudioNotReadyError
 
 from utils.http import safe_url_for_log
 from utils.language import get_feed_language_override
-from utils.text import (
-    parse_transcript_segments,
-)
-
-audio_logger = logging.getLogger('podcast.audio')
+from utils.text import parse_transcript_segments
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage, transcriber, sponsor_service)
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,

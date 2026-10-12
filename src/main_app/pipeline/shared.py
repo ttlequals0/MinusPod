@@ -1,15 +1,13 @@
-"""App singletons for pipeline stages, resolved through main_app.processing at call time.
+"""Proxies for the app singletons that pipeline stages use.
 
-Stage modules read db, storage and the service objects through these proxies so a
-test that rebinds processing.db reaches every stage, as it did when the stages
-were one module.
+main_app creates the singletons; stage modules read them through these proxies.
+Each proxy resolves through main_app.processing because tests rebind them there
+(monkeypatch.setattr(processing, 'db', fake)).
 """
 import sys
 
 
 class SharedSingleton:
-    __slots__ = ('_name',)
-
     def __init__(self, name):
         self._name = name
 
@@ -21,9 +19,6 @@ class SharedSingleton:
 
     def __bool__(self):
         return bool(self._target())
-
-    def __repr__(self):
-        return f'<shared {self._name}>'
 
 
 db = SharedSingleton('db')

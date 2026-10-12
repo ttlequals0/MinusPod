@@ -30,10 +30,10 @@ from transcript_differential import align, fetch_upstream_transcript
 from splice_calibration import compute_splice_calibration
 from user_agent import download_user_agent
 
-audio_logger = logging.getLogger('podcast.audio')
-
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, audio_analyzer)
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detection=False):

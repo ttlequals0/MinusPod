@@ -3,9 +3,7 @@
 import logging
 import os
 from dataclasses import dataclass, replace
-from ad_detector.boundaries import (
-    _content_duration_in_range,
-)
+from ad_detector.boundaries import _content_duration_in_range
 
 from audio_processor import get_replacement_duration
 from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, covering_confirm, finite_number,
@@ -36,15 +34,9 @@ from llm_capabilities import (
     clear_fallback,
 )
 
-from llm_client import (
-    ProviderRateLimitedError,
-)
+from llm_client import ProviderRateLimitedError
 
-from utils.errors import (
-    ModelLoadError,
-)
-
-audio_logger = logging.getLogger('podcast.audio')
+from utils.errors import ModelLoadError
 
 from main_app.verification_reconciliation import (
     _apply_pass2_heuristic_rolls,
@@ -61,9 +53,10 @@ from main_app.verification_reconciliation import (
     Pass2Ledger,
     labelled_spans,
 )
-
-from main_app.pipeline import common, detect, review, cuts as cuts_stage, keep_rules
+from main_app.pipeline import common, detect, review, cuts, keep_rules
 from main_app.pipeline.shared import (db, storage, transcriber, ad_detector, audio_analyzer, pattern_service)
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _dedupe_pass2_markers(markers):
@@ -725,15 +718,15 @@ def build_protection(kept, category_kept, user_trims, fp_corrections, holds,
     )
 
 
-def _render_barriers(hard, markers, cuts=(), pass1_cuts=None):
+def _render_barriers(hard, markers, rendered_cuts=(), pass1_cuts=None):
     """Render kwargs: cuts clip at hard ranges and never bridge or extend over a pending hold.
 
     With pass1_cuts the holds are mapped onto the pass-1 output timeline, where hard already is.
     """
-    seen = {id(cut) for cut in cuts}
+    seen = {id(cut) for cut in rendered_cuts}
     holds = []
     for m in markers or []:
-        if cuts_stage._unrendered_hold(m) and id(m) not in seen:
+        if cuts._unrendered_hold(m) and id(m) not in seen:
             seen.add(id(m))
             holds.append(m)
     if pass1_cuts is not None:

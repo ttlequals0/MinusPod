@@ -17,7 +17,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='cue-wire-tes
 
 from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal  # noqa: E402
 from main_app.pipeline import detect
-from main_app.pipeline import review, verify, publish
+from tests.unit.pipeline_test_utils import stub_clear_fallback
 
 
 def _cue(start, end, conf=0.95, label='ding'):
@@ -69,10 +69,7 @@ def test_first_pass_applies_cue_pair_and_snap(monkeypatch):
     monkeypatch.setattr(processing.ad_detector, 'process_transcript', lambda *a, **k: ad_result)
     monkeypatch.setattr(processing.storage, 'save_ads_json', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
-    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
+    stub_clear_fallback(monkeypatch)
     monkeypatch.setattr(processing, 'db', _StubDB(create_from_pairs=True))
 
     analysis = AudioAnalysisResult()
@@ -116,10 +113,7 @@ def test_first_pass_no_cue_pair_when_setting_off(monkeypatch):
     monkeypatch.setattr(processing.ad_detector, 'process_transcript', lambda *a, **k: ad_result)
     monkeypatch.setattr(processing.storage, 'save_ads_json', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
-    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
+    stub_clear_fallback(monkeypatch)
     monkeypatch.setattr(processing, 'db', _StubDB(create_from_pairs=False))
 
     analysis = AudioAnalysisResult()
@@ -142,10 +136,7 @@ def test_pair_fraction_uses_audio_duration_with_transcript_fallback(monkeypatch,
     monkeypatch.setattr(processing.ad_detector, 'process_transcript', lambda *a, **k: ad_result)
     monkeypatch.setattr(processing.storage, 'save_ads_json', lambda *a, **k: None)
     monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
-    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
+    stub_clear_fallback(monkeypatch)
     db = _StubDB(create_from_pairs=True)
     overrides = db.get_podcast_cue_settings_overrides(1)
     overrides['cue_pair_max_break_fraction_override'] = 0.4

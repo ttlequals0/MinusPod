@@ -21,11 +21,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from main_app import processing
 from main_app.pipeline import common, review
 from main_app.verification_reconciliation import Pass2Ledger
-from main_app.pipeline import detect, verify, publish
+from main_app.pipeline import verify, publish
 from main_app.pipeline import cuts as cuts_stage
 from ad_reviewer import ReviewResult, log_contradiction_event
 from tests.unit.pass2_test_utils import _ctx, _verdict, drive_verification_pass
 from tests.unit.reviewer_test_utils import _build_reviewer, _resp
+from tests.unit.pipeline_test_utils import stub_clear_fallback
 from config import (HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
                     HOLD_REASON_REVIEWER_CONTRADICTION, is_pending_review)
 
@@ -43,10 +44,7 @@ def _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                ads_processed, ads_original, resurrection_eligible=None, **kwargs):
     result = ReviewResult(verdicts=list(verdicts))
     monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
-    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
+    stub_clear_fallback(monkeypatch)
     monkeypatch.setattr(processing.status_service, 'update_job_stage',
                         lambda *a, **k: None)
     monkeypatch.setattr(review, 'split_resurrection_pool',
@@ -366,10 +364,7 @@ def _run_real_pass2_review(monkeypatch, proposed, **kwargs):
     reviewer._llm_client.messages_create.return_value = _resp(
         f'[{{"start": {proposed[0]}, "end": {proposed[1]}, "confidence": 0.96}}]')
     monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
-    monkeypatch.setattr(detect, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(review, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(verify, 'clear_fallback', lambda *a, **k: None)
-    monkeypatch.setattr(publish, 'clear_fallback', lambda *a, **k: None)
+    stub_clear_fallback(monkeypatch)
     monkeypatch.setattr(common, '_publish_status', lambda *a, **k: None)
     monkeypatch.setattr(review, 'split_resurrection_pool', lambda *a, **k: [])
     monkeypatch.setattr(review, '_build_reviewer', lambda db, det: reviewer)

@@ -1,9 +1,7 @@
 """Cut carving, hold carving, terminal snaps and final cut state."""
 
 import logging
-from ad_detector import (
-    extend_ad_boundaries_by_content,
-)
+from ad_detector import extend_ad_boundaries_by_content
 
 from ad_detector.boundaries import (
     snap_extended_ad_tails_to_splice,
@@ -31,10 +29,10 @@ from config import (
 
 from splice_calibration import SPLICE_EVENTS_CALIBRATED_STATUSES
 
-audio_logger = logging.getLogger('podcast.audio')
-
 from main_app.pipeline import review
 from main_app.pipeline.shared import (db, storage)
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _find_master(all_ads, ad):

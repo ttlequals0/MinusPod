@@ -2,16 +2,12 @@
 
 import json
 import logging
-from ad_detector.boundaries import (
-    effective_resolved_action,
-)
+from ad_detector.boundaries import effective_resolved_action
 
 from ad_validator import restore_uncovered_confirmed_spans, user_trimmed_keep_ranges
-from differential_fetcher import (
-    differential_region_overlapping,
-)
+from differential_fetcher import differential_region_overlapping
 
-from utils.markers import (is_carved)
+from utils.markers import is_carved
 from config import (
     is_pending_review, normalize_segment_category, is_keep_like,
     DEFAULT_SEGMENT_ACTION,
@@ -20,14 +16,11 @@ from config import (
 
 from database.settings import registry_get_default
 
-audio_logger = logging.getLogger('podcast.audio')
-
-from main_app.verification_reconciliation import (
-    _covered_by_cuts,
-)
-
+from main_app.verification_reconciliation import _covered_by_cuts
 from main_app.pipeline import cuts
 from main_app.pipeline.shared import (db, ad_detector)
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _keep_overridden_by_pattern(ad) -> bool:

@@ -11,10 +11,10 @@ from ad_reviewer import (POLICY_LINE_CAP, _capped_line, _edge_item,
 from database import DEFAULT_REVIEW_PROMPT
 from main_app import processing
 from main_app.pipeline import common, review
-from main_app.pipeline import detect, verify, publish
 from main_app.pipeline import review as review_stage
 from utils.markers import hard_members, note_merged_members
 from tests.unit.reviewer_test_utils import _reviewer
+from tests.unit.pipeline_test_utils import stub_clear_fallback
 
 ACTIONS = {'sponsor': 'remove', 'cross_promo': 'remove', 'self_promo': 'keep'}
 SEGMENTS = [
@@ -177,10 +177,7 @@ def test_pass1_reviewer_gets_keeps_and_user_rejections(monkeypatch):
     monkeypatch.setattr(processing, 'db', MagicMock())
     monkeypatch.setattr(review_stage, '_ad_review_enabled', lambda db: True)
     monkeypatch.setattr(review_stage, '_build_reviewer', lambda db, det: reviewer)
-    monkeypatch.setattr(detect, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(review_stage, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(verify, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(publish, 'clear_fallback', lambda *args: None)
+    stub_clear_fallback(monkeypatch)
     monkeypatch.setattr(common, '_publish_status', lambda *args: None)
     monkeypatch.setattr(review_stage, '_merge_reviewer_result', lambda *args: None)
     monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
@@ -205,10 +202,7 @@ def test_pass1_reviewer_widen_stops_at_a_user_rejection(monkeypatch):
     monkeypatch.setattr(processing, 'db', MagicMock())
     monkeypatch.setattr(review, '_ad_review_enabled', lambda db: True)
     monkeypatch.setattr(review, '_build_reviewer', lambda db, det: reviewer)
-    monkeypatch.setattr(detect, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(review, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(verify, 'clear_fallback', lambda *args: None)
-    monkeypatch.setattr(publish, 'clear_fallback', lambda *args: None)
+    stub_clear_fallback(monkeypatch)
     monkeypatch.setattr(common, '_publish_status', lambda *args: None)
     monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
     ad = {'start': 3492.9, 'end': 3573.2, 'confidence': 0.95,

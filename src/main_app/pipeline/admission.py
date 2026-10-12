@@ -14,9 +14,7 @@ from config import (
 )
 
 from database import Database
-from llm_client import (
-    ProviderAccountChangedError,
-)
+from llm_client import ProviderAccountChangedError
 
 from llm_route import apply_failover_dict, resolve_route, route_account_mismatch
 from rate_limit_hold import (
@@ -25,10 +23,10 @@ from rate_limit_hold import (
 
 import run_context
 
-audio_logger = logging.getLogger('podcast.audio')
-
 from main_app.pipeline import review
-from main_app.pipeline.shared import (db)
+from main_app.pipeline.shared import db
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def build_podcast_context(podcast_settings):

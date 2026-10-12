@@ -26,14 +26,11 @@ from llm_capabilities import (
     clear_fallback,
 )
 
-audio_logger = logging.getLogger('podcast.audio')
-
-from main_app.verification_reconciliation import (
-    Pass2Ledger,
-)
-
+from main_app.verification_reconciliation import Pass2Ledger
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage, ad_detector)
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _build_reviewer(db, ad_detector) -> AdReviewer:

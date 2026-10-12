@@ -39,18 +39,14 @@ from llm_client import (
     ProviderRequestRejectedError,
 )
 
-from utils.errors import (
-    ServiceUnavailableError,
-)
+from utils.errors import ServiceUnavailableError
 
-from webhook_service import (
-    fire_cue_template_quiet_event,
-)
-
-audio_logger = logging.getLogger('podcast.audio')
+from webhook_service import fire_cue_template_quiet_event
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage, ad_detector, sponsor_service)
+
+audio_logger = logging.getLogger('podcast.audio')
 
 
 def _exclude_opening_ads(ads, seconds):
