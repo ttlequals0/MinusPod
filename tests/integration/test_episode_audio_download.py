@@ -31,7 +31,7 @@ def _seed(tmp_path, status):
 def seeded(app_client, tmp_path, request):
     status = getattr(request, 'param', EpisodeStatus.PROCESSED.value)
     db, cut, original = _seed(tmp_path, status)
-    with patch('api.episodes.get_storage') as storage:
+    with patch('api.episodes.media.get_storage') as storage:
         storage.return_value.get_episode_path.return_value = cut
         storage.return_value.get_original_path.return_value = original
         yield cut, storage

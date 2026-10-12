@@ -58,7 +58,7 @@ def test_peaks_route_shape_when_present(app_client, tmp_path):
     )
     conn.commit()
 
-    with patch('api.episodes.get_storage') as mock_storage, \
+    with patch('api.episodes.media.get_storage') as mock_storage, \
          patch('audio_peaks.compute_peaks') as mock_compute:
         mock_storage.return_value.get_original_path.return_value = fake_audio
         mock_compute.return_value = ([0.1, 0.5, 0.9], 50)

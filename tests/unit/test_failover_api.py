@@ -13,7 +13,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='failover-api
 
 import api
 import failover
-from api.episodes import _run_stats_to_api
+from api.episodes.core import _run_stats_to_api
 
 
 @pytest.fixture

@@ -234,7 +234,7 @@ def test_episode_api_keeps_an_insecure_cover_url_for_the_proxy():
     """The client turns this into a call to the episode artwork proxy rather
     than rendering it, and the proxy fetches server-side, so an http:// cover
     is no longer mixed content and no longer worth dropping the image over."""
-    from api.episodes import _secure_artwork_url
+    from api.episodes.core import _secure_artwork_url
     assert _secure_artwork_url('http://cdn.example/ep.jpg') == 'http://cdn.example/ep.jpg'
     assert _secure_artwork_url('https://cdn.example/ep.jpg') == 'https://cdn.example/ep.jpg'
     assert _secure_artwork_url(None) is None

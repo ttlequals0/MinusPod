@@ -19,7 +19,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 from main_app import app
 from main_app.pipeline import publish
-from api.episodes import chapters_only_decisions
+from api.episodes.runs import chapters_only_decisions
 
 SLUG = 'pending-recut-test'
 EPISODE_ID = 'a1b2c3d4e5f6'

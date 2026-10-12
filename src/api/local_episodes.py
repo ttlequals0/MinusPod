@@ -24,7 +24,7 @@ from flask import request
 
 from api import (api, limiter, log_request, json_response, error_response,
                  get_database, get_storage, get_status_service)
-from api.episodes import _episode_base_json
+from api.episodes.core import _episode_base_json
 from api.feeds import _validate_p20_items, _p20_tag_attrs
 from cancel import request_cancellation, wait_for_cancellation
 from database.podcasts import is_local_feed

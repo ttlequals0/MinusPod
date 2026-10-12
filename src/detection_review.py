@@ -17,7 +17,7 @@ UNSET_CATEGORY = 'none'
 
 
 def marker_status(marker: dict) -> str:
-    """Mirror of the episode endpoint's bucketing (api/episodes.py)."""
+    """Mirror of the episode endpoint's bucketing (api/episodes/core.py)."""
     if is_pending_review(marker):
         return 'pending'
     decision = (marker.get('validation') or {}).get('decision', 'ACCEPT')

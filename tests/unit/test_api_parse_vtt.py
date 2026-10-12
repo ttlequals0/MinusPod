@@ -4,7 +4,7 @@ Was `_parse_vtt_to_segments` (module-private). Renamed for the offline LLM
 benchmark, which imports it directly to feed transcripts through the same
 parser production uses.
 """
-from api.episodes import parse_vtt_to_segments
+from api.episodes.chapters import parse_vtt_to_segments
 
 
 def test_parse_vtt_to_segments_renamed_export_callable():

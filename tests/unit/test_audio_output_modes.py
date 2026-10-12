@@ -11,7 +11,7 @@ import main_app.processing as processing
 from main_app.pipeline import common
 
 from audio_processor import AudioProcessor
-from api.episodes import chapters_only_decisions
+from api.episodes.runs import chapters_only_decisions
 from utils.audio import get_audio_duration
 from utils.time import adjust_timestamp
 
