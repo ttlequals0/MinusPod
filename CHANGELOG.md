@@ -26,7 +26,7 @@ release notes.
 - Episode run serialization lives in a top-level `episode_runs` module, so the episode and stats APIs import it directly instead of reaching into a route package.
 - The episodes API module is split into a package (core, runs, chapters, media). No behavior change.
 - The transcriber module is split into a package: the Transcriber class stays at the top; settings, local backend (model singleton, GPU admission, batch-size ceiling), remote backend (health probes and the whole remote transcription attempt policy), segment filters and chunking live in their own modules. No behavior change.
-- The settings API module is split into a package by settings area: core, ad detection (detection-tuning phases), provider phases (provider, failover and whisper), System One phases, notifications, providers and operations, with shared helpers and the post-commit scope in a common module used by both the settings save and config import. No behavior change.
+- The settings API module is split into a package by settings area: core, ad detection (detection-tuning phases), provider phases (provider, failover and whisper), System One phases, notifications, providers and operations. Shared helpers and the post-commit scope live in a common module used by both the settings save and config import. No behavior change.
 
 ### Fixed
 - Saving the provider budget with USD as the display currency no longer fails with a database constraint error.
