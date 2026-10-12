@@ -71,7 +71,7 @@ def test_chunk_outage_reruns_failed_chunks_on_failover(t):
                         side_effect=lambda path, start, end, **k: _chunk_path_for(start)), \
             patch.object(transcriber.common, 'unlink_quiet'), \
             patch.object(t, '_transcribe_via_api', side_effect=fake_via_api), \
-            patch.object(t, 'filter_hallucinations', side_effect=lambda s: s):
+            patch('transcriber.segments.filter_hallucinations', side_effect=lambda s: s):
         segs = t._transcribe_chunked_parallel_api('/tmp/a.mp3', 300.0, ACTIVE)
     assert segs
     trig.assert_called_once()
@@ -100,7 +100,7 @@ def test_same_backend_switch_keeps_already_finished_chunk_results(t):
                         side_effect=lambda path, start, end, **k: _chunk_path_for(start)), \
             patch.object(transcriber.common, 'unlink_quiet'), \
             patch.object(t, '_transcribe_via_api', side_effect=fake_via_api), \
-            patch.object(t, 'filter_hallucinations', side_effect=lambda s: s):
+            patch('transcriber.segments.filter_hallucinations', side_effect=lambda s: s):
         segs = t._transcribe_chunked_parallel_api('/tmp/a.mp3', 300.0, ACTIVE)
     assert segs
     assert [c for c in calls if c[0] == _chunk_path_for(0.0)] == [
@@ -403,7 +403,7 @@ def test_exhausted_timeout_or_throttle_dispatches_standby_once(t, status):
             patch.object(transcriber.chunking, 'extract_audio_chunk', return_value='/tmp/chunk.wav'), \
             patch.object(transcriber.common, 'unlink_quiet'), \
             patch.object(t, '_transcribe_via_api', side_effect=api), \
-            patch.object(t, 'filter_hallucinations', side_effect=lambda segments: segments):
+            patch('transcriber.segments.filter_hallucinations', side_effect=lambda segments: segments):
         assert t._transcribe_chunked_parallel_api('/tmp/audio.wav', 100.0, ACTIVE)
     trigger.assert_called_once()
     assert used == [ACTIVE['api_base_url'], FAILOVER['api_base_url']]
@@ -435,7 +435,7 @@ def test_whisper_switch_writes_run_log_line(t, tmp_path):
                 patch.object(transcriber.chunking, 'extract_audio_chunk', return_value='/tmp/chunk.wav'), \
                 patch.object(transcriber.common, 'unlink_quiet'), \
                 patch.object(t, '_transcribe_via_api', side_effect=api), \
-                patch.object(t, 'filter_hallucinations', side_effect=lambda segments: segments):
+                patch('transcriber.segments.filter_hallucinations', side_effect=lambda segments: segments):
             assert t._transcribe_chunked_parallel_api('/tmp/audio.wav', 100.0, ACTIVE)
     finally:
         recorder.detach()

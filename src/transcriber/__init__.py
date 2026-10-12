@@ -254,17 +254,7 @@ class Transcriber:
 
             headers = remote._bearer_headers(api_key)
 
-            form_data_base = {
-                'model': model,
-                'response_format': 'verbose_json',
-            }
-            # Only sent when disabling VAD: a server without the switch
-            # ignores an unknown field, but never send a redundant default.
-            if not vad_filter:
-                form_data_base['vad_filter'] = 'false'
             language = settings._effective_language(language_override, whisper_settings)
-            if language and language != 'auto':
-                form_data_base['language'] = language
 
             # Defensive: refuse to upload tiny or missing files. Avoids
             # remote "empty audio" / decode failures when preprocessing
@@ -282,72 +272,31 @@ class Transcriber:
 
             logger.info("Sending audio to whisper API (size=%.1fMB)", upload_size / 1024 / 1024)
 
-            # Whisper API URLs are operator-typed, so OPERATOR_CONFIGURED
-            # trust (private / loopback allowed for self-hosted whisper.cpp
-            # servers; cloud metadata and downgrades refused per-hop).
-            # safe_post does not retry; wrap in a small backoff loop so
-            # transient upstream blips do not fail a full transcription.
-            # Some OpenAI-compatible servers (OpenVINO Model Server, older
-            # faster-whisper-server builds) reject ['segment','word'] outright;
-            # outer loop retries once with segment-only granularity if the
-            # response body signals that rejection.
-            response = None
-            last_request_exc = None
-            max_attempts = int(whisper_settings.get('max_attempts') or 2)
-            granularity_modes = (
-                ['segment', 'word'],
-                ['segment'],
-            )
-            # Some servers 400 an unrecognized vad_filter field instead of
-            # ignoring it; drop it and retry once rather than lose the upload.
-            vad_filter_retried = False
-            while True:
-                for gran_idx, granularities in enumerate(granularity_modes):
-                    form_data = {
-                        **form_data_base,
-                        'timestamp_granularities[]': granularities,
-                    }
-                    try:
-                        response, attempt_exc = remote.post_transcription(
-                            url, headers, transcribe_path, form_data, whisper_settings,
-                            max_attempts)
-                    except SSRFError as exc:
-                        logger.warning(f"Whisper API URL blocked: {exc}")
-                        return None
-                    if attempt_exc is not None:
-                        last_request_exc = attempt_exc
-                    if response is None:
-                        # Every attempt raised at the transport layer, so the
-                        # endpoint is unreachable. The offline queue (#482) must
-                        # tell that apart from a bad response.
-                        raise ServiceUnavailableError(
-                            'whisper', f"Whisper API unreachable: {last_request_exc}")
-                    if response.status_code == 200:
-                        break
-                    if gran_idx == 0 and remote._whisper_api_rejects_word_timestamps(response):
-                        logger.warning(
-                            "Whisper API does not support word timestamps; "
-                            "retrying with segment-only timestamps"
-                        )
-                        continue
-                    # Non-200 with no word-timestamp signal, so give up here.
-                    break
+            def build_form_data(word_timestamps, vad_filter_allowed):
+                form_data = {
+                    'model': model,
+                    'response_format': 'verbose_json',
+                }
+                # Only sent when disabling VAD; never send a redundant default.
+                if not vad_filter and vad_filter_allowed:
+                    form_data['vad_filter'] = 'false'
+                if language and language != 'auto':
+                    form_data['language'] = language
+                form_data['timestamp_granularities[]'] = (
+                    ['segment', 'word'] if word_timestamps else ['segment'])
+                return form_data
 
-                if (response.status_code != 200 and not vad_filter_retried
-                        and 'vad_filter' in form_data_base
-                        and remote._whisper_api_rejects_vad_filter(response)):
-                    logger.warning(
-                        "Whisper API rejected vad_filter field; retrying without it"
-                    )
-                    form_data_base.pop('vad_filter', None)
-                    vad_filter_retried = True
-                    continue
-                break
+            try:
+                response = remote.request_transcription(
+                    url, headers, transcribe_path, build_form_data, whisper_settings)
+            except SSRFError as exc:
+                logger.warning(f"Whisper API URL blocked: {exc}")
+                return None
 
-            if response is None or response.status_code != 200:
-                if response is not None and response.status_code in (401, 402, 403, 404, 429):
+            if response.status_code != 200:
+                if response.status_code in (401, 402, 403, 404, 429):
                     raise TranscriptionRejectedError(response.status_code)
-                if response is not None and (response.status_code == 408 or response.status_code >= 500):
+                if response.status_code == 408 or response.status_code >= 500:
                     raise ServiceUnavailableError(
                         'whisper',
                         f"Whisper API returned {response.status_code} after retries")
@@ -355,10 +304,10 @@ class Transcriber:
 
             # Parse verbose_json response
             resp_json = response.json()
-            segments = resp_json.get('segments', [])
+            api_segments = resp_json.get('segments', [])
             result = []
 
-            for seg in segments:
+            for seg in api_segments:
                 words = []
                 for w in seg.get('words', []):
                     words.append({
@@ -397,7 +346,7 @@ class Transcriber:
 
             # Filter hallucinations
             original_count = len(result)
-            result = self.filter_hallucinations(result)
+            result = segments.filter_hallucinations(result)
             if len(result) < original_count:
                 logger.info(f"Filtered {original_count - len(result)} hallucination segments")
 
@@ -517,7 +466,7 @@ class Transcriber:
             logger.warning(f"{prefix}{label} re-transcription failed; "
                            f"proceeding without {label.lower()}")
             return None, None
-        new_segments = self.filter_hallucinations(new_segments)
+        new_segments = segments.filter_hallucinations(new_segments)
         if not new_segments:
             logger.info(f"{prefix}{label} re-transcription produced no segments")
             return None, 'no_speech'
@@ -576,9 +525,6 @@ class Transcriber:
                 empty.append({'start': hole_start, 'end': hole_end, 'reason': reason})
         return added, empty
 
-    def filter_hallucinations(self, segs: list[dict]) -> list[dict]:
-        return segments.filter_hallucinations(segs)
-
     def get_audio_duration(self, audio_path: str) -> float | None:
         """Get audio duration in seconds using ffprobe.
 
@@ -588,12 +534,6 @@ class Transcriber:
         if duration is not None:
             logger.info(f"Audio duration: {duration:.1f}s ({duration/60:.1f} min)")
         return duration
-
-    def record_batch_size_ceiling(self, batch_size: int) -> None:
-        local.record_batch_size_ceiling(batch_size)
-
-    def get_batch_size_for_duration(self, duration_seconds: float | None) -> int:
-        return local.get_batch_size_for_duration(duration_seconds)
 
     def clear_cuda_cache(self):
         """Clear CUDA cache to free GPU memory.
@@ -842,7 +782,7 @@ class Transcriber:
                 if not preprocessed:
                     preprocessed_path = self.preprocess_audio(audio_path)
                 settings._note_whisper_settings(whisper_settings)
-                result = self.filter_hallucinations(parakeet_transcriber.decode(
+                result = segments.filter_hallucinations(parakeet_transcriber.decode(
                     preprocessed_path or audio_path, language_setting or 'en'))
                 self._record_local_stats('success', None, 0, device, current_model,
                                          backend=WHISPER_BACKEND_PARAKEET)
@@ -869,7 +809,7 @@ class Transcriber:
             device = resolve_whisper_device()
             if device == "cuda":
                 # Use adaptive batch size based on duration to prevent OOM
-                batch_size = self.get_batch_size_for_duration(audio_duration)
+                batch_size = local.get_batch_size_for_duration(audio_duration)
                 duration_str = f"{audio_duration/60:.1f} min" if audio_duration else "unknown"
                 logger.info(f"Using adaptive batch size: {batch_size} (duration: {duration_str})")
             else:
@@ -902,8 +842,8 @@ class Transcriber:
                     # at 93% confidence). `whisper_language=auto` (or blank env var)
                     # lets Whisper auto-detect -- useful for multilingual / non-English
                     # podcasts. The non-English DAI heuristic downstream
-                    # (_detect_non_english_segment) is gated by
-                    # _should_detect_foreign_language so it only runs when the audio
+                    # (segments.detect_non_english_segment) is gated by
+                    # segments.should_detect_foreign_language so it only runs when the audio
                     # is English; on non-English podcasts it would false-positive
                     # every segment.
                     settings._note_whisper_settings(whisper_settings)
@@ -996,7 +936,7 @@ class Transcriber:
 
                     # Filter out hallucinations
                     original_count = len(result)
-                    result = self.filter_hallucinations(result)
+                    result = segments.filter_hallucinations(result)
                     if len(result) < original_count:
                         logger.info(f"Filtered {original_count - len(result)} hallucination segments")
 
@@ -1010,7 +950,7 @@ class Transcriber:
                     if device == "cuda" and batch_size < tier_batch_size:
                         # Completing below the tier (downshift, clamp, or probe)
                         # proves the size fits; failures never persist anything.
-                        self.record_batch_size_ceiling(batch_size)
+                        local.record_batch_size_ceiling(batch_size)
 
                     self._record_local_stats('success', batch_size, retry_count,
                                              device, current_model,
@@ -1327,7 +1267,7 @@ class Transcriber:
         # budget is blown, so by here failures are within budget; the
         # surviving failed_chunks only feed the gap-summary log below.
         original_count = len(all_segments)
-        all_segments = self.filter_hallucinations(all_segments)
+        all_segments = segments.filter_hallucinations(all_segments)
         if len(all_segments) < original_count:
             logger.info(
                 f"Filtered {original_count - len(all_segments)} "
@@ -1625,7 +1565,7 @@ class Transcriber:
 
         # Final hallucination filtering on merged results
         original_count = len(all_segments)
-        all_segments = self.filter_hallucinations(all_segments)
+        all_segments = segments.filter_hallucinations(all_segments)
         if len(all_segments) < original_count:
             logger.info(f"Filtered {original_count - len(all_segments)} hallucination segments after merge")
 
