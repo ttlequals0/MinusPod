@@ -19,16 +19,14 @@ release notes.
 
 ### Changed
 - The episode processing module is split into stage modules under `main_app/pipeline/` (transcribe, signals, detect, review, cuts, keep rules, verify, publish, finalize, admission, failure, recut), with `processing.py` keeping the orchestrator and background start path. No behavior change.
-- The Transcriber class delegates segment filtering, batch-size ceilings and the remote transcription request to module functions in the transcriber package; its public methods are unchanged.
 - Installation docs state that a GPU is recommended but not required, lead with the Docker-on-any-host path, and give a 2 CPU core, 8 GB RAM minimum.
 - README lists processing modes, configuration export and restore, podcast search, output audio controls, and queue resilience, and corrects stale statements about auth, backups, verification, and providers.
 - README Documentation table and docs/README.md list the System One, Failover, Pattern Cleanup, Transcript Differential, Glossary, and Container Security pages, ordered from first install through pipeline, tuning, and maintainer topics.
 - Dependency updates: anthropic 1.12.1, openai 3.26.1, tldextract 5.4.0, fsspec 2026.9.0, python-slugify 9.1.3; frontend wavesurfer.js 8.0.2, vite-plugin-pwa 2.0.0, @vitejs/plugin-react 6.1.2, @tanstack/react-query 5.104.1, eslint 10.12.0; GitHub Actions upload-artifact 7.0.2, download-artifact 8.0.2, setup-node 7.1.0.
-- The settings API module is split into a package by settings area (core, ad detection, notifications, providers, operations) with shared helpers in one module. No behavior change.
 - Episode run serialization lives in a top-level `episode_runs` module, so the episode and stats APIs import it directly instead of reaching into a route package.
 - The episodes API module is split into a package (core, runs, chapters, media). No behavior change.
-- The transcriber module is split into a package: the Transcriber class stays at the top with settings, local-backend, remote-backend and chunking helpers in their own modules. No behavior change.
-- The ad-detection settings module keeps the detection-tuning phases; provider, failover and whisper phases live in their own module and System One phases in another. Post-commit hooks are a scope in the common module (`post_commit_scope`, `run_post_commit`) used by both the settings save and config import.
+- The transcriber module is split into a package: the Transcriber class stays at the top; settings, local backend (model singleton, GPU admission, batch-size ceiling), remote backend (health probes and the whole remote transcription attempt policy), segment filters and chunking live in their own modules. No behavior change.
+- The settings API module is split into a package by settings area: core, ad detection (detection-tuning phases), provider phases (provider, failover and whisper), System One phases, notifications, providers and operations, with shared helpers and the post-commit scope in a common module used by both the settings save and config import. No behavior change.
 
 ### Fixed
 - Saving the provider budget with USD as the display currency no longer fails with a database constraint error.
