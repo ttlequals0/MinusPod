@@ -3849,12 +3849,15 @@ def update_provider_budget():
         values.update({
             'provider_budget_display_currency': fx_rate.currency,
             'provider_budget_fx_rate': str(fx_rate.local_per_usd),
-            'provider_budget_fx_source_date': fx_rate.source_date or '',
+            'provider_budget_fx_source_date': fx_rate.source_date,
             'provider_budget_fx_fetched_at': utc_now_iso(),
         })
     with db.transaction(immediate=True) as conn:
         for key, value in values.items():
-            db._upsert_setting(conn, key, value, is_default=False)
+            if value is None:
+                conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+            else:
+                db._upsert_setting(conn, key, value, is_default=False)
     return json_response(_provider_budget_payload())
 
 

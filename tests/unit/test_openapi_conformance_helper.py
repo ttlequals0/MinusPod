@@ -21,6 +21,9 @@ class _Resp:
     def get_json(self):
         return self._payload
 
+    def get_data(self, as_text=False):
+        return ''
+
 
 def test_response_schema_resolves_template_and_status():
     schema = response_schema('get', '/feeds', 200)
