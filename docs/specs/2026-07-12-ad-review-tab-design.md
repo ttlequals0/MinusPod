@@ -53,7 +53,7 @@ One row per detection. Columns:
   - Search: free text over sponsor and reason.
 - Sorting: episode publish date (default, newest first), confidence, podcast.
   Click a column header to sort; click again to flip direction.
-- The UI implementation follows the frontend-design skill.
+- The UI implementation follows the design guide.
 
 ### Row actions
 
@@ -157,8 +157,7 @@ all behave as they do today.
 - `version.py` and `openapi.yaml` bumped to 2.48.0; new endpoint documented
   in `openapi.yaml`.
 - CHANGELOG.md entry under 2.48.0.
-- `docs/web-interface.md` updated with the Ad Review tab; humanizer applied
-  to all written docs.
+- `docs/web-interface.md` updated with the Ad Review tab.
 
 ## Out of scope
 

@@ -1,6 +1,6 @@
 # Ad chapters: design
 
-Segments left in the audio can be published as their own Podcasting 2.0 chapters so a chapter-aware player can skip a break. Adapted from the `ad-chapters` branch of mendelsimon/MinusPod (commits 9ecc9161..d6d1abf6); credit `Co-authored-by: mendelsimon <mmendelsimon@gmail.com>` on the porting commit. Their `mark` segment action is not ported; per-category eligibility lives in the chapter settings instead.
+Segments left in the audio can be published as their own Podcasting 2.0 chapters so a chapter-aware player can skip a break. Adapted from the `ad-chapters` branch of mendelsimon/MinusPod (commits 9ecc9161..d6d1abf6); credit mendelsimon as git co-author on the porting commit. Their `mark` segment action is not ported; per-category eligibility lives in the chapter settings instead.
 
 ## Settings
 

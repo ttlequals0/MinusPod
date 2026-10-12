@@ -51,7 +51,7 @@ and has no language forcing, so the mitigation lives in MinusPod (see
   MinusPod already sets (`HUGGINGFACE_HUB_CACHE`).
 - `.with_timestamps().recognize(waveform_float32, sample_rate=16000)` returns
   `TimestampedResult(text, timestamps, tokens)`. `timestamps` are token
-  START times at `window_step * subsampling_factor` resolution (0.08 s for
+  start times at `window_step * subsampling_factor` resolution (0.08 s for
   this model). There are no token end times.
 - SentencePiece tokens carry a leading `U+2581` on word starts.
 - `onnxruntime.preload_dlls()` (1.21+) loads the CUDA and cuDNN shared

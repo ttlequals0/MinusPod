@@ -1,4 +1,4 @@
-# Detection Tuning: Actionable Pass-2 Misses, Scoped Rejections, Label Hygiene (2.76.0)
+# Detection tuning: actionable pass-2 misses, scoped rejections, label hygiene (2.76.0)
 
 Date: 2026-07-23
 Status: implemented in 2.76.0
@@ -171,7 +171,7 @@ second-refetch idea stays in future work.
   defaults block, reset behavior).
 - Settings UI: new controls in the Ad Detection settings area
   (verification subsection for item 1, differential subsection for
-  item 4), built with the frontend-design skill, following the
+  item 4), following the
   existing Tailwind/CollapsibleSection conventions. Number inputs or
   sliders with the ranges above; autocut shows as an opt-in toggle
   plus threshold.
@@ -179,7 +179,7 @@ second-refetch idea stays in future work.
   'verification_miss' with a human label ("Verification catch").
 - openapi.yaml updated for the settings payload additions.
 
-## Docs (humanizer Skill invocation required on every file)
+## Docs
 
 - docs/configuration.md: new tunables with defaults and guidance.
 - docs/how-it-works.md: pass-2 miss flow (hold / autocut / learn),
@@ -193,7 +193,6 @@ second-refetch idea stays in future work.
 - docs/glossary.md: entries for verification miss, corroboration,
   differential hold, false-positive text.
 - CHANGELOG.md 2.76.0 entry; version.py and openapi info.version.
-- All new user-facing UI strings pass through the humanizer skill.
 
 ## Testing
 

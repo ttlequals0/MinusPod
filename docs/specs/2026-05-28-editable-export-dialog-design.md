@@ -1,4 +1,4 @@
-# Editable Pattern Export Dialog (per-export sponsor / aliases / tags override)
+# Editable pattern export dialog (per-export sponsor, aliases and tags override)
 
 ## Context
 
@@ -119,7 +119,7 @@ export interface PatternOverride {
   per-pattern override dict. After building the payload from sponsor_row, the
   override fields replace the corresponding payload fields when present.
 - `_quality_gates(pattern, sponsors, overrides=None)` re-runs the
-  sponsor-in-text check against the OVERRIDDEN sponsor name (or any
+  sponsor-in-text check against the overridden sponsor name (or any
   overridden alias) so an edit that strips the sponsor out of the text fails
   the gate the same way the original would. Tag-not-in-vocab also re-runs.
 - `build_bundle(pattern_ids, db, overrides=None)` threads `overrides` down to

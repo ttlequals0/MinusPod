@@ -276,8 +276,8 @@ on the `StageTunables` interface (near `:660`), and four optional
 `:638`).
 
 `frontend/src/pages/settings/StageTunablesSection.tsx` renders them as their
-own labeled group, **a sibling of the Chapter Boundary Detection block, not
-inside it.** The `StageBlock` type is a fixed four-key tuple
+own labeled group, a sibling of the Chapter Boundary Detection block, not
+inside it. The `StageBlock` type is a fixed four-key tuple
 (`temperatureKey`, `maxTokensKey`, `budgetKey`, `levelKey`), and these are
 durations and counts, so they do not fit that shape. The window-geometry
 fields are the working precedent for a standalone integer group in this
@@ -485,7 +485,7 @@ else:
 ```
 
 But a passphrase being set is exactly the condition under which those
-secrets are **already encrypted**. `Database.set_secret`
+secrets are already encrypted. `Database.set_secret`
 (`src/database/settings.py:759`) stores every key in `SECRET_SETTING_KEYS`
 as `encrypt(self, plaintext)`, and `secrets_crypto.is_available()` is true
 precisely when the passphrase is present. So with a passphrase configured,
@@ -531,7 +531,7 @@ Measured 44 to 66 warning lines per sample bucket across the full 22 hours,
 from public Hive nodes failing in three ways: connection refused, SSL EOF,
 and DNS resolution failure. Failover works and pings are not lost.
 
-Now verified: the cooldown already exists. `_node_failure`
+The cooldown already exists: `_node_failure`
 (`src/podping_listener.py:235`) logs, rotates to the next node, and backs off
 on a 5s/15s/60s capped schedule. Failover works, pings are not lost, and no
 node is hammered.
@@ -607,8 +607,8 @@ number that answers what the product did for you; detection count is a
 means, not the outcome. Detections, distinct sponsors, and distinct podcasts
 follow as smaller supporting figures.
 
-The category breakdown is **a badge-and-count list sorted by count
-descending, not a chart.** `SegmentCategoryBadge`
+The category breakdown is a badge-and-count list sorted by count
+descending, not a chart. `SegmentCategoryBadge`
 (`frontend/src/components/SegmentCategoryBadge.tsx:22`) renders every
 category in one indigo tint today; the app has no per-category palette. A
 stacked proportional bar would require inventing an 8-hue categorical
@@ -665,9 +665,8 @@ focus, and reduced motion respected.
 ### Copy review
 
 Every new user-facing string, including filter labels, empty states, error
-messages, and button text, goes through the /humanizer skill before commit,
-per the project rule. That applies to the strings written during
-implementation, not just this spec.
+messages, and button text, gets a plain-language edit before commit. That
+applies to the strings written during implementation as well as this spec.
 
 ## Testing
 
@@ -717,5 +716,3 @@ transcript text, so podcast dialogue lands in error dashboards. The
 collector config lives outside this repository. The application-side option
 would be structured JSON log output, which is a larger change than this PR
 should carry; raising it as its own issue is the right move.
-
-Everything else found in the log review is addressed in A through J.

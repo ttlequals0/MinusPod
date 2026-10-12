@@ -2,7 +2,7 @@
 
 Date: 2026-07-08
 Target version: 2.40.0 (verify against Docker Hub + CHANGELOG before tagging)
-Delivery: ONE PR, one build/release. Commits structured by layer for reviewability.
+Delivery: one PR, one build and release. Commits structured by layer for reviewability.
 Status: implemented in 2.40.x
 
 ## Problem
@@ -16,13 +16,13 @@ Ads at the ends of episodes survive the pipeline. Two verified root causes
    transcript (prompts.py:66-101), so no LLM saw it. The vad_gap detector
    flagged the exact span at 0.75; the POST_ROLL boost lifted it to 0.80; then
    ad_validator.py:514-515 clamped it to 0.79 because it has "no ad signals in
-   transcript" - a condition that is ALWAYS true for untranscribed audio
+   transcript" - a condition that is always true for untranscribed audio
    (catch-22). REVIEW -> kept in audio. The resurrection reviewer saw an empty
    transcript span and rejected. The marker never got held_for_review, so it
    shipped silently (pendingReviewCount=0).
 
 2. Episode B (a comedy show on an Audioboom-hosted feed): the terminal DAI block
-   (4160.9s-EOF) WAS detected; first-pass LLM had the correct start at 4160.9s
+   (4160.9s-EOF) was detected; first-pass LLM had the correct start at 4160.9s
    (conf 0.95). The merged marker came from a learned text pattern and the boundary
    reviewer's "adjust" verdict moved the start to 4172.0s - 11.1s inside the
    ad. The episode ships ending mid-sentence in a sponsor read.
@@ -55,11 +55,11 @@ cross-fetch alignment):
   show loudness+flatness steps; Episode B/Audioboom splices show encoded digital
   silence (RMS < -80 dBFS >= 0.5s scored 0 FP in ~1h of content; 10/10 events
   in the file were DAI-related).
-- Both missed ads carry strong signatures AT the candidate boundary: Episode A tail
+- Both missed ads carry strong signatures at the candidate boundary: Episode A tail
   had the strongest signature of all 14 points tested there (-6.6 LU,
   flatness 0.08 -> 0.21); the Episode B onset sits in the only 1.4s-deep silence
   in that file.
-- The audio features correctly VETO false positives: the 90-second false cut
+- The audio features correctly veto false positives: the 90-second false cut
   contains zero splice evidence across its span; two Episode A transcript-gap
   suspects were baked-in content (bit-identical across fetches) and no audio
   feature fired on them.
@@ -69,7 +69,7 @@ cross-fetch alignment):
 
 Conclusion embedded in this design: audio evidence acts as a corroborator,
 boundary snapper, veto, and LLM prompt signal at candidate boundaries - never
-as a standalone segmenter. This matches the recorded architecture decision.
+as a standalone segmenter.
 
 ## Layer 1: Tail fixes
 
@@ -186,7 +186,7 @@ b. Terminal boundary snap - when a marker's end is within 2s of EOF, scan
    11.1s; the transcript guard prevents eating the outro's final sentence,
    which sits 3s from an adjacent 1.6s pause.)
 c. Zero-evidence veto - a proposed cut with duration >= veto_min_cut_seconds
-   (default 60) from stages claude/text_pattern with NO splice evidence inside
+   (default 60) from stages claude/text_pattern with no splice evidence inside
    the span or within +-3s of either edge gets demoted to REVIEW +
    held_for_review=True. It never silently un-cuts: humans see it in the
    queue. splice_veto_enabled default true; per-feed disable available.
@@ -225,11 +225,11 @@ align_and_diff(run_file, refetch_file) -> regions:
   normalized cross-correlation refines offsets and locates jump points.
   (This productionizes the exact method used manually during investigation,
   which reproduced every pipeline cut within 1-2s on both episodes.)
-- Output regions in RUN-file coordinates: kind=differential (audio differs
+- Output regions in run-file coordinates: kind=differential (audio differs
   across fetches -> dynamically inserted) or identical (content or baked-in
   ad), with per-region correlation confidence.
 - Identical files / no offset jumps -> status no_differential. Reported as
-  "no differential found", explicitly NOT "no DAI" (same-fill re-rolls are a
+  "no differential found", explicitly not "no DAI" (same-fill re-rolls are a
   known false negative).
 - Stored per episode: dai_differential JSON {regions, refetch_meta{ua,
   spacing_s, size, duration}, status}.
@@ -256,9 +256,6 @@ align_and_diff(run_file, refetch_file) -> regions:
 - Episode view: new detection_stage label renders via existing marker UI;
   differential status shown in episode diagnostics.
 - TypeScript check per project rule.
-- PROCESS REQUIREMENT (user directive 2026-07-08): ALL UI work goes through
-  the /frontend-design skill. ALL user-facing UI text (labels, hints, badge
-  copy, toggle descriptions) goes through /humanizer before it ships.
 
 ## Data / API changes (additive only - no data loss)
 
@@ -301,18 +298,15 @@ align_and_diff(run_file, refetch_file) -> regions:
 ## Rollout
 
 - CHANGELOG.md entry; version.py + openapi.yaml -> 2.40.0.
-- /simplify then /code-review on the full diff; fix all findings.
+- Full code review on the diff; fix all findings.
 - CodeQL clean before merge.
 - GPU image build/scan/push first, then dispatch CPU workflow (mirror
   checklist: no Dockerfile base changes expected; requirements.txt additions,
   if any, mirror automatically since both install requirements.txt).
 - Deploy via Portainer webhook; verify /api/v1/health; reprocess the two
   example episodes as the acceptance check.
-- PR body and issue comments run through /humanizer; no session links, no
+- PR body and issue comments carry no session links and no
   environment-specific domains.
-- ALL docs (CHANGELOG entries, any checked-in documentation) and ALL
-  user-facing UI text run through /humanizer (user directive 2026-07-08).
-- ALL UI work uses the /frontend-design skill (user directive 2026-07-08).
 
 ## Risks
 

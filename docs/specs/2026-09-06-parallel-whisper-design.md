@@ -1,6 +1,6 @@
 # Parallel processing against a remote Whisper backend
 
-Status: approved design, 2026-09-06.
+Status: implemented in 2.96.2.
 
 ## Goal
 
@@ -248,8 +248,7 @@ produce today's payloads and totals.
   C", with `text-warning` when N exceeds C and a note that the pool caps
   it. The dials are disabled while the toggle is off, and the whole block
   is disabled with the reason shown when the backend is local. Follow
-  `design-guide/MinusPod Design System.dc.html` and the frontend-design
-  skill.
+  `design-guide/MinusPod Design System.dc.html`.
 - Status bar (`GlobalStatusBar.tsx`): the collapsed row shows the oldest
   job as today plus a "+N running" chip when there are more; the expanded
   view lists every job with its own stage, progress and elapsed time.

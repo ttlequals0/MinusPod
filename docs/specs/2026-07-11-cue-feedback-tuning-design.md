@@ -1,7 +1,7 @@
-# Cue Feedback Tuning: Candidate Dismissals + Verdict-Fed Threshold Suggestion
+# Cue feedback tuning: candidate dismissals and verdict-fed threshold suggestion
 
 Date: 2026-07-11
-Status: Approved (design), pending implementation plan
+Status: implemented in 2.44.0
 Target version: 2.44.0
 
 ## Problem
@@ -26,7 +26,7 @@ The cue suggestion machinery has no memory of user feedback:
 | Main pain | Junk candidates flood the list and return every scan |
 | Dismissal scope | Feed-wide by sound (audio fingerprint match), not per-episode span |
 | Dismissed candidate UI | Collapsed "Dismissed" group with undo; never silently hidden |
-| Scope | Candidate dismissal AND verdict-fed threshold suggestion, one feature |
+| Scope | Candidate dismissal and verdict-fed threshold suggestion, one feature |
 | Threshold behavior | Suggestion only; user applies manually (matches existing UX) |
 | Approach | A: dismissal table + scan-time fingerprint matching |
 

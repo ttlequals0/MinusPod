@@ -1,4 +1,4 @@
-# Podping Listener Design (2.77.0)
+# Podping listener design (2.77.0)
 
 Date: 2026-07-23
 Status: implemented in 2.77.0
@@ -131,8 +131,6 @@ loss, no backfill. Exposed in the feed API payload as
 - `docs/how-it-works.md`: one paragraph in the feed refresh section
   pointing at podcasting-2.0.md.
 - README feature list: one bullet.
-- All new doc and UI text goes through the humanizer skill before
-  commit (repo rule).
 
 ## Testing
 

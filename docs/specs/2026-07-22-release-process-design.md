@@ -1,7 +1,7 @@
-# Formal Release Process and In-App Update Checks (issue #567)
+# Formal release process and in-app update checks (issue #567)
 
 Date: 2026-07-22
-Status: Approved design, pending implementation plan
+Status: implemented in 2.73.0
 
 ## Problem
 
@@ -98,8 +98,7 @@ Steps the skill encodes:
    from PR bodies.
 3. Draft curated notes per section 2, each entry linking its PR and
    issue where one exists.
-4. Invoke /humanizer on the draft (Skill invocation, not a mental
-   checklist) and apply findings.
+4. Edit the draft for plain, operator-facing wording.
 5. Present for approval, then apply the body to the GitHub Release via
    `gh api`.
 

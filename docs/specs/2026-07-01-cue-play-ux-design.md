@@ -97,11 +97,11 @@ Change (`src/ad_reviewer.py` `_format_cue_section`):
 ## Item 4 - Cue-pairing parity: LLM-ad-edge cue orientation (fine-tune)
 
 Problem: a single recurring cue typed `ad_break_boundary` (role `boundary`)
-that brackets both ends of every ad break EXCEPT the opening ad (which has no
+that brackets both ends of every ad break except the opening ad (which has no
 entry cue) produces an ordered match sequence exit, entry, exit, entry... with a
 leading unpaired exit. With cue-pair synthesis on (`audio_cue_create_from_pairs`,
 opt-in), the greedy left-to-right pairing in `cue_pair_ads.py:127-193` pairs
-cue0(exit)+cue1(entry), bracketing CONTENT -> a phantom ad, and the unpaired
+cue0(exit)+cue1(entry), bracketing content, which yields a phantom ad, and the unpaired
 opening ad offsets the phase for the whole episode. The reporter's real dilemma:
 `ad_break_boundary` risks this phantom; `content_transition` is safe but
 forfeits all mechanical help.
@@ -127,7 +127,7 @@ Change (opt-in pair path only; snap untouched):
 - Only `boundary` cues are oriented; `start`/`end` two-sound feeds are left
   byte-for-byte unchanged; a zero-LLM-ad episode returns immediately (greedy
   fallback preserved).
-- Verifier corrections (must be in the implementation):
+- Corrections from review:
   - Default `effective_role` to `role` inside the `_Cue` dataclass, so a dropped
     init loop can never silently disable all synthesis.
   - Compute the first-after / last-before adjacency over boundary/edge-eligible
@@ -161,12 +161,12 @@ cue0 gets no anchor and the phantom can recur - same as today; the user retains
 
 ## Item 5 - Threshold auto-suggest, effect-floor-aware (fine-tune)
 
-Key finding: the ZNCC match score IS the stored cue confidence
+The ZNCC match score is the stored cue confidence
 (`cue_template_matcher.py:281`), and a cue must clear a separate 0.80 effect
 floor to change anything - MIN_SIGNAL_CONFIDENCE (hardcoded,
 `audio_enforcer.py:24/42/109`) for the LLM prompt, `audio_cue_snap_confidence`
 (default 0.80) for snap, `audio_cue_pair_confidence` (0.85) for pairs. So
-SimpleHonors' soft cues at 0.67-0.74 sit below the effect floor: lowering the
+the reporter's soft cues at 0.67-0.74 sit below the effect floor: lowering the
 match threshold to 0.65 would surface them in diagnostics but change zero cuts.
 The right answer is an honest auto-suggest, not a blind default drop.
 
@@ -208,7 +208,7 @@ Change:
   `AUDIO_CUE_SUGGEST_MAX_EPISODES` (~5), `AUDIO_CUE_SUGGEST_MIN_GAP` (~0.08),
   `AUDIO_CUE_SUGGEST_MIN_SIGNAL` (~3), `AUDIO_CUE_SUGGEST_BAND` ((0.40, 0.95)),
   `AUDIO_CUE_SUGGEST_MARGIN` (~0.02), and `AUDIO_CUE_EFFECT_FLOOR = 0.80` as a
-  display/annotation mirror only (do NOT rewire `audio_enforcer`'s hardcoded
+  display/annotation mirror only (do not rewire `audio_enforcer`'s hardcoded
   value here).
 
 ## Out of scope
@@ -241,8 +241,7 @@ Change:
     low; live effect floor picks up a lowered snap/pair confidence.
   - `/cue-threshold-suggest` route: sweep + suggestion shape; global-only apply.
 - Version + docs: bump `version.py` and `openapi.yaml` (new `/audio` and
-  `/cue-threshold-suggest` routes); update CHANGELOG.md; run /humanizer on any
-  user-facing copy and the PR text.
+  `/cue-threshold-suggest` routes); update CHANGELOG.md.
 - Manual: mark a cue and confirm the bracketed amber play-selection control is
   obvious in the primary row; play a saved cue from the templates list; run
   "Suggest threshold" on a feed with a clean cue.

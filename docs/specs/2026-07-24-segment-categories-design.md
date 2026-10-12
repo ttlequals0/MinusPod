@@ -1,4 +1,4 @@
-# Segment Categories Design (2.78.0, issue #565)
+# Segment categories design (2.78.0, issue #565)
 
 Date: 2026-07-24
 Status: implemented in 2.78.0
@@ -12,11 +12,11 @@ to today (everything removes). Closes the "no clean way to keep a
 flagged segment" gap and retires the prompt-override workaround.
 
 User decisions (brainstormed):
-- Scope: phase 1 (ad-side categories, already detected) PLUS per-feed
+- Scope: phase 1 (ad-side categories, already detected) plus per-feed
   opt-in detection of intro/outro/housekeeping segments.
 - Defaults: every category defaults to remove; zero behavior change on
   upgrade until a user changes an action.
-- Feasibility corrections vs the issue text: intro/outro/recap are NOT
+- Feasibility corrections vs the issue text: intro/outro/recap are not
   in the default detection prompt today (new detection, opt-in only);
   organic self-promo is currently excluded by the prompt and stays
   excluded unless the feed opts into segment detection.
@@ -93,7 +93,7 @@ read as `sponsor` when NULL). No data loss, no backfill.
    detections and stores category on `ad_patterns.category`
    (additive), so detection keeps improving regardless of action.
 7. Recut: category on markers persists through recut-from-retained-
-   original. Changing an action map does NOT auto-recut; the feed
+   original. Changing an action map does not auto-recut; the feed
    settings page gains a "Re-render episodes with current segment
    actions" action that runs the existing recut path per episode
    (markers re-resolved against the current maps). Episode detail's
@@ -109,7 +109,7 @@ read as `sponsor` when NULL). No data loss, no backfill.
   `detectShowSegments` (bool) on the existing per-feed settings
   endpoints; global `segmentCategoryActions` via the settings
   registry/PUT phases.
-- UI (frontend-design consistency; humanizer on all copy):
+- UI:
   - Global Defaults: compact 7-row matrix (category label + three-way
     segmented control remove/beep/keep), collapsed under a disclosure
     like the update panel's "Update settings".
@@ -154,7 +154,7 @@ read as `sponsor` when NULL). No data loss, no backfill.
 ## Also in this release: OCI version label (#576)
 
 Both images inherit `org.opencontainers.image.version="26.04"` from
-the ubuntu:26.04 base. Fix in BOTH Dockerfiles (CPU mirror checklist
+the ubuntu:26.04 base. Fix in both Dockerfiles (CPU mirror checklist
 applies): final stage gains
 
     ARG MINUSPOD_VERSION=dev
@@ -173,9 +173,7 @@ applies): final stage gains
 
 ## Version and process
 
-2.78.0, one PR, one release. Full SDD flow with per-task review, final
-whole-branch review, humanizer on all user-facing text, no merge
-without the user's word. Docs: how-it-works (new "Segment categories"
+2.78.0, one PR, one release. Docs: how-it-works (new "Segment categories"
 section), configuration.md, glossary.md, podcasting-2.0.md untouched,
 README bullet, CHANGELOG.
 

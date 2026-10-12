@@ -1,4 +1,4 @@
-# Cross-Episode Scan UI: Play Buttons and Per-Episode Match Breakdown
+# Cross-episode scan UI: play buttons and per-episode match breakdown
 
 Date: 2026-07-10
 Source: issue #350, user feedback on 2.39.0,
@@ -16,7 +16,7 @@ feedback asks for:
    episode, ideally enumerating every match in every episode in a
    collapsible list.
 3. (Follow-up ask) The "Held for Review" section on the episode page lists
-   held ads with Approve & Recut / Dismiss actions, but no way to LISTEN
+   held ads with Approve & Recut / Dismiss actions, but no way to listen
    to the held segment before deciding. It needs a play button like the
    Cue Matches section has.
 
@@ -54,7 +54,7 @@ discover_cross_episode_body gains an occurrence-enumeration pass:
   window across every episode's fingerprint array: the target itself and
   each usable sibling.
 - Mechanism per episode: the existing cross-array pattern already used at
-  the probe stage --
+  the probe stage:
   `_window_similarity(np.concatenate([target[lo:hi], ep_arr]), 0, win)[win:]`
   then `_greedy_hit_positions(sim, similarity, min_gap)`.
 - similarity: the same AUDIO_CUE_XEP_SIMILARITY the discovery pass used.
@@ -70,7 +70,7 @@ discover_cross_episode_body gains an occurrence-enumeration pass:
   input order. Episodes with zero matches are included with
   matchCount 0 and empty matches, so the UI can show "not found".
 - Siblings whose fingerprint failed to decode are dropped from
-  enumeration but their ORIGINAL input index is preserved for the ones
+  enumeration but their original input index is preserved for the ones
   that survive (track (orig_index, fp) pairs when building sib_fps), so
   the index -> episodeId mapping never shifts.
 - The target's own enumeration always finds at least the [lo, hi] run
@@ -126,7 +126,7 @@ Extract CueDetectionsSection's audition logic verbatim into a hook:
 
 Candidate row:
 
-- Play/stop button before the timestamps. Plays the TARGET episode's
+- Play/stop button before the timestamps. Plays the target episode's
   `/api/v1/feeds/{slug}/episodes/{id}/original.mp3` seeked to c.start,
   stopping at c.end, via useAuditionPlayer (key `episodeId:start:end`).
 - Chevron toggle after the badge, shown only when c.episodes is present.
@@ -140,7 +140,7 @@ Expanded breakdown, one line per episode in scan order:
   show the episode id.
 - "N matches" (or "not found" when matchCount is 0).
 - Each match rendered as a monospace `start - end` chip with its own
-  small play button that plays THAT episode's original.mp3 over the
+  small play button that plays that episode's original.mp3 over the
   match window, through the same shared audio element.
 
 ### 4b. Held for Review playback (frontend/src/pages/EpisodeDetail.tsx)
