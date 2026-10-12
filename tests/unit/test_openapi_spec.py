@@ -236,7 +236,7 @@ def test_patterns_list_params_match_handler():
 
 
 def test_segment_action_enums_all_include_mark():
-    """Every segment-action enum in the spec gains 'mark' (spec 1.4):
+    """Every segment-action enum in the spec gains 'mark' (docs/specs/2026-07-24-segment-categories-design.md#actions-and-resolution):
     the five writable segmentCategoryActions locations plus the two
     read-only marker actionApplied enums."""
     with SPEC_PATH.open() as f:
@@ -264,7 +264,7 @@ def test_segment_action_enums_all_include_mark():
 
 def test_ad_chapter_compat_fields_are_deprecated():
     """The four retired adChaptersEnabled/adChapterCategories fields stay
-    only as deprecated compatibility translations (spec 1.4)."""
+    only as deprecated compatibility translations (docs/specs/2026-09-08-ad-chapters-design.md#settings)."""
     with SPEC_PATH.open() as f:
         doc = yaml.safe_load(f)
     schemas = doc['components']['schemas']

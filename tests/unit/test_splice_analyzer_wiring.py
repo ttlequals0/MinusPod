@@ -1,4 +1,4 @@
-"""Analyzer wiring tests for splice-evidence detection (spec 2.1).
+"""Analyzer wiring tests for splice-evidence detection (docs/specs/2026-07-08-ad-splice-detection.md#21-new-module-srcaudio_analysissplice_detectorpy).
 
 Verifies:
 - splice detector runs when splice_evidence_enabled is on (the default).

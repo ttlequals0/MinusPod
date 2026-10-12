@@ -1,5 +1,5 @@
 """Tail re-transcription tunables and the transcriber vad_filter parameter
-(spec 1.2). Whisper's VAD drops quiet DAI post-rolls; the tail path needs a
+(docs/specs/2026-07-08-ad-splice-detection.md#12-tail-re-transcription-without-vad). Whisper's VAD drops quiet DAI post-rolls; the tail path needs a
 transcribe() call with vad_filter=False."""
 from unittest.mock import MagicMock, patch
 

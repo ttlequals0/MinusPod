@@ -1872,7 +1872,7 @@ class TestCueOnlySafetyHold:
 
 
 class TestAudioCorroborationSource:
-    """Layer 1 audio corroboration seam (ad-splice-detection spec 1.1).
+    """Layer 1 audio corroboration seam (docs/specs/2026-07-08-ad-splice-detection.md#11-vad_gap-clamp-bypass-with-audio-corroboration).
 
     The stored audio_analysis dict is AudioAnalysisResult.to_dict():
     {'signals': [{'start', 'end', 'signal_type', 'confidence', 'duration',
@@ -2044,7 +2044,7 @@ class TestVadGapClampBypass:
 
 
 class TestUncorroboratedTailHold:
-    """Spec 1.3: a vad_gap marker at the episode tail (end within 5s of EOF)
+    """docs/specs/2026-07-08-ad-splice-detection.md#13-review-queue-visibility-for-uncorroborated-tail-markers: a vad_gap marker at the episode tail (end within 5s of EOF)
     that stays REVIEW and uncorroborated is held for review, so it lands in
     the pending-review UI instead of shipping silently (one episode shipped
     with pendingReviewCount=0).
@@ -2101,7 +2101,7 @@ class TestUncorroboratedTailHold:
 
     def test_corroborated_below_threshold_review_not_held(self):
         # Corroboration bypasses the clamp but 0.60 + 0.05 = 0.65 < 0.80:
-        # stays REVIEW yet is corroborated, so per spec 1.3 it is NOT held.
+        # stays REVIEW yet is corroborated, so per docs/specs/2026-07-08-ad-splice-detection.md#13-review-queue-visibility-for-uncorroborated-tail-markers it is NOT held.
         validator = AdValidator(episode_duration=10600.0, segments=self.SEGMENTS)
         result = validator.validate([self._marker(confidence=0.60)],
                                     audio_analysis=self._tail_transition_analysis())

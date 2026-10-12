@@ -1,4 +1,4 @@
-"""Terminal boundary snap to splice evidence (spec 2.3b).
+"""Terminal boundary snap to splice evidence (item b of docs/specs/2026-07-08-ad-splice-detection.md#23-consumers-none-cuts-on-audio-alone).
 
 Observed-shape fixture: the reviewer moved a terminal marker's start 11.1s
 inside the DAI block. The snap recovers the extension via the deep-silence

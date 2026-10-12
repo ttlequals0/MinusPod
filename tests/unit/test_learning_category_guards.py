@@ -158,7 +158,7 @@ class TestKeepMarkerCorrectionGuard:
         assert len(temp_db.get_episode_corrections(_podcast_id(temp_db), EPISODE_ID)) == 1
 
     def test_reject_on_mark_marker_is_non_actionable(self, client, temp_db):
-        """The 'This segment is kept' guard must fire for mark too (spec 1.2:
+        """The 'This segment is kept' guard must fire for mark too (docs/specs/2026-07-24-segment-categories-design.md#actions-and-resolution:
         mark is keep-like in marker state, not just in the audio)."""
         _seed_episode(temp_db, markers=[_mark_marker()])
         with patch('api.patterns.get_database', return_value=temp_db):

@@ -256,7 +256,7 @@ class TestMergeGatedOnResolvedAction:
         assert by_cat['interaction']['end'] == 30.0
 
     def test_true_overlap_gives_mark_action_the_contested_audio(self):
-        """Mark must win contested audio exactly like keep (spec 1.2)."""
+        """Mark must win contested audio exactly like keep (docs/specs/2026-07-24-segment-categories-design.md#actions-and-resolution)."""
         det = self._det()
         action_map = dict(_all_remove_map(), interaction='mark')
         sponsor_ad = _ad(0.0, 25.0, 'text_pattern', category='sponsor')

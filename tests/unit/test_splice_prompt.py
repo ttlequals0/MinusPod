@@ -1,4 +1,4 @@
-"""Splice-evidence prompt rendering (spec 2.3d).
+"""Splice-evidence prompt rendering (item d of docs/specs/2026-07-08-ad-splice-detection.md#23-consumers-none-cuts-on-audio-alone).
 
 Detection windows (AudioEnforcer.format_for_window) and reviewer per-ad
 prompts (_format_cue_section) must render in-window / near-boundary splice

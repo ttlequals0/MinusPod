@@ -255,7 +255,7 @@ def test_merge_carries_strongest_trust_signal(processor):
 
 def test_applied_totals_logged(processor, caplog):
     """Requested-vs-applied totals are logged so production marker-vs-cut
-    deltas are attributable (spec 1.5 instrumentation)."""
+    deltas are attributable (docs/specs/2026-07-08-ad-splice-detection.md#15-cut-renderer-overshoot-bug-4, instrumentation)."""
     with caplog.at_level(logging.INFO, logger='audio_processor'):
         processor.compute_applied_cuts(
             [{'start': 100.0, 'end': 130.0}, {'start': 130.5, 'end': 160.0},

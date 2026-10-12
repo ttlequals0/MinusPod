@@ -1,4 +1,4 @@
-"""SpliceDetector unit tests (spec 2.1).
+"""SpliceDetector unit tests (docs/specs/2026-07-08-ad-splice-detection.md#21-new-module-srcaudio_analysissplice_detectorpy).
 
 Generates synthetic wavs with ffmpeg (deterministic aevalsrc amplitudes):
 a 440 Hz tone, an inserted digital/deep silence, then a louder 880 Hz tone.

@@ -1,4 +1,4 @@
-"""Per-feed splice calibration tests (spec 2.2).
+"""Per-feed splice calibration tests (docs/specs/2026-07-08-ad-splice-detection.md#22-per-feed-calibration).
 
 Mirrors positional_prior's shape: base rates from the feed's last 5 stored
 splice_evidence payloads; cold_start below the episode gate; thresholds

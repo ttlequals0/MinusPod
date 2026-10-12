@@ -85,7 +85,7 @@ def test_ad_chapter_settings_round_trip(client):
     assert before['adChapterMinConfidence']['value'] == 0.9
 
     # recap starts at keep so the adChapterCategories translation (true:
-    # keep -> mark) has something to promote (spec 1.4).
+    # keep -> mark) has something to promote (docs/specs/2026-09-08-ad-chapters-design.md#settings).
     r = client.put(f'{BASE}/ad-detection', data=json.dumps({
         'segmentCategoryActions': {'recap': 'keep'},
         'adChaptersEnabled': True,

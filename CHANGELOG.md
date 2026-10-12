@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.11] - 2026-10-12
+
+### Added
+- Design specs behind larger features now live in `docs/specs/`, with an index, and tests that pin a design decision cite the spec by path and heading instead of a bare section number.
+
 ## [2.100.10] - 2026-10-11
 
 ### Fixed

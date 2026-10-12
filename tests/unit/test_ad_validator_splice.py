@@ -1,4 +1,4 @@
-"""Splice-evidence consumers in AdValidator (spec 2.3a).
+"""Splice-evidence consumers in AdValidator (item a of docs/specs/2026-07-08-ad-splice-detection.md#23-consumers-none-cuts-on-audio-alone).
 
 Builds on _audio_corroboration_source and the validate(..., audio_analysis=)
 wiring, adding the splice_evidence source.
@@ -47,7 +47,7 @@ class TestSpliceCorroboration:
     def test_vad_gap_clamp_bypassed_by_splice_event(self):
         # Untranscribed tail marker: without corroboration the vad_gap clamp
         # forces it below min_cut_confidence; a splice event at its start
-        # bypasses the clamp (catch-22, spec 1.1 + 2.3a).
+        # bypasses the clamp (catch-22, docs/specs/2026-07-08-ad-splice-detection.md#11-vad_gap-clamp-bypass-with-audio-corroboration + item a of docs/specs/2026-07-08-ad-splice-detection.md#23-consumers-none-cuts-on-audio-alone).
         ad = {'start': 3557.6, 'end': 3600.0, 'confidence': 0.85,
               'reason': 'untranscribed tail gap', 'detection_stage': 'vad_gap'}
         corroborated = AdValidator(episode_duration=3600.0,
@@ -96,7 +96,7 @@ class TestNoSegmentsVadGapClamp:
 
 
 class TestSpliceVeto:
-    """Zero-evidence veto (spec 2.3c): Vrbo-shaped 90s cut with no splice
+    """Zero-evidence veto (item c of docs/specs/2026-07-08-ad-splice-detection.md#23-consumers-none-cuts-on-audio-alone): 90s false-cut-shaped with no splice
     evidence anywhere near it is demoted to REVIEW + held_for_review."""
 
     _AD = {'start': 1800.0, 'end': 1890.0, 'confidence': 0.92,

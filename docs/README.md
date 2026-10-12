@@ -27,5 +27,6 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Glossary](glossary.md) - every term the app uses, defined and linked to the docs that cover it
 - [Deployment Runbook](DEPLOYMENT.md) - operational runbook
 - [Releasing & Channels](releasing.md) - stable vs edge channels, how releases are tagged and promoted
+- [Design Specs](specs/README.md) - design documents behind larger features, cited by tests that pin a design decision
 
 [< Project README](../README.md)

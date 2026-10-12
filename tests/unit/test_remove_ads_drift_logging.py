@@ -1,4 +1,4 @@
-"""remove_ads logs expected-vs-actual render drift (spec 1.5).
+"""remove_ads logs expected-vs-actual render drift (docs/specs/2026-07-08-ad-splice-detection.md#15-cut-renderer-overshoot-bug-4).
 
 Expected output duration is input - sum(applied cuts) + n_cuts * beep;
 drift beyond RENDER_DRIFT_WARN_SECONDS warns with the applied cut list so
