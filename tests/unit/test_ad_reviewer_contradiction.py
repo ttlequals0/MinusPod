@@ -1,4 +1,4 @@
-"""Reviewer verdict/reasoning contradiction (spec 1.4).
+"""Reviewer verdict/reasoning contradiction (docs/specs/2026-07-08-ad-splice-detection.md#14-reviewer-verdictreasoning-contradiction-bug-3).
 
 ROOT CAUSE: _review_single derives confirmed/adjust purely from boundary
 arithmetic (src/ad_reviewer.py:698-720) and never inspects the model's

@@ -1,4 +1,4 @@
-"""Cut-renderer duration invariant on synthetic audio (spec 1.5).
+"""Cut-renderer duration invariant on synthetic audio (docs/specs/2026-07-08-ad-splice-detection.md#15-cut-renderer-overshoot-bug-4).
 
 remove_ads REPLACES each applied cut with the beep asset (1.08s), so the
 exact invariant is:

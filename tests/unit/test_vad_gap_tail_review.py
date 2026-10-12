@@ -1,5 +1,6 @@
 """Unit tests for vad_gap tail corroboration wiring and review visibility
-(ad-splice-detection spec 1.1/1.3)."""
+(docs/specs/2026-07-08-ad-splice-detection.md#11-vad_gap-clamp-bypass-with-audio-corroboration and
+docs/specs/2026-07-08-ad-splice-detection.md#13-review-queue-visibility-for-uncorroborated-tail-markers)."""
 import json
 import os
 import sys

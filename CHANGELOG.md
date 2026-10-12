@@ -15,6 +15,7 @@ release notes.
 
 ### Added
 - Integration tests validate live API responses against `openapi.yaml` with JSON Schema 2020-12, so a response that drifts from the documented schema fails CI instead of passing a substring check.
+- Design specs behind larger features now live in `docs/specs/`, with an index, and tests that pin a design decision cite the spec by path and heading instead of a bare section number.
 
 ### Changed
 - Dependency updates: anthropic 1.12.1, openai 3.26.1, tldextract 5.4.0, fsspec 2026.9.0, python-slugify 9.1.3; frontend wavesurfer.js 8.0.2, vite-plugin-pwa 2.0.0, @vitejs/plugin-react 6.1.2, @tanstack/react-query 5.104.1, eslint 10.12.0; GitHub Actions upload-artifact 7.0.2, download-artifact 8.0.2, setup-node 7.1.0.

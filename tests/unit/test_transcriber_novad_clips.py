@@ -4,7 +4,7 @@ BatchedInferencePipeline builds its chunks from VAD speech timestamps. With
 vad_filter=False and no clip_timestamps it raises "No clip timestamps found",
 which transcribe() swallowed into a None return. faster-whisper has its own
 single-clip fallback below the 30s chunk length, so the tail re-transcription
-(spec 1.2) failed on the local backend for any span of 30 seconds or more.
+(docs/specs/2026-07-08-ad-splice-detection.md#12-tail-re-transcription-without-vad) failed on the local backend for any span of 30 seconds or more.
 """
 from unittest.mock import MagicMock, patch
 
