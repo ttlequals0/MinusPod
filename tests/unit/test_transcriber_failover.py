@@ -355,7 +355,7 @@ def test_failed_whisper_upload_records_usage_only_at_dispatch(t, tmp_path):
     ctx = run_context.begin('example-podcast', 'whisper-upload', run_id='whisper-upload')
     try:
         with patch.object(t, 'preprocess_audio', return_value=None), \
-                patch.object(transcriber, 'safe_post', return_value=None) as upload:
+                patch.object(transcriber.remote, 'safe_post', return_value=None) as upload:
             assert t._transcribe_via_api(str(audio), {**FAILOVER, 'api_base_url': ''}) is None
             assert ctx.failover_usage() is None
             assert upload.call_count == 0

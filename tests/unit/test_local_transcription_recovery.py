@@ -206,7 +206,7 @@ def test_real_failure_after_diagnostic_success_in_same_second_wins(monkeypatch):
     monkeypatch.setattr(transcriber.local, '_read_persisted_local_outcome', lambda: success)
     monkeypatch.setattr(transcriber.local, 'utc_now', lambda: datetime(
         2026, 1, 1, 0, 0, 0, 200000, tzinfo=timezone.utc))
-    monkeypatch.setattr(transcriber.database, 'Database', MagicMock())
+    monkeypatch.setattr(transcriber.local.database, 'Database', MagicMock())
     transcriber.local._record_local_transcription_outcome({'outcome': 'failed', 'device': 'cpu'})
     assert transcriber.local._latest_local_outcome('cpu', transcriber.local.WHISPER_BACKEND_LOCAL)['outcome'] == 'failed'
 

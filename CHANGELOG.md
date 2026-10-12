@@ -19,6 +19,7 @@ release notes.
 
 ### Changed
 - The episode processing module is split into stage modules under `main_app/pipeline/` (transcribe, signals, detect, review, cuts, keep rules, verify, publish, finalize, admission, failure, recut), with `processing.py` keeping the orchestrator and background start path. No behavior change.
+- The Transcriber class delegates segment filtering, batch-size ceilings and the remote transcription request to module functions in the transcriber package; its public methods are unchanged.
 - Installation docs state that a GPU is recommended but not required, lead with the Docker-on-any-host path, and give a 2 CPU core, 8 GB RAM minimum.
 - README lists processing modes, configuration export and restore, podcast search, output audio controls, and queue resilience, and corrects stale statements about auth, backups, verification, and providers.
 - README Documentation table and docs/README.md list the System One, Failover, Pattern Cleanup, Transcript Differential, Glossary, and Container Security pages, ordered from first install through pipeline, tuning, and maintainer topics.
