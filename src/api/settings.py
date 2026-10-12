@@ -3849,7 +3849,7 @@ def update_provider_budget():
         values.update({
             'provider_budget_display_currency': fx_rate.currency,
             'provider_budget_fx_rate': str(fx_rate.local_per_usd),
-            'provider_budget_fx_source_date': fx_rate.source_date,
+            'provider_budget_fx_source_date': fx_rate.source_date or '',
             'provider_budget_fx_fetched_at': utc_now_iso(),
         })
     with db.transaction(immediate=True) as conn:

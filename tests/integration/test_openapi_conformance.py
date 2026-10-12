@@ -177,7 +177,6 @@ def test_put_echoing_current_settings_matches_spec(seeded, template):
     assert_response_conforms('put', template, client.put(f'/api/v1{template}', json=current, headers=headers))
 
 
-@pytest.mark.xfail(strict=True, reason='PUT /settings/provider-budget displayCurrency USD: 500, fx_source_date is None')
 def test_provider_budget_put_echoing_current_settings(seeded):
     client, headers = seeded
     template = '/settings/provider-budget'

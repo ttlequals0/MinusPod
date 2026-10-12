@@ -112,6 +112,22 @@ def test_provider_budget_converts_local_amounts_and_records_rate(app_client, tem
     assert temp_db.get_setting('provider_budget_fx_source_date') == '2026-09-10'
 
 
+def test_provider_budget_saves_usd_display_currency(app_client):
+    response = app_client.put('/api/v1/settings/provider-budget', json={
+        'enabled': False,
+        'displayCurrency': 'USD',
+        'dailyLimit': '1',
+        'maxReservations': 2,
+        'unknownCost': 'deny',
+        'unknownReserve': '0',
+    })
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['displayCurrency'] == 'USD'
+    assert body['fxRate']['sourceDate'] is None
+
+
 def test_provider_budget_rate_failure_preserves_existing_values(app_client, temp_db):
     temp_db.set_setting('provider_budget_daily_limit_microusd', '2500000')
     with patch('api.settings.get_usd_rate', side_effect=FxRateError('Currency rate is unavailable or too old')):

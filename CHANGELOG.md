@@ -20,6 +20,7 @@ release notes.
 - Dependency updates: anthropic 1.12.1, openai 3.26.1, tldextract 5.4.0, fsspec 2026.9.0, python-slugify 9.1.3; frontend wavesurfer.js 8.0.2, vite-plugin-pwa 2.0.0, @vitejs/plugin-react 6.1.2, @tanstack/react-query 5.104.1, eslint 10.12.0; GitHub Actions upload-artifact 7.0.2, download-artifact 8.0.2, setup-node 7.1.0.
 
 ### Fixed
+- Saving the provider budget with USD as the display currency no longer fails with a database constraint error.
 - The OpenAPI schema for the settings object marks the model and provider routing values as nullable, matching the null the API returns while they are unset.
 - The OpenAPI document describes the response bodies of the unassigned corrections list, the feed tags update, the reviewer settings update, and the community sync settings update.
 
