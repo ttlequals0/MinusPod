@@ -18,7 +18,6 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 - [Quick start](#quick-start)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
-- [System One](#system-one)
 - [Disclaimer](#disclaimer)
 - [License](#license)
 - [LLM disclosure](#llm-disclosure)
@@ -147,10 +146,6 @@ Or browse the [full docs index](docs/README.md).
 ## Contributing
 
 Bug reports, feature requests, enhancements, and general feedback are all welcome. Open an issue using one of the templates, or send a pull request if you already have a fix in hand. For larger changes, open an issue first so we can talk through the approach before you write code. Two areas have their own contribution flows: ad patterns ([Community Patterns](patterns/README.md)) and benchmark results ([Benchmark Contributing](benchmarks/llm/CONTRIBUTING.md)). Fork-derived features and community bug reports are credited in the CHANGELOG.md entry that ships them; merged commits are credited automatically on the repo's contributors graph.
-
-## System One
-
-MinusPod has native TypeSafe and System One-compatible providers for detection and verification. Ad category classification is supported; the optional reviewer is experimental. Chapter generation and Pattern Cleanup require a chat-completion provider. See [System One setup, phase support, migration, and statistics](docs/system-one.md).
 
 ## Disclaimer
 
