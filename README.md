@@ -115,32 +115,32 @@ Compose requires an application password before it serves the normal API. Set th
 
 | Topic | |
 |---|---|
-| [How It Works & Detection Pipeline](docs/how-it-works.md) | Verification pass, sliding windows, queue, validation, pattern learning, audio analysis |
-| [Episode Processing Workflows](docs/workflows.md) | Visual map of the pipeline, the five processing modes, re-runs, and failure paths |
-| [Upstream Transcript Differential](docs/transcript-differential.md) | Diffing the Whisper transcript against the publisher's ad-free transcript, how gaps corroborate or hold |
 | [Installation](docs/installation.md) | Requirements, quick start, CPU image, Intel hybrid CPU tuning |
-| [Web Interface](docs/web-interface.md) | Management UI, ad editor workflow, screenshots |
-| [Configuration & Experiments](docs/configuration.md) | Settings, per-stage LLM tuning, VAD gap detector, ad reviewer, reprocessing, community patterns, segment categories, episode filters, queue priority, offline queue, rate-limit hold, Whisper pool, scheduled backups |
-| [Configuration Import / Export](docs/configuration-import-export.md) | Export and restore global settings and selected feed configuration |
-| [System One](docs/system-one.md) | Native TypeSafe and compatible providers, supported phases, profiles, migration, statistics |
-| [Audio Cue Detection](docs/audio-cues.md) | Per-feed cue templates, the find-audio-cues suggestion scan, settings, and tuning |
-| [Community Patterns](patterns/README.md) | Crowdsourced ad pattern set: opt-in manifest sync, file format, and how to contribute |
 | [Environment Variables](docs/environment-variables.md) | Every env var, grouped by how often you touch it |
 | [LLM Providers](docs/llm-providers.md) | Claude Code wrapper, Ollama, OpenRouter, recommended models, pricing |
-| [Failover](docs/failover.md) | Standby LLM provider and transcriber, triggers, health probes, recovery, manual control |
-| [Pattern Cleanup](docs/pattern-cleanup.md) | Scheduled or manual review of learned patterns: trims, splits, renames, retirements, approve, reject, undo |
 | [Transcription](docs/transcription.md) | faster-whisper and Parakeet backends, choosing between them, GPU compute types, whisper.cpp, Groq, OpenAI Whisper, timeouts |
-| [Intel GPU Transcription (OpenVINO)](docs/transcription-openvino.md) | Offload Whisper to an Intel GPU via the OpenVINO Model Server |
 | [Finding Feeds & Usage](docs/feeds-and-usage.md) | Podcast search, finding RSS feeds, Audiobookshelf |
-| [Local Feeds](docs/local-feeds.md) | Build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema |
-| [API & Webhooks](docs/api-and-webhooks.md) | REST endpoints, webhook events, payload templates, signing, email notifications |
+| [Web Interface](docs/web-interface.md) | Management UI, ad editor workflow, screenshots |
+| [How It Works & Detection Pipeline](docs/how-it-works.md) | Verification pass, sliding windows, queue, validation, pattern learning, audio analysis |
+| [Episode Processing Workflows](docs/workflows.md) | Visual map of the pipeline, the five processing modes, re-runs, and failure paths |
+| [Configuration & Experiments](docs/configuration.md) | Settings, per-stage LLM tuning, VAD gap detector, ad reviewer, reprocessing, community patterns, segment categories, episode filters, queue priority, offline queue, rate-limit hold, Whisper pool, scheduled backups |
 | [Security, Storage & Custom Assets](docs/security-and-storage.md) | Remote access, login lockout, authenticated feeds and subscriber keys, backups and restore, custom markers |
-| [Container Security Updates](docs/container-security.md) | Pinned security patches for media libraries and base packages in the GPU and CPU images |
+| [Audio Cue Detection](docs/audio-cues.md) | Per-feed cue templates, the find-audio-cues suggestion scan, settings, and tuning |
+| [Community Patterns](patterns/README.md) | Crowdsourced ad pattern set: opt-in manifest sync, file format, and how to contribute |
+| [Pattern Cleanup](docs/pattern-cleanup.md) | Scheduled or manual review of learned patterns: trims, splits, renames, retirements, approve, reject, undo |
+| [Upstream Transcript Differential](docs/transcript-differential.md) | Diffing the Whisper transcript against the publisher's ad-free transcript, how gaps corroborate or hold |
+| [System One](docs/system-one.md) | Native TypeSafe and compatible providers, supported phases, profiles, migration, statistics |
+| [Failover](docs/failover.md) | Standby LLM provider and transcriber, triggers, health probes, recovery, manual control |
+| [Local Feeds](docs/local-feeds.md) | Build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema |
+| [Configuration Import / Export](docs/configuration-import-export.md) | Export and restore global settings and selected feed configuration |
+| [Intel GPU Transcription (OpenVINO)](docs/transcription-openvino.md) | Offload Whisper to an Intel GPU via the OpenVINO Model Server |
+| [API & Webhooks](docs/api-and-webhooks.md) | REST endpoints, webhook events, payload templates, signing, email notifications |
 | [Podcasting 2.0](docs/podcasting-2.0.md) | What MinusPod emits, regenerates, and deliberately strips from the Podcast Namespace, and why |
-| [Glossary](docs/glossary.md) | Every term the app uses, defined and linked to the docs that cover it |
 | [Deployment Runbook](docs/DEPLOYMENT.md) | Operational runbook |
 | [Releasing & Channels](docs/releasing.md) | Stable vs edge channels, how releases are tagged and promoted |
+| [Container Security Updates](docs/container-security.md) | Pinned security patches for media libraries and base packages in the GPU and CPU images |
 | [LLM Benchmark Report](benchmarks/llm/results/report.md) | Per-model F1, JSON compliance, latency, and cost across the benchmarked models |
+| [Glossary](docs/glossary.md) | Every term the app uses, defined and linked to the docs that cover it |
 
 Or browse the [full docs index](docs/README.md).
 
