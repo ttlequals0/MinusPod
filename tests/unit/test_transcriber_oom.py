@@ -224,7 +224,7 @@ def _load_model(monkeypatch, compute_type='auto', error=LOAD_OOM):
             patch('transcriber.settings._get_whisper_compute_type', return_value=compute_type), \
             patch('transcriber.local.ctranslate2.get_cuda_device_count', return_value=1), \
             patch('transcriber.local.WhisperModel', side_effect=fake_model), \
-            patch('transcriber.clear_gpu_memory'), \
+            patch('transcriber.local.clear_gpu_memory'), \
             patch.object(singleton, 'get_configured_model', return_value='small'):
         singleton.get_instance()
     return attempts
@@ -454,7 +454,7 @@ def test_recorded_outcome_survives_a_worker_without_the_module_global(monkeypatc
     assert health['available'] is False
     assert health['lastOutcome']['status'] == 'failed'
     assert health['lastOutcome']['device'] == 'cuda'
-    assert health['lastOutcome']['backend'] == transcriber_mod.WHISPER_BACKEND_LOCAL
+    assert health['lastOutcome']['backend'] == transcriber_mod.local.WHISPER_BACKEND_LOCAL
     assert health['lastOutcome']['observedAt']
 
 
@@ -497,9 +497,9 @@ def test_health_follows_the_configured_backend(monkeypatch):
                          'observed_at': '2026-01-01T00:00:00Z'})
     db = _db()
     try:
-        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
+        db.set_setting('whisper_backend', transcriber_mod.local.WHISPER_BACKEND_LOCAL)
         local_health = transcriber_mod.remote.get_transcriber_health()
-        assert local_health['backend'] == transcriber_mod.WHISPER_BACKEND_LOCAL
+        assert local_health['backend'] == transcriber_mod.local.WHISPER_BACKEND_LOCAL
         assert local_health['available'] is False
 
         db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_API)
@@ -509,14 +509,14 @@ def test_health_follows_the_configured_backend(monkeypatch):
         assert api_health['probed'] is False
         assert 'lastOutcome' not in api_health
     finally:
-        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
+        db.set_setting('whisper_backend', transcriber_mod.local.WHISPER_BACKEND_LOCAL)
         db.set_setting('whisper_api_base_url', '')
 
 
 def test_api_backend_health_uses_a_cached_probe_not_a_fresh_request(monkeypatch):
     """/system/status is polled, so the API reading comes from the probe
     cache rather than an outbound request per tick."""
-    monkeypatch.setattr(transcriber_mod, 'safe_get', _no_network)
+    monkeypatch.setattr(transcriber_mod.remote, 'safe_get', _no_network)
     db = _db()
     try:
         db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_API)
@@ -531,7 +531,7 @@ def test_api_backend_health_uses_a_cached_probe_not_a_fresh_request(monkeypatch)
         assert health['instanceCount'] == 0
     finally:
         transcriber_mod.remote._health_cache.delete('http://whisper.invalid/v1')
-        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
+        db.set_setting('whisper_backend', transcriber_mod.local.WHISPER_BACKEND_LOCAL)
         db.set_setting('whisper_api_base_url', '')
 
 
@@ -550,7 +550,7 @@ def test_health_reports_parakeet_backend(monkeypatch):
         assert health['available'] is False
         assert 'onnx-asr' in health['reason']
     finally:
-        db.set_setting('whisper_backend', transcriber_mod.WHISPER_BACKEND_LOCAL)
+        db.set_setting('whisper_backend', transcriber_mod.local.WHISPER_BACKEND_LOCAL)
 
 
 def test_health_ignores_other_backend_outcome(monkeypatch):
@@ -558,7 +558,7 @@ def test_health_ignores_other_backend_outcome(monkeypatch):
     monkeypatch.setenv('WHISPER_DEVICE', 'cpu')
     monkeypatch.setattr(transcriber_mod.parakeet_transcriber, 'parakeet_available', lambda: True)
     transcriber_mod.local._record_local_transcription_outcome(
-        {'outcome': 'success', 'backend': transcriber_mod.WHISPER_BACKEND_LOCAL, 'device': 'cpu'})
+        {'outcome': 'success', 'backend': transcriber_mod.local.WHISPER_BACKEND_LOCAL, 'device': 'cpu'})
     health = transcriber_mod.local.get_local_transcriber_health('parakeet')
     assert health['lastOutcome'] is None
     assert health['available'] is True

@@ -30,10 +30,10 @@ def test_module_imports_without_local_packages():
         "import sys; sys.path.insert(0, 'src');"
         "sys.modules['faster_whisper'] = None; sys.modules['ctranslate2'] = None;"
         "import transcriber;"
-        "assert transcriber._LOCAL_IMPORT_ERROR is not None;"
-        "assert transcriber.ctranslate2 is None;"
-        "assert transcriber.WhisperModel is None;"
-        "assert transcriber.BatchedInferencePipeline is None"
+        "assert transcriber.local._LOCAL_IMPORT_ERROR is not None;"
+        "assert transcriber.local.ctranslate2 is None;"
+        "assert transcriber.local.WhisperModel is None;"
+        "assert transcriber.local.BatchedInferencePipeline is None"
     )
     result = subprocess.run([sys.executable, '-c', script], cwd=REPO_ROOT,
                             capture_output=True, text=True)

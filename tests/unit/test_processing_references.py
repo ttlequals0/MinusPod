@@ -8,7 +8,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('refs_test_')
 
 TESTS = pathlib.Path(__file__).resolve().parents[1]
-TARGET_RE = re.compile(r"""['"]((?:api\.settings|api\.episodes|main_app\.processing)(?:\.\w+)+)['"]""")
+TARGET_RE = re.compile(r"""['"]((?:api\.settings|api\.episodes|main_app\.processing|transcriber)(?:\.\w+)+)['"]""")
 
 
 def _resolves(target):

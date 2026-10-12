@@ -181,7 +181,7 @@ def test_normal_load_replaces_stale_captured_device_or_compute(monkeypatch, chan
     monkeypatch.setattr(singleton, '_load_config', old)
     monkeypatch.setattr(singleton, '_needs_reload', False)
     monkeypatch.setattr(singleton, 'get_configured_model', lambda: old['model'])
-    monkeypatch.setattr(transcriber, 'resolve_whisper_device', lambda: changed['device'])
+    monkeypatch.setattr(transcriber.local, 'resolve_whisper_device', lambda: changed['device'])
     monkeypatch.setattr(transcriber.settings, '_get_whisper_compute_type', lambda: changed['compute_type'])
     def unload():
         singleton._instance = None
@@ -204,11 +204,11 @@ def test_real_failure_after_diagnostic_success_in_same_second_wins(monkeypatch):
     monkeypatch.setattr(transcriber.local, '_latest_local_outcome',
                         local_state_reader)
     monkeypatch.setattr(transcriber.local, '_read_persisted_local_outcome', lambda: success)
-    monkeypatch.setattr(transcriber, 'utc_now', lambda: datetime(
+    monkeypatch.setattr(transcriber.local, 'utc_now', lambda: datetime(
         2026, 1, 1, 0, 0, 0, 200000, tzinfo=timezone.utc))
     monkeypatch.setattr(transcriber.database, 'Database', MagicMock())
     transcriber.local._record_local_transcription_outcome({'outcome': 'failed', 'device': 'cpu'})
-    assert transcriber.local._latest_local_outcome('cpu', transcriber.WHISPER_BACKEND_LOCAL)['outcome'] == 'failed'
+    assert transcriber.local._latest_local_outcome('cpu', transcriber.local.WHISPER_BACKEND_LOCAL)['outcome'] == 'failed'
 
 
 def test_web_worker_never_runs_the_diagnostic_decode(monkeypatch):
