@@ -25,7 +25,7 @@ from utils.errors import (
 )
 from utils.text import transcript_gaps
 from utils.time import format_vtt_timestamp, parse_iso_utc, utc_now, utc_now_iso
-from utils.gpu import (clear_gpu_memory, get_gpu_device_name)
+from utils.gpu import clear_gpu_memory, get_gpu_device_name
 from utils.url import SSRFError
 from utils.http import redirect_chain_for_log, safe_url_for_log
 from utils.safe_http import (
@@ -38,6 +38,7 @@ from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from whisper_pool import get_pool
 import parakeet_transcriber
 from parakeet_transcriber import ParakeetModelSingleton
+from transcriber import common, settings, local, remote, chunking
 from config import (
     WHISPER_BACKEND_API,
     WHISPER_BACKEND_PARAKEET,
@@ -97,7 +98,6 @@ EXTRACT_PREFETCH_WORKERS = 2
 # How many chunks past the current one to keep in flight. Bounds /tmp usage:
 # each extracted chunk is a 16kHz mono WAV, ~2MB per audio minute.
 EXTRACT_PREFETCH_AHEAD = 2
-from transcriber import settings, local, remote, chunking  # noqa: F401
 
 
 class _ChunkPrefetcher:
@@ -268,11 +268,11 @@ class Transcriber:
                         logger.info(f"Compressed for upload: {os.path.getsize(flac_path) / 1024 / 1024:.1f}MB FLAC")
                     else:
                         # Compression failed -- remove orphaned temp file
-                        settings._unlink_quiet(flac_path)
+                        common.unlink_quiet(flac_path)
                         flac_path = None
                 except Exception as e:
                     logger.warning(f"FLAC compression failed, sending WAV: {e}")
-                    settings._unlink_quiet(flac_path)
+                    common.unlink_quiet(flac_path)
                     flac_path = None
 
             # Build request
@@ -494,8 +494,8 @@ class Transcriber:
             logger.error(f"API transcription failed: {e}")
             return None
         finally:
-            settings._unlink_quiet(preprocessed_path)
-            settings._unlink_quiet(flac_path)
+            common.unlink_quiet(preprocessed_path)
+            common.unlink_quiet(flac_path)
 
     def _record_local_stats(self, outcome, batch_size, retry_count, device, model,
                             backend, error=None) -> None:
@@ -558,7 +558,7 @@ class Transcriber:
             finally:
                 if acquired:
                     local._gpu_admission_release()
-                settings._unlink_quiet(preprocessed_path)
+                common.unlink_quiet(preprocessed_path)
 
     def transcribe_span_no_vad(self, audio_path: str, start: float, end: float,
                                language_override: str | None, flag: str,
@@ -594,7 +594,7 @@ class Transcriber:
                            f"proceeding without {label.lower()}: {e}")
             return None, None
         finally:
-            settings._unlink_quiet(chunk_path)
+            common.unlink_quiet(chunk_path)
         if new_segments is None:
             logger.warning(f"{prefix}{label} re-transcription failed; "
                            f"proceeding without {label.lower()}")
@@ -881,7 +881,7 @@ class Transcriber:
         finally:
             # Clean up temp file on any failure path
             if not success:
-                settings._unlink_quiet(output_path)
+                common.unlink_quiet(output_path)
 
     def check_audio_availability(self, url: str, timeout: int = 10,
                                  user_agent: str = None) -> tuple:
@@ -1012,11 +1012,11 @@ class Transcriber:
         # safe_get runs in the first try block, and nothing else in this
         # try uses the capped-read helpers.
         except ResponseTooLargeError as e:
-            settings._unlink_quiet(temp_path)
+            common.unlink_quiet(temp_path)
             logger.error(f"{e} ({safe_url_for_log(url)})")
             raise AudioTooLargeError(str(e)) from e
         except Exception as e:
-            settings._unlink_quiet(temp_path)
+            common.unlink_quiet(temp_path)
             logger.error(f"Failed to download audio: {e}")
             return None
 
@@ -1377,7 +1377,7 @@ class Transcriber:
                 logger.error(f"{prefix}Chunk {chunk_idx + 1} failed: {e}")
                 return chunk_idx, None
             finally:
-                settings._unlink_quiet(chunk_path)
+                common.unlink_quiet(chunk_path)
 
         failed = 0
         # Managed manually (not `with`) so an early abort can return promptly:
@@ -1851,7 +1851,7 @@ class Transcriber:
 
                 finally:
                     # Clean up chunk file
-                    settings._unlink_quiet(chunk_path)
+                    common.unlink_quiet(chunk_path)
 
                     # Clear GPU cache between chunks (no reload cost)
                     clear_gpu_memory()

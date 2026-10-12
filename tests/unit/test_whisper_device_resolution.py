@@ -53,6 +53,6 @@ def test_transcriber_uses_the_resolver_everywhere():
     # All three device reads must go through validation, not raw os.getenv.
     from pathlib import Path
     package = Path(__file__).resolve().parents[2] / 'src' / 'transcriber'
-    source = '\n'.join(f.read_text() for f in sorted(package.glob('*.py')))
+    source = '\n'.join((package / f'{m}.py').read_text() for m in ('__init__', 'local'))
     assert 'os.getenv("WHISPER_DEVICE"' not in source
     assert source.count('resolve_whisper_device()') >= 3

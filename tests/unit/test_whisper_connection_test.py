@@ -16,7 +16,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('whisper_conn_test_', passphrase='whisper-conn-test-pass')
 
 from main_app import app  # noqa: E402
-from transcriber.settings import _probe_wav_bytes
+from transcriber.common import probe_wav_bytes
 from transcriber.remote import _probe_upload, probe_transcription_endpoint
 from utils.connection_probe import PROBE_RESPONSE_CAP_BYTES  # noqa: E402
 from utils.url import SSRFError  # noqa: E402
@@ -60,7 +60,7 @@ def _response(status, body=b'', json_body=None):
 
 class TestProbeWav:
     def test_is_valid_wav(self):
-        data = _probe_wav_bytes()
+        data = probe_wav_bytes()
         with wave.open(io.BytesIO(data), 'rb') as w:
             assert w.getnchannels() == 1
             assert w.getsampwidth() == 2
@@ -70,14 +70,14 @@ class TestProbeWav:
     def test_is_not_suspiciously_small(self):
         # The real upload path refuses files under 1024 bytes; the probe
         # should stay comfortably above any similar server-side floor.
-        assert len(_probe_wav_bytes()) > 1024
+        assert len(probe_wav_bytes()) > 1024
 
 
 class TestProbeUpload:
     def test_skip_flac_sends_wav(self):
         filename, audio = _probe_upload(skip_flac_compression=True)
         assert filename == 'probe.wav'
-        assert audio == _probe_wav_bytes()
+        assert audio == probe_wav_bytes()
 
     def test_flac_mode_encodes(self):
         def fake_ffmpeg(cmd, **kwargs):
@@ -96,7 +96,7 @@ class TestProbeUpload:
                    return_value=MagicMock(returncode=1)):
             filename, audio = _probe_upload(skip_flac_compression=False)
         assert filename == 'probe.wav'
-        assert audio == _probe_wav_bytes()
+        assert audio == probe_wav_bytes()
 
 
 class TestProbeTranscriptionEndpoint:

@@ -2,14 +2,13 @@
 import pathlib
 
 from tests.app_bootstrap import bootstrap
-from tests.import_graph import assert_acyclic, module_imports, package_modules
+from tests.import_graph import assert_package_acyclic
 
 bootstrap('settings_pkg_')
 
 from main_app import app  # noqa: E402
 
 PKG = pathlib.Path(__file__).resolve().parents[2] / 'src/api/settings'
-GROUPS = package_modules(PKG)
 
 # (rule, methods) of every view function under api.settings, recorded before the split.
 EXPECTED_RULES = [
@@ -77,10 +76,5 @@ def test_api_settings_routes_registered():
     assert actual == sorted(EXPECTED_RULES)
 
 
-def test_api_settings_import_graph_is_acyclic():
-    graph = {name: module_imports(PKG / f'{name}.py', 'api.settings') & set(GROUPS) for name in GROUPS}
-    assert_acyclic(graph)
-
-
-def test_init_imports_every_group_module():
-    assert module_imports(PKG / '__init__.py', 'api.settings') == set(GROUPS)
+def test_api_settings_import_graph_is_acyclic_and_init_imports_every_module():
+    assert_package_acyclic(PKG, 'api.settings')

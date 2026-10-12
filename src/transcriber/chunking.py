@@ -7,10 +7,8 @@ import os
 import re
 import subprocess
 import utils.audio
-from utils.errors import (
-    AudioExtractionTimeout,
-)
-from utils.gpu import (get_available_memory_gb)
+from utils.errors import AudioExtractionTimeout
+from utils.gpu import get_available_memory_gb
 from utils.http import safe_url_for_log
 import utils.subprocess_registry
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
@@ -24,7 +22,7 @@ from config import (
     FFMPEG_LONG_TIMEOUT,
     FFMPEG_CHUNK_TIMEOUT,
 )
-from transcriber import settings, local
+from transcriber import common, settings, local
 
 logger = logging.getLogger('transcriber')
 
@@ -121,7 +119,7 @@ def extract_audio_chunk(
     finally:
         # Clean up temp file on failure (caller cleans up on success)
         if not success:
-            settings._unlink_quiet(output_path)
+            common.unlink_quiet(output_path)
 
 
 def merge_overlapping_segments(
@@ -208,7 +206,7 @@ def _chunk_bounds_ahead(start, chunk_duration, duration, overlap, count):
 def _unlink_future_chunk(future):
     """Done-callback for a discarded extraction: swallow its error, drop its file."""
     try:
-        settings._unlink_quiet(future.result())
+        common.unlink_quiet(future.result())
     except Exception:
         pass
 

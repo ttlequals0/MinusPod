@@ -69,7 +69,7 @@ def test_chunk_outage_reruns_failed_chunks_on_failover(t):
             patch.object(transcriber.settings, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
             patch.object(transcriber.chunking, 'extract_audio_chunk',
                         side_effect=lambda path, start, end, **k: _chunk_path_for(start)), \
-            patch.object(transcriber.settings, '_unlink_quiet'), \
+            patch.object(transcriber.common, 'unlink_quiet'), \
             patch.object(t, '_transcribe_via_api', side_effect=fake_via_api), \
             patch.object(t, 'filter_hallucinations', side_effect=lambda s: s):
         segs = t._transcribe_chunked_parallel_api('/tmp/a.mp3', 300.0, ACTIVE)
@@ -98,7 +98,7 @@ def test_same_backend_switch_keeps_already_finished_chunk_results(t):
             patch.object(transcriber.settings, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
             patch.object(transcriber.chunking, 'extract_audio_chunk',
                         side_effect=lambda path, start, end, **k: _chunk_path_for(start)), \
-            patch.object(transcriber.settings, '_unlink_quiet'), \
+            patch.object(transcriber.common, 'unlink_quiet'), \
             patch.object(t, '_transcribe_via_api', side_effect=fake_via_api), \
             patch.object(t, 'filter_hallucinations', side_effect=lambda s: s):
         segs = t._transcribe_chunked_parallel_api('/tmp/a.mp3', 300.0, ACTIVE)
@@ -138,7 +138,7 @@ def test_in_flight_chunk_skips_upload_after_switch_event_set(t):
     ctx = transcriber._ChunkPlanContext('/tmp/a.mp3', None, '', 2, 1)
     results = [None, None]
     with patch.object(transcriber.chunking, 'extract_audio_chunk', side_effect=fake_extract), \
-            patch.object(transcriber.settings, '_unlink_quiet', side_effect=fake_unlink), \
+            patch.object(transcriber.common, 'unlink_quiet', side_effect=fake_unlink), \
             patch.object(t, '_transcribe_via_api', side_effect=fake_via_api):
         worker = threading.Thread(
             target=Transcriber._run_chunk_plan,
@@ -161,7 +161,7 @@ def test_outage_without_failover_configured_propagates(t):
             patch.object(failover, 'is_configured', return_value=False), \
             patch.object(transcriber.settings, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
             patch.object(transcriber.chunking, 'extract_audio_chunk', return_value='/tmp/c.flac'), \
-            patch.object(transcriber.settings, '_unlink_quiet'), \
+            patch.object(transcriber.common, 'unlink_quiet'), \
             patch.object(t, '_transcribe_via_api', side_effect=ServiceUnavailableError('whisper', 'down')):
         with pytest.raises(ServiceUnavailableError):
             t._transcribe_chunked_parallel_api('/tmp/a.mp3', 300.0, ACTIVE)
@@ -206,7 +206,7 @@ def test_backend_type_switch_reruns_whole_episode_locally(t):
             patch.object(transcriber.settings, '_get_failover_whisper_settings', return_value=local_fo), \
             patch.object(transcriber.settings, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
             patch.object(transcriber.chunking, 'extract_audio_chunk', return_value='/tmp/c.flac'), \
-            patch.object(transcriber.settings, '_unlink_quiet'), \
+            patch.object(transcriber.common, 'unlink_quiet'), \
             patch.object(t, '_transcribe_via_api', side_effect=ServiceUnavailableError('whisper', 'down')), \
             patch.object(t, '_transcribe_chunked_local', return_value=_seg(0, 1)) as local:
         segs = t._transcribe_chunked_parallel_api('/tmp/a.mp3', 300.0, ACTIVE)
@@ -315,7 +315,7 @@ def test_second_pass_classifies_on_its_own_errors(t):
             patch.object(transcriber.settings, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
             patch.object(transcriber.chunking, 'extract_audio_chunk',
                         side_effect=lambda path, start, end, **k: _chunk_path_for(start)), \
-            patch.object(transcriber.settings, '_unlink_quiet'), \
+            patch.object(transcriber.common, 'unlink_quiet'), \
             patch.object(Transcriber, '_run_chunk_plan', spy), \
             patch.object(t, '_transcribe_via_api', side_effect=fake_via_api):
         assert t._transcribe_chunked_parallel_api('/tmp/a.mp3', 300.0, ACTIVE) is None
@@ -401,7 +401,7 @@ def test_exhausted_timeout_or_throttle_dispatches_standby_once(t, status):
             patch.object(transcriber.settings, '_get_failover_whisper_settings', return_value=FAILOVER), \
             patch.object(transcriber.settings, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
             patch.object(transcriber.chunking, 'extract_audio_chunk', return_value='/tmp/chunk.wav'), \
-            patch.object(transcriber.settings, '_unlink_quiet'), \
+            patch.object(transcriber.common, 'unlink_quiet'), \
             patch.object(t, '_transcribe_via_api', side_effect=api), \
             patch.object(t, 'filter_hallucinations', side_effect=lambda segments: segments):
         assert t._transcribe_chunked_parallel_api('/tmp/audio.wav', 100.0, ACTIVE)
@@ -433,7 +433,7 @@ def test_whisper_switch_writes_run_log_line(t, tmp_path):
                 patch.object(transcriber.settings, '_get_failover_whisper_settings', return_value=FAILOVER), \
                 patch.object(transcriber.settings, '_get_chunk_settings', return_value=_CHUNK_SETTINGS), \
                 patch.object(transcriber.chunking, 'extract_audio_chunk', return_value='/tmp/chunk.wav'), \
-                patch.object(transcriber.settings, '_unlink_quiet'), \
+                patch.object(transcriber.common, 'unlink_quiet'), \
                 patch.object(t, '_transcribe_via_api', side_effect=api), \
                 patch.object(t, 'filter_hallucinations', side_effect=lambda segments: segments):
             assert t._transcribe_chunked_parallel_api('/tmp/audio.wav', 100.0, ACTIVE)

@@ -1,12 +1,8 @@
 """Whisper settings, timeouts and compute-type resolution for the transcriber."""
 
 import contextvars
-import io
 import logging
-import math
-import struct
 import os
-import wave
 import database
 import failover
 import run_context
@@ -33,14 +29,6 @@ logger = logging.getLogger('transcriber')
 # (extract_audio_chunk(preprocess=True)) so chunked paths run one ffmpeg pass
 # per chunk instead of extract + preprocess.
 PREPROCESS_AUDIO_FILTERS = 'loudnorm=I=-16:LRA=11:TP=-1.5,highpass=f=80,lowpass=f=8000'
-
-
-def _unlink_quiet(path):
-    if path:
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
 
 
 def _max_download_mb() -> int:
@@ -207,24 +195,6 @@ def _note_whisper_settings(whisper_settings: dict) -> None:
 # setting. Set only around a local transcription that uses failover settings.
 _local_model_override: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     'whisper_local_model_override', default=None)
-
-
-def _probe_wav_bytes(duration_s: float = 1.0, rate: int = 16000) -> bytes:
-    """One second of 440 Hz tone as an in-memory WAV (mono, 16-bit).
-
-    Used as the upload for probe_transcription_endpoint. A tone rather than silence:
-    some servers reject audio whose signal level is effectively zero before
-    the request ever reaches the transcription path.
-    """
-    n = int(duration_s * rate)
-    samples = [int(8000 * math.sin(2 * math.pi * 440 * i / rate)) for i in range(n)]
-    buf = io.BytesIO()
-    with wave.open(buf, 'wb') as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(rate)
-        w.writeframes(struct.pack(f'<{n}h', *samples))
-    return buf.getvalue()
 
 
 def _get_chunk_settings() -> dict[str, int]:

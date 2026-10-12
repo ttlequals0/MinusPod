@@ -2,14 +2,13 @@
 import pathlib
 
 from tests.app_bootstrap import bootstrap
-from tests.import_graph import assert_acyclic, module_imports, package_import_graph, package_modules, registered_rules
+from tests.import_graph import assert_package_acyclic, registered_rules
 
 bootstrap('episodes_pkg_')
 
 from main_app import app  # noqa: E402
 
 PKG = pathlib.Path(__file__).resolve().parents[2] / 'src/api/episodes'
-GROUPS = package_modules(PKG)
 
 # (rule, methods) of every view function under api.episodes, recorded before the split.
 EXPECTED_RULES = [
@@ -45,9 +44,5 @@ def test_api_episodes_routes_registered():
     assert registered_rules(app, 'api.episodes') == sorted(EXPECTED_RULES)
 
 
-def test_api_episodes_import_graph_is_acyclic():
-    assert_acyclic(package_import_graph(PKG, 'api.episodes'))
-
-
-def test_init_imports_every_group_module():
-    assert module_imports(PKG / '__init__.py', 'api.episodes') == set(GROUPS)
+def test_api_episodes_import_graph_is_acyclic_and_init_imports_every_module():
+    assert_package_acyclic(PKG, 'api.episodes')

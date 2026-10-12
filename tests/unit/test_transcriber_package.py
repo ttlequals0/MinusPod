@@ -2,13 +2,13 @@
 import pathlib
 
 import transcriber
-from tests.import_graph import assert_acyclic, package_import_graph
+from tests.import_graph import assert_package_acyclic
 
 PKG = pathlib.Path(__file__).resolve().parents[2] / 'src/transcriber'
 
 
-def test_transcriber_import_graph_is_acyclic():
-    assert_acyclic(package_import_graph(PKG, 'transcriber'))
+def test_transcriber_import_graph_is_acyclic_and_init_imports_every_module():
+    assert_package_acyclic(PKG, 'transcriber')
 
 
 def test_package_exposes_the_transcriber_class_and_constants():

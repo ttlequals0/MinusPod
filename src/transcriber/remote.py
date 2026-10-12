@@ -1,4 +1,7 @@
-"""Remote transcription backend: health probes, endpoint probes and failover."""
+"""Remote transcription backend: health probes, endpoint probes and failover.
+
+Tests of the health or endpoint probes patch transcriber.remote.safe_get / safe_post; tests of Transcriber methods patch them on transcriber.
+"""
 
 import io
 import logging
@@ -15,9 +18,7 @@ from utils.errors import (
 )
 from utils.http import safe_url_for_log
 from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
-from utils.safe_http import (
-    URLTrust, safe_get, safe_post,
-)
+from utils.safe_http import URLTrust, safe_get, safe_post
 import utils.subprocess_registry
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.ttl_cache import TTLCache
@@ -26,7 +27,7 @@ from config import (
     FFMPEG_SHORT_TIMEOUT,
     HTTP_MAX_REDIRECTS_API,
 )
-from transcriber import settings, local
+from transcriber import common, settings, local
 
 logger = logging.getLogger('transcriber')
 
@@ -36,8 +37,8 @@ def get_remote_transcriber_health() -> dict:
     only: a polled status endpoint must not fire an outbound request per
     tick. Unconfigured reads as unavailable; never probed reads as available
     (nothing has failed)."""
-    settings_ = settings._get_whisper_settings()
-    base_url = (settings_.get('api_base_url') or '').rstrip('/')
+    whisper_settings = settings._get_whisper_settings()
+    base_url = (whisper_settings.get('api_base_url') or '').rstrip('/')
     if not base_url:
         return {'backend': WHISPER_BACKEND_API, 'available': False, 'probed': False}
     probe = _health_cache.get(base_url) or _last_good_health(base_url)
@@ -161,14 +162,14 @@ def probe_whisper_health(base_url: str | None = None, samples: int = 8,
     raises: an unusable sample is skipped, and a probe that finds nothing
     returns {'available': False}.
     """
-    settings_ = None
+    whisper_settings = None
     if base_url is None:
-        settings_ = settings._get_whisper_settings()
-        base_url = settings_['api_base_url']
+        whisper_settings = settings._get_whisper_settings()
+        base_url = whisper_settings['api_base_url']
     if not base_url:
         return {'available': False}
     if api_key is None:
-        api_key = settings_['api_key'] if settings_ else ''
+        api_key = whisper_settings['api_key'] if whisper_settings else ''
 
     cache_key = base_url.rstrip('/')
     if not refresh:
@@ -282,7 +283,7 @@ def _probe_upload(skip_flac_compression: bool) -> tuple[str, bytes]:
     servers with no FLAC decoder (OVMS): a WAV-only probe would pass while
     real episodes fail.
     """
-    wav = settings._probe_wav_bytes()
+    wav = common.probe_wav_bytes()
     if skip_flac_compression:
         return 'probe.wav', wav
     wav_path = flac_path = None
@@ -302,8 +303,8 @@ def _probe_upload(skip_flac_compression: bool) -> tuple[str, bytes]:
     except Exception as e:
         logger.warning(f"Probe FLAC encode failed, sending WAV: {e}")
     finally:
-        settings._unlink_quiet(wav_path)
-        settings._unlink_quiet(flac_path)
+        common.unlink_quiet(wav_path)
+        common.unlink_quiet(flac_path)
     return 'probe.wav', wav
 
 

@@ -10,11 +10,9 @@ import time
 from contextlib import contextmanager
 import database
 import run_context
-from utils.errors import (
-    LocalTranscriptionUnavailableError, ModelLoadError,
-)
+from utils.errors import LocalTranscriptionUnavailableError, ModelLoadError
 from utils.time import parse_iso_utc, utc_now
-from utils.gpu import (clear_gpu_memory, get_gpu_memory_info)
+from utils.gpu import clear_gpu_memory, get_gpu_memory_info
 import parakeet_transcriber
 from parakeet_transcriber import ParakeetModelSingleton
 from config import (
@@ -33,7 +31,7 @@ try:
 except ImportError as e:
     ctranslate2 = WhisperModel = BatchedInferencePipeline = None
     _LOCAL_IMPORT_ERROR = e
-from transcriber import settings
+from transcriber import common, settings
 
 logger = logging.getLogger('transcriber')
 
@@ -268,13 +266,13 @@ def probe_local_transcription(request_config: dict) -> dict:
         try:
             if backend == WHISPER_BACKEND_PARAKEET:
                 with tempfile.NamedTemporaryFile(suffix='.wav') as probe_wav:
-                    probe_wav.write(settings._probe_wav_bytes())
+                    probe_wav.write(common.probe_wav_bytes())
                     probe_wav.flush()
                     parakeet_transcriber.decode(probe_wav.name, 'en')
             else:
                 model, _pipeline = WhisperModelSingleton.get_instance(load_config=load_config)
                 segments, _info = model.transcribe(
-                    io.BytesIO(settings._probe_wav_bytes()), language='en', beam_size=1, vad_filter=False)
+                    io.BytesIO(common.probe_wav_bytes()), language='en', beam_size=1, vad_filter=False)
                 list(segments)
         except Exception as exc:
             logger.warning('Local recovery decode failed: %s', exc)
