@@ -11,6 +11,12 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.11] - 2026-10-12
+
+### Changed
+- README lists processing modes, configuration export and restore, podcast search, output audio controls, and queue resilience, and corrects stale statements about auth, backups, verification, and providers.
+- README Documentation table and docs/README.md list the System One, Failover, Pattern Cleanup, Transcript Differential, Glossary, and Container Security pages.
+
 ## [2.100.10] - 2026-10-11
 
 ### Fixed
