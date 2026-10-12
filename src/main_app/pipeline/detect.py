@@ -1,21 +1,6 @@
 """Pass 1 ad detection, boundary refinement, validation and confidence gating."""
 
-
-
 import logging
-
-
-
-
-
-
-
-
-
-
-
-
-
 from ad_detector import (
     refine_ad_boundaries, snap_early_ads_to_zero, merge_same_sponsor_ads,
     merge_ads_across_short_content_gaps,
@@ -23,31 +8,10 @@ from ad_detector import (
 )
 
 from ad_detector.cue_boundary_snap import snap_ad_boundaries_to_cues
-
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
-
 from ad_detector.cue_telemetry import build_cue_detection_records
-
-
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
-
-
-
-
-
-
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
-
-
-
-
-
-
-
-
-
-
-
 from config import (
     resolve_max_boundary_shift,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
@@ -64,13 +28,7 @@ from config import (
     coerce_bool_setting,
 )
 
-
-
 from database.settings import registry_get_default
-
-
-
-
 from llm_capabilities import (
     PASS_AD_DETECTION_1, clear_fallback,
 )
@@ -81,30 +39,9 @@ from llm_client import (
     ProviderRequestRejectedError,
 )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 from utils.errors import (
     ServiceUnavailableError,
 )
-
-
-
-
 
 from webhook_service import (
     fire_cue_template_quiet_event,
@@ -112,11 +49,8 @@ from webhook_service import (
 
 audio_logger = logging.getLogger('podcast.audio')
 
-
-
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage, ad_detector, sponsor_service)
-
 
 
 def _exclude_opening_ads(ads, seconds):

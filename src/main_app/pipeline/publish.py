@@ -1,57 +1,23 @@
 """Chapter remapping, chapter publishing and asset generation."""
 
-
-
 import logging
-
-
-
-
 import threading
-
-
-
 from contextlib import contextmanager
-
-
-
-
-
 from ad_chapters import (
     ID3_CHAPTER_SOURCE_KEY,
     merge_ad_chapters, public_chapters, refresh_keep_like_markers,
     resolve_ad_chapter_config, strip_ad_chapters,
 )
 
-
-
-
-
-
-
-
-
-
-
-
-
 from audio_processor import get_replacement_duration
-
 from cancel import (
     ProcessingCancelled, ProcessingOwnershipLost,
 )
 
-
-
 from utils.audio import get_audio_duration
-
-
-
 from utils.time import (
     adjust_timestamp, merge_cut_spans, span_inside_any_cut,
 )
-
-
 
 from config import (
     CHAPTERS_MODE_AUTO,
@@ -61,15 +27,9 @@ from config import (
     resolve_chapters_mode,
 )
 
-
-
-
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
-
 from id3_chapters import ChapterTagError
-
 from upstream_chapters import fetch_upstream_chapters
-
 from llm_capabilities import (
     PASS_CHAPTER_GENERATION, clear_fallback,
 )
@@ -78,44 +38,20 @@ from llm_client import (
     ProviderAccountChangedError, ProviderRateLimitedError,
 )
 
-
-
-
 from rate_limit_hold import (
     hold_message,
     hold_queue_for_provider_limit,
 )
 
-
-
-
-
-
-
-
-
-
-
 from user_agent import download_user_agent
-
 from utils.constants import (
     EpisodeStatus,
 )
 
-
-
-
-
-
-
-
 audio_logger = logging.getLogger('podcast.audio')
-
-
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage)
-
 
 
 def _unadjust_timestamp(processed_time, cuts, replacement_duration=0.0):

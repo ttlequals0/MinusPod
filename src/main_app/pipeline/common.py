@@ -1,106 +1,37 @@
 """Shared stage helpers: status publishing, stage timing, settings reads, transient-error classification."""
 import functools
-
 import inspect
-
-
 import logging
-
 import os
-
 import shutil
-
 import tempfile
-
-
-
-
 from contextlib import contextmanager
-
-
-
 import requests
-
 import requests.exceptions
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 from cancel import (
     _check_cancel,
 )
-
-
-
-
-
-
-
-
 
 from config import (
     MIN_CUT_CONFIDENCE, ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS,
     ModelNotConfiguredError,
 )
 
-
-
-
-
-
-
-
 from llm_client import (
     is_retryable_error, is_llm_api_error, is_limit_exceeded_error, ProviderRateLimitedError,
 )
 
-
-
-
-
-
-
-
-
-
 import run_context
-
-
-
-
 from transcriber import CDN_REFUSED_PREFIX
-
-
-
-
 from utils.errors import (
     AudioTooLargeError,
     LocalTranscriptionUnavailableError, ModelLoadError, ServiceUnavailableError,
     TranscriptionRejectedError,
 )
 
-
-
-
-
-
 audio_logger = logging.getLogger('podcast.audio')
 
-
-
 from main_app.pipeline.shared import (db, status_service)
-
 
 
 def _require_publication_owner(slug: str, episode_id: str) -> None:

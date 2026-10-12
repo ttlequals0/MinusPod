@@ -1,57 +1,22 @@
 """Audio analysis, cue matching, cross-fetch differential and transcript differential."""
 
-
 import json
-
 import logging
-
-
 import shutil
-
 import tempfile
-
-
 import time
-
 from concurrent.futures import TimeoutError as FuturesTimeoutError
-
-
-
 from urllib.parse import urlparse
-
-
-
-
-
-
-
-
-
-
-
-
-
 from audio_analysis.audio_analyzer import MIN_VOLUME_TIMEOUT
-
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
-
-
-
-
-
 from differential_fetcher import (
     fetch_and_diff,
     is_likely_dai_feed,
 )
 
-
-
-
 from utils.time import (
     parse_iso_utc, utc_now_iso,
 )
-
-
 
 from config import (
     is_template_cue,
@@ -60,48 +25,15 @@ from config import (
     resolve_differential_fetch_mode,
 )
 
-
 from database.podcasts import is_local_feed
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 from transcript_differential import align, fetch_upstream_transcript
-
-
-
-
-
 from splice_calibration import compute_splice_calibration
-
-
 from user_agent import download_user_agent
-
-
-
-
-
-
-
-
 
 audio_logger = logging.getLogger('podcast.audio')
 
-
-
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, audio_analyzer)
-
 
 
 def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detection=False):

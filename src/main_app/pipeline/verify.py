@@ -1,47 +1,15 @@
 """Pass 2 verification over the processed audio and cross-pass cut planning."""
 
-
-
 import logging
-
 import os
-
-
-
-
-
-
-
 from dataclasses import dataclass, replace
-
-
-
-
-
-
-
-
-
 from ad_detector.boundaries import (
     _content_duration_in_range,
 )
 
-
-
-
-
-
-
-
 from audio_processor import get_replacement_duration
-
-
-
-
-
 from utils.markers import (EDGE_TOLERANCE, auto_confirm_releases, covering_confirm, finite_number,
                            fold_marker_pair, foldable_twin, reviewer_reject_stands)
-
 
 from utils.time import (
     merge_cut_spans, overlap_seconds,
@@ -49,8 +17,6 @@ from utils.time import (
 )
 
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
-
-
 from config import (
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_MERGED_DURATION,
@@ -64,13 +30,7 @@ from config import (
     resolve_ad_detection_exclude_start_seconds,
 )
 
-
-
 from database.settings import registry_get_default
-
-
-
-
 from llm_capabilities import (
     PASS_AD_DETECTION_2,
     clear_fallback,
@@ -80,34 +40,11 @@ from llm_client import (
     ProviderRateLimitedError,
 )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 from utils.errors import (
     ModelLoadError,
 )
 
-
-
-
-
-
 audio_logger = logging.getLogger('podcast.audio')
-
 
 from main_app.verification_reconciliation import (
     _apply_pass2_heuristic_rolls,
@@ -127,7 +64,6 @@ from main_app.verification_reconciliation import (
 
 from main_app.pipeline import common, detect, review, cuts as cuts_stage, keep_rules
 from main_app.pipeline.shared import (db, storage, transcriber, ad_detector, audio_analyzer, pattern_service)
-
 
 
 def _dedupe_pass2_markers(markers):

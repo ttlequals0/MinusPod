@@ -1,57 +1,14 @@
 """Processing failure handling and requeue after a hold."""
 
-
-
 import logging
-
-
-
-
-
 import time
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 from utils.time import (
     utc_now_iso,
 )
 
-
-
 from config import (
     MAX_EPISODE_RETRIES,
 )
-
-
-
-
-
-
-
 
 from llm_client import (
     is_rate_limit_error,
@@ -60,40 +17,21 @@ from llm_client import (
 )
 
 from database.queue import compute_queue_priority
-
-
 from offline_queue import is_offline_queue_enabled, record_probe_state
-
 from rate_limit_hold import (
     HOLD_REASON_ACCOUNT_CHANGED, get_active_hold, hold_message,
     hold_queue_for_provider_limit, resolve_hold_scope,
 )
 
 from utils.circuit_breaker import CircuitBreakerOpen
-
-
-
-
-
 import run_context
-
-
-
-
-
-
 from utils.constants import (
     EpisodeStatus, REPROCESS_SOURCE_JIT,
 )
 
-
 from utils.errors import (
     AudioNotReadyError, ModelLoadError, ServiceUnavailableError,
 )
-
-
-
-
 
 from webhook_service import (
     fire_event, EVENT_EPISODE_FAILED,
@@ -102,11 +40,8 @@ from webhook_service import (
 
 audio_logger = logging.getLogger('podcast.audio')
 
-
-
 from main_app.pipeline import common, finalize, admission
 from main_app.pipeline.shared import (db)
-
 
 
 def _requeue_episode_after_hold(db, slug, episode_id, episode_title,

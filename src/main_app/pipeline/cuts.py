@@ -1,27 +1,9 @@
 """Cut carving, hold carving, terminal snaps and final cut state."""
 
-
-
 import logging
-
-
-
-
-
-
-
-
-
-
-
-
-
 from ad_detector import (
     extend_ad_boundaries_by_content,
 )
-
-
-
 
 from ad_detector.boundaries import (
     snap_extended_ad_tails_to_splice,
@@ -29,31 +11,16 @@ from ad_detector.boundaries import (
     transition_pair_silence_events,
 )
 
-
-
-
-
-
-
-
 from audio_processor import get_replacement_duration
-
-
-
-
-
 from utils.markers import (EDGE_TOLERANCE, carve_fragment,
                            ensure_hold_id,
                            carve_partly_cut, is_carved,
                            clip_merge_spans, merge_runs, reviewer_edge_locked, subtract_spans)
 
-
 from utils.time import (
     merge_cut_spans, overlap_ratio, overlap_seconds,
     ranges_overlap,
 )
-
-
 
 from config import (
     MIN_AD_DURATION, MIN_AD_DURATION_FOR_REMOVAL,
@@ -62,45 +29,12 @@ from config import (
     TERMINAL_SNAP_WINDOW_SECONDS,
 )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 from splice_calibration import SPLICE_EVENTS_CALIBRATED_STATUSES
-
-
-
-
-
-
-
-
-
-
 
 audio_logger = logging.getLogger('podcast.audio')
 
-
-
 from main_app.pipeline import review
 from main_app.pipeline.shared import (db, storage)
-
 
 
 def _find_master(all_ads, ad):

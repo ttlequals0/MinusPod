@@ -1,97 +1,32 @@
 """Ad reviewer runs for pass 1 and pass 2, including hold release."""
 
-
-
 import logging
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 from ad_reviewer import (
     AdReviewer, abstain_hold_reason, is_contradiction_hold, mark_reviewer_hold,
     split_resurrection_pool, stamp_reviewer_fields,
 )
 
-
-
-
-
 from audio_processor import get_replacement_duration
-
-
-
-
-
 from utils.markers import (EDGE_TOLERANCE, carve_fragment,
                            clip_merge_spans, invalidate_tail_provenance,
                            merge_runs, set_reviewer_locks, spans_match, subtract_spans)
-
 
 from utils.time import (
     adjust_timestamp, overlap_seconds,
     ranges_overlap, span_inside_any_cut,
 )
 
-
-
 from config import (
     MIN_AD_DURATION, HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
 )
-
-
-
-
-
-
 
 from llm_capabilities import (
     PASS_REVIEWER_1, PASS_REVIEWER_2,
     clear_fallback,
 )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 audio_logger = logging.getLogger('podcast.audio')
-
 
 from main_app.verification_reconciliation import (
     Pass2Ledger,
@@ -99,7 +34,6 @@ from main_app.verification_reconciliation import (
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage, ad_detector)
-
 
 
 def _build_reviewer(db, ad_detector) -> AdReviewer:

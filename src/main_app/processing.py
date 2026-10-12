@@ -1,60 +1,24 @@
 """Episode processing orchestrator: process_episode and the background start path."""
 
-
 import json
-
 import logging
-
 import os
-
 import shutil
-
-
 import threading
-
 import time
-
 from concurrent.futures import Future
-
 from contextlib import nullcontext
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 from ad_validator import user_trimmed_keep_ranges
-
-
-
-
 from audio_processor import AudioProcessor
-
 from cancel import (
     ProcessingCancelled, ProcessingOwnershipLost, _check_cancel,
     _cancel_events, _cancel_events_lock,
 )
 
 from processing_queue import ProcessingQueue, is_processing_paused
-
-
-
 from utils.markers import (reject_barriers)
-
 from utils.pattern_catalog import pattern_catalog_scope
-
-
-
 from whisper_pool import get_pool, is_background_follower
-
 from config import (
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
@@ -73,68 +37,39 @@ from config import (
     coerce_bool_setting,
 )
 
-
 from database.podcasts import is_local_feed
-
-
-
-
-
-
 from llm_client import (
     start_episode_token_tracking, get_effective_provider,
 )
-
-
-
 
 from rate_limit_hold import (
     enforce_provider_rate_limit, is_queue_paused,
 )
 
-
 from positional_prior import format_prior_hint, load_positional_prior
-
 from text_recurrence import find_recurring_spans
-
-
 import failover
-
 import run_context
-
-
 from reprocess_modes import (
     FORCE_TRANSCRIBE_MODES, clear_episode_for_mode,
 )
-
-
-
 
 from utils.constants import (
     CANCELED_ERROR_MESSAGE, EpisodeStatus, REPROCESS_SOURCE_POLICY,
 )
 
 from utils.episode_paths import episode_relative_path, published_episode_version
-
-
 from utils.gpu import get_available_memory_gb
-
-
-
-
 
 audio_logger = logging.getLogger('podcast.audio')
 
 from main_app.episode_context import EpisodeContext
-
-
 from main_app.pipeline import common, transcribe, signals, detect, review, cuts, keep_rules, verify, publish, finalize, admission, failure, recut
 from main_app.pipeline import admission as admission_stage  # local `admission` shadows the module in _reserve_provider
 # Stage modules resolve every singleton through this module (pipeline.shared).
 from main_app import (db, storage, transcriber, ad_detector, audio_processor,  # noqa: F401
                       audio_analyzer, sponsor_service, status_service, pattern_service,
                       shutdown_event)
-
 
 
 def _cleanup_cancelled_processing_output(slug, episode_id, run_id, queue,
