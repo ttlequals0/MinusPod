@@ -34,7 +34,7 @@ def registered_rules(app, module_prefix):
 def assert_package_acyclic(pkg_dir, package, exclude=('__init__',)):
     """Group modules form an acyclic import graph and the package __init__ imports all of them."""
     assert_acyclic(package_import_graph(pkg_dir, package))
-    assert module_imports(pathlib.Path(pkg_dir) / '__init__.py', package) >= set(package_modules(pkg_dir, exclude))
+    assert module_imports(pathlib.Path(pkg_dir) / '__init__.py', package) == set(package_modules(pkg_dir, exclude))
 
 
 def assert_acyclic(graph):
