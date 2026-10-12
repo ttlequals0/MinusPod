@@ -14,7 +14,7 @@ class EpisodeStatus(str, Enum):
 
     DISCOVERED..PERMANENTLY_FAILED mirror the schema CHECK constraint on
     episodes.status (src/database/schema.py:50). COMPLETED is the API-facing
-    alias the frontend sees; src/api/episodes.py maps PROCESSED -> COMPLETED
+    alias the frontend sees; src/api/episodes/core.py maps PROCESSED -> COMPLETED
     in responses. Inherits from str so existing == comparisons against bare
     literals keep working without a wide-scope refactor.
     """

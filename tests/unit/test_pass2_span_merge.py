@@ -1,5 +1,5 @@
 """Pass-2 markers must not persist a second dict for a span pass 1 already
-stored, since api/episodes.py buckets markers into mutually exclusive lists."""
+stored, since api/episodes/core.py buckets markers into mutually exclusive lists."""
 import os
 import sys
 import tempfile

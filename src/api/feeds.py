@@ -618,7 +618,7 @@ def _status_counts(podcast) -> dict:
 
     Keys deliberately match the frontend EPISODE_STATUS_COLORS keys: the DB
     status 'processed' is exposed under its API alias 'completed' (the same
-    mapping api/episodes.py applies to episode responses) and comes from the
+    mapping api/episodes/core.py applies to episode responses) and comes from the
     pre-existing processed_count aggregate. LEFT JOIN SUMs are NULL for a
     feed with no episodes, hence the `or 0`.
     """

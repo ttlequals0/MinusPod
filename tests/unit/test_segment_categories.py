@@ -149,7 +149,7 @@ class TestParseAdsFromResponseCarriesCategory:
 
 def _episode_marker_payload_fields(markers):
     """Replicates the get_episode category/actionApplied mapping (see
-    src/api/episodes.py) without spinning up Flask/DB, matching the
+    src/api/episodes/core.py) without spinning up Flask/DB, matching the
     _split_markers idiom used by test_pending_review_bucket.py."""
     out = []
     for marker in markers:
