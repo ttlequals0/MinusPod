@@ -113,6 +113,7 @@ audio_logger = logging.getLogger('podcast.audio')
 
 
 
+from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage)
 
 
@@ -426,7 +427,7 @@ def rebuild_ad_chapters(slug, episode_id, markers, episode=None) -> bool:
                 return False
             storage.save_chapters_json(slug, episode_id,
                                        {**chapters_json, 'chapters': merged})
-            _refresh_rss_for_slug(slug, episode_id)
+            common._refresh_rss_for_slug(slug, episode_id)
             audio_logger.info(
                 f"[{slug}:{episode_id}] Rebuilt ad chapters "
                 f"({len(merged)} entries, no AI call)")
@@ -601,7 +602,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                             return
             chapters_gen = None
             chapter_setup_failed = False
-            with _measure_run_stage('chapters'):
+            with common._measure_run_stage('chapters'):
                 try:
                     chapters_gen = ChaptersGenerator()
                     clear_fallback(episode_id, PASS_CHAPTER_GENERATION)

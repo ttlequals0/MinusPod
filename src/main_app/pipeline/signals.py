@@ -99,13 +99,14 @@ audio_logger = logging.getLogger('podcast.audio')
 
 
 
+from main_app.pipeline import common
 from main_app.pipeline.shared import (db, audio_analyzer)
 
 
 
 def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detection=False):
     """Pipeline stage: Run volume + transition detection on audio."""
-    _publish_status('update_job_stage', slug, episode_id, "pass1:analyzing", 25)
+    common._publish_status('update_job_stage', slug, episode_id, "pass1:analyzing", 25)
     audio_logger.info(f"[{slug}:{episode_id}] Running audio analysis")
     try:
         # Resolve the feed PK so the cue analyzer can pick a per-feed template
@@ -117,7 +118,7 @@ def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detect
             transcript_segments=segments,
             feed_id=feed_id,
             force_cue_detection=force_cue_detection,
-            status_callback=lambda stage, progress: _publish_status(
+            status_callback=lambda stage, progress: common._publish_status(
                 'update_job_stage', slug, episode_id, stage, progress)
         )
         if result.signals:
@@ -292,7 +293,7 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
                 return _template_cue_scan(matcher, path)
         work_dir = tempfile.mkdtemp(prefix='dai_diff_')
         try:
-            with _measure_run_stage('differential'):
+            with common._measure_run_stage('differential'):
                 result = fetch_and_diff(episode_url, audio_path, work_dir,
                                         cue_scan=cue_scan,
                                         primary_cues=primary_cues,
@@ -353,7 +354,7 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
         payload.update(status='error', error=error, spans=[])
 
     if url:
-        _publish_status('update_job_stage', slug, episode_id, "pass1:transcript_diff", 21)
+        common._publish_status('update_job_stage', slug, episode_id, "pass1:transcript_diff", 21)
     try:
         if url:
             host = urlparse(url).hostname or host
@@ -366,7 +367,7 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
                 reused = True
             else:
                 payload['fetched_at'] = utc_now_iso()
-                with _measure_run_stage('transcript_diff'):
+                with common._measure_run_stage('transcript_diff'):
                     try:
                         transcript = fetch_upstream_transcript(
                             url, episode_row.get('upstream_transcript_type'),

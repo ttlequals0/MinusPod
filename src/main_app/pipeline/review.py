@@ -97,6 +97,7 @@ from main_app.verification_reconciliation import (
     Pass2Ledger,
 )
 
+from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage, ad_detector)
 
 
@@ -226,7 +227,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     if not accepted_originals and not eligible_originals:
         return
 
-    _publish_status('update_job_stage', slug, episode_id, "pass2:reviewing", 90)
+    common._publish_status('update_job_stage', slug, episode_id, "pass2:reviewing", 90)
 
     podcast_id = ctx.podcast_id
 
@@ -706,7 +707,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     if not ads_to_remove and not eligible:
         return ads_to_remove, all_ads_with_validation
 
-    _publish_status('update_job_stage', slug, episode_id,
+    common._publish_status('update_job_stage', slug, episode_id,
                     f"pass{pass_num}:reviewing", 75)
 
     audio_logger.info(

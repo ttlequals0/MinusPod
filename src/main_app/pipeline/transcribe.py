@@ -92,6 +92,7 @@ audio_logger = logging.getLogger('podcast.audio')
 
 
 
+from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage, transcriber, sponsor_service)
 
 
@@ -130,7 +131,7 @@ def _retranscribe_holes_no_vad(audio_path, segments, language_override, tried=()
     """Re-decode holes the batched decoder skipped. Returns (added segments, empty holes)."""
     if len(segments) < 2:
         return [], []
-    hole_min = max(_setting_float(db, 'vad_gap_mid_min_seconds', 8.0),
+    hole_min = max(common._setting_float(db, 'vad_gap_mid_min_seconds', 8.0),
                    UNREVIEWABLE_GAP_SECONDS)
     return transcriber.repair_gaps(audio_path, segments, hole_min, language_override,
                                    skip=tried)
@@ -139,7 +140,7 @@ def _retranscribe_holes_no_vad(audio_path, segments, language_override, tried=()
 def _repair_transcript(slug, episode_id, audio_path, segments, language_override,
                        tried=()):
     """Hole then tail no-VAD repair. Returns (segments, added segments, empty holes)."""
-    with _measure_run_stage('transcription'):
+    with common._measure_run_stage('transcription'):
         holes, empty = _retranscribe_holes_no_vad(
             audio_path, segments, language_override, tried)
         if holes:
@@ -172,7 +173,7 @@ CDN_BLOCKED_MESSAGE = 'CDN blocked the request (403) with both User-Agents'
 def _download_episode_audio(episode_url, podcast=None, outcome=None):
     """Check CDN availability and download the enclosure. Returns the temp
     audio path; raises on either failure."""
-    with _measure_run_stage('download'):
+    with common._measure_run_stage('download'):
         url_for_log = safe_url_for_log(
             episode_url, keep_path=True, keep_query=log_download_query_enabled())
         user_agent = download_user_agent(podcast)
@@ -267,7 +268,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
     if skip_transcription:
         original_path = storage.get_original_path(slug, episode_id)
         if original_path and os.path.exists(original_path):
-            audio_path = _copy_retained_original_to_temp(original_path)
+            audio_path = common._copy_retained_original_to_temp(original_path)
             audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
         elif is_local_feed(podcast):
             raise Exception("original audio missing")
@@ -312,7 +313,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         # process_episode operate on the copy, never on the retained original.
         original_path = storage.get_original_path(slug, episode_id)
         if original_path and os.path.exists(original_path):
-            audio_path = _copy_retained_original_to_temp(original_path)
+            audio_path = common._copy_retained_original_to_temp(original_path)
             audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
         elif is_local_feed(podcast):
             raise Exception("original audio missing")
@@ -341,7 +342,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         # original here is a hard failure rather than a download attempt.
         original_path = storage.get_original_path(slug, episode_id)
         if original_path and os.path.exists(original_path):
-            audio_path = _copy_retained_original_to_temp(original_path)
+            audio_path = common._copy_retained_original_to_temp(original_path)
             audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
         elif is_local_feed(podcast):
             raise Exception("original audio missing")
@@ -349,10 +350,10 @@ def _download_and_transcribe(slug, episode_id, episode_url,
             audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
             audio_path = _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
 
-        _publish_status('update_job_stage', slug, episode_id, "pass1:transcribing", 20)
+        common._publish_status('update_job_stage', slug, episode_id, "pass1:transcribing", 20)
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
         language_override = get_feed_language_override(db, slug)
-        with _measure_run_stage('transcription'):
+        with common._measure_run_stage('transcription'):
             segments = transcriber.transcribe_chunked(
                 audio_path, language_override=language_override,
             )

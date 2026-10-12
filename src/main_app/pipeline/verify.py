@@ -125,6 +125,7 @@ from main_app.verification_reconciliation import (
     labelled_spans,
 )
 
+from main_app.pipeline import common, detect, review, cuts as cuts_stage, keep_rules
 from main_app.pipeline.shared import (db, storage, transcriber, ad_detector, audio_analyzer, pattern_service)
 
 
@@ -228,7 +229,7 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map,
             for marker in (processed, original):
                 marker['was_cut'] = False
                 marker['action_applied'] = action
-                _clear_hold_for_keep(marker)
+                keep_rules._clear_hold_for_keep(marker)
             kept_processed.append(processed)
             kept_original.append(original)
             continue
@@ -369,7 +370,7 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     # (post-cut timeline), so zones learned on original durations do not map.
     # splice_veto=False: pass 2 has no audio analysis, so the splice veto
     # could never corroborate and its settings reads are skipped.
-    v_validator = _build_validator(
+    v_validator = detect._build_validator(
         processed_duration, verification_segments,
         episode_description,
         false_positive_corrections=fp_corrections_processed,
@@ -777,7 +778,7 @@ def build_protection(kept, category_kept, user_trims, fp_corrections, holds,
         hard_proc=_protected_ranges_in_processed_audio(hard_orig, pass1_cuts),
         holds_orig=list(holds or []),
         pass1_cuts=pass1_cuts or [],
-        hard_labelled=_labelled_protected_spans(
+        hard_labelled=review._labelled_protected_spans(
             [*(kept or []), *(category_kept or [])],
             [*(user_trims or []), *(fp_corrections or [])]),
         hard_sources=[*labelled_spans(fp_corrections, 'rejected:fp_correction'),
@@ -796,7 +797,7 @@ def _render_barriers(hard, markers, cuts=(), pass1_cuts=None):
     seen = {id(cut) for cut in cuts}
     holds = []
     for m in markers or []:
-        if _unrendered_hold(m) and id(m) not in seen:
+        if cuts_stage._unrendered_hold(m) and id(m) not in seen:
             seen.add(id(m))
             holds.append(m)
     if pass1_cuts is not None:
@@ -956,7 +957,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         # Recorded before the status branch so a pass that lost windows still
         # reports how much of the output audio went unexamined.
         if run_stats is not None and verification_result.get('windows_total') is not None:
-            run_stats['verification_windows'] = _window_stats(
+            run_stats['verification_windows'] = detect._window_stats(
                 verification_result['windows_total'],
                 verification_result.get('windows_failed') or 0,
                 verification_result.get('windows_failure_classes'))
@@ -1095,7 +1096,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                  hold_release_candidates) = gated
                 v_ads_held.extend(gated_held)
                 # Before the fragment gate so a covering adjust's outside pieces take that path.
-                released, outside_pairs = _review_hold_release_candidates(
+                released, outside_pairs = review._review_hold_release_candidates(
                     ctx, hold_release_candidates, original_segments,
                     current_protection(), segment_actions=segment_actions,
                     min_cut_confidence=min_cut_confidence, pass1_cuts=pass1_cuts,
@@ -1115,7 +1116,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 # Reviewer adjustments map back only when they stay in
                 # surviving, unprotected original audio.
                 reviewer_protection = current_protection()
-                _apply_pass2_reviewer(
+                review._apply_pass2_reviewer(
                     ctx,
                     v_ads_to_cut, v_ads_for_ui, v_ads_held,
                     verification_ads_processed, verification_ads_original,
@@ -1128,11 +1129,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     ledger=ledger,
                     hard_barriers=reviewer_protection.hard_orig,
                 )
-                _hold_adjustments_crossing_final_holds(
+                review._hold_adjustments_crossing_final_holds(
                     v_ads_to_cut, v_ads_for_ui, v_ads_held)
 
                 # Stamped only now: a candidate diverted to a hold or reject must not advertise a cut.
-                _partition_cut_actions([*v_ads_to_cut, *v_ads_for_ui], segment_actions)
+                keep_rules._partition_cut_actions([*v_ads_to_cut, *v_ads_for_ui], segment_actions)
                 v_ads_to_cut, v_ads_for_ui = _reconcile_pass2_cut_actions(
                     v_ads_to_cut, v_ads_for_ui, pass1_cuts, ledger=ledger)
                 protection = current_protection()
@@ -1149,7 +1150,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     crosspass_plan = _crosspass_cut_plan(
                         pass1_cuts, pass1_markers, v_ads_for_ui,
                         original_segments, protection.barriers_orig(),
-                        _setting_float(
+                        common._setting_float(
                             db, 'min_content_between_ads_seconds',
                             MIN_CONTENT_BETWEEN_ADS_SECONDS, allow_zero=True))
                     if crosspass_plan and original_audio_path:

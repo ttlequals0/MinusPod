@@ -94,6 +94,7 @@ audio_logger = logging.getLogger('podcast.audio')
 
 
 
+from main_app.pipeline import review
 from main_app.pipeline.shared import (db)
 
 
@@ -144,7 +145,7 @@ def _persist_route_snapshot(run_id: str, snapshot: dict) -> None:
 def _admission_gates(settings_db) -> dict:
     """Admission's feed-independent feature gates, so a multi-row scan reads
     them once instead of per row."""
-    return {'review': _ad_review_enabled(settings_db),
+    return {'review': review._ad_review_enabled(settings_db),
             'chapters_enabled': settings_db.get_setting('chapters_enabled')}
 
 

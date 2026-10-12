@@ -114,6 +114,7 @@ audio_logger = logging.getLogger('podcast.audio')
 
 
 
+from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage, ad_detector, sponsor_service)
 
 
@@ -152,7 +153,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     """
     slug = ctx.slug
     episode_id = ctx.episode_id
-    _publish_status('update_job_stage', slug, episode_id, "pass1:detecting", 50)
+    common._publish_status('update_job_stage', slug, episode_id, "pass1:detecting", 50)
     clear_fallback(episode_id, PASS_AD_DETECTION_1)
 
     ad_result = ad_detector.process_transcript(
@@ -225,7 +226,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         partial_window_failure = 0 < windows_failed < windows_total
         classification_error = Exception(error_msg)
         if (first_pass_ads and not partial_window_failure
-                and is_transient_error(classification_error)
+                and common.is_transient_error(classification_error)
                 and not is_auth_error(classification_error)):
             sanitized = ' '.join(error_msg.split())[:300]
             audio_logger.warning(
@@ -448,7 +449,7 @@ def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=No
                                                   barriers=all_ads + list(keep_ads or []))
     if all_ads:
         all_ads = snap_early_ads_to_zero(all_ads)
-    min_content = _setting_float(db, 'min_content_between_ads_seconds',
+    min_content = common._setting_float(db, 'min_content_between_ads_seconds',
                                  MIN_CONTENT_BETWEEN_ADS_SECONDS,
                                  allow_zero=True) if db else MIN_CONTENT_BETWEEN_ADS_SECONDS
     if all_ads and segments:
@@ -488,9 +489,9 @@ def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
         from vad_gap_detector import detect_vad_gaps
         vad_gap_ads = detect_vad_gaps(
             segments, all_ads, episode_duration,
-            start_min_seconds=_setting_float(db, 'vad_gap_start_min_seconds', 3.0),
-            mid_min_seconds=_setting_float(db, 'vad_gap_mid_min_seconds', 8.0),
-            tail_min_seconds=_setting_float(db, 'vad_gap_tail_min_seconds', 3.0),
+            start_min_seconds=common._setting_float(db, 'vad_gap_start_min_seconds', 3.0),
+            mid_min_seconds=common._setting_float(db, 'vad_gap_mid_min_seconds', 8.0),
+            tail_min_seconds=common._setting_float(db, 'vad_gap_tail_min_seconds', 3.0),
         )
         if vad_gap_ads:
             all_ads.extend(vad_gap_ads)

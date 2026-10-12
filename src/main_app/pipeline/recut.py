@@ -99,6 +99,7 @@ audio_logger = logging.getLogger('podcast.audio')
 
 
 
+from main_app.pipeline import common, transcribe, detect, cuts, keep_rules, verify, publish, finalize, failure
 from main_app.pipeline.shared import (db, storage, audio_processor)
 
 
@@ -204,10 +205,10 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     # _recut_episode passes its own resolution back in so both agree.
     if segment_actions is None:
         segment_actions = db.resolve_segment_actions(slug)
-    dd_parsed = _load_stored_dai_differential(slug, episode_id)
+    dd_parsed = keep_rules._load_stored_dai_differential(slug, episode_id)
     # Kept markers bypass validation as in pass 1, so a merge cannot fold kept audio into a cut.
-    keep_ads, all_ads = _partition_keep_ads(
-        all_ads, segment_actions, _make_keep_differential_override(dd_parsed))
+    keep_ads, all_ads = keep_rules._partition_keep_ads(
+        all_ads, segment_actions, keep_rules._make_keep_differential_override(dd_parsed))
 
     # Stamp saved cut state before validation re-derives it. A marker already
     # cut in the published audio must not flip to held/review when settings
@@ -247,7 +248,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         db.get_episode_upstream_transcript(slug, episode_id) or {}
         if resolve_transcript_differential(podcast_row, db) else {})
 
-    validator = _build_validator(
+    validator = detect._build_validator(
         episode_duration, segments, episode_description,
         false_positive_corrections=false_positive_corrections,
         confirmed_corrections=confirmed_corrections,
@@ -298,7 +299,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
             ad.pop('hold_reason', None)
             ad.setdefault('validation', {})['decision'] = Decision.ACCEPT.value
 
-    ads_to_remove, _low = _gate_validation_by_confidence(
+    ads_to_remove, _low = detect._gate_validation_by_confidence(
         slug, episode_id, validation_result.ads, min_cut_confidence,
         cue_gate_enabled=cue_gate_enabled,
     )
@@ -323,8 +324,8 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
     run_stats = {'mode': 'passthrough'}
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Pass-through: \"{episode_title}\"")
-        _publish_status('start_job', slug, episode_id, episode_title, podcast_name)
-        _publish_status('update_job_stage', slug, episode_id, "downloading", 10)
+        common._publish_status('start_job', slug, episode_id, episode_title, podcast_name)
+        common._publish_status('update_job_stage', slug, episode_id, "downloading", 10)
 
         upsert_kwargs = dict(
             original_url=episode_url, title=episode_title,
@@ -340,11 +341,11 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
         # expired, and the local copy IS the untouched audio.
         original_path = storage.get_original_path(slug, episode_id)
         if original_path and os.path.exists(original_path):
-            audio_path = _copy_retained_original_to_temp(original_path)
+            audio_path = common._copy_retained_original_to_temp(original_path)
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: reusing retained original")
         else:
-            audio_path = _download_episode_audio(episode_url, podcast=podcast)
+            audio_path = transcribe._download_episode_audio(episode_url, podcast=podcast)
         _check_cancel(cancel_event, slug, episode_id)
 
         duration = audio_processor.get_audio_duration(audio_path)
@@ -369,7 +370,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
         if codec != 'mp3':
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: converting {codec or 'unknown'} to mp3")
-            bitrate, compression_level = resolve_audio_encode_settings()
+            bitrate, compression_level = common.resolve_audio_encode_settings()
             converted = AudioProcessor(
                 bitrate=bitrate, compression_level=compression_level).convert_to_mp3(audio_path)
             if not converted:
@@ -383,16 +384,16 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
         # kept so re-enabling processing skips re-transcription.
         db.clear_episode_ad_data(slug, episode_id)
 
-        new_version = _next_processed_version(episode_data)
+        new_version = transcribe._next_processed_version(episode_data)
         # Fence first: resolving the path mkdirs the podcast tree, which would
         # recreate the directory of a feed deleted mid-run.
-        _require_publication_owner(slug, episode_id)
+        common._require_publication_owner(slug, episode_id)
         final_path = storage.get_episode_path(slug, episode_id, version=new_version)
         shutil.move(audio_path, final_path)
         audio_path = None
 
         run_stats['downloaded_duration'] = round(duration, 2)
-        _finalize_episode(slug, episode_id, episode_title, podcast_name,
+        finalize._finalize_episode(slug, episode_id, episode_title, podcast_name,
                            pass1_cut_count=0, verification_count=0,
                            first_pass_count=0,
                            original_duration=duration, new_duration=duration,
@@ -400,13 +401,13 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                            processed_version=new_version,
                            audio_cue_detections=0,
                            run_stats=run_stats)
-        _publish_status('complete_job', slug, episode_id)
+        common._publish_status('complete_job', slug, episode_id)
         return True
 
     except ProcessingCancelled:
         raise
     except Exception as e:
-        _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
+        failure._handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                     episode_data, e, start_time,
                                     run_stats=run_stats)
         return False
@@ -479,20 +480,20 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Recut: \"{episode_title}\"")
-        _publish_status('start_job', slug, episode_id, episode_title, podcast_name)
-        _publish_status('update_job_stage', slug, episode_id, "recut:loading", 10)
+        common._publish_status('start_job', slug, episode_id, episode_title, podcast_name)
+        common._publish_status('update_job_stage', slug, episode_id, "recut:loading", 10)
         db.upsert_episode(slug, episode_id, status=EpisodeStatus.PROCESSING.value)
 
         original_path = storage.get_original_path(slug, episode_id)
         if not original_path.exists():
             raise Exception("Retained original audio is missing; cannot recut")
-        work_path = _copy_retained_original_to_temp(original_path)
+        work_path = common._copy_retained_original_to_temp(original_path)
 
         segments = db.get_original_segments(slug, episode_id)
         if not segments:
             raise Exception("No saved transcript segments; cannot recut")
 
-        bitrate, compression_level = resolve_audio_encode_settings()
+        bitrate, compression_level = common.resolve_audio_encode_settings()
         audio_output = db.resolve_audio_output(slug, podcast=podcast_row)
         if (db.get_setting('audio_normalize_enabled') or 'false').lower() == 'true':
             audio_output['mp3_stream_copy_enabled'] = False
@@ -500,7 +501,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             bitrate=bitrate, compression_level=compression_level, **audio_output)
         original_duration = (local_audio_processor.get_audio_duration(work_path)
                              or (segments[-1]['end'] if segments else 0))
-        min_cut_confidence = get_min_cut_confidence()
+        min_cut_confidence = common.get_min_cut_confidence()
 
         # Resolve podcast_id once from the episode row so _build_recut_ad_list's
         # per-feed override lookup uses it instead of the slug fallback.
@@ -511,7 +512,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         # keep-like comes back out of ads_to_remove, beating an older approval.
         segment_actions = db.resolve_segment_actions(slug, podcast=podcast_row)
         _log_segment_action_map(slug, episode_id, segment_actions, podcast_row)
-        corrections = _load_user_corrections(slug, episode_id, db)
+        corrections = detect._load_user_corrections(slug, episode_id, db)
         (ads_to_remove, all_ads_with_validation, keep_ads,
          reviewer_rejects) = _build_recut_ad_list(
             slug, episode_id, segments, original_duration,
@@ -522,11 +523,11 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         )
         # A user confirm cuts its own interval inside a reviewer reject.
         reject_spans = reject_barriers(reviewer_rejects, corrections[1])
-        ads_to_remove, trim_ranges = _restore_confirmed_spans(
+        ads_to_remove, trim_ranges = keep_rules._restore_confirmed_spans(
             ads_to_remove, all_ads_with_validation, corrections, original_duration,
             resolve_ad_detection_exclude_start_seconds(db, recut_podcast_id))
         reject_ids = {id(ad) for ad in reviewer_rejects}
-        ads_to_remove = _stamp_and_carve_cuts(
+        ads_to_remove = keep_rules._stamp_and_carve_cuts(
             slug, episode_id, [ad for ad in ads_to_remove if id(ad) not in reject_ids],
             all_ads_with_validation, segment_actions, keep_ads)
 
@@ -536,7 +537,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         )
         _check_cancel(cancel_event, slug, episode_id)
 
-        _publish_status('update_job_stage', slug, episode_id, "recut:processing", 60)
+        common._publish_status('update_job_stage', slug, episode_id, "recut:processing", 60)
         # 'beep' is derived from action_applied so a marker stamped beep in
         # an earlier pass still renders as beep on recut, not a full remove.
         audio_segments = [dict(ad, beep=(ad.get('action_applied') == 'beep'))
@@ -544,10 +545,10 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         # Kept markers barrier the render so the <1s-gap merge and the
         # end-of-episode extension cannot swallow kept audio (same
         # protection the pass-2 recut threads through).
-        with _measure_run_stage('cut'):
+        with common._measure_run_stage('cut'):
             result = local_audio_processor.process_episode(
                 work_path, audio_segments,
-                **_render_barriers(
+                **verify._render_barriers(
                     [*keep_ads, *trim_ranges, *corrections[0], *reject_spans],
                     all_ads_with_validation, ads_to_remove))
         if not result:
@@ -555,7 +556,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         processed_path, applied_cuts = result
 
         # Marker state and counts come from the render before anything is published.
-        rendered_cuts = len(_finalize_cut_state(
+        rendered_cuts = len(cuts._finalize_cut_state(
             all_ads_with_validation, ads_to_remove, applied_cuts, original_duration,
             tag=f"[{slug}:{episode_id}]"))
         held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
@@ -568,7 +569,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                 # Capped here as well, or the run's stat and the history row report different pass-2 counts.
                 run_stats['verification_ads_cut'] = verification_count
             # Recomputed here: the caller's copy predates the approvals this recut cut.
-            _record_cut_seconds(run_stats, applied_cuts, original_duration, new_duration)
+            cuts._record_cut_seconds(run_stats, applied_cuts, original_duration, new_duration)
             if isinstance(run_stats.get('markers'), dict):
                 run_stats['markers'] = dict(
                     run_stats['markers'],
@@ -580,13 +581,13 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         previous_version = (episode_data or {}).get('processed_version') or 0
         new_version = previous_version + 1  # recut is always a reprocess
         final_path = storage.get_episode_path(slug, episode_id, version=new_version)
-        _require_publication_owner(slug, episode_id)
+        common._require_publication_owner(slug, episode_id)
         # The move can replace a caller's unpublished render at the same version path.
         if progress is not None:
             progress['mutated'] = True
         shutil.move(processed_path, final_path)
 
-        _publish_status('update_job_stage', slug, episode_id, "recut:assets", 85)
+        common._publish_status('update_job_stage', slug, episode_id, "recut:assets", 85)
         # Skip chapter regeneration: its topic-boundary detection is an LLM call,
         # and recut is meant to be AI-free. The stored chapters JSON is instead
         # remapped arithmetically onto the new cut list; the user can still
@@ -601,8 +602,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         # applied_cuts). None (episode rendered before applied_cuts_json was
         # persisted) makes the remap a safe no-op rather than a wrong guess.
         previous_cuts = storage.get_applied_cuts(slug, episode_id)
-        with _measure_run_stage('assets'):
-            _generate_assets(slug, episode_id, segments, applied_cuts,
+        with common._measure_run_stage('assets'):
+            publish._generate_assets(slug, episode_id, segments, applied_cuts,
                               episode_description, podcast_name, episode_title,
                               regenerate_chapters=False,
                               audio_path=final_path, audio_duration=new_duration,
@@ -619,7 +620,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         finalize_run_stats = run_stats
         if finalize_run_stats is None and (episode_data or {}).get('detection_degraded'):
             finalize_run_stats = {'detection_degraded': episode_data['detection_degraded']}
-        _finalize_episode(slug, episode_id, episode_title, podcast_name,
+        finalize._finalize_episode(slug, episode_id, episode_title, podcast_name,
                            first_pass_count, verification_count=verification_count,
                            first_pass_count=first_pass_count,
                            original_duration=original_duration,
@@ -629,7 +630,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                            run_stats=finalize_run_stats,
                            ads_held=held_count, ads_not_cut=not_cut_count,
                            on_persisted=_mark_published)
-        _publish_status('complete_job', slug, episode_id)
+        common._publish_status('complete_job', slug, episode_id)
         return True
 
     except ProcessingCancelled:
@@ -638,7 +639,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         if markers_saved:
             _restore_saved_markers(slug, episode_id, episode_data)
         if owns_failure:
-            _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
+            failure._handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                         episode_data, e, start_time)
         else:
             audio_logger.exception(f"[{slug}:{episode_id}] Recut failed: {e}")

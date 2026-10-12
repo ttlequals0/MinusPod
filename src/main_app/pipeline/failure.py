@@ -104,6 +104,7 @@ audio_logger = logging.getLogger('podcast.audio')
 
 
 
+from main_app.pipeline import common, finalize, admission
 from main_app.pipeline.shared import (db)
 
 
@@ -145,7 +146,7 @@ def _requeue_episode_after_hold(db, slug, episode_id, episode_title,
 def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                 episode_data, error, start_time, run_stats=None):
     """Handle processing failure: GPU cleanup, retry logic, error recording."""
-    _require_publication_owner(slug, episode_id)
+    common._require_publication_owner(slug, episode_id)
     processing_time = time.time() - start_time
 
     try:
@@ -157,7 +158,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     except Exception as cleanup_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up GPU memory: {cleanup_err}")
 
-    _publish_status('fail_job', slug, episode_id)
+    common._publish_status('fail_job', slug, episode_id)
 
     # Provider account change: this run's routes were frozen against an
     # account the operator has since replaced, so its endpoint and the slot's
@@ -165,9 +166,9 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # routes; the next attempt resolves against the new configuration.
     ctx = run_context.current()
     account_changed = isinstance(error, ProviderAccountChangedError) or bool(
-        _stale_snapshot_phases(ctx.route_snapshot if ctx else None))
+        admission._stale_snapshot_phases(ctx.route_snapshot if ctx else None))
     if account_changed:
-        clear_route_snapshot(ctx.run_id if ctx else None)
+        admission.clear_route_snapshot(ctx.run_id if ctx else None)
         _requeue_episode_after_hold(
             db, slug, episode_id, episode_title, episode_data, None, error,
             message=f"Requeued ({HOLD_REASON_ACCOUNT_CHANGED}): {error}")
@@ -230,7 +231,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
 
     audio_logger.error(f"[{slug}:{episode_id}] Failed: {error} ({processing_time:.1f}s)")
 
-    transient = is_transient_error(error)
+    transient = common.is_transient_error(error)
     current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0
 
     # 429 retries don't burn retry_count (#238); the held-429 type counts too,
@@ -288,7 +289,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     else:
         try:
             # Partial stats: whatever the run gathered before failing.
-            _record_history_row(
+            finalize._record_history_row(
                 db, slug, episode_id, episode_title, podcast_name,
                 status='failed', processing_time=processing_time,
                 ads_detected=0, token_totals=token_totals,

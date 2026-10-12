@@ -98,6 +98,7 @@ audio_logger = logging.getLogger('podcast.audio')
 
 
 
+from main_app.pipeline import review
 from main_app.pipeline.shared import (db, storage)
 
 
@@ -379,7 +380,7 @@ def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation
     """Re-run content end extension after the reviewer, never past a reviewer-locked end."""
     if not ads_to_remove or not segments:
         return ads_to_remove
-    if not _ad_review_enabled(db):
+    if not review._ad_review_enabled(db):
         return ads_to_remove
 
     # barriers: never extend a cut into the next detected ad; overlapping

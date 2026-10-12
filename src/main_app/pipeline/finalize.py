@@ -102,6 +102,7 @@ audio_logger = logging.getLogger('podcast.audio')
 
 
 
+from main_app.pipeline import common
 from main_app.pipeline.shared import (db, storage)
 
 
@@ -117,7 +118,7 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
     ``run_started_iso``: when the run began; only pending-recut stamps from
     before then are cleared, so a decision recorded mid-run survives.
     """
-    _require_publication_owner(slug, episode_id)
+    common._require_publication_owner(slug, episode_id)
     original_final = storage.get_original_path(slug, episode_id)
     original_file_rel = f"episodes/{episode_id}-original.mp3" if original_final.exists() else None
     processed_file_rel = episode_relative_path(episode_id, processed_version)
@@ -279,7 +280,7 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
         db.upsert_episode_for_processing(
             slug, episode_id, episode_url, episode_title,
             episode_published_at, episode_description, priority=-10)
-        _publish_status('queue_episode', slug, episode_id, episode_title, podcast_name)
+        common._publish_status('queue_episode', slug, episode_id, episode_title, podcast_name)
         audio_logger.info(
             f"low_ad_yield_action fired action={mode} slug={slug} "
             f"episode_id={episode_id} removed={yield_info['removedSeconds']:.1f}s "
@@ -443,7 +444,7 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
     when `record_processing_history` raised, which signals a real DB
     write failure that would leave the History page out of sync.
     """
-    _require_publication_owner(slug, episode_id)
+    common._require_publication_owner(slug, episode_id)
     ads_removed_total = pass1_cut_count + verification_count
     history_write_raised = False
     try:
@@ -487,7 +488,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
     """Pipeline stage: Update DB, record history, refresh RSS."""
     # Stop this timer before history snapshots it. The history write and event
     # happen afterward, so finalizeSeconds has one stable, documented bound.
-    with _measure_run_stage('finalize'):
+    with common._measure_run_stage('finalize'):
         _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                                 first_pass_count, original_duration, new_duration,
                                 processed_version,
@@ -496,7 +497,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
         # The row now points at the new audio, so a later failure must not roll markers back.
         if on_persisted is not None:
             on_persisted()
-        _refresh_rss_for_slug(slug, episode_id)
+        common._refresh_rss_for_slug(slug, episode_id)
 
         processing_time = time.time() - start_time
 

@@ -2,7 +2,11 @@
 import sys
 import types
 
-from main_app.pipeline.shared import SharedSingleton
+from tests.app_bootstrap import bootstrap
+
+bootstrap('pipeline_shared_')
+
+from main_app.pipeline.shared import SharedSingleton  # noqa: E402
 
 
 def test_shared_singleton_forwards_and_follows_rebind(monkeypatch):

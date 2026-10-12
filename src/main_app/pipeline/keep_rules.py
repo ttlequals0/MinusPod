@@ -92,6 +92,7 @@ from main_app.verification_reconciliation import (
     _covered_by_cuts,
 )
 
+from main_app.pipeline import cuts
 from main_app.pipeline.shared import (db, ad_detector)
 
 
@@ -258,7 +259,7 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
             ad['was_cut'] = False
             ad['action_applied'] = action
             _clear_hold_for_keep(ad)
-            master = _find_master(all_ads_with_validation, ad)
+            master = cuts._find_master(all_ads_with_validation, ad)
             if master is not None:
                 master['was_cut'] = False
                 master['action_applied'] = action
@@ -282,7 +283,7 @@ def _restore_confirmed_spans(ads_to_remove, all_ads_with_validation, corrections
         ads_to_remove = restore_uncovered_confirmed_spans(
             ads_to_remove, all_ads_with_validation, confirmed, fp_corrections,
             trim_ranges, episode_duration, exclude_start_seconds)
-    ads_to_remove = _carve_cuts_around(
+    ads_to_remove = cuts._carve_cuts_around(
         ads_to_remove, all_ads_with_validation, trim_ranges, user_trim=True)
     return ads_to_remove, trim_ranges
 
@@ -313,10 +314,10 @@ def _stamp_and_carve_cuts(slug, episode_id, ads_to_remove, all_ads, segment_acti
     ads_to_remove = _partition_cut_actions(ads_to_remove, segment_actions)
     # Sweeps rebuild dicts, so a cut is not always its master's object.
     for ad in ads_to_remove:
-        master = _find_master(all_ads, ad)
+        master = cuts._find_master(all_ads, ad)
         if master is not None:
             master['action_applied'] = ad['action_applied']
-    return _carve_cuts_around(ads_to_remove, all_ads, keep_ads, tag=f"[{slug}:{episode_id}]")
+    return cuts._carve_cuts_around(ads_to_remove, all_ads, keep_ads, tag=f"[{slug}:{episode_id}]")
 
 
 def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
@@ -342,7 +343,7 @@ def _learn_from_applied_cut_ads(slug, episode_id, cut_ads, markers,
         return 0
     learnable = []
     for ad in cut_ads:
-        marker = _find_master(markers, ad)
+        marker = cuts._find_master(markers, ad)
         # A carved fragment is part of a read, not a whole one.
         if (marker is None or not ad.get('was_cut') or not marker.get('was_cut')
                 or is_carved(marker) or is_pending_review(marker)
