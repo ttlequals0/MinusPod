@@ -77,8 +77,8 @@ fails on any `processing.X` reference whose `X` is not an attribute of the modul
 - Import cycles at boot: pinned by the stage order and
   `tests/unit/test_pipeline_import_order.py`.
 - A local variable that shares a name with a stage module (for example `admission`,
-  `cuts`) hides the module inside that function. The affected call sites import the
-  module under a `_stage` alias.
+  `cuts`) hides the module inside that function. The two such locals in stage code were
+  renamed; tests keep a `_stage` alias import where a local still shares the name.
 - `_embed_locks` module state moved with `_episode_embed_lock` to `publish`; nothing
   else touches it.
 - Diff size: about 6,000 moved lines. `git diff --color-moved=dimmed-zebra` dims moved
