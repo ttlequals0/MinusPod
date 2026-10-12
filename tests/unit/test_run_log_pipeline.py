@@ -306,7 +306,6 @@ class TestWorkerThreadRegistration:
         worker_logger = logging.getLogger('podcast.test.chunks')
         worker_logger.setLevel(logging.INFO)
         fake = MagicMock()
-        fake.filter_hallucinations.side_effect = lambda segments: segments
         fake._transcribe_via_api.side_effect = (
             lambda *a, **k: (worker_logger.info('chunk failed without a tag'),
                              [{'start': 0.0, 'end': 1.0, 'text': 'hi'}])[1])

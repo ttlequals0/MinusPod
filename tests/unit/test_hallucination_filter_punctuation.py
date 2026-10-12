@@ -1,9 +1,9 @@
 """Bare closing-phrase hallucinations are scrubbed whatever punctuation trails them."""
-from transcriber import Transcriber
+from transcriber import segments
 
 
 def _scrub(text):
-    return Transcriber().filter_hallucinations([{'text': text}])
+    return segments.filter_hallucinations([{'text': text}])
 
 
 def test_closing_phrase_with_trailing_punctuation_is_scrubbed():

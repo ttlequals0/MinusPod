@@ -149,7 +149,7 @@ def test_chunked_body_keeps_the_model_loaded_after_success(loaded, monkeypatch):
     t = Transcriber.__new__(Transcriber)
     t.get_audio_duration = MagicMock(return_value=3600.0)
     t.transcribe = MagicMock(return_value=[{'start': 0.0, 'end': 1.0, 'text': 'hi', 'words': []}])
-    t.filter_hallucinations = lambda segments: segments
+    monkeypatch.setattr(transcriber_mod.segments, 'filter_hallucinations', lambda segs: segs)
 
     def extract(*args, **kwargs):
         import tempfile

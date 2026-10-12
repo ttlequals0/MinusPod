@@ -23,6 +23,7 @@ from config import (
     WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN,
     resolve_whisper_device,
 )
+from transcriber import common, settings
 # Remote-only installs do not ship the local stack; keep the module importable
 # so WHISPER_BACKEND=openai-api still works without it (#795).
 try:
@@ -32,7 +33,6 @@ try:
 except ImportError as e:
     ctranslate2 = WhisperModel = BatchedInferencePipeline = None
     _LOCAL_IMPORT_ERROR = e
-from transcriber import common, settings
 
 logger = logging.getLogger('transcriber')
 

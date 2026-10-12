@@ -154,12 +154,16 @@ def test_exhaustion_records_failed_outcome_and_releases_gpu_memory(monkeypatch):
     assert len(clear_calls) >= 3
 
 
+@pytest.fixture(autouse=True)
+def _identity_hallucination_filter(monkeypatch):
+    monkeypatch.setattr(transcriber_mod.segments, 'filter_hallucinations', lambda segs: segs)
+
+
 def _chunked_transcriber(chunk_result, stats):
     """A Transcriber whose per-chunk decode is stubbed, for the chunked-loop tests."""
     t = Transcriber.__new__(Transcriber)
     t.get_audio_duration = MagicMock(return_value=3600.0)
     t.transcribe = MagicMock(return_value=chunk_result)
-    t.filter_hallucinations = lambda segments: segments
     t.last_transcription_stats = stats
     return t
 

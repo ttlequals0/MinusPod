@@ -1221,12 +1221,15 @@ class TestChunkExtractionTimeoutFallback:
     """A chunk-extraction timeout halves the chunk once instead of repeating
     the same doomed ffmpeg call four times through the retry ladder (#644)."""
 
+    @pytest.fixture(autouse=True)
+    def _identity_hallucination_filter(self, monkeypatch):
+        monkeypatch.setattr('transcriber.segments.filter_hallucinations', lambda segs: segs)
+
     def _transcriber(self):
         from transcriber import Transcriber
         t = Transcriber.__new__(Transcriber)
         t.get_audio_duration = MagicMock(return_value=3600.0)
         t.transcribe = MagicMock(return_value=[{'start': 0.0, 'end': 1.0, 'text': 'hi'}])
-        t.filter_hallucinations = lambda segs: segs
         return t
 
     def _patches(self, extract):

@@ -1,5 +1,6 @@
-"""Remote transcription backend: health probes, endpoint probes and failover.
+"""Remote transcription backend: health probes, endpoint probes, failover and the upload attempt policy.
 
+request_transcription is the one home of the attempt policy (transport retries, 429 waits, word-timestamp and vad_filter fallbacks).
 Tests patch transcriber.remote.safe_post for every Whisper API upload and probe; safe_get patches for probes target transcriber.remote.safe_get.
 """
 
@@ -426,8 +427,8 @@ def _whisper_api_rejects_vad_filter(response) -> bool:
     return 'vad_filter' in body
 
 
-def post_transcription(url, headers, transcribe_path, form_data, whisper_settings, max_attempts):
-    """POST one audio file to the Whisper API with transport retries and pool-aware 429 waits.
+def _post_once(url, headers, transcribe_path, form_data, whisper_settings, max_attempts):
+    """POST one audio file with transport retries and pool-aware 429 waits.
 
     Returns (response, last_request_exc); response is None when every attempt
     failed at the transport layer. SSRFError propagates to the caller.
@@ -496,3 +497,44 @@ def post_transcription(url, headers, transcribe_path, form_data, whisper_setting
         )
         attempt += 1
     return response, last_request_exc
+
+
+def request_transcription(url, headers, transcribe_path, build_form_data, whisper_settings):
+    """POST the audio to the Whisper API and return the final response.
+
+    build_form_data(word_timestamps, vad_filter_allowed) returns the form dict.
+    Retries segment-only when the server rejects word timestamps, and without
+    vad_filter when it rejects that field. Raises ServiceUnavailableError when
+    every attempt fails at the transport layer; SSRFError propagates.
+    """
+    max_attempts = int(whisper_settings.get('max_attempts') or 2)
+    last_request_exc = None
+    vad_filter_allowed = True
+    while True:
+        for word_timestamps in (True, False):
+            form_data = build_form_data(word_timestamps, vad_filter_allowed)
+            response, attempt_exc = _post_once(
+                url, headers, transcribe_path, form_data, whisper_settings, max_attempts)
+            if attempt_exc is not None:
+                last_request_exc = attempt_exc
+            if response is None:
+                # Unreachable endpoint; the offline queue (#482) must tell it apart from a bad response.
+                raise ServiceUnavailableError(
+                    'whisper', f"Whisper API unreachable: {last_request_exc}")
+            if response.status_code == 200:
+                break
+            if word_timestamps and _whisper_api_rejects_word_timestamps(response):
+                logger.warning(
+                    "Whisper API does not support word timestamps; "
+                    "retrying with segment-only timestamps"
+                )
+                continue
+            break
+
+        if (response.status_code != 200 and vad_filter_allowed
+                and 'vad_filter' in form_data
+                and _whisper_api_rejects_vad_filter(response)):
+            logger.warning("Whisper API rejected vad_filter field; retrying without it")
+            vad_filter_allowed = False
+            continue
+        return response
