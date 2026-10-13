@@ -13,6 +13,8 @@ release notes.
 
 ## [2.100.11] - 2026-10-12
 
+Maintenance release with no new functionality. The processing pipeline, API, and UI behave as in 2.100.10. The work is module splits, documentation, dependency updates, OpenAPI corrections, and one settings save fix.
+
 ### Added
 - Integration tests validate live API responses against `openapi.yaml` with JSON Schema 2020-12, so a response that drifts from the documented schema fails CI instead of passing a substring check.
 - Design specs behind larger features now live in `docs/specs/`, with an index, and tests that pin a design decision cite the spec by path and heading instead of a bare section number.
