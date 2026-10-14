@@ -18641,8 +18641,8 @@ components:
         city: {type: [string, 'null']}
         geoStatus:
           type: [string, 'null']
-          enum: [ok, private, failed, null]
-          description: null when no lookup has been stored for the IP.
+          enum: [ok, private, failed, unresolvable, null]
+          description: null when no lookup has been stored for the IP. failed is retried after 24 hours; unresolvable (a permanent provider answer) is not retried.
         firstSeenAt: {type: string}
         lastSeenAt: {type: string}
         requestCount: {type: integer}

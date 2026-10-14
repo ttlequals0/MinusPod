@@ -217,3 +217,36 @@ def test_background_thread_flag_honors_explicit_disable(monkeypatch, value, expe
     else:
         monkeypatch.setenv('MINUSPOD_BACKGROUND_THREADS', value)
     assert main_app._background_threads_enabled() is expected
+
+
+class TestGeoLookupThread:
+    @pytest.fixture(autouse=True)
+    def _reset(self):
+        previous = background._GEO_STATE['thread']
+        background._GEO_STATE['thread'] = None
+        yield
+        background._GEO_STATE['thread'] = previous
+
+    def test_starts_one_thread_and_skips_while_running(self, monkeypatch):
+        import threading
+        release = threading.Event()
+        started = []
+        monkeypatch.setattr(background.geo_lookup, 'run_geo_lookup',
+                            lambda db: (started.append(1), release.wait(5)))
+        background._start_geo_lookup()
+        first = background._GEO_STATE['thread']
+        while not started:
+            time.sleep(0.01)
+        background._start_geo_lookup()
+        assert background._GEO_STATE['thread'] is first
+        assert started == [1]
+        release.set()
+        first.join(5)
+        background._start_geo_lookup()
+        assert background._GEO_STATE['thread'] is not first
+        background._GEO_STATE['thread'].join(5)
+
+    def test_failure_is_logged_not_raised(self, monkeypatch):
+        monkeypatch.setattr(background.geo_lookup, 'run_geo_lookup',
+                            lambda db: (_ for _ in ()).throw(RuntimeError('boom')))
+        background._run_geo_lookup_safely()

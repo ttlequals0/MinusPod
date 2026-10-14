@@ -102,10 +102,11 @@ describe('DownloadsTab', () => {
       makeRow({ id: 1, geoStatus: 'private', city: null }),
       makeRow({ id: 2, geoStatus: 'failed', city: null }),
       makeRow({ id: 3, geoStatus: null, city: null }),
+      makeRow({ id: 4, geoStatus: 'unresolvable', city: null }),
     ], false);
     const table = await screen.findByRole('table');
     expect(within(table).getByText('Local network')).toBeTruthy();
-    expect(within(table).getByText('Unknown')).toBeTruthy();
+    expect(within(table).getAllByText('Unknown')).toHaveLength(2);
     expect(within(table).getByText('lookup off')).toBeTruthy();
   });
 
@@ -268,6 +269,14 @@ describe('DownloadsTab row actions', () => {
     const item = screen.getByRole('menuitem', { name: 'Block user agent' }) as HTMLButtonElement;
     expect(item.disabled).toBe(true);
     expect(item.title).toBe('Already blocked');
+  });
+
+  it('disables Block when the user agent has no product token', async () => {
+    renderTab([makeRow({ userAgent: '/1.0 (x)' })]);
+    await openMenu();
+    const item = screen.getByRole('menuitem', { name: 'Block user agent' }) as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    expect(item.title).toBe('No user agent');
   });
 
   it('revokes with slug and id then refetches', async () => {

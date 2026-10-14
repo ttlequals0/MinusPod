@@ -9,7 +9,7 @@ The History page has a Downloads tab (`/ui/history?tab=downloads`) that lists ea
 | Time | When the client last requested the episode |
 | Episode, Podcast | What was downloaded |
 | Client IP | The address the request came from, after the trusted-proxy setting (`MINUSPOD_TRUSTED_PROXY_COUNT`) is applied |
-| Location | City, region and country when geo lookup is on; "Local network" for private addresses; "Unknown" when a lookup failed |
+| Location | City, region and country when geo lookup is on; "Local network" for private addresses; "Unknown" when a lookup failed or the provider could not resolve the address |
 | Subscriber | The label of the subscriber key used, blank when the global feed key or no key was used |
 | Client | The app name, the first product token of the user agent (the full string is in the tooltip) |
 | Requests | Request bursts merged into the row; requests within 60 seconds of the last recorded one are not counted |
@@ -43,7 +43,7 @@ Each row has an Actions menu.
 
 - Client IP addresses, user agent strings and the latest request's path and allowlisted headers are stored in the MinusPod database for the retention period. The `key` query value is never stored, including in a Referer. The request line is capped at 500 characters, each header value at 300 and all headers together at 2048 bytes. Cached locations for IPs that no longer appear in any row are deleted with the periodic cleanup. Expired rows are pruned once every 24 hours, so rows can outlive the retention period by up to a day.
 - Geo lookup is off by default. When on, public IPs are sent over HTTPS to the free ipwho.is service, which is a third party, one request per IP and at most 25 IPs per cleanup run. Private, loopback, link-local, reserved and shared (100.64.0.0/10, used by Tailscale and carrier NAT) addresses, and IPv4-mapped forms of them, are never sent. The first network error or rate-limit answer from the provider ends that run, and the remaining IPs wait for the next one.
-- Results are cached per IP. A failed lookup is retried after 24 hours.
+- Results are cached per IP. A lookup that failed (unreadable provider reply) is retried after 24 hours. An address the provider permanently rejects is marked unresolvable and not retried. Lookups run on their own short background thread so a slow provider does not delay feed refresh.
 - Recording adds no write to the audio response for a burst: a request within 60 seconds of the row's last counted request is detected with a read and skipped.
 - Deleting a podcast removes its download rows. Revoking a subscriber key keeps the rows and their label; deleting the key record clears the label.
 

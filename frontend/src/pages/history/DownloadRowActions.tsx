@@ -55,7 +55,7 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
 
   const pattern = blockPatternFor(row.userAgent);
   const alreadyBlocked = row.userAgentBlocked;
-  const noAgent = !row.userAgent.trim();
+  const noAgent = pattern === null;
 
   const close = () => {
     setPending(null);
@@ -73,7 +73,7 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
       // The PUT replaces the whole list, so build it from a fresh read.
       const fresh = await queryClient.fetchQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 0 });
       const list = fresh.jitBlockedUserAgents.value;
-      if (!list.includes(pattern)) await updateSettings({ jitBlockedUserAgents: [...list, pattern] });
+      if (pattern && !list.includes(pattern)) await updateSettings({ jitBlockedUserAgents: [...list, pattern] });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });

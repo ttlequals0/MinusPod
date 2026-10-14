@@ -63,6 +63,7 @@ DOWNLOAD_PRUNE_INTERVAL_SECONDS = 24 * 3600
 # Epoch-second cadence stamps for the cleanup pass.
 _INDEX_STATE = {'last_refresh': 0, 'last_full': 0}
 _DOWNLOAD_STATE = {'last_prune': 0}
+_GEO_STATE = {'thread': None}
 # Ceiling on deferring to active runs: an instance that is never idle would
 # otherwise never rebuild at all.
 INDEX_REBUILD_MAX_DEFERRAL_SECONDS = 2 * INDEX_REBUILD_INTERVAL_SECONDS
@@ -163,6 +164,23 @@ def _offline_queue_target_resolver(settings_db):
     return resolve
 
 
+def _run_geo_lookup_safely():
+    try:
+        geo_lookup.run_geo_lookup(db)
+    except Exception as e:
+        refresh_logger.error(f"Download geo lookup failed: {e}")
+
+
+def _start_geo_lookup():
+    """Run the geo lookup off the maintenance thread; skip while one is still running."""
+    running = _GEO_STATE['thread']
+    if running is not None and running.is_alive():
+        return
+    thread = threading.Thread(target=_run_geo_lookup_safely, name='download-geo', daemon=True)
+    _GEO_STATE['thread'] = thread
+    thread.start()
+
+
 def run_cleanup():
     """Run episode cleanup based on retention period."""
     try:
@@ -204,10 +222,7 @@ def run_cleanup():
         refresh_logger.error(f"Run log cleanup failed: {e}")
 
     # Download history: geo-resolve new client IPs, then drop rows past retention.
-    try:
-        geo_lookup.run_geo_lookup(db)
-    except Exception as e:
-        refresh_logger.error(f"Download geo lookup failed: {e}")
+    _start_geo_lookup()
     if time.time() - _DOWNLOAD_STATE['last_prune'] > DOWNLOAD_PRUNE_INTERVAL_SECONDS:
         try:
             db.prune_downloads(resolve_download_history_retention_days(db))

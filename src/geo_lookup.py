@@ -29,18 +29,22 @@ def lookup_ips(ips: list[str]) -> dict[str, dict]:
         try:
             response = requests.get(LOOKUP_URL.format(ip=ip), timeout=TIMEOUT_SECONDS)
             if 400 <= response.status_code < 500 and response.status_code != 429:
-                result[ip] = {'status': 'failed'}
+                result[ip] = {'status': 'unresolvable'}
                 continue
             response.raise_for_status()
-            body = response.json()
         except Exception as exc:
             logger.warning(f"Geo lookup failed, stopping this tick: {exc}")
             break
+        try:
+            body = response.json()
+        except ValueError:
+            result[ip] = {'status': 'failed'}
+            continue
         if body.get('success'):
             result[ip] = {'status': 'ok', 'country': body.get('country'),
                           'region': body.get('region'), 'city': body.get('city')}
         else:
-            result[ip] = {'status': 'failed'}
+            result[ip] = {'status': 'unresolvable'}
     return result
 
 

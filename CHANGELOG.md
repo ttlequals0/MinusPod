@@ -25,6 +25,7 @@ release notes.
 - The search index is refreshed from its change journal every 6 hours and fully rebuilt weekly; rebuild writes yield between batches so the podping listener and processing queue no longer wait 10 to 20 s on the write lock during a rebuild.
 
 ### Fixed
+- Download history: geo lookups no longer run on the feed-refresh thread, an address the provider permanently rejects is stored as unresolvable and not retried, a non-JSON provider reply no longer aborts the batch, podcast and subscriber sorts have supporting indexes, and Block user agent is disabled for a user agent with no product token.
 - Reprocessing or re-detecting an episode on a local feed, or any episode with a retained original, no longer reports a Downloading phase; the status bar shows Preparing until transcription starts.
 - Search results no longer show raw HTML tags from episode and podcast descriptions; the index stores plain text and is rebuilt once on upgrade.
 - A reviewer boundary adjustment can no longer move an ad edge back across an audio cue that is set to be removed with the ad, so break stingers are cut instead of left audible.

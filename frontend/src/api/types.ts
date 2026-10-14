@@ -1572,7 +1572,7 @@ export interface ProcessingHistoryResponse {
   totalPages: number;
 }
 
-export type DownloadGeoStatus = 'ok' | 'private' | 'failed';
+export type DownloadGeoStatus = 'ok' | 'private' | 'failed' | 'unresolvable';
 
 export interface DownloadHistoryEntry {
   id: number;

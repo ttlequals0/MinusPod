@@ -47,7 +47,7 @@ def test_lookup_ips_parses_response():
         result = geo_lookup.lookup_ips(['8.8.8.8', '8.8.4.4'])
     assert result['8.8.8.8'] == {'status': 'ok', 'country': 'Exampleland',
                                  'region': 'Region', 'city': 'Town'}
-    assert result['8.8.4.4']['status'] == 'failed'
+    assert result['8.8.4.4']['status'] == 'unresolvable'
     assert get.call_args.kwargs['timeout'] == 5
     assert get.call_args.args[0].startswith('https://ipwho.is/8.8.4.4')
 
@@ -98,9 +98,9 @@ def test_public_ips_are_looked_up_and_failures_stored(temp_db, monkeypatch):
     _seed(temp_db, '1.1.1.1')
     monkeypatch.setattr('geo_lookup.lookup_ips', lambda ips: {
         '8.8.8.8': {'status': 'ok', 'country': 'Exampleland', 'region': 'R', 'city': 'T'},
-        '1.1.1.1': {'status': 'failed'}})
+        '1.1.1.1': {'status': 'unresolvable'}})
     run_geo_lookup(temp_db)
-    assert _statuses(temp_db) == {'8.8.8.8': 'ok', '1.1.1.1': 'failed'}
+    assert _statuses(temp_db) == {'8.8.8.8': 'ok', '1.1.1.1': 'unresolvable'}
 
 
 def test_provider_errors_stay_pending(temp_db, monkeypatch):
@@ -116,7 +116,23 @@ def test_client_error_status_is_failed_not_pending():
     response = _reply({})
     response.status_code = 400
     with patch('geo_lookup.requests.get', return_value=response):
-        assert geo_lookup.lookup_ips(['8.8.8.8']) == {'8.8.8.8': {'status': 'failed'}}
+        assert geo_lookup.lookup_ips(['8.8.8.8']) == {'8.8.8.8': {'status': 'unresolvable'}}
+
+
+def test_non_json_success_body_is_failed_and_batch_continues():
+    bad = _reply({})
+    bad.json.side_effect = ValueError('not json')
+    with patch('geo_lookup.requests.get',
+               side_effect=[bad, _reply({'success': True, 'country': 'X'})]):
+        result = geo_lookup.lookup_ips(['8.8.8.8', '8.8.4.4'])
+    assert result['8.8.8.8'] == {'status': 'failed'}
+    assert result['8.8.4.4']['status'] == 'ok'
+
+
+def test_unresolvable_rows_are_never_pending(temp_db):
+    _seed(temp_db, '8.8.8.8')
+    temp_db.store_geo_many([('8.8.8.8', 'unresolvable', None, None, None)], now='2000-01-01T00:00:00Z')
+    assert temp_db.pending_geo_ips() == []
 
 
 def test_disabled_setting_does_nothing(temp_db, monkeypatch):

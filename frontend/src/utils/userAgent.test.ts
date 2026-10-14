@@ -16,4 +16,9 @@ describe('blockPatternFor', () => {
     expect(blockPatternFor('AntennaPod/3.1 (Android)')).toBe('^AntennaPod');
     expect(blockPatternFor('Overcast/3.0 (+http://overcast.fm/; iOS)')).toBe('^Overcast');
   });
+
+  it('returns null when the product token is empty', () => {
+    expect(blockPatternFor('')).toBeNull();
+    expect(blockPatternFor('/1.0 (x)')).toBeNull();
+  });
 });

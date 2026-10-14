@@ -46,9 +46,9 @@ A repeat is merged when the matching row was last seen within 15 minutes (`DEDUP
 | Table | Columns | Notes |
 |---|---|---|
 | `episode_downloads` | `id`, `podcast_id`, `episode_id`, `subscriber_key_id`, `client_ip`, `user_agent`, `first_seen_at`, `last_seen_at`, `request_count`, `last_request_line`, `last_request_headers` | `user_agent` truncated to 200 characters. `subscriber_key_id` is `ON DELETE SET NULL`. Deleting a podcast removes its rows. |
-| `ip_geo_cache` | `ip`, `country`, `region`, `city`, `looked_up_at`, `status` | `status` is `ok`, `private` or `failed`. One row per IP, shared across episodes. |
+| `ip_geo_cache` | `ip`, `country`, `region`, `city`, `looked_up_at`, `status` | `status` is `ok`, `private`, `failed` or `unresolvable`. One row per IP, shared across episodes. |
 
-Indexes cover the dedupe lookup and `client_ip` (for the geo pending query and the orphan sweep). The tables are in `TABLE_DDL`, the new-tables path for existing databases, and the fresh-install DDL. `last_request_line` and `last_request_headers` were added with `_add_column_if_missing`, so no existing data is touched.
+Indexes cover the dedupe lookup, `client_ip` (for the geo pending query and the orphan sweep), `(podcast_id, last_seen_at)` (podcast filter) and `subscriber_key_id` (subscriber join). Sorting by podcast, location or subscriber is an expression ORDER BY that SQLite resolves with a filesort over the rows the page's filters select; the retention window bounds that set. The tables are in `TABLE_DDL`, the new-tables path for existing databases, and the fresh-install DDL. `last_request_line` and `last_request_headers` were added with `_add_column_if_missing`, so no existing data is touched.
 
 ### Request capture
 
@@ -65,9 +65,9 @@ Indexes cover the dedupe lookup and `client_ip` (for the geo pending query and t
 - Provider: `https://ipwho.is/{ip}?fields=success,country,region,city`, keyless, one GET per IP, 5 second timeout.
 - Off by default (`download_geo_lookup_enabled`). Turning it on is the operator's consent to send public client IPs to a third party.
 - `is_private` unwraps IPv4-mapped IPv6 addresses and then treats only addresses where `ipaddress` reports `is_global` as public. Private, loopback, link-local, reserved and shared address space (100.64.0.0/10, which Tailscale and carrier NAT use) are stored as `private`, shown as "Local network", and never sent.
-- `run_geo_lookup` runs from the maintenance tick (`run_cleanup`, on the feed-refresh thread). It looks up at most 25 public IPs per tick (`LOOKUPS_PER_TICK`) and writes all results in one transaction (`store_geo_many`).
+- `run_geo_lookup` is started by the maintenance tick (`run_cleanup`) on a short daemon thread (`download-geo`), so a slow provider never stalls feed refresh; a tick skips the start while the previous thread is alive. It looks up at most 25 public IPs per tick (`LOOKUPS_PER_TICK`) and writes all results in one transaction (`store_geo_many`).
 - The first transport error or HTTP 429 stops the batch. The IPs not reached stay pending, and no row is written for the one that errored, so an outage costs one 5 second timeout per tick, not 25.
-- A 4xx other than 429, or `success: false`, is stored as `failed` so one bad address cannot block the queue. A `failed` row is retried after 24 hours (`GEO_RETRY_AFTER`).
+- A 4xx other than 429, or `success: false`, is stored as `unresolvable` and never retried. A non-JSON 2xx body is stored as `failed` for that IP only and the batch continues; a `failed` row is retried after 24 hours (`GEO_RETRY_AFTER`).
 - `pending_geo_ips` reads at most 100 distinct IPs per tick (`GEO_BATCH_SIZE`).
 
 ## Decision: retention and pruning

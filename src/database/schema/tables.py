@@ -380,7 +380,7 @@ TABLE_DDL['ip_geo_cache'] = """CREATE TABLE IF NOT EXISTS ip_geo_cache (
     region TEXT,
     city TEXT,
     looked_up_at TEXT NOT NULL,
-    status TEXT NOT NULL CHECK(status IN ('ok', 'private', 'failed'))
+    status TEXT NOT NULL CHECK(status IN ('ok', 'private', 'failed', 'unresolvable'))
 )"""
 
 DOWNLOAD_INDEX_SQL = (
@@ -390,6 +390,10 @@ DOWNLOAD_INDEX_SQL = (
     "ON episode_downloads(podcast_id, episode_id, client_ip, user_agent, last_seen_at)",
     "CREATE INDEX IF NOT EXISTS idx_episode_downloads_client_ip "
     "ON episode_downloads(client_ip)",
+    "CREATE INDEX IF NOT EXISTS idx_episode_downloads_podcast "
+    "ON episode_downloads(podcast_id, last_seen_at)",
+    "CREATE INDEX IF NOT EXISTS idx_episode_downloads_subscriber "
+    "ON episode_downloads(subscriber_key_id)",
 )
 
 TABLE_DDL['provider_spend_reservations'] = """CREATE TABLE IF NOT EXISTS provider_spend_reservations (
@@ -856,6 +860,10 @@ CREATE INDEX IF NOT EXISTS idx_episode_downloads_dedupe
     ON episode_downloads(podcast_id, episode_id, client_ip, user_agent, last_seen_at);
 CREATE INDEX IF NOT EXISTS idx_episode_downloads_client_ip
     ON episode_downloads(client_ip);
+CREATE INDEX IF NOT EXISTS idx_episode_downloads_podcast
+    ON episode_downloads(podcast_id, last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_episode_downloads_subscriber
+    ON episode_downloads(subscriber_key_id);
 
 """ + TABLE_DDL['ip_geo_cache'] + """;
 

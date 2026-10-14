@@ -58,7 +58,7 @@ function SubscriberCell({ row }: { row: DownloadHistoryEntry }) {
 
 function Location({ row, geoEnabled }: { row: DownloadHistoryEntry; geoEnabled: boolean }) {
   if (row.geoStatus === 'private') return <>Local network</>;
-  if (row.geoStatus === 'failed') return <>Unknown</>;
+  if (row.geoStatus === 'failed' || row.geoStatus === 'unresolvable') return <>Unknown</>;
   if (row.geoStatus === 'ok') {
     return <>{[row.city, row.region, row.country].filter(Boolean).join(', ') || 'Unknown'}</>;
   }
