@@ -436,3 +436,20 @@ def test_auto_filed_confirm_remainder_is_not_a_keep_range(temp_db, monkeypatch):
         "WHERE podcast_id = ? AND episode_id = ?", (podcast_id, eid)).fetchone()
     assert dict(row) == {'origin': 'auto_pass2',
                          'source_hold_reason': 'estimated_pattern_bounds'}
+
+
+class TestStaleReviewerProposal:
+    def test_disjoint_proposal_names_both_spans(self, temp_db):
+        marker = _held(2086.0, 2093.69)
+        marker['hold_reason'] = 'reviewer_boundary_conflict'
+        marker['reviewer_proposed_start'] = 2158.3
+        marker['reviewer_proposed_end'] = 2203.1
+        slug, eid = _seed(temp_db, [marker])
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 2086.0, 'end': 2093.69},
+                            {'adjusted_start': 2158.3, 'adjusted_end': 2203.1})
+        assert _status(resp) == 400
+        body = (resp[0] if isinstance(resp, tuple) else resp).get_json()
+        assert body['error'] == (
+            'Reviewer trim 2158.3-2203.1 does not overlap this held span '
+            '2086.0-2093.7; confirm or reject the whole span')

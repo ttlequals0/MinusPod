@@ -590,6 +590,25 @@ describe('Held for Review: failed Approve & Recut does not arm pendingRecutRef',
   });
 });
 
+describe('Held for Review: stale reviewer trim', () => {
+  it('hides confirm-trimmed when the proposal does not overlap the held span', async () => {
+    const staleMarker = {
+      ...heldMarker,
+      reviewer_proposed_start: 500,
+      reviewer_proposed_end: 600,
+    };
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [staleMarker, secondHeldMarker],
+    }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('approve-recut-0')).toBeDefined();
+    });
+    expect(screen.queryByTestId('approve-trimmed-0')).toBeNull();
+  });
+});
+
 describe('Held for Review: per-action error isolation', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();

@@ -253,6 +253,21 @@ def _covered_seconds(spans, lo: float, hi: float) -> float:
         (max(a, lo), min(b, hi)) for a, b in spans if min(b, hi) > max(a, lo)))
 
 
+def _clip_reviewer_proposal(piece: dict) -> None:
+    """Drop an inherited reviewer trim that misses the piece, else clamp it into the piece."""
+    p_start = piece.get('reviewer_proposed_start')
+    p_end = piece.get('reviewer_proposed_end')
+    if p_start is None and p_end is None:
+        return
+    if (p_start is None or p_end is None
+            or p_end <= piece['start'] or p_start >= piece['end']):
+        piece.pop('reviewer_proposed_start', None)
+        piece.pop('reviewer_proposed_end', None)
+        return
+    piece['reviewer_proposed_start'] = max(p_start, piece['start'])
+    piece['reviewer_proposed_end'] = min(p_end, piece['end'])
+
+
 class AdValidator:
     """Validates and corrects ad detection results.
 
@@ -1696,6 +1711,7 @@ class AdValidator:
             piece['hold_reason'] = reason
             piece['pass2_hold_remainder'] = True
             piece['_skip_pattern_learning'] = True
+            _clip_reviewer_proposal(piece)
             pieces.append(piece)
         return pieces
 

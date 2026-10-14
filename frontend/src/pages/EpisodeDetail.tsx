@@ -117,6 +117,13 @@ function correctionBadgeLabel(correction: EpisodeCorrection): string {
 
 // Row-identity payload the corrections API keys on. One builder so the
 // reason coercion stays consistent across the modal and the row buttons.
+type ProposedAdSegment = AdSegment & { reviewer_proposed_start: number; reviewer_proposed_end: number };
+
+function proposalOverlaps(seg: AdSegment): seg is ProposedAdSegment {
+  return seg.reviewer_proposed_start != null && seg.reviewer_proposed_end != null
+    && seg.reviewer_proposed_start < seg.end && seg.reviewer_proposed_end > seg.start;
+}
+
 function toOriginalAd(segment: AdSegment) {
   return {
     start: segment.start,
@@ -1470,7 +1477,7 @@ function EpisodeDetail() {
               detectionStage: seg.detection_stage || 'first_pass',
               patternId: null,
               correctedBounds:
-                seg.reviewer_proposed_start != null && seg.reviewer_proposed_end != null
+                proposalOverlaps(seg)
                   ? { start: seg.reviewer_proposed_start, end: seg.reviewer_proposed_end }
                   : null,
             }}
@@ -1686,7 +1693,7 @@ function EpisodeDetail() {
                       >
                         {btnLabel(confirmStatus, oneTapRecut ? 'Confirm & Recut' : 'Confirm ad')}
                       </button>
-                      {segment.reviewer_proposed_start != null && segment.reviewer_proposed_end != null && (
+                      {proposalOverlaps(segment) && (
                         <button
                           onClick={() => {
                             if (oneTapRecut) {
