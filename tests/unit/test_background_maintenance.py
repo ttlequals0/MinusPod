@@ -2,6 +2,7 @@
 of re-arming the same short retry, and a failed search-index rebuild waits out
 a bounded cooldown rather than retrying every cleanup pass.
 """
+import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
@@ -98,21 +99,25 @@ class TestSearchIndexRebuildBackoff:
     def _restore_rebuild_stamp(self):
         """run_cleanup keeps its cadence on the function object; leaving a stamp
         behind would silently suppress a rebuild in another suite."""
-        previous = getattr(background.run_cleanup, '_last_index_rebuild', None)
+        names = ('_last_index_rebuild', '_last_full_index_rebuild')
+        previous = {n: getattr(background.run_cleanup, n, None) for n in names}
         yield
-        if previous is None:
-            background.run_cleanup.__dict__.pop('_last_index_rebuild', None)
-        else:
-            background.run_cleanup._last_index_rebuild = previous
+        for n, value in previous.items():
+            if value is None:
+                background.run_cleanup.__dict__.pop(n, None)
+            else:
+                setattr(background.run_cleanup, n, value)
 
-    def _run_cleanup(self, monkeypatch, *, rebuild, slots=0, last=0.0):
+    def _run_cleanup(self, monkeypatch, *, rebuild, slots=0, last=0.0, full_last=0.0, refresh=None):
         db = MagicMock()
         db.cleanup_old_episodes.return_value = (0, 0.0)
         db.get_all_podcasts.return_value = []
         db.rebuild_search_index.side_effect = rebuild
+        db.refresh_search_index.side_effect = refresh
         monkeypatch.setattr(background, 'db', db)
         monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
         background.run_cleanup._last_index_rebuild = last
+        background.run_cleanup._last_full_index_rebuild = full_last
         queue = MagicMock()
         queue.slot_count.return_value = slots
         with patch('processing_queue.ProcessingQueue', return_value=queue):
@@ -126,6 +131,27 @@ class TestSearchIndexRebuildBackoff:
             monkeypatch, rebuild=boom,
             last=background.run_cleanup._last_index_rebuild)
         db.rebuild_search_index.assert_not_called()
+
+    def test_six_hour_tick_refreshes_when_full_rebuild_not_due(self, monkeypatch):
+        db = self._run_cleanup(monkeypatch, rebuild=lambda: None, full_last=time.time())
+        db.refresh_search_index.assert_called_once()
+        db.rebuild_search_index.assert_not_called()
+
+    def test_weekly_tick_runs_the_full_rebuild(self, monkeypatch):
+        full_last = time.time() - background.INDEX_FULL_REBUILD_INTERVAL_SECONDS - 60
+        db = self._run_cleanup(monkeypatch, rebuild=lambda: None, full_last=full_last)
+        db.rebuild_search_index.assert_called_once()
+        db.refresh_search_index.assert_not_called()
+
+    def test_refresh_lock_conflict_backs_off_without_retrying(self, monkeypatch):
+        busy = RuntimeError('Search index rebuild already in progress')
+        fail = MagicMock(side_effect=busy)
+        self._run_cleanup(monkeypatch, rebuild=None, full_last=time.time(), refresh=fail)
+        stamp = background.run_cleanup._last_index_rebuild
+        assert stamp > time.time() - background.INDEX_REBUILD_INTERVAL_SECONDS
+        db = self._run_cleanup(monkeypatch, rebuild=None, full_last=time.time(),
+                               refresh=fail, last=stamp)
+        db.refresh_search_index.assert_not_called()
 
     def test_active_run_defers_the_rebuild(self, monkeypatch):
         import time
