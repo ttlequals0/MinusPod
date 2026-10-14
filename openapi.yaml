@@ -6522,8 +6522,11 @@ paths:
                   maximum: 900
                   description: |
                     Longest single ad the model may report within one detection
-                    window; a longer one is discarded. A feed's max ad duration
-                    caps raise it for that feed.
+                    window; a longer one is discarded. For each feed the cap is the
+                    larger of this value, the feed's maxAdDurationOverride and the
+                    feed's maxAdDurationRejectOverride. The verification pass uses
+                    the same per-feed cap. Out-of-range stored values are clamped
+                    to 60 to 900 on read.
                   example: 420.0
                 autoProcessEnabled:
                   type: boolean
@@ -15319,6 +15322,16 @@ components:
         reviewer_proposed_end:
           type: [number, 'null']
           description: Informational reviewer-proposed end on a held marker. It is not applied until a human confirms it.
+        addressing_mode:
+          type: string
+          enum: [timestamps, segment_ids]
+          description: Addressing mode the LLM detection window was rendered under. Absent on markers from before 2.100.12 and on markers that did not come from an LLM window.
+        llm_start:
+          type: number
+          description: Start in seconds exactly as the model reported it, before boundary snapping and review. Set with addressing_mode.
+        llm_end:
+          type: number
+          description: End in seconds exactly as the model reported it, before boundary snapping and review. Set with addressing_mode.
         validation:
           type: object
           description: Validation results from post-detection validation layer

@@ -76,6 +76,8 @@ Key endpoints:
 - `GET /api/v1/search?q=query` - Full-text search across all content, grouped into shows, episodes, transcripts, patterns and sponsors. Optional `groups` (comma-separated subset of those five, default all) limits which are computed; an unrequested group is returned empty rather than omitted. Names are case-sensitive, empty tokens from a stray comma are ignored, and duplicates are tolerated. A query shorter than two characters returns every group empty. The old `type` parameter was removed; a request that still sends it gets a 400
 - `GET /api/v1/episodes/processing` - List episodes currently processing
 - `GET /api/v1/history` - Processing history with pagination and export
+- `GET /api/v1/history/downloads` - Episode download history with filters, sorting and pagination; see [Download History](download-history.md)
+- `GET /api/v1/stats/reviewer` and `GET /api/v1/stats/addressing` - Reviewer and addressing statistics, each with a `byMode` block per addressing mode
 - `GET /api/v1/stats/dashboard` - Aggregate stats (avg/min/max time saved, ads, cost, tokens) with optional podcast filter
 - `GET /api/v1/stats/by-day` - Episodes processed by day of week
 - `GET /api/v1/stats/by-podcast` - Per-podcast stats (ads, time saved, tokens, cost)
@@ -96,6 +98,7 @@ Key endpoints:
 - `GET/PUT /api/v1/settings/provider-budget` - Read or update durable provider admission settings and current reserved/spent amounts
 - `GET /api/v1/settings/provider-budget/currencies` - List supported ISO display currencies
 - `GET /api/v1/settings/provider-budget/rate/{currency}` - Fetch a current USD reference rate and optional converted preview amounts
+- `GET /api/v1/feeds/subscriber-keys` - List every subscriber key across all feeds with its feed slug and title, never a secret
 - `GET/POST /api/v1/feeds/{slug}/subscriber-keys` - List scoped subscriber credentials or create one; the secret and feed URL appear only in the create response
 - `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}` - Revoke one scoped subscriber credential without changing global or sibling credentials
 - `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}/record` - Delete the audit record for a revoked key. Active keys return 409; deleting the record never revalidates the token.

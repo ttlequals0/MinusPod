@@ -20,13 +20,15 @@ Filters: podcast, subscriber, a since/until date range, and a search over IP and
 
 ## Settings
 
-Settings > Authenticated Feeds > Download history.
+Settings > Data & Security > Authenticated Feeds > Download history.
 
 | Setting | Default | Notes |
 |---|---|---|
 | Record download history | On | Turn off to stop recording; existing rows stay until they expire |
 | Look up client locations | Off | Sends public client IPs to ipwho.is over HTTPS |
 | Keep history for (days) | 90 | 1 to 3650; older rows are deleted by the periodic cleanup |
+
+API: `downloadHistoryEnabled`, `downloadGeoLookupEnabled` and `downloadHistoryRetentionDays` on `PUT /api/v1/settings/ad-detection`, read back from `GET /api/v1/settings`.
 
 ## Row actions
 
@@ -40,12 +42,13 @@ Each row has an Actions menu.
 ## Privacy
 
 - Client IP addresses, user agent strings and the latest request's path and allowlisted headers (the `key` query value is never stored, including in a Referer; the request line is capped at 500 characters, each header value at 300 and all headers together at 2048 bytes) are stored in the MinusPod database for the retention period. Cached locations for IPs that no longer appear in any row are deleted with the periodic cleanup. Expired rows are pruned once every 24 hours, so rows can outlive the retention period by up to a day.
-- Geo lookup is off by default. When on, public IPs are sent over HTTPS to the free ipwho.is service, which is a third party, one request per IP and at most 25 IPs per cleanup run. Private, loopback, link-local and reserved addresses are never sent.
+- Geo lookup is off by default. When on, public IPs are sent over HTTPS to the free ipwho.is service, which is a third party, one request per IP and at most 25 IPs per cleanup run. Private, loopback, link-local, reserved and shared (100.64.0.0/10, used by Tailscale and carrier NAT) addresses, and IPv4-mapped forms of them, are never sent. The first network error or rate-limit answer from the provider ends that run, and the remaining IPs wait for the next one.
 - Results are cached per IP. A failed lookup is retried after 24 hours.
+- Recording adds no write to the audio response for a burst: a request within 60 seconds of the row's last counted request is detected with a read and skipped.
 - Deleting a podcast removes its download rows. Revoking a subscriber key keeps the rows and their label; deleting the key record clears the label.
 
 ## API
 
-`GET /api/v1/history/downloads` with `page`, `limit`, `sortBy` (`last_seen_at`, `podcast`, `client_ip`, `location`, `subscriber`), `sortDir`, `podcastSlug`, `subscriberKeyId`, `since`, `until` (both `YYYY-MM-DD`) and `search`. See the OpenAPI document for the response shape.
+`GET /api/v1/history/downloads` with `page`, `limit`, `sortBy` (`last_seen_at`, `podcast`, `client_ip`, `location`, `subscriber`), `sortDir`, `podcastSlug`, `subscriberKeyId`, `since`, `until` (both `YYYY-MM-DD`) and `search`. Each row carries the episode and podcast, client IP, user agent, location fields and `geoStatus`, `subscriberLabel`, `subscriberKeyId`, `subscriberRevoked`, first and last seen times, `requestCount`, `lastRequestLine`, `lastRequestHeaders` and `userAgentBlocked` (true when the user agent already matches the JIT blocked list). Revoke a subscriber with `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}` and list all keys with `GET /api/v1/feeds/subscriber-keys`. See the OpenAPI document for the response shape.
 
 [< Docs index](README.md)

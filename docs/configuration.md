@@ -126,6 +126,10 @@ Raise the correlation ceiling if genuine ad swaps are being missed as alignment 
 
 `adDetectionExcludeStartSeconds` (Settings > Ad Detection, 0 to 600 s, default 0) ignores any ad marker that begins inside the first N seconds of an episode, so a show's opening cue is not mistaken for an ad break. The exclusion applies to the first pass, cue pairs, and the verification pass. Each feed can inherit the global value, disable it with 0, or set its own 1 to 600 s window (`adDetectionExcludeStartOverride` in Feed Settings). A marker that starts inside the window is not cut; markers that start at or after the boundary are handled normally. The setting takes effect on the next process or reprocess.
 
+#### Longest single LLM detection
+
+`maxLlmWindowAdSeconds` (Settings > Ad Detection, "Longest single LLM detection", 60 to 900 s, default 420 s) is the longest single ad the model may report for one detection window. A longer one is discarded as implausible. For each feed the cap is the largest of this global value, the feed's max ad duration cap and the feed's max ad duration (reject) override, so a show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span by raising either feed value. The global max ad duration setting does not raise it. The verification pass uses the same per-feed cap. API: `PUT /api/v1/settings/ad-detection` with `maxLlmWindowAdSeconds` (number); feed caps are `maxAdDurationOverride` and `maxAdDurationRejectOverride` on `PATCH /api/v1/feeds/{slug}`.
+
 ### Tuning LLM behavior per stage
 
 Each LLM pass can be tuned independently from Settings. The five passes:
@@ -442,6 +446,8 @@ The Experiments section in Settings holds opt-in features that are still being e
 Settings > Experiments has an Ad addressing mode select, marked experimental. Timestamps, the default, asks the model for a start and end time for each ad. Segment IDs asks the model to name numbered transcript lines instead; MinusPod then maps those line numbers back to the exact Whisper times, so the model never has to guess a timestamp. Random draws one of the two per detection run (and independently again for the verification pass), so production traffic accumulates an unbiased comparison over time. Segment IDs is still being benchmarked against Timestamps, and the results decide whether the default ever changes.
 
 How often each mode's LLM contract is actually honored shows up on the Stats page, under Addressing modes: runs, windows judged, and compliance percentage per mode. Random-mode runs count toward whichever mode was drawn for that pass.
+
+From 2.100.12 each LLM-detected marker also records the mode it was detected under (`addressing_mode`) and the model's bounds before snapping (`llm_start`, `llm_end`), and the Ad Reviewer log and corrections carry the mode. Two stats blocks use them. `GET /api/v1/stats/reviewer` returns `byMode` with reviews, verdict counts and mean boundary shift per mode. `GET /api/v1/stats/addressing` returns `byMode` with the held, approved and rejected rate of corrections and `avgSnapDistance`, the mean seconds between the model's raw start and end and the stored marker (both edges added, every correction stage included). These blocks are API only; the Stats page does not chart them. The snap distance covers the 2000 most recent episodes processed in the last 90 days. Markers and log rows from before 2.100.12 carry no mode and are excluded.
 
 Default `timestamps`. API: `PUT /api/v1/settings/ad-detection` with `adAddressingMode` (`timestamps`, `segment_ids`, or `random`).
 
