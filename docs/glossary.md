@@ -92,6 +92,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Download User-Agent override** - A per-feed download identifier in Feed settings > Advanced. Blank inherits the global string; cross-fetch still uses a different podcast client. [Configuration > Outbound Requests](configuration.md#outbound-requests)
 
+**Description chapter trim** - A per-feed rule that cuts from a timestamp line in the episode description whose title matches a pattern, to the end of the episode or the next chapter, regardless of detection. [Configuration > Trim by description chapter](configuration.md#trim-by-description-chapter)
+
 **Dry-run import plan** - The preview a bulk archive-import scan returns before anything is written: every file matched to an episode, every rejected file with a reason, and the publish date each episode would get. Committing re-checks the same files and refuses if anything changed underneath the plan. [Local Feeds > Scan, then commit](local-feeds.md#scan-then-commit)
 
 ## E
