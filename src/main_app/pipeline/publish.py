@@ -139,25 +139,32 @@ def pending_chapter_trim(markers):
 
 def _queue_chapter_trim(slug, episode_id, chapters, podcast_row, all_cuts,
                         replacement_duration, audio_duration, original_duration,
-                        markers, source):
+                        markers, source, original_timeline=False):
     """Add the trim marker for the first chapter matching the feed rule; True when added.
 
-    chapters are on the processed timeline, so the span maps back to the
-    original through this run's cut list. The caller's recut applies it.
+    chapters are on the processed timeline unless original_timeline is set, so
+    the span maps back to the original through this run's cut list. The caller's
+    recut applies it.
     """
     pattern = (podcast_row or {}).get('description_trim_pattern')
     mode = (podcast_row or {}).get('description_trim_mode') or TO_END
     if not pattern or markers is None or not original_duration:
         return False
-    processed_duration = audio_duration or adjust_timestamp(
-        original_duration, all_cuts or [], replacement_duration)
-    span = chapter_trim_span(chapters, pattern, mode, processed_duration)
-    if span is None:
-        return False
-    start_p, end_p, title = span
-    start = _unadjust_timestamp(start_p, all_cuts or [], replacement_duration)
-    end = (original_duration if end_p >= processed_duration
-           else _unadjust_timestamp(end_p, all_cuts or [], replacement_duration))
+    if original_timeline:
+        span = chapter_trim_span(chapters, pattern, mode, original_duration)
+        if span is None:
+            return False
+        start, end, title = span
+    else:
+        processed_duration = audio_duration or adjust_timestamp(
+            original_duration, all_cuts or [], replacement_duration)
+        span = chapter_trim_span(chapters, pattern, mode, processed_duration)
+        if span is None:
+            return False
+        start_p, end_p, title = span
+        start = _unadjust_timestamp(start_p, all_cuts or [], replacement_duration)
+        end = (original_duration if end_p >= processed_duration
+               else _unadjust_timestamp(end_p, all_cuts or [], replacement_duration))
     if end <= start:
         return False
     tol = CHAPTER_TRIM_COVER_TOLERANCE
@@ -166,6 +173,9 @@ def _queue_chapter_trim(slug, episode_id, chapters, podcast_row, all_cuts,
         return False
     # The recut needs the retained original; without it the marker would sit uncut.
     if not db.resolve_keep_original_audio(slug, podcast_row):
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Chapter trim: '{title}' matched but original "
+            f"audio is not retained; no recut")
         return False
     markers.append({
         'start': start, 'end': end, 'category': 'outro', 'confidence': 1.0,
@@ -578,10 +588,10 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                 ],
                             }
                             _queue_chapter_trim(
-                                slug, episode_id, chapters_json['chapters'],
-                                podcast_row, all_cuts, replacement_duration,
-                                audio_duration, original_duration, markers,
-                                'upstream_chapter')
+                                slug, episode_id, fetched, podcast_row, all_cuts,
+                                replacement_duration, audio_duration,
+                                original_duration, markers, 'upstream_chapter',
+                                original_timeline=True)
                             merged = merge_ad_chapters(
                                 chapters_json['chapters'], markers,
                                 all_cuts or [], audio_duration,

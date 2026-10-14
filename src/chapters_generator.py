@@ -544,6 +544,8 @@ class ChaptersGenerator:
         prompt_parts.append(f"Provide exactly {len(chapter_requests)} titles, one per line:")
 
         prompt = "\n".join(prompt_parts)
+        if self._chapter_notes:
+            prompt += f"\n\nFeed notes:\n{self._chapter_notes}"
 
         live = live_route_params('chapters')
         model = live.model if live.route else get_chapters_model()

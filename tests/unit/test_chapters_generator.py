@@ -1022,3 +1022,20 @@ class TestProviderRateLimitPropagates:
         with pytest.raises(ProviderRateLimitedError):
             gen.generate_chapter_titles(
                 chapters, _long_episode_segments(duration=1800), 'Show', 'Ep')
+
+
+class TestFeedNotesInTitlePrompt:
+    def _title_prompt(self, notes):
+        gen, stub = _make_generator_with_stub(canned_text='Title One')
+        gen._chapter_notes = notes
+        gen._call_claude_for_titles(
+            chapter_requests=[{'index': 0, 'excerpt': 'hello', 'position': 'start'}],
+            podcast_name='p', episode_title='e')
+        return stub.last_prompt
+
+    def test_notes_are_the_final_paragraph(self):
+        assert self._title_prompt('Donations get a chapter.').endswith(
+            '\n\nFeed notes:\nDonations get a chapter.')
+
+    def test_no_notes_leaves_prompt_unchanged(self):
+        assert 'Feed notes:' not in self._title_prompt(None)

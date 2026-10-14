@@ -205,32 +205,26 @@ def _normalize_title_override(value):
 _DETECTION_NOTES_MAX = 1000
 
 
-def _normalize_chapter_notes(value):
+def _normalize_notes(value, field):
     """None or blank clears; otherwise trimmed text up to the cap."""
     if value is None:
         return None, None
     if not isinstance(value, str):
-        return None, "chapterNotes must be a string or null"
+        return None, f"{field} must be a string or null"
     text = value.strip()
     if not text:
         return None, None
     if len(text) > _DETECTION_NOTES_MAX:
-        return None, f"chapterNotes must be {_DETECTION_NOTES_MAX} characters or fewer"
+        return None, f"{field} must be {_DETECTION_NOTES_MAX} characters or fewer"
     return text, None
+
+
+def _normalize_chapter_notes(value):
+    return _normalize_notes(value, 'chapterNotes')
 
 
 def _normalize_detection_notes(value):
-    """None or blank clears; otherwise trimmed text up to the cap."""
-    if value is None:
-        return None, None
-    if not isinstance(value, str):
-        return None, "detectionNotes must be a string or null"
-    text = value.strip()
-    if not text:
-        return None, None
-    if len(text) > _DETECTION_NOTES_MAX:
-        return None, f"detectionNotes must be {_DETECTION_NOTES_MAX} characters or fewer"
-    return text, None
+    return _normalize_notes(value, 'detectionNotes')
 
 
 def _fetch_feed_content(url, timeout=30, podcast=None):

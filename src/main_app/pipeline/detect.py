@@ -570,31 +570,38 @@ def reconcile_description_chapter(all_ads, description, episode_duration, descri
 
     Description-derived markers are recomputed from the description. Chapter-derived
     markers (source set) cannot be recomputed once the chapter is cut, so they stay
-    only while the pattern still matches their title and the mode is unchanged.
+    while the pattern still matches their title; a mode change only re-ends them.
     """
     pattern, mode = description_trim or (None, None)
     mode = mode or TO_END
     patterns_json = json.dumps([pattern]) if pattern else None
 
-    def chapter_marker_current(ad):
+    def chapter_matches(ad):
         title = (ad.get('reason') or '').removeprefix('Chapter: ')
-        return (patterns_json is not None and ad.get('trim_mode', mode) == mode
-                and title_matches_skip_patterns(title, patterns_json))
+        return patterns_json is not None and title_matches_skip_patterns(title, patterns_json)
 
-    stored = [ad for ad in all_ads
-              if ad.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
-              and ad.get('source') not in CHAPTER_TRIM_SOURCES]
-    stale = [ad for ad in all_ads
-             if ad.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
-             and ad.get('source') in CHAPTER_TRIM_SOURCES and not chapter_marker_current(ad)]
+    def moded(ad):
+        if ad.get('trim_mode', mode) == mode:
+            return ad
+        end = episode_duration if mode == TO_END and episode_duration else ad['end']
+        return {**ad, 'end': end, 'trim_mode': mode}
+
+    chapter_ads = [ad for ad in all_ads
+                   if ad.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
+                   and ad.get('source') in CHAPTER_TRIM_SOURCES]
+    desc_ads = [ad for ad in all_ads
+                if ad.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
+                and ad.get('source') not in CHAPTER_TRIM_SOURCES]
     fresh = _description_chapter_marker(description, episode_duration, description_trim)
-    if fresh and any(ad['start'] == fresh['start'] and ad['end'] == fresh['end'] for ad in stored):
-        fresh = None
-        stored = []
-    kept = [ad for ad in all_ads if ad not in stored and ad not in stale]
-    if fresh is None and len(kept) == len(all_ads):
+    if fresh and any(ad['start'] == fresh['start'] and ad['end'] == fresh['end'] for ad in desc_ads):
+        fresh, desc_ads = None, []
+    survivors = [(ad, moded(ad)) for ad in chapter_ads if chapter_matches(ad)]
+    if (fresh is None and not desc_ads and len(survivors) == len(chapter_ads)
+            and all(old is new for old, new in survivors)):
         return all_ads
-    return sorted([*kept, *([fresh] if fresh else [])], key=lambda ad: ad['start'])
+    others = [ad for ad in all_ads if ad not in desc_ads and ad not in chapter_ads]
+    result = [*others, *(new for _old, new in survivors), *([fresh] if fresh else [])]
+    return sorted(result, key=lambda ad: ad['start'])
 
 
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,

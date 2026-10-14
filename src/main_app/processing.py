@@ -1179,14 +1179,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     failure._handle_processing_failure(
                         slug, episode_id, episode_title, podcast_name,
                         db.get_episode(slug, episode_id),
-                        RuntimeError('Approval recut failed after rewriting the '
+                        RuntimeError('In-run recut failed after rewriting the '
                                      'episode'), start_time, run_stats=run_stats)
                     _settle_provider_reservations()
                     return False
                 # Nothing was overwritten: finalize this run's render and leave
                 # the filed confirms for the next run to apply.
                 audio_logger.warning(
-                    f"[{slug}:{episode_id}] Approval recut failed before it "
+                    f"[{slug}:{episode_id}] In-run recut failed before it "
                     f"rewrote anything; finalizing this run's render"
                 )
 

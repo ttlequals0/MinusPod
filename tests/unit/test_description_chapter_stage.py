@@ -116,6 +116,15 @@ def test_recut_keeps_chapter_marker_while_pattern_and_mode_match():
         ads, '', DURATION, ('*Donations*', 'to_next')) is ads
 
 
-def test_recut_drops_chapter_marker_when_pattern_cleared_or_no_longer_matches_or_mode_changed():
-    for trim in ((None, 'to_next'), ('*Other*', 'to_next'), ('*Donations*', 'to_end')):
+def test_recut_drops_chapter_marker_when_pattern_cleared_or_no_longer_matches():
+    for trim in ((None, 'to_next'), ('*Other*', 'to_next')):
         assert detect.reconcile_description_chapter([_chapter_marker()], '', DURATION, trim) == []
+
+
+def test_recut_mode_change_re_ends_chapter_marker_instead_of_dropping_it():
+    out = detect.reconcile_description_chapter(
+        [_chapter_marker('to_next')], '', DURATION, ('*Donations*', 'to_end'))
+    assert [(m['start'], m['end'], m['trim_mode']) for m in out] == [(1200.0, DURATION, 'to_end')]
+    out = detect.reconcile_description_chapter(
+        [{**_chapter_marker('to_end'), 'end': DURATION}], '', DURATION, ('*Donations*', 'to_next'))
+    assert [(m['start'], m['end'], m['trim_mode']) for m in out] == [(1200.0, DURATION, 'to_next')]
