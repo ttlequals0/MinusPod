@@ -212,13 +212,7 @@ function DownloadsTab({ tabs }: Props) {
             ) : rows.map((row) => (
               <div key={row.id} className="bg-card rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-3 mb-1">
-                  <Link
-                    to={`/feeds/${row.podcastSlug}/episodes/${row.episodeId}`}
-                    className={`text-primary hover:underline text-sm font-medium truncate min-w-0 ${focusRing}`}
-                    title={row.episodeTitle ?? row.episodeId}
-                  >
-                    {row.episodeTitle ?? row.episodeId}
-                  </Link>
+                  <EpisodeLink row={row} className="font-medium min-w-0" />
                   <div className="shrink-0">
                     <DownloadRowActions row={row} blocked={blocked} triggerClassName="px-3 py-2" />
                   </div>

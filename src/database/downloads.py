@@ -14,6 +14,7 @@ GEO_BATCH_SIZE = 100
 REQUEST_HEADERS = ('Range', 'Accept', 'Accept-Encoding', 'Referer', 'If-Range', 'If-None-Match')
 REQUEST_LINE_MAX = 500
 REQUEST_HEADER_VALUE_MAX = 300
+REQUEST_HEADERS_JSON_MAX = 2048
 
 SORT_COLUMNS = {
     'last_seen_at': 'd.last_seen_at',
@@ -24,14 +25,27 @@ SORT_COLUMNS = {
 }
 
 
-def capture_request(method: str, path: str, query_string: str, headers) -> tuple[str, str | None]:
-    """Build the stored request line (feed key redacted) and allowlisted headers JSON."""
+def _redact_key(url: str) -> str:
+    """Rewrite any `key` query value to [redacted]; other parameters are kept."""
+    path, sep, query = url.partition('?')
+    if not sep:
+        return url
     pairs = [(k, '[redacted]' if k == 'key' else v)
-             for k, v in parse_qsl(query_string, keep_blank_values=True)]
-    target = f"{path}?{urlencode(pairs, safe='[]')}" if pairs else path
-    line = f"{method} {target}"[:REQUEST_LINE_MAX]
-    picked = {name: headers.get(name)[:REQUEST_HEADER_VALUE_MAX]
-              for name in REQUEST_HEADERS if headers.get(name)}
+             for k, v in parse_qsl(query, keep_blank_values=True)]
+    return f"{path}?{urlencode(pairs, safe='[]')}" if pairs else path
+
+
+def capture_request(method: str, path: str, query_string: str, headers) -> tuple[str, str | None]:
+    """Build the stored request line and allowlisted headers JSON, feed key redacted."""
+    target = f"{path}?{query_string}" if query_string else path
+    line = f"{method} {_redact_key(target)}"[:REQUEST_LINE_MAX]
+    picked = {}
+    for name in REQUEST_HEADERS:
+        value = headers.get(name)
+        if value:
+            picked[name] = (_redact_key(value) if name == 'Referer' else value)[:REQUEST_HEADER_VALUE_MAX]
+    while picked and len(json.dumps(picked)) > REQUEST_HEADERS_JSON_MAX:
+        picked.popitem()
     return line, json.dumps(picked) if picked else None
 
 
