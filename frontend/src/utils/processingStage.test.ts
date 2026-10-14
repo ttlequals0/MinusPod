@@ -27,4 +27,8 @@ describe('getStageLabel', () => {
   it('labels the preparing stage', () => {
     expect(getStageLabel('preparing')).toBe('Preparing');
   });
+
+  it('labels a preparing substage', () => {
+    expect(getStageLabel('preparing:2/5')).toBe('Preparing (2/5)');
+  });
 });

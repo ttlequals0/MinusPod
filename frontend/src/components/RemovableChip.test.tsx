@@ -22,4 +22,13 @@ describe('RemovableChip', () => {
     fireEvent.click(button);
     expect(onRemove).not.toHaveBeenCalled();
   });
+
+  it('keeps the chip compact while the remove control keeps a 44px hit area', () => {
+    render(<RemovableChip label="atc/" onRemove={() => {}} />);
+    const button = screen.getByRole('button', { name: 'Remove atc/' });
+    expect(button.className).toContain('min-h-11');
+    expect(button.className).toContain('-my-3.5');
+    // break-all splits a short label mid-word when the chip is squeezed.
+    expect(screen.getByText('atc/').className).not.toContain('break-all');
+  });
 });

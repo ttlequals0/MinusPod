@@ -57,7 +57,7 @@ export function SkipPatternsField({
       </span>
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         {(patterns ?? []).length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-1">
+          <div className="flex flex-wrap gap-x-1 gap-y-2 mb-1">
             {patterns!.map((p) => (
               <RemovableChip key={p} label={p} onRemove={() => removePattern(p)} disabled={disabled} />
             ))}
@@ -70,7 +70,7 @@ export function SkipPatternsField({
               aria-label={addButtonAriaLabel}
               onClick={() => setAdding(true)}
               disabled={disabled}
-              className={`min-h-11 px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+              className={`min-h-9 sm:min-h-0 px-3 py-1.5 text-sm rounded whitespace-nowrap ${btnOutline} disabled:opacity-50 ${focusRing}`}
             >
               + Add pattern
             </button>
@@ -100,7 +100,7 @@ export function SkipPatternsField({
                 type="button"
                 onClick={addPattern}
                 disabled={disabled || !input.trim()}
-                className={`min-h-11 px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                className={`min-h-9 sm:min-h-0 px-3 py-1.5 text-sm rounded whitespace-nowrap ${btnOutline} disabled:opacity-50 ${focusRing}`}
               >
                 Add
               </button>
@@ -112,7 +112,7 @@ export function SkipPatternsField({
                   setInput('');
                   setError(null);
                 }}
-                className={`min-h-11 px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                className={`min-h-9 sm:min-h-0 px-3 py-1.5 text-sm rounded whitespace-nowrap ${btnOutline} disabled:opacity-50 ${focusRing}`}
               >
                 Cancel
               </button>
