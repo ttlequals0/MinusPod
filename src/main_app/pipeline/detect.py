@@ -563,6 +563,16 @@ def _description_chapter_marker(description, episode_duration, description_trim)
             'reason': f'Description chapter: {title}'}
 
 
+def reconcile_description_chapter(all_ads, description, episode_duration, description_trim):
+    """Re-derive the description chapter marker from the feed's current rule; returns the new list."""
+    fresh = _description_chapter_marker(description, episode_duration, description_trim)
+    stored = [ad for ad in all_ads if ad.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE]
+    if fresh and any(ad['start'] == fresh['start'] and ad['end'] == fresh['end'] for ad in stored):
+        return all_ads
+    kept = [ad for ad in all_ads if ad not in stored]
+    return sorted([*kept, fresh], key=lambda ad: ad['start']) if fresh else kept
+
+
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
                           podcast_name, skip_patterns=False, positional_prior=None,

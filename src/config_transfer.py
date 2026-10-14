@@ -134,6 +134,7 @@ FEED_COLUMNS = (
     'segment_category_actions', 'detect_show_segments', 'skip_second_pass',
     'transcript_differential', 'skip_transcription', 'cue_only_safety',
     'queue_priority', 'title_skip_patterns', 'description_skip_patterns',
+    'description_trim_pattern', 'description_trim_mode',
     'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
     'low_ad_yield_action', 'episode_logs', 'retention_days_override',
     'keep_original_audio_override', 'user_tags', 'author', 'explicit',
@@ -1025,6 +1026,15 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                 raise ConfigTransferError(error)
         elif key == 'description_skip_patterns':
             value, error = feed_api._normalize_description_skip_patterns(value)
+            if error:
+                raise ConfigTransferError(error)
+        elif key == 'description_trim_pattern':
+            value, error = feed_api._normalize_description_trim_pattern(value)
+            if error:
+                raise ConfigTransferError(error)
+        elif key == 'description_trim_mode':
+            value, error = feed_api._normalize_description_trim_mode(
+                'to_end' if value is None else value)
             if error:
                 raise ConfigTransferError(error)
         elif key in ('min_duration_seconds', 'max_duration_seconds'):

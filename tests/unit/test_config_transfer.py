@@ -882,3 +882,21 @@ def test_feed_feed_ua_round_trip(temp_db, override, monkeypatch):
     preview = config_transfer.build_preview(temp_db, document, 'feeds')
     config_transfer.apply_config(temp_db, document, 'feeds', None, preview['previewToken'])
     assert temp_db.get_podcast_by_slug('example-feed')['feed_user_agent_override'] == override
+
+
+def test_description_trim_restores_from_backup(temp_db, monkeypatch):
+    db = temp_db
+    db.create_podcast('trim-feed', 'https://example.com/feed.xml', 'Show')
+    db.update_podcast('trim-feed', description_trim_pattern='*Throwback*',
+                      description_trim_mode='to_next')
+    exported = config_transfer.export_config(db, '2.98.2')
+    db.update_podcast('trim-feed', description_trim_pattern=None, description_trim_mode='to_end')
+    preview = config_transfer.build_preview(db, exported, 'everything')
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+
+    config_transfer.apply_config(
+        db, exported, 'everything', None, preview['previewToken'])
+
+    restored = db.get_podcast_by_slug('trim-feed')
+    assert (restored['description_trim_pattern'], restored['description_trim_mode']) == (
+        '*Throwback*', 'to_next')

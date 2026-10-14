@@ -115,6 +115,11 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     episode = (episode_row if episode_row is not None
                else db.get_episode(slug, episode_id)) or {}
     all_ads = parse_ad_markers(episode.get('ad_markers_json')) or []
+    podcast_row = podcast_row or db.get_podcast_by_slug(slug)
+    all_ads = detect.reconcile_description_chapter(
+        all_ads, episode_description, episode_duration,
+        ((podcast_row or {}).get('description_trim_pattern'),
+         (podcast_row or {}).get('description_trim_mode')))
     if not all_ads:
         return [], [], [], []
 

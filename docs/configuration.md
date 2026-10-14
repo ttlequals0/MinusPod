@@ -366,6 +366,8 @@ Some shows publish an episode whose second half is a re-run, and the description
 
 When a timestamp line in the description matches, that span becomes an Outro marker with the stage badge Description chapter. It is cut regardless of detection confidence or duration, is not sent to the reviewer, and is re-applied on every process, re-detect, and recut. The feed's segment action for Outro still decides the result: remove cuts it, mark or keep leaves it in the audio. A span that ends within 1 s of the episode end is treated as cut to the end.
 
+User corrections win: a keep range or a Not an ad on an overlapping marker can carve the trimmed span, and with the Outro action set to keep or mark the span is not cut. Matching reads the upstream description, not the served one with MinusPod's chapter list appended.
+
 Timestamp lines accepted at the start of a line: `(mm:ss)`, `(h:mm:ss)`, `mm:ss -`, `[mm:ss]`.
 
 API: `descriptionTrimPattern` (string up to 200 characters, or null) and `descriptionTrimMode` (`to_end` or `to_next`) on `PATCH /api/v1/feeds/{slug}`.

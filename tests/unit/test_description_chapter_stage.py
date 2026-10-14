@@ -70,3 +70,35 @@ def test_stored_marker_survives_revalidation():
     kept = _chapter(result.ads)[0]
     assert (kept['start'], kept['end']) == (1886.0, DURATION)
     assert kept['validation']['user_confirmed'] is True
+
+
+def test_inner_llm_ad_and_chapter_span_render_as_one_contiguous_cut():
+    from audio_processor import AudioProcessor
+    to_remove, _ = _run([_ad(2000.0, 2060.0)], ('*Throwback*', 'to_end'))
+    cuts = AudioProcessor().compute_applied_cuts(to_remove, DURATION)
+    assert [(c['start'], c['end']) for c in cuts] == [(1886.0, DURATION)]
+
+
+def _ads(start, end):
+    return [{'start': start, 'end': end, 'detection_stage': 'description_chapter',
+             'reason': 'Description chapter: old'}, _ad(100.0, 130.0)]
+
+
+def test_recut_drops_stored_marker_when_pattern_cleared():
+    out = detect.reconcile_description_chapter(_ads(1886.0, DURATION), DESCRIPTION, DURATION,
+                                               (None, 'to_end'))
+    assert _chapter(out) == [] and len(out) == 1
+
+
+def test_recut_rederives_marker_when_pattern_changed():
+    out = detect.reconcile_description_chapter(
+        _ads(1886.0, DURATION), DESCRIPTION, DURATION, ('Weekly*', 'to_next'))
+    marker = _chapter(out)[0]
+    assert (marker['start'], marker['end']) == (0.0, 1886.0)
+    assert len(_chapter(out)) == 1
+
+
+def test_recut_keeps_stored_marker_when_span_unchanged():
+    ads = _ads(1886.0, DURATION)
+    assert detect.reconcile_description_chapter(
+        ads, DESCRIPTION, DURATION, ('*Throwback*', 'to_end')) is ads

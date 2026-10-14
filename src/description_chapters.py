@@ -11,7 +11,7 @@ TO_NEXT = 'to_next'
 TRIM_MODES = (TO_END, TO_NEXT)
 END_SNAP_SECONDS = 1.0
 
-_LINE = re.compile(r'^\s*[(\[]?(\d{1,2}:\d{2}(?::\d{2})?)[)\]]?\s*[-:]*\s*(.+?)\s*$')
+_LINE = re.compile(r'^\s*[(\[]?(\d{1,2}:\d{2}(?::\d{2})?)[)\]]?\s*[-:\u2013\u2014]*\s*(.+?)\s*$')
 
 
 def parse_description_timestamps(description_html):

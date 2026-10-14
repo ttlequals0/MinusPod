@@ -14,6 +14,8 @@ DESC = (
     ('(1:02:03) Deep Dive', [(3723.0, 'Deep Dive')]),
     ('12:30 - Plain Line', [(750.0, 'Plain Line')]),
     ('[05:00] Bracketed', [(300.0, 'Bracketed')]),
+    ('02:30 \u2013 En Dash', [(150.0, 'En Dash')]),
+    ('(02:30) \u2014 Em Dash', [(150.0, 'Em Dash')]),
 ])
 def test_parser_forms(line, expected):
     assert parse_description_timestamps(line) == expected
