@@ -727,24 +727,23 @@ def _cue_snap_limits(ad: dict, original_start: float,
     """Edge limits at the labelled template cues the ad's edges were snapped to."""
     snap = ad.get('cue_snap') if isinstance(ad.get('cue_snap'), dict) else {}
 
-    def cue_edge(edge: str, key: str) -> float | None:
+    def cue_limit(edge: str, removed: tuple, kept: tuple) -> float | None:
+        # A kept cue stays outside the ad; a removed cue stays inside it, so the
+        # limit sits on the far side of a removed cue.
         record = snap.get(edge)
         if not isinstance(record, dict) or not is_template_cue(record):
             return None
-        return finite_number(record.get(key))
+        key, offset = removed if record.get('remove_with_ad') else kept
+        value = finite_number(record.get(key))
+        return None if value is None else value + offset
 
     starts, ends = [], []
-    # A start edge sits just after the cue ends; an end edge just before the cue starts.
-    cue_end = cue_edge('start', 'cue_end')
-    if cue_end is not None:
-        lim = cue_end + SNAP_GAP_SECONDS
-        if original_start - EDGE_TOLERANCE <= lim < original_end:
-            starts.append((lim, max(lim, original_start)))
-    cue_start = cue_edge('end', 'cue_start')
-    if cue_start is not None:
-        lim = cue_start - SNAP_GAP_SECONDS
-        if original_start < lim <= original_end + EDGE_TOLERANCE:
-            ends.append((lim, min(lim, original_end)))
+    lim = cue_limit('start', ('cue_start', -SNAP_GAP_SECONDS), ('cue_end', SNAP_GAP_SECONDS))
+    if lim is not None and original_start - EDGE_TOLERANCE <= lim < original_end:
+        starts.append((lim, max(lim, original_start)))
+    lim = cue_limit('end', ('cue_end', SNAP_GAP_SECONDS), ('cue_start', -SNAP_GAP_SECONDS))
+    if lim is not None and original_start < lim <= original_end + EDGE_TOLERANCE:
+        ends.append((lim, min(lim, original_end)))
     return starts, ends
 
 
