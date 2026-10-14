@@ -143,6 +143,9 @@ export interface Feed {
   // Per-feed episode description blacklist (#835): fnmatch glob patterns matched
   // against the plain-text description. A match is never queued or JIT-processed.
   descriptionSkipPatterns?: string[];
+  // Per-feed description chapter trim: cut from a matching timestamp line to the end or next chapter.
+  descriptionTrimPattern?: string | null;
+  descriptionTrimMode?: 'to_end' | 'to_next';
   // RSS visibility for episodes excluded by title, description, or duration.
   titleSkipAction?: 'serve_original' | 'hide' | null;
   minDurationSeconds?: number | null;

@@ -485,6 +485,8 @@ export interface UpdateFeedPayload {
   audioMp3StreamCopyOverride?: boolean | null;
   titleSkipPatterns?: string[];
   descriptionSkipPatterns?: string[];
+  descriptionTrimPattern?: string | null;
+  descriptionTrimMode?: 'to_end' | 'to_next';
   titleSkipAction?: 'serve_original' | 'hide' | null;
   minDurationSeconds?: number | null;
   maxDurationSeconds?: number | null;

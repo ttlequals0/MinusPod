@@ -26,7 +26,7 @@ import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonSty
 import { ConfirmModal } from '../../components/Modal';
 import SavedBadge from '../settings/SavedBadge';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { selectBase } from '../../components/fieldStyles';
+import { inputBase, selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import { SkipPatternsField } from './SkipPatternsField';
 import { UserAgentOverrideField } from './UserAgentOverrideField';
@@ -275,6 +275,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // Retention days edits stay local until blur. Committing per keystroke
   // would PATCH every intermediate digit (typing 365 sends 3, then 36) and
   // retention is the one field where an intermediate value deletes audio.
+  const trimPatternField = useDraftField(feed, (f) => f.descriptionTrimPattern ?? '', (v) => v.trim());
   const retentionDaysField = useDraftField(feed, (f) =>
     f.retentionDaysOverride != null && f.retentionDaysOverride > 0 ? String(f.retentionDaysOverride) : '');
 
@@ -423,6 +424,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       draftField.markClean(serverValue != null ? String(serverValue) : '');
     }
   }
+
+  const commitTrimPattern = () => {
+    const next = trimPatternField.value.trim();
+    if (next !== (feed.descriptionTrimPattern ?? '')) {
+      updateMutation.mutate({ descriptionTrimPattern: next || null });
+    }
+    trimPatternField.markClean(next);
+  };
 
   const saveDetectionNotes = () => {
     const next = notesField.value.trim() || null;
@@ -984,6 +993,42 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 onAdd={(next, callbacks) => updateMutation.mutate({ descriptionSkipPatterns: next }, callbacks)}
                 onRemove={(next, callbacks) => updateMutation.mutate({ descriptionSkipPatterns: next }, callbacks)}
               />
+
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <label htmlFor="description-trim-pattern" className="text-muted-foreground sm:w-32 shrink-0 sm:pt-2">
+                  Trim by description chapter:
+                </label>
+                <div className="flex flex-col gap-2 flex-1 min-w-0">
+                  <input
+                    id="description-trim-pattern"
+                    type="text"
+                    value={trimPatternField.value}
+                    onChange={(e) => trimPatternField.setValue(e.target.value)}
+                    onBlur={commitTrimPattern}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitTrimPattern(); }}
+                    maxLength={200}
+                    placeholder="*Throwback*"
+                    disabled={updateMutation.isPending}
+                    aria-label="Chapter title pattern"
+                    className={`${inputBase} w-full max-w-sm min-h-11 disabled:opacity-50`}
+                  />
+                  <select
+                    value={feed.descriptionTrimMode ?? 'to_end'}
+                    onChange={(e) => updateMutation.mutate({
+                      descriptionTrimMode: e.target.value as UpdateFeedPayload['descriptionTrimMode'],
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Trim mode"
+                  >
+                    <option value="to_end">Cut to the end of the episode</option>
+                    <option value="to_next">Cut until the next chapter</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Match the chapter title in the description&apos;s timestamp lines, ignoring case. Use * as a wildcard, for example *Throwback*.
+                  </p>
+                </div>
+              </div>
 
               <div className="space-y-2 text-sm">
                 <div className="grid grid-cols-2 items-end gap-3 max-w-xs">

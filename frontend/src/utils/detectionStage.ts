@@ -14,7 +14,8 @@ export type DetectionStage =
   | 'heuristic_preroll'
   | 'heuristic_postroll'
   | 'dai_differential'
-  | 'transcript_differential';
+  | 'transcript_differential'
+  | 'description_chapter';
 
 export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; className: string }> = {
   first_pass: {
@@ -72,5 +73,9 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   transcript_differential: {
     label: 'Transcript diff',
     className: tint.teal,
+  },
+  description_chapter: {
+    label: 'Description chapter',
+    className: tint.warning,
   },
 };

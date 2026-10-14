@@ -950,6 +950,15 @@ paths:
                     maxLength: 200
                   maxItems: 50
                   description: Per-feed episode title blacklist. Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; requests for a skipped episode's audio redirect to the upstream enclosure instead. Null or an empty array clears the blacklist.
+                descriptionTrimPattern:
+                  type: [string, 'null']
+                  minLength: 1
+                  maxLength: 200
+                  description: Chapter title glob for the description chapter trim. Matched against the title of each timestamp line in the episode description, case-insensitively, with '*' as a wildcard. A match cuts from that timestamp per descriptionTrimMode. Null clears the rule.
+                descriptionTrimMode:
+                  type: string
+                  enum: [to_end, to_next]
+                  description: to_end (default) cuts to the end of the episode; to_next cuts until the next timestamp line.
                 descriptionSkipPatterns:
                   type:
                     - array
@@ -13669,6 +13678,13 @@ components:
           items:
             type: string
           description: Per-feed episode description blacklist (issue 835), always an array (empty when unset). Each pattern is matched against the plain-text description (HTML tags removed, whitespace collapsed), case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. '*This is a preview. To hear the entire episode*'. A matching episode is never queued or JIT-processed.
+        descriptionTrimPattern:
+          type: [string, 'null']
+          description: Chapter title glob for the description chapter trim, or null when unset.
+        descriptionTrimMode:
+          type: string
+          enum: [to_end, to_next]
+          description: Where a description chapter cut ends. Defaults to to_end.
         minDurationSeconds:
           type: [number, 'null']
           minimum: 0
@@ -15197,7 +15213,7 @@ components:
           description: Sponsor or advertiser name extracted from the ad
         detection_stage:
           type: string
-          enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential, vad_gap, cue_pair, heuristic_preroll, heuristic_postroll, keep_content, manual]
+          enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential, vad_gap, cue_pair, heuristic_preroll, heuristic_postroll, keep_content, manual, description_chapter]
           description: Which detection stage found this ad
           example: first_pass
         corroborated_by:
