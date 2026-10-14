@@ -108,6 +108,9 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Episode description blacklist (#835): same glob semantics as
     -- title_skip_patterns, matched against the plain-text description.
     description_skip_patterns TEXT,
+    -- Chapter title glob and mode ('to_end'/'to_next') for the description trim.
+    description_trim_pattern TEXT,
+    description_trim_mode TEXT DEFAULT 'to_end',
     -- Served-RSS handling for a blacklisted episode: NULL/'serve_original'
     -- keeps it in the feed untouched, 'hide' drops it from the served feed.
     title_skip_action TEXT,

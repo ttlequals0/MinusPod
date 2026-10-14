@@ -845,3 +845,47 @@ def test_full_selection_job_states_respect_sqlite_variable_limit(temp_db):
     finally:
         conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, prior_limit)
     assert states == {(slug, 'queued'): 'queued', (slug, 'running'): 'processing'}
+
+
+# Description chapter trim.
+
+def test_get_feed_defaults_description_trim(app_client, seeded_feed):
+    _authed(app_client)
+    body = app_client.get(f"/api/v1/feeds/{seeded_feed['slug']}").get_json()
+    assert body['descriptionTrimPattern'] is None
+    assert body['descriptionTrimMode'] == 'to_end'
+
+
+def test_patch_description_trim_round_trip(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers, json={
+        'descriptionTrimPattern': '*Throwback*', 'descriptionTrimMode': 'to_next'})
+    assert resp.status_code == 200
+    assert resp.get_json()['descriptionTrimPattern'] == '*Throwback*'
+    assert resp.get_json()['descriptionTrimMode'] == 'to_next'
+    row = seeded_feed['db'].get_podcast_by_slug(slug)
+    assert (row['description_trim_pattern'], row['description_trim_mode']) == ('*Throwback*', 'to_next')
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers,
+                            json={'descriptionTrimPattern': None})
+    assert resp.get_json()['descriptionTrimPattern'] is None
+
+
+@pytest.mark.parametrize('payload', [
+    {'descriptionTrimPattern': 'x' * 201},
+    {'descriptionTrimPattern': ''},
+    {'descriptionTrimPattern': ['*a*']},
+    {'descriptionTrimMode': 'to_middle'},
+    {'descriptionTrimMode': None},
+])
+def test_patch_description_trim_invalid_rejected(app_client, seeded_feed, payload):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', headers=_csrf_headers(app_client), json=payload)
+    assert resp.status_code == 400
+    row = seeded_feed['db'].get_podcast_by_slug(slug)
+    assert row['description_trim_pattern'] is None
+    assert row['description_trim_mode'] == 'to_end'

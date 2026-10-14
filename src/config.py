@@ -408,6 +408,9 @@ def _parsed_skip_patterns(patterns_json):
     return tuple(str(p).lower() for p in patterns if p)
 
 
+DESCRIPTION_CHAPTER_STAGE = 'description_chapter'
+
+
 def _matches_skip_patterns(text, patterns_json):
     """Case-insensitive fnmatch of text against the pattern list encoded in patterns_json."""
     if not text or not patterns_json:

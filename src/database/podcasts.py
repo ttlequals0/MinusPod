@@ -365,6 +365,7 @@ class PodcastMixin:
                 'skip_second_pass', 'transcript_differential',
                 'skip_transcription', 'cue_only_safety',
                 'queue_priority', 'title_skip_patterns', 'description_skip_patterns',
+                'description_trim_pattern', 'description_trim_mode',
                 'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
                 'low_ad_yield_action', 'episode_logs',
                 'retention_days_override', 'keep_original_audio_override',

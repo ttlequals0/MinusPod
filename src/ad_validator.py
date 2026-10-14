@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from config import (
+    DESCRIPTION_CHAPTER_STAGE,
     MIN_AD_DURATION, SHORT_AD_WARN, LONG_AD_WARN, MAX_AD_DURATION,
     MAX_AD_DURATION_CONFIRMED, LOW_CONFIDENCE,
     REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL, MID_ROLL_1,
@@ -653,6 +654,9 @@ class AdValidator:
             return ValidationResult(ads=[])
 
         result = ValidationResult(ads=[])
+        chapter_ads = [self._force_accepted_chapter(ad) for ad in ads
+                       if ad.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE]
+        ads = [ad for ad in ads if ad.get('detection_stage') != DESCRIPTION_CHAPTER_STAGE]
 
         # Make SHALLOW copies to avoid modifying originals. Callers rely on
         # this staying shallow: _validate_verification_ads attaches an
@@ -880,6 +884,9 @@ class AdValidator:
         # Step 5: Check overall density
         self._check_ad_density(result)
 
+        result.ads = sorted(result.ads + chapter_ads, key=lambda a: a['start'])
+        result.accepted += len(chapter_ads)
+
         # Log summary
         logger.info(
             f"Validation complete: {result.accepted} accepted, "
@@ -892,6 +899,22 @@ class AdValidator:
                 logger.warning(f"Validation warning: {warning}")
 
         return result
+
+    def _force_accepted_chapter(self, ad: dict) -> dict:
+        """Accept a description-chapter marker as a user-authored cut, bypassing every gate."""
+        marker = ad.copy()
+        start = max(0.0, marker['start'])
+        end = marker['end']
+        if self.episode_duration > 0:
+            end = min(end, self.episode_duration)
+        marker.update(start=start, end=end, was_cut=True, _skip_pattern_learning=True)
+        marker['validation'] = {
+            'decision': Decision.ACCEPT.value, 'adjusted_confidence': 1.0,
+            'original_confidence': marker.get('confidence', 1.0),
+            'user_confirmed': True, 'confirmed_span': {'start': start, 'end': end},
+            'flags': ['INFO: Description chapter trim'],
+        }
+        return marker
 
     @staticmethod
     def _preserve_reviewer_reject(ad: dict) -> None:

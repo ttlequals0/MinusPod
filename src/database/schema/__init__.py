@@ -642,6 +642,8 @@ class SchemaMixin:
             # Episode description blacklist (#835): same glob semantics as
             # title_skip_patterns, matched against the plain-text description.
             ('description_skip_patterns', 'TEXT'),
+            ('description_trim_pattern', 'TEXT'),
+            ('description_trim_mode', "TEXT DEFAULT 'to_end'"),
             ('title_skip_action', 'TEXT'),
             ('min_duration_seconds', 'REAL'),
             ('max_duration_seconds', 'REAL'),

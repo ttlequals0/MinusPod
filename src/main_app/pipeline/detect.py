@@ -13,6 +13,7 @@ from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
 from config import (
+    DESCRIPTION_CHAPTER_STAGE,
     resolve_max_boundary_shift,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
@@ -29,6 +30,7 @@ from config import (
 )
 
 from database.settings import registry_get_default
+from description_chapters import description_trim_span
 from llm_capabilities import (
     PASS_AD_DETECTION_1, clear_fallback,
 )
@@ -549,6 +551,18 @@ def _build_validator(episode_duration, segments, episode_description, *,
     )
 
 
+def _description_chapter_marker(description, episode_duration, description_trim):
+    """Build the always-cut marker for the feed's description chapter rule, or None."""
+    pattern, mode = description_trim or (None, None)
+    span = description_trim_span(description, pattern, mode, episode_duration)
+    if span is None:
+        return None
+    start, end, title = span
+    return {'start': start, 'end': end, 'category': 'outro', 'confidence': 1.0,
+            'detection_stage': DESCRIPTION_CHAPTER_STAGE, 'sponsor': None,
+            'reason': f'Description chapter: {title}'}
+
+
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
                           podcast_name, skip_patterns=False, positional_prior=None,
@@ -556,7 +570,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           audio_analysis=None, podcast_id=None, keep_ads=None,
                           cue_only_safety=None, cue_unproven_template_ids=None,
                           apply_heuristic_rolls=True, segment_actions=None, *,
-                          corrections, transcript_spans=None):
+                          corrections, transcript_spans=None, description_trim=None):
     """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
 
     ``keep_ads`` are the keep-partitioned markers, passed so boundary
@@ -585,6 +599,14 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         # cue_only cuts only from cue and pattern evidence.
         _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
                                 episode_duration, skip_patterns, db)
+
+    # A description chapter cut is appended after refinement so no merge or snap step touches it.
+    chapter = _description_chapter_marker(episode_description, episode_duration, description_trim)
+    if chapter:
+        all_ads = [*all_ads, chapter]
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Description chapter trim: "
+            f"{chapter['start']:.1f}s-{chapter['end']:.1f}s ({chapter['reason']})")
 
     # Validation
     if not all_ads:

@@ -843,6 +843,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         segment_actions=segment_actions,
                         corrections=user_corrections,
                         transcript_spans=transcript_spans,
+                        description_trim=((podcast_settings or {}).get('description_trim_pattern'),
+                                          (podcast_settings or {}).get('description_trim_mode')),
                     )
 
                 # Late keep partition: _refine_and_validate's heuristic
