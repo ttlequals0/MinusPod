@@ -45,6 +45,9 @@ _INDEX_CHUNK = 500
 # bodies run to 100k characters.
 _REBUILD_TX_ROWS = 50
 
+# Pause after each rebuild write so a waiting writer wins the next BEGIN IMMEDIATE.
+_REBUILD_YIELD_SECONDS = 0.02
+
 # One definition for the migration and the rebuild's shadow table.
 SEARCH_INDEX_DDL = """CREATE VIRTUAL TABLE IF NOT EXISTS {name} USING fts5(
     content_type,
@@ -255,12 +258,42 @@ class SearchMixin:
         logger.info(f"Search index rebuilt with {count} items")
         return count
 
+    def refresh_search_index(self) -> int:
+        """Apply the change journal to the live index in short transactions; returns keys applied."""
+        with _search_rebuild_lock(self.db_path):
+            keys = self.get_connection().execute(
+                "SELECT content_type, content_id, podcast_slug, MAX(seq) "
+                "FROM search_index_changes GROUP BY 1, 2, 3 ORDER BY 4").fetchall()
+            insert = ("INSERT INTO search_index (content_type, content_id, podcast_slug, "
+                      "title, body, metadata) VALUES (?, ?, ?, ?, ?, ?)")
+            for start in range(0, len(keys), _REBUILD_TX_ROWS):
+                chunk = keys[start:start + _REBUILD_TX_ROWS]
+
+                def apply(tx, chunk=chunk):
+                    for content_type, content_id, slug, _ in chunk:
+                        tx.execute(
+                            "DELETE FROM search_index WHERE content_type = ? "
+                            "AND content_id = ? AND podcast_slug = ?",
+                            (content_type, content_id, slug))
+                        row = self._current_search_row(tx, content_type, content_id, slug)
+                        if row is not None:
+                            tx.execute(insert, row)
+                    tx.execute("DELETE FROM search_index_changes WHERE seq <= ?",
+                               (max(k[3] for k in chunk),))
+
+                self._run_rebuild_write(apply)
+        if keys:
+            logger.info(f"Search index refreshed: {len(keys)} change(s)")
+        return len(keys)
+
     def _run_rebuild_write(self, operation):
         """Run one rebuild write transaction, retrying transient contention."""
         for attempt in range(_REBUILD_LOCK_RETRIES):
             try:
                 with self.transaction(immediate=True) as tx:
-                    return operation(tx)
+                    result = operation(tx)
+                time.sleep(_REBUILD_YIELD_SECONDS)
+                return result
             except sqlite3.OperationalError as exc:
                 if 'locked' not in str(exc).lower() or attempt == _REBUILD_LOCK_RETRIES - 1:
                     raise
@@ -311,6 +344,7 @@ class SearchMixin:
                     f'(SELECT rowid FROM "{name}" LIMIT {_PURGE_CHUNK_ROWS})')
                 if cur.rowcount <= 0:
                     break
+            time.sleep(_REBUILD_YIELD_SECONDS)
         with self.transaction(immediate=True) as tx:
             tx.execute(f'DROP TABLE IF EXISTS "{name}"')
 

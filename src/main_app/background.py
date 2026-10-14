@@ -56,6 +56,7 @@ BLOCKED_SCAN_MAX_ROWS = 1000
 # lock contention that made it fail.
 INDEX_REBUILD_RETRY_SECONDS = 2700
 INDEX_REBUILD_INTERVAL_SECONDS = 21600
+INDEX_FULL_REBUILD_INTERVAL_SECONDS = 7 * 24 * 3600
 # Ceiling on deferring to active runs: an instance that is never idle would
 # otherwise never rebuild at all.
 INDEX_REBUILD_MAX_DEFERRAL_SECONDS = 2 * INDEX_REBUILD_INTERVAL_SECONDS
@@ -196,12 +197,13 @@ def run_cleanup():
     except Exception as e:
         refresh_logger.error(f"Run log cleanup failed: {e}")
 
-    # Periodic search index rebuild (every 6 hours). rebuild_search_index
-    # logs "Search index rebuilt with N items" itself, so no duplicate log
-    # line is needed at this caller.
+    # Journal refresh every 6 hours, full rebuild weekly. Both log their own results.
     try:
         from processing_queue import ProcessingQueue
-        overdue_by = time.time() - getattr(run_cleanup, '_last_index_rebuild', 0)
+        now = time.time()
+        overdue_by = now - getattr(run_cleanup, '_last_index_rebuild', 0)
+        full_due = (now - getattr(run_cleanup, '_last_full_index_rebuild', 0)
+                    > INDEX_FULL_REBUILD_INTERVAL_SECONDS)
         if overdue_by > INDEX_REBUILD_INTERVAL_SECONDS:
             # A whole-corpus rewrite alongside a live run is what produces the
             # "database is locked" failures; wait for an idle pass, but only
@@ -211,13 +213,17 @@ def run_cleanup():
                 refresh_logger.debug("Search index rebuild deferred: a run is active")
             else:
                 try:
-                    db.rebuild_search_index()
+                    if full_due:
+                        db.rebuild_search_index()
+                        run_cleanup._last_full_index_rebuild = time.time()
+                    else:
+                        db.refresh_search_index()
                     run_cleanup._last_index_rebuild = time.time()
                 except Exception as e:
                     refresh_logger.error(f"Search index rebuild failed: {e}")
                     db.clear_leaked_transaction(refresh_logger, 'search index rebuild')
-                    # Back off instead of rebuilding again on the next pass: the
-                    # retry feeds the same contention that made this attempt fail.
+                    # Back off instead of retrying on the next pass: the retry
+                    # feeds the same contention that made this attempt fail.
                     run_cleanup._last_index_rebuild = (
                         time.time() - INDEX_REBUILD_INTERVAL_SECONDS
                         + INDEX_REBUILD_RETRY_SECONDS)
