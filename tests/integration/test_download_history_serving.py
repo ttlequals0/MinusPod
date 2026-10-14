@@ -93,6 +93,34 @@ def test_disabled_setting_skips_recording(client, audio):
     assert _downloads() == []
 
 
+def test_range_request_records_once(client, audio):
+    for _ in range(2):
+        response = client.get(f'/episodes/{SLUG}/{EPISODE}.mp3',
+                              headers={'Range': 'bytes=0-9', 'User-Agent': 'AntennaPod/3.0'})
+        assert response.status_code == 206
+    rows = _downloads()
+    assert len(rows) == 1 and rows[0]['requestCount'] == 1
+
+
+def test_missing_and_gone_responses_record_nothing(client, audio):
+    gone = 'b1b2c3d4e5f6'
+    app_db.upsert_episode(SLUG, gone, original_url='https://example.com/g.mp3',
+                          status=EpisodeStatus.PERMANENTLY_FAILED.value)
+    assert client.get(f'/episodes/{SLUG}/{gone}.mp3').status_code == 410
+    assert client.get('/episodes/no-such-feed/a1b2c3d4e5f6.mp3').status_code == 404
+    assert _downloads() == []
+
+
+def test_label_only_for_the_subscriber_key_request(client, audio):
+    app_db.set_setting('feed_auth_enabled', 'true', is_default=False)
+    app_db.set_setting('feed_auth_key', KEY, is_default=False)
+    token = app_db.create_feed_subscriber_key(SLUG, 'Phone')['token']
+    client.get(f'/episodes/{SLUG}/{EPISODE}.mp3?key={KEY}', headers={'User-Agent': 'global'})
+    client.get(f'/episodes/{SLUG}/{EPISODE}.mp3?key={token}', headers={'User-Agent': 'scoped'})
+    labels = {r['userAgent']: r['subscriberLabel'] for r in _downloads()}
+    assert labels == {'global': None, 'scoped': 'Phone'}
+
+
 def test_recording_failure_never_breaks_serving(client, audio):
     with patch.object(app_db, 'record_download', side_effect=RuntimeError('boom')):
         assert client.get(f'/episodes/{SLUG}/{EPISODE}.mp3').status_code == 200

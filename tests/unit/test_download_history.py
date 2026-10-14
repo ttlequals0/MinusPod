@@ -1,4 +1,6 @@
 """Download history: dedupe, listing, pruning and geo cache bookkeeping."""
+from unittest.mock import patch
+
 import pytest
 
 SLUG = 'example-podcast'
@@ -32,6 +34,21 @@ def test_dedupes_within_window(db):
     assert row['episodeTitle'] == 'Episode One'
     assert row['podcastSlug'] == SLUG and row['podcastTitle'] == 'Example Podcast'
     assert row['subscriberLabel'] is None
+
+
+def test_burst_repeat_takes_no_write_lock(db):
+    db.record_download(SLUG, EPISODE, IP, 'Pocket Casts', now='2026-10-14T10:00:00Z')
+    with patch.object(db, 'transaction') as transaction:
+        db.record_download(SLUG, EPISODE, IP, 'Pocket Casts', now='2026-10-14T10:00:10Z')
+    transaction.assert_not_called()
+    assert _rows(db)['downloads'][0]['requestCount'] == 1
+
+
+def test_repeat_after_two_minutes_bumps(db):
+    db.record_download(SLUG, EPISODE, IP, 'Pocket Casts', now='2026-10-14T10:00:00Z')
+    db.record_download(SLUG, EPISODE, IP, 'Pocket Casts', now='2026-10-14T10:02:00Z')
+    row = _rows(db)['downloads'][0]
+    assert row['requestCount'] == 2 and row['lastSeenAt'] == '2026-10-14T10:02:00Z'
 
 
 def test_new_row_after_window(db):

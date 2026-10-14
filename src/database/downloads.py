@@ -7,6 +7,7 @@ from utils.time import ISO_FORMAT, utc_now_iso
 logger = logging.getLogger('podcast.database')
 
 DEDUPE_WINDOW = timedelta(minutes=15)
+BURST_WINDOW = timedelta(seconds=60)
 GEO_RETRY_AFTER = timedelta(hours=24)
 GEO_BATCH_SIZE = 100
 
@@ -14,7 +15,7 @@ _SORT_COLUMNS = {
     'last_seen_at': 'd.last_seen_at',
     'podcast': 'LOWER(COALESCE(p.title_override, p.title, p.slug))',
     'client_ip': 'd.client_ip',
-    'location': "LOWER(COALESCE(g.country, '') || COALESCE(g.city, ''))",
+    'location': "LOWER(COALESCE(g.country, '') || ', ' || COALESCE(g.city, ''))",
     'subscriber': "LOWER(COALESCE(k.label, ''))",
 }
 
@@ -28,22 +29,28 @@ class DownloadHistoryMixin:
     def record_download(self, slug: str, episode_id: str, client_ip: str,
                         user_agent: str, subscriber_key_id: str | None = None,
                         now: str | None = None) -> None:
-        """Count a download, merging repeats from one client inside 15 minutes."""
+        """Count a download, merging repeats from one client inside 15 minutes.
+
+        Reads happen outside any transaction; a repeat under 60 s old needs no write.
+        """
         try:
             now = now or utc_now_iso()
-            window_start = _shift(now, -DEDUPE_WINDOW)
+            conn = self.get_connection()
+            podcast = conn.execute(
+                "SELECT id FROM podcasts WHERE slug = ?", (slug,)).fetchone()
+            if not podcast:
+                return
+            existing = conn.execute(
+                """SELECT id, last_seen_at FROM episode_downloads
+                   WHERE podcast_id = ? AND episode_id = ? AND client_ip = ?
+                     AND user_agent = ? AND last_seen_at >= ?
+                   ORDER BY last_seen_at DESC LIMIT 1""",
+                (podcast['id'], episode_id, client_ip, user_agent,
+                 _shift(now, -DEDUPE_WINDOW)),
+            ).fetchone()
+            if existing and existing['last_seen_at'] >= _shift(now, -BURST_WINDOW):
+                return
             with self.transaction(immediate=True) as conn:
-                podcast = conn.execute(
-                    "SELECT id FROM podcasts WHERE slug = ?", (slug,)).fetchone()
-                if not podcast:
-                    return
-                existing = conn.execute(
-                    """SELECT id FROM episode_downloads
-                       WHERE podcast_id = ? AND episode_id = ? AND client_ip = ?
-                         AND user_agent = ? AND last_seen_at >= ?
-                       ORDER BY last_seen_at DESC LIMIT 1""",
-                    (podcast['id'], episode_id, client_ip, user_agent, window_start),
-                ).fetchone()
                 if existing:
                     conn.execute(
                         """UPDATE episode_downloads

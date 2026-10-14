@@ -94,7 +94,7 @@ function DownloadsTab({ tabs }: Props) {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Download History</h1>
+        <h1 className="text-2xl font-bold text-foreground">History</h1>
       </div>
 
       {tabs}

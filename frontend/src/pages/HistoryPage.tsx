@@ -104,7 +104,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Processing History</h1>
+        <h1 className="text-2xl font-bold text-foreground">History</h1>
         <div className="flex gap-2">
           <button
             onClick={() => handleExport('csv')}

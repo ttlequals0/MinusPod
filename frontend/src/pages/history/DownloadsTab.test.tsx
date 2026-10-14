@@ -136,7 +136,7 @@ describe('DownloadsTab', () => {
     await screen.findByRole('table');
     expect(screen.getByRole('tab', { name: 'Downloads' }).getAttribute('aria-selected')).toBe('true');
     await userEvent.click(screen.getByRole('tab', { name: 'Processing' }));
-    expect(await screen.findByText('Processing History')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Export CSV' })).toBeTruthy();
   });
 });
 

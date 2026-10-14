@@ -68,14 +68,31 @@ def test_private_ips_skip_the_network(temp_db, monkeypatch):
     assert _statuses(temp_db) == {'192.168.1.9': 'private'}
 
 
-def test_public_ips_are_looked_up_and_missing_stored_as_failed(temp_db, monkeypatch):
+def test_public_ips_are_looked_up_and_failures_stored(temp_db, monkeypatch):
     temp_db.set_setting('download_geo_lookup_enabled', 'true', is_default=False)
     _seed(temp_db, '8.8.8.8')
     _seed(temp_db, '1.1.1.1')
     monkeypatch.setattr('geo_lookup.lookup_ips', lambda ips: {
-        '8.8.8.8': {'status': 'ok', 'country': 'Exampleland', 'region': 'R', 'city': 'T'}})
+        '8.8.8.8': {'status': 'ok', 'country': 'Exampleland', 'region': 'R', 'city': 'T'},
+        '1.1.1.1': {'status': 'failed'}})
     run_geo_lookup(temp_db)
     assert _statuses(temp_db) == {'8.8.8.8': 'ok', '1.1.1.1': 'failed'}
+
+
+def test_provider_errors_stay_pending(temp_db, monkeypatch):
+    temp_db.set_setting('download_geo_lookup_enabled', 'true', is_default=False)
+    _seed(temp_db, '8.8.8.8')
+    monkeypatch.setattr('geo_lookup.lookup_ips', lambda ips: {})
+    run_geo_lookup(temp_db)
+    assert temp_db.pending_geo_ips() == ['8.8.8.8']
+    assert _statuses(temp_db) == {'8.8.8.8': None}
+
+
+def test_client_error_status_is_failed_not_pending():
+    response = _reply({})
+    response.status_code = 400
+    with patch('geo_lookup.requests.get', return_value=response):
+        assert geo_lookup.lookup_ips(['8.8.8.8']) == {'8.8.8.8': {'status': 'failed'}}
 
 
 def test_disabled_setting_does_nothing(temp_db, monkeypatch):

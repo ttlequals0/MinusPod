@@ -201,10 +201,13 @@ def run_cleanup():
     # Download history: geo-resolve new client IPs, then drop rows past retention.
     try:
         geo_lookup.run_geo_lookup(db)
+    except Exception as e:
+        refresh_logger.error(f"Download geo lookup failed: {e}")
+    try:
         db.prune_downloads(max(DOWNLOAD_HISTORY_RETENTION_DAYS_MIN, db.get_setting_int(
             'download_history_retention_days', DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT)))
     except Exception as e:
-        refresh_logger.error(f"Download history maintenance failed: {e}")
+        refresh_logger.error(f"Download history prune failed: {e}")
 
     # Periodic search index rebuild (every 6 hours). rebuild_search_index
     # logs "Search index rebuilt with N items" itself, so no duplicate log

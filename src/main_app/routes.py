@@ -326,7 +326,7 @@ def _record_download(slug, episode_id):
         if not db.get_setting_bool('download_history_enabled', True):
             return
         db.record_download(
-            slug, episode_id, request.remote_addr or '',
+            slug, episode_id, client_ip(),
             (request.user_agent.string or '')[:200],
             subscriber_key_id=getattr(g, 'subscriber_key_id', None))
     except Exception as exc:
