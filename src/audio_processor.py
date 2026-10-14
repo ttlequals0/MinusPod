@@ -270,6 +270,14 @@ class AudioProcessor:
                              cut_barriers: list[dict] | None = None,
                              hard_barriers: list[dict] | None = None
                              ) -> list[dict]:
+        return self._applied_cuts_with_locks(
+            ad_segments, total_duration, cut_barriers, hard_barriers)[0]
+
+    def _applied_cuts_with_locks(self, ad_segments: list[dict],
+                                 total_duration: float,
+                                 cut_barriers: list[dict] | None = None,
+                                 hard_barriers: list[dict] | None = None
+                                 ) -> tuple[list[dict], list[tuple[bool, bool]]]:
         """Compute the cuts remove_ads actually applies to the audio.
 
         Requested segments diverge from applied cuts: near-adjacent segments
@@ -278,10 +286,11 @@ class AudioProcessor:
         swallowed by a gap merge nor by that trailing extension.
         ``hard_barriers`` are kept audio: every cut is also clipped at them. Asset
         generation and verification timestamp mapping need the applied list,
-        not the requested one -- remove_ads returns it.
+        not the requested one -- remove_ads returns it. The second value holds,
+        per cut, whether its start and end come from a confirmed or precise edge.
         """
         if not ad_segments or not total_duration:
-            return []
+            return [], []
 
         # Clamp to the audio bounds: detection can hand us a cut that starts
         # below zero or runs past the end of the file, and an out-of-range
@@ -301,7 +310,7 @@ class AudioProcessor:
                             f"{[(round(lo, 1), round(hi, 1)) for lo, hi in pieces]}")
             clamped.extend(dict(ad, start=lo, end=hi) for lo, hi in pieces)
         if not clamped:
-            return []
+            return [], []
         cut_barriers = [*(cut_barriers or []), *(hard_barriers or [])]
 
         sorted_segments = sorted(clamped, key=lambda x: x['start'])
@@ -337,6 +346,7 @@ class AudioProcessor:
                     current_segment['end'] = ad['end']
                     current_segment['_confirmed_cut'] = confirmed_cut
                     current_segment['_precise_end'] = precise_end
+                    current_segment['_locked_end'] = confirmed_cut or precise_end
                 if 'reason' in ad:
                     current_segment['reason'] = current_segment.get('reason', '') + '; ' + ad['reason']
                 # Carry the strongest trust signal of the merged members so
@@ -352,7 +362,9 @@ class AudioProcessor:
                     merged_ads.append(current_segment)
                 current_segment = {'start': ad['start'], 'end': ad['end'],
                                    '_confirmed_cut': confirmed_cut,
-                                   '_precise_end': precise_end}
+                                   '_precise_end': precise_end,
+                                   '_locked_start': confirmed_cut or precise_start,
+                                   '_locked_end': confirmed_cut or precise_end}
                 for key in ('reason', 'confidence', 'detection_stage', 'beep',
                             '_measured_split_fragment'):
                     if key in ad:
@@ -407,10 +419,13 @@ class AudioProcessor:
                 logger.info(f"End-of-episode cut: extending {ads[-1]['end']:.1f}s -> "
                             f"{total_duration:.1f}s ({remaining:.1f}s would remain)")
                 ads[-1]['end'] = total_duration
+                ads[-1]['_locked_end'] = False
 
+        locks = []
         for ad in ads:
             ad.pop('_confirmed_cut', None)
             ad.pop('_precise_end', None)
+            locks.append((ad.pop('_locked_start', False), ad.pop('_locked_end', False)))
 
         # Stamp each ad with 'replacement_duration', the length remove_ads
         # will render it with: 'remove' gets the fixed beep clip; 'beep' is
@@ -432,7 +447,7 @@ class AudioProcessor:
             f"(requested {len(clamped)} totaling {requested_total:.1f}s; "
             f"delta {applied_total - requested_total:+.1f}s from merge/drop/end-extend)")
 
-        return ads
+        return ads, locks
 
     def remove_ads(self, input_path: str, ad_segments: list[dict],
                    output_path: str,
@@ -469,7 +484,7 @@ class AudioProcessor:
 
             logger.info(f"Processing audio: {total_duration:.1f}s total, {len(ad_segments)} ad segments")
 
-            ads = self.compute_applied_cuts(
+            ads, locks = self._applied_cuts_with_locks(
                 ad_segments, total_duration,
                 cut_barriers=cut_barriers, hard_barriers=hard_barriers)
             logger.info(f"After merging and filtering: {len(ads)} ad segments")
@@ -479,14 +494,15 @@ class AudioProcessor:
                 shutil.copy2(input_path, output_path)
                 return []
 
-            locked_edges = any((ad.get('validation') or {}).get('user_confirmed')
-                               or precise_edge(ad, 'start') or precise_edge(ad, 'end')
-                               for ad in ad_segments)
-            if self.mp3_stream_copy_enabled and not locked_edges and not any(ad.get('beep') for ad in ads):
+            beeps = sum(1 for ad in ads if ad.get('beep'))
+            if self.mp3_stream_copy_enabled and beeps:
+                logger.info('MP3 stream copy skipped: beep action on %d ad(s)', beeps)
+            if self.mp3_stream_copy_enabled and not beeps:
                 copied = copy_mp3(
                     input_path, output_path, ads,
                     barriers=[*(cut_barriers or []), *(hard_barriers or [])],
-                    replacement_path=replace_audio_path if self.replacement_sound_enabled else None)
+                    replacement_path=replace_audio_path if self.replacement_sound_enabled else None,
+                    locked=locks)
                 if copied is not None:
                     copied_duration = self.get_audio_duration(output_path)
                     if not copied_duration:

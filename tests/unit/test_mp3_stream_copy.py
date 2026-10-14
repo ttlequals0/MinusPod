@@ -1,5 +1,6 @@
 """Verified MP3 copying uses existing audio and preserves coded source payloads."""
 
+import dataclasses
 import shutil
 import subprocess
 from pathlib import Path
@@ -16,9 +17,9 @@ ROOT = Path(__file__).resolve().parents[2]
 pytestmark = pytest.mark.skipif(not shutil.which('ffmpeg'), reason='ffmpeg is unavailable')
 
 
-@pytest.fixture
-def source(tmp_path):
-    path = tmp_path / 'source.mp3'
+@pytest.fixture(scope='module')
+def source(tmp_path_factory):
+    path = tmp_path_factory.mktemp('mp3-copy') / 'source.mp3'
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-stream_loop', '-1',
                     '-i', str(ROOT / 'assets/replace.mp3'), '-t', '90',
                     '-c:a', 'libmp3lame', '-b:a', '128k', str(path)],
@@ -69,8 +70,7 @@ def test_multiple_actual_cuts(source, tmp_path, sound):
 
 
 @pytest.mark.parametrize('cuts', [
-    [{'start': 0, 'end': 10}],
-    [{'start': 80, 'end': 90}],
+    [{'start': 0, 'end': 90}],
     [{'start': 10, 'end': 20}, {'start': 20.02, 'end': 30}],
 ])
 def test_unsupported_edges_and_overlapping_warmup_leave_output_unchanged(source, tmp_path, cuts):
@@ -122,13 +122,118 @@ def test_processor_fallback_preserves_requested_sound_off_cuts(source, tmp_path,
         {'start': 20, 'end': 30, 'replacement_duration': 0.0}]
 
 
-def test_precise_user_edges_skip_copy(source, tmp_path, monkeypatch):
+def test_precise_user_edges_copy_with_inward_snap(source, tmp_path):
     processor = AudioProcessor(replacement_sound_enabled=False, mp3_stream_copy_enabled=True)
-    monkeypatch.setattr('audio_processor.copy_mp3', lambda *args, **kwargs: pytest.fail('Exact user cut must not snap'))
     output = tmp_path / 'output.mp3'
     applied = processor.remove_ads(str(source), [{'start': 20.001, 'end': 30.002,
                                                  'validation': {'user_confirmed': True}}], str(output))
-    assert applied[0]['start'] == 20.001 and applied[0]['end'] == 30.002
+    assert applied[0]['start'] >= 20.001 and applied[0]['end'] <= 30.002
+    assert applied[0]['start'] != 20.001
+
+
+def test_processor_passes_locked_edges_per_cut(source, tmp_path, monkeypatch):
+    processor = AudioProcessor(replacement_sound_enabled=False, mp3_stream_copy_enabled=True)
+    seen = {}
+
+    def capture(*args, **kwargs):
+        seen['locked'] = kwargs.get('locked')
+
+    monkeypatch.setattr('audio_processor.copy_mp3', capture)
+    segments = [{'start': 20.001, 'end': 30.002, 'validation': {'user_confirmed': True}},
+                {'start': 50, 'end': 60}]
+    processor.remove_ads(str(source), segments, str(tmp_path / 'output.mp3'))
+    assert seen['locked'] == [(True, True), (False, False)]
+
+
+def test_merged_cut_keeps_locks_from_its_outer_members(source, tmp_path, monkeypatch):
+    processor = AudioProcessor(replacement_sound_enabled=False, mp3_stream_copy_enabled=True)
+    seen = {}
+
+    def fake_copy(*args, **kwargs):
+        seen['locked'] = kwargs['locked']
+        return None
+
+    monkeypatch.setattr('audio_processor.copy_mp3', fake_copy)
+    processor.remove_ads(str(source), [
+        {'start': 20.0, 'end': 30.0, 'validation': {'user_confirmed': True}},
+        {'start': 29.5, 'end': 40.0}], str(tmp_path / 'output.mp3'))
+    assert seen['locked'] == [(True, False)]
+
+
+def test_beep_skip_is_logged(source, tmp_path, caplog):
+    processor = AudioProcessor(replacement_sound_enabled=True, mp3_stream_copy_enabled=True)
+    with caplog.at_level('INFO'):
+        processor.remove_ads(str(source), [{'start': 20, 'end': 30, 'beep': True}], str(tmp_path / 'output.mp3'))
+    assert 'MP3 stream copy skipped' in caplog.text
+
+
+def _decoded(path):
+    stream = _scan(path)
+    return stream.decoded_samples / stream.rate
+
+
+
+@pytest.mark.parametrize('sound', [False, True])
+def test_start_cut_copies(source, tmp_path, sound):
+    output = tmp_path / 'output.mp3'
+    applied = copy_mp3(str(source), str(output), [{'start': 0, 'end': 10}],
+                       replacement_path=str(ROOT / 'assets/replace.mp3') if sound else None)
+    assert applied is not None
+    assert applied[0]['start'] == 0
+    expected = get_audio_duration(str(source)) - applied[0]['end'] + applied[0]['replacement_duration']
+    assert get_audio_duration(str(output)) == pytest.approx(expected, abs=1e-6)
+    assert _scan(output).skip == _scan(source).skip
+
+
+@pytest.mark.parametrize('sound', [False, True])
+def test_end_cut_copies(source, tmp_path, sound):
+    output = tmp_path / 'output.mp3'
+    applied = copy_mp3(str(source), str(output), [{'start': 80, 'end': 90}],
+                       replacement_path=str(ROOT / 'assets/replace.mp3') if sound else None)
+    assert applied is not None
+    assert applied[0]['end'] == pytest.approx(_decoded(source), abs=1e-9)
+    assert _scan(output).padding == 0
+    assert _decoded(output) == pytest.approx(applied[0]['start'] + applied[0]['replacement_duration'], abs=1e-6)
+
+
+@pytest.mark.parametrize('sound', [False, True])
+def test_start_middle_and_end_cuts_in_one_call(source, tmp_path, sound):
+    output = tmp_path / 'output.mp3'
+    applied = copy_mp3(str(source), str(output),
+                       [{'start': 0, 'end': 10}, {'start': 40, 'end': 50}, {'start': 80, 'end': 90}],
+                       replacement_path=str(ROOT / 'assets/replace.mp3') if sound else None)
+    assert applied is not None and len(applied) == 3
+    assert _decoded(output) == pytest.approx(
+        _decoded(source) - sum(c['end'] - c['start'] - c['replacement_duration'] for c in applied), abs=1e-6)
+
+
+def test_locked_edges_snap_inward(source, tmp_path):
+    output = tmp_path / 'output.mp3'
+    frame = _scan(source).samples / _scan(source).rate
+    applied = copy_mp3(str(source), str(output), [{'start': 20.001, 'end': 30.002}], locked=[(True, True)])
+    assert applied is not None
+    assert 20.001 <= applied[0]['start'] < 20.001 + frame
+    assert 30.002 - frame < applied[0]['end'] <= 30.002
+
+
+def test_start_cut_with_skip_beyond_the_bridge_is_unavailable(source, tmp_path, monkeypatch, caplog):
+    real_scan = mp3_stream_copy._scan
+
+    def scan(path):
+        stream = real_scan(path)
+        return dataclasses.replace(stream, skip=stream.samples) if path == str(source) else stream
+
+    monkeypatch.setattr(mp3_stream_copy, '_scan', scan)
+    output = tmp_path / 'output.mp3'
+    with caplog.at_level('INFO'):
+        assert copy_mp3(str(source), str(output), [{'start': 0, 'end': 10}]) is None
+    assert 'start skip exceeds the bridge' in caplog.text
+
+
+def test_locked_cut_shorter_than_a_frame_is_unavailable(source, tmp_path):
+    output = tmp_path / 'output.mp3'
+    assert copy_mp3(str(source), str(output), [{'start': 20.0, 'end': 20.01}], locked=[(True, True)]) is None
+    assert not output.exists()
 
 
 @pytest.mark.parametrize('content', [b'', b'ID3', b'ID3\x04\0\0\x7f\x7f\x7f\x7f'])

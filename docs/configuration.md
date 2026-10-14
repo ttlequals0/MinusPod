@@ -441,13 +441,16 @@ source-coded audio outside splice transitions. When replacement sound is on, its
 encoded to match the source. The copy path repairs frame packing around joins
 and validates the output before publishing it.
 
-Cuts snap to the nearest MP3 frame. Chapters and transcript timing use those
+Ordinary cut edges snap to the nearest MP3 frame. A word-timed, quote-aligned,
+reviewer-locked or confirmed edge snaps inward instead, so kept audio is never
+shortened and at most one frame of the ad remains. Cuts at the start or end of the
+file are copied too. Chapters and transcript timing use those
 actual cuts and the encoded replacement duration. Validation uses temporary
 decoded-audio files, limited to 4 GiB each, and checks free disk space. Unsupported
 headers or gapless tags, protected boundaries and failed resource checks fall
 back to re-encoding.
 
-Leveling, Beep actions, unsupported audio, cuts at the start or end, unsafe joins
+Leveling, Beep actions, unsupported audio, unsafe joins
 or failed validation use the existing encoder. Output Bitrate applies to that
 re-encoded output. Bitrate and leveling remain configurable with stream copy on.
 

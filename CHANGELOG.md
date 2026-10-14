@@ -11,6 +11,11 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.14] - 2026-10-14
+
+### Fixed
+- MP3 stream copy no longer re-encodes an episode because one edge is word-timed, quote-aligned, reviewer-locked or confirmed, or because a cut touches the start or end of the file. Locked edges snap inward per cut, so kept audio is never shortened. A beep action still skips copy, and that skip is now logged. (#858)
+
 ## [2.100.13] - 2026-10-14
 
 ### Added
