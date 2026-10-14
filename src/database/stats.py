@@ -2251,6 +2251,7 @@ class StatsMixin:
         )
 
         return {
+            'byMode': self._reviewer_stats_by_mode(conn, where_clause, params),
             'totalReviews': sum(counts.values()),
             'verdictCounts': counts,
             'pass1AdjustmentCount': pass1_adjust,
@@ -2259,6 +2260,37 @@ class StatsMixin:
             'resurrectionCount': counts.get('resurrect', 0),
             'failureCount': counts.get('failure', 0),
         }
+
+    @staticmethod
+    def _reviewer_stats_by_mode(conn, where_clause: str, params: list) -> dict:
+        """Verdict counts and mean |shift| per addressing mode; NULL-mode rows are excluded."""
+        clause = (where_clause + " AND " if where_clause else "WHERE ") + \
+            "l.addressing_mode IN ('timestamps', 'segment_ids')"
+        rows = conn.execute(
+            f"""
+            SELECT addressing_mode, verdict, COUNT(*) AS n,
+                   AVG((ABS(adjusted_start - original_start) +
+                        ABS(adjusted_end - original_end)) / 2.0) AS avg_shift
+            FROM ad_reviewer_log l
+            {clause}
+            GROUP BY addressing_mode, verdict
+            """,  # noqa: S608
+            params,
+        ).fetchall()
+        keys = {'confirmed': 'confirmed', 'adjust': 'adjusted', 'reject': 'rejected',
+                'resurrect': 'resurrected', 'inconclusive': 'inconclusive',
+                'failure': 'failed'}
+        modes = {m: {'reviews': 0, **{k: 0 for k in keys.values()},
+                     'avgBoundaryShiftSeconds': 0.0}
+                 for m in ('timestamps', 'segment_ids')}
+        for r in rows:
+            entry = modes[r['addressing_mode']]
+            entry['reviews'] += r['n']
+            if r['verdict'] in keys:
+                entry[keys[r['verdict']]] += r['n']
+            if r['verdict'] == 'adjust' and r['avg_shift'] is not None:
+                entry['avgBoundaryShiftSeconds'] = round(r['avg_shift'], 2)
+        return modes
 
     def record_addressing_log(self, podcast_slug: str, episode_id: str,
                                pass_name: str, configured_mode: str,
@@ -2355,4 +2387,60 @@ class StatsMixin:
                 'adsDroppedTooLong': r['dropped_too_long'] or 0,
                 'keptPct': round(100.0 * kept / proposed, 1) if proposed else 0.0,
             }
-        return {'modes': modes}
+        return {'modes': modes,
+                'byMode': self._addressing_outcomes_by_mode(conn, podcast_slug)}
+
+    @staticmethod
+    def _addressing_outcomes_by_mode(conn, podcast_slug: str | None) -> dict:
+        """Per-mode correction rates and mean snap distance, grouped per marker."""
+        out = {m: {'heldRate': None, 'approveRate': None, 'rejectRate': None,
+                   'avgSnapDistance': None}
+               for m in ('timestamps', 'segment_ids')}
+        slug_sql = ("AND podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)"
+                    if podcast_slug else "")
+        slug_params = [podcast_slug] if podcast_slug else []
+        for r in conn.execute(
+            f"""
+            SELECT addressing_mode, COUNT(*) AS n,
+                   SUM(correction_type IN ('confirm', 'boundary_adjustment')) AS approved,
+                   SUM(correction_type = 'false_positive') AS rejected,
+                   SUM(source_hold_reason IS NOT NULL OR hold_id IS NOT NULL) AS held
+            FROM pattern_corrections
+            WHERE addressing_mode IN ('timestamps', 'segment_ids') {slug_sql}
+            GROUP BY addressing_mode
+            """,  # noqa: S608
+            slug_params,
+        ).fetchall():
+            out[r['addressing_mode']].update(
+                heldRate=round(r['held'] / r['n'], 4),
+                approveRate=round(r['approved'] / r['n'], 4),
+                rejectRate=round(r['rejected'] / r['n'], 4),
+            )
+
+        snap = {m: [] for m in out}
+        for r in conn.execute(
+            f"""
+            SELECT ed.ad_markers_json FROM episode_details ed
+            JOIN episodes e ON e.id = ed.episode_id
+            WHERE ed.ad_markers_json LIKE '%"llm_start"%'
+            {"AND e.podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)" if podcast_slug else ""}
+            """,  # noqa: S608
+            slug_params,
+        ).fetchall():
+            try:
+                markers = json.loads(r['ad_markers_json'])
+            except (TypeError, ValueError):
+                continue
+            for m in markers if isinstance(markers, list) else []:
+                mode = m.get('addressing_mode') if isinstance(m, dict) else None
+                try:
+                    dist = (abs(m['start'] - m['llm_start'])
+                            + abs(m['end'] - m['llm_end']))
+                except (KeyError, TypeError):
+                    continue
+                if mode in snap:
+                    snap[mode].append(dist)
+        for mode, dists in snap.items():
+            if dists:
+                out[mode]['avgSnapDistance'] = round(sum(dists) / len(dists), 3)
+        return out

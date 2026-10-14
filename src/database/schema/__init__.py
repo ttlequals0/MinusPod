@@ -700,6 +700,7 @@ class SchemaMixin:
             ('origin', "TEXT NOT NULL DEFAULT 'user'"),
             # 2.97.34: the hold an auto-filed confirm released; older rows group by bounds.
             ('hold_id', 'TEXT'),
+            ('addressing_mode', 'TEXT'),
         ]
         for col, definition in pcorr_migrations:
             self._add_column_if_missing(conn, 'pattern_corrections', col, definition, pcorr_cols)
@@ -841,6 +842,11 @@ class SchemaMixin:
                         'ads_dropped_out_of_window', 'ads_dropped_too_long'):
                 self._add_column_if_missing(
                     conn, 'addressing_log', col, 'INTEGER', addr_cols)
+
+        # NULL on old rows keeps them out of the per-mode splits.
+        rl_cols = self._get_table_columns(conn, 'ad_reviewer_log')
+        self._add_column_if_missing(
+            conn, 'ad_reviewer_log', 'addressing_mode', 'TEXT', rl_cols)
 
         # -- Ad patterns table columns --
         ap_cols = self._get_table_columns(conn, 'ad_patterns')

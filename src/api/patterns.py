@@ -980,6 +980,7 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
             corrected_bounds={'start': piece['start'], 'end': piece['end']},
             text_snippet=piece['text'][:500],
             podcast_id=db.get_podcast_by_slug(slug)['id'],
+            addressing_mode=marker.get('addressing_mode'),
         )
 
     kept = [m for m in markers
@@ -1205,6 +1206,8 @@ def _handle_confirm_correction(
         corrected_bounds={'start': eff_start, 'end': eff_end} if has_trim else None,
         text_snippet=data.get('notes'),
         podcast_id=db.get_podcast_by_slug(slug)['id'],
+        addressing_mode=_stored_marker_mode(
+            db, slug, episode_id, original_start, original_end),
     )
 
     # adjusted_* are None exactly when there is no trim; the helper only
@@ -1275,6 +1278,8 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
         text_snippet=text_snippet,
         source_hold_reason=source_hold_reason,
         podcast_id=db.get_podcast_by_slug(slug)['id'],
+        addressing_mode=(matched_marker or {}).get('addressing_mode')
+        or _stored_marker_mode(db, slug, episode_id, original_start, original_end),
     )
 
     _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
@@ -1302,6 +1307,17 @@ def _load_episode_markers(db, slug, episode_id):
 
 def _load_markers(db, slug, episode_id):
     return _load_episode_markers(db, slug, episode_id)[1]
+
+
+def _stored_marker_mode(db, slug, episode_id, start, end):
+    """Addressing mode of the stored marker nearest the span, None when unstamped."""
+    if start is None or end is None:
+        return None
+    for m in _load_markers(db, slug, episode_id) or []:
+        if (m.get('start') is not None and m.get('end') is not None
+                and abs(m['start'] - start) <= 0.5 and abs(m['end'] - end) <= 0.5):
+            return m.get('addressing_mode')
+    return None
 
 
 def _handle_recategorize_correction(db, slug, episode_id, original_ad, data):
@@ -1539,6 +1555,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         corrected_bounds={'start': adjusted_start, 'end': adjusted_end},
         text_snippet=adjusted_text,
         podcast_id=db.get_podcast_by_slug(slug)['id'],
+        addressing_mode=_stored_marker_mode(
+            db, slug, episode_id, original_start, original_end),
     )
 
     return json_response({'message': 'Adjustment recorded', 'pattern_id': pattern_id})
