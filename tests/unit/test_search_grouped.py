@@ -446,12 +446,17 @@ def test_snippet_escapes_ampersands_and_literal_mark_tags():
     slug = _feed('entity-snippet')
     ep_id = _eid()
     db.upsert_episode(slug, ep_id, title='Ligature Hour',
-                      description='sponsored by AT&T with <mark>fake</mark> zibbleflux copy')
-    hit = next(e for e in db.search_grouped('zibbleflux')['episodes']
-               if e['episodeId'] == ep_id)
-    assert 'AT&amp;T' in hit['snippet']
-    assert '&lt;mark&gt;fake&lt;/mark&gt;' in hit['snippet']
-    assert '<mark>zibbleflux</mark>' in hit['snippet']
+                      description='sponsored by AT&T with zibbleflux copy')
+    db.save_episode_details(slug, ep_id, transcript_text='says <mark>fake</mark> quuxwombat copy')
+    db.index_episode(ep_id, slug)
+    episode = next(e for e in db.search_grouped('zibbleflux')['episodes']
+                   if e['episodeId'] == ep_id)
+    assert 'AT&amp;T' in episode['snippet']
+    assert '<mark>zibbleflux</mark>' in episode['snippet']
+    transcript = next(e for e in db.search_grouped('quuxwombat')['transcripts']
+                      if e['episodeId'] == ep_id)
+    assert '&lt;mark&gt;fake&lt;/mark&gt;' in transcript['snippet']
+    assert '<mark>quuxwombat</mark>' in transcript['snippet']
 
 
 def test_openapi_groups_enum_matches_the_server():

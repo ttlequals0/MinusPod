@@ -19,6 +19,17 @@ _SWAP_LOCK_BACKOFF_SECONDS = 2.0
 _REBUILD_LOCK_RETRIES = 3
 _REBUILD_LOCK_BACKOFF_SECONDS = 1.0
 
+_TAG_RE = re.compile(r'<[^>]+>')
+_WS_RE = re.compile(r'\s+')
+
+
+def strip_html(text):
+    """Plain text for indexing: tags out, entities decoded, whitespace collapsed."""
+    if not text:
+        return ''
+    return _WS_RE.sub(' ', html.unescape(_TAG_RE.sub(' ', text))).strip()
+
+
 # Grouped-search snippet delimiters: literal "<mark>" in indexed text must not read as a highlight.
 _HL_OPEN = '\x02'
 _HL_CLOSE = '\x03'
@@ -317,7 +328,7 @@ class SearchMixin:
                 FROM episodes e JOIN podcasts p ON e.podcast_id = p.id
                 LEFT JOIN episode_details ed ON e.id = ed.episode_id""",
              lambda r: ('episode', r['episode_id'], r['slug'], r['title'],
-                        (r['transcript_text'] or '')[:100000], r['description'] or '')),
+                        (r['transcript_text'] or '')[:100000], strip_html(r['description']))),
             ("""SELECT ap.id, ap.text_template, ks.name AS sponsor, ap.scope
                 FROM ad_patterns ap LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
                 WHERE ap.is_active = 1""",
@@ -378,7 +389,14 @@ class SearchMixin:
                 "FROM known_sponsors WHERE id = ? AND is_active = 1", (content_id,)).fetchone()
         else:
             return None
-        return tuple(row) if row is not None else None
+        if row is None:
+            return None
+        row = list(row)
+        if content_type == 'podcast':
+            row[4] = strip_html(row[4])
+        elif content_type == 'episode':
+            row[5] = strip_html(row[5])
+        return tuple(row)
 
     def _drop_stale_shadows(self, conn) -> None:
         """Remove shadows while the caller holds the exclusive rebuild lock,
@@ -448,7 +466,7 @@ class SearchMixin:
         ).fetchall()
         insert_values = [
             ('episode', row['episode_id'], row['slug'], row['title'],
-             (row['transcript_text'] or '')[:100000], row['description'] or '')
+             (row['transcript_text'] or '')[:100000], strip_html(row['description']))
             for row in rows
         ]
         if insert_values:

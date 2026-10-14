@@ -19,6 +19,7 @@ release notes.
 
 ### Fixed
 - Reprocessing or re-detecting an episode on a local feed, or any episode with a retained original, no longer reports a Downloading phase; the status bar shows Preparing until transcription starts.
+- Search results no longer show raw HTML tags from episode and podcast descriptions; the index stores plain text and is rebuilt once on upgrade.
 
 ## [2.100.11] - 2026-10-12
 

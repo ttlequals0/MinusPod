@@ -1869,6 +1869,14 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"search index reindex failed: {e}")
 
+        # One-shot reindex so descriptions are stored as plain text, not RSS HTML (2.100.12).
+        try:
+            self._run_reindex_search_plain_text(
+                conn, already_rebuilt=search_index_freshly_populated)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"search index plain-text reindex failed: {e}")
+
         # Per-boot, not schema_migrations-gated: seeds an absent model row
         # from OPENAI_MODEL, run after the clear above so a stale default is
         # removed and reseeded in the same boot.
@@ -2770,6 +2778,17 @@ class SchemaMixin:
             logger.info("search-index-reindex: skipped, auto-populate already rebuilt it this boot")
         else:
             logger.info(f"search-index-reindex: complete, {count} row(s) indexed")
+
+    def _run_reindex_search_plain_text(self, conn, already_rebuilt: bool = False):
+        """One-shot rebuild so existing rows hold plain-text descriptions; skipped
+        if this boot's auto-populate already did it."""
+        name = 'search_index_plain_text_2_100_12'
+        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone():
+            return
+        count = 0 if already_rebuilt else self.rebuild_search_index()
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
+        conn.commit()
+        logger.info(f"search-index-plain-text: complete, {count} row(s) indexed")
 
     def _seed_model_settings_from_env(self, conn):
         """Seed an absent model row from OPENAI_MODEL (2.86.4).
