@@ -1479,6 +1479,11 @@ function EpisodeDetail() {
             episodeDuration={episode.originalDuration ?? 0}
             boundsWindow={{ min: seg.start - 0.5, max: seg.end + 0.5 }}
             onSubmit={(s) => {
+              if (s.kind === 'recategorize') {
+                // A category is a property of the span, not a verdict: stay open and held.
+                handleCorrection({ type: 'recategorize', originalAd, category: s.category });
+                return;
+              }
               if (s.kind === 'reject') {
                 handleCorrection({ type: 'reject', originalAd });
               } else {

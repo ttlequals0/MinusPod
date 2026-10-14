@@ -22,6 +22,7 @@ release notes.
 - Reprocessing or re-detecting an episode on a local feed, or any episode with a retained original, no longer reports a Downloading phase; the status bar shows Preparing until transcription starts.
 - Search results no longer show raw HTML tags from episode and podcast descriptions; the index stores plain text and is rebuilt once on upgrade.
 - A reviewer boundary adjustment can no longer move an ad edge back across an audio cue that is set to be removed with the ad, so break stingers are cut instead of left audible.
+- Changing the category in a held marker's editor now records the new category and keeps the marker held; it no longer confirms the marker with the old category.
 
 ## [2.100.11] - 2026-10-12
 

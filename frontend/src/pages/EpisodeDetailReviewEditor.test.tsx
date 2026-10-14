@@ -9,7 +9,7 @@
  *     proposals seed correctedBounds, absent proposals leave it null.
  *   - onSubmit mapping: adjust -> confirm + adjusted bounds (clamped to the
  *     backend's +/-0.5s tolerance window), confirm -> plain confirm,
- *     reject -> reject. Modal unmounts after submit.
+ *     reject -> reject, recategorize -> recategorize (modal stays open). Modal unmounts after submit.
  *   - One-tap recut parity: a held-row confirm that completes the review
  *     set chains a recut; rejected-row confirms never do.
  */
@@ -42,9 +42,10 @@ vi.mock('../components/AdReviewModal', () => ({
       correctedBounds: { start: number; end: number } | null;
     };
     onSubmit: (s: {
-      kind: 'confirm' | 'reject' | 'adjust';
+      kind: 'confirm' | 'reject' | 'adjust' | 'recategorize';
       adjustedStart?: number;
       adjustedEnd?: number;
+      category?: string | null;
     }) => void;
     onClose: () => void;
     boundsWindow?: { min: number; max: number };
@@ -70,6 +71,12 @@ vi.mock('../components/AdReviewModal', () => ({
         })}
       >
         adjust
+      </button>
+      <button
+        data-testid="modal-recategorize"
+        onClick={() => onSubmit({ kind: 'recategorize', category: 'self_promo' })}
+      >
+        recategorize
       </button>
       <button data-testid="modal-reject" onClick={() => onSubmit({ kind: 'reject' })}>
         reject
@@ -299,6 +306,23 @@ describe('Open in editor: held rows', () => {
     expect(payload.type).toBe('confirm');
     expect(payload.adjusted_start).toBeUndefined();
     expect(payload.adjusted_end).toBeUndefined();
+  });
+
+  it('maps a category change to a recategorize correction and keeps the modal open', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+    await user.click(screen.getByTestId('modal-recategorize'));
+
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    const [, , payload] = mockSubmitCorrection.mock.calls[0] as [
+      string, string, { type: string; category?: string },
+    ];
+    expect(payload.type).toBe('recategorize');
+    expect(payload.category).toBe('self_promo');
+    expect(mockReprocessEpisode).not.toHaveBeenCalled();
+    expect(screen.getByTestId('ad-review-modal')).toBeTruthy();
   });
 
   it('held confirm that completes the review set chains a one-tap recut', async () => {
