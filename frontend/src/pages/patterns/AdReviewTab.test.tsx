@@ -166,23 +166,21 @@ describe('AdReviewTab', () => {
     const cards = screen.getByTestId('detections-cards');
     expect(within(cards).getByRole('link', { name: 'Episode One' })).toBeTruthy();
     expect(within(cards).getByText('Acme')).toBeTruthy();
-    // Cards lay out in two deliberate rows rather than by wrap order: the
-    // verdict pair on top at equal width, adjustments below.
-    const confirm = within(cards).getByRole('button', { name: 'Confirm ad' });
-    const notAnAd = within(cards).getByRole('button', { name: 'Not an ad' });
-    const edit = within(cards).getByRole('button', { name: 'Edit' });
-    const category = within(cards).getByRole('combobox', { name: /^Category for/ });
-    expect(notAnAd.parentElement).toBe(confirm.parentElement);
-    expect(edit.parentElement).toBe(category.parentElement);
-    expect(edit.parentElement).not.toBe(confirm.parentElement);
-    for (const b of [confirm, notAnAd]) {
-      expect(b.className).toContain('grow');
+    const row = within(cards).getByTestId('detection-actions-row');
+    const buttons = within(row).getAllByRole('button');
+    expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
+      ['Play this ad', 'Confirm ad', 'Not an ad', 'Split', 'Edit']);
+    for (const b of buttons) {
+      expect(b.className).toContain('flex-1');
       expect(b.className).toContain('basis-0');
-      expect(b.className).toContain('whitespace-nowrap');
-      // The tap-target floor from the design guide.
-      expect(b.className).toContain('min-h-[44px]');
+      expect(b.className).toContain('min-w-0');
     }
-    expect(edit.className).not.toContain('grow');
+    // The category sits on its own line before the action row, centered on phones.
+    const category = within(cards).getByRole('combobox', { name: /^Category for/ });
+    expect(row.contains(category)).toBe(false);
+    expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(category.parentElement?.className).toContain('justify-center');
+    expect(category.parentElement?.className).toContain('sm:justify-start');
   });
 
   it('sorts from the filter-bar sort control and resets direction on column change', async () => {
