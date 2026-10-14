@@ -416,7 +416,8 @@ class PatternMixin:
                                    source_hold_reason: str = None,
                                    podcast_id: int = None,
                                    origin: str = CORRECTION_ORIGIN_USER,
-                                   hold_id: str = None) -> int:
+                                   hold_id: str = None,
+                                   addressing_mode: str = None) -> int:
         """Create a pattern correction record. Returns correction ID.
 
         source_hold_reason records which hold gate produced a
@@ -428,12 +429,13 @@ class PatternMixin:
             """INSERT INTO pattern_corrections
                (pattern_id, episode_id, podcast_title, episode_title, correction_type,
                 original_bounds, corrected_bounds, text_snippet, sponsor_id, podcast_id,
-                source_hold_reason, origin, hold_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                source_hold_reason, origin, hold_id, addressing_mode)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (pattern_id, episode_id, podcast_title, episode_title, correction_type,
              json.dumps(original_bounds) if original_bounds else None,
              json.dumps(corrected_bounds) if corrected_bounds else None,
-             text_snippet, sponsor_id, podcast_id, source_hold_reason, origin, hold_id)
+             text_snippet, sponsor_id, podcast_id, source_hold_reason, origin, hold_id,
+             addressing_mode)
         )
         conn.commit()
         return cursor.lastrowid

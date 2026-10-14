@@ -472,6 +472,7 @@ def _file_corroborated_hold_approvals(slug, episode_id, markers, corrections):
                 source_hold_reason=reason,
                 origin=CORRECTION_ORIGIN_AUTO_PASS2,
                 hold_id=m.get('hold_id'),
+                addressing_mode=m.get('addressing_mode'),
             )
             filed += 1
             entry = {'start': m['start'], 'end': m['end'],

@@ -1475,6 +1475,10 @@ class AdDetector:
                      else 'claude')
         for ad in valid_window_ads:
             ad.setdefault('detection_stage', llm_stage)
+            # Mode is drawn per pass, so stamp per ad; llm_* are the pre-snap bounds.
+            ad.setdefault('addressing_mode', addressing_mode)
+            ad.setdefault('llm_start', ad['start'])
+            ad.setdefault('llm_end', ad['end'])
 
         logger.info(
             f"[{slug}:{episode_id}] {window_label} found {len(valid_window_ads)} ads"

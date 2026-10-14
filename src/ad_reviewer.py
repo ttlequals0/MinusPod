@@ -911,6 +911,7 @@ class ReviewVerdict:
     inconclusive_hold: bool = False
     # Adjust edges the model gave as numbers that survived the clamp; later stages may not widen them.
     locked_edges: tuple = ()
+    addressing_mode: str | None = None
 
 
 @dataclass
@@ -1402,6 +1403,7 @@ class AdReviewer:
                 original_start=float(ad.get("start", 0.0)),
                 original_end=float(ad.get("end", 0.0)),
                 reasoning=_review_failure_reason(error), success=False,
+                addressing_mode=ad.get("addressing_mode"),
             )
             result.verdicts.append(verdict)
             self._settle_abstained(result, verdict, ad, episode_meta, check_support)
@@ -1688,7 +1690,7 @@ class AdReviewer:
             if (pool == "accepted"
                     and (ads[idx].get("validation") or {}).get("user_confirmed")):
                 return None, ads[idx]
-            return self._review_single(
+            verdict, updated = self._review_single(
                 ad=ads[idx],
                 pool=pool,
                 pass_num=pass_num,
@@ -1699,6 +1701,8 @@ class AdReviewer:
                 max_shift=max_shift,
                 transcript_units=transcript_units,
             )
+            verdict.addressing_mode = ads[idx].get("addressing_mode")
+            return verdict, updated
 
         if max_workers <= 1 or len(ads) == 1:
             return [_run_one(i) for i in range(len(ads))]
@@ -2532,7 +2536,7 @@ class AdReviewer:
                 v.original_start, v.original_end, v.verdict,
                 v.adjusted_start, v.adjusted_end,
                 v.reasoning, v.confidence, v.model_used,
-                v.latency_ms, 1 if v.success else 0,
+                v.latency_ms, 1 if v.success else 0, v.addressing_mode,
             )
             for v in verdicts
         ]
@@ -2543,8 +2547,9 @@ class AdReviewer:
                 """INSERT INTO ad_reviewer_log
                    (episode_id, podcast_id, pass, pool, original_start,
                     original_end, verdict, adjusted_start, adjusted_end,
-                    reasoning, confidence, model_used, latency_ms, success)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    reasoning, confidence, model_used, latency_ms, success,
+                    addressing_mode)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 rows,
             )
             conn.commit()

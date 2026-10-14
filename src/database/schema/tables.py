@@ -312,7 +312,8 @@ TABLE_DDL['pattern_corrections'] = """CREATE TABLE IF NOT EXISTS pattern_correct
     source_hold_reason TEXT,
     fp_suppressed INTEGER DEFAULT 0,
     origin TEXT NOT NULL DEFAULT 'user',
-    hold_id TEXT
+    hold_id TEXT,
+    addressing_mode TEXT
 )"""
 
 TABLE_DDL['processing_runs'] = """CREATE TABLE IF NOT EXISTS processing_runs (
@@ -563,7 +564,8 @@ TABLE_DDL['ad_reviewer_log'] = """CREATE TABLE IF NOT EXISTS ad_reviewer_log (
     model_used TEXT NOT NULL,
     latency_ms INTEGER,
     success INTEGER NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    addressing_mode TEXT
 )"""
 
 TABLE_DDL['audio_cue_templates'] = """CREATE TABLE IF NOT EXISTS audio_cue_templates (

@@ -3104,6 +3104,14 @@ paths:
                     type: integer
                   failureCount:
                     type: integer
+                  byMode:
+                    type: object
+                    description: Verdicts per addressing mode the ad was detected under. Rows logged before 2.100.12 carry no mode and are excluded.
+                    properties:
+                      timestamps:
+                        $ref: '#/components/schemas/ReviewerModeStats'
+                      segment_ids:
+                        $ref: '#/components/schemas/ReviewerModeStats'
 
   /stats/addressing:
     get:
@@ -3136,6 +3144,14 @@ paths:
                         $ref: '#/components/schemas/AddressingModeStats'
                       segment_ids:
                         $ref: '#/components/schemas/AddressingModeStats'
+                  byMode:
+                    type: object
+                    description: Outcomes per addressing mode the marker was detected under. Rates are fractions of corrections that carry a mode; avgSnapDistance covers stored markers from the last 90 days. Null when a mode has no data.
+                    properties:
+                      timestamps:
+                        $ref: '#/components/schemas/AddressingModeOutcomes'
+                      segment_ids:
+                        $ref: '#/components/schemas/AddressingModeOutcomes'
 
   /stats/model-usage:
     get:
@@ -12453,6 +12469,28 @@ components:
         selectedFeedSlugs:
           type: array
           items: {type: string}
+
+    ReviewerModeStats:
+      type: object
+      properties:
+        reviews: {type: integer}
+        confirmed: {type: integer}
+        adjusted: {type: integer}
+        rejected: {type: integer}
+        resurrected: {type: integer}
+        inconclusive: {type: integer}
+        failed: {type: integer}
+        avgBoundaryShiftSeconds:
+          type: [number, "null"]
+          description: Mean absolute boundary shift over adjust verdicts, in seconds; null when the mode has none
+
+    AddressingModeOutcomes:
+      type: object
+      properties:
+        heldRate: {type: [number, "null"], description: Share of this mode's corrections filed against a held marker}
+        approveRate: {type: [number, "null"], description: Share of this mode's corrections that confirmed or adjusted}
+        rejectRate: {type: [number, "null"], description: Share of this mode's corrections that rejected}
+        avgSnapDistance: {type: [number, "null"], description: Mean of |start - llm_start| + |end - llm_end| in seconds between the model's raw bounds and the stored marker, all correction stages included}
 
     AddressingModeStats:
       type: object
