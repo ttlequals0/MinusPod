@@ -1,25 +1,21 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import CopyButton from './CopyButton';
-import { ConfirmModal } from './Modal';
-import {
-  createSubscriberKey, getSubscriberKeys, revokeSubscriberKey, deleteSubscriberKeyRecord,
-} from '../api/feeds';
+import DeleteKeyRecordModal from './DeleteKeyRecordModal';
+import { useSubscriberKeyActions } from '../hooks/useSubscriberKeyActions';
+import { createSubscriberKey, getSubscriberKeys } from '../api/feeds';
 import { getErrorMessage } from '../api/client';
-import { btnPrimary, btnOutline } from './buttonStyles';
+import { btnPrimary, btnOutline, btnDestructive } from './buttonStyles';
 import { focusRing } from './fieldStyles';
-
-export const ALL_SUBSCRIBER_KEYS_QUERY_KEY = ['subscriber-keys-all'] as const;
 
 interface SubscriberKeysPanelProps {
   slug: string;
 }
 
 function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
-  const queryClient = useQueryClient();
   const [label, setLabel] = useState('');
   const [createdFeedUrl, setCreatedFeedUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [keyToDelete, setKeyToDelete] = useState<string | null>(null);
   const labelId = `subscriberLabel-${slug}`;
 
@@ -28,30 +24,18 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
     queryFn: () => getSubscriberKeys(slug),
   });
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['subscriber-keys', slug] });
-    queryClient.invalidateQueries({ queryKey: ALL_SUBSCRIBER_KEYS_QUERY_KEY });
-  };
+  const { revokeMutation, deleteMutation, error: actionError, invalidate } = useSubscriberKeyActions();
+  const error = createError ?? actionError;
 
   const createMutation = useMutation({
     mutationFn: () => createSubscriberKey(slug, label.trim()),
+    onMutate: () => setCreateError(null),
     onSuccess: (created) => {
       setCreatedFeedUrl(created.feedUrl);
       setLabel('');
-      setError(null);
-      invalidate();
+      invalidate(slug);
     },
-    onError: (err) => setError(getErrorMessage(err, 'Failed to create subscriber key')),
-  });
-  const revokeMutation = useMutation({
-    mutationFn: (id: string) => revokeSubscriberKey(slug, id),
-    onSuccess: invalidate,
-    onError: (err) => setError(getErrorMessage(err, 'Failed to revoke subscriber key')),
-  });
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteSubscriberKeyRecord(slug, id),
-    onSuccess: invalidate,
-    onError: (err) => setError(getErrorMessage(err, 'Failed to delete subscriber key record')),
+    onError: (err) => setCreateError(getErrorMessage(err, 'Failed to create subscriber key')),
   });
 
   return (
@@ -102,23 +86,18 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
             {key.revoked_at ? (
               <button type="button" onClick={() => setKeyToDelete(key.id)} disabled={deleteMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}>Delete</button>
             ) : (
-              <button type="button" onClick={() => revokeMutation.mutate(key.id)} disabled={revokeMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}>Revoke</button>
+              <button type="button" onClick={() => revokeMutation.mutate({ slug, id: key.id })} disabled={revokeMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}>Revoke</button>
             )}
           </div>
         ))}
         {keys.length === 0 && <p className="text-sm text-muted-foreground">No subscriber keys for this feed.</p>}
       </div>
       {keyToDelete && (
-        <ConfirmModal
-          title="Delete revoked subscriber key record?"
-          confirmLabel="Delete"
-          busyLabel="Deleting..."
+        <DeleteKeyRecordModal
           pending={deleteMutation.isPending}
           onCancel={() => setKeyToDelete(null)}
-          onConfirm={() => deleteMutation.mutate(keyToDelete, { onSuccess: () => setKeyToDelete(null) })}
-        >
-          <p>This only removes the revoked key record. The URL remains invalid.</p>
-        </ConfirmModal>
+          onConfirm={() => deleteMutation.mutate({ slug, id: keyToDelete }, { onSuccess: () => setKeyToDelete(null) })}
+        />
       )}
     </div>
   );

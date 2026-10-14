@@ -147,7 +147,7 @@ function AuthenticatedFeedsSection() {
         <div className="pt-4 border-t border-border">
           <h3 className="text-base font-semibold text-foreground mb-1">Subscriber feed URLs</h3>
           <p className="text-sm text-muted-foreground mb-4">Create a separate feed URL for each subscriber. Revoking one URL does not affect other subscribers.</p>
-          <AllSubscriberKeys />
+          <AllSubscriberKeys hasFeeds={feeds.length > 0} />
           {feeds.length === 0 ? <p className="mt-4 text-sm text-muted-foreground">Add a feed before creating subscriber keys.</p> : (
             <div className="mt-6 space-y-3">
               <h4 className="text-sm font-semibold text-foreground">Create a subscriber feed</h4>

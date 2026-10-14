@@ -33,6 +33,7 @@ vi.mock('../../api/feeds', () => ({
   getNetworks: vi.fn().mockResolvedValue([]),
   updateFeed: (...args: unknown[]) => mockUpdateFeed(...args),
   rerenderSegments: (...args: unknown[]) => mockRerenderSegments(...args),
+  ALL_SUBSCRIBER_KEYS_QUERY_KEY: ['subscriber-keys-all'],
   getSubscriberKeys: (...args: unknown[]) => mockGetSubscriberKeys(...args),
   createSubscriberKey: vi.fn(),
   revokeSubscriberKey: vi.fn(),

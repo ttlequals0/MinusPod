@@ -10,6 +10,11 @@ vi.mock('../../api/feeds', () => ({
   getNetworks: vi.fn().mockResolvedValue([]),
   updateFeed: vi.fn(),
   rerenderSegments: vi.fn(),
+  ALL_SUBSCRIBER_KEYS_QUERY_KEY: ['subscriber-keys-all'],
+  getSubscriberKeys: vi.fn().mockResolvedValue([]),
+  createSubscriberKey: vi.fn(),
+  revokeSubscriberKey: vi.fn(),
+  deleteSubscriberKeyRecord: vi.fn(),
   CUE_SCORE_MIN: 0.30,
   CUE_SCORE_MAX: 0.99,
 }));
@@ -36,9 +41,10 @@ const NEW_GROUPS = [
   'Chapters',
   'Served feed and storage',
 ];
-const OLD_GROUPS = ['Segment actions', 'Cue tuning overrides', 'Advanced'];
+const OLD_GROUPS = ['Security', 'Segment actions', 'Cue tuning overrides', 'Advanced'];
 const GROUPS = [
   'Source and network',
+  'Security',
   'Processing',
   'Episode filters',
   'Tags',
@@ -83,6 +89,7 @@ describe('FeedSettingsPanel search', () => {
     renderPanel();
     expect(GROUPS.map((g) => card(g).getAttribute('data-search-key'))).toEqual([
       `feed-source-${SLUG}`,
+      `feed-security-${SLUG}`,
       `feed-processing-${SLUG}`,
       `feed-filters-${SLUG}`,
       `feed-title-tags-${SLUG}`,

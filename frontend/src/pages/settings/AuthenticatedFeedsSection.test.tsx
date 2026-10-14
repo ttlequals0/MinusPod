@@ -32,6 +32,7 @@ vi.mock('../../api/feeds', () => ({
   regenerateAllFeeds: (...args: unknown[]) => mockRegenerateAllFeeds(...args),
   feedsQueryOptions: { queryKey: ['feeds'], queryFn: () => Promise.resolve({ feeds: mockFeeds }) },
   getAllSubscriberKeys: (...args: unknown[]) => mockGetAllSubscriberKeys(...args),
+  ALL_SUBSCRIBER_KEYS_QUERY_KEY: ['subscriber-keys-all'],
   getSubscriberKeys: (...args: unknown[]) => mockGetSubscriberKeys(...args),
   createSubscriberKey: (...args: unknown[]) => mockCreateSubscriberKey(...args),
   revokeSubscriberKey: (...args: unknown[]) => mockRevokeSubscriberKey(...args),
@@ -108,6 +109,13 @@ describe('AuthenticatedFeedsSection all subscriber feeds', () => {
     expect(within(table).getByText('Living room')).toBeDefined();
     expect(within(table).getByText('Active')).toBeDefined();
     expect(within(table).getByText('Revoked')).toBeDefined();
+  });
+
+  it('shows an error instead of the empty state when the list fails to load', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    mockGetAllSubscriberKeys.mockRejectedValue(new Error('down'));
+    renderSection();
+    expect(await screen.findByText('Failed to load subscriber feeds.')).toBeDefined();
   });
 
   it('revokes a key using its own feed slug', async () => {

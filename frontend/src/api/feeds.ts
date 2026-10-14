@@ -223,6 +223,8 @@ export interface SubscriberKeyWithFeed {
   feedTitle: string;
 }
 
+export const ALL_SUBSCRIBER_KEYS_QUERY_KEY = ['subscriber-keys-all'] as const;
+
 export async function getAllSubscriberKeys(): Promise<SubscriberKeyWithFeed[]> {
   const response = await apiRequest<{ keys: SubscriberKeyWithFeed[] }>('/feeds/subscriber-keys');
   return response.keys;

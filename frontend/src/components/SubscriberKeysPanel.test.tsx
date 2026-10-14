@@ -11,6 +11,7 @@ const mockRevokeSubscriberKey = vi.fn();
 const mockDeleteSubscriberKeyRecord = vi.fn();
 
 vi.mock('../api/feeds', () => ({
+  ALL_SUBSCRIBER_KEYS_QUERY_KEY: ['subscriber-keys-all'],
   getSubscriberKeys: (...args: unknown[]) => mockGetSubscriberKeys(...args),
   createSubscriberKey: (...args: unknown[]) => mockCreateSubscriberKey(...args),
   revokeSubscriberKey: (...args: unknown[]) => mockRevokeSubscriberKey(...args),
@@ -66,6 +67,16 @@ describe('SubscriberKeysPanel', () => {
       expect(keys).toContain(JSON.stringify(['subscriber-keys', 'example-podcast']));
       expect(keys).toContain(JSON.stringify(['subscriber-keys-all']));
     });
+  });
+
+  it('clears a revoke error once a retry succeeds', async () => {
+    mockRevokeSubscriberKey.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce({ revoked: true });
+    renderPanel();
+    const button = await screen.findByRole('button', { name: 'Revoke' });
+    await userEvent.click(button);
+    expect(await screen.findByText(/Failed to revoke|boom/)).toBeDefined();
+    await userEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    await vi.waitFor(() => expect(screen.queryByText(/Failed to revoke|boom/)).toBeNull());
   });
 
   it('confirms before deleting a revoked key record', async () => {

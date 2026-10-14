@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAllSubscriberKeys, revokeSubscriberKey, deleteSubscriberKeyRecord } from '../../api/feeds';
+import { useQuery } from '@tanstack/react-query';
+import { getAllSubscriberKeys, ALL_SUBSCRIBER_KEYS_QUERY_KEY } from '../../api/feeds';
 import type { SubscriberKeyWithFeed } from '../../api/feeds';
-import { ALL_SUBSCRIBER_KEYS_QUERY_KEY } from '../../components/SubscriberKeysPanel';
-import { ConfirmModal } from '../../components/Modal';
-import { getErrorMessage } from '../../api/client';
-import { btnOutline } from '../../components/buttonStyles';
+import DeleteKeyRecordModal from '../../components/DeleteKeyRecordModal';
+import { useSubscriberKeyActions } from '../../hooks/useSubscriberKeyActions';
+import { btnOutline, btnDestructive } from '../../components/buttonStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { focusRing } from '../../components/fieldStyles';
 
 const thClass = 'px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
-const actionClass = `px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`;
+const actionBase = `px-3 py-1 text-sm rounded disabled:opacity-50 ${focusRing}`;
+const revokeClass = `${actionBase} ${btnDestructive}`;
+const deleteClass = `${actionBase} ${btnOutline}`;
 
 function formatDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString() : 'Never';
@@ -24,38 +25,23 @@ function StatusBadge({ revoked }: { revoked: boolean }) {
   );
 }
 
-function AllSubscriberKeys() {
-  const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+function AllSubscriberKeys({ hasFeeds }: { hasFeeds: boolean }) {
   const [keyToDelete, setKeyToDelete] = useState<SubscriberKeyWithFeed | null>(null);
+  const { revokeMutation, deleteMutation, error } = useSubscriberKeyActions();
 
-  const { data: keys = [] } = useQuery({
+  const { data: keys = [], isError } = useQuery({
     queryKey: ALL_SUBSCRIBER_KEYS_QUERY_KEY,
     queryFn: getAllSubscriberKeys,
   });
-
-  const invalidate = (slug: string) => {
-    queryClient.invalidateQueries({ queryKey: ['subscriber-keys', slug] });
-    queryClient.invalidateQueries({ queryKey: ALL_SUBSCRIBER_KEYS_QUERY_KEY });
-  };
-  const revokeMutation = useMutation({
-    mutationFn: (key: SubscriberKeyWithFeed) => revokeSubscriberKey(key.feedSlug, key.id),
-    onSuccess: (_, key) => invalidate(key.feedSlug),
-    onError: (err) => setError(getErrorMessage(err, 'Failed to revoke subscriber key')),
-  });
-  const deleteMutation = useMutation({
-    mutationFn: (key: SubscriberKeyWithFeed) => deleteSubscriberKeyRecord(key.feedSlug, key.id),
-    onSuccess: (_, key) => invalidate(key.feedSlug),
-    onError: (err) => setError(getErrorMessage(err, 'Failed to delete subscriber key record')),
-  });
+  const toRef = (key: SubscriberKeyWithFeed) => ({ slug: key.feedSlug, id: key.id });
 
   function actionButton(key: SubscriberKeyWithFeed) {
     return key.revokedAt ? (
-      <button type="button" onClick={() => setKeyToDelete(key)} disabled={deleteMutation.isPending} className={actionClass}>
+      <button type="button" onClick={() => setKeyToDelete(key)} disabled={deleteMutation.isPending} className={deleteClass}>
         Delete record
       </button>
     ) : (
-      <button type="button" onClick={() => revokeMutation.mutate(key)} disabled={revokeMutation.isPending} className={actionClass}>
+      <button type="button" onClick={() => revokeMutation.mutate(toRef(key))} disabled={revokeMutation.isPending} className={revokeClass}>
         Revoke
       </button>
     );
@@ -65,8 +51,12 @@ function AllSubscriberKeys() {
     <div className="space-y-2">
       <h4 className="text-sm font-semibold text-foreground">All subscriber feeds</h4>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {keys.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No subscriber feeds yet. Create one below.</p>
+      {isError ? (
+        <p className="text-sm text-destructive">Failed to load subscriber feeds.</p>
+      ) : keys.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {hasFeeds ? 'No subscriber feeds yet. Create one below.' : 'No subscriber feeds yet.'}
+        </p>
       ) : (
         <>
           <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
@@ -114,16 +104,11 @@ function AllSubscriberKeys() {
         </>
       )}
       {keyToDelete && (
-        <ConfirmModal
-          title="Delete revoked subscriber key record?"
-          confirmLabel="Delete"
-          busyLabel="Deleting..."
+        <DeleteKeyRecordModal
           pending={deleteMutation.isPending}
           onCancel={() => setKeyToDelete(null)}
-          onConfirm={() => deleteMutation.mutate(keyToDelete, { onSuccess: () => setKeyToDelete(null) })}
-        >
-          <p>This only removes the revoked key record. The URL remains invalid.</p>
-        </ConfirmModal>
+          onConfirm={() => deleteMutation.mutate(toRef(keyToDelete), { onSuccess: () => setKeyToDelete(null) })}
+        />
       )}
     </div>
   );
