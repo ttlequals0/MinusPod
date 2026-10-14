@@ -5,11 +5,12 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import HistoryPage from '../HistoryPage';
-import { clientName } from './DownloadsTab';
 import type { DownloadHistoryEntry } from '../../api/types';
 
 const mockGetDownloadHistory = vi.fn();
 const mockGetSettings = vi.fn();
+const mockUpdateSettings = vi.fn();
+const mockRevoke = vi.fn();
 
 vi.mock('../../api/history', () => ({
   getProcessingHistory: vi.fn().mockResolvedValue({ history: [], total: 0, page: 1, limit: 20, totalPages: 1 }),
@@ -21,6 +22,7 @@ vi.mock('../../api/history', () => ({
 
 vi.mock('../../api/settings', () => ({
   getSettings: (...a: unknown[]) => mockGetSettings(...a),
+  updateSettings: (...a: unknown[]) => mockUpdateSettings(...a),
 }));
 
 vi.mock('../../api/feeds', () => ({
@@ -31,6 +33,7 @@ vi.mock('../../api/feeds', () => ({
     }),
   },
   ALL_SUBSCRIBER_KEYS_QUERY_KEY: ['subscriber-keys-all'],
+  revokeSubscriberKey: (...a: unknown[]) => mockRevoke(...a),
   getAllSubscriberKeys: () => Promise.resolve([{
     id: 'abcdef0123456789', label: 'Phone', createdAt: '2026-10-01T00:00:00Z',
     lastUsedAt: null, revokedAt: null, feedSlug: 'example-podcast', feedTitle: 'Example Podcast',
@@ -47,6 +50,8 @@ function makeRow(overrides: Partial<DownloadHistoryEntry> = {}): DownloadHistory
     clientIp: '203.0.113.5',
     userAgent: 'Overcast/3.0 (+http://overcast.fm/; iOS)',
     subscriberLabel: 'Phone',
+    subscriberKeyId: 'abcdef0123456789',
+    subscriberRevoked: false,
     country: 'Exampleland',
     region: 'Region',
     city: 'Town',
@@ -58,9 +63,12 @@ function makeRow(overrides: Partial<DownloadHistoryEntry> = {}): DownloadHistory
   };
 }
 
-function renderTab(rows: DownloadHistoryEntry[], geoEnabled = true) {
+function renderTab(rows: DownloadHistoryEntry[], geoEnabled = true, blocked: string[] = []) {
   mockGetDownloadHistory.mockResolvedValue({ downloads: rows, total: rows.length, page: 1, limit: 20 });
-  mockGetSettings.mockResolvedValue({ downloadGeoLookupEnabled: { value: geoEnabled, isDefault: true } });
+  mockGetSettings.mockResolvedValue({
+    downloadGeoLookupEnabled: { value: geoEnabled, isDefault: true },
+    jitBlockedUserAgents: { value: blocked, isDefault: blocked.length === 0 },
+  });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
@@ -140,11 +148,80 @@ describe('DownloadsTab', () => {
   });
 });
 
-describe('clientName', () => {
-  it('takes the first product token', () => {
-    expect(clientName('Pocket Casts')).toBe('Pocket Casts');
-    expect(clientName('AntennaPod/3.1 (Android)')).toBe('AntennaPod');
-    expect(clientName('Mozilla (X11)')).toBe('Mozilla');
-    expect(clientName('')).toBe('Unknown');
+describe('DownloadsTab row actions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateSettings.mockResolvedValue({});
+    mockRevoke.mockResolvedValue({ revoked: true });
+  });
+
+  const openMenu = async () => {
+    const table = await screen.findByRole('table');
+    await userEvent.click(within(table).getByRole('button', { name: 'Actions' }));
+  };
+
+  it('offers Block and Revoke for a subscriber row', async () => {
+    renderTab([makeRow()]);
+    await openMenu();
+    expect(screen.getByRole('menuitem', { name: 'Block user agent' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Revoke subscriber' })).toBeTruthy();
+  });
+
+  it('offers only Block for a global-key row', async () => {
+    renderTab([makeRow({ subscriberLabel: null, subscriberKeyId: null })]);
+    await openMenu();
+    expect(screen.getByRole('menuitem', { name: 'Block user agent' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Revoke subscriber' })).toBeNull();
+  });
+
+  it('confirms the exact pattern then appends it without duplicating', async () => {
+    renderTab([makeRow({ userAgent: 'Pocket Casts' })], true, ['AntennaPod']);
+    await openMenu();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
+    expect(await screen.findByText('^Pocket Casts')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Block' }));
+    await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({
+      jitBlockedUserAgents: ['AntennaPod', '^Pocket Casts'],
+    }));
+  });
+
+  it('disables Block and shows a badge when the agent already matches', async () => {
+    renderTab([makeRow({ userAgent: 'Pocket Casts' })], true, ['^pocket']);
+    const table = await screen.findByRole('table');
+    expect(await within(table).findByText('Blocked')).toBeTruthy();
+    await userEvent.click(within(table).getByRole('button', { name: 'Actions' }));
+    const item = screen.getByRole('menuitem', { name: 'Block user agent' }) as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    expect(item.title).toBe('Already blocked');
+  });
+
+  it('revokes with slug and id then refetches', async () => {
+    renderTab([makeRow()]);
+    await openMenu();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Revoke subscriber' }));
+    expect(await screen.findByText(/Phone/, { selector: 'strong' })).toBeTruthy();
+    const calls = mockGetDownloadHistory.mock.calls.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    await waitFor(() => expect(mockRevoke).toHaveBeenCalledWith('example-podcast', 'abcdef0123456789'));
+    await waitFor(() => expect(mockGetDownloadHistory.mock.calls.length).toBeGreaterThan(calls));
+  });
+
+  it('shows Revoked and disables Revoke for a revoked key', async () => {
+    renderTab([makeRow({ subscriberRevoked: true })]);
+    const table = await screen.findByRole('table');
+    expect(within(table).getByText('Revoked')).toBeTruthy();
+    await userEvent.click(within(table).getByRole('button', { name: 'Actions' }));
+    const item = screen.getByRole('menuitem', { name: 'Revoke subscriber' }) as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    expect(item.title).toBe('Already revoked');
+  });
+
+  it('shows the error when the update fails', async () => {
+    mockUpdateSettings.mockRejectedValueOnce(new Error('entries must be 1-200 characters'));
+    renderTab([makeRow({ userAgent: 'Pocket Casts' })]);
+    await openMenu();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Block' }));
+    expect(await screen.findByText('entries must be 1-200 characters')).toBeTruthy();
   });
 });

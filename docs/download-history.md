@@ -28,6 +28,13 @@ Settings > Authenticated Feeds > Download history.
 | Look up client locations | Off | Sends public client IPs to ipwho.is over HTTPS |
 | Keep history for (days) | 90 | 1 to 3650; older rows are deleted by the periodic cleanup |
 
+## Row actions
+
+Each row has an Actions menu.
+
+- Block user agent: adds `^` plus the client's name to Settings > Security > JIT blocked user agents after a confirmation that shows the exact pattern (the whole user agent when it is under 40 characters). Blocked clients are redirected to the original audio instead of triggering just-in-time processing. Rows whose client already matches show a Blocked badge and the item is disabled.
+- Revoke subscriber: revokes the subscriber feed that fetched the row after a confirmation. Rows fetched with the global feed key have no subscriber, so the item is absent. Revoked subscribers show a Revoked badge.
+
 ## Privacy
 
 - Client IP addresses and user agent strings are stored in the MinusPod database for the retention period. Cached locations for IPs that no longer appear in any row are deleted with the periodic cleanup.

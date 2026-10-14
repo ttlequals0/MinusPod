@@ -81,6 +81,21 @@ def test_joins_subscriber_label_and_filters(db):
     assert only['total'] == 1 and only['downloads'][0]['clientIp'] == IP
 
 
+def test_row_carries_subscriber_key_id_and_revoked_flag(db):
+    key = db.create_feed_subscriber_key(SLUG, 'Phone')
+    db.record_download(SLUG, EPISODE, IP, 'a', subscriber_key_id=key['id'],
+                       now='2026-10-14T10:00:00Z')
+    db.record_download(SLUG, EPISODE, '203.0.113.6', 'b', now='2026-10-14T11:00:00Z')
+    by_ip = {r['clientIp']: r for r in _rows(db)['downloads']}
+    assert by_ip[IP]['subscriberKeyId'] == key['id']
+    assert by_ip[IP]['subscriberRevoked'] is False
+    assert by_ip[IP]['podcastSlug'] == SLUG
+    assert by_ip['203.0.113.6']['subscriberKeyId'] is None
+    assert by_ip['203.0.113.6']['subscriberRevoked'] is False
+    db.revoke_feed_subscriber_key(SLUG, key['id'])
+    assert _rows(db, subscriber_key_id=key['id'])['downloads'][0]['subscriberRevoked'] is True
+
+
 def test_filters_search_and_date_range(db):
     db.record_download(SLUG, EPISODE, IP, 'Overcast/3.0', now='2026-10-10T10:00:00Z')
     db.record_download(SLUG, EPISODE, '203.0.113.6', 'AntennaPod', now='2026-10-14T10:00:00Z')
