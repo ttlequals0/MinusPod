@@ -671,6 +671,7 @@ class SchemaMixin:
             ('categories', 'TEXT'),
             # Operator hints appended to the LLM prompt for this feed (#709).
             ('detection_notes', 'TEXT'),
+            ('chapter_notes', 'TEXT'),
             # Durable, status-aware artwork negative cache: JSON map of
             # attempted candidate URL -> {status, at}, so a broken preferred
             # cover is not retried until its backoff window elapses even

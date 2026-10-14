@@ -80,6 +80,7 @@ export interface Feed {
   feedUserAgentOverride?: string | null;
   titleOverride?: string | null;
   detectionNotes?: string | null;
+  chapterNotes?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;

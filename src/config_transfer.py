@@ -120,7 +120,7 @@ FEED_COLUMNS = (
     'title', 'description', 'source_url', 'network_id', 'dai_platform',
     'network_id_override', 'audio_analysis_override', 'auto_process_override',
     'language_override', 'download_user_agent_override', 'feed_user_agent_override',
-    'title_override', 'detection_notes', 'detection_mode',
+    'title_override', 'detection_notes', 'detection_mode', 'chapter_notes',
     'chapters_mode', 'chapters_in_notes', 'own_episode_guids',
     'cue_template_score_override', 'cue_create_from_pairs_override',
     'cue_pair_min_break_override', 'cue_pair_max_break_override',
@@ -996,13 +996,14 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             if key == 'queue_priority' and (isinstance(value, bool) or value not in (-10, 0, 10)):
                 raise ConfigTransferError('queue_priority must be -10, 0, 10, or null')
         elif key in ('language_override', 'download_user_agent_override', 'feed_user_agent_override',
-                     'title_override', 'detection_notes'):
+                     'title_override', 'detection_notes', 'chapter_notes'):
             normalizer = {
                 'language_override': feed_api._normalize_language_override,
                 'download_user_agent_override': feed_api._normalize_download_user_agent_override,
                 'feed_user_agent_override': feed_api._normalize_feed_user_agent_override,
                 'title_override': feed_api._normalize_title_override,
                 'detection_notes': feed_api._normalize_detection_notes,
+                'chapter_notes': feed_api._normalize_chapter_notes,
             }[key]
             value, error = normalizer(value)
             if error:

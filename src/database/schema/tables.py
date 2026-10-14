@@ -71,6 +71,7 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     feed_user_agent_override TEXT,
     title_override TEXT,
     detection_notes TEXT,
+    chapter_notes TEXT,
     detection_mode TEXT,
     cue_template_score_override REAL,
     cue_create_from_pairs_override INTEGER,

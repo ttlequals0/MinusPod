@@ -857,6 +857,12 @@ paths:
                     - 'null'
                   maxLength: 1000
                   description: Operator hints about this show appended to the LLM ad-detection and review prompts (issue 709). Survives RSS refreshes. Null or empty clears it.
+                chapterNotes:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 1000
+                  description: Per-feed notes sent as a final Feed notes paragraph with every chapter generation request. Null or blank clears it.
                 detectionMode:
                   type:
                     - string
@@ -954,7 +960,7 @@ paths:
                   type: [string, 'null']
                   minLength: 1
                   maxLength: 200
-                  description: Chapter title glob for the description chapter trim. Matched against the title of each timestamp line in the episode description, case-insensitively, with '*' as a wildcard. A match cuts from that timestamp per descriptionTrimMode. Null clears the rule.
+                  description: Chapter title glob for the chapter trim. Matched against the title of each timestamp line in the episode description and against the episode's chapters (upstream or MinusPod-generated), case-insensitively, with '*' as a wildcard. A match cuts from that timestamp per descriptionTrimMode. Null clears the rule.
                 descriptionTrimMode:
                   type: string
                   enum: [to_end, to_next]
@@ -13591,6 +13597,11 @@ components:
             - string
             - 'null'
           description: Operator hints about this show appended to the LLM ad-detection and review prompts (issue 709); null when unset.
+        chapterNotes:
+          type:
+            - string
+            - 'null'
+          description: Per-feed notes sent with every chapter generation request; null when unset.
         detectionMode:
           type:
             - string

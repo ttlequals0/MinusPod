@@ -1150,9 +1150,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # File the confirms before finalizing so the recut below applies
             # them in this run: two finalizes wrote two history rows and
             # notified twice for one reprocess.
-            if verify._file_corroborated_hold_approvals(
-                    slug, episode_id, all_ads_with_validation,
-                    corrections=user_corrections):
+            # A matched chapter's trim marker rides the same single in-run recut.
+            approvals_filed = verify._file_corroborated_hold_approvals(
+                slug, episode_id, all_ads_with_validation,
+                corrections=user_corrections)
+            if approvals_filed or publish.pending_chapter_trim(all_ads_with_validation):
                 # No cancel_event: a cancel here reaches the background
                 # wrapper's cleanup, which deletes the finished files.
                 recut_progress = {}

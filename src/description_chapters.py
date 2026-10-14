@@ -27,11 +27,10 @@ def parse_description_timestamps(description_html):
     return sorted(anchors.items())
 
 
-def description_trim_span(description, pattern, mode, episode_duration):
-    """Return (start, end, title) for the first chapter matching pattern, or None."""
-    if not pattern or not description or not episode_duration or episode_duration <= 0:
+def _trim_span(anchors, pattern, mode, episode_duration):
+    """First anchor whose title matches pattern, as (start, end, title) or None."""
+    if not pattern or not anchors or not episode_duration or episode_duration <= 0:
         return None
-    anchors = parse_description_timestamps(description)
     patterns_json = json.dumps([pattern])
     for index, (start, title) in enumerate(anchors):
         if start >= episode_duration or not title_matches_skip_patterns(title, patterns_json):
@@ -43,3 +42,16 @@ def description_trim_span(description, pattern, mode, episode_duration):
             end = episode_duration
         return (start, end, title) if end > start else None
     return None
+
+
+def description_trim_span(description, pattern, mode, episode_duration):
+    """Return (start, end, title) for the first description chapter matching pattern, or None."""
+    return _trim_span(parse_description_timestamps(description), pattern, mode, episode_duration)
+
+
+def chapter_trim_span(chapters, pattern, mode, episode_duration):
+    """Same as description_trim_span for a chapters list of {startTime, title} dicts."""
+    anchors = sorted(
+        (float(ch['startTime']), ch['title']) for ch in chapters or []
+        if ch.get('title') and ch.get('startTime') is not None)
+    return _trim_span(anchors, pattern, mode, episode_duration)

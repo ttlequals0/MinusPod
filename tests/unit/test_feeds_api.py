@@ -889,3 +889,31 @@ def test_patch_description_trim_invalid_rejected(app_client, seeded_feed, payloa
     row = seeded_feed['db'].get_podcast_by_slug(slug)
     assert row['description_trim_pattern'] is None
     assert row['description_trim_mode'] == 'to_end'
+
+
+# Chapter notes.
+
+def test_chapter_notes_round_trip_and_clear(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['chapterNotes'] is None
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers,
+                            json={'chapterNotes': '  Make donations their own chapter.  '})
+    assert resp.status_code == 200
+    assert resp.get_json()['chapterNotes'] == 'Make donations their own chapter.'
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['chapter_notes'] == 'Make donations their own chapter.'
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', headers=headers, json={'chapterNotes': ' '})
+    assert resp.get_json()['chapterNotes'] is None
+
+
+@pytest.mark.parametrize('value', ['x' * 1001, 5, ['a']])
+def test_chapter_notes_invalid_rejected(app_client, seeded_feed, value):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', headers=_csrf_headers(app_client),
+                            json={'chapterNotes': value})
+    assert resp.status_code == 400
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['chapter_notes'] is None

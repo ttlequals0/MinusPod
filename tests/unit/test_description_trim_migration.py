@@ -25,3 +25,15 @@ def test_columns_added_to_existing_rows_with_null_pattern(temp_db):
         "SELECT description_trim_pattern, description_trim_mode FROM podcasts").fetchone()
     assert row[0] is None
     assert row[1] == 'to_end'
+
+
+def test_chapter_notes_column_added_to_existing_rows_as_null(temp_db):
+    _seed(temp_db)
+    conn = temp_db.get_connection()
+    conn.execute("ALTER TABLE podcasts DROP COLUMN chapter_notes")
+    conn.commit()
+
+    temp_db._run_schema_migrations()
+
+    assert 'chapter_notes' in _columns(conn)
+    assert conn.execute("SELECT chapter_notes FROM podcasts").fetchone()[0] is None

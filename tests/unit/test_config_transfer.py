@@ -900,3 +900,18 @@ def test_description_trim_restores_from_backup(temp_db, monkeypatch):
     restored = db.get_podcast_by_slug('trim-feed')
     assert (restored['description_trim_pattern'], restored['description_trim_mode']) == (
         '*Throwback*', 'to_next')
+
+
+def test_chapter_notes_restores_from_backup(temp_db, monkeypatch):
+    db = temp_db
+    db.create_podcast('notes-feed', 'https://example.com/feed.xml', 'Show')
+    db.update_podcast('notes-feed', chapter_notes='Give donations their own chapter.')
+    exported = config_transfer.export_config(db, '2.98.2')
+    db.update_podcast('notes-feed', chapter_notes=None)
+    preview = config_transfer.build_preview(db, exported, 'everything')
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+
+    config_transfer.apply_config(
+        db, exported, 'everything', None, preview['previewToken'])
+
+    assert db.get_podcast_by_slug('notes-feed')['chapter_notes'] == 'Give donations their own chapter.'

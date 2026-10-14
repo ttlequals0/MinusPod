@@ -270,6 +270,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // Notes commit on Save, not blur: markClean runs in the mutation's onSuccess so
   // the button/badge update instantly. Dirty compare trims, so a whitespace-only edit isn't dirty.
   const notesField = useDraftField(feed, (f) => f.detectionNotes ?? '', (v) => v.trim());
+  const chapterNotesField = useDraftField(feed, (f) => f.chapterNotes ?? '', (v) => v.trim());
+  const [chapterNotesSaved, setChapterNotesSaved] = useState(false);
+  const [chapterNotesError, setChapterNotesError] = useState<string | null>(null);
   const [detectionNotesSaved, setDetectionNotesSaved] = useState(false);
   const [detectionNotesError, setDetectionNotesError] = useState<string | null>(null);
   // Retention days edits stay local until blur. Committing per keystroke
@@ -443,6 +446,24 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       },
       onError: (e) => setDetectionNotesError(getErrorMessage(e, 'Failed to save detection notes')),
     });
+  };
+
+  const saveChapterNotes = () => {
+    const next = chapterNotesField.value.trim() || null;
+    setChapterNotesError(null);
+    updateMutation.mutate({ chapterNotes: next }, {
+      onSuccess: () => {
+        chapterNotesField.markClean(next ?? '');
+        setChapterNotesSaved(true);
+      },
+      onError: (e) => setChapterNotesError(getErrorMessage(e, 'Failed to save chapter notes')),
+    });
+  };
+
+  const clearChapterNotes = () => {
+    chapterNotesField.setValue('');
+    setChapterNotesSaved(false);
+    setChapterNotesError(null);
   };
 
   const clearDetectionNotes = () => {
@@ -1165,6 +1186,48 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   </p>
                   {unsupportedChapterRoute && <p role="status" className="text-xs text-warning">System One cannot generate chapters. Select a chat provider and model.</p>}
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-1 text-sm">
+                <label htmlFor="chapter-notes" className="text-muted-foreground">Chapter notes</label>
+                <textarea
+                  id="chapter-notes"
+                  value={chapterNotesField.value}
+                  maxLength={1000}
+                  rows={3}
+                  onChange={(e) => {
+                    chapterNotesField.setValue(e.target.value);
+                    setChapterNotesError(null);
+                  }}
+                  placeholder="Make listener donations their own chapter."
+                  className={`w-full px-2 py-1 bg-secondary text-foreground placeholder:text-muted-foreground border border-border rounded resize-y ${focusRing}`}
+                />
+                <p className="flex justify-between gap-2 text-xs text-muted-foreground">
+                  <span>Sent with every chapter request for this feed, for example: Always make the listener donation and producer thank-you segment its own chapter titled Donations.</span>
+                  <span className="tabular-nums shrink-0">{chapterNotesField.value.length} / 1000</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={saveChapterNotes}
+                    disabled={!chapterNotesField.dirty || updateMutation.isPending}
+                    aria-label="Save chapter notes"
+                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
+                  >
+                    {updateMutation.isPending ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    onClick={clearChapterNotes}
+                    disabled={chapterNotesField.value === ''}
+                    aria-label="Clear chapter notes"
+                    className={`px-2 py-1 text-xs ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
+                  >
+                    Clear
+                  </button>
+                  {chapterNotesSaved && !chapterNotesField.dirty && !chapterNotesError && <SavedBadge />}
+                </div>
+                {chapterNotesError && (
+                  <p className="text-xs text-destructive">{chapterNotesError}</p>
+                )}
               </div>
 
               {/* Per-feed chapter list in descriptions (#720) */}

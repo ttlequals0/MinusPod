@@ -188,6 +188,8 @@ class ChaptersGenerator:
         self._slug: str | None = None
         # (template, override), read once per run rather than per window.
         self._chapter_prompt: tuple[str, str] | None = None
+        # Per-feed notes are set per generate_chapters call, never baked into the cached template.
+        self._chapter_notes: str | None = None
         # Set when topic detection or title generation fails and the run
         # degrades to a fallback; read after generate_chapters() so a
         # degraded run doesn't look like a normal short episode.
@@ -344,6 +346,8 @@ class ChaptersGenerator:
             hints_block=hints_block,
             transcript=transcript,
         )
+        if self._chapter_notes:
+            prompt += f"\n\nFeed notes:\n{self._chapter_notes}"
 
         try:
             live = live_route_params('chapters')
@@ -762,6 +766,7 @@ class ChaptersGenerator:
         segment_markers: list[dict] | None = None,
         marker_cuts: list[dict] | None = None,
         slug: str | None = None,
+        chapter_notes: str | None = None,
     ) -> dict:
         """Generate Podcasting 2.0 chapters from transcript segments.
 
@@ -790,6 +795,8 @@ class ChaptersGenerator:
                 segments are already on the processed timeline, but hints
                 still need the original applied-cut list to map from marker
                 (original-time) coordinates.
+            chapter_notes: Per-feed notes appended to the topic-detection prompt
+                as a final "Feed notes:" paragraph; None or blank adds nothing.
             slug: Podcast slug, for the llm_call_usage ledger's podcast
                 linkage. Omitted call sites still ledger the attempt, just
                 without a resolved podcast_id.
@@ -800,6 +807,7 @@ class ChaptersGenerator:
         logger.info(f"Generating chapters for '{episode_title}'")
         self._episode_id = episode_id
         self._slug = slug
+        self._chapter_notes = (chapter_notes or '').strip() or None
         self._topic_detection_failed = False
         self._title_generation_failed = False
         self._missing_client_for_titles = False

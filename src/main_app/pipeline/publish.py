@@ -19,7 +19,9 @@ from utils.time import (
     adjust_timestamp, merge_cut_spans, span_inside_any_cut,
 )
 
+from description_chapters import TO_END, chapter_trim_span
 from config import (
+    CHAPTER_TRIM_SOURCES, DESCRIPTION_CHAPTER_STAGE,
     CHAPTERS_MODE_AUTO,
     CHAPTERS_MODE_OFF,
     MIN_PRESERVED_CHAPTERS,
@@ -122,6 +124,57 @@ def _remap_chapters_for_recut(chapters, previous_cuts, new_cuts,
             continue
         out.append({**ch, 'startTime': new_start})
     return out
+
+
+CHAPTER_TRIM_COVER_TOLERANCE = 1.0
+
+
+def pending_chapter_trim(markers):
+    """True when a chapter-derived trim marker still awaits its recut validation."""
+    return any(
+        m.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
+        and m.get('source') in CHAPTER_TRIM_SOURCES and 'validation' not in m
+        for m in markers or [])
+
+
+def _queue_chapter_trim(slug, episode_id, chapters, podcast_row, all_cuts,
+                        replacement_duration, audio_duration, original_duration,
+                        markers, source):
+    """Add the trim marker for the first chapter matching the feed rule; True when added.
+
+    chapters are on the processed timeline, so the span maps back to the
+    original through this run's cut list. The caller's recut applies it.
+    """
+    pattern = (podcast_row or {}).get('description_trim_pattern')
+    mode = (podcast_row or {}).get('description_trim_mode') or TO_END
+    if not pattern or markers is None or not original_duration:
+        return False
+    processed_duration = audio_duration or adjust_timestamp(
+        original_duration, all_cuts or [], replacement_duration)
+    span = chapter_trim_span(chapters, pattern, mode, processed_duration)
+    if span is None:
+        return False
+    start_p, end_p, title = span
+    start = _unadjust_timestamp(start_p, all_cuts or [], replacement_duration)
+    end = (original_duration if end_p >= processed_duration
+           else _unadjust_timestamp(end_p, all_cuts or [], replacement_duration))
+    if end <= start:
+        return False
+    tol = CHAPTER_TRIM_COVER_TOLERANCE
+    if any(m.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
+           and m['start'] <= start + tol and m['end'] >= end - tol for m in markers):
+        return False
+    # The recut needs the retained original; without it the marker would sit uncut.
+    if not db.resolve_keep_original_audio(slug, podcast_row):
+        return False
+    markers.append({
+        'start': start, 'end': end, 'category': 'outro', 'confidence': 1.0,
+        'detection_stage': DESCRIPTION_CHAPTER_STAGE, 'sponsor': None,
+        'reason': f'Chapter: {title}', 'source': source, 'trim_mode': mode,
+    })
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Chapter trim: queued recut for {start:.1f}-{end:.1f} ({title})")
+    return True
 
 
 def _ad_chapter_count(chapters):
@@ -483,6 +536,9 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 if preserving_source:
                     chapters_json[ID3_CHAPTER_SOURCE_KEY] = 'id3'
                 base = chapters_json['chapters']
+                _queue_chapter_trim(slug, episode_id, base, podcast_row, all_cuts,
+                                    replacement_duration, audio_duration,
+                                    original_duration, markers, 'upstream_chapter')
                 merged = merge_ad_chapters(base, markers, all_cuts or [],
                                            audio_duration, replacement_duration,
                                            ad_config)
@@ -521,6 +577,11 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                     for i, ch in enumerate(remapped)
                                 ],
                             }
+                            _queue_chapter_trim(
+                                slug, episode_id, chapters_json['chapters'],
+                                podcast_row, all_cuts, replacement_duration,
+                                audio_duration, original_duration, markers,
+                                'upstream_chapter')
                             merged = merge_ad_chapters(
                                 chapters_json['chapters'], markers,
                                 all_cuts or [], audio_duration,
@@ -550,6 +611,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                         replacement_duration=replacement_duration,
                         segment_markers=markers,
                         slug=slug,
+                        chapter_notes=(podcast_row or {}).get('chapter_notes'),
                     )
                 except ProviderRateLimitedError as e:
                     # The audio is already cut, so hold the queue and publish ad
@@ -583,6 +645,9 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 run_stats['chapters_degraded'] = True
                 run_stats['chapters_degraded_reason'] = chapters_degraded_reason
             topic = (chapters or {}).get('chapters') or []
+            _queue_chapter_trim(slug, episode_id, topic, podcast_row, all_cuts,
+                                replacement_duration, audio_duration,
+                                original_duration, markers, 'generated_chapter')
             merged = merge_ad_chapters(topic, markers, all_cuts or [],
                                        audio_duration, replacement_duration,
                                        ad_config)

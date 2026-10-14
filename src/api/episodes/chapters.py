@@ -183,6 +183,7 @@ def _regenerate_chapters(db, storage, slug, episode_id, episode, podcast, podcas
                 segment_markers=segment_markers,
                 marker_cuts=marker_cuts,
                 slug=slug,
+                chapter_notes=(podcast or {}).get('chapter_notes'),
             )
     except ProviderRateLimitedError as exc:
         exc.provider_key, exc.credential_slot = resolve_hold_scope(exc, 'chapters')

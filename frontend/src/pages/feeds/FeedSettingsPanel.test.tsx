@@ -1671,3 +1671,31 @@ describe('FeedSettingsPanel description chapter trim controls', () => {
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { descriptionTrimMode: 'to_next' });
   });
 });
+
+describe('FeedSettingsPanel chapter notes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('shows the server value and a character counter', () => {
+    renderPanel(makeFeed({ chapterNotes: 'Donations get a chapter.' }));
+    expect((screen.getByLabelText('Chapter notes') as HTMLTextAreaElement).value).toBe('Donations get a chapter.');
+    expect(screen.getByText('24 / 1000')).toBeDefined();
+  });
+
+  it('saves the typed notes', async () => {
+    renderPanel(makeFeed());
+    await userEvent.type(screen.getByLabelText('Chapter notes'), 'Donations get a chapter.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save chapter notes' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chapterNotes: 'Donations get a chapter.' });
+  });
+
+  it('clearing then saving sends null', async () => {
+    renderPanel(makeFeed({ chapterNotes: 'Donations get a chapter.' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clear chapter notes' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save chapter notes' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chapterNotes: null });
+  });
+});

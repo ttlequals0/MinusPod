@@ -345,7 +345,7 @@ class PodcastMixin:
                 'source_url', 'network_id', 'dai_platform',
                 'network_id_override', 'audio_analysis_override', 'auto_process_override',
                 'language_override', 'download_user_agent_override', 'feed_user_agent_override',
-                'title_override', 'detection_notes', 'detection_mode',
+                'title_override', 'detection_notes', 'detection_mode', 'chapter_notes',
                 'chapters_mode', 'chapters_in_notes',
                 'own_episode_guids',
                 'cue_template_score_override',

@@ -289,6 +289,7 @@ def _capture_prompt(**kwargs):
     gen = ChaptersGenerator(api_key='test')
     stub = _PromptCapture()
     gen._llm_client = stub
+    gen._chapter_notes = kwargs.pop('chapter_notes', None)
     gen._detect_topic_boundaries(
         kwargs.pop('transcript', '[00:10] hello world'),
         kwargs.pop('start', 0.0), kwargs.pop('end', 2700.0),
@@ -372,3 +373,23 @@ class TestChapterPromptInjection:
         out = render_prompt_once(template, transcript='has {override} inside')
         assert out.count('EXTRA') == 1
         assert '{override}' in out
+
+
+class TestChapterNotes:
+    def test_notes_are_the_final_paragraph(self):
+        prompt = _capture_prompt(chapter_notes='Make donations their own chapter titled Donations.')
+        assert prompt.endswith('\n\nFeed notes:\nMake donations their own chapter titled Donations.')
+
+    def test_prompt_is_unchanged_without_notes(self):
+        assert _capture_prompt(chapter_notes=None) == _capture_prompt()
+        assert 'Feed notes:' not in _capture_prompt(chapter_notes='')
+
+    def test_notes_are_set_per_generate_call_and_not_cached_in_the_template(self):
+        ensure_model_configured(database.Database())
+        gen = ChaptersGenerator(api_key='test')
+        template = gen._load_chapter_prompt()
+        gen.generate_chapters([], chapter_notes='  Donations get a chapter.  ')
+        assert gen._chapter_notes == 'Donations get a chapter.'
+        assert gen._load_chapter_prompt() == template and 'Donations' not in template[0]
+        gen.generate_chapters([], chapter_notes=None)
+        assert gen._chapter_notes is None

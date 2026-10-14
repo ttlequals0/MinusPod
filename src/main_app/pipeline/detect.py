@@ -1,5 +1,6 @@
 """Pass 1 ad detection, boundary refinement, validation and confidence gating."""
 
+import json
 import logging
 from ad_detector import (
     refine_ad_boundaries, snap_early_ads_to_zero, merge_same_sponsor_ads,
@@ -13,7 +14,8 @@ from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
 from config import (
-    DESCRIPTION_CHAPTER_STAGE,
+    CHAPTER_TRIM_SOURCES, DESCRIPTION_CHAPTER_STAGE,
+    title_matches_skip_patterns,
     resolve_max_boundary_shift,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
@@ -30,7 +32,7 @@ from config import (
 )
 
 from database.settings import registry_get_default
-from description_chapters import description_trim_span
+from description_chapters import TO_END, description_trim_span
 from llm_capabilities import (
     PASS_AD_DETECTION_1, clear_fallback,
 )
@@ -564,13 +566,35 @@ def _description_chapter_marker(description, episode_duration, description_trim)
 
 
 def reconcile_description_chapter(all_ads, description, episode_duration, description_trim):
-    """Re-derive the description chapter marker from the feed's current rule; returns the new list."""
+    """Re-derive trim markers from the feed's current rule; returns the new list.
+
+    Description-derived markers are recomputed from the description. Chapter-derived
+    markers (source set) cannot be recomputed once the chapter is cut, so they stay
+    only while the pattern still matches their title and the mode is unchanged.
+    """
+    pattern, mode = description_trim or (None, None)
+    mode = mode or TO_END
+    patterns_json = json.dumps([pattern]) if pattern else None
+
+    def chapter_marker_current(ad):
+        title = (ad.get('reason') or '').removeprefix('Chapter: ')
+        return (patterns_json is not None and ad.get('trim_mode', mode) == mode
+                and title_matches_skip_patterns(title, patterns_json))
+
+    stored = [ad for ad in all_ads
+              if ad.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
+              and ad.get('source') not in CHAPTER_TRIM_SOURCES]
+    stale = [ad for ad in all_ads
+             if ad.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE
+             and ad.get('source') in CHAPTER_TRIM_SOURCES and not chapter_marker_current(ad)]
     fresh = _description_chapter_marker(description, episode_duration, description_trim)
-    stored = [ad for ad in all_ads if ad.get('detection_stage') == DESCRIPTION_CHAPTER_STAGE]
     if fresh and any(ad['start'] == fresh['start'] and ad['end'] == fresh['end'] for ad in stored):
+        fresh = None
+        stored = []
+    kept = [ad for ad in all_ads if ad not in stored and ad not in stale]
+    if fresh is None and len(kept) == len(all_ads):
         return all_ads
-    kept = [ad for ad in all_ads if ad not in stored]
-    return sorted([*kept, fresh], key=lambda ad: ad['start']) if fresh else kept
+    return sorted([*kept, *([fresh] if fresh else [])], key=lambda ad: ad['start'])
 
 
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,

@@ -409,6 +409,7 @@ def _parsed_skip_patterns(patterns_json):
 
 
 DESCRIPTION_CHAPTER_STAGE = 'description_chapter'
+CHAPTER_TRIM_SOURCES = ('generated_chapter', 'upstream_chapter')
 
 
 def _matches_skip_patterns(text, patterns_json):

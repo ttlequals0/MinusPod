@@ -102,3 +102,20 @@ def test_recut_keeps_stored_marker_when_span_unchanged():
     ads = _ads(1886.0, DURATION)
     assert detect.reconcile_description_chapter(
         ads, DESCRIPTION, DURATION, ('*Throwback*', 'to_end')) is ads
+
+
+def _chapter_marker(mode='to_next'):
+    return {'start': 1200.0, 'end': 1500.0, 'detection_stage': 'description_chapter',
+            'source': 'generated_chapter', 'trim_mode': mode,
+            'reason': 'Chapter: Listener Donations'}
+
+
+def test_recut_keeps_chapter_marker_while_pattern_and_mode_match():
+    ads = [_chapter_marker()]
+    assert detect.reconcile_description_chapter(
+        ads, '', DURATION, ('*Donations*', 'to_next')) is ads
+
+
+def test_recut_drops_chapter_marker_when_pattern_cleared_or_no_longer_matches_or_mode_changed():
+    for trim in ((None, 'to_next'), ('*Other*', 'to_next'), ('*Donations*', 'to_end')):
+        assert detect.reconcile_description_chapter([_chapter_marker()], '', DURATION, trim) == []

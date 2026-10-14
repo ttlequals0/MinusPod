@@ -205,6 +205,20 @@ def _normalize_title_override(value):
 _DETECTION_NOTES_MAX = 1000
 
 
+def _normalize_chapter_notes(value):
+    """None or blank clears; otherwise trimmed text up to the cap."""
+    if value is None:
+        return None, None
+    if not isinstance(value, str):
+        return None, "chapterNotes must be a string or null"
+    text = value.strip()
+    if not text:
+        return None, None
+    if len(text) > _DETECTION_NOTES_MAX:
+        return None, f"chapterNotes must be {_DETECTION_NOTES_MAX} characters or fewer"
+    return text, None
+
+
 def _normalize_detection_notes(value):
     """None or blank clears; otherwise trimmed text up to the cap."""
     if value is None:
@@ -950,6 +964,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'downloadUserAgentOverride': podcast.get('download_user_agent_override'),
         'feedUserAgentOverride': podcast.get('feed_user_agent_override'),
         'detectionNotes': podcast.get('detection_notes'),
+        'chapterNotes': podcast.get('chapter_notes'),
         # Local-only metadata (_LOCAL_ONLY_FIELDS gates PATCH writes to local
         # feeds; reading them back is harmless for a subscribed feed, which
         # simply never has them set). Was write-only before this fix: PATCH
@@ -1999,6 +2014,12 @@ def update_feed(slug):
         if title_err:
             return error_response(title_err, 400)
         updates['title_override'] = title_val
+
+    if 'chapterNotes' in data:
+        chapter_notes_val, chapter_notes_err = _normalize_chapter_notes(data['chapterNotes'])
+        if chapter_notes_err:
+            return error_response(chapter_notes_err, 400)
+        updates['chapter_notes'] = chapter_notes_val
 
     if 'detectionNotes' in data:
         notes_val, notes_err = _normalize_detection_notes(data['detectionNotes'])

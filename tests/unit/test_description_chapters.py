@@ -61,3 +61,26 @@ def test_no_match_or_no_pattern_returns_none():
 
 def test_start_past_episode_end_returns_none():
     assert description_trim_span(DESC, '*Throwback*', 'to_end', 1000.0) is None
+
+
+CHAPTERS = [
+    {'startTime': 1, 'title': 'Opening'},
+    {'startTime': 1200, 'title': 'Listener Donations'},
+    {'startTime': 1500, 'title': 'Main Topic'},
+]
+
+
+def test_chapter_span_to_end_and_to_next():
+    from description_chapters import chapter_trim_span
+    assert chapter_trim_span(CHAPTERS, '*Donations*', 'to_end', 3000.0) == (
+        1200.0, 3000.0, 'Listener Donations')
+    assert chapter_trim_span(CHAPTERS, '*Donations*', 'to_next', 3000.0) == (
+        1200.0, 1500.0, 'Listener Donations')
+
+
+def test_chapter_span_last_chapter_runs_to_end_and_no_match_is_none():
+    from description_chapters import chapter_trim_span
+    assert chapter_trim_span(CHAPTERS, 'Main*', 'to_next', 3000.0) == (1500.0, 3000.0, 'Main Topic')
+    assert chapter_trim_span(CHAPTERS, '*Nothing*', 'to_end', 3000.0) is None
+    assert chapter_trim_span([], '*x*', 'to_end', 3000.0) is None
+    assert chapter_trim_span(CHAPTERS, None, 'to_end', 3000.0) is None

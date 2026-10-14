@@ -368,9 +368,17 @@ When a timestamp line in the description matches, that span becomes an Outro mar
 
 User corrections win: a keep range or a Not an ad on an overlapping marker can carve the trimmed span, and with the Outro action set to keep or mark the span is not cut. Matching reads the upstream description, not the served one with MinusPod's chapter list appended.
 
+The pattern also matches the episode's chapters, whether the feed publishes them or MinusPod generates them. `Cut until the next chapter` ends at the next chapter start, and the last chapter runs to the end of the episode. Generated chapters only exist after a run, so when one matches and no marker already covers its span, the run adds the marker and recuts the episode once (it needs the retained original; with original audio not kept, no recut is queued). A recut never triggers another. The marker's reason reads `Chapter: <title>`. On a later recut, a chapter-derived marker stays while the pattern still matches its title and the mode is unchanged.
+
 Timestamp lines accepted at the start of a line: `(mm:ss)`, `(h:mm:ss)`, `mm:ss -`, `[mm:ss]`.
 
 API: `descriptionTrimPattern` (string up to 200 characters, or null) and `descriptionTrimMode` (`to_end` or `to_next`) on `PATCH /api/v1/feeds/{slug}`.
+
+### Chapter notes
+
+Under **Chapters > Chapter notes**, enter up to 1000 characters sent with every chapter request for the feed as a final `Feed notes:` paragraph, for example: Always make the listener donation and producer thank-you segment its own chapter titled Donations. Pair it with a trim pattern such as `Donations` to cut that segment automatically.
+
+API: `chapterNotes` (string up to 1000 characters, or null) on `PATCH /api/v1/feeds/{slug}`.
 
 ### Episode duration filters
 
