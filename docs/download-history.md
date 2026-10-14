@@ -32,7 +32,7 @@ Settings > Authenticated Feeds > Download history.
 
 Each row has an Actions menu.
 
-- Block user agent: adds `^` plus the client's name to Settings > Security > JIT blocked user agents after a confirmation that shows the exact pattern (the whole user agent when it is under 40 characters). Blocked clients are redirected to the original audio instead of triggering just-in-time processing. Rows whose client already matches show a Blocked badge and the item is disabled.
+- Block user agent: adds `^` plus the client's name to Settings > Security > JIT blocked user agents after a confirmation that shows the exact pattern (the whole user agent when it is under 40 characters). Blocked clients requesting an episode that has not been processed yet are redirected to the original audio instead of starting processing; local feeds, processed episodes, feed access and subscriber access are unaffected. Rows whose client already matches show a Blocked badge and the item is disabled.
 - Revoke subscriber: revokes the subscriber feed that fetched the row after a confirmation. Rows fetched with the global feed key have no subscriber, so the item is absent. Revoked subscribers show a Revoked badge.
 
 ## Privacy

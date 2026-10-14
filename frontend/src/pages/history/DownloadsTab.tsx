@@ -223,8 +223,8 @@ function DownloadsTab({ tabs }: Props) {
                   <dt className="text-muted-foreground">Subscriber</dt>
                   <dd className="text-foreground"><SubscriberCell row={row} /></dd>
                   <dt className="text-muted-foreground">Client</dt>
-                  <dd className="text-foreground truncate" title={row.userAgent}>
-                    {clientName(row.userAgent)}
+                  <dd className="text-foreground flex items-center min-w-0">
+                    <span className="truncate" title={row.userAgent}>{clientName(row.userAgent)}</span>
                     <BlockedBadge row={row} />
                   </dd>
                 </dl>

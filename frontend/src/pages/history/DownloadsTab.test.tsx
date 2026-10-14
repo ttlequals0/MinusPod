@@ -188,6 +188,33 @@ describe('DownloadsTab row actions', () => {
     await waitFor(() => expect(mockGetDownloadHistory.mock.calls.length).toBeGreaterThan(calls));
   });
 
+  it('builds the list from freshly fetched settings, not the cached copy', async () => {
+    renderTab([makeRow({ userAgent: 'Pocket Casts' })], true, ['AntennaPod']);
+    await openMenu();
+    mockGetSettings.mockResolvedValue({
+      downloadGeoLookupEnabled: { value: true, isDefault: true },
+      jitBlockedUserAgents: { value: ['AntennaPod', 'Added elsewhere'], isDefault: false },
+    });
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Block' }));
+    await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({
+      jitBlockedUserAgents: ['AntennaPod', 'Added elsewhere', '^Pocket Casts'],
+    }));
+  });
+
+  it('does not duplicate a pattern that already exists in the fresh list', async () => {
+    renderTab([makeRow({ userAgent: 'Pocket Casts' })], true, []);
+    await openMenu();
+    mockGetSettings.mockResolvedValue({
+      downloadGeoLookupEnabled: { value: true, isDefault: true },
+      jitBlockedUserAgents: { value: ['^Pocket Casts'], isDefault: false },
+    });
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Block' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Block' })).toBeNull());
+    expect(mockUpdateSettings).not.toHaveBeenCalled();
+  });
+
   it('disables Block and shows a badge when the agent already matches', async () => {
     renderTab([makeRow({ userAgent: 'Pocket Casts', userAgentBlocked: true })], true, ['^pocket']);
     const table = await screen.findByRole('table');

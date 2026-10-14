@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getErrorMessage } from '../../api/client';
 import { ALL_SUBSCRIBER_KEYS_QUERY_KEY, revokeSubscriberKey } from '../../api/feeds';
-import { updateSettings } from '../../api/settings';
+import { getSettings, updateSettings } from '../../api/settings';
 import type { DownloadHistoryEntry } from '../../api/types';
 import { btnOutline } from '../../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../../components/DropdownMenu';
@@ -32,7 +32,12 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
   };
 
   const blockMutation = useMutation({
-    mutationFn: () => updateSettings({ jitBlockedUserAgents: [...(blocked ?? []), pattern] }),
+    mutationFn: async () => {
+      // The PUT replaces the whole list, so build it from a fresh read.
+      const fresh = await queryClient.fetchQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 0 });
+      const list = fresh.jitBlockedUserAgents.value;
+      if (!list.includes(pattern)) await updateSettings({ jitBlockedUserAgents: [...list, pattern] });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['download-history'] });
@@ -98,8 +103,9 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
           <p>This adds the following pattern to the JIT blocked user agents list:</p>
           <p><code className="font-mono break-all">{pattern}</code></p>
           <p className="text-muted-foreground">
-            Matching clients are redirected to the original audio instead of triggering
-            just-in-time processing. Feeds, subscriber access and already processed episodes are unaffected.
+            Matching clients requesting an episode that has not been processed yet are redirected
+            to the original audio instead of starting processing. Local feeds, processed episodes,
+            feed access and subscriber access are unaffected.
           </p>
           {errorLine}
         </ConfirmModal>
