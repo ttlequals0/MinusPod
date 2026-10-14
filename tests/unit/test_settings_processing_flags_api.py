@@ -151,3 +151,23 @@ def test_download_history_settings_reject_bad_values(app_client):
             '/api/v1/settings/ad-detection', json=body,
             headers=_csrf_headers(app_client))
         assert response.status_code == 400, body
+
+
+def test_enabling_geo_lookup_starts_one_lookup_immediately(app_client):
+    db = get_database()
+    _authed(app_client)
+    db.set_setting('download_geo_lookup_enabled', 'false', is_default=False)
+
+    def put(value):
+        return app_client.put('/api/v1/settings/ad-detection',
+                              json={'downloadGeoLookupEnabled': value},
+                              headers=_csrf_headers(app_client))
+
+    with patch('main_app.background._start_geo_lookup') as start:
+        assert put(True).status_code == 200
+        assert start.call_count == 1
+        assert put(True).status_code == 200
+        assert start.call_count == 1
+        assert put(False).status_code == 200
+        assert start.call_count == 1
+    db.set_setting('download_geo_lookup_enabled', 'false', is_default=False)

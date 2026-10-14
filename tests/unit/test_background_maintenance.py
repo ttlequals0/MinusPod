@@ -246,6 +246,11 @@ class TestGeoLookupThread:
         assert background._GEO_STATE['thread'] is not first
         background._GEO_STATE['thread'].join(5)
 
+    def test_runs_on_the_five_minute_tick_not_the_cleanup_cadence(self):
+        import inspect
+        assert '_start_geo_lookup()' in inspect.getsource(background.background_queue_processor)
+        assert '_start_geo_lookup' not in inspect.getsource(background.run_cleanup)
+
     def test_failure_is_logged_not_raised(self, monkeypatch):
         monkeypatch.setattr(background.geo_lookup, 'run_geo_lookup',
                             lambda db: (_ for _ in ()).throw(RuntimeError('boom')))

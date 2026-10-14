@@ -1,3 +1,5 @@
+import inspect
+
 from tests.app_bootstrap import bootstrap
 
 bootstrap('search_html_strip_')
@@ -10,6 +12,11 @@ db = database.Database()
 
 def test_strip_html_removes_tags_and_decodes_entities():
     assert strip_html('<p>Hello &amp; <b>world</b></p>\n<br/>next') == 'Hello & world next'
+
+
+def test_strip_html_separates_adjacent_blocks():
+    assert strip_html('<p>Joe has damaged his legacy.</p><p>All of this...</p>') == (
+        'Joe has damaged his legacy. All of this...')
 
 
 def test_strip_html_handles_none():
@@ -69,3 +76,18 @@ def test_plain_text_reindex_skips_rebuild_when_just_populated(temp_db, monkeypat
     conn.commit()
     temp_db._run_reindex_search_plain_text(conn, already_rebuilt=True)
     assert calls == []
+
+
+def test_restrip_step_runs_once_on_upgrade_from_2_100_12(temp_db, monkeypatch):
+    calls = []
+    monkeypatch.setattr(temp_db, 'rebuild_search_index', lambda: calls.append(1) or 7)
+    conn = temp_db.get_connection()
+    gate = 'search_index_plain_text_2_100_13'
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (gate,))
+    conn.commit()
+    temp_db._run_reindex_search_plain_text(conn, name=gate)
+    temp_db._run_reindex_search_plain_text(conn, name=gate)
+    assert calls == [1]
+    assert conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?",
+                        (gate,)).fetchone() is not None
+    assert gate in inspect.getsource(type(temp_db)._run_schema_migrations)

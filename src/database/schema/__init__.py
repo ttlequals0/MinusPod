@@ -1893,6 +1893,15 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"search index plain-text reindex failed: {e}")
 
+        # Re-strip rows indexed before tags collapsed to a space ("legacy.All") (2.100.13).
+        try:
+            self._run_reindex_search_plain_text(
+                conn, already_rebuilt=search_index_freshly_populated,
+                name='search_index_plain_text_2_100_13')
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"search index plain-text re-strip failed: {e}")
+
         # Per-boot, not schema_migrations-gated: seeds an absent model row
         # from OPENAI_MODEL, run after the clear above so a stale default is
         # removed and reseeded in the same boot.
@@ -2795,10 +2804,10 @@ class SchemaMixin:
         else:
             logger.info(f"search-index-reindex: complete, {count} row(s) indexed")
 
-    def _run_reindex_search_plain_text(self, conn, already_rebuilt: bool = False):
+    def _run_reindex_search_plain_text(self, conn, already_rebuilt: bool = False,
+                                       name: str = 'search_index_plain_text_2_100_12'):
         """One-shot rebuild so existing rows hold plain-text descriptions; skipped
         if this boot's auto-populate already did it."""
-        name = 'search_index_plain_text_2_100_12'
         if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone():
             return
         count = 0 if already_rebuilt else self.rebuild_search_index()

@@ -221,8 +221,7 @@ def run_cleanup():
     except Exception as e:
         refresh_logger.error(f"Run log cleanup failed: {e}")
 
-    # Download history: geo-resolve new client IPs, then drop rows past retention.
-    _start_geo_lookup()
+    # Download history: drop rows past retention (geo lookup runs on the 5-minute tick).
     if time.time() - _DOWNLOAD_STATE['last_prune'] > DOWNLOAD_PRUNE_INTERVAL_SECONDS:
         try:
             db.prune_downloads(resolve_download_history_retention_days(db))
@@ -627,6 +626,8 @@ def background_queue_processor():
                         'offline_queue_tick')
 
                     db.clear_completed_queue_items(older_than_hours=24)
+
+                    _start_geo_lookup()
 
                 # Provider health probe (#806): own interval, independent of the
                 # maintenance cadence above.

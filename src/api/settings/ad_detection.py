@@ -730,9 +730,14 @@ def _apply_processing_flags(db, data):
             ('downloadHistoryEnabled', 'download_history_enabled'),
             ('downloadGeoLookupEnabled', 'download_geo_lookup_enabled')):
         if payload_key in data:
+            was_geo_on = db.get_setting_bool('download_geo_lookup_enabled', False)
             db.set_setting(setting_key, 'true' if data[payload_key] else 'false',
                            is_default=False)
             logger.info(f"Updated {setting_key} to: {data[payload_key]}")
+            if setting_key == 'download_geo_lookup_enabled' and data[payload_key] and not was_geo_on:
+                # Deferred import: main_app imports api before main_app.background.
+                from main_app.background import _start_geo_lookup
+                common.after_commit(_start_geo_lookup)
 
     if 'downloadHistoryRetentionDays' in data:
         days = data['downloadHistoryRetentionDays']
