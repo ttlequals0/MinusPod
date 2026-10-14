@@ -22,6 +22,7 @@
 - [Partial Detection](#partial-detection)
 - [Processing stats](#processing-stats)
 - [LLM cost ledger](#llm-cost-ledger)
+- [Search index](#search-index)
 - [Filters and date ranges](#filters-and-date-ranges)
 - [Screenshots](#screenshots)
 
@@ -34,7 +35,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Feed management: refresh, delete, copy URLs, editable display title, set network override, per-feed episode cap, per-feed transcription language override, per-feed detection notes (free text the model sees with every episode of that show; see [Configuration > Per-feed detection notes](configuration.md#per-feed-detection-notes)), per-feed chapter mode (keep the show's own chapters or always generate; see [Podcasting 2.0](podcasting-2.0.md)), per-feed cue match threshold and cue tuning overrides, silence-snap and transition-snap toggles (see [Audio Cue Detection](audio-cues.md))
 - Deleting a podcast stops any episode still processing; the delete confirmation says so when one is active
 - Source feed URL shown in Feed Settings with a copy button, and editable for when a publisher moves feeds or a CDN-wrapped URL keeps failing. The server fetches and parses the new URL before saving, so a typo cannot break the feed; existing episodes are kept (matched by GUID). The refresh log also prints which URL each feed pulls from
-- Per-feed max ad duration cap: ads longer than the cap are held for review instead of cut (empty = no cap; applies on the next reprocess)
+- Per-feed max ad duration cap: ads longer than the cap are held for review instead of cut (empty = no cap; applies on the next reprocess). The cap also raises the longest single ad the model may report for the feed, see [Longest single LLM detection](configuration.md#longest-single-llm-detection)
 - Per-feed opening window exclusion: ad markers that begin inside the first N seconds of an episode are ignored, so an intro cue is not cut as an ad (empty = inherit the global setting, 0 = off, 1 to 600 s = this feed's window; applies on the next reprocess)
 - Per-feed cue-gated approval: only ads with audio-cue evidence auto-cut; others are held for review (requires cue templates)
 - Per-feed Transcript diff select (Inherit / On / Off) under Feed Settings > Advanced, next to Cross-fetch diff: overrides the global "Compare with the publisher transcript" default for that feed. Hidden on local feeds. See [Upstream Transcript Differential](transcript-differential.md)
@@ -267,6 +268,8 @@ When a feed has a max ad duration cap or cue-gated approval on, ads that cannot 
 
 When the original audio is retained, a pencil button next to the play button opens the ad in the waveform editor, where you can drag the boundaries before confirming; confirming with moved boundaries cuts only the span inside the pins. If the hold came from the ad reviewer proposing a boundary past the detected span, confirming at that position is accepted too, not just a narrower one.
 
+When the ad reviewer proposed a narrower span, the row offers a trimmed confirm that approves only that span. If the hold is a remainder carved out of a larger detection, the proposal is dropped or clamped to the remainder, and the trimmed button is hidden when the proposal does not overlap the held span. Changing the category in the editor records the new category and keeps the ad held; it does not confirm it.
+
 The episode list shows an amber "N held" chip for any episode with pending held ads. See [Held for Review](how-it-works.md#held-for-review) for what triggers a hold.
 
 A gap the upstream transcript differential found but no other stage backed carries an "Upstream transcript omits this span" chip; an ad another stage found that the differential corroborates instead shows a "Corroborated: transcript" badge. When the stage ran on an episode, its header shows a "Transcript diff: N gaps" pill (or "no gaps", "unreliable", "empty", or "failed"), hovering it for the match percentage. See [Transcript Differential](how-it-works.md#transcript-differential).
@@ -290,6 +293,10 @@ Completed episodes also state the verification result under the header: whether 
 Expanding a run shows its per-phase cost breakdown: one row per pipeline phase with the provider it routed to, the model that answered, input and output tokens, and cost. Cache and reasoning token columns appear only when a run has them. A phase that retried onto a different model contributes more than one row, which is how a fallback becomes visible rather than being averaged away. Detection and verification are listed even when they did not run, labelled Skipped, Not applicable, or Unavailable, so a missing row is never ambiguous. A run recorded before the cost ledger existed, or a recut, shows "Breakdown unavailable" and keeps only its recorded total.
 
 The episode header carries up to three spend readouts: **Active run** while a run is in flight, updated from the ledger as it spends; **Latest run** for the most recent attempt, a failed one included; and **Total spend**, the episode's recorded ledger spend, which reads "Recorded so far" while processing. Historical calls made before the ledger existed are not included in that cumulative figure. When some calls in a figure have no resolved price, the readout says "known spend" and an amber **Incomplete** chip marks it, because the amount is a floor rather than the real total. Setting a price for the model in question (Settings > AI & Processing > AI Models) lets subsequent calls resolve their cost; it does not reprice already-finalized calls or clear their Incomplete status. On the Stats page the Incomplete chip on an episode's cumulative spend is itself a button. It lists the calls behind the figure, one row per recorded attempt with its phase, provider and account slot, model, outcome, tokens, cost or "Unknown", and timestamp. An unpriced call can then be named instead of leaving a gap in a total.
+
+### Search index
+
+Search reads a full-text index. Changes to shows, episodes, transcripts, patterns and sponsors are written to a change journal and applied to the index every 6 hours, so new content can take up to 6 hours to appear in search results. The index is rebuilt in full once a week. Both run in short steps that let other writers in, and a refresh is postponed (up to 12 hours) while an episode is processing. Descriptions are indexed as plain text, so result snippets show no HTML tags. Upgrading to 2.100.12 rebuilds the index once.
 
 ### Filters and date ranges
 

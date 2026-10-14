@@ -113,7 +113,7 @@ Every response carries an `X-Request-ID` header. If you supply one on the reques
 
 By default the feed URLs are open: anyone who learns them can read your RSS and download episodes, and a request for an unprocessed episode kicks off transcription. If your server is reachable from the internet, that can get expensive.
 
-Settings > Data & Security > Authenticated Feeds locks this down. Existing global keys remain valid until you rotate them. Security > Feed subscriber keys can also create a credential scoped to one feed, label it for a device or subscriber, and revoke it without changing any other subscription.
+Settings > Data & Security > Authenticated Feeds locks this down. Existing global keys remain valid until you rotate them. A feed's settings page has a Security section that creates a credential scoped to that feed, labels it for a device or subscriber, and revokes it without changing any other subscription. Settings > Data & Security > Authenticated Feeds lists every subscriber feed across all podcasts with its label and feed, and creates or revokes them from there too. Who fetched what is shown in [Download History](download-history.md).
 
 - RSS, MP3, transcript, chapter, and artwork URLs carry `?key=<credential>`. Global credentials are 64 hex characters. Scoped credentials use a 16-character key ID, a dot, and a 64-character secret. Legacy cover URLs with a credential in the filename remain accepted.
 - Requests without the key get a 401. The admin UI/API and `/health` are unaffected.
