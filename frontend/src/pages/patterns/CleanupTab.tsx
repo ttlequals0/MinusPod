@@ -16,7 +16,7 @@ import { ScopeBadge } from '../../components/ScopeBadge';
 import { SkeletonRows } from '../../components/Skeleton';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { btnOutline, btnPrimary } from '../../components/buttonStyles';
-import { cardActionBtn } from '../../components/rowActionStyles';
+import { cardActionBtnMobileOnly as scopedCardActionBtn } from '../../components/rowActionStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { formatDate } from '../../utils/format';
 import { SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../../utils/segmentCategory';
@@ -56,8 +56,6 @@ const STATUS_BADGE: Record<Exclude<CleanupStatus, 'pending'>, [string, string]> 
   undone: ['Undone', tint.neutral],
 };
 
-// cardActionBtn is 44px at every width elsewhere; scope it to phones here, matching FailoverSection.
-const scopedCardActionBtn = cardActionBtn.replace('min-h-[44px]', 'max-sm:min-h-[44px]');
 const actionBtn = `${scopedCardActionBtn} grow basis-0 sm:grow-0 sm:basis-auto disabled:opacity-50 transition-colors ${focusRing}`;
 const bulkActionBtn = `${scopedCardActionBtn.replace('whitespace-nowrap', 'whitespace-normal')} grow basis-0 sm:grow-0 sm:basis-auto sm:whitespace-nowrap disabled:opacity-50 transition-colors ${focusRing}`;
 const PAGE_SIZE = 200;

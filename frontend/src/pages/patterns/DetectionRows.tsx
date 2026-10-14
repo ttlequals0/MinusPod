@@ -152,6 +152,19 @@ function CategorySelect({ d, onCategory, busy, className = '' }: {
   );
 }
 
+// Card buttons share one line equally; labels drop to short forms below 370px.
+const cardRowBtn = 'flex-1 basis-0 min-w-0 px-1 min-[480px]:px-3 text-xs min-[480px]:text-sm leading-tight';
+const cardCategoryClass = 'w-full min-h-[44px] px-3 text-sm text-left min-w-0';
+
+function ShortLabel({ full, short }: { full: string; short: string }) {
+  return (
+    <>
+      <span className="min-[370px]:hidden" aria-hidden="true">{short}</span>
+      <span className="max-[369px]:hidden">{full}</span>
+    </>
+  );
+}
+
 // One set of row actions rendered in two densities: compact at the end of
 // the desktop row, touch-sized inside the mobile card footer.
 function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
@@ -162,120 +175,86 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   actions: DetectionRowActions;
 }) {
   const isCard = variant === 'card';
-  // One line everywhere: play | Confirm ad | Not an ad | Split | Edit. The
-  // decision buttons grow from their content width (never below it, so labels
-  // cannot wrap lopsidedly); Edit stays compact. Below 370px the labels drop to
-  // Card sizing is shared with the play button beside it so the two stay the
-  // same height; max-w-full + overflow-hidden in that recipe keep a
-  // pathologically zoomed label from forcing page scroll.
-  const btn = isCard ? cardActionBtn : tableActionBtn;
+  const btn = isCard ? `${cardActionBtn} ${cardRowBtn}` : tableActionBtn;
   const undecided = d.resolution === 'unresolved';
+  const play = d.hasOriginalAudio && (
+    <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'table'} fill={isCard} />
+  );
+  const category = actions.onCategory && (
+    <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
+      className={isCard ? cardCategoryClass : 'px-2 py-1 text-xs'} />
+  );
+  const edit = (
+    <button
+      type="button"
+      onClick={() => actions.onEdit(d)}
+      disabled={actions.busy}
+      className={`${btn} ${isCard ? '' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
+    >
+      Edit
+    </button>
+  );
   // Its category resolves to keep or mark, so confirm/reject would record a
   // verdict the cut can never honor (the endpoint 409s them). Edit is the
   // way through: the modal's category picker changes this span's fate.
   if (isKeepLike(d.actionApplied)) {
-    const kept = (
-      <>
-        {d.hasOriginalAudio && (
-          <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'table'} />
-        )}
-        <p className="text-xs text-muted-foreground min-w-0">Left in by its category</p>
-      </>
-    );
-    const adjust = (
-      <>
-        {actions.onCategory && (
-          <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
-            className={isCard ? `${btn} grow min-w-0` : 'px-2 py-1 text-xs'} />
-        )}
-        <button
-          type="button"
-          onClick={() => actions.onEdit(d)}
-          disabled={actions.busy}
-          className={`${btn} ${isCard ? '' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
-        >
-          Edit
-        </button>
-      </>
-    );
+    const kept = <p className="text-xs text-muted-foreground min-w-0 grow">Left in by its category</p>;
     if (!isCard) {
-      return <div className="flex items-center gap-2">{kept}{adjust}</div>;
+      return <div className="flex items-center gap-2">{play}{kept}{category}{edit}</div>;
     }
     return (
       <div className="flex flex-col gap-2 pt-1">
-        <div className="flex items-center gap-2">{kept}</div>
-        <div className="flex items-center gap-2">{adjust}</div>
+        {category}
+        <div data-testid="detection-actions-row" className="flex items-center gap-1.5 min-[370px]:gap-2">
+          {play}{kept}{edit}
+        </div>
       </div>
     );
   }
-  // Cards use two fixed rows rather than wrap order: verdict pair on top at
-  // equal width (basis-0 grow), category and Edit below. Table rows stay on one.
-  const verdicts = (
-    <>
-      {d.hasOriginalAudio && (
-        <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'card' : 'table'} />
-      )}
-      {actions.onApprove && undecided && (
-        <button
-          type="button"
-          onClick={() => actions.onApprove?.(d)}
-          disabled={actions.busy}
-          className={`${btn} ${isCard ? 'grow basis-0 ' : ''}${btnPrimary} disabled:opacity-50 ${focusRing}`}
-        >
-          Confirm ad
-        </button>
-      )}
-      {actions.onDismiss && undecided && (
-        <button
-          type="button"
-          onClick={() => actions.onDismiss?.(d)}
-          disabled={actions.busy}
-          className={`${btn} ${isCard && actions.onApprove ? 'grow basis-0 ' : ''}${btnDestructive} disabled:opacity-50 ${focusRing}`}
-        >
-          Not an ad
-        </button>
-      )}
-    </>
+  const approve = actions.onApprove && undecided && (
+    <button
+      type="button"
+      onClick={() => actions.onApprove?.(d)}
+      disabled={actions.busy}
+      aria-label="Confirm ad"
+      className={`${btn} ${btnPrimary} disabled:opacity-50 ${focusRing}`}
+    >
+      {isCard ? <ShortLabel full="Confirm ad" short="Confirm" /> : 'Confirm ad'}
+    </button>
   );
-
-  const secondary = (
-    <>
-      {actions.onCategory && (
-        <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
-          className={isCard ? `${btn} grow min-w-0` : 'px-2 py-1 text-xs'} />
-      )}
-      {/* On review cards a fourth button would shrink the verdict pair, and
-          the editor's Split covers them; content-sized cards have the room. */}
-      {actions.onSplit && (!isCard || !actions.onApprove) && (
-        <button
-          type="button"
-          onClick={() => actions.onSplit?.(d)}
-          disabled={actions.busy}
-          className={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}`}
-        >
-          Split
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={() => actions.onEdit(d)}
-        disabled={actions.busy}
-        className={`${btn} ${isCard ? '' : 'ml-auto '}${btnOutline} disabled:opacity-50 ${focusRing}`}
-      >
-        Edit
-      </button>
-    </>
+  const dismiss = actions.onDismiss && undecided && (
+    <button
+      type="button"
+      onClick={() => actions.onDismiss?.(d)}
+      disabled={actions.busy}
+      aria-label="Not an ad"
+      className={`${btn} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
+    >
+      {isCard ? <ShortLabel full="Not an ad" short="Not ad" /> : 'Not an ad'}
+    </button>
+  );
+  const split = actions.onSplit && (
+    <button
+      type="button"
+      onClick={() => actions.onSplit?.(d)}
+      disabled={actions.busy}
+      className={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}`}
+    >
+      Split
+    </button>
   );
 
   if (!isCard) {
     return (
-      <div className="flex items-center gap-1.5">{verdicts}{secondary}</div>
+      <div className="flex items-center gap-1.5">{play}{approve}{dismiss}{category}{split}{edit}</div>
     );
   }
   return (
-    <div className="flex flex-col gap-1.5 min-[370px]:gap-2 pt-1">
-      <div className="flex items-center gap-1.5 min-[370px]:gap-2">{verdicts}</div>
-      <div className="flex items-center gap-1.5 min-[370px]:gap-2">{secondary}</div>
+    <div className="flex flex-col gap-2 pt-1">
+      {category}
+      <div data-testid="detection-actions-row" className="flex items-center gap-1.5 min-[370px]:gap-2">
+        {play}{approve}{dismiss}{split}{edit}
+      </div>
     </div>
   );
 }

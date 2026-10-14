@@ -9,6 +9,7 @@ import { btnPrimary } from './buttonStyles';
 import { getErrorMessage } from '../api/client';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
+import { cardActionBtnMobileOnly } from './rowActionStyles';
 
 // Same-sponsor near-duplicate clusters the backend precomputes (#399). The
 // frontend only renders them and triggers the fold; it never computes
@@ -65,21 +66,8 @@ function SuggestionCard({
 
   return (
     <div className="rounded-lg border border-border p-3 bg-secondary/30">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-        <span className="text-sm font-medium text-foreground">
-          {suggestion.count} similar {suggestion.sponsor || 'unknown-sponsor'} patterns
-        </span>
-        <button
-          onClick={doMerge}
-          disabled={busy || mergeIds.length === 0}
-          className={`px-3 py-1.5 text-sm rounded-lg font-medium ${btnPrimary} disabled:opacity-50 ${focusRing}`}
-        >
-          {busy
-            ? 'Merging...'
-            : mergeIds.length === 0
-              ? 'Select rows to merge'
-              : `Merge ${mergeIds.length + 1} into 1`}
-        </button>
+      <div className="mb-2 text-sm font-medium text-foreground">
+        {suggestion.count} similar {suggestion.sponsor || 'unknown-sponsor'} patterns
       </div>
       <p className="text-xs text-muted-foreground mb-2">
         Result keeps pattern {keepId} and adds {suggestion.result_intro_variant_count} intro
@@ -103,6 +91,19 @@ function SuggestionCard({
           </li>
         ))}
       </ul>
+      <div className="mt-3 flex sm:justify-end">
+        <button
+          onClick={doMerge}
+          disabled={busy || mergeIds.length === 0}
+          className={`${cardActionBtnMobileOnly} py-1.5 max-sm:w-full ${btnPrimary} disabled:opacity-50 ${focusRing}`}
+        >
+          {busy
+            ? 'Merging...'
+            : mergeIds.length === 0
+              ? 'Select rows to merge'
+              : `Merge ${mergeIds.length + 1} into 1`}
+        </button>
+      </div>
       {warning && (
         <p className="mt-2 text-xs text-warning">{warning}</p>
       )}

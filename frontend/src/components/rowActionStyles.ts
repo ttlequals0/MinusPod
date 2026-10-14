@@ -21,5 +21,8 @@ export const tableActionIcon =
 export const cardActionBtn =
   'min-h-[44px] px-3 text-sm rounded inline-flex items-center'
   + ' justify-center touch-manipulation whitespace-nowrap text-center max-w-full';
+/** cardActionBtn with the 44px floor on phones only. */
+export const cardActionBtnMobileOnly = cardActionBtn.replace('min-h-[44px]', 'max-sm:min-h-[44px]');
+export const cardActionHeight = 'h-11';
 export const cardActionIcon =
-  'h-11 w-11 shrink-0 inline-flex items-center justify-center';
+  `${cardActionHeight} w-11 shrink-0 inline-flex items-center justify-center`;

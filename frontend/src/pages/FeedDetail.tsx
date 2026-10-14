@@ -721,7 +721,7 @@ function FeedDetail() {
       {slug && !isRecents && <PendingRecutsBar slug={slug} />}
 
       {/* Episodes header with status filter */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <h2 className="text-xl font-semibold text-foreground">
           Episodes {totalEpisodes > 0 && <span className="text-muted-foreground font-normal text-base">({totalEpisodes})</span>}
         </h2>
@@ -732,7 +732,7 @@ function FeedDetail() {
           <select
             value={statusFilter}
             onChange={(e) => { clearSelection(); setStatusFilter(e.target.value); setPage(1); }}
-            className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
+            className={`flex-1 min-w-0 min-h-11 sm:flex-none ${selectBase}`}
           >
             <option value="all">All statuses</option>
             <option value="discovered">Discovered</option>
@@ -752,7 +752,7 @@ function FeedDetail() {
               setPage(1);
               clearSelection();
             }}
-            className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
+            className={`flex-1 min-w-0 min-h-11 sm:flex-none ${selectBase}`}
           >
             <option value="published_at:desc">Newest First</option>
             <option value="published_at:asc">Oldest First</option>

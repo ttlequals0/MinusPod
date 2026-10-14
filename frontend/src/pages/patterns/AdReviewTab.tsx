@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getDetections,
   type DetectionReviewerFilter,
@@ -14,6 +14,7 @@ import AdReviewModal, {
   type AdReviewItem,
   type AdReviewSubmit,
 } from '../../components/AdReviewModal';
+import SplitMarkerModal from '../../components/SplitMarkerModal';
 import { Pagination } from '../../components/Pagination';
 import { SkeletonRows } from '../../components/Skeleton';
 import {
@@ -50,6 +51,8 @@ export default function AdReviewTab() {
 
   const audition = useAuditionPlayer();
   const [editing, setEditing] = useState<ReviewDetection | null>(null);
+  const [splitting, setSplitting] = useState<ReviewDetection | null>(null);
+  const queryClient = useQueryClient();
   const closeModal = () => setEditing(null);
 
   useEffect(() => {
@@ -66,6 +69,13 @@ export default function AdReviewTab() {
     stopAudition: audition.stop,
     onSettled: () => setEditing(null),
   });
+
+  // Like every other decision here, the recut waits for the Apply bar.
+  const handleSplit = () => {
+    setSplitting(null);
+    queryClient.invalidateQueries({ queryKey: ['detections'] });
+    queryClient.invalidateQueries({ queryKey: ['pending-recuts'] });
+  };
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['detections', page, status, feed, category, reviewer, holdReason, debouncedQ, sort, order],
@@ -187,6 +197,7 @@ export default function AdReviewTab() {
               onApprove: approve,
               onDismiss: dismiss,
               onEdit: setEditing,
+              onSplit: setSplitting,
               onCategory: recategorize,
               busy,
             }}
@@ -196,6 +207,18 @@ export default function AdReviewTab() {
       ))}
 
       {audition.audioElement}
+      {splitting && (
+        <SplitMarkerModal
+          target={{
+            podcastSlug: splitting.feedSlug,
+            episodeId: splitting.episodeId,
+            start: splitting.start,
+            end: splitting.end,
+          }}
+          onClose={() => setSplitting(null)}
+          onSplit={handleSplit}
+        />
+      )}
       {editing && (
         <AdReviewModal
           item={{

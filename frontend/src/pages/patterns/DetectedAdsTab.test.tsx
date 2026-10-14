@@ -104,6 +104,21 @@ beforeEach(() => {
 });
 
 describe('DetectedAdsTab', () => {
+  it('lays out the card with the category above one equal-width action row', async () => {
+    renderTab();
+    await screen.findByText('Time cut');
+    const cards = screen.getByTestId('detections-cards');
+    const row = within(cards).getByTestId('detection-actions-row');
+    const buttons = within(row).getAllByRole('button');
+    expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
+      ['Play this ad', 'Not an ad', 'Split', 'Edit']);
+    for (const b of buttons) expect(b.className).toContain('flex-1');
+    const category = within(cards).getByRole('combobox', { name: /^Category for/ });
+    expect(row.contains(category)).toBe(false);
+    expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(category.className).toContain('w-full');
+  });
+
   it('requests only detections that were cut', async () => {
     renderTab();
     await waitFor(() => expect(mockGetDetections).toHaveBeenCalled());
