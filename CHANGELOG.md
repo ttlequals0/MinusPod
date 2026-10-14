@@ -16,6 +16,7 @@ release notes.
 ### Added
 
 ### Changed
+- Detected Ads and Ad Review cards share one layout: the category selector sits above a single equal-width row of Play, Confirm ad, Not an ad, Split and Edit. Pattern merge suggestions put the Merge button below the member list, matching Cleanup. Episode list filters use the standard filter spacing.
 
 ### Fixed
 
