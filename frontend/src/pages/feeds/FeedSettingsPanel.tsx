@@ -1015,42 +1015,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 onRemove={(next, callbacks) => updateMutation.mutate({ descriptionSkipPatterns: next }, callbacks)}
               />
 
-              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <label htmlFor="description-trim-pattern" className="text-muted-foreground sm:w-32 shrink-0 sm:pt-2">
-                  Trim by description chapter:
-                </label>
-                <div className="flex flex-col gap-2 flex-1 min-w-0">
-                  <input
-                    id="description-trim-pattern"
-                    type="text"
-                    value={trimPatternField.value}
-                    onChange={(e) => trimPatternField.setValue(e.target.value)}
-                    onBlur={commitTrimPattern}
-                    onKeyDown={(e) => { if (e.key === 'Enter') commitTrimPattern(); }}
-                    maxLength={200}
-                    placeholder="*Throwback*"
-                    disabled={updateMutation.isPending}
-                    aria-label="Chapter title pattern"
-                    className={`${inputBase} w-full max-w-sm min-h-11 disabled:opacity-50`}
-                  />
-                  <select
-                    value={feed.descriptionTrimMode ?? 'to_end'}
-                    onChange={(e) => updateMutation.mutate({
-                      descriptionTrimMode: e.target.value as UpdateFeedPayload['descriptionTrimMode'],
-                    })}
-                    disabled={updateMutation.isPending}
-                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
-                    aria-label="Trim mode"
-                  >
-                    <option value="to_end">Cut to the end of the episode</option>
-                    <option value="to_next">Cut until the next chapter</option>
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    Match the chapter title in the description&apos;s timestamp lines, ignoring case. Use * as a wildcard, for example *Throwback*.
-                  </p>
-                </div>
-              </div>
-
               <div className="space-y-2 text-sm">
                 <div className="grid grid-cols-2 items-end gap-3 max-w-xs">
                   {([
@@ -1243,6 +1207,51 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 feed, so apps show it without starting playback.
               </GlobalOverrideRow>
 
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Chapter trim"
+            subtitle="Cut a span whose chapter title matches a pattern"
+            defaultOpen
+            storageKey={`feed-chapter-trim-${slug}`}
+          >
+            <div className="space-y-4 pt-1 max-sm:[&_select]:min-h-11">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <label htmlFor="description-trim-pattern" className="text-muted-foreground sm:w-32 shrink-0 sm:pt-2">
+                  Trim by description chapter:
+                </label>
+                <div className="flex flex-col gap-2 flex-1 min-w-0">
+                  <input
+                    id="description-trim-pattern"
+                    type="text"
+                    value={trimPatternField.value}
+                    onChange={(e) => trimPatternField.setValue(e.target.value)}
+                    onBlur={commitTrimPattern}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitTrimPattern(); }}
+                    maxLength={200}
+                    placeholder="*Throwback*"
+                    disabled={updateMutation.isPending}
+                    aria-label="Chapter title pattern"
+                    className={`${inputBase} w-full max-w-sm min-h-11 disabled:opacity-50`}
+                  />
+                  <select
+                    value={feed.descriptionTrimMode ?? 'to_end'}
+                    onChange={(e) => updateMutation.mutate({
+                      descriptionTrimMode: e.target.value as UpdateFeedPayload['descriptionTrimMode'],
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Trim mode"
+                  >
+                    <option value="to_end">Cut to the end of the episode</option>
+                    <option value="to_next">Cut until the next chapter</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Match the chapter title in the description&apos;s timestamp lines, ignoring case. Use * as a wildcard, for example *Throwback*.
+                  </p>
+                </div>
+              </div>
             </div>
           </CollapsibleSection>
 

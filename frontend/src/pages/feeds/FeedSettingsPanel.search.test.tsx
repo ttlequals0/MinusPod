@@ -39,6 +39,7 @@ const NEW_GROUPS = [
   'Episode filters',
   'Tags',
   'Chapters',
+  'Chapter trim',
   'Served feed and storage',
 ];
 const OLD_GROUPS = ['Security', 'Segment actions', 'Cue tuning overrides', 'Advanced'];
@@ -49,6 +50,7 @@ const GROUPS = [
   'Episode filters',
   'Tags',
   'Chapters',
+  'Chapter trim',
   'Served feed and storage',
   'Segment actions',
   'Cue tuning overrides',
@@ -94,6 +96,7 @@ describe('FeedSettingsPanel search', () => {
       `feed-filters-${SLUG}`,
       `feed-title-tags-${SLUG}`,
       `feed-chapters-${SLUG}`,
+      `feed-chapter-trim-${SLUG}`,
       `feed-output-${SLUG}`,
       `feed-segment-actions-${SLUG}`,
       `feed-cue-tuning-${SLUG}`,

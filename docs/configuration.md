@@ -360,9 +360,9 @@ The shared **Skipped episodes** choice applies to title, description, and durati
 
 API: `descriptionSkipPatterns` (array of strings, max 50 patterns, 200 characters each) on `PATCH /api/v1/feeds/{slug}`; `titleSkipAction` governs served-RSS visibility for all three filters.
 
-### Trim by description chapter
+### Chapter trim
 
-Some shows publish an episode whose second half is a re-run, and the description lists the cut point as a timestamp line such as `(31:26) - Throwback ...`. Under **Episode filters > Trim by description chapter**, enter a chapter title pattern (whole title, case-insensitive, `*` is a wildcard, for example `*Throwback*`) and choose **Cut to the end of the episode** or **Cut until the next chapter**.
+Some shows publish an episode whose second half is a re-run, and the description lists the cut point as a timestamp line such as `(31:26) - Throwback ...`. Under **Chapter trim** (beside Chapters in the feed's settings), enter a chapter title pattern (whole title, case-insensitive, `*` is a wildcard, for example `*Throwback*`) and choose **Cut to the end of the episode** or **Cut until the next chapter**.
 
 When a timestamp line in the description matches, that span becomes an Outro marker with the stage badge Description chapter. It is cut regardless of detection confidence or duration, is not sent to the reviewer, and is re-applied on every process, re-detect, and recut. The feed's segment action for Outro still decides the result: remove cuts it, mark or keep leaves it in the audio. A span that ends within 1 s of the episode end is treated as cut to the end.
 
