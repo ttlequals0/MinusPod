@@ -369,7 +369,9 @@ TABLE_DDL['episode_downloads'] = """CREATE TABLE IF NOT EXISTS episode_downloads
     user_agent TEXT NOT NULL DEFAULT '',
     first_seen_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL,
-    request_count INTEGER NOT NULL DEFAULT 1
+    request_count INTEGER NOT NULL DEFAULT 1,
+    last_request_line TEXT,
+    last_request_headers TEXT
 )"""
 
 TABLE_DDL['ip_geo_cache'] = """CREATE TABLE IF NOT EXISTS ip_geo_cache (

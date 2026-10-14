@@ -212,15 +212,21 @@ function DownloadsTab({ tabs }: Props) {
             ) : rows.map((row) => (
               <div key={row.id} className="bg-card rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-3 mb-1">
-                  <EpisodeLink row={row} className="font-medium" />
-                  {row.requestCount > 1 && (
-                    <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
-                      {row.requestCount} requests
-                    </span>
-                  )}
+                  <Link
+                    to={`/feeds/${row.podcastSlug}/episodes/${row.episodeId}`}
+                    className={`text-primary hover:underline text-sm font-medium truncate min-w-0 ${focusRing}`}
+                    title={row.episodeTitle ?? row.episodeId}
+                  >
+                    {row.episodeTitle ?? row.episodeId}
+                  </Link>
+                  <div className="shrink-0">
+                    <DownloadRowActions row={row} blocked={blocked} triggerClassName="px-3 py-2" />
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground truncate mb-3">{row.podcastTitle}</p>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                  <dt className="text-muted-foreground">Requests</dt>
+                  <dd className="text-foreground tabular-nums">{row.requestCount}</dd>
                   <dt className="text-muted-foreground">Time</dt>
                   <dd className="text-foreground">{formatDateTime(row.lastSeenAt)}</dd>
                   <dt className="text-muted-foreground">IP</dt>
@@ -234,9 +240,6 @@ function DownloadsTab({ tabs }: Props) {
                     <ClientCell row={row} className="truncate" />
                   </dd>
                 </dl>
-                <div className="flex justify-end mt-3">
-                  <DownloadRowActions row={row} blocked={blocked} triggerClassName="px-3 py-2" />
-                </div>
               </div>
             ))}
           </div>

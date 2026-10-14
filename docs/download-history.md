@@ -32,12 +32,14 @@ Settings > Authenticated Feeds > Download history.
 
 Each row has an Actions menu.
 
-- Block user agent: adds `^` plus the client's name to Settings > Security > JIT blocked user agents after a confirmation that shows the exact pattern (the whole user agent when it is under 40 characters). Blocked clients requesting an episode that has not been processed yet are redirected to the original audio instead of starting processing; local feeds, processed episodes, feed access and subscriber access are unaffected. Rows whose client already matches show a Blocked badge and the item is disabled.
+- View user agent: shows the full raw user agent with a copy button.
+- View request: shows the most recent request merged into the row (method, path and query with any `key` value replaced by `[redacted]`) and its Range, Accept, Accept-Encoding, Referer, If-Range and If-None-Match headers when present. Rows recorded before this was captured show it disabled.
+- Block user agent: adds `^` plus the client's product token (the name before the first `/` or `(`) to Settings > Security > JIT blocked user agents after a confirmation that shows the exact pattern, so the block survives app version bumps. Blocked clients requesting an episode that has not been processed yet are redirected to the original audio instead of starting processing; local feeds, processed episodes, feed access and subscriber access are unaffected. Rows whose client already matches show a Blocked badge and the item is disabled.
 - Revoke subscriber: revokes the subscriber feed that fetched the row after a confirmation. Rows fetched with the global feed key have no subscriber, so the item is absent. Revoked subscribers show a Revoked badge.
 
 ## Privacy
 
-- Client IP addresses and user agent strings are stored in the MinusPod database for the retention period. Cached locations for IPs that no longer appear in any row are deleted with the periodic cleanup. Expired rows are pruned once every 24 hours, so rows can outlive the retention period by up to a day.
+- Client IP addresses, user agent strings and the latest request's path and allowlisted headers (the `key` query value is never stored) are stored in the MinusPod database for the retention period. Cached locations for IPs that no longer appear in any row are deleted with the periodic cleanup. Expired rows are pruned once every 24 hours, so rows can outlive the retention period by up to a day.
 - Geo lookup is off by default. When on, public IPs are sent over HTTPS to the free ipwho.is service, which is a third party, one request per IP and at most 25 IPs per cleanup run. Private, loopback, link-local and reserved addresses are never sent.
 - Results are cached per IP. A failed lookup is retried after 24 hours.
 - Deleting a podcast removes its download rows. Revoking a subscriber key keeps the rows and their label; deleting the key record clears the label.

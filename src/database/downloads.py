@@ -1,5 +1,7 @@
 """Episode download history and the IP geo cache."""
+import json
 from datetime import timedelta
+from urllib.parse import parse_qsl, urlencode
 
 from utils.text import escape_like
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now_iso
@@ -9,6 +11,10 @@ BURST_WINDOW = timedelta(seconds=60)
 GEO_RETRY_AFTER = timedelta(hours=24)
 GEO_BATCH_SIZE = 100
 
+REQUEST_HEADERS = ('Range', 'Accept', 'Accept-Encoding', 'Referer', 'If-Range', 'If-None-Match')
+REQUEST_LINE_MAX = 500
+REQUEST_HEADER_VALUE_MAX = 300
+
 SORT_COLUMNS = {
     'last_seen_at': 'd.last_seen_at',
     'podcast': 'LOWER(COALESCE(p.title_override, p.title, p.slug))',
@@ -16,6 +22,17 @@ SORT_COLUMNS = {
     'location': "LOWER(COALESCE(g.country, '') || ', ' || COALESCE(g.city, ''))",
     'subscriber': "LOWER(COALESCE(k.label, ''))",
 }
+
+
+def capture_request(method: str, path: str, query_string: str, headers) -> tuple[str, str | None]:
+    """Build the stored request line (feed key redacted) and allowlisted headers JSON."""
+    pairs = [(k, '[redacted]' if k == 'key' else v)
+             for k, v in parse_qsl(query_string, keep_blank_values=True)]
+    target = f"{path}?{urlencode(pairs, safe='[]')}" if pairs else path
+    line = f"{method} {target}"[:REQUEST_LINE_MAX]
+    picked = {name: headers.get(name)[:REQUEST_HEADER_VALUE_MAX]
+              for name in REQUEST_HEADERS if headers.get(name)}
+    return line, json.dumps(picked) if picked else None
 
 
 def _shift(stamp: str, delta: timedelta) -> str:
@@ -35,7 +52,8 @@ def _recent_download(conn, podcast_id, episode_id, client_ip, user_agent, now):
 class DownloadHistoryMixin:
     def record_download(self, slug: str, episode_id: str, client_ip: str,
                         user_agent: str, subscriber_key_id: str | None = None,
-                        now: str | None = None) -> None:
+                        now: str | None = None, request_line: str | None = None,
+                        request_headers: str | None = None) -> None:
         """Count a download, merging repeats from one client inside 15 minutes.
 
         Reads happen outside any transaction; a repeat under 60 s old needs no write.
@@ -57,17 +75,19 @@ class DownloadHistoryMixin:
             if existing:
                 conn.execute(
                     """UPDATE episode_downloads
-                       SET request_count = request_count + 1, last_seen_at = ?
+                       SET request_count = request_count + 1, last_seen_at = ?,
+                           last_request_line = ?, last_request_headers = ?
                        WHERE id = ?""",
-                    (now, existing['id']))
+                    (now, request_line, request_headers, existing['id']))
             else:
                 conn.execute(
                     """INSERT INTO episode_downloads
                        (podcast_id, episode_id, subscriber_key_id, client_ip,
-                        user_agent, first_seen_at, last_seen_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        user_agent, first_seen_at, last_seen_at,
+                        last_request_line, last_request_headers)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (podcast['id'], episode_id, subscriber_key_id, client_ip,
-                     user_agent, now, now))
+                     user_agent, now, now, request_line, request_headers))
 
     def list_downloads(self, page: int, limit: int, sort_by: str, sort_dir: str,
                        podcast_slug: str | None = None,
@@ -112,6 +132,7 @@ class DownloadHistoryMixin:
                        COALESCE(p.title_override, p.title, p.slug) AS podcast_title,
                        e.title AS episode_title, k.label AS subscriber_label,
                        d.subscriber_key_id, k.revoked_at AS subscriber_revoked_at,
+                       d.last_request_line, d.last_request_headers,
                        g.country, g.region, g.city, g.status AS geo_status
                 {join} {clause}
                 ORDER BY {order} {direction}, d.id DESC LIMIT ? OFFSET ?""",
@@ -135,6 +156,9 @@ class DownloadHistoryMixin:
             'firstSeenAt': r['first_seen_at'],
             'lastSeenAt': r['last_seen_at'],
             'requestCount': r['request_count'],
+            'lastRequestLine': r['last_request_line'],
+            'lastRequestHeaders': (json.loads(r['last_request_headers'])
+                                   if r['last_request_headers'] else None),
         } for r in rows], 'total': total}
 
     def prune_downloads(self, retention_days: int, now: str | None = None) -> int:

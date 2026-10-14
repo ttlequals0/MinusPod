@@ -11,11 +11,9 @@ describe('clientName', () => {
 });
 
 describe('blockPatternFor', () => {
-  it('anchors the full string when under 40 characters', () => {
+  it('anchors the first product token', () => {
     expect(blockPatternFor('Pocket Casts')).toBe('^Pocket Casts');
-    expect(blockPatternFor('AntennaPod/3.1 (Android)')).toBe('^AntennaPod/3.1 (Android)');
-  });
-  it('anchors the first product token for longer agents', () => {
+    expect(blockPatternFor('AntennaPod/3.1 (Android)')).toBe('^AntennaPod');
     expect(blockPatternFor('Overcast/3.0 (+http://overcast.fm/; iOS)')).toBe('^Overcast');
   });
 });

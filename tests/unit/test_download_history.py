@@ -1,9 +1,11 @@
 """Download history: dedupe, listing, pruning and geo cache bookkeeping."""
+import json
 from unittest.mock import patch
 
 import pytest
 
 from database import downloads
+from database.downloads import capture_request
 
 SLUG = 'example-podcast'
 EPISODE = 'a1b2c3d4e5f6'
@@ -94,6 +96,41 @@ def test_row_carries_subscriber_key_id_and_revoked_flag(db):
     assert by_ip['203.0.113.6']['subscriberRevoked'] is False
     db.revoke_feed_subscriber_key(SLUG, key['id'])
     assert _rows(db, subscriber_key_id=key['id'])['downloads'][0]['subscriberRevoked'] is True
+
+
+def test_capture_request_redacts_key_and_allowlists_headers():
+    line, headers = capture_request(
+        'GET', '/episodes/example-podcast/a1b2c3d4e5f6.mp3', 'key=sekret&v=2',
+        {'Range': 'bytes=0-', 'Cookie': 'session=x', 'Authorization': 'Bearer y',
+         'Accept': ''})
+    assert line == 'GET /episodes/example-podcast/a1b2c3d4e5f6.mp3?key=[redacted]&v=2'
+    assert 'sekret' not in line
+    assert json.loads(headers) == {'Range': 'bytes=0-'}
+
+
+def test_capture_request_without_query_or_headers():
+    assert capture_request('GET', '/x.mp3', '', {}) == ('GET /x.mp3', None)
+
+
+def test_request_is_stored_and_updated_on_bump(db):
+    db.record_download(SLUG, EPISODE, IP, 'a', now='2026-10-14T10:00:00Z',
+                       request_line='GET /a', request_headers='{"Range": "bytes=0-"}')
+    row = _rows(db)['downloads'][0]
+    assert row['lastRequestLine'] == 'GET /a'
+    assert row['lastRequestHeaders'] == {'Range': 'bytes=0-'}
+    db.record_download(SLUG, EPISODE, IP, 'a', now='2026-10-14T10:05:00Z',
+                       request_line='GET /b', request_headers=None)
+    row = _rows(db)['downloads'][0]
+    assert row['lastRequestLine'] == 'GET /b' and row['lastRequestHeaders'] is None
+    db.record_download(SLUG, EPISODE, IP, 'a', now='2026-10-14T10:05:30Z',
+                       request_line='GET /c')
+    assert _rows(db)['downloads'][0]['lastRequestLine'] == 'GET /b'
+
+
+def test_request_columns_null_without_capture(db):
+    db.record_download(SLUG, EPISODE, IP, 'a', now='2026-10-14T10:00:00Z')
+    row = _rows(db)['downloads'][0]
+    assert row['lastRequestLine'] is None and row['lastRequestHeaders'] is None
 
 
 def test_filters_search_and_date_range(db):
