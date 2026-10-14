@@ -154,7 +154,6 @@ class TestSearchIndexRebuildBackoff:
         db.refresh_search_index.assert_not_called()
 
     def test_active_run_defers_the_rebuild(self, monkeypatch):
-        import time
         due = time.time() - background.INDEX_REBUILD_INTERVAL_SECONDS - 60
         db = self._run_cleanup(monkeypatch, rebuild=lambda: None, slots=1, last=due)
         db.rebuild_search_index.assert_not_called()
@@ -162,7 +161,6 @@ class TestSearchIndexRebuildBackoff:
     def test_a_never_idle_instance_rebuilds_past_the_deferral_ceiling(self, monkeypatch):
         """Deferring to active runs forever means an always-busy instance never
         rebuilds its index."""
-        import time
         overdue = time.time() - background.INDEX_REBUILD_MAX_DEFERRAL_SECONDS - 60
         db = self._run_cleanup(monkeypatch, rebuild=lambda: None, slots=1,
                                last=overdue)
@@ -171,7 +169,6 @@ class TestSearchIndexRebuildBackoff:
     def test_a_failed_slot_lookup_keeps_the_cadence(self, monkeypatch):
         """Only a failed rebuild earns the cooldown; a failed queue lookup left
         the index untouched."""
-        import time
         db = MagicMock()
         db.cleanup_old_episodes.return_value = (0, 0.0)
         db.get_all_podcasts.return_value = []
@@ -186,7 +183,6 @@ class TestSearchIndexRebuildBackoff:
         db.rebuild_search_index.assert_not_called()
 
     def test_success_keeps_the_six_hour_cadence(self, monkeypatch):
-        import time
         self._run_cleanup(monkeypatch, rebuild=lambda: None)
         stamp = background.run_cleanup._last_index_rebuild
         assert stamp == pytest.approx(time.time(), abs=5)

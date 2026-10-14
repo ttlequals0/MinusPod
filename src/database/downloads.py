@@ -25,6 +25,16 @@ def _shift(stamp: str, delta: timedelta) -> str:
     return (parsed + delta).strftime(ISO_FORMAT)
 
 
+def _recent_download(conn, podcast_id, episode_id, client_ip, user_agent, now):
+    return conn.execute(
+        """SELECT id, last_seen_at FROM episode_downloads
+           WHERE podcast_id = ? AND episode_id = ? AND client_ip = ?
+             AND user_agent = ? AND last_seen_at >= ?
+           ORDER BY last_seen_at DESC LIMIT 1""",
+        (podcast_id, episode_id, client_ip, user_agent, _shift(now, -DEDUPE_WINDOW)),
+    ).fetchone()
+
+
 class DownloadHistoryMixin:
     def record_download(self, slug: str, episode_id: str, client_ip: str,
                         user_agent: str, subscriber_key_id: str | None = None,
@@ -40,17 +50,13 @@ class DownloadHistoryMixin:
                 "SELECT id FROM podcasts WHERE slug = ?", (slug,)).fetchone()
             if not podcast:
                 return
-            existing = conn.execute(
-                """SELECT id, last_seen_at FROM episode_downloads
-                   WHERE podcast_id = ? AND episode_id = ? AND client_ip = ?
-                     AND user_agent = ? AND last_seen_at >= ?
-                   ORDER BY last_seen_at DESC LIMIT 1""",
-                (podcast['id'], episode_id, client_ip, user_agent,
-                 _shift(now, -DEDUPE_WINDOW)),
-            ).fetchone()
+            key = (podcast['id'], episode_id, client_ip, user_agent, now)
+            existing = _recent_download(conn, *key)
             if existing and existing['last_seen_at'] >= _shift(now, -BURST_WINDOW):
                 return
             with self.transaction(immediate=True) as conn:
+                # Re-check under the write lock so concurrent first requests share one row.
+                existing = _recent_download(conn, *key)
                 if existing:
                     conn.execute(
                         """UPDATE episode_downloads
@@ -131,12 +137,16 @@ class DownloadHistoryMixin:
         } for r in rows], 'total': total}
 
     def prune_downloads(self, retention_days: int, now: str | None = None) -> int:
-        """Delete download rows last seen before the retention cutoff."""
+        """Delete download rows last seen before the cutoff, and geo rows no longer referenced."""
         cutoff = _shift(now or utc_now_iso(), -timedelta(days=retention_days))
         with self.transaction(immediate=True) as conn:
-            return conn.execute(
+            deleted = conn.execute(
                 "DELETE FROM episode_downloads WHERE last_seen_at < ?", (cutoff,)
             ).rowcount
+            conn.execute(
+                "DELETE FROM ip_geo_cache "
+                "WHERE ip NOT IN (SELECT client_ip FROM episode_downloads)")
+            return deleted
 
     def pending_geo_ips(self, now: str | None = None) -> list[str]:
         """IPs with no geo row, or a failed row old enough to retry."""

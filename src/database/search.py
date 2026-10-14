@@ -246,8 +246,8 @@ class SearchMixin:
         source_chunks = self._search_source_chunks()
         try:
             for rows in source_chunks:
-                time.sleep(_REBUILD_YIELD_SECONDS)
                 self._run_rebuild_write(lambda tx, rows=rows: tx.executemany(insert, rows))
+                time.sleep(_REBUILD_YIELD_SECONDS)
             self._swap_in_shadow(shadow, insert, start_seq)
         except Exception:
             conn.rollback()

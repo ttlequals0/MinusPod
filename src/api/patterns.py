@@ -1095,15 +1095,19 @@ def _resolve_or_create_pattern_from_text(
     )
 
 
+def _proposal_overlaps(p_start, p_end, start, end):
+    """True when a numeric proposal span overlaps [start, end]."""
+    return (isinstance(p_start, (int, float)) and isinstance(p_end, (int, float))
+            and p_end > p_start and p_end > start and p_start < end)
+
+
 def _usable_reviewer_proposal(db, marker, start, end):
     """A held marker's reviewer proposal, when it is valid, overlaps the
     detected span, and stays within the reviewer's per-edge shift cap."""
     # A hold stamps the raw proposal, which never passed the reviewer's clamp.
     p_start = marker.get('reviewer_proposed_start')
     p_end = marker.get('reviewer_proposed_end')
-    if not isinstance(p_start, (int, float)) or not isinstance(p_end, (int, float)):
-        return None
-    if p_end <= p_start or p_end <= start or p_start >= end:
+    if not _proposal_overlaps(p_start, p_end, start, end):
         return None
     cap = resolve_max_boundary_shift(db)
     if abs(p_start - start) > cap or abs(p_end - end) > cap:

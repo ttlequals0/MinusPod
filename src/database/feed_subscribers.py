@@ -72,7 +72,7 @@ class FeedSubscriberMixin:
             """SELECT k.id, k.label, k.created_at AS createdAt,
                       k.last_used_at AS lastUsedAt, k.revoked_at AS revokedAt,
                       p.slug AS feedSlug,
-                      COALESCE(NULLIF(p.title_override, ''), p.title) AS feedTitle
+                      COALESCE(NULLIF(p.title_override, ''), p.title, p.slug) AS feedTitle
                FROM feed_subscriber_keys k
                JOIN podcasts p ON p.id = k.podcast_id
                ORDER BY LOWER(feedTitle), LOWER(k.label), k.created_at, k.id"""

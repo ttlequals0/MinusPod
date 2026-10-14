@@ -1,8 +1,8 @@
 """Per-ad addressing-mode telemetry: marker stamp, reviewer log, corrections, stats."""
-from pathlib import Path
 from unittest.mock import MagicMock
 
 from ad_detector import AdDetector, dai_differential_ads, transcript_differential_ads
+from text_pattern_matcher import TextMatch
 from ad_reviewer import AdReviewer, ReviewVerdict
 from tests.unit.db_test_utils import _rebuild_pre_migration_shape
 from tests.unit.test_cue_fusion import _diff, _region
@@ -134,8 +134,12 @@ def test_non_llm_ads_carry_no_mode_fields():
     assert len(ads) == 2
     for ad in ads:
         assert not {'addressing_mode', 'llm_start', 'llm_end'} & ad.keys()
-    matcher_src = Path('src/text_pattern_matcher.py').read_text()
-    assert 'addressing_mode' not in matcher_src and 'llm_start' not in matcher_src
+    ads, regions = [], []
+    AdDetector(api_key='k')._add_pattern_match(
+        TextMatch(pattern_id=7, start=30.0, end=60.0, confidence=0.9),
+        'text_pattern', 'content', ads, regions, 'a1b2c3d4e5f6')
+    assert len(ads) == 1
+    assert not {'addressing_mode', 'llm_start', 'llm_end'} & ads[0].keys()
 
 
 def test_correction_row_survives_sponsor_fk_rebuild_with_null_mode(temp_db):

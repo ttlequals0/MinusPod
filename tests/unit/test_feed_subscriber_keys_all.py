@@ -44,6 +44,16 @@ def test_lists_keys_across_feeds_sorted_by_title_label_created(app_client, feeds
     }
 
 
+def test_null_feed_title_falls_back_to_slug(app_client, feeds):
+    feeds.create_feed_subscriber_key('keyless', 'Den')
+    with feeds.transaction(immediate=True) as conn:
+        conn.execute("UPDATE podcasts SET title = NULL WHERE slug = 'keyless'")
+
+    keys = _mine(app_client.get('/api/v1/feeds/subscriber-keys'))
+
+    assert [k['feedTitle'] for k in keys if k['feedSlug'] == 'keyless'] == ['keyless']
+
+
 def test_feed_without_keys_is_absent(app_client, feeds):
     feeds.create_feed_subscriber_key('alpha', 'Car')
 

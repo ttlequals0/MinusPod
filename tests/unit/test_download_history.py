@@ -3,6 +3,8 @@ from unittest.mock import patch
 
 import pytest
 
+from database import downloads
+
 SLUG = 'example-podcast'
 EPISODE = 'a1b2c3d4e5f6'
 IP = '203.0.113.5'
@@ -94,6 +96,31 @@ def test_prune_respects_retention(db):
     db.record_download(SLUG, EPISODE, '203.0.113.6', 'new', now='2026-10-13T00:00:00Z')
     assert db.prune_downloads(90, now='2026-10-14T00:00:00Z') == 1
     assert _rows(db)['total'] == 1
+
+
+def test_prune_drops_unreferenced_geo_rows(db):
+    db.record_download(SLUG, EPISODE, IP, 'old', now='2026-01-01T00:00:00Z')
+    db.record_download(SLUG, EPISODE, '203.0.113.6', 'new', now='2026-10-13T00:00:00Z')
+    db.store_geo(IP, 'ok', 'Exampleland')
+    db.store_geo('203.0.113.6', 'ok', 'Exampleland')
+    db.prune_downloads(90, now='2026-10-14T00:00:00Z')
+    ips = [r['ip'] for r in db.get_connection().execute('SELECT ip FROM ip_geo_cache')]
+    assert ips == ['203.0.113.6']
+
+
+def test_concurrent_first_requests_share_one_row(db):
+    db.record_download(SLUG, EPISODE, IP, 'Pocket Casts', now='2026-10-14T10:00:00Z')
+    real = downloads._recent_download
+    calls = []
+
+    def stale_first(*args):
+        calls.append(1)
+        return None if len(calls) == 1 else real(*args)
+
+    with patch.object(downloads, '_recent_download', stale_first):
+        db.record_download(SLUG, EPISODE, IP, 'Pocket Casts', now='2026-10-14T10:02:00Z')
+    result = _rows(db)
+    assert result['total'] == 1 and result['downloads'][0]['requestCount'] == 2
 
 
 def test_geo_pending_and_store(db):

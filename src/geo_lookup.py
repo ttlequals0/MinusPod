@@ -17,12 +17,13 @@ def is_private(ip: str) -> bool:
         addr = ipaddress.ip_address(ip)
     except ValueError:
         return True
-    return (addr.is_private or addr.is_loopback or addr.is_link_local
-            or addr.is_reserved or addr.is_multicast or addr.is_unspecified)
+    if getattr(addr, 'ipv4_mapped', None):
+        addr = addr.ipv4_mapped
+    return not addr.is_global
 
 
 def lookup_ips(ips: list[str]) -> dict[str, dict]:
-    """One GET per IP; IPs whose request errors are omitted so they stay pending."""
+    """One GET per IP. The first transport error or 429 stops the batch; the rest stay pending."""
     result = {}
     for ip in ips[:LOOKUPS_PER_TICK]:
         try:
@@ -33,8 +34,8 @@ def lookup_ips(ips: list[str]) -> dict[str, dict]:
             response.raise_for_status()
             body = response.json()
         except Exception as exc:
-            logger.warning(f"Geo lookup failed: {exc}")
-            continue
+            logger.warning(f"Geo lookup failed, stopping this tick: {exc}")
+            break
         if body.get('success'):
             result[ip] = {'status': 'ok', 'country': body.get('country'),
                           'region': body.get('region'), 'city': body.get('city')}

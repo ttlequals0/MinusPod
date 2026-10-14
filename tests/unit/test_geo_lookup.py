@@ -25,6 +25,12 @@ def test_is_private():
     assert not geo_lookup.is_private('8.8.8.8')
 
 
+def test_cgnat_and_mapped_addresses():
+    assert geo_lookup.is_private('100.64.0.1')
+    assert geo_lookup.is_private('::ffff:192.168.1.5')
+    assert not geo_lookup.is_private('::ffff:8.8.8.8')
+
+
 def _reply(body):
     response = MagicMock(status_code=200)
     response.json.return_value = body
@@ -50,6 +56,24 @@ def test_lookup_ips_omits_errors_and_handles_empty_input():
     with patch('geo_lookup.requests.get', side_effect=OSError('down')):
         assert geo_lookup.lookup_ips(['8.8.8.8']) == {}
     assert geo_lookup.lookup_ips([]) == {}
+
+
+def test_lookup_stops_after_first_error():
+    with patch('geo_lookup.requests.get', side_effect=OSError('down')) as get:
+        assert geo_lookup.lookup_ips(['8.8.8.8', '8.8.4.4', '1.1.1.1']) == {}
+    assert get.call_count == 1
+
+
+def test_lookup_stops_on_rate_limit_keeping_earlier_results():
+    limited = _reply({})
+    limited.status_code = 429
+    limited.raise_for_status.side_effect = OSError('429')
+    with patch('geo_lookup.requests.get',
+               side_effect=[_reply({'success': True, 'country': 'X'}), limited,
+                            _reply({'success': True})]) as get:
+        result = geo_lookup.lookup_ips(['8.8.8.8', '8.8.4.4', '1.1.1.1'])
+    assert list(result) == ['8.8.8.8']
+    assert get.call_count == 2
 
 
 def test_lookup_ips_caps_per_tick():
