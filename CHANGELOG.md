@@ -14,6 +14,7 @@ release notes.
 ## [2.100.12] - 2026-10-14
 
 ### Added
+- Settings > Authenticated feeds lists every subscriber feed across all podcasts with its label and feed; each feed's settings gain a Security section to create and revoke subscriber feeds for that podcast.
 
 ### Changed
 - A feed's max ad duration (reject) override now also lifts the 7-minute cap on a single LLM detection, so a show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span instead of pieces.
@@ -23,6 +24,7 @@ release notes.
 - Search results no longer show raw HTML tags from episode and podcast descriptions; the index stores plain text and is rebuilt once on upgrade.
 - A reviewer boundary adjustment can no longer move an ad edge back across an audio cue that is set to be removed with the ad, so break stingers are cut instead of left audible.
 - Changing the category in a held marker's editor now records the new category and keeps the marker held; it no longer confirms the marker with the old category.
+- The subscriber-feed podcast picker is sorted alphabetically.
 
 ## [2.100.11] - 2026-10-12
 

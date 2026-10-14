@@ -213,6 +213,23 @@ export async function getSubscriberKeys(slug: string): Promise<SubscriberKey[]> 
   return response.keys;
 }
 
+export interface SubscriberKeyWithFeed {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  feedSlug: string;
+  feedTitle: string;
+}
+
+export const ALL_SUBSCRIBER_KEYS_QUERY_KEY = ['subscriber-keys-all'] as const;
+
+export async function getAllSubscriberKeys(): Promise<SubscriberKeyWithFeed[]> {
+  const response = await apiRequest<{ keys: SubscriberKeyWithFeed[] }>('/feeds/subscriber-keys');
+  return response.keys;
+}
+
 export async function createSubscriberKey(slug: string, label: string) {
   return apiRequest<CreatedSubscriberKey>(
     `/feeds/${encodeURIComponent(slug)}/subscriber-keys`,

@@ -7858,6 +7858,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /feeds/subscriber-keys:
+    get:
+      tags: [Feeds]
+      summary: List subscriber keys across all feeds
+      description: Labels and timestamps without secret values, sorted by feed title, label, then creation time.
+      responses:
+        '200':
+          description: Subscriber keys with their feed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeedSubscriberKeyWithFeed'
+
   /feeds/{slug}/subscriber-keys:
     parameters:
       - $ref: '#/components/parameters/slug'
@@ -18418,6 +18437,18 @@ components:
         created_at: { type: string, format: date-time }
         last_used_at: { type: [string, 'null'], format: date-time }
         revoked_at: { type: [string, 'null'], format: date-time }
+
+    FeedSubscriberKeyWithFeed:
+      type: object
+      required: [id, label, createdAt, lastUsedAt, revokedAt, feedSlug, feedTitle]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{16}$' }
+        label: { type: string }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+        feedSlug: { type: string }
+        feedTitle: { type: string }
 
     FeedSubscriberKeyCreated:
       type: object

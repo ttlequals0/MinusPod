@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../api/client';
 import type { Feed, LowAdYieldAction, EpisodeLogsOverride } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
+import SubscriberKeysPanel from '../../components/SubscriberKeysPanel';
 import SearchableSectionGroup from '../../components/SearchableSectionGroup';
 import { ExperimentalBadge } from '../../components/ExperimentalBadge';
 import { FeedTagsEditor } from '../../components/FeedTagsEditor';
@@ -708,6 +709,18 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 )}
               </div>
               )}
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Security"
+            storageKey={`feed-security-${slug}`}
+          >
+            <div className="space-y-3 pt-1">
+              <p className="text-sm text-muted-foreground">
+                Create a separate feed URL for each subscriber of this podcast. Revoking one URL does not affect other subscribers.
+              </p>
+              <SubscriberKeysPanel slug={slug} />
             </div>
           </CollapsibleSection>
 

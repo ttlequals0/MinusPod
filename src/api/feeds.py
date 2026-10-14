@@ -1753,6 +1753,12 @@ def export_opml():
     )
 
 
+@api.route('/feeds/subscriber-keys', methods=['GET'])
+@log_request
+def list_all_feed_subscriber_keys():
+    return json_response({'keys': get_database().list_all_feed_subscriber_keys()})
+
+
 @api.route('/feeds/<slug>/subscriber-keys', methods=['GET'])
 @log_request
 def list_feed_subscriber_keys(slug):
