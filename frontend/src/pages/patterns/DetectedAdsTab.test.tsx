@@ -116,6 +116,7 @@ describe('DetectedAdsTab', () => {
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
     expect(row.contains(category)).toBe(false);
     expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(category.className).toContain('w-full');
   });
 
   it('requests only detections that were cut', async () => {

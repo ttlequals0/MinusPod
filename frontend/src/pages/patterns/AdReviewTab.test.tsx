@@ -185,12 +185,12 @@ describe('AdReviewTab', () => {
       expect(b.className).toContain('basis-0');
       expect(b.className).toContain('min-w-0');
     }
-    // The category sits on its own line before the action row, centered on phones.
+    // The category sits on its own line before the action row, spanning its full width.
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
     expect(row.contains(category)).toBe(false);
     expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(category.parentElement?.className).toContain('justify-center');
-    expect(category.parentElement?.className).toContain('sm:justify-start');
+    expect(category.className).toContain('w-full');
+    expect(category.parentElement?.className).not.toContain('justify-center');
   });
 
   it('Split opens the modal and defers the recut to the Apply bar', async () => {
