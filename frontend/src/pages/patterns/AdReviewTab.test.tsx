@@ -185,6 +185,12 @@ describe('AdReviewTab', () => {
       expect(b.className).toContain('basis-0');
       expect(b.className).toContain('min-w-0');
     }
+    // Play is the audition button (h-11); the text buttons carry the shared tap-target classes.
+    expect(buttons[0].className).toContain('h-11');
+    for (const b of buttons.slice(1)) {
+      expect(b.className).toContain('min-h-[44px]');
+      expect(b.className).toContain('whitespace-nowrap');
+    }
     // The category sits on its own line before the action row, spanning its full width.
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
     expect(row.contains(category)).toBe(false);

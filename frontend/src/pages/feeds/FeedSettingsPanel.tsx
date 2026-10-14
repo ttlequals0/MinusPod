@@ -1629,7 +1629,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(maxAdDurField, feed.maxAdDurationOverride,
                   'maxAdDurationOverride', 1, 3600)}
-                description="Ads longer than this cap are held for review instead of cut. Also raises the longest single detection the model may report for this feed (default 7 min). Changes apply on the next reprocess." />
+                description="Ads longer than this cap are held for review instead of cut. Also raises the longest single detection the model may report for this feed (the global Longest single LLM detection, default 7 minutes). Changes apply on the next reprocess." />
 
               {/* Length past which an ad needs a confirmed sponsor */}
               <CueOverrideRow label="Sponsor needed over" min={30} max={3600} step={1}
@@ -1639,7 +1639,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(maxAdDurRejectField, feed.maxAdDurationRejectOverride,
                   'maxAdDurationRejectOverride', 30, 3600)}
-                description="Ads longer than this need a confirmed sponsor. Also raises the longest single detection the LLM may report for this feed (default 7 min), so set it to the length of this show's longest continuous ad block." />
+                description="Ads longer than this need a confirmed sponsor. Also raises the longest single detection the LLM may report for this feed (the global Longest single LLM detection, default 7 minutes), so set it to the length of this show's longest continuous ad block." />
 
               {/* Splice-veto override. Tri-state so a feed can also be held
                   to the check when the global is off. */}

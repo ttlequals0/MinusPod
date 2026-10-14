@@ -1055,7 +1055,7 @@ paths:
                     - 'null'
                   minimum: 1.0
                   maximum: 3600.0
-                  description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap (global MAX_AD_DURATION constants apply). Also raises the longest single detection the model may report for this feed (default 7 minutes).
+                  description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap (global MAX_AD_DURATION constants apply). Also raises the longest single detection the model may report for this feed (the global Longest single LLM detection, default 7 minutes).
                 adDetectionExcludeStartOverride:
                   type:
                     - number
@@ -13767,7 +13767,7 @@ components:
             - 'null'
           minimum: 1.0
           maximum: 3600.0
-          description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap. Also raises the longest single detection the model may report for this feed (default 7 minutes).
+          description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap. Also raises the longest single detection the model may report for this feed (the global Longest single LLM detection, default 7 minutes).
         adDetectionExcludeStartOverride:
           type:
             - number

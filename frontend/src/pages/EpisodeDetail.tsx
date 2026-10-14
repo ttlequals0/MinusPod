@@ -115,8 +115,6 @@ function correctionBadgeLabel(correction: EpisodeCorrection): string {
   return correction.correction_type === 'false_positive' ? 'Not an ad' : 'Adjusted';
 }
 
-// Row-identity payload the corrections API keys on. One builder so the
-// reason coercion stays consistent across the modal and the row buttons.
 type ProposedAdSegment = AdSegment & { reviewer_proposed_start: number; reviewer_proposed_end: number };
 
 function proposalOverlaps(seg: AdSegment): seg is ProposedAdSegment {
@@ -124,6 +122,8 @@ function proposalOverlaps(seg: AdSegment): seg is ProposedAdSegment {
     && seg.reviewer_proposed_start < seg.end && seg.reviewer_proposed_end > seg.start;
 }
 
+// Row-identity payload the corrections API keys on. One builder so the
+// reason coercion stays consistent across the modal and the row buttons.
 function toOriginalAd(segment: AdSegment) {
   return {
     start: segment.start,

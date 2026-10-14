@@ -51,7 +51,10 @@ function AllSubscriberKeys({ hasFeeds }: { hasFeeds: boolean }) {
     <div className="space-y-2">
       <h4 className="text-sm font-semibold text-foreground">All subscriber feeds</h4>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      {isError ? (
+      {isError && keys.length > 0 && (
+        <p className="text-sm text-destructive">Failed to refresh subscriber feeds. Showing the last loaded list.</p>
+      )}
+      {isError && keys.length === 0 ? (
         <p className="text-sm text-destructive">Failed to load subscriber feeds.</p>
       ) : keys.length === 0 ? (
         <p className="text-sm text-muted-foreground">

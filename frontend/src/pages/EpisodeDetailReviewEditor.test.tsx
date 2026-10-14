@@ -240,6 +240,19 @@ describe('Open in editor: held rows', () => {
     expect(modal.getAttribute('data-item-corrected-end')).toBe('');
   });
 
+  it('leaves correctedBounds null when the reviewer proposal does not overlap the held span', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [
+      { ...heldMarker, reviewer_proposed_start: 400, reviewer_proposed_end: 500 },
+    ] }));
+
+    await user.click(await screen.findByTestId('open-editor-held-0'));
+
+    const modal = screen.getByTestId('ad-review-modal');
+    expect(modal.getAttribute('data-item-corrected-start')).toBe('');
+    expect(modal.getAttribute('data-item-corrected-end')).toBe('');
+  });
+
   it('maps an in-range adjust submit to a trimmed confirm and unmounts the modal', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({ pendingReviewMarkers: [heldMarker] }));

@@ -84,9 +84,9 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
               </p>
             </div>
             {key.revoked_at ? (
-              <button type="button" onClick={() => setKeyToDelete(key.id)} disabled={deleteMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}>Delete</button>
+              <button type="button" onClick={() => { setCreateError(null); setKeyToDelete(key.id); }} disabled={deleteMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}>Delete</button>
             ) : (
-              <button type="button" onClick={() => revokeMutation.mutate({ slug, id: key.id })} disabled={revokeMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}>Revoke</button>
+              <button type="button" onClick={() => { setCreateError(null); revokeMutation.mutate({ slug, id: key.id }); }} disabled={revokeMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}>Revoke</button>
             )}
           </div>
         ))}
@@ -96,7 +96,7 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
         <DeleteKeyRecordModal
           pending={deleteMutation.isPending}
           onCancel={() => setKeyToDelete(null)}
-          onConfirm={() => deleteMutation.mutate({ slug, id: keyToDelete }, { onSuccess: () => setKeyToDelete(null) })}
+          onConfirm={() => { setCreateError(null); deleteMutation.mutate({ slug, id: keyToDelete }, { onSuccess: () => setKeyToDelete(null) }); }}
         />
       )}
     </div>
