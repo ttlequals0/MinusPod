@@ -246,6 +246,7 @@ class SearchMixin:
         source_chunks = self._search_source_chunks()
         try:
             for rows in source_chunks:
+                time.sleep(_REBUILD_YIELD_SECONDS)
                 self._run_rebuild_write(lambda tx, rows=rows: tx.executemany(insert, rows))
             self._swap_in_shadow(shadow, insert, start_seq)
         except Exception:
@@ -270,17 +271,16 @@ class SearchMixin:
                 chunk = keys[start:start + _REBUILD_TX_ROWS]
 
                 def apply(tx, chunk=chunk):
+                    self._delete_indexed_rows(tx, [k[:3] for k in chunk])
                     for content_type, content_id, slug, _ in chunk:
-                        tx.execute(
-                            "DELETE FROM search_index WHERE content_type = ? "
-                            "AND content_id = ? AND podcast_slug = ?",
-                            (content_type, content_id, slug))
                         row = self._current_search_row(tx, content_type, content_id, slug)
                         if row is not None:
                             tx.execute(insert, row)
                     tx.execute("DELETE FROM search_index_changes WHERE seq <= ?",
                                (max(k[3] for k in chunk),))
 
+                if start:
+                    time.sleep(_REBUILD_YIELD_SECONDS)
                 self._run_rebuild_write(apply)
         if keys:
             logger.info(f"Search index refreshed: {len(keys)} change(s)")
@@ -291,9 +291,7 @@ class SearchMixin:
         for attempt in range(_REBUILD_LOCK_RETRIES):
             try:
                 with self.transaction(immediate=True) as tx:
-                    result = operation(tx)
-                time.sleep(_REBUILD_YIELD_SECONDS)
-                return result
+                    return operation(tx)
             except sqlite3.OperationalError as exc:
                 if 'locked' not in str(exc).lower() or attempt == _REBUILD_LOCK_RETRIES - 1:
                     raise
@@ -386,10 +384,8 @@ class SearchMixin:
             "SELECT DISTINCT content_type, content_id, podcast_slug "
             "FROM search_index_changes WHERE seq > ?", (start_seq,)
         ).fetchall()
+        SearchMixin._delete_indexed_rows(conn, [tuple(c) for c in changes], shadow)
         for content_type, content_id, podcast_slug in changes:
-            conn.execute(
-                f"DELETE FROM {shadow} WHERE content_type = ? AND content_id = ? "  # noqa: S608
-                "AND podcast_slug = ?", (content_type, content_id, podcast_slug))
             row = SearchMixin._current_search_row(
                 conn, content_type, content_id, podcast_slug)
             if row is not None:
@@ -511,37 +507,40 @@ class SearchMixin:
         return len(insert_values)
 
     def _delete_indexed_episodes(self, conn, pairs: list[tuple[str, str]]) -> None:
-        """Drop these episodes' search_index rows, resolving rowids with one MATCH: FTS5
-        pushes no constraint down for (content_id, podcast_slug) IN (VALUES ...)."""
+        self._delete_indexed_rows(conn, [('episode', eid, slug) for eid, slug in pairs])
+
+    @staticmethod
+    def _delete_indexed_rows(conn, keys, table='search_index') -> None:
+        """Drop rows for (content_type, content_id, podcast_slug) keys, resolving rowids with
+        one MATCH: FTS5 pushes no constraint down for a column comparison, so it scans the table."""
         # unicode61 tokenizes on alphanumerics, so an id without one has no term to MATCH.
         matchable, unmatchable = [], []
-        for pair in pairs:
-            (matchable if any(c.isalnum() for c in pair[0]) else unmatchable).append(pair)
-        if matchable:
-            terms = ' OR '.join('content_id:"' + eid.replace('"', '""') + '"'
-                                for eid, _ in matchable)
+        for key in keys:
+            (matchable if any(c.isalnum() for c in key[1]) else unmatchable).append(key)
+        for start in range(0, len(matchable), _INDEX_CHUNK):
+            part = matchable[start:start + _INDEX_CHUNK]
+            terms = ' OR '.join(
+                f'(content_type:"{ctype}" AND content_id:"' + cid.replace('"', '""') + '")'
+                for ctype, cid, _ in part)
             hits = conn.execute(
-                "SELECT rowid, content_id, podcast_slug FROM search_index "
-                "WHERE search_index MATCH ?",
-                (f'content_type:episode AND ({terms})',)
-            ).fetchall()
-            # A phrase can match a longer id, and two podcasts can share one, so verify both.
-            wanted = set(matchable)
-            rowids = [h['rowid'] for h in hits
-                      if (h['content_id'], h['podcast_slug']) in wanted]
-            # Chunked too: duplicate index rows for one pair would otherwise let the
-            # rowid list outgrow the bound-variable limit a chunk of pairs stays under.
-            for start in range(0, len(rowids), _INDEX_CHUNK):
-                batch = rowids[start:start + _INDEX_CHUNK]
+                f'SELECT rowid, content_type, content_id, podcast_slug FROM "{table}" '  # noqa: S608
+                f'WHERE "{table}" MATCH ?', (terms,)).fetchall()
+            # A phrase can match a longer id, and two podcasts can share one, so verify all three.
+            wanted = set(part)
+            rowids = [h[0] for h in hits if tuple(h[1:]) in wanted]
+            # Chunked too: duplicate index rows for one key would otherwise let the
+            # rowid list outgrow the bound-variable limit a chunk of keys stays under.
+            for rstart in range(0, len(rowids), _INDEX_CHUNK):
+                batch = rowids[rstart:rstart + _INDEX_CHUNK]
                 conn.execute(
-                    "DELETE FROM search_index "  # noqa: S608
-                    f"WHERE rowid IN ({','.join('?' * len(batch))})",
-                    batch)
-        if unmatchable:
+                    f'DELETE FROM "{table}" '  # noqa: S608
+                    f"WHERE rowid IN ({','.join('?' * len(batch))})", batch)
+        for start in range(0, len(unmatchable), _INDEX_CHUNK):
+            part = unmatchable[start:start + _INDEX_CHUNK]
             conn.execute(
-                "DELETE FROM search_index WHERE content_type = 'episode' "  # noqa: S608
-                f"AND (content_id, podcast_slug) IN (VALUES {','.join('(?,?)' for _ in unmatchable)})",
-                [v for pair in unmatchable for v in pair])
+                f'DELETE FROM "{table}" WHERE (content_type, content_id, podcast_slug) '  # noqa: S608
+                f"IN (VALUES {','.join('(?,?,?)' for _ in part)})",
+                [v for key in part for v in key])
 
     def _pick_snippet(self, row, *keys):
         """First of the named snippet columns FTS5 highlighted, escaped before the
