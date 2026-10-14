@@ -52,6 +52,7 @@ function makeRow(overrides: Partial<DownloadHistoryEntry> = {}): DownloadHistory
     subscriberLabel: 'Phone',
     subscriberKeyId: 'abcdef0123456789',
     subscriberRevoked: false,
+    userAgentBlocked: false,
     country: 'Exampleland',
     region: 'Region',
     city: 'Town',
@@ -179,14 +180,16 @@ describe('DownloadsTab row actions', () => {
     await openMenu();
     await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
     expect(await screen.findByText('^Pocket Casts')).toBeTruthy();
+    const calls = mockGetDownloadHistory.mock.calls.length;
     await userEvent.click(screen.getByRole('button', { name: 'Block' }));
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({
       jitBlockedUserAgents: ['AntennaPod', '^Pocket Casts'],
     }));
+    await waitFor(() => expect(mockGetDownloadHistory.mock.calls.length).toBeGreaterThan(calls));
   });
 
   it('disables Block and shows a badge when the agent already matches', async () => {
-    renderTab([makeRow({ userAgent: 'Pocket Casts' })], true, ['^pocket']);
+    renderTab([makeRow({ userAgent: 'Pocket Casts', userAgentBlocked: true })], true, ['^pocket']);
     const table = await screen.findByRole('table');
     expect(await within(table).findByText('Blocked')).toBeTruthy();
     await userEvent.click(within(table).getByRole('button', { name: 'Actions' }));

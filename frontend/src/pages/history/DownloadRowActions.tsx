@@ -7,7 +7,7 @@ import type { DownloadHistoryEntry } from '../../api/types';
 import { btnOutline } from '../../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../../components/DropdownMenu';
 import { ConfirmModal } from '../../components/Modal';
-import { blockPatternFor, userAgentIsBlocked } from '../../utils/userAgent';
+import { blockPatternFor } from '../../utils/userAgent';
 
 interface Props {
   row: DownloadHistoryEntry;
@@ -24,7 +24,7 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
   const [error, setError] = useState<string | null>(null);
 
   const pattern = blockPatternFor(row.userAgent);
-  const alreadyBlocked = userAgentIsBlocked(row.userAgent, blocked ?? []);
+  const alreadyBlocked = row.userAgentBlocked;
 
   const close = () => {
     setPending(null);
@@ -35,6 +35,7 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
     mutationFn: () => updateSettings({ jitBlockedUserAgents: [...(blocked ?? []), pattern] }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['download-history'] });
       close();
     },
     onError: (e) => setError(getErrorMessage(e, 'Failed to block user agent')),

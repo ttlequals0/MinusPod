@@ -18613,6 +18613,9 @@ components:
         subscriberRevoked:
           type: boolean
           description: True when the subscriber key has been revoked.
+        userAgentBlocked:
+          type: boolean
+          description: True when the user agent matches the JIT blocked user agents list.
         country: {type: [string, 'null']}
         region: {type: [string, 'null']}
         city: {type: [string, 'null']}

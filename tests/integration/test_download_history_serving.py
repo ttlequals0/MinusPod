@@ -1,4 +1,5 @@
 """serve_episode records downloads; the history API lists them."""
+import json
 from unittest.mock import patch
 
 import pytest
@@ -135,3 +136,16 @@ def test_history_api_lists_downloads(client, audio):
     assert body['downloads'][0]['podcastSlug'] == SLUG
     assert body['downloads'][0]['episodeTitle'] == 'Episode One'
     assert client.get('/api/v1/history/downloads?podcastSlug=other').get_json()['total'] == 0
+
+
+def test_history_api_flags_blocked_user_agent(client, audio):
+    client.get(f'/episodes/{SLUG}/{EPISODE}.mp3', headers={'User-Agent': 'Pocket Casts/7.0'})
+    url = f'/api/v1/history/downloads?podcastSlug={SLUG}'
+    try:
+        assert client.get(url).get_json()['downloads'][0]['userAgentBlocked'] is False
+        app_db.set_setting('jit_blocked_user_agents', json.dumps(['^pocket']), is_default=False)
+        assert client.get(url).get_json()['downloads'][0]['userAgentBlocked'] is True
+        app_db.set_setting('jit_blocked_user_agents', json.dumps(['^casts']), is_default=False)
+        assert client.get(url).get_json()['downloads'][0]['userAgentBlocked'] is False
+    finally:
+        app_db.set_setting('jit_blocked_user_agents', '[]', is_default=True)

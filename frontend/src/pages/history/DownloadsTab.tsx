@@ -7,7 +7,7 @@ import { getSettings } from '../../api/settings';
 import type { DownloadHistoryEntry } from '../../api/types';
 import { feedDisplayTitle } from '../../utils/feedTitle';
 import { formatDateTime } from '../../utils/format';
-import { clientName, userAgentIsBlocked } from '../../utils/userAgent';
+import { clientName } from '../../utils/userAgent';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { SkeletonRows } from '../../components/Skeleton';
 import { Pagination } from '../../components/Pagination';
@@ -18,8 +18,8 @@ import { selectBase, inputBase, focusRing, filterGrid, filterLabel, filterContro
 const LIMIT = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
-function BlockedBadge({ row, blocked }: { row: DownloadHistoryEntry; blocked: string[] | undefined }) {
-  if (!userAgentIsBlocked(row.userAgent, blocked ?? [])) return null;
+function BlockedBadge({ row }: { row: DownloadHistoryEntry }) {
+  if (!row.userAgentBlocked) return null;
   return <span className={`${badgeBase} ml-2 ${tint.warning}`}>Blocked</span>;
 }
 
@@ -225,7 +225,7 @@ function DownloadsTab({ tabs }: Props) {
                   <dt className="text-muted-foreground">Client</dt>
                   <dd className="text-foreground truncate" title={row.userAgent}>
                     {clientName(row.userAgent)}
-                    <BlockedBadge row={row} blocked={blocked} />
+                    <BlockedBadge row={row} />
                   </dd>
                 </dl>
                 <div className="flex justify-end mt-3">
@@ -293,7 +293,7 @@ function DownloadsTab({ tabs }: Props) {
                         <span className="block truncate max-w-[140px]" title={row.userAgent}>
                           {clientName(row.userAgent)}
                         </span>
-                        <BlockedBadge row={row} blocked={blocked} />
+                        <BlockedBadge row={row} />
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground text-right tabular-nums">{row.requestCount}</td>
                       <td className="px-4 py-3 text-right">

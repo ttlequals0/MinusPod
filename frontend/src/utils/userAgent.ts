@@ -11,12 +11,3 @@ export function blockPatternFor(userAgent: string): string {
   const ua = userAgent.trim();
   return `^${ua.length < FULL_PATTERN_MAX ? ua : clientName(ua)}`;
 }
-
-// Mirrors user_agent_is_jit_blocked in src/config.py.
-export function userAgentIsBlocked(userAgent: string, patterns: string[]): boolean {
-  const low = userAgent.toLowerCase();
-  return patterns.some((p) => {
-    const pat = p.toLowerCase();
-    return pat.startsWith('^') ? low.startsWith(pat.slice(1)) : low.includes(pat);
-  });
-}
