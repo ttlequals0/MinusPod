@@ -22,6 +22,7 @@ from database.search import SearchMixin
 from database.auth_lockout import AuthLockoutMixin
 from database.podping_hosts import PodpingHostMixin
 from database.feed_subscribers import FeedSubscriberMixin
+from database.downloads import DownloadHistoryMixin
 from database.provider_admission import ProviderAdmissionMixin
 from database.upload_reservations import UploadReservationMixin
 from database.failover_events import FailoverEventsMixin
@@ -479,7 +480,8 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                FingerprintMixin, CueTemplateMixin, CueDetectionMixin,
                QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin,
                FeedSubscriberMixin, ProviderAdmissionMixin,
-               UploadReservationMixin, FailoverEventsMixin, PatternCleanupMixin):
+               UploadReservationMixin, FailoverEventsMixin, PatternCleanupMixin,
+               DownloadHistoryMixin):
     """SQLite database manager with thread-safe connections."""
 
     _instance = None

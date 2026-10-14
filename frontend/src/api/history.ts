@@ -1,5 +1,5 @@
 import { apiRequest, apiFileRequest, buildQueryString } from './client';
-import { ProcessingHistoryResponse, ProcessingHistoryStats } from './types';
+import { DownloadHistoryResponse, ProcessingHistoryResponse, ProcessingHistoryStats } from './types';
 
 export interface HistoryQueryParams {
   page?: number;
@@ -23,6 +23,26 @@ export async function getProcessingHistory(
   });
 
   return apiRequest<ProcessingHistoryResponse>(`/history${qs}`);
+}
+
+export type DownloadSortField = 'last_seen_at' | 'podcast' | 'client_ip' | 'location' | 'subscriber';
+
+export interface DownloadQueryParams {
+  page?: number;
+  limit?: number;
+  sortBy?: DownloadSortField;
+  sortDir?: 'asc' | 'desc';
+  podcastSlug?: string;
+  subscriberKeyId?: string;
+  since?: string;
+  until?: string;
+  search?: string;
+}
+
+export async function getDownloadHistory(
+  params: DownloadQueryParams = {}
+): Promise<DownloadHistoryResponse> {
+  return apiRequest<DownloadHistoryResponse>(`/history/downloads${buildQueryString({ ...params })}`);
 }
 
 export async function getProcessingHistoryStats(): Promise<ProcessingHistoryStats> {

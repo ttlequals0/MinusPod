@@ -122,3 +122,32 @@ def test_transcript_differential_enabled_rejects_non_boolean(app_client):
 
     assert response.status_code == 400
     assert db.get_setting('transcript_differential_enabled') == 'true'
+
+
+def test_download_history_settings_round_trip(app_client):
+    db = get_database()
+    _authed(app_client)
+    response = app_client.put(
+        '/api/v1/settings/ad-detection',
+        json={'downloadHistoryEnabled': False, 'downloadGeoLookupEnabled': True,
+              'downloadHistoryRetentionDays': 30},
+        headers=_csrf_headers(app_client),
+    )
+    assert response.status_code == 200
+    settings = app_client.get('/api/v1/settings').get_json()
+    assert settings['downloadHistoryEnabled']['value'] is False
+    assert settings['downloadGeoLookupEnabled']['value'] is True
+    assert settings['downloadHistoryRetentionDays']['value'] == 30
+    db.set_setting('download_history_enabled', 'true', is_default=False)
+    db.set_setting('download_geo_lookup_enabled', 'false', is_default=False)
+    db.set_setting('download_history_retention_days', '90', is_default=False)
+
+
+def test_download_history_settings_reject_bad_values(app_client):
+    _authed(app_client)
+    for body in ({'downloadHistoryEnabled': 'yes'}, {'downloadGeoLookupEnabled': 1},
+                 {'downloadHistoryRetentionDays': 0}, {'downloadHistoryRetentionDays': '5'}):
+        response = app_client.put(
+            '/api/v1/settings/ad-detection', json=body,
+            headers=_csrf_headers(app_client))
+        assert response.status_code == 400, body

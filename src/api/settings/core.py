@@ -24,6 +24,7 @@ from config import (
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     PODCAST_SEARCH_PROVIDERS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
+    DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
@@ -158,6 +159,18 @@ def _build_settings_payload():
         settings, 'feed_user_agent', registry_default('feed_user_agent'))
     log_download_query = coerce_bool_setting(common._setting_value(
         settings, 'log_download_query', registry_default('log_download_query')))
+    download_history_enabled = coerce_bool_setting(common._setting_value(
+        settings, 'download_history_enabled',
+        registry_default('download_history_enabled')))
+    download_geo_lookup_enabled = coerce_bool_setting(common._setting_value(
+        settings, 'download_geo_lookup_enabled',
+        registry_default('download_geo_lookup_enabled')))
+    try:
+        download_history_retention_days = int(common._setting_value(
+            settings, 'download_history_retention_days',
+            registry_default('download_history_retention_days')))
+    except (TypeError, ValueError):
+        download_history_retention_days = DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT
     feed_auth_enabled = coerce_bool_setting(
         common._setting_value(settings, 'feed_auth_enabled',
                        registry_default('feed_auth_enabled')))
@@ -603,6 +616,12 @@ def _build_settings_payload():
         'feedUserAgent': _sv('feed_user_agent', feed_user_agent),
         'logDownloadQuery': _sv('log_download_query', log_download_query),
         'feedAuthEnabled': _sv('feed_auth_enabled', feed_auth_enabled),
+        'downloadHistoryEnabled': _sv(
+            'download_history_enabled', download_history_enabled),
+        'downloadGeoLookupEnabled': _sv(
+            'download_geo_lookup_enabled', download_geo_lookup_enabled),
+        'downloadHistoryRetentionDays': _sv(
+            'download_history_retention_days', download_history_retention_days),
         'feedAuthKey': feed_auth_key,
         'opmlModifiedUrl': opml_modified_url,
         'opmlOriginalUrl': opml_original_url,

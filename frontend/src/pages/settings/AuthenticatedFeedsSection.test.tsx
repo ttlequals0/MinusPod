@@ -181,3 +181,34 @@ describe('AuthenticatedFeedsSection regenerate controls', () => {
     expect(await screen.findByText('Regenerated 3 feeds')).toBeDefined();
   });
 });
+
+describe('AuthenticatedFeedsSection download history', () => {
+  it('saves the geo lookup toggle and a valid retention value', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      downloadGeoLookupEnabled: { value: false, isDefault: true },
+      downloadHistoryRetentionDays: { value: 90, isDefault: true },
+    }));
+    localStorage.setItem('settings-section-authenticated-feeds', 'true');
+    renderSection();
+    expect(await screen.findByText(/Sends public client IPs to ip-api.com; off by default/)).toBeDefined();
+    await userEvent.click(screen.getByRole('switch', { name: 'Look up client locations' }));
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ downloadGeoLookupEnabled: true });
+    const days = screen.getByLabelText('Keep history for (days)');
+    await userEvent.clear(days);
+    await userEvent.type(days, '30');
+    await userEvent.tab();
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ downloadHistoryRetentionDays: 30 });
+  });
+
+  it('rejects an out-of-range retention value without saving', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    localStorage.setItem('settings-section-authenticated-feeds', 'true');
+    renderSection();
+    const days = await screen.findByLabelText('Keep history for (days)');
+    await userEvent.clear(days);
+    await userEvent.type(days, '0');
+    expect(screen.getByText(/Enter a whole number from 1 to 3650/)).toBeDefined();
+    await userEvent.tab();
+    expect(mockUpdateSettings).not.toHaveBeenCalled();
+  });
+});

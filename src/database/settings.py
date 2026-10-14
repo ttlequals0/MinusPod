@@ -742,6 +742,15 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         payload_key='feedAuthEnabled',
         payload_factory=lambda: coerce_bool_setting(
             resolve_env_backed_default('feed_auth_enabled'))),
+    'download_history_enabled': SettingSpec(
+        default='true',
+        payload_key='downloadHistoryEnabled', payload_kind='bool'),
+    'download_geo_lookup_enabled': SettingSpec(
+        default='false',
+        payload_key='downloadGeoLookupEnabled', payload_kind='bool'),
+    'download_history_retention_days': SettingSpec(
+        default='90',
+        payload_key='downloadHistoryRetentionDays', payload_kind='int'),
     'artwork_watermark_enabled': SettingSpec(
         env_backed=True,
         payload_key='artworkWatermarkEnabled',
