@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { getDownloadHistory, type DownloadQueryParams, type DownloadSortField } from '../../api/history';
@@ -45,6 +45,11 @@ function ClientCell({ row, className }: { row: DownloadHistoryEntry; className: 
       <BlockedBadge row={row} />
     </>
   );
+}
+
+function ClientIp({ ip }: { ip: string }) {
+  // IPv6 may wrap at group boundaries; IPv4 has no break opportunity.
+  return ip.split(':').map((part, i) => <Fragment key={i}>{i > 0 && <>:<wbr /></>}{part}</Fragment>);
 }
 
 function SubscriberCell({ row }: { row: DownloadHistoryEntry }) {
@@ -197,7 +202,7 @@ function DownloadsTab({ tabs }: Props) {
       {!isLoading && !error && (
         <>
           {/* Mobile cards */}
-          <div className="sm:hidden space-y-3 mb-4">
+          <div className="md:hidden space-y-3 mb-4">
             {rows.length === 0 ? (
               <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
                 No downloads recorded
@@ -217,7 +222,7 @@ function DownloadsTab({ tabs }: Props) {
                   <dt className="text-muted-foreground">Time</dt>
                   <dd className="text-foreground">{formatDateTime(row.lastSeenAt)}</dd>
                   <dt className="text-muted-foreground">IP</dt>
-                  <dd className="text-foreground font-mono break-all">{row.clientIp}</dd>
+                  <dd className="text-foreground font-mono"><ClientIp ip={row.clientIp} /></dd>
                   <dt className="text-muted-foreground">Location</dt>
                   <dd className="text-foreground"><Location row={row} geoEnabled={geoEnabled} /></dd>
                   <dt className="text-muted-foreground">Subscriber</dt>
@@ -232,18 +237,18 @@ function DownloadsTab({ tabs }: Props) {
           </div>
 
           {/* Desktop table */}
-          <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
+          <div className="hidden md:block bg-card border border-border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-muted/50">
                   <tr>
                     <SortHeader field="last_seen_at" label="Time" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                     <th scope="col" className={th}>Episode</th>
-                    <SortHeader field="podcast" label="Podcast" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="podcast" label="Podcast" className="px-4 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                     <SortHeader field="client_ip" label="Client IP" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortHeader field="location" label="Location" className="px-4 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortHeader field="subscriber" label="Subscriber" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                    <th scope="col" className={`${th} hidden lg:table-cell`}>Client</th>
+                    <SortHeader field="location" label="Location" className="px-4 hidden xl:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="subscriber" label="Subscriber" className="px-4 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <th scope="col" className={`${th} hidden xl:table-cell`}>Client</th>
                     <th scope="col" className={`${th} text-right`}>Requests</th>
                     <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>
                   </tr>
@@ -261,25 +266,25 @@ function DownloadsTab({ tabs }: Props) {
                         {formatDateTime(row.lastSeenAt)}
                       </td>
                       <td className="px-4 py-3">
-                        <EpisodeLink row={row} className="max-w-[220px] block" />
+                        <EpisodeLink row={row} className="max-w-[150px] block" />
                       </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
+                      <td className="px-4 py-3 hidden lg:table-cell">
                         <Link
                           to={`/feeds/${row.podcastSlug}`}
-                          className={`text-primary hover:underline text-sm truncate max-w-[160px] block ${focusRing}`}
+                          className={`text-primary hover:underline text-sm truncate max-w-[110px] block ${focusRing}`}
                           title={row.podcastTitle}
                         >
                           {row.podcastTitle}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-sm text-foreground font-mono whitespace-nowrap">{row.clientIp}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+                      <td className="px-4 py-3 text-sm text-foreground font-mono min-w-[9rem]"><ClientIp ip={row.clientIp} /></td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
                         <Location row={row} geoEnabled={geoEnabled} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
+                      <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                         <SubscriberCell row={row} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+                      <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
                         <ClientCell row={row} className="block truncate max-w-[140px]" />
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground text-right tabular-nums">{row.requestCount}</td>

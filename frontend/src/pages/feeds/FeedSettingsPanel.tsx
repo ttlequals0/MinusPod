@@ -26,7 +26,7 @@ import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonSty
 import { ConfirmModal } from '../../components/Modal';
 import SavedBadge from '../settings/SavedBadge';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { inputBase, selectBase } from '../../components/fieldStyles';
+import { focusRing, inputBase, selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import { SkipPatternsField } from './SkipPatternsField';
 import { UserAgentOverrideField } from './UserAgentOverrideField';
@@ -35,7 +35,6 @@ import { UserAgentOverrideField } from './UserAgentOverrideField';
 const MAX_RETENTION_DAYS = 3650;
 
 type RetentionMode = 'global' | 'archive' | 'custom';
-import { focusRing } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { isSystemOneChapterRoute } from '../settings/systemoneWarnings';
 
@@ -773,7 +772,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     setDetectionNotesError(null);
                   }}
                   placeholder="What only this show does, e.g. host-read ads start right after 'a word from our sponsors'."
-                  className={`w-full px-2 py-1 bg-secondary text-foreground placeholder:text-muted-foreground border border-border rounded resize-y ${focusRing}`}
+                  className={`w-full resize-y placeholder:text-muted-foreground ${inputBase}`}
                 />
                 <p className="flex justify-between gap-2 text-xs text-muted-foreground">
                   <span>Sent to the model with every episode of this feed.</span>
@@ -1164,7 +1163,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     setChapterNotesError(null);
                   }}
                   placeholder="Make listener donations their own chapter."
-                  className={`w-full px-2 py-1 bg-secondary text-foreground placeholder:text-muted-foreground border border-border rounded resize-y ${focusRing}`}
+                  className={`w-full resize-y placeholder:text-muted-foreground ${inputBase}`}
                 />
                 <p className="flex justify-between gap-2 text-xs text-muted-foreground">
                   <span>Sent with every chapter request for this feed, for example: Always make the listener donation and producer thank-you segment its own chapter titled Donations.</span>

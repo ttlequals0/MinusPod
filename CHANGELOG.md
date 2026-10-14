@@ -15,6 +15,8 @@ release notes.
 
 ### Fixed
 - MP3 stream copy no longer re-encodes an episode because one edge is word-timed, quote-aligned, reviewer-locked or confirmed, or because a cut touches the start or end of the file. Locked edges snap inward per cut, so kept audio is never shortened. A beep action still skips copy, and that skip is now logged. (#858)
+- The Downloads tab on the History page no longer scrolls sideways on desktop. Long IPv6 addresses wrap, titles truncate, and the extra columns appear as the window widens. Narrow windows get the card layout.
+- The Detection notes and Chapter notes fields in feed settings use the standard text input style instead of a secondary fill.
 
 ## [2.100.13] - 2026-10-14
 
