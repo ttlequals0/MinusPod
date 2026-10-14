@@ -128,7 +128,7 @@ Raise the correlation ceiling if genuine ad swaps are being missed as alignment 
 
 #### Longest single LLM detection
 
-`maxLlmWindowAdSeconds` (Settings > Ad Detection, "Longest single LLM detection", 60 to 900 s, default 420 s) is the longest single ad the model may report for one detection window. A longer one is discarded as implausible. For each feed the cap is the largest of this global value, the feed's max ad duration cap and the feed's max ad duration (reject) override, so a show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span by raising either feed value. The global max ad duration setting does not raise it. The verification pass uses the same per-feed cap. API: `PUT /api/v1/settings/ad-detection` with `maxLlmWindowAdSeconds` (number); feed caps are `maxAdDurationOverride` and `maxAdDurationRejectOverride` on `PATCH /api/v1/feeds/{slug}`.
+`maxLlmWindowAdSeconds` (Settings > Ad Detection, "Longest single LLM detection", 60 to 900 s, default 420 s) is the longest single ad the model may report for one detection window. A longer one is discarded as implausible. For each feed the cap is the largest of this global value, the feed's max ad duration cap and the feed's max ad duration (reject) override. A show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span by raising either feed value. The global max ad duration setting does not raise it. The verification pass uses the same per-feed cap. API: `PUT /api/v1/settings/ad-detection` with `maxLlmWindowAdSeconds` (number); feed caps are `maxAdDurationOverride` and `maxAdDurationRejectOverride` on `PATCH /api/v1/feeds/{slug}`.
 
 ### Tuning LLM behavior per stage
 

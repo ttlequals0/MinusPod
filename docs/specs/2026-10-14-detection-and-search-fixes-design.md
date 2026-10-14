@@ -5,7 +5,7 @@ Status: implemented in 2.100.12.
 
 ## Context
 
-Reading two days of production logs after 2.100.11 showed seven defects, each with a verified root cause:
+Logs from a 2.100.11 instance showed seven defects. Each root cause was confirmed in the code:
 
 | Symptom | Root cause |
 |---|---|

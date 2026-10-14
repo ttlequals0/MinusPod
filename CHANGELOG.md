@@ -14,13 +14,13 @@ release notes.
 ## [2.100.12] - 2026-10-14
 
 ### Added
-- History page gains a Downloads tab: every episode download with time, client IP, location, subscriber label and client app, with sorting and filters. Range requests from the same client within 15 minutes count as one download. Geo lookup (ipwho.is) is off by default and enabled under Settings; rows are kept for 90 days by default and pruned once every 24 hours; the geo cache orphan sweep runs only when rows were pruned, and geo results are stored in one transaction per run. See [Download History](docs/download-history.md).
+- History page gains a Downloads tab: every episode download with time, client IP, location, subscriber label and client app, with sorting and filters. Range requests from the same client within 15 minutes count as one download. Geo lookup (ipwho.is over HTTPS) is off by default and enabled under Settings. Rows are kept for 90 days by default and pruned daily. See [Download History](docs/download-history.md).
 - Download history rows have an Actions menu to view the user agent, view the last request, block the client's user agent (adds `^` plus its product token to the JIT blocked user agents list) or revoke the subscriber feed that fetched it; rows fetched with the global feed key offer no revoke.
 - Settings > Authenticated feeds lists every subscriber feed across all podcasts with its label and feed; each feed's settings gain a Security section to create and revoke subscriber feeds for that podcast.
 - Each LLM-detected marker records the addressing mode it was detected under and the model's pre-snap boundaries; the reviewer log and corrections carry the mode, and /stats/reviewer and /stats/addressing report verdicts, correction rates and snap distance per mode.
 
 ### Changed
-- A feed's max ad duration cap or its max ad duration (reject) override now also lifts the detector's 7-minute cap on a single LLM detection, so a show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span instead of pieces. The 7-minute default is now a global setting, Longest single LLM detection, and the verification pass honors it.
+- A feed's max ad duration cap or its max ad duration (reject) override now also lifts the detector's 7-minute cap on a single LLM detection, so a show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span instead of pieces. The 7-minute default is now the global setting Longest single LLM detection. The verification pass honors the same cap.
 - Detected Ads and Ad Review cards share one layout: the category selector sits above a single equal-width row of Play, Confirm ad, Not an ad, Split and Edit. Pattern merge suggestions put the Merge button below the member list, matching Cleanup. The feed settings Episode filters section uses compact pattern chips and buttons on mobile.
 - The search index is refreshed from its change journal every 6 hours and fully rebuilt weekly; rebuild writes yield between batches so the podping listener and processing queue no longer wait 10 to 20 s on the write lock during a rebuild.
 
@@ -29,7 +29,7 @@ release notes.
 - Search results no longer show raw HTML tags from episode and podcast descriptions; the index stores plain text and is rebuilt once on upgrade.
 - A reviewer boundary adjustment can no longer move an ad edge back across an audio cue that is set to be removed with the ad, so break stingers are cut instead of left audible.
 - Changing the category in a held marker's editor now records the new category and keeps the marker held; it no longer confirms the marker with the old category.
-- Confirming the reviewer's trimmed span on a held marker no longer fails with 'Adjusted bounds must lie within the reviewed span' when the hold was carved out of a larger detection: the stale trim is dropped from the remainder, the button is hidden when the trim does not overlap the held span, and the error names the spans when it still applies.
+- Confirming the reviewer's trimmed span on a held marker no longer fails with 'Adjusted bounds must lie within the reviewed span' when the hold was carved out of a larger detection. The stale trim is dropped from the remainder, the button is hidden when the trim does not overlap the held span, and the error names the spans when it still applies.
 - The subscriber-feed podcast picker is sorted alphabetically.
 
 ## [2.100.11] - 2026-10-12
