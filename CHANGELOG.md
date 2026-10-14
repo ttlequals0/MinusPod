@@ -18,6 +18,7 @@ release notes.
 ### Changed
 
 ### Fixed
+- Reprocessing or re-detecting an episode on a local feed, or any episode with a retained original, no longer reports a Downloading phase; the status bar shows Preparing until transcription starts.
 
 ## [2.100.11] - 2026-10-12
 

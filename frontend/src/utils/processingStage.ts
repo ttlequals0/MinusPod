@@ -3,6 +3,7 @@
 // Queue panel.
 
 const STAGE_LABELS: Record<string, string> = {
+  preparing: 'Preparing',
   downloading: 'Downloading',
   transcribing: 'Transcribing',
   detecting: 'Detecting ads',

@@ -137,6 +137,24 @@ def _download_episode_audio(episode_url, podcast=None, outcome=None):
         return audio_path
 
 
+def _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome):
+    """Working audio file: a copy of the retained original, else a fresh download.
+
+    The copy keeps the retain-move and cleanup-unlink later in process_episode
+    off the retained original. Local originals are never re-downloadable
+    (original_url is a local:// sentinel), so a missing one is a hard failure.
+    """
+    original_path = storage.get_original_path(slug, episode_id)
+    if original_path and os.path.exists(original_path):
+        audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
+        return common._copy_retained_original_to_temp(original_path)
+    if is_local_feed(podcast):
+        raise Exception("original audio missing")
+    common._publish_status('update_job_stage', slug, episode_id, "downloading", 5)
+    audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
+    return _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
+
+
 def _next_processed_version(episode_data):
     """Choose a fresh version for published or explicitly requested reruns."""
     previous_version = (episode_data or {}).get('processed_version') or 0
@@ -234,18 +252,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
             f"[{slug}:{episode_id}] Found existing transcript: "
             f"{len(segments)} segments, {duration_min:.1f} min")
 
-        # Reuse the retained original audio instead of re-downloading from the
-        # CDN when we kept it (issue #349 LLM-only reprocess). Copy it to a temp
-        # working file so the retain-move and cleanup-unlink later in
-        # process_episode operate on the copy, never on the retained original.
-        original_path = storage.get_original_path(slug, episode_id)
-        if original_path and os.path.exists(original_path):
-            audio_path = common._copy_retained_original_to_temp(original_path)
-            audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
-        elif is_local_feed(podcast):
-            raise Exception("original audio missing")
-        else:
-            audio_path = _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
+        audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome)
         language_override = get_feed_language_override(db, slug)
         segments, added, empty_holes = _repair_transcript(
             slug, episode_id, audio_path, segments, language_override,
@@ -262,20 +269,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
                 f"[{slug}:{episode_id}] Stored repaired original transcript "
                 f"(+{len(added)} segments)")
     else:
-        # Reuse the retained original when one exists (fresh episode, no
-        # transcript yet -- e.g. a first JIT play of a local episode).
-        # Local originals are never re-downloadable: original_url is the
-        # local://<episode_id> sentinel, not a real address, so a missing
-        # original here is a hard failure rather than a download attempt.
-        original_path = storage.get_original_path(slug, episode_id)
-        if original_path and os.path.exists(original_path):
-            audio_path = common._copy_retained_original_to_temp(original_path)
-            audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
-        elif is_local_feed(podcast):
-            raise Exception("original audio missing")
-        else:
-            audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
-            audio_path = _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
+        audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome)
 
         common._publish_status('update_job_stage', slug, episode_id, "pass1:transcribing", 20)
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")

@@ -23,4 +23,8 @@ describe('getStageLabel', () => {
   it('labels the transcript diff stage', () => {
     expect(getStageLabel('pass1:transcript_diff')).toBe('Pass 1: Transcript diff');
   });
+
+  it('labels the preparing stage', () => {
+    expect(getStageLabel('preparing')).toBe('Preparing');
+  });
 });
