@@ -14,7 +14,7 @@ from embedded_chapters import (
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.paths import resolve_data_dir
-from utils.markers import precise_edge, subtract_spans
+from utils.markers import edge_locked, precise_edge, subtract_spans
 from mp3_stream_copy import copy_mp3
 from config import (
     FFMPEG_LONG_TIMEOUT,
@@ -92,6 +92,12 @@ NORMALIZE_PRESETS = {
     'maximum':    'dynaudnorm=f=50:g=31:p=0.95:m=30:s=25',
 }
 DEFAULT_NORMALIZE_INTENSITY = 'normal'
+
+
+def _locked_edges(ad_segments, ads):
+    """Per applied cut, whether its start and end still sit on a locked requested edge."""
+    pinned = {(edge, seg[edge]) for seg in ad_segments for edge in ('start', 'end') if edge_locked(seg, edge)}
+    return [(('start', ad['start']) in pinned, ('end', ad['end']) in pinned) for ad in ads]
 
 
 class AudioProcessor:
@@ -483,16 +489,11 @@ class AudioProcessor:
             if self.mp3_stream_copy_enabled and beeps:
                 logger.info('MP3 stream copy skipped: beep action on %d ad(s)', beeps)
             if self.mp3_stream_copy_enabled and not beeps:
-                def _edge_locked(value, edge):
-                    return any(abs(seg[edge] - value) < 1e-9
-                               and ((seg.get('validation') or {}).get('user_confirmed') or precise_edge(seg, edge))
-                               for seg in ad_segments)
-                locked = [(_edge_locked(ad['start'], 'start'), _edge_locked(ad['end'], 'end')) for ad in ads]
                 copied = copy_mp3(
                     input_path, output_path, ads,
                     barriers=[*(cut_barriers or []), *(hard_barriers or [])],
                     replacement_path=replace_audio_path if self.replacement_sound_enabled else None,
-                    locked=locked)
+                    locked=_locked_edges(ad_segments, ads))
                 if copied is not None:
                     copied_duration = self.get_audio_duration(output_path)
                     if not copied_duration:

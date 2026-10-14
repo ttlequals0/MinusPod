@@ -200,6 +200,11 @@ def precise_edge(marker: dict, edge: str) -> bool:
             or reviewer_edge_locked(marker, edge))
 
 
+def edge_locked(marker: dict, edge: str) -> bool:
+    """Whether a user confirmation or a precise edge pins this edge in place."""
+    return bool((marker.get('validation') or {}).get('user_confirmed')) or precise_edge(marker, edge)
+
+
 def set_reviewer_locks(marker: dict, edges) -> None:
     """Lock the named edges at their current values and clear the others."""
     for edge in ('start', 'end'):

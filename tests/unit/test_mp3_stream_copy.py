@@ -17,9 +17,9 @@ ROOT = Path(__file__).resolve().parents[2]
 pytestmark = pytest.mark.skipif(not shutil.which('ffmpeg'), reason='ffmpeg is unavailable')
 
 
-@pytest.fixture
-def source(tmp_path):
-    path = tmp_path / 'source.mp3'
+@pytest.fixture(scope='module')
+def source(tmp_path_factory):
+    path = tmp_path_factory.mktemp('mp3-copy') / 'source.mp3'
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-stream_loop', '-1',
                     '-i', str(ROOT / 'assets/replace.mp3'), '-t', '90',
                     '-c:a', 'libmp3lame', '-b:a', '128k', str(path)],
@@ -154,8 +154,8 @@ def test_beep_skip_is_logged(source, tmp_path, caplog):
 
 def _decoded(path):
     stream = _scan(path)
-    count = len(stream.frames) - int(stream.xing is not None)
-    return (count * stream.samples - stream.skip - stream.padding) / stream.rate
+    return stream.decoded_samples / stream.rate
+
 
 
 @pytest.mark.parametrize('sound', [False, True])
