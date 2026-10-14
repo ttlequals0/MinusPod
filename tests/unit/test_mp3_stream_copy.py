@@ -145,6 +145,21 @@ def test_processor_passes_locked_edges_per_cut(source, tmp_path, monkeypatch):
     assert seen['locked'] == [(True, True), (False, False)]
 
 
+def test_merged_cut_keeps_locks_from_its_outer_members(source, tmp_path, monkeypatch):
+    processor = AudioProcessor(replacement_sound_enabled=False, mp3_stream_copy_enabled=True)
+    seen = {}
+
+    def fake_copy(*args, **kwargs):
+        seen['locked'] = kwargs['locked']
+        return None
+
+    monkeypatch.setattr('audio_processor.copy_mp3', fake_copy)
+    processor.remove_ads(str(source), [
+        {'start': 20.0, 'end': 30.0, 'validation': {'user_confirmed': True}},
+        {'start': 29.5, 'end': 40.0}], str(tmp_path / 'output.mp3'))
+    assert seen['locked'] == [(True, False)]
+
+
 def test_beep_skip_is_logged(source, tmp_path, caplog):
     processor = AudioProcessor(replacement_sound_enabled=True, mp3_stream_copy_enabled=True)
     with caplog.at_level('INFO'):

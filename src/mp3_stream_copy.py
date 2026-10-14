@@ -481,6 +481,8 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None,
             output_samples = ((kept + bridges) * stream.samples + len(cuts) * filler_samples
                               - stream.skip - (0 if has_end else stream.padding))
             block = stream.channels * 4
+            if stream.decoded_samples <= 0:
+                raise CopyUnavailable('MP3 decoded length unavailable')
             if max(stream.decoded_samples, output_samples) * block > MAX_PCM_BYTES:
                 raise CopyUnavailable('PCM validation size limit exceeded')
             required = (stream.decoded_samples + output_samples + filler_samples) * block + os.path.getsize(source_path)
