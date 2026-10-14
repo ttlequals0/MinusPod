@@ -11,6 +11,14 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.12] - 2026-10-14
+
+### Added
+
+### Changed
+
+### Fixed
+
 ## [2.100.11] - 2026-10-12
 
 Maintenance release with no new functionality. The processing pipeline, API, and UI behave as in 2.100.10. The work is module splits, documentation, dependency updates, OpenAPI corrections, and one settings save fix.
