@@ -488,6 +488,9 @@ class SchemaMixin:
         """)
         conn.commit()
 
+        dl_cols = self._get_table_columns(conn, 'episode_downloads')
+        self._add_column_if_missing(conn, 'episode_downloads', 'last_request_line', 'TEXT', dl_cols)
+        self._add_column_if_missing(conn, 'episode_downloads', 'last_request_headers', 'TEXT', dl_cols)
         ledger_cols = self._get_table_columns(conn, 'llm_call_usage')
         self._add_column_if_missing(
             conn, 'llm_call_usage', 'logical_call_id', 'TEXT', ledger_cols)

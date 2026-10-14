@@ -149,3 +149,11 @@ def test_history_api_flags_blocked_user_agent(client, audio):
         assert client.get(url).get_json()['downloads'][0]['userAgentBlocked'] is False
     finally:
         app_db.set_setting('jit_blocked_user_agents', '[]', is_default=True)
+
+
+def test_serving_stores_redacted_request(client, audio):
+    client.get(f'/episodes/{SLUG}/{EPISODE}.mp3?key=sekret',
+               headers={'User-Agent': 'AntennaPod/3.0', 'Range': 'bytes=0-'})
+    row = _downloads()[0]
+    assert row['lastRequestLine'] == f'GET /episodes/{SLUG}/{EPISODE}.mp3?key=[redacted]'
+    assert row['lastRequestHeaders'] == {'Range': 'bytes=0-'}

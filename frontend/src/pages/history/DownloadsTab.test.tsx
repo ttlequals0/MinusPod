@@ -53,6 +53,8 @@ function makeRow(overrides: Partial<DownloadHistoryEntry> = {}): DownloadHistory
     subscriberKeyId: 'abcdef0123456789',
     subscriberRevoked: false,
     userAgentBlocked: false,
+    lastRequestLine: 'GET /episodes/example-podcast/a1b2c3d4e5f6.mp3?key=[redacted]',
+    lastRequestHeaders: { Range: 'bytes=0-' },
     country: 'Exampleland',
     region: 'Region',
     city: 'Town',
@@ -161,6 +163,49 @@ describe('DownloadsTab row actions', () => {
     await userEvent.click(within(table).getByRole('button', { name: 'Actions' }));
   };
 
+  it('lists the view items before Block and Revoke', async () => {
+    renderTab([makeRow()]);
+    await openMenu();
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
+      'View user agent', 'View request', 'Block user agent', 'Revoke subscriber',
+    ]);
+  });
+
+  it('shows the full raw user agent with a copy button', async () => {
+    renderTab([makeRow({ userAgent: 'Overcast/3.0 (+http://overcast.fm/; iOS)' })]);
+    await openMenu();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'View user agent' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Overcast/3.0 (+http://overcast.fm/; iOS)')).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: 'Copy' })).toBeTruthy();
+  });
+
+  it('shows the last request line and headers', async () => {
+    renderTab([makeRow()]);
+    await openMenu();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'View request' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/GET \/episodes\/example-podcast\/a1b2c3d4e5f6\.mp3\?key=\[redacted\]/)).toBeTruthy();
+    expect(within(dialog).getByText(/Range: bytes=0-/)).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: 'Copy' })).toBeTruthy();
+  });
+
+  it('disables View request when nothing was captured', async () => {
+    renderTab([makeRow({ lastRequestLine: null, lastRequestHeaders: null })]);
+    await openMenu();
+    const item = screen.getByRole('menuitem', { name: 'View request' }) as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    expect(item.title).toBe('No request captured');
+  });
+
+  it('puts the mobile Actions trigger in the card header and lists requests as a detail', async () => {
+    renderTab([makeRow()]);
+    await screen.findByRole('table');
+    const card = screen.getAllByRole('link', { name: 'Episode One' })[0].parentElement as HTMLElement;
+    expect(within(card).getByRole('button', { name: 'Actions' })).toBeTruthy();
+    expect(screen.getByText('Requests', { selector: 'dt' })).toBeTruthy();
+  });
+
   it('offers Block and Revoke for a subscriber row', async () => {
     renderTab([makeRow()]);
     await openMenu();
@@ -176,7 +221,7 @@ describe('DownloadsTab row actions', () => {
   });
 
   it('confirms the exact pattern then appends it without duplicating', async () => {
-    renderTab([makeRow({ userAgent: 'Pocket Casts' })], true, ['AntennaPod']);
+    renderTab([makeRow({ userAgent: 'Pocket Casts/7.0 (Android)' })], true, ['AntennaPod']);
     await openMenu();
     await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
     expect(await screen.findByText('^Pocket Casts')).toBeTruthy();

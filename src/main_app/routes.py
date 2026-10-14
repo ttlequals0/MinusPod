@@ -28,6 +28,7 @@ from config import (
 )
 from ad_chapters import ID3_CHAPTER_SOURCE_KEY, public_chapters
 from storage import is_chapter_image_filename
+from database.downloads import capture_request
 from database.podcasts import has_upstream, is_local_feed
 from database.queue import compute_queue_priority
 from rss_parser import (
@@ -325,10 +326,14 @@ def _record_download(slug, episode_id):
     try:
         if not db.get_setting_bool('download_history_enabled', True):
             return
+        line, headers = capture_request(
+            request.method, request.path,
+            request.query_string.decode('utf-8', 'replace'), request.headers)
         db.record_download(
             slug, episode_id, client_ip(),
             (request.user_agent.string or '')[:200],
-            subscriber_key_id=getattr(g, 'subscriber_key_id', None))
+            subscriber_key_id=getattr(g, 'subscriber_key_id', None),
+            request_line=line, request_headers=headers)
     except Exception as exc:
         feed_logger.debug(f"[{slug}:{episode_id}] download not recorded: {exc}")
 

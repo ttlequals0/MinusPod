@@ -18616,6 +18616,13 @@ components:
         userAgentBlocked:
           type: boolean
           description: True when the user agent matches the JIT blocked user agents list.
+        lastRequestLine:
+          type: [string, 'null']
+          description: Method and path of the most recent merged request, with any key query value replaced by [redacted]; null for rows recorded before capture existed.
+        lastRequestHeaders:
+          type: [object, 'null']
+          additionalProperties: {type: string}
+          description: Allowlisted headers of the most recent merged request (Range, Accept, Accept-Encoding, Referer, If-Range, If-None-Match); null when none were sent.
         country: {type: [string, 'null']}
         region: {type: [string, 'null']}
         city: {type: [string, 'null']}
