@@ -465,6 +465,8 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None,
             filler_samples = len(filler.frames) * filler.samples if filler is not None else 0
             if has_start:
                 # The decoder drops the start skip from the first output frame.
+                if stream.skip >= (filler_samples or stream.samples):
+                    raise CopyUnavailable('MP3 start skip exceeds the bridge')
                 snapped[0]['replacement_duration'] = ((filler_samples or stream.samples) - stream.skip) / stream.rate
             kept = count - sum(hi - lo for lo, hi in intervals)
             bridges = int(has_start and filler is None)

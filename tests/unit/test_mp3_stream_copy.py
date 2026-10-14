@@ -1,5 +1,6 @@
 """Verified MP3 copying uses existing audio and preserves coded source payloads."""
 
+import dataclasses
 import shutil
 import subprocess
 from pathlib import Path
@@ -198,6 +199,20 @@ def test_locked_edges_snap_inward(source, tmp_path):
     assert applied is not None
     assert 20.001 <= applied[0]['start'] < 20.001 + frame
     assert 30.002 - frame < applied[0]['end'] <= 30.002
+
+
+def test_start_cut_with_skip_beyond_the_bridge_is_unavailable(source, tmp_path, monkeypatch, caplog):
+    real_scan = mp3_stream_copy._scan
+
+    def scan(path):
+        stream = real_scan(path)
+        return dataclasses.replace(stream, skip=stream.samples) if path == str(source) else stream
+
+    monkeypatch.setattr(mp3_stream_copy, '_scan', scan)
+    output = tmp_path / 'output.mp3'
+    with caplog.at_level('INFO'):
+        assert copy_mp3(str(source), str(output), [{'start': 0, 'end': 10}]) is None
+    assert 'start skip exceeds the bridge' in caplog.text
 
 
 def test_locked_cut_shorter_than_a_frame_is_unavailable(source, tmp_path):
