@@ -14,7 +14,7 @@ import logging
 from copy import deepcopy
 
 from audio_processor import get_replacement_duration
-from config import UNREVIEWABLE_GAP_SECONDS
+from config import UNREVIEWABLE_GAP_SECONDS, resolve_window_ad_cap
 from transcript_generator import TranscriptGenerator
 from utils.errors import ServiceUnavailableError, AudioExtractionError
 from utils.language import get_feed_language_override
@@ -156,6 +156,9 @@ class VerificationPass:
             audio_analysis=processed_analysis,
             pass1_cuts=pass1_cuts,
             action_map=action_map,
+            max_window_ad_seconds=(resolve_window_ad_cap(self.db, feed_id)
+                                   if self.db is not None and feed_id is not None
+                                   else None),
         )
         # Window counts ride along on every post-detection return so the run
         # stats can report coverage the verification scan never examined.

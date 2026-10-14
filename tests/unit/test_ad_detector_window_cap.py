@@ -74,6 +74,15 @@ def test_cap_with_nothing_set_is_the_default():
     assert resolve_window_ad_cap(_FakeDb(), 1) == 420.0
 
 
+def test_window_setting_below_the_global_reject_threshold_is_honoured():
+    assert resolve_window_ad_cap(_FakeDb(window=120.0, global_reject=300.0), 1) == 120.0
+
+
+def test_stored_window_setting_is_clamped_on_read():
+    assert resolve_max_llm_window_ad_seconds(_FakeDb(window=5.0)) == 60.0
+    assert resolve_max_llm_window_ad_seconds(_FakeDb(window=5000.0)) == 900.0
+
+
 def test_cap_raised_by_the_hold_cap_alone():
     assert resolve_window_ad_cap(_FakeDb(hold=600.0), 1) == 600.0
 
@@ -106,3 +115,22 @@ def _first_pass_value(db_cap):
 
 def test_first_pass_stage_passes_the_feed_cap_as_an_argument():
     assert _first_pass_value(600.0) == 600.0
+
+
+def test_verification_pass_forwards_the_feed_cap():
+    from verification_pass import VerificationPass
+    detector = MagicMock()
+    detector.run_verification_detection.return_value = {'ads': []}
+    analyzer = MagicMock()
+    analysis = MagicMock(signals=[])
+    analysis.get_signals_by_type.return_value = []
+    analyzer.analyze.return_value = analysis
+    transcriber = MagicMock()
+    transcriber.repair_gaps.return_value = ([], [])
+    verifier = VerificationPass(detector, transcriber, analyzer, db=_FakeDb(hold=600.0))
+    verifier.verify('/nonexistent.mp3', 'Show', 'Ep', 'example-podcast', 'a1b2c3d4e5f6',
+                    pass1_cuts=[], original_segments=[
+                        {'start': 0.0, 'end': 5.0, 'text': 'hello'}],
+                    reuse_transcript=True, feed_id=1)
+    kwargs = detector.run_verification_detection.call_args.kwargs
+    assert kwargs['max_window_ad_seconds'] == 600.0

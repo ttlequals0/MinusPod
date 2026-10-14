@@ -3553,7 +3553,8 @@ class AdDetector:
                                     progress_callback=None,
                                     audio_analysis=None,
                                     pass1_cuts: list[dict] | None = None,
-                                    action_map: dict[str, str] | None = None) -> dict:
+                                    action_map: dict[str, str] | None = None,
+                                    max_window_ad_seconds: float | None = None) -> dict:
         """Run ad detection with the verification prompt on processed audio.
 
         Uses the same sliding window approach as detect_ads() but with the
@@ -3665,6 +3666,7 @@ class AdDetector:
                 category_repair_enabled=segment_categories_configured,
                 addressing_mode=addressing_mode,
                 episode_sponsors=episode_sponsors,
+                max_window_ad_seconds=max_window_ad_seconds,
             )
             if failure is not None:
                 return failure
