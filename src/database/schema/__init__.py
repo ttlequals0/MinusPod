@@ -1886,17 +1886,19 @@ class SchemaMixin:
             logger.error(f"search index reindex failed: {e}")
 
         # One-shot reindex so descriptions are stored as plain text, not RSS HTML (2.100.12).
+        plain_text_rebuilt = search_index_freshly_populated
         try:
-            self._run_reindex_search_plain_text(
+            plain_text_rebuilt |= self._run_reindex_search_plain_text(
                 conn, already_rebuilt=search_index_freshly_populated)
         except Exception as e:
             conn.rollback()
             logger.error(f"search index plain-text reindex failed: {e}")
 
         # Re-strip rows indexed before tags collapsed to a space ("legacy.All") (2.100.13).
+        # Skipped when the step above rebuilt in this boot: one rebuild covers both.
         try:
             self._run_reindex_search_plain_text(
-                conn, already_rebuilt=search_index_freshly_populated,
+                conn, already_rebuilt=plain_text_rebuilt,
                 name='search_index_plain_text_2_100_13')
         except Exception as e:
             conn.rollback()
@@ -2805,15 +2807,16 @@ class SchemaMixin:
             logger.info(f"search-index-reindex: complete, {count} row(s) indexed")
 
     def _run_reindex_search_plain_text(self, conn, already_rebuilt: bool = False,
-                                       name: str = 'search_index_plain_text_2_100_12'):
+                                       name: str = 'search_index_plain_text_2_100_12') -> bool:
         """One-shot rebuild so existing rows hold plain-text descriptions; skipped
-        if this boot's auto-populate already did it."""
+        if this boot already rebuilt. Returns True when it rebuilt."""
         if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone():
-            return
+            return False
         count = 0 if already_rebuilt else self.rebuild_search_index()
         conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
         conn.commit()
         logger.info(f"search-index-plain-text: complete, {count} row(s) indexed")
+        return not already_rebuilt
 
     def _seed_model_settings_from_env(self, conn):
         """Seed an absent model row from OPENAI_MODEL (2.86.4).

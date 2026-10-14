@@ -1,5 +1,3 @@
-import inspect
-
 from tests.app_bootstrap import bootstrap
 
 bootstrap('search_html_strip_')
@@ -90,4 +88,37 @@ def test_restrip_step_runs_once_on_upgrade_from_2_100_12(temp_db, monkeypatch):
     assert calls == [1]
     assert conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?",
                         (gate,)).fetchone() is not None
-    assert gate in inspect.getsource(type(temp_db)._run_schema_migrations)
+
+
+def _populated_db(temp_db):
+    temp_db.create_podcast('restrip', 'https://example.com/restrip.xml', 'Example Show')
+    temp_db.upsert_episode('restrip', 'c1d2e3f4a5b6', title='Episode', description='<p>a</p><p>b</p>')
+    temp_db.rebuild_search_index()
+    return temp_db.get_connection()
+
+
+def test_migration_runner_restrips_a_db_upgrading_from_2_100_12(temp_db, monkeypatch):
+    conn = _populated_db(temp_db)
+    conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (PLAIN_TEXT_GATE,))
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", ('search_index_plain_text_2_100_13',))
+    conn.commit()
+    calls = []
+    monkeypatch.setattr(temp_db, 'rebuild_search_index', lambda: calls.append(1) or 7)
+    temp_db._run_schema_migrations()
+    assert calls == [1]
+    assert conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?",
+                        ('search_index_plain_text_2_100_13',)).fetchone() is not None
+
+
+def test_migration_runner_rebuilds_once_when_both_steps_are_due(temp_db, monkeypatch):
+    conn = _populated_db(temp_db)
+    conn.execute("DELETE FROM schema_migrations WHERE name IN (?, ?)",
+                 (PLAIN_TEXT_GATE, 'search_index_plain_text_2_100_13'))
+    conn.commit()
+    calls = []
+    monkeypatch.setattr(temp_db, 'rebuild_search_index', lambda: calls.append(1) or 7)
+    temp_db._run_schema_migrations()
+    assert calls == [1]
+    gates = {r[0] for r in conn.execute(
+        "SELECT name FROM schema_migrations WHERE name LIKE 'search_index_plain_text_%'")}
+    assert gates == {PLAIN_TEXT_GATE, 'search_index_plain_text_2_100_13'}

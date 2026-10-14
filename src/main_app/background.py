@@ -64,6 +64,7 @@ DOWNLOAD_PRUNE_INTERVAL_SECONDS = 24 * 3600
 _INDEX_STATE = {'last_refresh': 0, 'last_full': 0}
 _DOWNLOAD_STATE = {'last_prune': 0}
 _GEO_STATE = {'thread': None}
+_GEO_LOCK = threading.Lock()
 # Ceiling on deferring to active runs: an instance that is never idle would
 # otherwise never rebuild at all.
 INDEX_REBUILD_MAX_DEFERRAL_SECONDS = 2 * INDEX_REBUILD_INTERVAL_SECONDS
@@ -173,12 +174,14 @@ def _run_geo_lookup_safely():
 
 def _start_geo_lookup():
     """Run the geo lookup off the maintenance thread; skip while one is still running."""
-    running = _GEO_STATE['thread']
-    if running is not None and running.is_alive():
-        return
-    thread = threading.Thread(target=_run_geo_lookup_safely, name='download-geo', daemon=True)
-    _GEO_STATE['thread'] = thread
-    thread.start()
+    # The settings PUT and the maintenance loop can both call this at once.
+    with _GEO_LOCK:
+        running = _GEO_STATE['thread']
+        if running is not None and running.is_alive():
+            return
+        thread = threading.Thread(target=_run_geo_lookup_safely, name='download-geo', daemon=True)
+        _GEO_STATE['thread'] = thread
+        thread.start()
 
 
 def run_cleanup():
@@ -576,9 +579,38 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
         refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
 
 
+def _run_maintenance_tick(registry):
+    """Queue hygiene, offline-queue drive and geo lookup, every 5 minutes."""
+    from offline_queue import offline_queue_tick
+    # A live slot means the run is still going, whatever the row's
+    # age says: updated_at is only written at a stage change.
+    reset_count, failed_count = db.reset_orphaned_queue_items(
+        stuck_minutes=65, exclude_running=registry.get_current())
+    if reset_count > 0 or failed_count > 0:
+        refresh_logger.info(f"Reset {reset_count} orphaned queue items, {failed_count} exceeded max attempts")
+
+    retry_count = db.reset_failed_queue_items(max_retries=MAX_EPISODE_RETRIES)
+    if retry_count > 0:
+        refresh_logger.info(f"Reset {retry_count} failed queue items for automatic retry")
+
+    # Episode rows orphaned in 'processing' by a killed worker.
+    # This ran at startup only, so a row could sit unprocessable
+    # until the next restart.
+    reset_stuck_processing_episodes()
+
+    # Offline queue (#482): expire deferred episodes past their
+    # TTL and re-queue the rest once their service is reachable.
+    _run_tick(
+        lambda settings_db: offline_queue_tick(
+            settings_db, _offline_queue_target_resolver),
+        'offline_queue_tick')
+
+    db.clear_completed_queue_items(older_than_hours=24)
+
+    _start_geo_lookup()
+
 def background_queue_processor():
     """Dispatcher: keep up to the pool's max_episodes claimed rows running."""
-    from offline_queue import offline_queue_tick
     from processing_queue import ProcessingQueue, is_processing_paused
     from rate_limit_hold import (
         active_held_pairs, get_active_hold, probe_rate_limit, rate_limit_hold_tick,
@@ -602,32 +634,7 @@ def background_queue_processor():
                 # every 5 minutes of wall-clock time (the first pass runs it too).
                 if time.monotonic() - last_maintenance >= MAINTENANCE_INTERVAL_SECONDS:
                     last_maintenance = time.monotonic()
-                    # A live slot means the run is still going, whatever the row's
-                    # age says: updated_at is only written at a stage change.
-                    reset_count, failed_count = db.reset_orphaned_queue_items(
-                        stuck_minutes=65, exclude_running=registry.get_current())
-                    if reset_count > 0 or failed_count > 0:
-                        refresh_logger.info(f"Reset {reset_count} orphaned queue items, {failed_count} exceeded max attempts")
-
-                    retry_count = db.reset_failed_queue_items(max_retries=MAX_EPISODE_RETRIES)
-                    if retry_count > 0:
-                        refresh_logger.info(f"Reset {retry_count} failed queue items for automatic retry")
-
-                    # Episode rows orphaned in 'processing' by a killed worker.
-                    # This ran at startup only, so a row could sit unprocessable
-                    # until the next restart.
-                    reset_stuck_processing_episodes()
-
-                    # Offline queue (#482): expire deferred episodes past their
-                    # TTL and re-queue the rest once their service is reachable.
-                    _run_tick(
-                        lambda settings_db: offline_queue_tick(
-                            settings_db, _offline_queue_target_resolver),
-                        'offline_queue_tick')
-
-                    db.clear_completed_queue_items(older_than_hours=24)
-
-                    _start_geo_lookup()
+                    _run_maintenance_tick(registry)
 
                 # Provider health probe (#806): own interval, independent of the
                 # maintenance cadence above.
