@@ -792,6 +792,7 @@ class AdDetector:
 
     def __init__(self, api_key: str | None = None):
         self._api_key_override: str | None = api_key
+        self.max_window_ad_seconds = MAX_AD_DURATION_WINDOW
         self._llm_client_override: LLMClient | None = None
 
         # Dependency attributes. Previously these were lazy @property
@@ -1437,7 +1438,7 @@ class AdDetector:
             # Judged on the raw span: an over-long proposal is refused, not
             # trimmed to the window edge until it fits.
             duration = float(ad['end']) - float(ad['start'])
-            if duration > MAX_AD_DURATION_WINDOW:
+            if duration > self.max_window_ad_seconds:
                 dropped_too_long += 1
                 logger.warning(
                     f"[{slug}:{episode_id}] {window_label} rejected ad: "

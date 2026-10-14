@@ -1072,7 +1072,7 @@ paths:
                     - 'null'
                   minimum: 30.0
                   maximum: 3600.0
-                  description: Per-feed length past which an ad must name a recognized sponsor to be cut; one that does not is held for review. Must not exceed the global maxAdDurationConfirmedSeconds. null falls back to the global maxAdDurationSeconds setting.
+                  description: Per-feed length past which an ad must name a recognized sponsor to be cut; one that does not is held for review. Must not exceed the global maxAdDurationConfirmedSeconds. null falls back to the global maxAdDurationSeconds setting. Also raises the longest single detection the LLM may report for this feed (default 7 minutes), so set it to the length of the show's longest continuous ad block.
                 cueGatedApproval:
                   type:
                     - boolean
@@ -13645,7 +13645,7 @@ components:
             - 'null'
           minimum: 30.0
           maximum: 3600.0
-          description: Per-feed length past which an ad must name a recognized sponsor to be cut. Must not exceed the global maxAdDurationConfirmedSeconds. null falls back to the global maxAdDurationSeconds setting.
+          description: Per-feed length past which an ad must name a recognized sponsor to be cut. Must not exceed the global maxAdDurationConfirmedSeconds. null falls back to the global maxAdDurationSeconds setting. Also raises the longest single detection the LLM may report for this feed (default 7 minutes), so set it to the length of the show's longest continuous ad block.
         cueGatedApproval:
           type:
             - boolean

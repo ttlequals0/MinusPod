@@ -1626,7 +1626,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(maxAdDurRejectField, feed.maxAdDurationRejectOverride,
                   'maxAdDurationRejectOverride', 30, 3600)}
-                description="Past this length an ad has to name a recognized sponsor to be cut; one that does not is held for review. Overrides the global setting for this feed." />
+                description="Ads longer than this need a confirmed sponsor. Also raises the longest single detection the LLM may report for this feed (default 7 min), so set it to the length of this show's longest continuous ad block." />
 
               {/* Splice-veto override. Tri-state so a feed can also be held
                   to the check when the global is off. */}

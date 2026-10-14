@@ -16,6 +16,7 @@ release notes.
 ### Added
 
 ### Changed
+- A feed's max ad duration (reject) override now also lifts the 7-minute cap on a single LLM detection, so a show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span instead of pieces.
 
 ### Fixed
 - Reprocessing or re-detecting an episode on a local feed, or any episode with a retained original, no longer reports a Downloading phase; the status bar shows Preparing until transcription starts.
