@@ -1,4 +1,4 @@
-import { Fragment, useState, useMemo, useRef, useEffect, type ReactNode } from 'react';
+import { Fragment, useState, useMemo, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import {
@@ -22,7 +22,8 @@ import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import DisclosureButton from '../components/DisclosureButton';
 import CostAmount from '../components/CostAmount';
-import { selectBase, inputBase, focusRing, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
+import DateField from '../components/DateField';
+import { selectBase, focusRing, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
 import { SLOT_LABELS } from '../api/types';
 import { btnSecondary } from '../components/buttonStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
@@ -33,49 +34,6 @@ const CLEANUP_ACTION_LABELS: Record<string, string> = {
   trim: 'Trims', split: 'Splits', rename: 'Sponsor renames',
   retire: 'Retirements', flag: 'Flags', category: 'Category changes',
 };
-
-interface SpendDateFieldProps {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  min?: string;
-  max?: string;
-}
-
-function SpendDateField({
-  id, label, value, onChange, min, max,
-}: SpendDateFieldProps): ReactNode {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [editing, setEditing] = useState(false);
-  useEffect(() => {
-    if (!editing && inputRef.current && inputRef.current.value !== value) {
-      inputRef.current.value = value;
-    }
-  }, [editing, value]);
-  return (
-    <div className="min-w-0">
-      <label htmlFor={id} className={filterLabel}>{label}</label>
-      <div className="flex items-center gap-1">
-        <input
-          ref={inputRef}
-          type="date"
-          id={id}
-          min={min}
-          max={max}
-          defaultValue={value}
-          onFocus={() => setEditing(true)}
-          onChange={(event) => onChange(event.target.value)}
-          onBlur={() => {
-            setEditing(false);
-            onChange(inputRef.current?.value ?? '');
-          }}
-          className={`${filterControl} ${inputBase} max-sm:px-0 max-sm:text-base [&::-webkit-date-and-time-value]:text-left [&::-webkit-datetime-edit]:min-w-0 [&::-webkit-datetime-edit]:p-0`}
-        />
-      </div>
-    </div>
-  );
-}
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
@@ -1213,14 +1171,14 @@ export default function StatsPage() {
 
         <div className={`${filterGrid} lg:grid-cols-5 mb-3`}>
           <div className="grid grid-cols-2 gap-2 sm:gap-4 min-w-0 min-[375px]:col-span-2">
-          <SpendDateField
+          <DateField
             id="spendFrom"
             label="From"
             value={ledgerFrom}
             max={ledgerTo || undefined}
             onChange={(value) => write({ from: value, muPage: '1', ecPage: '1' })}
           />
-          <SpendDateField
+          <DateField
             id="spendTo"
             label="To"
             value={ledgerTo}

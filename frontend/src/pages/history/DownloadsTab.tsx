@@ -11,6 +11,7 @@ import { formatDateTime } from '../../utils/format';
 import { clientName } from '../../utils/userAgent';
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import DateField from '../../components/DateField';
 import { SkeletonRows } from '../../components/Skeleton';
 import { Pagination } from '../../components/Pagination';
 import { SortHeader, useSortState } from '../../components/SortHeader';
@@ -158,28 +159,20 @@ function DownloadsTab({ tabs }: Props) {
             ))}
           </select>
         </div>
-        <div className="min-w-0">
-          <label htmlFor="downloads-since" className={filterLabel}>Since</label>
-          <input
-            id="downloads-since"
-            type="date"
-            value={since}
-            max={until || undefined}
-            onChange={(e) => setFilter(setSince, e.target.value)}
-            className={`${filterControl} ${inputBase}`}
-          />
-        </div>
-        <div className="min-w-0">
-          <label htmlFor="downloads-until" className={filterLabel}>Until</label>
-          <input
-            id="downloads-until"
-            type="date"
-            value={until}
-            min={since || undefined}
-            onChange={(e) => setFilter(setUntil, e.target.value)}
-            className={`${filterControl} ${inputBase}`}
-          />
-        </div>
+        <DateField
+          id="downloads-since"
+          label="Since"
+          value={since}
+          max={until || undefined}
+          onChange={(value) => setFilter(setSince, value)}
+        />
+        <DateField
+          id="downloads-until"
+          label="Until"
+          value={until}
+          min={since || undefined}
+          onChange={(value) => setFilter(setUntil, value)}
+        />
         <div className="min-w-0 min-[375px]:col-span-2 sm:col-span-3 lg:col-span-1">
           <label htmlFor="downloads-search" className={filterLabel}>Search</label>
           <input
