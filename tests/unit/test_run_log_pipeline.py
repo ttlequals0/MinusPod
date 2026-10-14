@@ -333,7 +333,7 @@ class TestWorkerThreadRegistration:
         reviewer = MagicMock()
         reviewer._review_single.side_effect = (
             lambda **kwargs: (worker_logger.info('reviewing without a tag'),
-                              ('verdict', kwargs['ad']))[1])
+                              (MagicMock(), kwargs['ad']))[1])
 
         ctx = run_context.begin('w-feed', 'w-ep')
         recorder.attach()

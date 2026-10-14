@@ -4402,7 +4402,8 @@ class SchemaMixin:
                     source_hold_reason TEXT,
                     fp_suppressed INTEGER DEFAULT 0,
                     origin TEXT NOT NULL DEFAULT 'user',
-                    hold_id TEXT
+                    hold_id TEXT,
+                    addressing_mode TEXT
                 )
             """)
             new_pc_cols = [

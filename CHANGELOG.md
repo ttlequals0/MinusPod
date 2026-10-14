@@ -15,6 +15,8 @@ release notes.
 
 ### Added
 
+- Each LLM-detected marker records the addressing mode it was detected under and the model's pre-snap boundaries; the reviewer log and corrections carry the mode, and /stats/reviewer and /stats/addressing report verdicts, correction rates and snap distance per mode.
+
 ### Changed
 
 ### Fixed
