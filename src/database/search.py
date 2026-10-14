@@ -9,6 +9,8 @@ import threading
 import time
 from contextlib import contextmanager
 
+from utils.text import escape_like
+
 logger = logging.getLogger(__name__)
 
 # The corpus is already built in the shadow table when the final swap runs, so
@@ -28,6 +30,34 @@ def strip_html(text):
     if not text:
         return ''
     return _WS_RE.sub(' ', html.unescape(_TAG_RE.sub(' ', text))).strip()
+
+
+_PODCAST_SQL = "SELECT slug, title, description FROM podcasts"
+_EPISODE_SQL = """SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text
+    FROM episodes e JOIN podcasts p ON e.podcast_id = p.id
+    LEFT JOIN episode_details ed ON e.id = ed.episode_id"""
+_PATTERN_SQL = """SELECT ap.id, ap.text_template, ks.name AS sponsor, ap.scope
+    FROM ad_patterns ap LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+    WHERE ap.is_active = 1"""
+_SPONSOR_SQL = "SELECT id, name, aliases FROM known_sponsors WHERE is_active = 1"
+
+
+def _podcast_row(r):
+    return ('podcast', r['slug'], r['slug'], r['title'], strip_html(r['description']), '')
+
+
+def _episode_row(r):
+    return ('episode', r['episode_id'], r['slug'], r['title'],
+            (r['transcript_text'] or '')[:100000], strip_html(r['description']))
+
+
+def _pattern_row(r):
+    return ('pattern', str(r['id']), r['scope'] or 'global',
+            r['sponsor'] or 'Unknown', r['text_template'] or '', '')
+
+
+def _sponsor_row(r):
+    return ('sponsor', str(r['id']), 'global', r['name'], r['aliases'] or '', '')
 
 
 # Grouped-search snippet delimiters: literal "<mark>" in indexed text must not read as a highlight.
@@ -246,8 +276,8 @@ class SearchMixin:
         source_chunks = self._search_source_chunks()
         try:
             for rows in source_chunks:
-                self._run_rebuild_write(lambda tx, rows=rows: tx.executemany(insert, rows))
-                time.sleep(_REBUILD_YIELD_SECONDS)
+                self._run_rebuild_write(
+                    lambda tx, rows=rows: tx.executemany(insert, rows), yield_first=True)
             self._swap_in_shadow(shadow, insert, start_seq)
         except Exception:
             conn.rollback()
@@ -279,15 +309,15 @@ class SearchMixin:
                     tx.execute("DELETE FROM search_index_changes WHERE seq <= ?",
                                (max(k[3] for k in chunk),))
 
-                if start:
-                    time.sleep(_REBUILD_YIELD_SECONDS)
-                self._run_rebuild_write(apply)
+                self._run_rebuild_write(apply, yield_first=start > 0)
         if keys:
             logger.info(f"Search index refreshed: {len(keys)} change(s)")
         return len(keys)
 
-    def _run_rebuild_write(self, operation):
+    def _run_rebuild_write(self, operation, yield_first=False):
         """Run one rebuild write transaction, retrying transient contention."""
+        if yield_first:
+            time.sleep(_REBUILD_YIELD_SECONDS)
         for attempt in range(_REBUILD_LOCK_RETRIES):
             try:
                 with self.transaction(immediate=True) as tx:
@@ -353,22 +383,10 @@ class SearchMixin:
         read_conn.row_factory = sqlite3.Row
         read_conn.execute('PRAGMA busy_timeout = 60000')
         sources = (
-            ("SELECT slug, title, description FROM podcasts",
-             lambda r: ('podcast', r['slug'], r['slug'], r['title'],
-                        strip_html(r['description']), '')),
-            ("""SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text
-                FROM episodes e JOIN podcasts p ON e.podcast_id = p.id
-                LEFT JOIN episode_details ed ON e.id = ed.episode_id""",
-             lambda r: ('episode', r['episode_id'], r['slug'], r['title'],
-                        (r['transcript_text'] or '')[:100000], strip_html(r['description']))),
-            ("""SELECT ap.id, ap.text_template, ks.name AS sponsor, ap.scope
-                FROM ad_patterns ap LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
-                WHERE ap.is_active = 1""",
-             lambda r: ('pattern', str(r['id']), r['scope'] or 'global',
-                        r['sponsor'] or 'Unknown', r['text_template'] or '', '')),
-            ("SELECT id, name, aliases FROM known_sponsors WHERE is_active = 1",
-             lambda r: ('sponsor', str(r['id']), 'global', r['name'],
-                        r['aliases'] or '', '')),
+            (_PODCAST_SQL, _podcast_row),
+            (_EPISODE_SQL, _episode_row),
+            (_PATTERN_SQL, _pattern_row),
+            (_SPONSOR_SQL, _sponsor_row),
         )
         try:
             for sql, shape in sources:
@@ -394,39 +412,24 @@ class SearchMixin:
     @staticmethod
     def _current_search_row(conn, content_type, content_id, podcast_slug):
         if content_type == 'podcast':
-            row = conn.execute(
-                "SELECT 'podcast', slug, slug, title, COALESCE(description, ''), '' "
-                "FROM podcasts WHERE slug = ?", (content_id,)).fetchone()
+            row = conn.execute(f"{_PODCAST_SQL} WHERE slug = ?", (content_id,)).fetchone()
+            build = _podcast_row
         elif content_type == 'episode':
             row = conn.execute(
-                "SELECT 'episode', e.episode_id, p.slug, e.title, "
-                "substr(COALESCE(ed.transcript_text, ''), 1, 100000), "
-                "COALESCE(e.description, '') FROM episodes e "
-                "JOIN podcasts p ON p.id = e.podcast_id "
-                "LEFT JOIN episode_details ed ON ed.episode_id = e.id "
-                "WHERE e.episode_id = ? AND p.slug = ?",
+                f"{_EPISODE_SQL} WHERE e.episode_id = ? AND p.slug = ?",
                 (content_id, podcast_slug)).fetchone()
+            build = _episode_row
         elif content_type == 'pattern':
             row = conn.execute(
-                "SELECT 'pattern', CAST(ap.id AS TEXT), COALESCE(ap.scope, 'global'), "
-                "COALESCE(ks.name, 'Unknown'), COALESCE(ap.text_template, ''), '' "
-                "FROM ad_patterns ap LEFT JOIN known_sponsors ks ON ks.id = ap.sponsor_id "
-                "WHERE ap.id = ? AND ap.is_active = 1 AND COALESCE(ap.scope, 'global') = ?",
+                f"{_PATTERN_SQL} AND ap.id = ? AND COALESCE(ap.scope, 'global') = ?",
                 (content_id, podcast_slug)).fetchone()
+            build = _pattern_row
         elif content_type == 'sponsor':
-            row = conn.execute(
-                "SELECT 'sponsor', CAST(id AS TEXT), 'global', name, COALESCE(aliases, ''), '' "
-                "FROM known_sponsors WHERE id = ? AND is_active = 1", (content_id,)).fetchone()
+            row = conn.execute(f"{_SPONSOR_SQL} AND id = ?", (content_id,)).fetchone()
+            build = _sponsor_row
         else:
             return None
-        if row is None:
-            return None
-        row = list(row)
-        if content_type == 'podcast':
-            row[4] = strip_html(row[4])
-        elif content_type == 'episode':
-            row[5] = strip_html(row[5])
-        return tuple(row)
+        return build(row) if row is not None else None
 
     def _drop_stale_shadows(self, conn) -> None:
         """Remove shadows while the caller holds the exclusive rebuild lock,
@@ -565,7 +568,7 @@ class SearchMixin:
             return empty
         fts_query = self._safe_fts_query(query.replace('"', '""').strip())
         # Escape LIKE metacharacters so user input cannot widen the match
-        escaped = needle.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        escaped = escape_like(needle)
         like_pattern = f'%{escaped}%'
         like_prefix = f'{escaped}%'
         wanted = set(SEARCH_GROUP_NAMES) if groups is None else set(groups)

@@ -21,6 +21,11 @@ _TIMEZONE_DRIFT_STEP_SECONDS = 15 * 60
 BOUNDARY_SNAP_TOLERANCE_S = 3.0
 
 
+def escape_like(text: str) -> str:
+    """Escape LIKE metacharacters for use with ESCAPE '\\'."""
+    return text.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+
 def normalize_title_for_match(title: str | None) -> str:
     """Lowercase, whitespace-collapsed title for loose duplicate matching."""
     if not title:

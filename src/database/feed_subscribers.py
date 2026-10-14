@@ -6,6 +6,18 @@ import secrets
 from utils.time import utc_now_iso
 
 
+def parse_subscriber_token(token) -> tuple[str, str] | None:
+    """Split a subscriber token into (key_id, secret); None when malformed."""
+    try:
+        key_id, secret = token.split('.', 1)
+    except (AttributeError, ValueError):
+        return None
+    if (len(key_id) != 16 or len(secret) != 64
+            or any(char not in '0123456789abcdef' for char in key_id + secret)):
+        return None
+    return key_id, secret
+
+
 class FeedSubscriberMixin:
     def create_feed_subscriber_key(self, slug: str, label: str = '') -> dict:
         podcast = self.get_podcast_by_slug(slug)
@@ -28,13 +40,10 @@ class FeedSubscriberMixin:
         }
 
     def verify_feed_subscriber_key(self, slug: str, token: str) -> bool:
-        try:
-            key_id, secret = token.split('.', 1)
-        except (AttributeError, ValueError):
+        parsed = parse_subscriber_token(token)
+        if parsed is None:
             return False
-        if (len(key_id) != 16 or len(secret) != 64
-                or any(char not in '0123456789abcdef' for char in key_id + secret)):
-            return False
+        key_id, secret = parsed
         supplied = hashlib.sha256(secret.encode('ascii')).hexdigest()
         conn = self.get_connection()
         row = conn.execute(

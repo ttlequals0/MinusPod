@@ -14,6 +14,27 @@ logger = logging.getLogger(__name__)
 
 _SNAP_WINDOW_DAYS = 90
 _SNAP_MAX_EPISODES = 2000
+_ADDRESSING_MODES = ('timestamps', 'segment_ids')
+_REVIEWER_VERDICT_KEYS = {
+    'confirmed': 'confirmed', 'adjust': 'adjusted', 'reject': 'rejected',
+    'resurrect': 'resurrected', 'inconclusive': 'inconclusive', 'failure': 'failed',
+}
+
+
+def _blank_by_mode(fields: dict) -> dict:
+    """One fresh copy of `fields` per addressing mode."""
+    return {mode: dict(fields) for mode in _ADDRESSING_MODES}
+
+
+def _marker_snap_dist(marker) -> tuple[str, float] | None:
+    """(addressing_mode, distance from the model's raw bounds) for a snappable marker."""
+    if not isinstance(marker, dict) or marker.get('addressing_mode') not in _ADDRESSING_MODES:
+        return None
+    try:
+        return marker['addressing_mode'], (abs(marker['start'] - marker['llm_start'])
+                                           + abs(marker['end'] - marker['llm_end']))
+    except (KeyError, TypeError):
+        return None
 
 # SQL fragment for one episode's saved seconds, NULL unless it actually got
 # shorter. Shared between get_dashboard_stats and get_stats_by_podcast (#727)
@@ -2280,17 +2301,13 @@ class StatsMixin:
             """,  # noqa: S608
             params,
         ).fetchall()
-        keys = {'confirmed': 'confirmed', 'adjust': 'adjusted', 'reject': 'rejected',
-                'resurrect': 'resurrected', 'inconclusive': 'inconclusive',
-                'failure': 'failed'}
-        modes = {m: {'reviews': 0, **{k: 0 for k in keys.values()},
-                     'avgBoundaryShiftSeconds': None}
-                 for m in ('timestamps', 'segment_ids')}
+        modes = _blank_by_mode({'reviews': 0, **dict.fromkeys(_REVIEWER_VERDICT_KEYS.values(), 0),
+                                'avgBoundaryShiftSeconds': None})
         for r in rows:
             entry = modes[r['addressing_mode']]
             entry['reviews'] += r['n']
-            if r['verdict'] in keys:
-                entry[keys[r['verdict']]] += r['n']
+            if r['verdict'] in _REVIEWER_VERDICT_KEYS:
+                entry[_REVIEWER_VERDICT_KEYS[r['verdict']]] += r['n']
             if r['verdict'] == 'adjust' and r['avg_shift'] is not None:
                 entry['avgBoundaryShiftSeconds'] = round(r['avg_shift'], 2)
         return modes
@@ -2396,12 +2413,13 @@ class StatsMixin:
     @staticmethod
     def _addressing_outcomes_by_mode(conn, podcast_slug: str | None) -> dict:
         """Per-mode correction rates and mean snap distance, grouped per marker."""
-        out = {m: {'heldRate': None, 'approveRate': None, 'rejectRate': None,
-                   'avgSnapDistance': None}
-               for m in ('timestamps', 'segment_ids')}
-        slug_sql = ("AND podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)"
-                    if podcast_slug else "")
-        slug_params = [podcast_slug] if podcast_slug else []
+        out = _blank_by_mode({'heldRate': None, 'approveRate': None, 'rejectRate': None,
+                              'avgSnapDistance': None})
+        podcast_id = None
+        if podcast_slug:
+            row = conn.execute("SELECT id FROM podcasts WHERE slug = ?", (podcast_slug,)).fetchone()
+            podcast_id = row[0] if row else None
+        feed_params = [podcast_id] if podcast_slug else []
         for r in conn.execute(
             f"""
             SELECT addressing_mode, COUNT(*) AS n,
@@ -2409,10 +2427,10 @@ class StatsMixin:
                    SUM(correction_type = 'false_positive') AS rejected,
                    SUM(source_hold_reason IS NOT NULL OR hold_id IS NOT NULL) AS held
             FROM pattern_corrections
-            WHERE addressing_mode IN ('timestamps', 'segment_ids') {slug_sql}
+            WHERE addressing_mode IN ('timestamps', 'segment_ids') {'AND podcast_id = ?' if podcast_slug else ''}
             GROUP BY addressing_mode
             """,  # noqa: S608
-            slug_params,
+            feed_params,
         ).fetchall():
             out[r['addressing_mode']].update(
                 heldRate=round(r['held'] / r['n'], 4),
@@ -2422,7 +2440,7 @@ class StatsMixin:
 
         # Distance from the model's raw bounds to the stored marker, all correction
         # stages included. The recent window keeps the stats request bounded.
-        snap = {m: [] for m in out}
+        snap = dict.fromkeys(out, (0.0, 0))
         cutoff = (datetime.now(timezone.utc) - timedelta(days=_SNAP_WINDOW_DAYS)
                   ).strftime('%Y-%m-%dT%H:%M:%SZ')
         for r in conn.execute(
@@ -2431,26 +2449,22 @@ class StatsMixin:
             JOIN episodes e ON e.id = ed.episode_id
             WHERE ed.ad_markers_json LIKE '%"llm_start"%'
               AND COALESCE(e.processed_at, e.updated_at) >= ?
-            {"AND e.podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)" if podcast_slug else ""}
+            {"AND e.podcast_id = ?" if podcast_slug else ""}
             ORDER BY COALESCE(e.processed_at, e.updated_at) DESC
             LIMIT {_SNAP_MAX_EPISODES}
             """,  # noqa: S608
-            [cutoff] + slug_params,
+            [cutoff] + feed_params,
         ).fetchall():
             try:
                 markers = json.loads(r['ad_markers_json'])
             except (TypeError, ValueError):
                 continue
             for m in markers if isinstance(markers, list) else []:
-                mode = m.get('addressing_mode') if isinstance(m, dict) else None
-                try:
-                    dist = (abs(m['start'] - m['llm_start'])
-                            + abs(m['end'] - m['llm_end']))
-                except (KeyError, TypeError):
-                    continue
-                if mode in snap:
-                    snap[mode].append(dist)
-        for mode, dists in snap.items():
-            if dists:
-                out[mode]['avgSnapDistance'] = round(sum(dists) / len(dists), 3)
+                found = _marker_snap_dist(m)
+                if found:
+                    total, n = snap[found[0]]
+                    snap[found[0]] = (total + found[1], n + 1)
+        for mode, (total, n) in snap.items():
+            if n:
+                out[mode]['avgSnapDistance'] = round(total / n, 3)
         return out

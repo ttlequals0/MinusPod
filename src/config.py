@@ -988,6 +988,9 @@ DOWNLOAD_HISTORY_RETENTION_DAYS_MIN = 1
 DOWNLOAD_HISTORY_RETENTION_DAYS_MAX = 3650
 DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT = 90
 
+MAX_LLM_WINDOW_AD_MIN = 60
+MAX_LLM_WINDOW_AD_MAX = 900
+
 
 def _episode_log_setting(db, key):
     """One episode-log setting from the given handle, or None to use the
@@ -1321,12 +1324,20 @@ def resolve_splice_veto_enabled(db, podcast_id, global_default: bool) -> bool:
     return global_default if override is None else override
 
 
+def resolve_download_history_retention_days(db) -> int:
+    """Download history retention in days, clamped to the allowed range."""
+    days = db.get_setting_int('download_history_retention_days',
+                              DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT)
+    return min(max(days, DOWNLOAD_HISTORY_RETENTION_DAYS_MIN),
+               DOWNLOAD_HISTORY_RETENTION_DAYS_MAX)
+
+
 def resolve_max_llm_window_ad_seconds(db) -> float:
     """Longest single ad one LLM detection window may report."""
     try:
         value = float(db.get_setting_float('max_llm_window_ad_seconds',
                                            MAX_AD_DURATION_WINDOW))
-        return min(max(value, 60.0), 900.0)
+        return min(max(value, MAX_LLM_WINDOW_AD_MIN), MAX_LLM_WINDOW_AD_MAX)
     except Exception:
         return MAX_AD_DURATION_WINDOW
 

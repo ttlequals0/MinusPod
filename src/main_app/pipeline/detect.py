@@ -21,7 +21,6 @@ from config import (
     is_cue_backed, resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
     resolve_max_ad_duration,
-    resolve_window_ad_cap,
     resolve_max_ad_duration_confirmed,
     VETO_MIN_CUT_SECONDS,
     resolve_splice_veto_enabled,
@@ -102,8 +101,6 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         skip_llm=skip_llm,
         action_map=action_map,
         transcript_spans=transcript_spans,
-        # The per-feed reject cap also lifts the longest single detection the LLM may report.
-        max_window_ad_seconds=resolve_window_ad_cap(db, ctx.podcast_id),
     )
     storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 

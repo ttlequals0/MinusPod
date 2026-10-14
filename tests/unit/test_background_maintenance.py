@@ -97,16 +97,10 @@ class TestSharedOutageBackoff:
 class TestSearchIndexRebuildBackoff:
     @pytest.fixture(autouse=True)
     def _restore_rebuild_stamp(self):
-        """run_cleanup keeps its cadence on the function object; leaving a stamp
-        behind would silently suppress a rebuild in another suite."""
-        names = ('_last_index_rebuild', '_last_full_index_rebuild')
-        previous = {n: getattr(background.run_cleanup, n, None) for n in names}
+        """Leaving a cadence stamp behind would silently suppress a rebuild in another suite."""
+        previous = dict(background._INDEX_STATE)
         yield
-        for n, value in previous.items():
-            if value is None:
-                background.run_cleanup.__dict__.pop(n, None)
-            else:
-                setattr(background.run_cleanup, n, value)
+        background._INDEX_STATE.update(previous)
 
     def _run_cleanup(self, monkeypatch, *, rebuild, slots=0, last=0.0, full_last=0.0, refresh=None):
         db = MagicMock()
@@ -116,8 +110,8 @@ class TestSearchIndexRebuildBackoff:
         db.refresh_search_index.side_effect = refresh
         monkeypatch.setattr(background, 'db', db)
         monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
-        background.run_cleanup._last_index_rebuild = last
-        background.run_cleanup._last_full_index_rebuild = full_last
+        background._INDEX_STATE['last_refresh'] = last
+        background._INDEX_STATE['last_full'] = full_last
         queue = MagicMock()
         queue.slot_count.return_value = slots
         with patch('processing_queue.ProcessingQueue', return_value=queue):
@@ -129,7 +123,7 @@ class TestSearchIndexRebuildBackoff:
         self._run_cleanup(monkeypatch, rebuild=boom)
         db = self._run_cleanup(
             monkeypatch, rebuild=boom,
-            last=background.run_cleanup._last_index_rebuild)
+            last=background._INDEX_STATE['last_refresh'])
         db.rebuild_search_index.assert_not_called()
 
     def test_six_hour_tick_refreshes_when_full_rebuild_not_due(self, monkeypatch):
@@ -147,7 +141,7 @@ class TestSearchIndexRebuildBackoff:
         busy = RuntimeError('Search index rebuild already in progress')
         fail = MagicMock(side_effect=busy)
         self._run_cleanup(monkeypatch, rebuild=None, full_last=time.time(), refresh=fail)
-        stamp = background.run_cleanup._last_index_rebuild
+        stamp = background._INDEX_STATE['last_refresh']
         assert stamp > time.time() - background.INDEX_REBUILD_INTERVAL_SECONDS
         db = self._run_cleanup(monkeypatch, rebuild=None, full_last=time.time(),
                                refresh=fail, last=stamp)
@@ -175,19 +169,45 @@ class TestSearchIndexRebuildBackoff:
         monkeypatch.setattr(background, 'db', db)
         monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
         last = time.time() - background.INDEX_REBUILD_INTERVAL_SECONDS - 60
-        background.run_cleanup._last_index_rebuild = last
+        background._INDEX_STATE['last_refresh'] = last
         with patch('processing_queue.ProcessingQueue',
                    side_effect=Exception('database is locked')):
             background.run_cleanup()
-        assert background.run_cleanup._last_index_rebuild == last
+        assert background._INDEX_STATE['last_refresh'] == last
         db.rebuild_search_index.assert_not_called()
 
     def test_success_keeps_the_six_hour_cadence(self, monkeypatch):
         self._run_cleanup(monkeypatch, rebuild=lambda: None)
-        stamp = background.run_cleanup._last_index_rebuild
+        stamp = background._INDEX_STATE['last_refresh']
         assert stamp == pytest.approx(time.time(), abs=5)
         db = self._run_cleanup(monkeypatch, rebuild=lambda: None, last=stamp)
         db.rebuild_search_index.assert_not_called()
+
+
+class TestDownloadPruneCadence:
+    @pytest.fixture(autouse=True)
+    def _restore_prune_stamp(self):
+        previous = dict(background._DOWNLOAD_STATE)
+        yield
+        background._DOWNLOAD_STATE.update(previous)
+
+    def _run(self, monkeypatch):
+        db = MagicMock()
+        db.cleanup_old_episodes.return_value = (0, 0.0)
+        db.get_all_podcasts.return_value = []
+        db.get_setting_int.return_value = 90
+        monkeypatch.setattr(background, 'db', db)
+        monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
+        queue = MagicMock()
+        queue.slot_count.return_value = 1
+        with patch('processing_queue.ProcessingQueue', return_value=queue):
+            background.run_cleanup()
+        return db
+
+    def test_prune_runs_once_a_day(self, monkeypatch):
+        background._DOWNLOAD_STATE['last_prune'] = 0
+        assert self._run(monkeypatch).prune_downloads.call_count == 1
+        assert self._run(monkeypatch).prune_downloads.call_count == 0
 
 
 @pytest.mark.parametrize('value, expected', [('0', False), ('1', True), (None, False)])

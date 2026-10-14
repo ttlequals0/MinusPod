@@ -116,8 +116,8 @@ def test_prune_respects_retention(db):
 def test_prune_drops_unreferenced_geo_rows(db):
     db.record_download(SLUG, EPISODE, IP, 'old', now='2026-01-01T00:00:00Z')
     db.record_download(SLUG, EPISODE, '203.0.113.6', 'new', now='2026-10-13T00:00:00Z')
-    db.store_geo(IP, 'ok', 'Exampleland')
-    db.store_geo('203.0.113.6', 'ok', 'Exampleland')
+    db.store_geo_many([(IP, 'ok', 'Exampleland', None, None)])
+    db.store_geo_many([('203.0.113.6', 'ok', 'Exampleland', None, None)])
     db.prune_downloads(90, now='2026-10-14T00:00:00Z')
     ips = [r['ip'] for r in db.get_connection().execute('SELECT ip FROM ip_geo_cache')]
     assert ips == ['203.0.113.6']
@@ -141,7 +141,7 @@ def test_concurrent_first_requests_share_one_row(db):
 def test_geo_pending_and_store(db):
     db.record_download(SLUG, EPISODE, IP, 'a')
     assert db.pending_geo_ips() == [IP]
-    db.store_geo(IP, 'ok', country='Exampleland', region='Region', city='Town')
+    db.store_geo_many([(IP, 'ok', 'Exampleland', 'Region', 'Town')])
     assert db.pending_geo_ips() == []
     row = _rows(db)['downloads'][0]
     assert (row['geoStatus'], row['country'], row['city']) == ('ok', 'Exampleland', 'Town')
@@ -149,6 +149,6 @@ def test_geo_pending_and_store(db):
 
 def test_failed_geo_retries_after_a_day(db):
     db.record_download(SLUG, EPISODE, IP, 'a')
-    db.store_geo(IP, 'failed', now='2026-10-13T00:00:00Z')
+    db.store_geo_many([(IP, 'failed', None, None, None)], now='2026-10-13T00:00:00Z')
     assert db.pending_geo_ips(now='2026-10-13T12:00:00Z') == []
     assert db.pending_geo_ips(now='2026-10-14T01:00:00Z') == [IP]

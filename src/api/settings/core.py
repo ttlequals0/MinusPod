@@ -24,7 +24,7 @@ from config import (
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     PODCAST_SEARCH_PROVIDERS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
-    DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT,
+    resolve_download_history_retention_days,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
@@ -165,12 +165,7 @@ def _build_settings_payload():
     download_geo_lookup_enabled = coerce_bool_setting(common._setting_value(
         settings, 'download_geo_lookup_enabled',
         registry_default('download_geo_lookup_enabled')))
-    try:
-        download_history_retention_days = int(common._setting_value(
-            settings, 'download_history_retention_days',
-            registry_default('download_history_retention_days')))
-    except (TypeError, ValueError):
-        download_history_retention_days = DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT
+    download_history_retention_days = resolve_download_history_retention_days(db)
     feed_auth_enabled = coerce_bool_setting(
         common._setting_value(settings, 'feed_auth_enabled',
                        registry_default('feed_auth_enabled')))

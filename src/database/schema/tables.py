@@ -386,6 +386,8 @@ DOWNLOAD_INDEX_SQL = (
     "ON episode_downloads(last_seen_at)",
     "CREATE INDEX IF NOT EXISTS idx_episode_downloads_dedupe "
     "ON episode_downloads(podcast_id, episode_id, client_ip, user_agent, last_seen_at)",
+    "CREATE INDEX IF NOT EXISTS idx_episode_downloads_client_ip "
+    "ON episode_downloads(client_ip)",
 )
 
 TABLE_DDL['provider_spend_reservations'] = """CREATE TABLE IF NOT EXISTS provider_spend_reservations (
@@ -850,6 +852,8 @@ CREATE INDEX IF NOT EXISTS idx_episode_downloads_seen
     ON episode_downloads(last_seen_at);
 CREATE INDEX IF NOT EXISTS idx_episode_downloads_dedupe
     ON episode_downloads(podcast_id, episode_id, client_ip, user_agent, last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_episode_downloads_client_ip
+    ON episode_downloads(client_ip);
 
 """ + TABLE_DDL['ip_geo_cache'] + """;
 

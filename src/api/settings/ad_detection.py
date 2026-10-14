@@ -27,6 +27,7 @@ from config import (
     EPISODE_LOG_LEVELS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     DOWNLOAD_HISTORY_RETENTION_DAYS_MIN, DOWNLOAD_HISTORY_RETENTION_DAYS_MAX,
+    MAX_LLM_WINDOW_AD_MIN, MAX_LLM_WINDOW_AD_MAX,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
     valid_ad_chapter_title_format,
@@ -1411,8 +1412,9 @@ def _max_llm_window_ad_value(data):
         value = float(data['maxLlmWindowAdSeconds'])
     except (TypeError, ValueError):
         return None, ('maxLlmWindowAdSeconds must be a number', 400)
-    if not math.isfinite(value) or value < 60 or value > 900:
-        return None, ('maxLlmWindowAdSeconds must be between 60 and 900', 400)
+    if not math.isfinite(value) or not MAX_LLM_WINDOW_AD_MIN <= value <= MAX_LLM_WINDOW_AD_MAX:
+        return None, (f'maxLlmWindowAdSeconds must be between '
+                      f'{MAX_LLM_WINDOW_AD_MIN} and {MAX_LLM_WINDOW_AD_MAX}', 400)
     return value, None
 
 

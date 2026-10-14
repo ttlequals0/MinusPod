@@ -35,3 +35,16 @@ def test_missing_remove_flag_keeps_the_kept_cue_behaviour():
     del ad['cue_snap']['end']['remove_with_ad']
     _, ends = _cue_snap_limits(ad, 2460.2, 2521.14)
     assert ends == [pytest.approx((2521.14, 2521.14))]
+
+
+@pytest.mark.parametrize('edge, record, expected', [
+    ('start', {'cue_start': 10.0, 'cue_end': 12.0, 'remove_with_ad': True}, 10.0 - 0.05),
+    ('start', {'cue_start': 10.0, 'cue_end': 12.0}, 12.0 + 0.05),
+    ('end', {'cue_start': 10.0, 'cue_end': 12.0, 'remove_with_ad': True}, 12.0 + 0.05),
+    ('end', {'cue_start': 10.0, 'cue_end': 12.0}, 10.0 - 0.05),
+    ('end', {'cue_start': 10.0, 'remove_with_ad': True}, None),
+])
+def test_cue_snap_edge_limit(edge, record, expected):
+    from ad_detector.cue_boundary_snap import cue_snap_edge_limit
+    assert cue_snap_edge_limit(record, edge) == (
+        pytest.approx(expected) if expected is not None else None)

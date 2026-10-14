@@ -73,6 +73,7 @@ from config import (
     is_template_cue,
     MIN_OVERLAP_TOLERANCE,
     MAX_AD_DURATION_WINDOW,
+    resolve_window_ad_cap,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
     ModelNotConfiguredError,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
@@ -1075,6 +1076,13 @@ class AdDetector:
             logger.warning(f"Could not check detect_show_segments for {slug}: {e}")
             return False
 
+    def _window_ad_cap(self, slug, override):
+        """Longest single window detection kept: the caller's override, else the feed's resolved cap."""
+        if override is not None or not slug or not self.db:
+            return override
+        row = self.db.get_podcast_by_slug(slug)
+        return resolve_window_ad_cap(self.db, (row or {}).get('id'))
+
     def _resolve_segment_action_map(self, slug: str) -> dict[str, str] | None:
         """Resolve the feed's category->action map once per detection run,
         for the merge seam to gate on.
@@ -1989,7 +1997,7 @@ class AdDetector:
             episode_sponsors: Matchers for sponsors already known for this
                               episode; a long window naming one passes the content gate.
             action_map: Caller-resolved category actions; resolved here when None.
-            max_window_ad_seconds: Longest single window detection kept; None uses the default cap.
+            max_window_ad_seconds: Longest single window detection kept; None resolves the feed cap.
         """
         if not self.api_key:
             logger.warning("Skipping ad detection - no API key")
@@ -2104,7 +2112,7 @@ class AdDetector:
                 recurrence_spans=recurrence_spans,
                 addressing_mode=addressing_mode,
                 episode_sponsors=episode_sponsors,
-                max_window_ad_seconds=max_window_ad_seconds,
+                max_window_ad_seconds=self._window_ad_cap(slug, max_window_ad_seconds),
             )
             if failure is not None:
                 return failure
@@ -3666,7 +3674,7 @@ class AdDetector:
                 category_repair_enabled=segment_categories_configured,
                 addressing_mode=addressing_mode,
                 episode_sponsors=episode_sponsors,
-                max_window_ad_seconds=max_window_ad_seconds,
+                max_window_ad_seconds=self._window_ad_cap(slug, max_window_ad_seconds),
             )
             if failure is not None:
                 return failure

@@ -502,7 +502,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         audio_logger.info(f"[{slug}:{episode_id}] Confidence threshold: {min_cut_confidence:.0%}")
 
         common._publish_status('start_job', slug, episode_id, episode_title, podcast_name)
-        common._publish_status('update_job_stage', slug, episode_id, "preparing", 0)
 
         upsert_kwargs = dict(
             original_url=episode_url, title=episode_title,

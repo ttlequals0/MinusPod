@@ -37,7 +37,7 @@ from config import (
 )
 from audio_enforcer import content_anchors
 from ad_detector.boundaries import timed_line_segments
-from ad_detector.cue_boundary_snap import SNAP_GAP_SECONDS
+from ad_detector.cue_boundary_snap import cue_snap_edge_limit
 from text_pattern_matcher import is_defined_pattern
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
@@ -727,22 +727,17 @@ def _cue_snap_limits(ad: dict, original_start: float,
     """Edge limits at the labelled template cues the ad's edges were snapped to."""
     snap = ad.get('cue_snap') if isinstance(ad.get('cue_snap'), dict) else {}
 
-    def cue_limit(edge: str, removed: tuple, kept: tuple) -> float | None:
-        # A kept cue stays outside the ad; a removed cue stays inside it, so the
-        # limit sits on the far side of a removed cue. Records from before 2.99.6
-        # lack remove_with_ad and mean kept, so a missing key must stay kept.
+    def cue_limit(edge: str) -> float | None:
         record = snap.get(edge)
         if not isinstance(record, dict) or not is_template_cue(record):
             return None
-        key, offset = removed if record.get('remove_with_ad') else kept
-        value = finite_number(record.get(key))
-        return None if value is None else value + offset
+        return cue_snap_edge_limit(record, edge)
 
     starts, ends = [], []
-    lim = cue_limit('start', ('cue_start', -SNAP_GAP_SECONDS), ('cue_end', SNAP_GAP_SECONDS))
+    lim = cue_limit('start')
     if lim is not None and original_start - EDGE_TOLERANCE <= lim < original_end:
         starts.append((lim, max(lim, original_start)))
-    lim = cue_limit('end', ('cue_end', SNAP_GAP_SECONDS), ('cue_start', -SNAP_GAP_SECONDS))
+    lim = cue_limit('end')
     if lim is not None and original_start < lim <= original_end + EDGE_TOLERANCE:
         ends.append((lim, min(lim, original_end)))
     return starts, ends

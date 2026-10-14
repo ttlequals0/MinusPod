@@ -32,6 +32,8 @@ from config import (
     is_transition_cue,
 )
 
+from utils.markers import finite_number
+
 logger = logging.getLogger('podcast.claude.cue_snap')
 
 # Aliases kept for callers that import these names directly.
@@ -89,6 +91,21 @@ def _snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -
         rec['ambiguous'] = True
         rec['candidates'] = n_candidates
     return rec
+
+
+def cue_snap_edge_limit(record: dict, edge: str) -> float | None:
+    """Limit an edge stays on one side of, given its recorded cue snap.
+
+    A kept cue stays outside the ad; a removed cue stays inside it, so the limit
+    sits on the far side of a removed cue. Records from before 2.99.6 lack
+    remove_with_ad and mean kept, so a missing key must stay kept.
+    """
+    if (edge == 'start') == bool(record.get('remove_with_ad')):
+        key, offset = 'cue_start', -SNAP_GAP_SECONDS
+    else:
+        key, offset = 'cue_end', SNAP_GAP_SECONDS
+    value = finite_number(record.get(key))
+    return None if value is None else value + offset
 
 
 def _end_proposal(cue, original_end: float, ad_start: float, content_end,

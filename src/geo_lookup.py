@@ -48,21 +48,14 @@ def run_geo_lookup(db) -> None:
     """Resolve pending download IPs when geo lookup is enabled."""
     if not db.get_setting_bool('download_geo_lookup_enabled', False):
         return
-    public = []
+    rows, public = [], []
     for ip in db.pending_geo_ips():
         if is_private(ip):
-            db.store_geo(ip, 'private')
+            rows.append((ip, 'private', None, None, None))
         else:
             public.append(ip)
-    if not public:
-        return
-    public = public[:LOOKUPS_PER_TICK]
-    found = lookup_ips(public)
-    for ip in public:
-        entry = found.get(ip)
-        if entry is None:
-            continue
-        if entry['status'] == 'ok':
-            db.store_geo(ip, 'ok', entry['country'], entry['region'], entry['city'])
-        else:
-            db.store_geo(ip, 'failed')
+    for ip, entry in (lookup_ips(public) if public else {}).items():
+        rows.append((ip, entry['status'], entry.get('country'),
+                     entry.get('region'), entry.get('city')))
+    if rows:
+        db.store_geo_many(rows)

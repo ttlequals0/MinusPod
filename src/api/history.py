@@ -8,6 +8,7 @@ import math
 from flask import request, Response
 
 from config import resolve_jit_blocked_user_agents, user_agent_is_jit_blocked
+from database.downloads import SORT_COLUMNS
 
 from api import (
     api, limiter, log_request, json_response,
@@ -82,11 +83,6 @@ def get_processing_history_stats():
     })
 
 
-_DOWNLOAD_SORT_FIELDS = {
-    'last_seen_at', 'podcast', 'client_ip', 'location', 'subscriber',
-}
-
-
 @api.route('/history/downloads', methods=['GET'])
 @log_request
 def get_download_history():
@@ -95,7 +91,7 @@ def get_download_history():
     limit = min(max(1, request.args.get('limit', 50, type=int)), 100)
     page = max(1, request.args.get('page', 1, type=int))
     sort_by = request.args.get('sortBy', 'last_seen_at')
-    if sort_by not in _DOWNLOAD_SORT_FIELDS:
+    if sort_by not in SORT_COLUMNS:
         sort_by = 'last_seen_at'
     result = db.list_downloads(
         page=page, limit=limit, sort_by=sort_by,

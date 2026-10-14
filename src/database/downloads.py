@@ -1,17 +1,15 @@
 """Episode download history and the IP geo cache."""
-import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
-from utils.time import ISO_FORMAT, utc_now_iso
-
-logger = logging.getLogger('podcast.database')
+from utils.text import escape_like
+from utils.time import ISO_FORMAT, parse_iso_utc, utc_now_iso
 
 DEDUPE_WINDOW = timedelta(minutes=15)
 BURST_WINDOW = timedelta(seconds=60)
 GEO_RETRY_AFTER = timedelta(hours=24)
 GEO_BATCH_SIZE = 100
 
-_SORT_COLUMNS = {
+SORT_COLUMNS = {
     'last_seen_at': 'd.last_seen_at',
     'podcast': 'LOWER(COALESCE(p.title_override, p.title, p.slug))',
     'client_ip': 'd.client_ip',
@@ -21,8 +19,7 @@ _SORT_COLUMNS = {
 
 
 def _shift(stamp: str, delta: timedelta) -> str:
-    parsed = datetime.strptime(stamp, ISO_FORMAT).replace(tzinfo=timezone.utc)
-    return (parsed + delta).strftime(ISO_FORMAT)
+    return (parse_iso_utc(stamp) + delta).strftime(ISO_FORMAT)
 
 
 def _recent_download(conn, podcast_id, episode_id, client_ip, user_agent, now):
@@ -42,37 +39,35 @@ class DownloadHistoryMixin:
         """Count a download, merging repeats from one client inside 15 minutes.
 
         Reads happen outside any transaction; a repeat under 60 s old needs no write.
+        Raises on a database error; the serving route swallows it.
         """
-        try:
-            now = now or utc_now_iso()
-            conn = self.get_connection()
-            podcast = conn.execute(
-                "SELECT id FROM podcasts WHERE slug = ?", (slug,)).fetchone()
-            if not podcast:
-                return
-            key = (podcast['id'], episode_id, client_ip, user_agent, now)
+        now = now or utc_now_iso()
+        conn = self.get_connection()
+        podcast = conn.execute(
+            "SELECT id FROM podcasts WHERE slug = ?", (slug,)).fetchone()
+        if not podcast:
+            return
+        key = (podcast['id'], episode_id, client_ip, user_agent, now)
+        existing = _recent_download(conn, *key)
+        if existing and existing['last_seen_at'] >= _shift(now, -BURST_WINDOW):
+            return
+        with self.transaction(immediate=True) as conn:
+            # Re-check under the write lock so concurrent first requests share one row.
             existing = _recent_download(conn, *key)
-            if existing and existing['last_seen_at'] >= _shift(now, -BURST_WINDOW):
-                return
-            with self.transaction(immediate=True) as conn:
-                # Re-check under the write lock so concurrent first requests share one row.
-                existing = _recent_download(conn, *key)
-                if existing:
-                    conn.execute(
-                        """UPDATE episode_downloads
-                           SET request_count = request_count + 1, last_seen_at = ?
-                           WHERE id = ?""",
-                        (now, existing['id']))
-                else:
-                    conn.execute(
-                        """INSERT INTO episode_downloads
-                           (podcast_id, episode_id, subscriber_key_id, client_ip,
-                            user_agent, first_seen_at, last_seen_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                        (podcast['id'], episode_id, subscriber_key_id, client_ip,
-                         user_agent, now, now))
-        except Exception as exc:
-            logger.debug(f"[{slug}:{episode_id}] download not recorded: {exc}")
+            if existing:
+                conn.execute(
+                    """UPDATE episode_downloads
+                       SET request_count = request_count + 1, last_seen_at = ?
+                       WHERE id = ?""",
+                    (now, existing['id']))
+            else:
+                conn.execute(
+                    """INSERT INTO episode_downloads
+                       (podcast_id, episode_id, subscriber_key_id, client_ip,
+                        user_agent, first_seen_at, last_seen_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (podcast['id'], episode_id, subscriber_key_id, client_ip,
+                     user_agent, now, now))
 
     def list_downloads(self, page: int, limit: int, sort_by: str, sort_dir: str,
                        podcast_slug: str | None = None,
@@ -93,11 +88,11 @@ class DownloadHistoryMixin:
             where.append("substr(d.last_seen_at, 1, 10) <= ?")
             params.append(until[:10])
         if search:
-            escaped = search.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+            escaped = escape_like(search)
             where.append("(d.client_ip LIKE ? ESCAPE '\\' OR d.user_agent LIKE ? ESCAPE '\\')")
             params.extend([f'%{escaped}%'] * 2)
         clause = f"WHERE {' AND '.join(where)}" if where else ''
-        order = _SORT_COLUMNS.get(sort_by, _SORT_COLUMNS['last_seen_at'])
+        order = SORT_COLUMNS.get(sort_by, SORT_COLUMNS['last_seen_at'])
         direction = 'ASC' if str(sort_dir).lower() == 'asc' else 'DESC'
         join = """FROM episode_downloads d
                   JOIN podcasts p ON p.id = d.podcast_id
@@ -106,7 +101,10 @@ class DownloadHistoryMixin:
                   LEFT JOIN feed_subscriber_keys k ON k.id = d.subscriber_key_id
                   LEFT JOIN ip_geo_cache g ON g.ip = d.client_ip"""
         conn = self.get_connection()
-        total = conn.execute(f"SELECT COUNT(*) {join} {clause}", params).fetchone()[0]
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM episode_downloads d "  # noqa: S608
+            f"JOIN podcasts p ON p.id = d.podcast_id {clause}",
+            params).fetchone()[0]
         rows = conn.execute(
             f"""SELECT d.id, d.episode_id, d.client_ip, d.user_agent,
                        d.first_seen_at, d.last_seen_at, d.request_count,
@@ -146,9 +144,10 @@ class DownloadHistoryMixin:
             deleted = conn.execute(
                 "DELETE FROM episode_downloads WHERE last_seen_at < ?", (cutoff,)
             ).rowcount
-            conn.execute(
-                "DELETE FROM ip_geo_cache "
-                "WHERE ip NOT IN (SELECT client_ip FROM episode_downloads)")
+            if deleted:
+                conn.execute(
+                    "DELETE FROM ip_geo_cache "
+                    "WHERE ip NOT IN (SELECT client_ip FROM episode_downloads)")
             return deleted
 
     def pending_geo_ips(self, now: str | None = None) -> list[str]:
@@ -162,12 +161,13 @@ class DownloadHistoryMixin:
             (retry_before, GEO_BATCH_SIZE)).fetchall()
         return [r['client_ip'] for r in rows]
 
-    def store_geo(self, ip: str, status: str, country: str | None = None,
-                  region: str | None = None, city: str | None = None,
-                  now: str | None = None) -> None:
+    def store_geo_many(self, rows: list[tuple], now: str | None = None) -> None:
+        """Store (ip, status, country, region, city) tuples in one transaction."""
+        stamp = now or utc_now_iso()
         with self.transaction(immediate=True) as conn:
-            conn.execute(
+            conn.executemany(
                 """INSERT OR REPLACE INTO ip_geo_cache
                    (ip, country, region, city, looked_up_at, status)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (ip, country, region, city, now or utc_now_iso(), status))
+                [(ip, country, region, city, stamp, status)
+                 for ip, status, country, region, city in rows])

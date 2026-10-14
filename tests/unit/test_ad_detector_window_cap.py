@@ -100,37 +100,39 @@ def test_cap_falls_back_to_the_constant_when_the_db_errors():
         side_effect=RuntimeError('boom')))) == MAX_AD_DURATION_WINDOW
 
 
-def _first_pass_value(db_cap):
+def _detector_with_feed(feed_id=7, **db_kwargs):
+    detector = AdDetector(api_key='test-key')
+    detector.db = _FakeDb(**db_kwargs)
+    detector.db.get_podcast_by_slug = MagicMock(return_value={'id': feed_id})
+    return detector
+
+
+def test_detector_resolves_the_feed_cap_from_the_slug():
+    detector = _detector_with_feed(hold=600.0)
+    assert detector._window_ad_cap('example-podcast', None) == 600.0
+    detector.db.get_podcast_by_slug.assert_called_once_with('example-podcast')
+
+
+def test_detector_keeps_an_explicit_cap_override():
+    detector = _detector_with_feed(hold=600.0)
+    assert detector._window_ad_cap('example-podcast', 300.0) == 300.0
+    detector.db.get_podcast_by_slug.assert_not_called()
+
+
+def test_detector_without_a_slug_or_feed_falls_back_to_the_global_cap():
+    detector = _detector_with_feed(window=500.0)
+    assert detector._window_ad_cap(None, None) is None
+    detector.db.get_podcast_by_slug.return_value = None
+    assert detector._window_ad_cap('example-podcast', None) == 500.0
+
+
+def test_first_pass_stage_leaves_the_cap_to_the_detector():
     fake = MagicMock()
     fake.process_transcript.side_effect = RuntimeError('stop after capture')
     ctx = SimpleNamespace(slug='example-podcast', episode_id='a1b2c3d4e5f6', podcast_id=1)
     with patch.object(processing, 'ad_detector', fake), \
          patch.object(detect.common, '_publish_status'), \
-         patch.object(detect, 'clear_fallback'), \
-         patch.object(detect, 'resolve_window_ad_cap', return_value=db_cap):
+         patch.object(detect, 'clear_fallback'):
         with pytest.raises(RuntimeError):
             detect._detect_ads_first_pass(ctx, [], '/tmp/a.mp3', False, None, None)
-    return fake.process_transcript.call_args.kwargs['max_window_ad_seconds']
-
-
-def test_first_pass_stage_passes_the_feed_cap_as_an_argument():
-    assert _first_pass_value(600.0) == 600.0
-
-
-def test_verification_pass_forwards_the_feed_cap():
-    from verification_pass import VerificationPass
-    detector = MagicMock()
-    detector.run_verification_detection.return_value = {'ads': []}
-    analyzer = MagicMock()
-    analysis = MagicMock(signals=[])
-    analysis.get_signals_by_type.return_value = []
-    analyzer.analyze.return_value = analysis
-    transcriber = MagicMock()
-    transcriber.repair_gaps.return_value = ([], [])
-    verifier = VerificationPass(detector, transcriber, analyzer, db=_FakeDb(hold=600.0))
-    verifier.verify('/nonexistent.mp3', 'Show', 'Ep', 'example-podcast', 'a1b2c3d4e5f6',
-                    pass1_cuts=[], original_segments=[
-                        {'start': 0.0, 'end': 5.0, 'text': 'hello'}],
-                    reuse_transcript=True, feed_id=1)
-    kwargs = detector.run_verification_detection.call_args.kwargs
-    assert kwargs['max_window_ad_seconds'] == 600.0
+    assert 'max_window_ad_seconds' not in fake.process_transcript.call_args.kwargs

@@ -103,10 +103,10 @@ def test_rebuild_allows_a_commit_between_source_batches(temp_db, monkeypatch):
     write_attempts = {'count': 0}
     writer_errors = []
 
-    def run_with_concurrent_writer(operation):
+    def run_with_concurrent_writer(operation, **kwargs):
         write_attempts['count'] += 1
         if write_attempts['count'] != 2:
-            return real_run(operation)
+            return real_run(operation, **kwargs)
 
         def write_feed():
             conn = sqlite3.connect(str(temp_db.db_path), timeout=5)
@@ -127,7 +127,7 @@ def test_rebuild_allows_a_commit_between_source_batches(temp_db, monkeypatch):
         writer.join(timeout=5)
         assert not writer.is_alive()
         assert writer_errors == []
-        return real_run(operation)
+        return real_run(operation, **kwargs)
 
     monkeypatch.setattr(temp_db, '_run_rebuild_write', run_with_concurrent_writer)
     assert temp_db.rebuild_search_index() >= 3
