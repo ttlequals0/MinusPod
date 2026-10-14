@@ -64,16 +64,17 @@ export default function AdReviewTab() {
   }, [q]);
 
   const {
-    approve, dismiss, recategorize, adjust, triggerRecut, busy, actionError,
+    approve, dismiss, recategorize, adjust, busy, actionError,
   } = useDetectionCorrections({
     stopAudition: audition.stop,
     onSettled: () => setEditing(null),
   });
 
-  const handleSplit = (d: ReviewDetection) => () => {
+  // Like every other decision here, the recut waits for the Apply bar.
+  const handleSplit = () => {
     setSplitting(null);
     queryClient.invalidateQueries({ queryKey: ['detections'] });
-    if (d.hasOriginalAudio) triggerRecut(d);
+    queryClient.invalidateQueries({ queryKey: ['pending-recuts'] });
   };
 
   const { data, isLoading, error } = useQuery({
@@ -215,7 +216,7 @@ export default function AdReviewTab() {
             end: splitting.end,
           }}
           onClose={() => setSplitting(null)}
-          onSplit={handleSplit(splitting)}
+          onSplit={handleSplit}
         />
       )}
       {editing && (

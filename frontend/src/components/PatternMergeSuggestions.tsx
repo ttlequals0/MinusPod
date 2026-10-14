@@ -9,10 +9,7 @@ import { btnPrimary } from './buttonStyles';
 import { getErrorMessage } from '../api/client';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
-import { cardActionBtn } from './rowActionStyles';
-
-// 44px on phones only, matching the Cleanup tab footer.
-const mergeBtn = cardActionBtn.replace('min-h-[44px]', 'max-sm:min-h-[44px]');
+import { cardActionBtnMobileOnly } from './rowActionStyles';
 
 // Same-sponsor near-duplicate clusters the backend precomputes (#399). The
 // frontend only renders them and triggers the fold; it never computes
@@ -98,7 +95,7 @@ function SuggestionCard({
         <button
           onClick={doMerge}
           disabled={busy || mergeIds.length === 0}
-          className={`${mergeBtn} py-1.5 max-sm:w-full ${btnPrimary} disabled:opacity-50 ${focusRing}`}
+          className={`${cardActionBtnMobileOnly} py-1.5 max-sm:w-full ${btnPrimary} disabled:opacity-50 ${focusRing}`}
         >
           {busy
             ? 'Merging...'

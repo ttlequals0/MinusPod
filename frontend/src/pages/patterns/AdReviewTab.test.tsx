@@ -50,6 +50,16 @@ vi.mock('../../components/AdReviewModal', () => ({
   },
 }));
 
+vi.mock('../../components/SplitMarkerModal', () => ({
+  default: ({ onSplit }: {
+    onSplit: (r: { markerCount: number; patternIds: number[] }) => void;
+  }) => (
+    <button onClick={() => onSplit({ markerCount: 2, patternIds: [1, 2] })}>
+      finish split
+    </button>
+  ),
+}));
+
 function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
   return {
     feedSlug: 'feed-a', feedTitle: 'Feed A',
@@ -181,6 +191,16 @@ describe('AdReviewTab', () => {
     expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(category.parentElement?.className).toContain('justify-center');
     expect(category.parentElement?.className).toContain('sm:justify-start');
+  });
+
+  it('Split opens the modal and defers the recut to the Apply bar', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.click(within(screen.getByTestId('detections-cards')).getByRole('button', { name: 'Split' }));
+    await user.click(screen.getByRole('button', { name: 'finish split' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'finish split' })).toBeNull());
+    expect(mockReprocess).not.toHaveBeenCalled();
   });
 
   it('sorts from the filter-bar sort control and resets direction on column change', async () => {
