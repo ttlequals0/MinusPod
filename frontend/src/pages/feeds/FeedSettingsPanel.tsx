@@ -1219,7 +1219,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <div className="space-y-4 pt-1 max-sm:[&_select]:min-h-11">
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <label htmlFor="description-trim-pattern" className="text-muted-foreground sm:w-32 shrink-0 sm:pt-2">
-                  Trim by description chapter:
+                  Chapter title pattern:
                 </label>
                 <div className="flex flex-col gap-2 flex-1 min-w-0">
                   <input
@@ -1248,7 +1248,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     <option value="to_next">Cut until the next chapter</option>
                   </select>
                   <p className="text-xs text-muted-foreground">
-                    Match the chapter title in the description&apos;s timestamp lines, ignoring case. Use * as a wildcard, for example *Throwback*.
+                    Match the chapter title from the description&apos;s timestamp lines or the episode&apos;s chapters, ignoring case. Use * as a wildcard, for example *Throwback*.
                   </p>
                 </div>
               </div>
