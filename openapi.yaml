@@ -18607,6 +18607,15 @@ components:
         subscriberLabel:
           type: [string, 'null']
           description: Subscriber key label; null when the global key or no key was used.
+        subscriberKeyId:
+          type: [string, 'null']
+          description: Subscriber key id; null when the global key or no key was used.
+        subscriberRevoked:
+          type: boolean
+          description: True when the subscriber key has been revoked.
+        userAgentBlocked:
+          type: boolean
+          description: True when the user agent matches the JIT blocked user agents list.
         country: {type: [string, 'null']}
         region: {type: [string, 'null']}
         city: {type: [string, 'null']}

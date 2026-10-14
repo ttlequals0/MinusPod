@@ -113,6 +113,7 @@ class DownloadHistoryMixin:
                        p.slug AS podcast_slug,
                        COALESCE(p.title_override, p.title, p.slug) AS podcast_title,
                        e.title AS episode_title, k.label AS subscriber_label,
+                       d.subscriber_key_id, k.revoked_at AS subscriber_revoked_at,
                        g.country, g.region, g.city, g.status AS geo_status
                 {join} {clause}
                 ORDER BY {order} {direction}, d.id DESC LIMIT ? OFFSET ?""",
@@ -127,6 +128,8 @@ class DownloadHistoryMixin:
             'clientIp': r['client_ip'],
             'userAgent': r['user_agent'],
             'subscriberLabel': r['subscriber_label'],
+            'subscriberKeyId': r['subscriber_key_id'],
+            'subscriberRevoked': r['subscriber_revoked_at'] is not None,
             'country': r['country'],
             'region': r['region'],
             'city': r['city'],

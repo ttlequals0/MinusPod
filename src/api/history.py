@@ -7,6 +7,8 @@ import math
 
 from flask import request, Response
 
+from config import resolve_jit_blocked_user_agents, user_agent_is_jit_blocked
+
 from api import (
     api, limiter, log_request, json_response,
     get_database,
@@ -104,6 +106,9 @@ def get_download_history():
         until=request.args.get('until') or None,
         search=(request.args.get('search') or '').strip() or None,
     )
+    blocked = resolve_jit_blocked_user_agents(db.get_setting('jit_blocked_user_agents'))
+    for row in result['downloads']:
+        row['userAgentBlocked'] = user_agent_is_jit_blocked(row['userAgent'], blocked)
     return json_response({**result, 'page': page, 'limit': limit})
 
 

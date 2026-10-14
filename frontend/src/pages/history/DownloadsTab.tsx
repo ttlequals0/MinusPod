@@ -7,18 +7,30 @@ import { getSettings } from '../../api/settings';
 import type { DownloadHistoryEntry } from '../../api/types';
 import { feedDisplayTitle } from '../../utils/feedTitle';
 import { formatDateTime } from '../../utils/format';
+import { clientName } from '../../utils/userAgent';
+import { badgeBase, tint } from '../../components/badgeStyles';
 import { SkeletonRows } from '../../components/Skeleton';
 import { Pagination } from '../../components/Pagination';
 import { SortHeader, useSortState } from '../../components/SortHeader';
+import DownloadRowActions from './DownloadRowActions';
 import { selectBase, inputBase, focusRing, filterGrid, filterLabel, filterControl } from '../../components/fieldStyles';
 
 const LIMIT = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
-// First product token of a user agent ("Overcast/3.0 (iPhone)" -> "Overcast").
-export function clientName(userAgent: string): string {
-  const token = userAgent.split(/[/(]/)[0].trim();
-  return token || 'Unknown';
+function BlockedBadge({ row }: { row: DownloadHistoryEntry }) {
+  if (!row.userAgentBlocked) return null;
+  return <span className={`${badgeBase} ml-2 ${tint.warning}`}>Blocked</span>;
+}
+
+function SubscriberCell({ row }: { row: DownloadHistoryEntry }) {
+  if (!row.subscriberLabel) return <>-</>;
+  return (
+    <>
+      {row.subscriberLabel}
+      {row.subscriberRevoked && <span className={`${badgeBase} ml-2 ${tint.destructive}`}>Revoked</span>}
+    </>
+  );
 }
 
 function Location({ row, geoEnabled }: { row: DownloadHistoryEntry; geoEnabled: boolean }) {
@@ -79,6 +91,7 @@ function DownloadsTab({ tabs }: Props) {
   });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
   const geoEnabled = settings?.downloadGeoLookupEnabled?.value ?? false;
+  const blocked = settings?.jitBlockedUserAgents?.value;
 
   const rows = data?.downloads ?? [];
   const total = data?.total ?? 0;
@@ -208,10 +221,16 @@ function DownloadsTab({ tabs }: Props) {
                   <dt className="text-muted-foreground">Location</dt>
                   <dd className="text-foreground"><Location row={row} geoEnabled={geoEnabled} /></dd>
                   <dt className="text-muted-foreground">Subscriber</dt>
-                  <dd className="text-foreground">{row.subscriberLabel ?? '-'}</dd>
+                  <dd className="text-foreground"><SubscriberCell row={row} /></dd>
                   <dt className="text-muted-foreground">Client</dt>
-                  <dd className="text-foreground truncate" title={row.userAgent}>{clientName(row.userAgent)}</dd>
+                  <dd className="text-foreground flex items-center min-w-0">
+                    <span className="truncate" title={row.userAgent}>{clientName(row.userAgent)}</span>
+                    <BlockedBadge row={row} />
+                  </dd>
                 </dl>
+                <div className="flex justify-end mt-3">
+                  <DownloadRowActions row={row} blocked={blocked} triggerClassName="px-3 py-2" />
+                </div>
               </div>
             ))}
           </div>
@@ -230,12 +249,13 @@ function DownloadsTab({ tabs }: Props) {
                     <SortHeader field="subscriber" label="Subscriber" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                     <th scope="col" className={`${th} hidden lg:table-cell`}>Client</th>
                     <th scope="col" className={`${th} text-right`}>Requests</th>
+                    <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {rows.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                      <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                         No downloads recorded
                       </td>
                     </tr>
@@ -267,14 +287,18 @@ function DownloadsTab({ tabs }: Props) {
                         <Location row={row} geoEnabled={geoEnabled} />
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
-                        {row.subscriberLabel ?? '-'}
+                        <SubscriberCell row={row} />
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                         <span className="block truncate max-w-[140px]" title={row.userAgent}>
                           {clientName(row.userAgent)}
                         </span>
+                        <BlockedBadge row={row} />
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground text-right tabular-nums">{row.requestCount}</td>
+                      <td className="px-4 py-3 text-right">
+                        <DownloadRowActions row={row} blocked={blocked} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

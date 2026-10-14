@@ -1583,6 +1583,9 @@ export interface DownloadHistoryEntry {
   clientIp: string;
   userAgent: string;
   subscriberLabel: string | null;
+  subscriberKeyId: string | null;
+  subscriberRevoked: boolean;
+  userAgentBlocked: boolean;
   country: string | null;
   region: string | null;
   city: string | null;
