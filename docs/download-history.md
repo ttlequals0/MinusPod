@@ -37,7 +37,7 @@ Each row has an Actions menu.
 
 ## Privacy
 
-- Client IP addresses and user agent strings are stored in the MinusPod database for the retention period. Cached locations for IPs that no longer appear in any row are deleted with the periodic cleanup.
+- Client IP addresses and user agent strings are stored in the MinusPod database for the retention period. Cached locations for IPs that no longer appear in any row are deleted with the periodic cleanup. Expired rows are pruned once every 24 hours, so rows can outlive the retention period by up to a day.
 - Geo lookup is off by default. When on, public IPs are sent over HTTPS to the free ipwho.is service, which is a third party, one request per IP and at most 25 IPs per cleanup run. Private, loopback, link-local and reserved addresses are never sent.
 - Results are cached per IP. A failed lookup is retried after 24 hours.
 - Deleting a podcast removes its download rows. Revoking a subscriber key keeps the rows and their label; deleting the key record clears the label.

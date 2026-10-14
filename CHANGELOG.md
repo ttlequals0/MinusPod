@@ -23,6 +23,7 @@ release notes.
 - A feed's max ad duration cap or its max ad duration (reject) override now also lifts the detector's 7-minute cap on a single LLM detection, so a show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span instead of pieces. The 7-minute default is now a global setting, Longest single LLM detection, and the verification pass honors it.
 - Detected Ads and Ad Review cards share one layout: the category selector sits above a single equal-width row of Play, Confirm ad, Not an ad, Split and Edit. Pattern merge suggestions put the Merge button below the member list, matching Cleanup. The feed settings Episode filters section uses compact pattern chips and buttons on mobile.
 - The search index is refreshed from its change journal every 6 hours and fully rebuilt weekly; rebuild writes yield between batches so the podping listener and processing queue no longer wait 10 to 20 s on the write lock during a rebuild.
+- Download history pruning runs once every 24 hours instead of on every cleanup pass; the geo cache orphan sweep runs only when rows were pruned, and geo results are stored in one transaction per run. Added an index on the download client IP column.
 
 ### Fixed
 - Reprocessing or re-detecting an episode on a local feed, or any episode with a retained original, no longer reports a Downloading phase; the status bar shows Preparing until transcription starts.
