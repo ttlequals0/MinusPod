@@ -1,7 +1,7 @@
 # Detection and search fixes: design
 
 Date: 2026-10-14
-Status: implemented in 2.100.12.
+Status: implemented in 2.100.13.
 
 ## Context
 
@@ -84,7 +84,7 @@ Per marker, `_process_single_window` stamps, with `setdefault` and only on LLM w
 | `addressing_mode` | `timestamps` or `segment_ids`, the mode that window was rendered under. Mode is drawn per pass, so it is stamped per ad. |
 | `llm_start`, `llm_end` | The model's bounds after mapping and window clamp, before boundary snapping, cue snapping or review. |
 
-Stamping happens before the window-dedup merge records members, so merged members keep their origin. Markers from before 2.100.12 carry none of the three fields and are skipped by every statistic below. Split pieces inherit the parent's `llm_*` values.
+Stamping happens before the window-dedup merge records members, so merged members keep their origin. Markers from before 2.100.13 carry none of the three fields and are skipped by every statistic below. Split pieces inherit the parent's `llm_*` values.
 
 `ad_reviewer_log` and `pattern_corrections` gain an `addressing_mode` column (added with `_add_column_if_missing`; the corrections foreign-key rebuild DDL includes it). The reviewer verdict carries the mode from the ad into the log, and a correction copies it from the marker it corrects.
 
@@ -103,7 +103,7 @@ It is bounded so the stats request stays cheap: the 2000 most recent episodes pr
 
 ### Plain-text storage and one-shot rebuild
 
-The index stores plain text. Every indexing path (bulk rebuild and the single-row path) goes through shared row builders that apply `strip_html` to podcast and episode descriptions, so a description with markup is searchable and snippets show no tags. A one-shot migration rebuilds the index once on upgrade, because rows indexed before 2.100.12 hold raw HTML.
+The index stores plain text. Every indexing path (bulk rebuild and the single-row path) goes through shared row builders that apply `strip_html` to podcast and episode descriptions, so a description with markup is searchable and snippets show no tags. A one-shot migration rebuilds the index once on upgrade, because rows indexed before 2.100.13 hold raw HTML.
 
 ### Refresh cadence
 

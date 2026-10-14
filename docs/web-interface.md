@@ -296,7 +296,7 @@ The episode header carries up to three spend readouts: **Active run** while a ru
 
 ### Search index
 
-Search reads a full-text index. Changes to shows, episodes, transcripts, patterns and sponsors are written to a change journal and applied to the index every 6 hours, so new content can take up to 6 hours to appear in search results. The index is rebuilt in full once a week. Both run in short steps that let other writers in, and a refresh is postponed (up to 12 hours) while an episode is processing. Descriptions are indexed as plain text, so result snippets show no HTML tags. Upgrading to 2.100.12 rebuilds the index once.
+Search reads a full-text index. Changes to shows, episodes, transcripts, patterns and sponsors are written to a change journal and applied to the index every 6 hours, so new content can take up to 6 hours to appear in search results. The index is rebuilt in full once a week. Both run in short steps that let other writers in, and a refresh is postponed (up to 12 hours) while an episode is processing. Descriptions are indexed as plain text, so result snippets show no HTML tags. Upgrading to 2.100.13 rebuilds the index once.
 
 ### Filters and date ranges
 

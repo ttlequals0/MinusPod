@@ -1,7 +1,7 @@
 # Download history: design
 
 Date: 2026-10-14
-Status: implemented in 2.100.12.
+Status: implemented in 2.100.13.
 
 ## Context
 
@@ -58,7 +58,7 @@ Indexes cover the dedupe lookup, `client_ip` (for the geo pending query and the 
 - Only these headers are stored, when present, each truncated to 300 characters: `Range`, `Accept`, `Accept-Encoding`, `Referer`, `If-Range`, `If-None-Match`. They are stored as a JSON object.
 - Cookies, `Authorization` and every other header are never read.
 - Capture is written on insert and on a bump. The under-60-seconds fast path writes nothing, so the stored request is the last counted one.
-- Rows recorded before 2.100.12 have no capture, and the UI disables View request for them.
+- Rows recorded before 2.100.13 have no capture, and the UI disables View request for them.
 
 ## Decision: geo lookup
 

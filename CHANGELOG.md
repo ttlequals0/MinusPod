@@ -11,7 +11,7 @@ release notes.
 
 ## [Unreleased]
 
-## [2.100.12] - 2026-10-14
+## [2.100.13] - 2026-10-14
 
 ### Added
 - Feeds can trim an episode by a description chapter. When a timestamp line in the description matches a title pattern, the span from that timestamp to the end of the episode (or to the next chapter) is cut like an ad, so a show whose second half is a re-run no longer needs to be skipped. The rule also matches the episode's chapters, including the ones MinusPod generates, and a matching generated chapter queues an automatic recut. Feeds can add chapter notes that are sent with every chapter request.
