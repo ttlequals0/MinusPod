@@ -80,6 +80,33 @@ def get_processing_history_stats():
     })
 
 
+_DOWNLOAD_SORT_FIELDS = {
+    'last_seen_at', 'podcast', 'client_ip', 'location', 'subscriber',
+}
+
+
+@api.route('/history/downloads', methods=['GET'])
+@log_request
+def get_download_history():
+    """List episode downloads with filters, sorting and pagination."""
+    db = get_database()
+    limit = min(max(1, request.args.get('limit', 50, type=int)), 100)
+    page = max(1, request.args.get('page', 1, type=int))
+    sort_by = request.args.get('sortBy', 'last_seen_at')
+    if sort_by not in _DOWNLOAD_SORT_FIELDS:
+        sort_by = 'last_seen_at'
+    result = db.list_downloads(
+        page=page, limit=limit, sort_by=sort_by,
+        sort_dir=request.args.get('sortDir', 'desc'),
+        podcast_slug=request.args.get('podcastSlug') or None,
+        subscriber_key_id=request.args.get('subscriberKeyId') or None,
+        since=request.args.get('since') or None,
+        until=request.args.get('until') or None,
+        search=(request.args.get('search') or '').strip() or None,
+    )
+    return json_response({**result, 'page': page, 'limit': limit})
+
+
 _EXPORT_CSV_FIELDS = [
     'id', 'podcast_slug', 'podcast_title', 'episode_id',
     'episode_title', 'processed_at', 'processing_duration_seconds',

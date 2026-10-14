@@ -537,12 +537,14 @@ class TestGetDefaults:
         # adChaptersEnabled and adChapterCategories retired with the settings
         # they came from (164 -> 162; 2.98.0, mark_action_from_ad_chapters_v1).
         # audioEncoderCompressionLevel added after that (165 -> 166).
-        # maxLlmWindowAdSeconds added after that (166 -> 167).
+        # maxLlmWindowAdSeconds added after that (166 -> 167), then
+        # downloadHistoryEnabled + downloadGeoLookupEnabled +
+        # downloadHistoryRetentionDays (167 -> 170).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 167
+        assert len(payload_keys) == 170
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

@@ -6,6 +6,7 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import CopyButton from '../../components/CopyButton';
 import SubscriberKeysPanel from '../../components/SubscriberKeysPanel';
 import AllSubscriberKeys from './AllSubscriberKeys';
+import DownloadHistorySettings from './DownloadHistorySettings';
 import { feedDisplayTitle } from '../../utils/feedTitle';
 import { getSettings, updateSettings, regenerateFeedKey } from '../../api/settings';
 import { feedsQueryOptions, regenerateAllFeeds } from '../../api/feeds';
@@ -159,6 +160,8 @@ function AuthenticatedFeedsSection() {
             </div>
           )}
         </div>
+
+        <DownloadHistorySettings />
       </div>
       {confirmRegenerate && (
         <ConfirmModal

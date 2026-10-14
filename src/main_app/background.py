@@ -9,9 +9,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 import failover
+import geo_lookup
 import run_context
 import run_log
 from config import (
+    DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT, DOWNLOAD_HISTORY_RETENTION_DAYS_MIN,
     DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER,
     FEED_REFRESH_OUTAGE_MIN_FEEDS, LOCAL_MODEL_IDLE_UNLOAD_SECONDS, MAX_EPISODE_RETRIES,
     PROCESSING_MODE_CUE_ONLY, PROCESSING_MODE_PASSTHROUGH,
@@ -195,6 +197,17 @@ def run_cleanup():
                     f"Cleanup: removed {pruned} expired run log(s) and {orphans} orphan file(s)")
     except Exception as e:
         refresh_logger.error(f"Run log cleanup failed: {e}")
+
+    # Download history: geo-resolve new client IPs, then drop rows past retention.
+    try:
+        geo_lookup.run_geo_lookup(db)
+    except Exception as e:
+        refresh_logger.error(f"Download geo lookup failed: {e}")
+    try:
+        db.prune_downloads(max(DOWNLOAD_HISTORY_RETENTION_DAYS_MIN, db.get_setting_int(
+            'download_history_retention_days', DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT)))
+    except Exception as e:
+        refresh_logger.error(f"Download history prune failed: {e}")
 
     # Periodic search index rebuild (every 6 hours). rebuild_search_index
     # logs "Search index rebuilt with N items" itself, so no duplicate log

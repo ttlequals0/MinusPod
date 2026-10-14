@@ -14,6 +14,7 @@ release notes.
 ## [2.100.12] - 2026-10-14
 
 ### Added
+- History page gains a Downloads tab: every episode download with time, client IP, location, subscriber label and client app, with sorting and filters. Range requests from the same client within 15 minutes count as one download. Geo lookup (ipwho.is) is off by default and enabled under Settings; rows are kept for 90 days by default. See [Download History](docs/download-history.md).
 - Settings > Authenticated feeds lists every subscriber feed across all podcasts with its label and feed; each feed's settings gain a Security section to create and revoke subscriber feeds for that podcast.
 
 - Each LLM-detected marker records the addressing mode it was detected under and the model's pre-snap boundaries; the reviewer log and corrections carry the mode, and /stats/reviewer and /stats/addressing report verdicts, correction rates and snap distance per mode.

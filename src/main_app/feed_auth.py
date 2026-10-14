@@ -19,7 +19,7 @@ import secrets
 from functools import wraps
 
 from database.podcasts import is_recents_feed, recents_cutoff
-from flask import abort, request
+from flask import abort, g, request
 
 from utils.http import client_ip
 
@@ -71,16 +71,19 @@ def active_feed_key(db):
 
 
 def subscriber_key_allows_asset(db, slug: str, episode_id: str | None,
-                                token: str) -> bool:
-    """Allow a direct feed key or a Recents key for a current Recents item."""
+                                token: str) -> str | None:
+    """Key id when a direct feed key or a Recents key for a current Recents item allows the asset."""
+    key_id = token.split('.', 1)[0]
     if db.verify_feed_subscriber_key(slug, token):
-        return True
+        return key_id
     if not episode_id or not db.verify_feed_subscriber_key('recents', token):
-        return False
+        return None
     recents = db.get_podcast_by_slug('recents')
     if not is_recents_feed(recents):
-        return False
-    return db.is_recent_processed_episode(slug, episode_id, recents_cutoff(recents))
+        return None
+    if db.is_recent_processed_episode(slug, episode_id, recents_cutoff(recents)):
+        return key_id
+    return None
 
 
 def extract_key_from_cover_token(token):
@@ -119,15 +122,17 @@ def require_feed_key(f):
                 expected and supplied and KEY_RE.fullmatch(supplied)
                 and secrets.compare_digest(supplied, expected)
             )
-            subscriber_match = bool(
+            subscriber_key_id = (
                 supplied and SUBSCRIBER_KEY_RE.fullmatch(supplied)
                 and subscriber_key_allows_asset(
                     db, kwargs.get('slug') or (args[0] if args else None),
                     kwargs.get('episode_id') or (args[1] if len(args) > 1 else None),
                     supplied,
                 )
-            )
-            if not (global_match or subscriber_match):
+            ) or None
+            if subscriber_key_id:
+                g.subscriber_key_id = subscriber_key_id
+            if not (global_match or subscriber_key_id):
                 # INFO, not WARNING: with feed auth on, every directory crawler
                 # and cold podcast client that lacks the key gets one of these,
                 # so it is expected traffic rather than an operator problem.

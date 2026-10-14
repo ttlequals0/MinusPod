@@ -35,7 +35,9 @@ _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
-from database.schema.tables import PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL
+from database.schema.tables import (
+    DOWNLOAD_INDEX_SQL, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL,
+)
 from database.search import (
     SEARCH_CHANGE_JOURNAL_DDL,
     SEARCH_CHANGE_TRIGGERS_SQL,
@@ -183,6 +185,8 @@ class SchemaMixin:
         'processing_runs',
         'upload_reservations',
         'feed_subscriber_keys',
+        'episode_downloads',
+        'ip_geo_cache',
         'provider_spend_reservations',
         'failover_events',
         'pattern_cleanup_runs',
@@ -247,7 +251,7 @@ class SchemaMixin:
             "CREATE INDEX IF NOT EXISTS idx_failover_events_created "
             "ON failover_events(created_at DESC)"
         )
-        for statement in PATTERN_CLEANUP_INDEXES:
+        for statement in PATTERN_CLEANUP_INDEXES + DOWNLOAD_INDEX_SQL:
             conn.execute(statement)
         conn.execute("DROP INDEX IF EXISTS idx_upload_reservations_active_target")
         conn.execute(

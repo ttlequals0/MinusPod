@@ -134,6 +134,7 @@ Compose requires an application password before it serves the normal API. Set th
 | [Upstream Transcript Differential](docs/transcript-differential.md) | Diffing the Whisper transcript against the publisher's ad-free transcript, how gaps corroborate or hold |
 | [System One](docs/system-one.md) | Native TypeSafe and compatible providers, supported phases, profiles, migration, statistics |
 | [Failover](docs/failover.md) | Standby LLM provider and transcriber, triggers, health probes, recovery, manual control |
+| [Download History](docs/download-history.md) | The History Downloads tab: recorded fields, filters, optional geo lookup, retention, privacy |
 | [Local Feeds](docs/local-feeds.md) | Build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema |
 | [Configuration Import / Export](docs/configuration-import-export.md) | Export and restore global settings and selected feed configuration |
 | [Intel GPU Transcription (OpenVINO)](docs/transcription-openvino.md) | Offload Whisper to an Intel GPU via the OpenVINO Model Server |

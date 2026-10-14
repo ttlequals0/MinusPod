@@ -19,6 +19,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Upstream Transcript Differential](transcript-differential.md) - diffing the Whisper transcript against the publisher's ad-free `podcast:transcript`, how gaps corroborate or hold, settings
 - [System One](system-one.md) - native TypeSafe and compatible providers, supported phases, profiles, migration, and statistics
 - [Failover](failover.md) - standby LLM provider and transcriber, triggers, health probes, recovery, manual control, API
+- [Download History](download-history.md) - the History Downloads tab: what is recorded, filters, optional geo lookup, retention, privacy, API
 - [Local Feeds](local-feeds.md) - build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema
 - [Configuration Import / Export](configuration-import-export.md) - export and restore global settings and selected feed configuration
 - [Intel GPU Transcription (OpenVINO)](transcription-openvino.md) - offload Whisper to an Intel GPU via OpenVINO Model Server

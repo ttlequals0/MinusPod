@@ -104,6 +104,7 @@ GET_ROUTES = [
     ('/detections', 'status=all'),
     ('/history', ''),
     ('/history/stats', ''),
+    ('/history/downloads', ''),
     ('/failover', ''),
     ('/sponsors', ''),
     ('/sponsors/normalizations', ''),

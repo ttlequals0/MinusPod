@@ -26,6 +26,7 @@ from config import (
     LOW_AD_YIELD_ACTIONS,
     EPISODE_LOG_LEVELS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
+    DOWNLOAD_HISTORY_RETENTION_DAYS_MIN, DOWNLOAD_HISTORY_RETENTION_DAYS_MAX,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
     valid_ad_chapter_title_format,
@@ -293,6 +294,18 @@ def _validate_processing_defaults_payload(data):
         return f'episodeLogLevel must be one of: {", ".join(EPISODE_LOG_LEVELS)}', 400
     if 'feedAuthEnabled' in data and not isinstance(data['feedAuthEnabled'], bool):
         return 'feedAuthEnabled must be a boolean', 400
+    for key in ('downloadHistoryEnabled', 'downloadGeoLookupEnabled'):
+        if key in data and not isinstance(data[key], bool):
+            return f'{key} must be a boolean', 400
+    if 'downloadHistoryRetentionDays' in data:
+        days = data['downloadHistoryRetentionDays']
+        if (not isinstance(days, int) or isinstance(days, bool)
+                or days < DOWNLOAD_HISTORY_RETENTION_DAYS_MIN
+                or days > DOWNLOAD_HISTORY_RETENTION_DAYS_MAX):
+            return (
+                'downloadHistoryRetentionDays must be an integer between '
+                f'{DOWNLOAD_HISTORY_RETENTION_DAYS_MIN} and '
+                f'{DOWNLOAD_HISTORY_RETENTION_DAYS_MAX}', 400)
     return None
 
 
@@ -711,6 +724,19 @@ def _apply_processing_flags(db, data):
             # cannot 304-skip re-rendering served feeds with the new state.
             common.after_commit(db.clear_all_podcast_etags)
             logger.info(f"Updated feed auth to: {value}")
+
+    for payload_key, setting_key in (
+            ('downloadHistoryEnabled', 'download_history_enabled'),
+            ('downloadGeoLookupEnabled', 'download_geo_lookup_enabled')):
+        if payload_key in data:
+            db.set_setting(setting_key, 'true' if data[payload_key] else 'false',
+                           is_default=False)
+            logger.info(f"Updated {setting_key} to: {data[payload_key]}")
+
+    if 'downloadHistoryRetentionDays' in data:
+        days = data['downloadHistoryRetentionDays']
+        db.set_setting('download_history_retention_days', str(days), is_default=False)
+        logger.info(f"Updated download history retention to {days} days")
 
     if 'vttTranscriptsEnabled' in data:
         value = 'true' if data['vttTranscriptsEnabled'] else 'false'

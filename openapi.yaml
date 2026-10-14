@@ -5555,6 +5555,67 @@ paths:
                         title:
                           type: string
 
+  /history/downloads:
+    get:
+      tags:
+        - History
+      summary: List episode downloads
+      description: |
+        Client downloads of episode audio, newest first by default. Range requests
+        from one client within 15 minutes count as one row. Client IPs are stored
+        and location is filled only when geo lookup is enabled.
+      operationId: getDownloadHistory
+      parameters:
+        - name: page
+          in: query
+          schema: {type: integer, minimum: 1, default: 1}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [last_seen_at, podcast, client_ip, location, subscriber]
+            default: last_seen_at
+        - name: sortDir
+          in: query
+          schema: {type: string, enum: [asc, desc], default: desc}
+        - name: podcastSlug
+          in: query
+          schema: {type: string}
+        - name: subscriberKeyId
+          in: query
+          schema: {type: string}
+        - name: since
+          in: query
+          description: First day to include (YYYY-MM-DD, UTC).
+          schema: {type: string}
+        - name: until
+          in: query
+          description: Last day to include (YYYY-MM-DD, UTC).
+          schema: {type: string}
+        - name: search
+          in: query
+          description: Substring match on client IP or user agent.
+          schema: {type: string}
+      responses:
+        '200':
+          description: Page of downloads
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [downloads, total, page, limit]
+                properties:
+                  downloads:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DownloadHistoryEntry'
+                  total: {type: integer}
+                  page: {type: integer}
+                  limit: {type: integer}
+
   /history/export:
     get:
       tags:
@@ -6595,6 +6656,17 @@ paths:
                 feedAuthEnabled:
                   type: boolean
                   description: Require the global feed auth key on all public feed and episode URLs. Enabling generates the key if absent.
+                downloadHistoryEnabled:
+                  type: boolean
+                  description: Record episode downloads for the History Downloads tab.
+                downloadGeoLookupEnabled:
+                  type: boolean
+                  description: Resolve public client IPs to a location through ipwho.is. Off by default.
+                downloadHistoryRetentionDays:
+                  type: integer
+                  minimum: 1
+                  maximum: 3650
+                  description: Days to keep download history rows.
                 minCutConfidence:
                   type: number
                   format: float
@@ -16447,6 +16519,30 @@ components:
               description: Whether the global feed auth key is required on all public feed and episode URLs. Off by default.
             isDefault:
               type: boolean
+        downloadHistoryEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether episode downloads are recorded.
+            isDefault:
+              type: boolean
+        downloadGeoLookupEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether public client IPs are sent to ipwho.is for a location. Off by default.
+            isDefault:
+              type: boolean
+        downloadHistoryRetentionDays:
+          type: object
+          properties:
+            value:
+              type: integer
+              description: Days download history rows are kept.
+            isDefault:
+              type: boolean
         feedAuthKey:
           type: [string, 'null']
           description: Global feed auth key (64 hex chars) carried as ?key= on feed/episode URLs and embedded in the badged cover path token; null until first enable.
@@ -17280,6 +17376,12 @@ components:
               type: boolean
             feedAuthEnabled:
               type: boolean
+            downloadHistoryEnabled:
+              type: boolean
+            downloadGeoLookupEnabled:
+              type: boolean
+            downloadHistoryRetentionDays:
+              type: integer
             minCutConfidence:
               type: number
               format: float
@@ -18490,6 +18592,31 @@ components:
         created_at: { type: string, format: date-time }
         last_used_at: { type: [string, 'null'], format: date-time }
         revoked_at: { type: [string, 'null'], format: date-time }
+
+    DownloadHistoryEntry:
+      type: object
+      required: [id, episodeId, podcastSlug, podcastTitle, clientIp, userAgent, firstSeenAt, lastSeenAt, requestCount]
+      properties:
+        id: {type: integer}
+        episodeId: {type: string}
+        episodeTitle: {type: [string, 'null']}
+        podcastSlug: {type: string}
+        podcastTitle: {type: string}
+        clientIp: {type: string}
+        userAgent: {type: string}
+        subscriberLabel:
+          type: [string, 'null']
+          description: Subscriber key label; null when the global key or no key was used.
+        country: {type: [string, 'null']}
+        region: {type: [string, 'null']}
+        city: {type: [string, 'null']}
+        geoStatus:
+          type: [string, 'null']
+          enum: [ok, private, failed, null]
+          description: null when no lookup has been stored for the IP.
+        firstSeenAt: {type: string}
+        lastSeenAt: {type: string}
+        requestCount: {type: integer}
 
     FeedSubscriberKeyWithFeed:
       type: object

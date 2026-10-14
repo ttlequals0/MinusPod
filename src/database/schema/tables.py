@@ -360,6 +360,34 @@ TABLE_DDL['feed_subscriber_keys'] = """CREATE TABLE IF NOT EXISTS feed_subscribe
     revoked_at TEXT
 )"""
 
+TABLE_DDL['episode_downloads'] = """CREATE TABLE IF NOT EXISTS episode_downloads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    podcast_id INTEGER NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
+    episode_id TEXT NOT NULL,
+    subscriber_key_id TEXT REFERENCES feed_subscriber_keys(id) ON DELETE SET NULL,
+    client_ip TEXT NOT NULL,
+    user_agent TEXT NOT NULL DEFAULT '',
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    request_count INTEGER NOT NULL DEFAULT 1
+)"""
+
+TABLE_DDL['ip_geo_cache'] = """CREATE TABLE IF NOT EXISTS ip_geo_cache (
+    ip TEXT PRIMARY KEY,
+    country TEXT,
+    region TEXT,
+    city TEXT,
+    looked_up_at TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('ok', 'private', 'failed'))
+)"""
+
+DOWNLOAD_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS idx_episode_downloads_seen "
+    "ON episode_downloads(last_seen_at)",
+    "CREATE INDEX IF NOT EXISTS idx_episode_downloads_dedupe "
+    "ON episode_downloads(podcast_id, episode_id, client_ip, user_agent, last_seen_at)",
+)
+
 TABLE_DDL['provider_spend_reservations'] = """CREATE TABLE IF NOT EXISTS provider_spend_reservations (
     id TEXT PRIMARY KEY CHECK(length(id) = 32),
     provider TEXT NOT NULL,
@@ -816,6 +844,14 @@ CREATE INDEX IF NOT EXISTS idx_upload_reservations_owner
 """ + TABLE_DDL['feed_subscriber_keys'] + """;
 CREATE INDEX IF NOT EXISTS idx_feed_subscriber_keys_podcast
     ON feed_subscriber_keys(podcast_id, revoked_at);
+
+""" + TABLE_DDL['episode_downloads'] + """;
+CREATE INDEX IF NOT EXISTS idx_episode_downloads_seen
+    ON episode_downloads(last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_episode_downloads_dedupe
+    ON episode_downloads(podcast_id, episode_id, client_ip, user_agent, last_seen_at);
+
+""" + TABLE_DDL['ip_geo_cache'] + """;
 
 """ + TABLE_DDL['provider_spend_reservations'] + """;
 CREATE INDEX IF NOT EXISTS idx_provider_spend_provider_day

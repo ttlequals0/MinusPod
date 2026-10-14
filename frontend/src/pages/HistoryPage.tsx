@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   getProcessingHistory,
   getProcessingHistoryStats,
@@ -18,6 +18,7 @@ import { SortHeader, useSortState } from '../components/SortHeader';
 import { btnSecondary } from '../components/buttonStyles';
 import { selectBase, focusRing, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
+import DownloadsTab from './history/DownloadsTab';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost' | 'appVersion';
@@ -28,7 +29,7 @@ const FILTER_CARD_CLASS =
   'border rounded-lg p-4 text-left cursor-pointer transition-colors ' +
   'hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-function HistoryPage() {
+function ProcessingTab({ tabs }: { tabs: ReactNode }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [podcastFilter, setPodcastFilter] = useState<string>('');
   const [page, setPage] = useState(1);
@@ -82,14 +83,17 @@ function HistoryPage() {
   };
 
   if (isLoading) {
-    return <div><SkeletonPageHeader /><SkeletonRows count={8} /></div>;
+    return <div><SkeletonPageHeader />{tabs}<SkeletonRows count={8} /></div>;
   }
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <p className="text-destructive">Failed to load processing history</p>
-        <p className="text-sm text-muted-foreground mt-2">{(error as Error).message}</p>
+      <div>
+        {tabs}
+        <div className="text-center py-12">
+          <p className="text-destructive">Failed to load processing history</p>
+          <p className="text-sm text-muted-foreground mt-2">{(error as Error).message}</p>
+        </div>
       </div>
     );
   }
@@ -100,7 +104,7 @@ function HistoryPage() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Processing History</h1>
+        <h1 className="text-2xl font-bold text-foreground">History</h1>
         <div className="flex gap-2">
           <button
             onClick={() => handleExport('csv')}
@@ -118,6 +122,8 @@ function HistoryPage() {
           </button>
         </div>
       </div>
+
+      {tabs}
 
       {/* Stats Summary */}
       {stats && (
@@ -392,6 +398,38 @@ function HistoryPage() {
       <Pagination page={page} totalPages={totalPages} total={historyData?.total || 0} onPage={setPage} />
     </div>
   );
+}
+
+const TABS = [
+  ['processing', 'Processing'],
+  ['downloads', 'Downloads'],
+] as const;
+
+function HistoryPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'downloads' ? 'downloads' : 'processing';
+
+  const tabs = (
+    <div role="tablist" className="flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden">
+      {TABS.map(([key, label]) => (
+        <button
+          key={key}
+          role="tab"
+          aria-selected={activeTab === key}
+          onClick={() => setSearchParams(key === 'processing' ? {} : { tab: key })}
+          className={`px-2 sm:px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${
+            activeTab === key
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          } ${focusRing}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return activeTab === 'downloads' ? <DownloadsTab tabs={tabs} /> : <ProcessingTab tabs={tabs} />;
 }
 
 export default HistoryPage;

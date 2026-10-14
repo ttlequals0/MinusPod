@@ -860,6 +860,9 @@ export interface Settings {
   feedUserAgent: SettingValue;
   logDownloadQuery: SettingValueBoolean;
   feedAuthEnabled: SettingValueBoolean;
+  downloadHistoryEnabled: SettingValueBoolean;
+  downloadGeoLookupEnabled: SettingValueBoolean;
+  downloadHistoryRetentionDays: SettingValueNumber;
   feedAuthKey: string | null;
   // User agents served original audio instead of triggering JIT processing.
   jitBlockedUserAgents: { value: string[]; isDefault: boolean };
@@ -1189,6 +1192,9 @@ export interface UpdateSettingsPayload {
   feedUserAgent?: string;
   logDownloadQuery?: boolean;
   feedAuthEnabled?: boolean;
+  downloadHistoryEnabled?: boolean;
+  downloadGeoLookupEnabled?: boolean;
+  downloadHistoryRetentionDays?: number;
   jitBlockedUserAgents?: string[];
   audioBitrate?: string;
   audioEncoderCompressionLevel?: string;
@@ -1564,6 +1570,33 @@ export interface ProcessingHistoryResponse {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export type DownloadGeoStatus = 'ok' | 'private' | 'failed';
+
+export interface DownloadHistoryEntry {
+  id: number;
+  episodeId: string;
+  episodeTitle: string | null;
+  podcastSlug: string;
+  podcastTitle: string;
+  clientIp: string;
+  userAgent: string;
+  subscriberLabel: string | null;
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  geoStatus: DownloadGeoStatus | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  requestCount: number;
+}
+
+export interface DownloadHistoryResponse {
+  downloads: DownloadHistoryEntry[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 export interface BulkActionResult {
