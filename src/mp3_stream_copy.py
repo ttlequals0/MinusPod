@@ -198,6 +198,18 @@ def _bridge(source, frame, seed, rate):
     return bits.to_bytes(4, 'big') + preserved + bytes(padding) + seed
 
 
+def _silence(source, frame, seed, rate, channels):
+    source.seek(frame.offset)
+    bits = int.from_bytes(source.read(4), 'big')
+    bits = (bits & ~0xf000) | (14 << 12)
+    size = 144000 * 320 // rate + ((bits >> 9) & 1)
+    side_length = 17 if channels == 1 else 32
+    padding = size - 4 - side_length - len(seed)
+    if padding < 0:
+        raise CopyUnavailable('Insufficient legal MP3 bridge capacity')
+    return bits.to_bytes(4, 'big') + bytes(side_length + padding) + seed
+
+
 def _write(source_path, output_path, stream, intervals, filler_path, filler):
     mapping = []
     with open(source_path, 'rb') as source, open(output_path, 'wb') as target:
@@ -209,9 +221,13 @@ def _write(source_path, output_path, stream, intervals, filler_path, filler):
             target.write(data)
             remaining -= len(data)
         replacements = {}
+        first = int(stream.xing is not None)
         for lo, hi in intervals:
+            if hi == len(stream.frames):
+                continue
             seed = _reservoir_seed(source, stream.frames, hi)
-            if filler is None and (stream.frames[hi].reservoir or stream.frames[hi].capacity < 511):
+            if (filler is None and lo != first
+                    and (stream.frames[hi].reservoir or stream.frames[hi].capacity < 511)):
                 replacements[lo - 1] = _bridge(source, stream.frames[lo - 1], seed, stream.rate)
         index = 0
         total = 0
@@ -235,6 +251,15 @@ def _write(source_path, output_path, stream, intervals, filler_path, filler):
                             total += len(data)
                             audio_crc = _crc(data, audio_crc)
                             mapping.append(('filler', clip_index))
+                elif index == first and hi < len(stream.frames):
+                    # The decoder drops the start skip from the first frame, so silence absorbs it.
+                    data = _silence(source, stream.frames[hi],
+                                    _reservoir_seed(source, stream.frames, hi), stream.rate, stream.channels)
+                    positions.append(total)
+                    target.write(data)
+                    total += len(data)
+                    audio_crc = _crc(data, audio_crc)
+                    mapping.append(('silence', None))
                 index = hi
                 continue
             frame = stream.frames[index]
@@ -260,6 +285,9 @@ def _write(source_path, output_path, stream, intervals, filler_path, filler):
             data[xing + 12:xing + 16] = total.to_bytes(4, 'big')
             for i in range(100):
                 data[xing + 16 + i] = min(255, positions[i * len(mapping) // 100] * 256 // total)
+            if any(hi == len(stream.frames) for _, hi in intervals):
+                delay = int.from_bytes(data[xing + 141:xing + 144], 'big')
+                data[xing + 141:xing + 144] = (((delay >> 12) << 12) | 529).to_bytes(3, 'big')
             data[xing + 148:xing + 152] = total.to_bytes(4, 'big')
             data[xing + 152:xing + 154] = audio_crc.to_bytes(2, 'big')
             data[xing + 154:xing + 156] = _crc(data[:xing + 154]).to_bytes(2, 'big')
@@ -274,10 +302,13 @@ def _write(source_path, output_path, stream, intervals, filler_path, filler):
             while original_index < index:
                 original_index, original = next(source_bits)
             expected = original
+        elif kind == 'silence':
+            expected = (bytes(17 if stream.channels == 1 else 32), (b'', 0, 0))
         else:
             expected = filler_bits[index]
         if actual != expected:
             raise CopyUnavailable('MP3 coded payload changed')
+    return mapping
 
 
 def _decode(path, output, timeout):
@@ -289,8 +320,9 @@ def _decode(path, output, timeout):
         raise CopyUnavailable('MP3 decode validation failed')
 
 
-def _compare(source, output, start, length, block):
-    source.seek(start * block)
+def _compare(source, output, source_start, output_start, length, block):
+    source.seek(source_start * block)
+    output.seek(output_start * block)
     remaining = length * block
     while remaining:
         data = source.read(min(65536, remaining))
@@ -299,12 +331,10 @@ def _compare(source, output, start, length, block):
         remaining -= len(data)
 
 
-def _validate(source_path, output_path, stream, cuts, directory, filler_path, filler):
+def _validate(source_path, output_path, stream, mapping, directory, filler_path, filler, output_samples):
     first = int(stream.xing is not None)
     samples = (len(stream.frames) - first) * stream.samples - stream.skip - stream.padding
     filler_samples = len(filler.frames) * filler.samples if filler is not None else 0
-    removed = sum(hi - lo for lo, hi in cuts)
-    output_samples = samples - removed + len(cuts) * filler_samples
     block = stream.channels * 4
     required = (samples + output_samples + filler_samples) * block
     if samples <= 0 or max(samples, output_samples) * block > MAX_PCM_BYTES:
@@ -334,20 +364,34 @@ def _validate(source_path, output_path, stream, cuts, directory, filler_path, fi
             raise CopyUnavailable('MP3 filler duration mismatch')
     # Two frames cover one-granule MDCT overlap and the synthesis filter history.
     warmup = 2 * stream.samples
-    with source_pcm.open('rb') as source, output_pcm.open('rb') as output:
-        cursor = 0
-        for lo, hi in cuts:
-            _compare(source, output, cursor, lo - cursor, block)
-            if filler is not None:
-                output.seek(warmup * block, 1)
-                with filler_pcm.open('rb') as clip:
-                    _compare(clip, output, warmup, filler_samples - warmup, block)
-            output.seek(warmup * block, 1)
-            cursor = hi + warmup
-        _compare(source, output, cursor, samples - cursor, block)
+    skip = stream.skip
+    frames = mapping[first:]
+    with source_pcm.open('rb') as source, output_pcm.open('rb') as output, \
+            (filler_pcm.open('rb') if filler is not None else open(os.devnull, 'rb')) as clip:
+        k = 0
+        while k < len(frames):
+            kind, index = frames[k]
+            end = k + 1
+            if kind == 'source':
+                a = index - first
+                while end < len(frames) and frames[end] == ('source', index + end - k):
+                    end += 1
+                run = end - k
+                off = max(warmup if k else 0, skip - k * stream.samples, skip - a * stream.samples)
+                source_start = a * stream.samples + off - skip
+                output_start = k * stream.samples + off - skip
+                length = min(run * stream.samples - off, samples - source_start, output_samples - output_start)
+                if length > 0:
+                    _compare(source, output, source_start, output_start, length, block)
+            elif kind == 'filler':
+                while end < len(frames) and frames[end][0] == 'filler':
+                    end += 1
+                off = max(warmup, skip - k * stream.samples)
+                _compare(clip, output, off, k * stream.samples + off - skip, filler_samples - off, block)
+            k = end
 
 
-def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None):
+def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None, locked=()):
     """Return verified frame-snapped cuts, or None without changing the output."""
     try:
         stream = _scan(source_path)
@@ -358,24 +402,40 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None)
         snapped = []
         previous = 0
         warmup = 2 * stream.samples
-        for cut in cuts:
+        for number, cut in enumerate(cuts):
+            start_locked, end_locked = locked[number] if locked else (False, False)
             indices = []
-            for edge in ('start', 'end'):
+            for edge, edge_locked in (('start', start_locked), ('end', end_locked)):
                 sample = cut[edge] * stream.rate
+                if edge_locked:
+                    indices.append(bisect.bisect_left(boundaries, sample) if edge == 'start'
+                                   else bisect.bisect_right(boundaries, sample) - 1)
+                    continue
                 upper = bisect.bisect_left(boundaries, sample)
                 candidates = range(max(0, upper - 1), min(len(boundaries), upper + 1))
                 indices.append(min(candidates, key=lambda i: abs(boundaries[i] - sample)))
             lo, hi = indices
-            if lo <= previous or hi <= lo or hi >= count or boundaries[lo] - boundaries[previous] <= warmup:
-                raise CopyUnavailable('Unsupported MP3 edge or short kept span')
-            start, end = boundaries[lo] / stream.rate, boundaries[hi] / stream.rate
+            if hi <= lo and (start_locked or end_locked):
+                raise CopyUnavailable('Locked MP3 cut shorter than a frame')
+            if lo < previous or (lo == previous and intervals) or hi <= lo or hi > count:
+                raise CopyUnavailable('Unsupported MP3 edge')
+            if lo == 0 and hi == count:
+                raise CopyUnavailable('MP3 cut retains nothing')
+            if lo > 0 and boundaries[lo] - boundaries[previous] <= warmup:
+                raise CopyUnavailable('Short kept MP3 span')
+            decoded_end = hi == count
+            start = boundaries[lo] / stream.rate
+            end = (count * stream.samples - stream.skip - stream.padding) / stream.rate if decoded_end \
+                else boundaries[hi] / stream.rate
             if any(b['start'] < end and b['end'] > start for b in barriers):
                 raise CopyUnavailable('Snapped MP3 cut crosses protected audio')
             snapped.append(dict(cut, start=start, end=end, replacement_duration=0.0))
             intervals.append((lo + first, hi + first))
             previous = hi
         decoded_samples = count * stream.samples - stream.skip - stream.padding
-        if decoded_samples - boundaries[previous] <= warmup:
+        has_start = bool(intervals) and intervals[0][0] == first
+        has_end = bool(intervals) and intervals[-1][1] == len(stream.frames)
+        if not has_end and decoded_samples - boundaries[previous] <= warmup:
             raise CopyUnavailable('Insufficient final retained audio')
         with tempfile.TemporaryDirectory(prefix='mp3-copy-', dir=str(Path(output_path).parent)) as directory:
             filler = None
@@ -403,7 +463,14 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None)
                 filler_duration = len(filler.frames) * filler.samples / stream.rate
                 snapped = [dict(cut, replacement_duration=filler_duration) for cut in snapped]
             filler_samples = len(filler.frames) * filler.samples if filler is not None else 0
-            output_samples = decoded_samples - sum((hi - lo) * stream.samples for lo, hi in intervals) + len(cuts) * filler_samples
+            if has_start:
+                # The decoder drops the start skip from the first output frame.
+                snapped[0]['replacement_duration'] = ((filler_samples or stream.samples) - stream.skip) / stream.rate
+            kept = count - sum(hi - lo for lo, hi in intervals)
+            bridges = int(has_start and filler is None)
+            out_padding = 0 if has_end else stream.padding
+            output_samples = ((kept + bridges) * stream.samples + len(cuts) * filler_samples
+                              - stream.skip - out_padding)
             block = stream.channels * 4
             if max(decoded_samples, output_samples) * block > MAX_PCM_BYTES:
                 raise CopyUnavailable('PCM validation size limit exceeded')
@@ -411,9 +478,8 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None)
             if shutil.disk_usage(directory).free < required:
                 raise CopyUnavailable('Insufficient disk space for PCM validation')
             staged = str(Path(directory) / 'candidate.mp3')
-            _write(source_path, staged, stream, intervals, filler_path, filler)
-            pcm_cuts = [(boundaries[lo - first], boundaries[hi - first]) for lo, hi in intervals]
-            _validate(source_path, staged, stream, pcm_cuts, directory, filler_path, filler)
+            mapping = _write(source_path, staged, stream, intervals, filler_path, filler)
+            _validate(source_path, staged, stream, mapping, directory, filler_path, filler, output_samples)
             os.replace(staged, output_path)
         return snapped
     except (CopyUnavailable, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:

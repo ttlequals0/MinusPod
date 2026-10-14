@@ -479,14 +479,20 @@ class AudioProcessor:
                 shutil.copy2(input_path, output_path)
                 return []
 
-            locked_edges = any((ad.get('validation') or {}).get('user_confirmed')
-                               or precise_edge(ad, 'start') or precise_edge(ad, 'end')
-                               for ad in ad_segments)
-            if self.mp3_stream_copy_enabled and not locked_edges and not any(ad.get('beep') for ad in ads):
+            beeps = sum(1 for ad in ads if ad.get('beep'))
+            if self.mp3_stream_copy_enabled and beeps:
+                logger.info('MP3 stream copy skipped: beep action on %d ad(s)', beeps)
+            if self.mp3_stream_copy_enabled and not beeps:
+                def _edge_locked(value, edge):
+                    return any(abs(seg[edge] - value) < 1e-9
+                               and ((seg.get('validation') or {}).get('user_confirmed') or precise_edge(seg, edge))
+                               for seg in ad_segments)
+                locked = [(_edge_locked(ad['start'], 'start'), _edge_locked(ad['end'], 'end')) for ad in ads]
                 copied = copy_mp3(
                     input_path, output_path, ads,
                     barriers=[*(cut_barriers or []), *(hard_barriers or [])],
-                    replacement_path=replace_audio_path if self.replacement_sound_enabled else None)
+                    replacement_path=replace_audio_path if self.replacement_sound_enabled else None,
+                    locked=locked)
                 if copied is not None:
                     copied_duration = self.get_audio_duration(output_path)
                     if not copied_duration:

@@ -12,6 +12,7 @@ release notes.
 ## [Unreleased]
 
 ### Fixed
+- MP3 stream copy (#858) no longer falls back to re-encoding when an episode has a word-timed, quote-aligned, reviewer-locked or confirmed edge, or a cut at the start or end of the file. Locked edges now snap inward per cut so kept audio is never shortened, and file-edge cuts use a silent bridge frame, a rewritten LAME padding field and validation against the decoded output. A beep action is the remaining reason copy is skipped, and it is now logged.
 - The evidence gate (#807) now holds LLM spans whose reason restates the audio signals without the word "pair": "DAI transition(s)", "dynamic ad insertion" and "potential ad content" count as audio echoes, so a reason such as "Dynamic ad insertion detected" or "DAI transition with volume anomaly and splice evidence" is no longer read as ad language. Those spans were being cut as ads; they now need ad language in the span transcript or measured audio evidence.
 
 ## [2.100.11] - 2026-10-12
