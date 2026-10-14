@@ -37,6 +37,7 @@ def seeded_rows():
         db.save_original_transcript(SLUG, EPISODE_ID, '[00:00:01.000 --> 00:00:05.000] hello there')
         db.save_original_segments(SLUG, EPISODE_ID, segments)
         db.save_final_segments(SLUG, EPISODE_ID, segments)
+        db.create_feed_subscriber_key(SLUG, 'Living room')
         db.create_pattern_correction(
             'false_positive', episode_id=EPISODE_ID, podcast_title='Conformance Test Show',
             episode_title='Episode 1', original_bounds={'start': 10.0, 'end': 40.0})
@@ -61,6 +62,7 @@ GET_ROUTES = [
     ('/feeds/{slug}/episodes/{episode_id}', ''),
     ('/feeds/{slug}/ad-distribution', ''),
     ('/feeds/{slug}/subscriber-keys', ''),
+    ('/feeds/subscriber-keys', ''),
     ('/feeds/{slug}/tags', ''),
     ('/feeds/{slug}/cue-candidate-dismissals', ''),
     ('/feeds/{slug}/cue-detections/advisory', ''),

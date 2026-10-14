@@ -21,10 +21,17 @@ const mockGetSubscriberKeys = vi.fn();
 const mockCreateSubscriberKey = vi.fn();
 const mockRevokeSubscriberKey = vi.fn();
 const mockDeleteSubscriberKeyRecord = vi.fn();
+const mockGetAllSubscriberKeys = vi.fn();
+const mockFeeds = [
+  { slug: 'zeta', title: 'Zeta Show' },
+  { slug: 'bravo', title: 'Source Title', titleOverride: 'bravo show' },
+  { slug: 'alpha', title: 'Alpha Show' },
+];
 
 vi.mock('../../api/feeds', () => ({
   regenerateAllFeeds: (...args: unknown[]) => mockRegenerateAllFeeds(...args),
-  feedsQueryOptions: { queryKey: ['feeds'], queryFn: () => Promise.resolve({ feeds: [{ slug: 'example-feed', title: 'Example Feed' }] }) },
+  feedsQueryOptions: { queryKey: ['feeds'], queryFn: () => Promise.resolve({ feeds: mockFeeds }) },
+  getAllSubscriberKeys: (...args: unknown[]) => mockGetAllSubscriberKeys(...args),
   getSubscriberKeys: (...args: unknown[]) => mockGetSubscriberKeys(...args),
   createSubscriberKey: (...args: unknown[]) => mockCreateSubscriberKey(...args),
   revokeSubscriberKey: (...args: unknown[]) => mockRevokeSubscriberKey(...args),
@@ -60,6 +67,7 @@ beforeEach(() => {
   mockRegenerateFeedKey.mockResolvedValue({ feedAuthKey: 'new-key' });
   mockRegenerateAllFeeds.mockResolvedValue({ message: 'ok', feedCount: 3 });
   mockGetSubscriberKeys.mockResolvedValue([]);
+  mockGetAllSubscriberKeys.mockResolvedValue([]);
 });
 
 describe('AuthenticatedFeedsSection subscriber keys', () => {
@@ -83,7 +91,45 @@ describe('AuthenticatedFeedsSection subscriber keys', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Delete' }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
-    expect(mockDeleteSubscriberKeyRecord).toHaveBeenCalledWith('example-feed', 'key-1');
+    expect(mockDeleteSubscriberKeyRecord).toHaveBeenCalledWith('alpha', 'key-1');
+  });
+});
+
+describe('AuthenticatedFeedsSection all subscriber feeds', () => {
+  it('lists every key with its feed title and label', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    mockGetAllSubscriberKeys.mockResolvedValue([
+      { id: 'k1', label: 'Living room', createdAt: '2026-09-10T00:00:00Z', lastUsedAt: null, revokedAt: null, feedSlug: 'alpha', feedTitle: 'Alpha Show' },
+      { id: 'k2', label: 'Old device', createdAt: '2026-09-10T00:00:00Z', lastUsedAt: null, revokedAt: '2026-09-11T00:00:00Z', feedSlug: 'zeta', feedTitle: 'Zeta Show' },
+    ]);
+    renderSection();
+    const table = await screen.findByRole('table');
+    expect(within(table).getByText('Alpha Show')).toBeDefined();
+    expect(within(table).getByText('Living room')).toBeDefined();
+    expect(within(table).getByText('Active')).toBeDefined();
+    expect(within(table).getByText('Revoked')).toBeDefined();
+  });
+
+  it('revokes a key using its own feed slug', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    mockGetAllSubscriberKeys.mockResolvedValue([
+      { id: 'k1', label: 'Living room', createdAt: '2026-09-10T00:00:00Z', lastUsedAt: null, revokedAt: null, feedSlug: 'zeta', feedTitle: 'Zeta Show' },
+    ]);
+    mockRevokeSubscriberKey.mockResolvedValue({ revoked: true });
+    renderSection();
+    const table = await screen.findByRole('table');
+    await userEvent.click(within(table).getByRole('button', { name: 'Revoke' }));
+    expect(mockRevokeSubscriberKey).toHaveBeenCalledWith('zeta', 'k1');
+  });
+});
+
+describe('AuthenticatedFeedsSection feed picker', () => {
+  it('sorts feeds alphabetically by display title', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    renderSection();
+    const select = await screen.findByLabelText('Feed');
+    const options = within(select).getAllByRole('option').map((option) => option.textContent);
+    expect(options).toEqual(['Alpha Show', 'bravo show', 'Zeta Show']);
   });
 });
 

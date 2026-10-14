@@ -27,11 +27,16 @@ vi.mock('../../components/CollapsibleSection', async (importOriginal) => {
 
 const mockUpdateFeed = vi.fn();
 const mockRerenderSegments = vi.fn();
+const mockGetSubscriberKeys = vi.fn().mockResolvedValue([]);
 
 vi.mock('../../api/feeds', () => ({
   getNetworks: vi.fn().mockResolvedValue([]),
   updateFeed: (...args: unknown[]) => mockUpdateFeed(...args),
   rerenderSegments: (...args: unknown[]) => mockRerenderSegments(...args),
+  getSubscriberKeys: (...args: unknown[]) => mockGetSubscriberKeys(...args),
+  createSubscriberKey: vi.fn(),
+  revokeSubscriberKey: vi.fn(),
+  deleteSubscriberKeyRecord: vi.fn(),
   CUE_SCORE_MIN: 0.30,
   CUE_SCORE_MAX: 0.99,
 }));
@@ -106,6 +111,18 @@ function renderPanel(feed: Feed) {
   );
   return { ...result, client, rerenderWithFeed };
 }
+
+describe('Feed security section', () => {
+  it('renders the subscriber key panel for this feed', async () => {
+    mockGetSubscriberKeys.mockResolvedValue([
+      { id: 'key-1', label: 'Living room', created_at: '2026-09-10T00:00:00Z', last_used_at: null, revoked_at: null },
+    ]);
+    renderPanel(makeFeed());
+    expect(await screen.findByText('Living room')).toBeDefined();
+    expect(mockGetSubscriberKeys).toHaveBeenCalledWith('test-feed');
+    expect(screen.getByLabelText('Subscriber label')).toBeDefined();
+  });
+});
 
 const SELECT_NAME = 'Fetch each episode twice to find inserted ads';
 

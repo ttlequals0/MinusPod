@@ -14,10 +14,12 @@ release notes.
 ## [2.100.12] - 2026-10-14
 
 ### Added
+- Settings > Authenticated feeds lists every subscriber feed across all podcasts with its label and feed; each feed's settings gain a Security section to create and revoke subscriber feeds for that podcast.
 
 ### Changed
 
 ### Fixed
+- The subscriber-feed podcast picker is sorted alphabetically.
 
 ## [2.100.11] - 2026-10-12
 
