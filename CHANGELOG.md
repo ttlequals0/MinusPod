@@ -32,6 +32,7 @@ release notes.
 - Changing the category in a held marker's editor now records the new category and keeps the marker held; it no longer confirms the marker with the old category.
 - Confirming the reviewer's trimmed span on a held marker no longer fails with 'Adjusted bounds must lie within the reviewed span' when the hold was carved out of a larger detection. The stale trim is dropped from the remainder, the button is hidden when the trim does not overlap the held span, and the error names the spans when it still applies.
 - The subscriber-feed podcast picker is sorted alphabetically.
+- The evidence gate (#807) now holds LLM spans whose reason restates the audio signals without the word "pair": "DAI transition(s)", "dynamic ad insertion" and "potential ad content" count as audio echoes, so a reason such as "Dynamic ad insertion detected" or "DAI transition with volume anomaly and splice evidence" is no longer read as ad language. Those spans were being cut as ads; they now need ad language in the span transcript or measured audio evidence.
 
 ## [2.100.11] - 2026-10-12
 

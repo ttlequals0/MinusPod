@@ -14,6 +14,11 @@ ECHO_REASONS = [
     'Splice evidence: digital silence and loudness step at both edges',
     'splice_1261.3',
     '12.0 dB',
+    # The model restates the DAI signals without the word "pair" (#807 follow-up).
+    'DAI transition with volume anomaly and splice evidence',
+    'DAI transitions detected, volume increase 6 dB',
+    'Dynamic ad insertion detected',
+    'Volume anomaly with potential ad content',
 ]
 
 
@@ -34,6 +39,9 @@ def test_an_audio_echo_is_never_a_sponsor(reason):
     'Non-English language segment (likely DAI ad)',
     'Ad break with three ads, loudness step at both edges',
     'Mid-roll ad break; DAI transition pair at both edges',
+    'Midroll ad for Acme at DAI transition',
+    'Acme Tools sponsor read, DAI transition with volume anomaly',
+    'Ad break: Acme promo code, dynamic ad insertion',
 ])
 def test_real_ad_words_still_count_beside_an_echo(reason):
     assert mentions_advertising(reason) is True

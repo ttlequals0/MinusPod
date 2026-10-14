@@ -768,7 +768,7 @@ AD_LANGUAGE_WORDS = frozenset({
 AUDIO_ECHO_RE = re.compile(
     r'\bsplice_\d+(?:\.\d+)?\b|\bdai transition pair\b|\bvolume (?:anomaly|increase|decrease)\b'
     r'|\b\d+(?:\.\d+)?\s*db\b|\bsplice evidence\b|\bloudness step\b|\bspectral step\b'
-    r'|\bdigital silence\b',
+    r'|\bdigital silence\b|\bdai transitions?\b|\bdynamic ad insertion\b|\bpotential ad content\b',
     re.IGNORECASE)
 # Words an echo couples to the audio: "ad boundary", "ad transition", and "DAI" beside an echo token.
 _ECHO_MARK = '\x00'
