@@ -213,6 +213,7 @@ export async function getSubscriberKeys(slug: string): Promise<SubscriberKey[]> 
   return response.keys;
 }
 
+// camelCase, unlike the snake_case per-feed SubscriberKey rows, because the all-feeds endpoint returns it that way.
 export interface SubscriberKeyWithFeed {
   id: string;
   label: string;

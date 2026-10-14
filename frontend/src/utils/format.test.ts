@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDurationHoursMinutes, formatDurationPrecise, formatDurationWhole } from './format';
+import { formatDurationHoursMinutes, formatDurationPrecise, formatDurationWhole, keyLabel } from './format';
 
 // Characterization tests: outputs captured from the three formatters' prior
 // per-component copies (EpisodeList, HistoryPage, ProcessingJobProgress)
@@ -50,5 +50,12 @@ describe('formatDurationWhole', () => {
     [90061, '1501m 1s'],
   ])('formats %s as %s', (seconds, expected) => {
     expect(formatDurationWhole(seconds as unknown as number)).toBe(expected);
+  });
+});
+
+describe('keyLabel', () => {
+  it('falls back for an empty label', () => {
+    expect(keyLabel({ label: '' })).toBe('Unlabeled subscriber');
+    expect(keyLabel({ label: 'Kitchen' })).toBe('Kitchen');
   });
 });

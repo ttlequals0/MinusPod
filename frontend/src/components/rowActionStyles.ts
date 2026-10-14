@@ -18,11 +18,12 @@ export const tableActionIcon =
   'h-[30px] w-[30px] inline-flex items-center justify-center';
 
 /** Review/detection cards: 44px, the tap-target floor. */
-export const cardActionBtn =
-  'min-h-[44px] px-3 text-sm rounded inline-flex items-center'
+const cardActionTail =
+  ' px-3 text-sm rounded inline-flex items-center'
   + ' justify-center touch-manipulation whitespace-nowrap text-center max-w-full';
+export const cardActionBtn = `min-h-[44px]${cardActionTail}`;
 /** cardActionBtn with the 44px floor on phones only. */
-export const cardActionBtnMobileOnly = cardActionBtn.replace('min-h-[44px]', 'max-sm:min-h-[44px]');
+export const cardActionBtnMobileOnly = `max-sm:min-h-[44px]${cardActionTail}`;
 export const cardActionHeight = 'h-11';
 export const cardActionIcon =
   `${cardActionHeight} w-11 shrink-0 inline-flex items-center justify-center`;

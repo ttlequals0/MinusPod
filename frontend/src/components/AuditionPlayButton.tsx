@@ -11,17 +11,17 @@ const SIZES = {
   row: rowActionIcon,
   card: cardActionIcon,
   table: tableActionIcon,
+  // Shares a flex row equally with sibling controls instead of a fixed width.
+  fill: `${cardActionHeight} flex-1 basis-0 min-w-0 inline-flex items-center justify-center`,
 } as const;
 
-export function AuditionPlayButton({ playing, onClick, label = 'this ad', size, fill = false }: {
+export function AuditionPlayButton({ playing, onClick, label = 'this ad', size }: {
   playing: boolean;
   onClick: () => void;
   /** What the button plays, e.g. "this segment" on rows kept on purpose. */
   label?: string;
   /** Required so every call site matches the controls beside it; no silent default. */
   size: keyof typeof SIZES;
-  /** Share a flex row equally with sibling controls instead of a fixed width. */
-  fill?: boolean;
 }) {
   return (
     <button
@@ -29,7 +29,7 @@ export function AuditionPlayButton({ playing, onClick, label = 'this ad', size, 
       onClick={onClick}
       aria-label={playing ? `Pause ${label}` : `Play ${label}`}
       title={playing ? 'Pause' : `Play ${label}`}
-      className={`${fill ? `${cardActionHeight} flex-1 basis-0 min-w-0 inline-flex items-center justify-center` : `${SIZES[size]} shrink-0`} rounded ${btnPrimary} transition-colors touch-manipulation ${focusRing}`}
+      className={`${SIZES[size]}${size === 'fill' ? '' : ' shrink-0'} rounded ${btnPrimary} transition-colors touch-manipulation ${focusRing}`}
     >
       {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
     </button>

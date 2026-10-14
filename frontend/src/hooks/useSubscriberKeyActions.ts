@@ -12,24 +12,27 @@ export interface SubscriberKeyRef {
 export function useSubscriberKeyActions() {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const clearError = () => setError(null);
 
   const invalidate = (slug: string) => {
     queryClient.invalidateQueries({ queryKey: ['subscriber-keys', slug] });
     queryClient.invalidateQueries({ queryKey: ALL_SUBSCRIBER_KEYS_QUERY_KEY });
   };
 
-  const revokeMutation = useMutation({
-    mutationFn: (key: SubscriberKeyRef) => revokeSubscriberKey(key.slug, key.id),
-    onMutate: () => setError(null),
-    onSuccess: (_data, key) => invalidate(key.slug),
-    onError: (err) => setError(getErrorMessage(err, 'Failed to revoke subscriber key')),
-  });
-  const deleteMutation = useMutation({
-    mutationFn: (key: SubscriberKeyRef) => deleteSubscriberKeyRecord(key.slug, key.id),
-    onMutate: () => setError(null),
-    onSuccess: (_data, key) => invalidate(key.slug),
-    onError: (err) => setError(getErrorMessage(err, 'Failed to delete subscriber key record')),
+  const keyMutationOptions = (
+    fn: (key: SubscriberKeyRef) => Promise<unknown>,
+    errorMessage: string,
+  ) => ({
+    mutationFn: fn,
+    onMutate: clearError,
+    onSuccess: (_data: unknown, key: SubscriberKeyRef) => invalidate(key.slug),
+    onError: (err: unknown) => setError(getErrorMessage(err, errorMessage)),
   });
 
-  return { revokeMutation, deleteMutation, error, invalidate };
+  const revokeMutation = useMutation(keyMutationOptions(
+    (key) => revokeSubscriberKey(key.slug, key.id), 'Failed to revoke subscriber key'));
+  const deleteMutation = useMutation(keyMutationOptions(
+    (key) => deleteSubscriberKeyRecord(key.slug, key.id), 'Failed to delete subscriber key record'));
+
+  return { revokeMutation, deleteMutation, error, setError, clearError, invalidate };
 }

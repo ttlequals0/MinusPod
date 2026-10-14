@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { getDownloadHistory, type DownloadQueryParams, type DownloadSortField } from '../../api/history';
@@ -6,8 +6,10 @@ import { ALL_SUBSCRIBER_KEYS_QUERY_KEY, feedsQueryOptions, getAllSubscriberKeys 
 import { getSettings } from '../../api/settings';
 import type { DownloadHistoryEntry } from '../../api/types';
 import { feedDisplayTitle } from '../../utils/feedTitle';
+import { sortFeeds } from '../../utils/feedSort';
 import { formatDateTime } from '../../utils/format';
 import { clientName } from '../../utils/userAgent';
+import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { SkeletonRows } from '../../components/Skeleton';
 import { Pagination } from '../../components/Pagination';
@@ -16,11 +18,32 @@ import DownloadRowActions from './DownloadRowActions';
 import { selectBase, inputBase, focusRing, filterGrid, filterLabel, filterControl } from '../../components/fieldStyles';
 
 const LIMIT = 20;
-const SEARCH_DEBOUNCE_MS = 300;
 
 function BlockedBadge({ row }: { row: DownloadHistoryEntry }) {
   if (!row.userAgentBlocked) return null;
   return <span className={`${badgeBase} ml-2 ${tint.warning}`}>Blocked</span>;
+}
+
+function EpisodeLink({ row, className }: { row: DownloadHistoryEntry; className: string }) {
+  const title = row.episodeTitle ?? row.episodeId;
+  return (
+    <Link
+      to={`/feeds/${row.podcastSlug}/episodes/${row.episodeId}`}
+      className={`text-primary hover:underline text-sm truncate ${className} ${focusRing}`}
+      title={title}
+    >
+      {title}
+    </Link>
+  );
+}
+
+function ClientCell({ row, className }: { row: DownloadHistoryEntry; className: string }) {
+  return (
+    <>
+      <span className={className} title={row.userAgent}>{clientName(row.userAgent)}</span>
+      <BlockedBadge row={row} />
+    </>
+  );
 }
 
 function SubscriberCell({ row }: { row: DownloadHistoryEntry }) {
@@ -54,18 +77,10 @@ function DownloadsTab({ tabs }: Props) {
   const [since, setSince] = useState('');
   const [until, setUntil] = useState('');
   const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const search = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS).trim();
   const [page, setPage] = useState(1);
   const { sortField, sortDirection, handleSort } =
     useSortState<DownloadSortField>('last_seen_at', 'desc', () => setPage(1));
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearch(searchInput.trim());
-      setPage(1);
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
 
   const params: DownloadQueryParams = {
     page,
@@ -97,7 +112,7 @@ function DownloadsTab({ tabs }: Props) {
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
-  const resetPage = <T,>(set: (value: T) => void) => (value: T) => {
+  const setFilter = (set: (value: string) => void, value: string) => {
     set(value);
     setPage(1);
   };
@@ -118,15 +133,13 @@ function DownloadsTab({ tabs }: Props) {
           <select
             id="downloads-podcast"
             value={podcast}
-            onChange={(e) => resetPage(setPodcast)(e.target.value)}
+            onChange={(e) => setFilter(setPodcast, e.target.value)}
             className={`${filterControl} ${selectBase}`}
           >
             <option value="">All Podcasts</option>
-            {[...(feeds ?? [])]
-              .sort((a, b) => feedDisplayTitle(a).localeCompare(feedDisplayTitle(b)))
-              .map((feed) => (
-                <option key={feed.slug} value={feed.slug}>{feedDisplayTitle(feed)}</option>
-              ))}
+            {sortFeeds(feeds ?? [], 'title').map((feed) => (
+              <option key={feed.slug} value={feed.slug}>{feedDisplayTitle(feed)}</option>
+            ))}
           </select>
         </div>
         <div className="min-w-0">
@@ -134,7 +147,7 @@ function DownloadsTab({ tabs }: Props) {
           <select
             id="downloads-subscriber"
             value={subscriber}
-            onChange={(e) => resetPage(setSubscriber)(e.target.value)}
+            onChange={(e) => setFilter(setSubscriber, e.target.value)}
             className={`${filterControl} ${selectBase}`}
           >
             <option value="">All subscribers</option>
@@ -152,7 +165,7 @@ function DownloadsTab({ tabs }: Props) {
             type="date"
             value={since}
             max={until || undefined}
-            onChange={(e) => resetPage(setSince)(e.target.value)}
+            onChange={(e) => setFilter(setSince, e.target.value)}
             className={`${filterControl} ${inputBase}`}
           />
         </div>
@@ -163,7 +176,7 @@ function DownloadsTab({ tabs }: Props) {
             type="date"
             value={until}
             min={since || undefined}
-            onChange={(e) => resetPage(setUntil)(e.target.value)}
+            onChange={(e) => setFilter(setUntil, e.target.value)}
             className={`${filterControl} ${inputBase}`}
           />
         </div>
@@ -173,7 +186,7 @@ function DownloadsTab({ tabs }: Props) {
             id="downloads-search"
             type="search"
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={(e) => setFilter(setSearchInput, e.target.value)}
             placeholder="IP or client"
             className={`${filterControl} ${inputBase}`}
           />
@@ -199,13 +212,7 @@ function DownloadsTab({ tabs }: Props) {
             ) : rows.map((row) => (
               <div key={row.id} className="bg-card rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-3 mb-1">
-                  <Link
-                    to={`/feeds/${row.podcastSlug}/episodes/${row.episodeId}`}
-                    className={`text-primary hover:underline text-sm font-medium truncate ${focusRing}`}
-                    title={row.episodeTitle ?? row.episodeId}
-                  >
-                    {row.episodeTitle ?? row.episodeId}
-                  </Link>
+                  <EpisodeLink row={row} className="font-medium" />
                   {row.requestCount > 1 && (
                     <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
                       {row.requestCount} requests
@@ -224,8 +231,7 @@ function DownloadsTab({ tabs }: Props) {
                   <dd className="text-foreground"><SubscriberCell row={row} /></dd>
                   <dt className="text-muted-foreground">Client</dt>
                   <dd className="text-foreground flex items-center min-w-0">
-                    <span className="truncate" title={row.userAgent}>{clientName(row.userAgent)}</span>
-                    <BlockedBadge row={row} />
+                    <ClientCell row={row} className="truncate" />
                   </dd>
                 </dl>
                 <div className="flex justify-end mt-3">
@@ -265,13 +271,7 @@ function DownloadsTab({ tabs }: Props) {
                         {formatDateTime(row.lastSeenAt)}
                       </td>
                       <td className="px-4 py-3">
-                        <Link
-                          to={`/feeds/${row.podcastSlug}/episodes/${row.episodeId}`}
-                          className={`text-primary hover:underline text-sm truncate max-w-[220px] block ${focusRing}`}
-                          title={row.episodeTitle ?? row.episodeId}
-                        >
-                          {row.episodeTitle ?? row.episodeId}
-                        </Link>
+                        <EpisodeLink row={row} className="max-w-[220px] block" />
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         <Link
@@ -290,10 +290,7 @@ function DownloadsTab({ tabs }: Props) {
                         <SubscriberCell row={row} />
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
-                        <span className="block truncate max-w-[140px]" title={row.userAgent}>
-                          {clientName(row.userAgent)}
-                        </span>
-                        <BlockedBadge row={row} />
+                        <ClientCell row={row} className="block truncate max-w-[140px]" />
                       </td>
                       <td className="px-4 py-3 text-sm text-foreground text-right tabular-nums">{row.requestCount}</td>
                       <td className="px-4 py-3 text-right">

@@ -18,6 +18,11 @@ export function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
+// Display name for a subscriber key, which may have no label.
+export function keyLabel(key: { label: string }): string {
+  return key.label || 'Unlabeled subscriber';
+}
+
 // Locale date plus short time (e.g. "7/12/2026, 3:26 PM"), `-` for a
 // missing value. Used where the freshness of a timestamp matters (feed
 // refresh times).

@@ -8,6 +8,7 @@ import SubscriberKeysPanel from '../../components/SubscriberKeysPanel';
 import AllSubscriberKeys from './AllSubscriberKeys';
 import DownloadHistorySettings from './DownloadHistorySettings';
 import { feedDisplayTitle } from '../../utils/feedTitle';
+import { sortFeeds } from '../../utils/feedSort';
 import { getSettings, updateSettings, regenerateFeedKey } from '../../api/settings';
 import { feedsQueryOptions, regenerateAllFeeds } from '../../api/feeds';
 import { btnSecondary } from '../../components/buttonStyles';
@@ -53,8 +54,7 @@ function AuthenticatedFeedsSection() {
 
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const { data: feedsData } = useQuery(feedsQueryOptions);
-  const feeds = [...(feedsData?.feeds ?? [])].sort((a, b) =>
-    feedDisplayTitle(a).localeCompare(feedDisplayTitle(b), undefined, { sensitivity: 'base' }));
+  const feeds = sortFeeds(feedsData?.feeds ?? [], 'title');
   const [selectedFeed, setSelectedFeed] = useState('');
   const activeFeed = selectedFeed || feeds[0]?.slug || '';
 

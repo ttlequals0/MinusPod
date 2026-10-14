@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { search } from '../api/search';
+import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from './useDebouncedValue';
 import { buildSearchResultRows } from '../components/SearchResults';
 import type { SearchResultRow, UnifiedSearchGroups } from '../components/SearchResults';
 
 export const SEARCH_MIN_QUERY = 2;
-const SEARCH_DEBOUNCE_MS = 300;
 
 const EMPTY_GROUPS: UnifiedSearchGroups = { shows: [], episodes: [], transcripts: [] };
 // Dashboard field and palette only ever render these three; skip computing patterns/sponsors.
@@ -16,14 +16,10 @@ const HOT_GROUPS = 'shows,episodes,transcripts';
 // and the Dashboard field, so both stay behaviorally identical against /search.
 export function useUnifiedSearch(seed: string, limit = 8) {
   const [query, setQueryValue] = useState(seed);
-  const [debounced, setDebounced] = useState(seed);
   const [active, setActive] = useState(0);
   const [open, setOpen] = useState(true);
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(query), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [query]);
+  const debounced = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
 
   const ready = debounced.trim().length >= SEARCH_MIN_QUERY;
   const { data } = useQuery({

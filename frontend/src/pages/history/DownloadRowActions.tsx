@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getErrorMessage } from '../../api/client';
-import { ALL_SUBSCRIBER_KEYS_QUERY_KEY, revokeSubscriberKey } from '../../api/feeds';
 import { getSettings, updateSettings } from '../../api/settings';
 import type { DownloadHistoryEntry } from '../../api/types';
 import { btnOutline } from '../../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../../components/DropdownMenu';
 import { ConfirmModal } from '../../components/Modal';
+import { useSubscriberKeyActions } from '../../hooks/useSubscriberKeyActions';
 import { blockPatternFor } from '../../utils/userAgent';
 
 interface Props {
@@ -21,14 +21,21 @@ type Pending = 'block' | 'revoke' | null;
 function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: Props) {
   const queryClient = useQueryClient();
   const [pending, setPending] = useState<Pending>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [blockError, setBlockError] = useState<string | null>(null);
+  const { revokeMutation, error: revokeError, clearError } = useSubscriberKeyActions();
 
   const pattern = blockPatternFor(row.userAgent);
   const alreadyBlocked = row.userAgentBlocked;
 
   const close = () => {
     setPending(null);
-    setError(null);
+    setBlockError(null);
+    clearError();
+  };
+
+  const finish = () => {
+    queryClient.invalidateQueries({ queryKey: ['download-history'] });
+    close();
   };
 
   const blockMutation = useMutation({
@@ -40,25 +47,13 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
-      queryClient.invalidateQueries({ queryKey: ['download-history'] });
-      close();
+      finish();
     },
-    onError: (e) => setError(getErrorMessage(e, 'Failed to block user agent')),
-  });
-
-  const revokeMutation = useMutation({
-    mutationFn: () => revokeSubscriberKey(row.podcastSlug, row.subscriberKeyId as string),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subscriber-keys', row.podcastSlug] });
-      queryClient.invalidateQueries({ queryKey: ALL_SUBSCRIBER_KEYS_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: ['download-history'] });
-      close();
-    },
-    onError: (e) => setError(getErrorMessage(e, 'Failed to revoke subscriber')),
+    onError: (e) => setBlockError(getErrorMessage(e, 'Failed to block user agent')),
   });
 
   const open = (next: Pending) => {
-    setError(null);
+    close();
     setPending(next);
   };
 
@@ -77,6 +72,7 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
     });
   }
 
+  const error = pending === 'block' ? blockError : revokeError;
   const errorLine = error && (
     <p role="alert" className="text-sm text-destructive">{error}</p>
   );
@@ -117,7 +113,10 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
           busyLabel="Revoking..."
           pending={revokeMutation.isPending}
           onCancel={close}
-          onConfirm={() => revokeMutation.mutate()}
+          onConfirm={() => revokeMutation.mutate(
+            { slug: row.podcastSlug, id: row.subscriberKeyId as string },
+            { onSuccess: finish },
+          )}
         >
           <p>
             Revoke <strong>{row.subscriberLabel || 'Unlabeled'}</strong> on {row.podcastTitle}?

@@ -5,6 +5,7 @@ import DeleteKeyRecordModal from './DeleteKeyRecordModal';
 import { useSubscriberKeyActions } from '../hooks/useSubscriberKeyActions';
 import { createSubscriberKey, getSubscriberKeys } from '../api/feeds';
 import { getErrorMessage } from '../api/client';
+import { formatDate, keyLabel } from '../utils/format';
 import { btnPrimary, btnOutline, btnDestructive } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
@@ -15,7 +16,6 @@ interface SubscriberKeysPanelProps {
 function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
   const [label, setLabel] = useState('');
   const [createdFeedUrl, setCreatedFeedUrl] = useState<string | null>(null);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [keyToDelete, setKeyToDelete] = useState<string | null>(null);
   const labelId = `subscriberLabel-${slug}`;
 
@@ -24,18 +24,17 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
     queryFn: () => getSubscriberKeys(slug),
   });
 
-  const { revokeMutation, deleteMutation, error: actionError, invalidate } = useSubscriberKeyActions();
-  const error = createError ?? actionError;
+  const { revokeMutation, deleteMutation, error, setError, clearError, invalidate } = useSubscriberKeyActions();
 
   const createMutation = useMutation({
     mutationFn: () => createSubscriberKey(slug, label.trim()),
-    onMutate: () => setCreateError(null),
+    onMutate: clearError,
     onSuccess: (created) => {
       setCreatedFeedUrl(created.feedUrl);
       setLabel('');
       invalidate(slug);
     },
-    onError: (err) => setCreateError(getErrorMessage(err, 'Failed to create subscriber key')),
+    onError: (err) => setError(getErrorMessage(err, 'Failed to create subscriber key')),
   });
 
   return (
@@ -78,15 +77,15 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
         {keys.map((key) => (
           <div key={key.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">{key.label || 'Unlabeled subscriber'}</p>
+              <p className="truncate text-sm font-medium text-foreground">{keyLabel(key)}</p>
               <p className="text-xs text-muted-foreground">
-                Created {new Date(key.created_at).toLocaleDateString()}{key.revoked_at ? ' - revoked' : ''}
+                Created {formatDate(key.created_at)}{key.revoked_at ? ' - revoked' : ''}
               </p>
             </div>
             {key.revoked_at ? (
-              <button type="button" onClick={() => { setCreateError(null); setKeyToDelete(key.id); }} disabled={deleteMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}>Delete</button>
+              <button type="button" onClick={() => setKeyToDelete(key.id)} disabled={deleteMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}>Delete</button>
             ) : (
-              <button type="button" onClick={() => { setCreateError(null); revokeMutation.mutate({ slug, id: key.id }); }} disabled={revokeMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}>Revoke</button>
+              <button type="button" onClick={() => revokeMutation.mutate({ slug, id: key.id })} disabled={revokeMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}>Revoke</button>
             )}
           </div>
         ))}
@@ -96,7 +95,7 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
         <DeleteKeyRecordModal
           pending={deleteMutation.isPending}
           onCancel={() => setKeyToDelete(null)}
-          onConfirm={() => { setCreateError(null); deleteMutation.mutate({ slug, id: keyToDelete }, { onSuccess: () => setKeyToDelete(null) }); }}
+          onConfirm={() => deleteMutation.mutate({ slug, id: keyToDelete }, { onSuccess: () => setKeyToDelete(null) })}
         />
       )}
     </div>
