@@ -66,7 +66,7 @@ function DownloadHistorySettings() {
           <span className="text-sm font-medium text-foreground">Look up client locations</span>
         </label>
         <p className="mt-2 text-sm text-muted-foreground">
-          Sends public client IPs to ip-api.com; off by default. Private and local addresses are never sent.
+          Sends public client IPs to ipwho.is over HTTPS; off by default. Private and local addresses are never sent.
         </p>
       </div>
 

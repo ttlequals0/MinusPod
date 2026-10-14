@@ -6635,7 +6635,7 @@ paths:
                   description: Record episode downloads for the History Downloads tab.
                 downloadGeoLookupEnabled:
                   type: boolean
-                  description: Resolve public client IPs to a location through ip-api.com. Off by default.
+                  description: Resolve public client IPs to a location through ipwho.is. Off by default.
                 downloadHistoryRetentionDays:
                   type: integer
                   minimum: 1
@@ -16484,7 +16484,7 @@ components:
           properties:
             value:
               type: boolean
-              description: Whether public client IPs are sent to ip-api.com for a location. Off by default.
+              description: Whether public client IPs are sent to ipwho.is for a location. Off by default.
             isDefault:
               type: boolean
         downloadHistoryRetentionDays:

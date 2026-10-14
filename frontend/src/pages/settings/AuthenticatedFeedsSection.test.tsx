@@ -190,7 +190,7 @@ describe('AuthenticatedFeedsSection download history', () => {
     }));
     localStorage.setItem('settings-section-authenticated-feeds', 'true');
     renderSection();
-    expect(await screen.findByText(/Sends public client IPs to ip-api.com; off by default/)).toBeDefined();
+    expect(await screen.findByText(/Sends public client IPs to ipwho.is over HTTPS; off by default/)).toBeDefined();
     await userEvent.click(screen.getByRole('switch', { name: 'Look up client locations' }));
     expect(mockUpdateSettings).toHaveBeenCalledWith({ downloadGeoLookupEnabled: true });
     const days = screen.getByLabelText('Keep history for (days)');

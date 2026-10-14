@@ -25,13 +25,13 @@ Settings > Authenticated Feeds > Download history.
 | Setting | Default | Notes |
 |---|---|---|
 | Record download history | On | Turn off to stop recording; existing rows stay until they expire |
-| Look up client locations | Off | Sends public client IPs to ip-api.com |
+| Look up client locations | Off | Sends public client IPs to ipwho.is over HTTPS |
 | Keep history for (days) | 90 | 1 to 3650; older rows are deleted by the periodic cleanup |
 
 ## Privacy
 
 - Client IP addresses and user agent strings are stored in the MinusPod database for the retention period.
-- Geo lookup is off by default. When on, public IPs are sent over plain HTTP to the free ip-api.com batch endpoint, which is a third party. Private, loopback, link-local and reserved addresses are never sent.
+- Geo lookup is off by default. When on, public IPs are sent over HTTPS to the free ipwho.is service, which is a third party, one request per IP and at most 25 IPs per cleanup run. Private, loopback, link-local and reserved addresses are never sent.
 - Results are cached per IP. A failed lookup is retried after 24 hours.
 - Deleting a podcast removes its download rows. Revoking or deleting a subscriber key keeps the rows and clears the label.
 
