@@ -24,6 +24,7 @@ release notes.
 - Search results no longer show raw HTML tags from episode and podcast descriptions; the index stores plain text and is rebuilt once on upgrade.
 - A reviewer boundary adjustment can no longer move an ad edge back across an audio cue that is set to be removed with the ad, so break stingers are cut instead of left audible.
 - Changing the category in a held marker's editor now records the new category and keeps the marker held; it no longer confirms the marker with the old category.
+- Confirming the reviewer's trimmed span on a held marker no longer fails with 'Adjusted bounds must lie within the reviewed span' when the hold was carved out of a larger detection: the stale trim is dropped from the remainder, the button is hidden when the trim does not overlap the held span, and the error names the spans when it still applies.
 - The subscriber-feed podcast picker is sorted alphabetically.
 
 ## [2.100.11] - 2026-10-12

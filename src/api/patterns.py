@@ -1154,6 +1154,16 @@ def _handle_confirm_correction(
             if proposal is not None:
                 env_start = min(original_start, proposal[0])
                 env_end = max(original_end, proposal[1])
+            else:
+                p_start = held_marker.get('reviewer_proposed_start')
+                p_end = held_marker.get('reviewer_proposed_end')
+                if (isinstance(p_start, (int, float)) and isinstance(p_end, (int, float))
+                        and (p_end <= original_start or p_start >= original_end)
+                        and (adjusted_start < env_start - 0.5 or adjusted_end > env_end + 0.5)):
+                    return error_response(
+                        f'Reviewer trim {p_start:.1f}-{p_end:.1f} does not overlap this '
+                        f'held span {original_start:.1f}-{original_end:.1f}; '
+                        'confirm or reject the whole span', 400)
         if adjusted_start < env_start - 0.5 or adjusted_end > env_end + 0.5:
             return error_response('Adjusted bounds must lie within the reviewed span', 400)
     # The span actually confirmed as ad content.
