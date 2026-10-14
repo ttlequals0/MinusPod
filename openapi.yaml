@@ -3146,7 +3146,7 @@ paths:
                         $ref: '#/components/schemas/AddressingModeStats'
                   byMode:
                     type: object
-                    description: Outcomes per addressing mode the marker was detected under. Rates are fractions of corrections that carry a mode; avgSnapDistance is the mean of |start - llm_start| + |end - llm_end| in seconds. Null when a mode has no data.
+                    description: Outcomes per addressing mode the marker was detected under. Rates are fractions of corrections that carry a mode; avgSnapDistance covers stored markers from the last 90 days. Null when a mode has no data.
                     properties:
                       timestamps:
                         $ref: '#/components/schemas/AddressingModeOutcomes'
@@ -12452,8 +12452,8 @@ components:
         inconclusive: {type: integer}
         failed: {type: integer}
         avgBoundaryShiftSeconds:
-          type: number
-          description: Mean absolute boundary shift over adjust verdicts, in seconds
+          type: [number, "null"]
+          description: Mean absolute boundary shift over adjust verdicts, in seconds; null when the mode has none
 
     AddressingModeOutcomes:
       type: object
@@ -12461,7 +12461,7 @@ components:
         heldRate: {type: [number, "null"], description: Share of this mode's corrections filed against a held marker}
         approveRate: {type: [number, "null"], description: Share of this mode's corrections that confirmed or adjusted}
         rejectRate: {type: [number, "null"], description: Share of this mode's corrections that rejected}
-        avgSnapDistance: {type: [number, "null"], description: Mean pre-snap to final boundary distance in seconds}
+        avgSnapDistance: {type: [number, "null"], description: Mean of |start - llm_start| + |end - llm_end| in seconds between the model's raw bounds and the stored marker, all correction stages included}
 
     AddressingModeStats:
       type: object

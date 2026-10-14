@@ -1112,7 +1112,7 @@ def _usable_reviewer_proposal(db, marker, start, end):
 
 
 def _handle_confirm_correction(
-    db, pattern_service, slug, episode_id, original_ad, data
+    db, pattern_service, slug, episode_id, original_ad, data, addressing_mode=None
 ):
     """Handle correction_type='confirm'.
 
@@ -1206,8 +1206,7 @@ def _handle_confirm_correction(
         corrected_bounds={'start': eff_start, 'end': eff_end} if has_trim else None,
         text_snippet=data.get('notes'),
         podcast_id=db.get_podcast_by_slug(slug)['id'],
-        addressing_mode=_stored_marker_mode(
-            db, slug, episode_id, original_start, original_end),
+        addressing_mode=addressing_mode,
     )
 
     # adjusted_* are None exactly when there is no trim; the helper only
@@ -1220,7 +1219,7 @@ def _handle_confirm_correction(
     return json_response({'message': 'Correction recorded', 'pattern_id': pattern_id})
 
 
-def _handle_reject_correction(db, slug, episode_id, original_ad):
+def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode=None):
     """Handle correction_type='reject' (stored as 'false_positive')."""
     original_start = original_ad.get('start')
     original_end = original_ad.get('end')
@@ -1278,8 +1277,7 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
         text_snippet=text_snippet,
         source_hold_reason=source_hold_reason,
         podcast_id=db.get_podcast_by_slug(slug)['id'],
-        addressing_mode=(matched_marker or {}).get('addressing_mode')
-        or _stored_marker_mode(db, slug, episode_id, original_start, original_end),
+        addressing_mode=addressing_mode,
     )
 
     _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
@@ -1307,17 +1305,6 @@ def _load_episode_markers(db, slug, episode_id):
 
 def _load_markers(db, slug, episode_id):
     return _load_episode_markers(db, slug, episode_id)[1]
-
-
-def _stored_marker_mode(db, slug, episode_id, start, end):
-    """Addressing mode of the stored marker nearest the span, None when unstamped."""
-    if start is None or end is None:
-        return None
-    for m in _load_markers(db, slug, episode_id) or []:
-        if (m.get('start') is not None and m.get('end') is not None
-                and abs(m['start'] - start) <= 0.5 and abs(m['end'] - end) <= 0.5):
-            return m.get('addressing_mode')
-    return None
 
 
 def _handle_recategorize_correction(db, slug, episode_id, original_ad, data):
@@ -1500,7 +1487,8 @@ def _maybe_rewrite_pattern_from_adjustment(
         logger.warning(f"Reviewer-trim auto-update failed for pattern {pattern_id}: {e}")
 
 
-def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad, data):
+def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad, data,
+                              addressing_mode=None):
     """Handle correction_type='adjust' (stored as 'boundary_adjustment')."""
     original_start = original_ad.get('start')
     original_end = original_ad.get('end')
@@ -1555,8 +1543,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         corrected_bounds={'start': adjusted_start, 'end': adjusted_end},
         text_snippet=adjusted_text,
         podcast_id=db.get_podcast_by_slug(slug)['id'],
-        addressing_mode=_stored_marker_mode(
-            db, slug, episode_id, original_start, original_end),
+        addressing_mode=addressing_mode,
     )
 
     return json_response({'message': 'Adjustment recorded', 'pattern_id': pattern_id})
@@ -1622,15 +1609,19 @@ def submit_correction(slug, episode_id):
             409
         )
 
+    mode = (target_marker or {}).get('addressing_mode')
     if correction_type == 'confirm':
         response = _handle_confirm_correction(
-            db, pattern_service, slug, episode_id, original_ad, data
+            db, pattern_service, slug, episode_id, original_ad, data,
+            addressing_mode=mode
         )
     elif correction_type == 'reject':
-        response = _handle_reject_correction(db, slug, episode_id, original_ad)
+        response = _handle_reject_correction(
+            db, slug, episode_id, original_ad, addressing_mode=mode)
     elif correction_type == 'adjust':
         response = _handle_adjust_correction(
-            db, pattern_service, slug, episode_id, original_ad, data
+            db, pattern_service, slug, episode_id, original_ad, data,
+            addressing_mode=mode
         )
     elif correction_type == 'split':
         response = _submit_correction_split(

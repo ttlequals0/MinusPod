@@ -12,6 +12,9 @@ from utils.time import parse_iso_utc
 
 logger = logging.getLogger(__name__)
 
+_SNAP_WINDOW_DAYS = 90
+_SNAP_MAX_EPISODES = 2000
+
 # SQL fragment for one episode's saved seconds, NULL unless it actually got
 # shorter. Shared between get_dashboard_stats and get_stats_by_podcast (#727)
 # so both agree on what counts as "saved time".
@@ -2281,7 +2284,7 @@ class StatsMixin:
                 'resurrect': 'resurrected', 'inconclusive': 'inconclusive',
                 'failure': 'failed'}
         modes = {m: {'reviews': 0, **{k: 0 for k in keys.values()},
-                     'avgBoundaryShiftSeconds': 0.0}
+                     'avgBoundaryShiftSeconds': None}
                  for m in ('timestamps', 'segment_ids')}
         for r in rows:
             entry = modes[r['addressing_mode']]
@@ -2417,15 +2420,22 @@ class StatsMixin:
                 rejectRate=round(r['rejected'] / r['n'], 4),
             )
 
+        # Distance from the model's raw bounds to the stored marker, all correction
+        # stages included. The recent window keeps the stats request bounded.
         snap = {m: [] for m in out}
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=_SNAP_WINDOW_DAYS)
+                  ).strftime('%Y-%m-%dT%H:%M:%SZ')
         for r in conn.execute(
             f"""
             SELECT ed.ad_markers_json FROM episode_details ed
             JOIN episodes e ON e.id = ed.episode_id
             WHERE ed.ad_markers_json LIKE '%"llm_start"%'
+              AND COALESCE(e.processed_at, e.updated_at) >= ?
             {"AND e.podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)" if podcast_slug else ""}
+            ORDER BY COALESCE(e.processed_at, e.updated_at) DESC
+            LIMIT {_SNAP_MAX_EPISODES}
             """,  # noqa: S608
-            slug_params,
+            [cutoff] + slug_params,
         ).fetchall():
             try:
                 markers = json.loads(r['ad_markers_json'])
