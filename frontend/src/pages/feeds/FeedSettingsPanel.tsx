@@ -1629,7 +1629,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(maxAdDurField, feed.maxAdDurationOverride,
                   'maxAdDurationOverride', 1, 3600)}
-                description="Ads longer than this cap are held for review instead of cut. Changes apply on the next reprocess." />
+                description="Ads longer than this cap are held for review instead of cut. Also raises the longest single detection the model may report for this feed (default 7 min). Changes apply on the next reprocess." />
 
               {/* Length past which an ad needs a confirmed sponsor */}
               <CueOverrideRow label="Sponsor needed over" min={30} max={3600} step={1}

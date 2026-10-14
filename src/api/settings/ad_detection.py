@@ -165,6 +165,7 @@ def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=F
         _apply_opening_exclusion_fields,
         _apply_ad_merge_fields,
         _apply_max_ad_duration_fields,
+        _apply_max_llm_window_ad_field,
         _apply_detection_tuning_fields,
         _apply_segment_category_actions,
         _apply_ad_chapter_fields,
@@ -1221,6 +1222,9 @@ def validate_settings_payload(
     issue = _validate_max_ad_duration_payload(db, data)
     if issue is not None:
         return issue
+    _value, issue = _max_llm_window_ad_value(data)
+    if issue is not None:
+        return issue
     issue = _validate_detection_tuning_payload(db, data)
     if issue is not None:
         return issue
@@ -1372,6 +1376,29 @@ def _max_ad_duration_values(db, data):
         return None, (
             'maxAdDurationSeconds cannot exceed maxAdDurationConfirmedSeconds', 400)
     return writes, None
+
+
+def _max_llm_window_ad_value(data):
+    if 'maxLlmWindowAdSeconds' not in data:
+        return None, None
+    try:
+        value = float(data['maxLlmWindowAdSeconds'])
+    except (TypeError, ValueError):
+        return None, ('maxLlmWindowAdSeconds must be a number', 400)
+    if not math.isfinite(value) or value < 60 or value > 900:
+        return None, ('maxLlmWindowAdSeconds must be between 60 and 900', 400)
+    return value, None
+
+
+def _apply_max_llm_window_ad_field(db, data):
+    value, issue = _max_llm_window_ad_value(data)
+    if issue is not None:
+        return error_response(*issue)
+    if value is None:
+        return None
+    db.set_setting('max_llm_window_ad_seconds', str(value), is_default=False)
+    logger.info(f"Updated max_llm_window_ad_seconds to: {value}")
+    return None
 
 
 def _validate_max_ad_duration_payload(db, data):

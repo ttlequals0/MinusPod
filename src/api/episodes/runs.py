@@ -11,6 +11,7 @@ from api import (
 from config import (
     episode_matches_feed_filters, is_keep_like, is_pending_review, normalize_segment_category, resolve_processing_mode, DEFAULT_SEGMENT_ACTION,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
+    resolve_window_ad_cap,
 )
 from database.podcasts import is_local_feed
 from ad_validator import user_trimmed_keep_ranges
@@ -636,6 +637,7 @@ def retry_ad_detection(slug, episode_id):
             segments, podcast_name, episode.get('title', 'Unknown'), slug, episode_id,
             podcast_id=slug,  # Pass slug as podcast_id for pattern matching
             podcast_tags=podcast_tags,
+            max_window_ad_seconds=resolve_window_ad_cap(db, podcast['id']),
         )
 
         ad_detection_status = ad_result.get('status', 'failed')

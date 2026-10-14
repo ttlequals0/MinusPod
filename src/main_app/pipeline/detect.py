@@ -21,7 +21,7 @@ from config import (
     is_cue_backed, resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
     resolve_max_ad_duration,
-    MAX_AD_DURATION_WINDOW,
+    resolve_window_ad_cap,
     resolve_max_ad_duration_confirmed,
     VETO_MIN_CUT_SECONDS,
     resolve_splice_veto_enabled,
@@ -87,29 +87,24 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     common._publish_status('update_job_stage', slug, episode_id, "pass1:detecting", 50)
     clear_fallback(episode_id, PASS_AD_DETECTION_1)
 
-    # The per-feed reject cap also lifts the longest single detection the LLM may report.
-    ad_detector.max_window_ad_seconds = max(
-        MAX_AD_DURATION_WINDOW, resolve_max_ad_duration(db, ctx.podcast_id))
-    try:
-        ad_result = ad_detector.process_transcript(
-            segments,
-            audio_path=audio_path,
-            skip_patterns=skip_patterns,
-            progress_callback=progress_callback,
-            audio_analysis=audio_analysis_result,
-            dai_differential=dai_differential,
-            cancel_event=cancel_event,
-            ctx=ctx,
-            positional_prior_hint=positional_prior_hint,
-            recurrence_spans=recurrence_spans,
-            keep_content=keep_content,
-            skip_llm=skip_llm,
-            action_map=action_map,
-            transcript_spans=transcript_spans,
-        )
-    finally:
-        ad_detector.max_window_ad_seconds = MAX_AD_DURATION_WINDOW
-
+    ad_result = ad_detector.process_transcript(
+        segments,
+        audio_path=audio_path,
+        skip_patterns=skip_patterns,
+        progress_callback=progress_callback,
+        audio_analysis=audio_analysis_result,
+        dai_differential=dai_differential,
+        cancel_event=cancel_event,
+        ctx=ctx,
+        positional_prior_hint=positional_prior_hint,
+        recurrence_spans=recurrence_spans,
+        keep_content=keep_content,
+        skip_llm=skip_llm,
+        action_map=action_map,
+        transcript_spans=transcript_spans,
+        # The per-feed reject cap also lifts the longest single detection the LLM may report.
+        max_window_ad_seconds=resolve_window_ad_cap(db, ctx.podcast_id),
+    )
     storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
     ad_detection_status = ad_result.get('status', 'success')

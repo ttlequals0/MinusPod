@@ -1156,6 +1156,9 @@ class TestOpenaiBaseUrlValidation:
         ({'audioCueFreqMinHz': 500, 'audioCueFreqMaxHz': 400},
          'audioCueFreqMinHz must be below audioCueFreqMaxHz'),
         ({'maxAdDurationSeconds': 901}, 'maxAdDurationSeconds cannot exceed'),
+        ({'maxLlmWindowAdSeconds': 59}, 'maxLlmWindowAdSeconds must be between 60 and 900'),
+        ({'maxLlmWindowAdSeconds': 901}, 'maxLlmWindowAdSeconds must be between 60 and 900'),
+        ({'maxLlmWindowAdSeconds': 'abc'}, 'maxLlmWindowAdSeconds must be a number'),
     ])
     def test_shared_validator_rejects_invalid_values_without_writes(self, payload, expected):
         db = database.Database()
@@ -1953,6 +1956,22 @@ class TestAdLengthCeilingPair:
                                   'maxAdDurationConfirmedSeconds': 800}
                          ).status_code == 200
         assert self._current(client) == (240.0, 800.0)
+
+
+class TestMaxLlmWindowAdSetting:
+    def _put(self, client, payload):
+        return client.put('/api/v1/settings/ad-detection',
+                          data=json.dumps(payload),
+                          content_type='application/json')
+
+    def test_value_persists_and_is_returned(self, client):
+        assert self._put(client, {'maxLlmWindowAdSeconds': 600}).status_code == 200
+        assert database.Database().get_setting_float('max_llm_window_ad_seconds', 420.0) == 600.0
+        body = json.loads(client.get('/api/v1/settings').data)
+        assert body['maxLlmWindowAdSeconds']['value'] == 600.0
+
+    def test_out_of_range_is_rejected(self, client):
+        assert self._put(client, {'maxLlmWindowAdSeconds': 30}).status_code == 400
 
 
 class TestWhisperApiTimeoutSetting:

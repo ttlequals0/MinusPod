@@ -323,7 +323,7 @@ class SearchMixin:
         sources = (
             ("SELECT slug, title, description FROM podcasts",
              lambda r: ('podcast', r['slug'], r['slug'], r['title'],
-                        r['description'] or '', '')),
+                        strip_html(r['description']), '')),
             ("""SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text
                 FROM episodes e JOIN podcasts p ON e.podcast_id = p.id
                 LEFT JOIN episode_details ed ON e.id = ed.episode_id""",

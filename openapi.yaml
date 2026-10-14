@@ -1055,7 +1055,7 @@ paths:
                     - 'null'
                   minimum: 1.0
                   maximum: 3600.0
-                  description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap (global MAX_AD_DURATION constants apply).
+                  description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap (global MAX_AD_DURATION constants apply). Also raises the longest single detection the model may report for this feed (default 7 minutes).
                 adDetectionExcludeStartOverride:
                   type:
                     - number
@@ -1072,7 +1072,7 @@ paths:
                     - 'null'
                   minimum: 30.0
                   maximum: 3600.0
-                  description: Per-feed length past which an ad must name a recognized sponsor to be cut; one that does not is held for review. Must not exceed the global maxAdDurationConfirmedSeconds. null falls back to the global maxAdDurationSeconds setting. Also raises the longest single detection the LLM may report for this feed (default 7 minutes), so set it to the length of the show's longest continuous ad block.
+                  description: Per-feed length past which an ad must name a recognized sponsor to be cut; one that does not is held for review. Must not exceed the global maxAdDurationConfirmedSeconds. null falls back to the global maxAdDurationSeconds setting. Also raises the longest single detection the model may report for this feed (the global maxLlmWindowAdSeconds, default 7 minutes), so set it to the length of the show's longest continuous ad block.
                 cueGatedApproval:
                   type:
                     - boolean
@@ -6438,6 +6438,16 @@ paths:
                     Hard ceiling. Even an ad with a confirmed sponsor is held
                     rather than cut past this length.
                   example: 900.0
+                maxLlmWindowAdSeconds:
+                  type: number
+                  format: float
+                  minimum: 60
+                  maximum: 900
+                  description: |
+                    Longest single ad the model may report within one detection
+                    window; a longer one is discarded. A feed's max ad duration
+                    caps raise it for that feed.
+                  example: 420.0
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -13647,7 +13657,7 @@ components:
             - 'null'
           minimum: 1.0
           maximum: 3600.0
-          description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap.
+          description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap. Also raises the longest single detection the model may report for this feed (default 7 minutes).
         adDetectionExcludeStartOverride:
           type:
             - number
@@ -13664,7 +13674,7 @@ components:
             - 'null'
           minimum: 30.0
           maximum: 3600.0
-          description: Per-feed length past which an ad must name a recognized sponsor to be cut. Must not exceed the global maxAdDurationConfirmedSeconds. null falls back to the global maxAdDurationSeconds setting. Also raises the longest single detection the LLM may report for this feed (default 7 minutes), so set it to the length of the show's longest continuous ad block.
+          description: Per-feed length past which an ad must name a recognized sponsor to be cut. Must not exceed the global maxAdDurationConfirmedSeconds. null falls back to the global maxAdDurationSeconds setting. Also raises the longest single detection the model may report for this feed (the global maxLlmWindowAdSeconds, default 7 minutes), so set it to the length of the show's longest continuous ad block.
         cueGatedApproval:
           type:
             - boolean
@@ -17259,6 +17269,11 @@ components:
               format: float
               minimum: 30
               maximum: 3600
+            maxLlmWindowAdSeconds:
+              type: number
+              format: float
+              minimum: 60
+              maximum: 900
             llmProvider:
               type: string
             systemoneBaseUrl:

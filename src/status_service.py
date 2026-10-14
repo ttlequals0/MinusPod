@@ -55,7 +55,7 @@ class ProcessingJob:
     title: str
     podcast_name: str
     started_at: float
-    stage: str = "downloading"  # downloading, transcribing, detecting, processing, complete
+    stage: str = "preparing"  # preparing, downloading, transcribing, detecting, processing, complete
     progress: float = 0.0  # 0-100
     run_id: str | None = None
 
@@ -289,7 +289,7 @@ class StatusService:
                 'title': title,
                 'podcast_name': podcast_name,
                 'started_at': time.time(),
-                'stage': 'downloading',
+                'stage': 'preparing',
                 'progress': 0.0
             }
             if run_id:
@@ -467,7 +467,7 @@ class StatusService:
                     title=job['title'],
                     podcast_name=job['podcast_name'],
                     started_at=job['started_at'],
-                    stage=job.get('stage', 'downloading'),
+                    stage=job.get('stage', 'preparing'),
                     progress=job.get('progress', 0.0),
                     run_id=job.get('run_id'),
                 )

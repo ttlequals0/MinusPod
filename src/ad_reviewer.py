@@ -729,7 +729,8 @@ def _cue_snap_limits(ad: dict, original_start: float,
 
     def cue_limit(edge: str, removed: tuple, kept: tuple) -> float | None:
         # A kept cue stays outside the ad; a removed cue stays inside it, so the
-        # limit sits on the far side of a removed cue.
+        # limit sits on the far side of a removed cue. Records from before 2.99.6
+        # lack remove_with_ad and mean kept, so a missing key must stay kept.
         record = snap.get(edge)
         if not isinstance(record, dict) or not is_template_cue(record):
             return None

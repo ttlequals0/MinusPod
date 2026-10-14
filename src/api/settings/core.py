@@ -18,7 +18,7 @@ from config import (
     coerce_bool_setting,
     ad_chapter_compat_view,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
-    MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
+    MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED, MAX_AD_DURATION_WINDOW,
     get_env_backed_int,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
@@ -340,6 +340,7 @@ def _build_settings_payload():
     max_ad_duration = _db_float('max_ad_duration_seconds', MAX_AD_DURATION)
     max_ad_duration_confirmed = _db_float('max_ad_duration_confirmed_seconds',
                                           MAX_AD_DURATION_CONFIRMED)
+    max_llm_window_ad = _db_float('max_llm_window_ad_seconds', MAX_AD_DURATION_WINDOW)
 
     # Detection tuning (2.76.0): verification-miss hold/autocut confidence,
     # learning confidence floors, differential correlation/hold thresholds.
@@ -718,6 +719,7 @@ def _build_settings_payload():
         'maxAdDurationSeconds': _sv('max_ad_duration_seconds', max_ad_duration),
         'maxAdDurationConfirmedSeconds': _sv('max_ad_duration_confirmed_seconds',
                                              max_ad_duration_confirmed),
+        'maxLlmWindowAdSeconds': _sv('max_llm_window_ad_seconds', max_llm_window_ad),
         'audioCueDetectionEnabled': _sv('audio_cue_detection_enabled', audio_cue_enabled),
         'audioCueFreqMinHz': _sv('audio_cue_freq_min_hz', audio_cue_freq_min),
         'audioCueFreqMaxHz': _sv('audio_cue_freq_max_hz', audio_cue_freq_max),

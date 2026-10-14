@@ -29,6 +29,7 @@ def test_kept_cue_floors_start_after_cue_end():
     assert starts == [pytest.approx((2522.665, 2522.665))]
 
 
+# Snap records from before 2.99.6 lack remove_with_ad and mean kept.
 def test_missing_remove_flag_keeps_the_kept_cue_behaviour():
     ad = _snapped_ad('end', True)
     del ad['cue_snap']['end']['remove_with_ad']

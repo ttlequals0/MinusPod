@@ -17,7 +17,7 @@ release notes.
 - Settings > Authenticated feeds lists every subscriber feed across all podcasts with its label and feed; each feed's settings gain a Security section to create and revoke subscriber feeds for that podcast.
 
 ### Changed
-- A feed's max ad duration (reject) override now also lifts the 7-minute cap on a single LLM detection, so a show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span instead of pieces.
+- A feed's max ad duration cap or its max ad duration (reject) override now also lifts the detector's 7-minute cap on a single LLM detection, so a show whose mid-roll is one continuous 8 to 10 minute block can be detected as one span instead of pieces. The 7-minute default is now a global setting, Longest single LLM detection.
 
 ### Fixed
 - Reprocessing or re-detecting an episode on a local feed, or any episode with a retained original, no longer reports a Downloading phase; the status bar shows Preparing until transcription starts.

@@ -247,6 +247,7 @@ function Settings() {
   const [adDetectionExcludeStartSeconds, setAdDetectionExcludeStartSeconds] = useState(0);
   const [maxAdDurationSeconds, setMaxAdDurationSeconds] = useState(300);
   const [maxAdDurationConfirmedSeconds, setMaxAdDurationConfirmedSeconds] = useState(900);
+  const [maxLlmWindowAdSeconds, setMaxLlmWindowAdSeconds] = useState(420);
   const [verificationMissHoldMinConfidence, setVerificationMissHoldMinConfidence] = useState(0.6);
   const [verificationMissAutocutMinConfidence, setVerificationMissAutocutMinConfidence] = useState(0);
   const [learningMinConfidence, setLearningMinConfidence] = useState(0.85);
@@ -895,6 +896,7 @@ function Settings() {
     { key: 'adDetectionExcludeStartSeconds', kind: 'val', useDefault: true, literal: 0, value: adDetectionExcludeStartSeconds, set: setAdDetectionExcludeStartSeconds },
     { key: 'maxAdDurationSeconds', kind: 'val', useDefault: true, literal: 300, value: maxAdDurationSeconds, set: setMaxAdDurationSeconds },
     { key: 'maxAdDurationConfirmedSeconds', kind: 'val', useDefault: true, literal: 900, value: maxAdDurationConfirmedSeconds, set: setMaxAdDurationConfirmedSeconds },
+    { key: 'maxLlmWindowAdSeconds', kind: 'val', useDefault: true, literal: 420, value: maxLlmWindowAdSeconds, set: setMaxLlmWindowAdSeconds },
     { key: 'positionalPriorEnabled', kind: 'val', useDefault: true, value: positionalPriorEnabled, set: setPositionalPriorEnabled },
     { key: 'verificationMissHoldMinConfidence', kind: 'val', useDefault: true, literal: 0.6, value: verificationMissHoldMinConfidence, set: setVerificationMissHoldMinConfidence },
     { key: 'verificationMissAutocutMinConfidence', kind: 'val', useDefault: true, literal: 0, value: verificationMissAutocutMinConfidence, set: setVerificationMissAutocutMinConfidence },
@@ -1544,6 +1546,8 @@ function Settings() {
         onMaxAdDurationSecondsChange={setMaxAdDurationSeconds}
         maxAdDurationConfirmedSeconds={maxAdDurationConfirmedSeconds}
         onMaxAdDurationConfirmedSecondsChange={setMaxAdDurationConfirmedSeconds}
+        maxLlmWindowAdSeconds={maxLlmWindowAdSeconds}
+        onMaxLlmWindowAdSecondsChange={setMaxLlmWindowAdSeconds}
         verificationMissHoldMinConfidence={verificationMissHoldMinConfidence}
         onVerificationMissHoldMinConfidenceChange={setVerificationMissHoldMinConfidence}
         verificationMissAutocutMinConfidence={verificationMissAutocutMinConfidence}

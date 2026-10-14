@@ -1317,6 +1317,23 @@ def resolve_splice_veto_enabled(db, podcast_id, global_default: bool) -> bool:
     return global_default if override is None else override
 
 
+def resolve_max_llm_window_ad_seconds(db) -> float:
+    """Longest single ad one LLM detection window may report."""
+    try:
+        return float(db.get_setting_float('max_llm_window_ad_seconds',
+                                          MAX_AD_DURATION_WINDOW))
+    except Exception:
+        return MAX_AD_DURATION_WINDOW
+
+
+def resolve_window_ad_cap(db, podcast_id) -> float:
+    """Longest single LLM detection kept for a feed: the global window cap,
+    raised by the feed's hold cap or its reject threshold when larger."""
+    return max(resolve_max_llm_window_ad_seconds(db),
+               resolve_max_ad_duration_override(db, podcast_id) or 0,
+               resolve_max_ad_duration(db, podcast_id))
+
+
 def resolve_max_ad_duration_confirmed(db) -> float:
     """Hard ceiling that even a confirmed sponsor cannot pass. Global only."""
     try:

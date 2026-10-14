@@ -910,6 +910,7 @@ export interface Settings {
   adDetectionExcludeStartSeconds: SettingValueNumber;
   maxAdDurationSeconds: SettingValueNumber;
   maxAdDurationConfirmedSeconds: SettingValueNumber;
+  maxLlmWindowAdSeconds: SettingValueNumber;
   positionalPriorEnabled: SettingValueBoolean;
   verificationMissHoldMinConfidence: SettingValueNumber;
   verificationMissAutocutMinConfidence: SettingValueNumber;
@@ -1116,6 +1117,7 @@ export interface Settings {
     adDetectionExcludeStartSeconds: number;
     maxAdDurationSeconds: number;
     maxAdDurationConfirmedSeconds: number;
+    maxLlmWindowAdSeconds: number;
     positionalPriorEnabled: boolean;
     verificationMissHoldMinConfidence: number;
     verificationMissAutocutMinConfidence: number;
@@ -1233,6 +1235,7 @@ export interface UpdateSettingsPayload {
   adDetectionExcludeStartSeconds?: number;
   maxAdDurationSeconds?: number;
   maxAdDurationConfirmedSeconds?: number;
+  maxLlmWindowAdSeconds?: number;
   positionalPriorEnabled?: boolean;
   verificationMissHoldMinConfidence?: number;
   verificationMissAutocutMinConfidence?: number;

@@ -28,7 +28,7 @@ from config import (
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
-    MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
+    MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED, MAX_AD_DURATION_WINDOW,
     REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT,
     AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ, AUDIO_CUE_PROMINENCE_DB,
     AUDIO_CUE_MIN_CONFIDENCE, AUDIO_CUE_TEMPLATE_SCORE,
@@ -709,6 +709,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'max_ad_duration_confirmed_seconds': SettingSpec(
         default=str(MAX_AD_DURATION_CONFIRMED),
         payload_key='maxAdDurationConfirmedSeconds', payload_kind='float'),
+    # Longest single ad one LLM detection window may report; a feed's max ad
+    # duration caps raise it for that feed.
+    'max_llm_window_ad_seconds': SettingSpec(
+        default=str(MAX_AD_DURATION_WINDOW),
+        payload_key='maxLlmWindowAdSeconds', payload_kind='float'),
 
     # -- LLM provider (env-backed keys resolve via ENV_BACKED_SETTINGS) --
     # Operator override: skip temperature on every LLM call, taking precedence

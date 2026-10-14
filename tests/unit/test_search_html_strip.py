@@ -16,9 +16,9 @@ def test_strip_html_handles_none():
     assert strip_html(None) == ''
 
 
-def _snippet(slug, ep_id, group):
-    return next(e for e in db.search_grouped('politics')[group]
-                if e.get('episodeId', e.get('slug')) == (ep_id if group == 'episodes' else slug))['snippet']
+def _snippet(ep_id):
+    return next(e for e in db.search_grouped('politics')['episodes']
+                if e['episodeId'] == ep_id)['snippet']
 
 
 def test_rebuilt_index_holds_plain_text_descriptions():
@@ -28,7 +28,7 @@ def test_rebuilt_index_holds_plain_text_descriptions():
     db.upsert_episode(slug, ep_id, title='Episode One',
                       description='<p>Politics &amp; more</p>')
     db.rebuild_search_index()
-    snippet = _snippet(slug, ep_id, 'episodes')
+    snippet = _snippet(ep_id)
     assert '<p>' not in snippet and '&lt;' not in snippet
     assert '<mark>' in snippet
 
@@ -40,7 +40,7 @@ def test_incremental_index_holds_plain_text_descriptions():
     db.upsert_episode(slug, ep_id, title='Episode Two',
                       description='<div>Politics <i>today</i></div>')
     db.index_episode(ep_id, slug)
-    snippet = _snippet(slug, ep_id, 'episodes')
+    snippet = _snippet(ep_id)
     assert '&lt;' not in snippet
     assert '<mark>' in snippet
 

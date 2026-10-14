@@ -21,7 +21,7 @@ def test_two_jobs_update_independently(ss):
     ss.update_job_stage('b', '2', 'transcribing', 40)
     status = ss.get_status()
     assert [(j.slug, j.stage, j.progress) for j in status.jobs] == [
-        ('a', 'downloading', 0.0), ('b', 'transcribing', 40)]
+        ('a', 'preparing', 0.0), ('b', 'transcribing', 40)]
     assert status.current_job.slug == 'a'
 
 

@@ -16,6 +16,7 @@ interface TunablesState {
   adDetectionExcludeStartSeconds: number;
   maxAdDurationSeconds: number;
   maxAdDurationConfirmedSeconds: number;
+  maxLlmWindowAdSeconds: number;
   verificationMissHoldMinConfidence: number;
   verificationMissAutocutMinConfidence: number;
   learningMinConfidence: number;
@@ -36,6 +37,7 @@ function defaultState(): TunablesState {
     adDetectionExcludeStartSeconds: 0,
     maxAdDurationSeconds: 300,
     maxAdDurationConfirmedSeconds: 900,
+    maxLlmWindowAdSeconds: 420,
     verificationMissHoldMinConfidence: 0.6,
     verificationMissAutocutMinConfidence: 0,
     learningMinConfidence: 0.85,
@@ -70,6 +72,8 @@ function Harness({ onCommit }: { onCommit: (payload: TunablesState) => void }) {
         onMaxAdDurationSecondsChange={patch('maxAdDurationSeconds')}
         maxAdDurationConfirmedSeconds={state.maxAdDurationConfirmedSeconds}
         onMaxAdDurationConfirmedSecondsChange={patch('maxAdDurationConfirmedSeconds')}
+        maxLlmWindowAdSeconds={state.maxLlmWindowAdSeconds}
+        onMaxLlmWindowAdSecondsChange={patch('maxLlmWindowAdSeconds')}
         verificationMissHoldMinConfidence={state.verificationMissHoldMinConfidence}
         onVerificationMissHoldMinConfidenceChange={patch('verificationMissHoldMinConfidence')}
         verificationMissAutocutMinConfidence={state.verificationMissAutocutMinConfidence}
@@ -257,6 +261,7 @@ describe('AdDetectionSection: commit fires the batched save payload with camelCa
       adDetectionExcludeStartSeconds: 0,
       maxAdDurationSeconds: 300,
       maxAdDurationConfirmedSeconds: 900,
+      maxLlmWindowAdSeconds: 420,
       verificationMissHoldMinConfidence: 0.7,
       verificationMissAutocutMinConfidence: 0.8,
       learningMinConfidence: 0.9,
@@ -301,5 +306,19 @@ describe('AdDetectionSection: typing a value into the ad-length fields', () => {
 
     await user.click(screen.getByRole('button', { name: 'Commit' }));
     expect(committed!.maxAdDurationConfirmedSeconds).toBe(30);
+  });
+
+  it('commits the longest single LLM detection and clamps it to its 60 to 900 range', async () => {
+    let committed: TunablesState | null = null;
+    render(<Harness onCommit={(payload) => { committed = payload; }} />);
+    const user = userEvent.setup();
+
+    const field = screen.getByLabelText('Longest single LLM detection (seconds)');
+    await user.clear(field);
+    await user.type(field, '5000');
+    field.blur();
+
+    await user.click(screen.getByRole('button', { name: 'Commit' }));
+    expect(committed!.maxLlmWindowAdSeconds).toBe(900);
   });
 });

@@ -12,6 +12,8 @@ interface AdDetectionSectionProps {
   onMaxAdDurationSecondsChange: (v: number) => void;
   maxAdDurationConfirmedSeconds: number;
   onMaxAdDurationConfirmedSecondsChange: (v: number) => void;
+  maxLlmWindowAdSeconds: number;
+  onMaxLlmWindowAdSecondsChange: (v: number) => void;
   onMinContentBetweenAdsSecondsChange: (value: number) => void;
   verificationMissHoldMinConfidence: number;
   onVerificationMissHoldMinConfidenceChange: (value: number) => void;
@@ -74,6 +76,8 @@ function AdDetectionSection({
   onMaxAdDurationSecondsChange,
   maxAdDurationConfirmedSeconds,
   onMaxAdDurationConfirmedSecondsChange,
+  maxLlmWindowAdSeconds,
+  onMaxLlmWindowAdSecondsChange,
   onMinContentBetweenAdsSecondsChange,
   verificationMissHoldMinConfidence,
   onVerificationMissHoldMinConfidenceChange,
@@ -187,6 +191,24 @@ function AdDetectionSection({
           />
           <p className="mt-2 text-sm text-muted-foreground">
             The hard ceiling. Even an ad with a confirmed sponsor is held rather than cut past this length.
+          </p>
+        </div>
+        <div>
+          <label htmlFor="maxLlmWindowAdSeconds" className="block text-sm font-medium text-foreground mb-2">
+            Longest single LLM detection (seconds)
+          </label>
+          <NumberInput
+            id="maxLlmWindowAdSeconds"
+            value={maxLlmWindowAdSeconds}
+            min={60}
+            max={900}
+            step={10}
+            fallback={420}
+            onCommit={onMaxLlmWindowAdSecondsChange}
+            className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p className="mt-2 text-sm text-muted-foreground">
+            A single ad the model reports longer than this is discarded within its detection window. A feed's max ad duration caps raise it for that feed.
           </p>
         </div>
         <div>
