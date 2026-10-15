@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.100.15] - 2026-10-15
 
 ### Fixed
 - An MP3 without a Xing, Info or VBRI header no longer gets the duration ffprobe estimates from its bitrate. When ffprobe says it is estimating, the file is decoded once and that length is used. End cues in the last seconds are scanned again and markers and cuts can reach the real end. Reprocessing an episode picks up the exact length. (#860)
