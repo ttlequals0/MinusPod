@@ -16,7 +16,7 @@ from typing import ClassVar
 from config import FFMPEG_SHORT_TIMEOUT, FFPROBE_TIMEOUT
 from storage import _detect_image_mime
 from utils.subprocess_registry import tracked_run
-from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, SAFE_MEDIA_PROBE_ARGS
+from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, SAFE_MEDIA_PROBE_ARGS, decode_stderr, ffmpeg_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class RenderInput:
 def probe_render_input(audio_path: str) -> RenderInput | None:
     """Duration, first audio stream format and chapters of a file, or None when ffprobe fails."""
     cmd = [
-        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'error',
+        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'warning',
         '-select_streams', 'a:0',
         '-show_entries', 'format=duration:stream=sample_rate,channels,channel_layout',
         '-show_chapters', '-of', 'json',
@@ -74,6 +74,8 @@ def probe_render_input(audio_path: str) -> RenderInput | None:
         duration = float(info['format']['duration'])
     except (KeyError, TypeError, ValueError):
         duration = None
+    if duration is not None:
+        duration = _exact_duration(audio_path, duration, decode_stderr(result))
     try:
         stream = info['streams'][0]
         audio_format = (int(stream['sample_rate']), int(stream['channels']),
@@ -81,6 +83,43 @@ def probe_render_input(audio_path: str) -> RenderInput | None:
     except (KeyError, IndexError, TypeError, ValueError):
         audio_format = None
     return RenderInput(duration, audio_format, info.get('chapters') or [])
+
+
+# ffprobe's stderr wording for an MP3 with no Xing/Info/VBRI header; the JSON output carries no flag.
+_ESTIMATED_DURATION = 'Estimating duration from bitrate'
+
+
+def _decoded_duration(audio_path: str, estimate: float) -> float | None:
+    """Exact length from a full decode, for files whose header only lets ffprobe estimate it."""
+    cmd = [
+        'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-nostats',
+        '-i', audio_path, '-vn', '-f', 'null', '-progress', 'pipe:1', '-',
+    ]
+    try:
+        result = tracked_run(cmd, capture_output=True, text=True, timeout=ffmpeg_timeout(estimate))
+    except Exception as e:
+        logger.warning(f"Decode for exact duration failed for {audio_path}: {e}")
+        return None
+    times = re.findall(r'^out_time_us=(\d+)$', result.stdout, re.MULTILINE)
+    if result.returncode == 0 and times:
+        return int(times[-1]) / 1_000_000
+    logger.warning(f"Decode for exact duration failed for {audio_path}: {result.stderr or 'no output'}")
+    return None
+
+
+def _exact_duration(audio_path: str, probed: float, stderr: str) -> float:
+    """The probed duration, replaced by a decoded one when ffprobe said it was estimating."""
+    if _ESTIMATED_DURATION not in stderr:
+        return probed
+    cached = AudioMetadata.lookup(audio_path)
+    if cached is not None:
+        return cached
+    decoded = _decoded_duration(audio_path, probed)
+    if decoded is not None:
+        logger.info(f"Header duration {probed:.2f}s was an estimate; decoded length is {decoded:.2f}s for {audio_path}")
+    # A failed decode keeps the estimate, cached so the file is not decoded on every later probe.
+    AudioMetadata.store(audio_path, decoded if decoded is not None else probed)
+    return decoded if decoded is not None else probed
 
 
 def get_audio_duration(audio_path: str) -> float | None:
@@ -92,8 +131,11 @@ def get_audio_duration(audio_path: str) -> float | None:
     Returns:
         Duration in seconds, or None if unable to determine
     """
+    cached = AudioMetadata.lookup(audio_path)
+    if cached is not None:
+        return cached
     cmd = [
-        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'error',
+        'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'warning',
         '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1',
         audio_path
@@ -106,7 +148,7 @@ def get_audio_duration(audio_path: str) -> float | None:
             timeout=FFPROBE_TIMEOUT
         )
         if result.returncode == 0 and result.stdout.strip():
-            return float(result.stdout.strip())
+            return _exact_duration(audio_path, float(result.stdout.strip()), result.stderr or '')
         logger.warning(f"ffprobe failed for {audio_path}: {result.stderr or 'no output'}")
     except subprocess.TimeoutExpired:
         logger.warning(f"ffprobe timeout for {audio_path}")
@@ -190,38 +232,41 @@ class AudioMetadata:
     """
 
     _MAX_CACHE_SIZE = 500
-    _cache: ClassVar[dict[str, tuple[float, float]]] = {}  # path -> (duration, mtime)
+    _cache: ClassVar[dict[str, tuple[float, tuple[int, int]]]] = {}  # path -> (duration, (mtime_ns, size))
+
+    @staticmethod
+    def _stamp(path: str) -> tuple[int, int]:
+        st = os.stat(path)
+        return st.st_mtime_ns, st.st_size
+
+    @classmethod
+    def lookup(cls, path: str) -> float | None:
+        """Cached duration, or None when the file is unknown or changed since."""
+        try:
+            stamp = cls._stamp(path)
+        except OSError:
+            return None
+        cached = cls._cache.get(path)
+        return cached[0] if cached and cached[1] == stamp else None
+
+    @classmethod
+    def store(cls, path: str, duration: float) -> None:
+        try:
+            cls._cache[path] = (duration, cls._stamp(path))
+        except OSError:
+            return
+        while len(cls._cache) > cls._MAX_CACHE_SIZE:
+            cls._cache.pop(next(iter(cls._cache)))
 
     @classmethod
     def get_duration(cls, path: str) -> float | None:
-        """Get audio duration with caching based on file modification time.
-
-        Args:
-            path: Path to audio file
-
-        Returns:
-            Duration in seconds, or None if unable to determine
-        """
-        try:
-            mtime = os.path.getmtime(path)
-        except OSError:
-            # File doesn't exist or can't access - fall through to direct query
-            return get_audio_duration(path)
-
-        # Check cache
-        if path in cls._cache:
-            cached_duration, cached_mtime = cls._cache[path]
-            if cached_mtime == mtime:
-                return cached_duration
-
-        # Query and cache
+        """Get audio duration with caching based on file modification time."""
+        cached = cls.lookup(path)
+        if cached is not None:
+            return cached
         duration = get_audio_duration(path)
         if duration is not None:
-            cls._cache[path] = (duration, mtime)
-            # Evict oldest entries if cache exceeds max size
-            while len(cls._cache) > cls._MAX_CACHE_SIZE:
-                cls._cache.pop(next(iter(cls._cache)))
-
+            cls.store(path, duration)
         return duration
 
     @classmethod

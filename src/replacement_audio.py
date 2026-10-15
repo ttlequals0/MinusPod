@@ -16,6 +16,7 @@ from audio_processor import (
     get_replace_audio_path,
     get_uploaded_replace_audio_path,
 )
+from utils.audio import get_audio_duration
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, SAFE_MEDIA_PROBE_ARGS
 
@@ -67,7 +68,7 @@ def probe_audio(path: str) -> dict[str, Any]:
     """Duration, channel count and sample rate of an audio file."""
     out = _run([
         'ffprobe', *SAFE_MEDIA_PROBE_ARGS, '-v', 'error', '-select_streams', 'a:0',
-        '-show_entries', 'stream=channels,sample_rate:format=duration,format_name',
+        '-show_entries', 'stream=channels,sample_rate:format=format_name',
         '-of', 'json', str(path),
     ], op_desc='ffprobe')
     try:
@@ -78,9 +79,9 @@ def probe_audio(path: str) -> dict[str, Any]:
     if not streams:
         raise ReplacementAudioError('That file has no audio track.')
     stream = streams[0]
-    duration = parsed.get('format', {}).get('duration')
+    duration = get_audio_duration(str(path))
     return {
-        'durationSeconds': round(float(duration), 3) if duration else None,
+        'durationSeconds': round(duration, 3) if duration else None,
         'channels': int(stream.get('channels') or 0) or None,
         'sampleRateHz': int(stream.get('sample_rate') or 0) or None,
         'formatName': parsed.get('format', {}).get('format_name'),

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from config import FFMPEG_LONG_TIMEOUT, FFPROBE_TIMEOUT
+from utils.audio import get_audio_duration
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.subprocess_registry import tracked_run
 
@@ -449,9 +450,9 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None,
             filler_path = None
             if replacement_path is not None:
                 filler_path = str(Path(directory) / 'filler.mp3')
-                probe = tracked_run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                                     '-of', 'json', replacement_path], capture_output=True, timeout=FFPROBE_TIMEOUT)
-                duration = float(json.loads(probe.stdout)['format']['duration'])
+                duration = get_audio_duration(replacement_path)
+                if duration is None:
+                    raise CopyUnavailable('Replacement audio duration unavailable')
                 fade = max(0, duration - .5)
                 result = tracked_run(['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-y',
                                       '-i', replacement_path, '-vn', '-ar', str(stream.rate),
