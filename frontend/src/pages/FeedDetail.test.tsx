@@ -8,19 +8,19 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import FeedDetail from './FeedDetail';
 import type { Episode, Feed } from '../api/types';
 
 const mockNavigate = vi.fn();
+let mockInitialSearch = '';
 let mockLocationState: { notice?: string } | null = null;
 
-vi.mock('react-router', () => ({
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
   useParams: () => ({ slug: 'test-feed' }),
   useNavigate: () => mockNavigate,
   useLocation: () => ({ pathname: '/feeds/test-feed', state: mockLocationState }),
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
-  ),
 }));
 
 vi.mock('./feeds/FeedSettingsPanel', () => ({ default: () => <div data-testid="feed-settings-panel" /> }));
@@ -72,7 +72,9 @@ function renderFeedDetail(feed: Feed, episodes: Episode[] = []) {
   mockGetEpisodes.mockResolvedValue({ episodes, total: episodes.length });
   return render(
     <QueryClientProvider client={makeClient()}>
-      <FeedDetail />
+      <MemoryRouter initialEntries={[`/feeds/test-feed?${mockInitialSearch}`]}>
+        <FeedDetail />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -80,6 +82,7 @@ function renderFeedDetail(feed: Feed, episodes: Episode[] = []) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockLocationState = null;
+  mockInitialSearch = '';
 });
 
 describe('FeedDetail: podping metadata line', () => {
@@ -173,6 +176,37 @@ describe('FeedDetail: copy control mobile sizing', () => {
   });
 });
 
+describe('FeedDetail: episode list URL state', () => {
+  it('requests the page named in the URL', async () => {
+    mockInitialSearch = 'page=3';
+    renderFeedDetail(makeFeed());
+    await waitFor(() => {
+      expect(mockGetEpisodes).toHaveBeenCalledWith('test-feed', expect.objectContaining({ offset: 50, limit: 25 }));
+    });
+  });
+
+  it('writes the title search to the URL once typing pauses', async () => {
+    mockInitialSearch = 'page=3';
+    renderFeedDetail(makeFeed());
+    await screen.findByText('Test Feed');
+    await userEvent.type(screen.getByLabelText('Search episode titles'), 'rain');
+    expect(mockGetEpisodes).not.toHaveBeenCalledWith('test-feed', expect.objectContaining({ search: 'rain' }));
+    await waitFor(() => {
+      expect(mockGetEpisodes).toHaveBeenLastCalledWith('test-feed', expect.objectContaining({ offset: 0, search: 'rain' }));
+    });
+  });
+
+  it('resets to the first page when the status filter changes', async () => {
+    mockInitialSearch = 'page=3';
+    renderFeedDetail(makeFeed());
+    await screen.findByText('Test Feed');
+    await userEvent.selectOptions(screen.getByDisplayValue('All statuses'), 'failed');
+    await waitFor(() => {
+      expect(mockGetEpisodes).toHaveBeenLastCalledWith('test-feed', expect.objectContaining({ offset: 0, status: 'failed' }));
+    });
+  });
+});
+
 describe('FeedDetail: notice from router state', () => {
   it('surfaces a notice left in router state (e.g. from AddFeed local mode) as a toast', async () => {
     mockLocationState = { notice: 'Feed created. Artwork upload failed. Retry from the feed page.' };
@@ -215,7 +249,7 @@ describe('FeedDetail loading state', () => {
     mockGetEpisodes.mockReturnValue(new Promise(() => {}));
     const { container } = render(
       <QueryClientProvider client={makeClient()}>
-        <FeedDetail />
+        <MemoryRouter><FeedDetail /></MemoryRouter>
       </QueryClientProvider>,
     );
     expect(screen.getByTestId('skeleton-page-header')).toBeDefined();
@@ -228,7 +262,7 @@ describe('FeedDetail loading state', () => {
     mockGetEpisodes.mockReturnValue(new Promise(() => {}));
     render(
       <QueryClientProvider client={makeClient()}>
-        <FeedDetail />
+        <MemoryRouter><FeedDetail /></MemoryRouter>
       </QueryClientProvider>,
     );
     // Wait out the feedLoading branch, which renders skeleton rows of its own.
@@ -451,7 +485,7 @@ describe('FeedDetail: select-all eligibility', () => {
     mockGetEpisodes.mockResolvedValue({ episodes: EPISODES, total: EPISODES.length });
     render(
       <QueryClientProvider client={client}>
-        <FeedDetail />
+        <MemoryRouter><FeedDetail /></MemoryRouter>
       </QueryClientProvider>,
     );
 

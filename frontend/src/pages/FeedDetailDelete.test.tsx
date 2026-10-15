@@ -9,18 +9,17 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import FeedDetail from './FeedDetail';
 import type { Feed } from '../api/types';
 
 const mockNavigate = vi.fn();
 
-vi.mock('react-router', () => ({
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
   useParams: () => ({ slug: 'test-feed' }),
   useNavigate: () => mockNavigate,
   useLocation: () => ({ pathname: '/feeds/test-feed', state: null }),
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
-  ),
 }));
 
 vi.mock('./feeds/FeedSettingsPanel', () => ({ default: () => <div /> }));
@@ -69,7 +68,7 @@ async function renderFeedDetail(feedOverrides: Partial<Feed> = {}) {
     <QueryClientProvider client={new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     })}>
-      <FeedDetail />
+      <MemoryRouter><FeedDetail /></MemoryRouter>
     </QueryClientProvider>,
   );
   await screen.findByText('Test Feed');

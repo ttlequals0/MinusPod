@@ -11,6 +11,9 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+- A feed's episode list keeps its page, status filter, sort, title search and page size in the URL. Opening an episode and pressing Back returns to the same page instead of page 1. The title search updates the URL once typing pauses.
+
 ## [2.100.14] - 2026-10-14
 
 ### Fixed

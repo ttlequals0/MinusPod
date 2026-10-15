@@ -1,6 +1,7 @@
 import { Fragment, useState, useMemo, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router';
+import { Link } from 'react-router';
+import { useUrlParams } from '../hooks/useUrlParams';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -80,25 +81,6 @@ const STATS_PARAM_DEFAULTS = {
   muSort: 'knownCostUsd', muDir: 'desc', muPage: '1',
   ecSort: 'lastActivityAt', ecDir: 'desc', ecPage: '1',
 } as const;
-
-type StatsParam = keyof typeof STATS_PARAM_DEFAULTS;
-
-function useStatsParams() {
-  const [params, setParams] = useSearchParams();
-  const read = (key: StatsParam) => params.get(key) ?? STATS_PARAM_DEFAULTS[key];
-  // One patch per interaction: two separate setters in the same handler would
-  // each build from the pre-update query and the second would drop the first.
-  const write = (changes: Partial<Record<StatsParam, string>>) => {
-    const next = new URLSearchParams(params);
-    for (const [key, value] of Object.entries(changes)) {
-      if (value && value !== STATS_PARAM_DEFAULTS[key as StatsParam]) next.set(key, value);
-      else next.delete(key);
-    }
-    setParams(next, { replace: true });
-  };
-  const readPage = (key: StatsParam) => Math.max(1, Number(read(key)) || 1);
-  return { read, readPage, write };
-}
 
 // Option list that always contains the current selection, so a filter whose
 // value has no data in the selected scope is still shown as selected.
@@ -709,7 +691,7 @@ export default function StatsPage() {
   // Shared ledger filters (date interval, podcast, provider, model) drive both
   // the model-usage and episode-cost lists below, and all of it round-trips
   // through the URL.
-  const { read, readPage, write } = useStatsParams();
+  const { read, readPage, write } = useUrlParams(STATS_PARAM_DEFAULTS);
   const ledgerFrom = read('from');
   const ledgerTo = read('to');
   const ledgerPodcast = read('podcast');
