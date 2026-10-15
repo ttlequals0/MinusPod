@@ -14,6 +14,7 @@ release notes.
 ### Fixed
 - An MP3 without a Xing, Info or VBRI header no longer gets the duration ffprobe estimates from its bitrate. When ffprobe says it is estimating, the file is decoded once and that length is used. End cues in the last seconds are scanned again and markers and cuts can reach the real end. Reprocessing an episode picks up the exact length. (#860)
 - A feed's episode list keeps its page, status filter, sort, title search and page size in the URL. Opening an episode and pressing Back returns to the same page instead of page 1. The title search updates the URL once typing pauses.
+- The transcript viewer's search box has its own row, with Source, Start and End beneath it in the same labeled fields the other filter bars use. The filters no longer wrap unevenly on a phone. The End box shows the episode's last timestamp until a value is typed.
 
 ## [2.100.14] - 2026-10-14
 

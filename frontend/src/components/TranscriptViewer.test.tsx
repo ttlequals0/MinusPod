@@ -47,7 +47,7 @@ describe('TranscriptViewer', () => {
     await waitFor(() => screen.getByText('Welcome to the show.'));
     expect(mockOriginal).toHaveBeenCalledWith('example-podcast', 'a1b2c3d4e5f6');
     expect(screen.getByText('0:10 - 0:40')).toBeTruthy();
-    await userEvent.type(screen.getByLabelText('Search transcript'), 'acme');
+    await userEvent.type(screen.getByLabelText('Search'), 'acme');
     expect(screen.queryByText('Welcome to the show.')).toBeNull();
     expect(screen.getByText(/brought to you by/)).toBeTruthy();
     expect(screen.getByText('Acme', { selector: 'mark' })).toBeTruthy();

@@ -5,7 +5,7 @@ import type { AdSegment, EpisodeDetail } from '../api/types';
 import { ApiError, getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
 import { btnGhost } from './buttonStyles';
-import { focusRing, inputBase, selectBase } from './fieldStyles';
+import { filterControl, filterLabel, focusRing, inputBase, selectBase } from './fieldStyles';
 import { SkeletonRows } from './Skeleton';
 import { formatTimestamp } from '../utils/format';
 import { parseTimeInput } from '../utils/adReviewHelpers';
@@ -69,6 +69,11 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
   const end = parseTimeInput(endText);
   const startBad = startText.trim() !== '' && start === null;
   const endBad = endText.trim() !== '' && end === null;
+  // An empty End means the whole episode, so its placeholder is the latest segment end.
+  const lastEnd = useMemo(
+    () => (segments.length > 0 ? formatTimestamp(segments.reduce((m, s) => Math.max(m, s.end), 0)) : 'end'),
+    [segments],
+  );
   const needle = search.trim().toLowerCase();
 
   const filtered = useMemo(() => segments.filter((seg) => {
@@ -121,56 +126,60 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          Source
-          <select
-            aria-label="Source"
-            value={source}
-            onChange={(e) => onFilter(() => setSource(e.target.value as Source))}
-            className={selectBase}
-          >
-            <option value="original">Original</option>
-            <option value="processed">Processed</option>
-          </select>
-        </label>
-        <input
-          type="search"
-          aria-label="Search transcript"
-          placeholder="Search"
-          value={search}
-          onChange={(e) => onFilter(() => setSearch(e.target.value))}
-          className={`${inputBase} flex-1 min-w-40`}
-        />
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          Start
+      <div className="grid gap-4 p-4 border-b border-border">
+        <div className="min-w-0">
+          <label htmlFor="transcript-search" className={filterLabel}>Search</label>
           <input
-            aria-label="Start"
-            aria-invalid={startBad}
-            value={startText}
-            placeholder="0:00"
-            inputMode="numeric"
-            onChange={(e) => onFilter(() => setStartText(e.target.value))}
-            className={`${inputBase} ${invalidField} w-24 tabular-nums`}
+            id="transcript-search"
+            type="search"
+            placeholder="Word or phrase"
+            value={search}
+            onChange={(e) => onFilter(() => setSearch(e.target.value))}
+            className={`${filterControl} ${inputBase}`}
           />
-        </label>
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          End
-          <input
-            aria-label="End"
-            aria-invalid={endBad}
-            value={endText}
-            placeholder="end"
-            inputMode="numeric"
-            onChange={(e) => onFilter(() => setEndText(e.target.value))}
-            className={`${inputBase} ${invalidField} w-24 tabular-nums`}
-          />
-        </label>
+        </div>
+        <div className="grid grid-cols-2 min-[375px]:grid-cols-[auto_1fr_1fr] sm:grid-cols-3 gap-4">
+          <div className="min-w-0 col-span-2 min-[375px]:col-span-1">
+            <label htmlFor="transcript-source" className={filterLabel}>Source</label>
+            <select
+              id="transcript-source"
+              value={source}
+              onChange={(e) => onFilter(() => setSource(e.target.value as Source))}
+              className={`${filterControl} ${selectBase}`}
+            >
+              <option value="original">Original</option>
+              <option value="processed">Processed</option>
+            </select>
+          </div>
+          <div className="min-w-0">
+            <label htmlFor="transcript-start" className={filterLabel}>Start</label>
+            <input
+              id="transcript-start"
+              aria-invalid={startBad}
+              value={startText}
+              placeholder="0:00"
+              inputMode="numeric"
+              onChange={(e) => onFilter(() => setStartText(e.target.value))}
+              className={`${filterControl} ${inputBase} ${invalidField} tabular-nums`}
+            />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor="transcript-end" className={filterLabel}>End</label>
+            <input
+              id="transcript-end"
+              aria-invalid={endBad}
+              value={endText}
+              placeholder={lastEnd}
+              inputMode="numeric"
+              onChange={(e) => onFilter(() => setEndText(e.target.value))}
+              className={`${filterControl} ${inputBase} ${invalidField} tabular-nums`}
+            />
+          </div>
+        </div>
         {source === 'original' && markers.length > 0 && (
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <label className="flex items-center gap-2 min-h-11 text-sm text-muted-foreground">
             <input
               type="checkbox"
-              aria-label="Highlight ads"
               checked={highlight}
               onChange={(e) => setHighlight(e.target.checked)}
               className={focusRing}
