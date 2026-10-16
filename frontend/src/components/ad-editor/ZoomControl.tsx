@@ -35,7 +35,7 @@ function ZoomControl({ value, min, max, step = 0.1, onChange, onZoomIn, onZoomOu
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 accent-primary max-sm:min-h-11"
+        className="flex-1 min-w-0 accent-primary max-sm:min-h-11"
         title="Zoom"
       />
       <button
@@ -47,7 +47,7 @@ function ZoomControl({ value, min, max, step = 0.1, onChange, onZoomIn, onZoomOu
       >
         <ZoomIn className="w-3.5 h-3.5" />
       </button>
-      <span className="tabular-nums w-12 text-right">
+      <span className="tabular-nums w-12 shrink-0 text-right">
         {value < 10 ? value.toFixed(1) : Math.round(value)}×
       </span>
     </div>

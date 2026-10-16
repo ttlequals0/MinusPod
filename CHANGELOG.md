@@ -12,7 +12,7 @@ release notes.
 ## [Unreleased]
 
 ### Fixed
-- The ad editor's playback controls share one row on a phone. The Edit and Add buttons above Detected Ads center their icons.
+- The ad editor's playback controls share one row on a phone, and the Selection label sits above its start and end boxes. The Edit and Add buttons above Detected Ads are 36 px squares with centered icons.
 
 ## [2.100.16] - 2026-10-16
 

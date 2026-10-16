@@ -28,7 +28,7 @@ import {
 } from '../utils/adReviewHelpers';
 import { btnGhost, btnPrimary } from './buttonStyles';
 import Checkbox from './Checkbox';
-import { focusRing, selectBase } from './fieldStyles';
+import { filterLabel, focusRing, selectBase } from './fieldStyles';
 import {
   SEGMENT_CATEGORIES,
   SEGMENT_CATEGORY_DESCRIPTIONS,
@@ -910,6 +910,7 @@ function AdReviewModal({
     || (mode === 'create' && (textTemplateInput !== '' || categoryInput !== '' || runs.length > 0));
   const { requestClose, confirmation } = useDraftClose(dirty, onClose, multiSubmitting);
   const boundaryErrorId = useId();
+  const selectionLabelId = useId();
   useEscape(requestClose, !showSplit && !multiSubmitting, dialogRef);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1353,42 +1354,44 @@ function AdReviewModal({
               (M:SS, MM:SS, H:MM:SS, or raw seconds) that commit to the
               ad boundaries on blur or Enter. The pin handles still
               update them live during drag. */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground tabular-nums">
-            <span>Selection:</span>
-            <input
-              ref={startInputRef}
-              disabled={lockMultiFields}
-              type="text"
-              inputMode="decimal"
-              value={startInput}
-              aria-label="Selection start time"
-              aria-invalid={boundaryError !== null}
-              aria-describedby={boundaryError ? boundaryErrorId : undefined}
-              onChange={(e) => setStartInput(e.target.value)}
-              onBlur={commitStartInput}
-              onKeyDown={timeInputKeyDown(adStart, setStartInput)}
-              className={`w-20 px-1.5 py-0.5 rounded border bg-background text-success font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring max-sm:min-h-11 ${inputBorderClass}`}
-            />
-            <span>-</span>
-            <input
-              ref={endInputRef}
-              disabled={lockMultiFields}
-              type="text"
-              inputMode="decimal"
-              value={endInput}
-              aria-label="Selection end time"
-              aria-invalid={boundaryError !== null}
-              aria-describedby={boundaryError ? boundaryErrorId : undefined}
-              onChange={(e) => setEndInput(e.target.value)}
-              onBlur={commitEndInput}
-              onKeyDown={timeInputKeyDown(adEnd, setEndInput)}
-              className={`w-20 px-1.5 py-0.5 rounded border bg-background text-destructive font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring max-sm:min-h-11 ${inputBorderClass}`}
-            />
-            <span className="text-xs">({Math.round((adEnd - adStart) * 10) / 10}s)</span>
+          <div className="mt-3 text-sm text-muted-foreground tabular-nums">
+            <span id={selectionLabelId} className={filterLabel}>Selection</span>
+            <div role="group" aria-labelledby={selectionLabelId} className="flex items-center gap-2">
+              <input
+                ref={startInputRef}
+                disabled={lockMultiFields}
+                type="text"
+                inputMode="decimal"
+                value={startInput}
+                aria-label="Selection start time"
+                aria-invalid={boundaryError !== null}
+                aria-describedby={boundaryError ? boundaryErrorId : undefined}
+                onChange={(e) => setStartInput(e.target.value)}
+                onBlur={commitStartInput}
+                onKeyDown={timeInputKeyDown(adStart, setStartInput)}
+                className={`w-24 max-sm:flex-1 max-sm:min-w-0 px-1.5 py-0.5 rounded border bg-background text-success font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring max-sm:min-h-11 ${inputBorderClass}`}
+              />
+              <span>-</span>
+              <input
+                ref={endInputRef}
+                disabled={lockMultiFields}
+                type="text"
+                inputMode="decimal"
+                value={endInput}
+                aria-label="Selection end time"
+                aria-invalid={boundaryError !== null}
+                aria-describedby={boundaryError ? boundaryErrorId : undefined}
+                onChange={(e) => setEndInput(e.target.value)}
+                onBlur={commitEndInput}
+                onKeyDown={timeInputKeyDown(adEnd, setEndInput)}
+                className={`w-24 max-sm:flex-1 max-sm:min-w-0 px-1.5 py-0.5 rounded border bg-background text-destructive font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring max-sm:min-h-11 ${inputBorderClass}`}
+              />
+              <span className="text-xs shrink-0">({Math.round((adEnd - adStart) * 10) / 10}s)</span>
+            </div>
             {boundariesMoved && !boundaryError && (
-              <span className="text-xs text-warning">
+              <p className="mt-1 text-xs text-warning">
                 (originally {formatTime(item.start)} - {formatTime(item.end)})
-              </span>
+              </p>
             )}
           </div>
           {boundaryError && (
