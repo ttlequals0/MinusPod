@@ -25,6 +25,7 @@ function AppearanceSection() {
                     <button
                       key={t.id}
                       type="button"
+                      aria-pressed={isActive}
                       onClick={() => setThemeId(t.id)}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm text-left transition-colors ${
                         isActive

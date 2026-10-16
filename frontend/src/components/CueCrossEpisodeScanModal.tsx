@@ -1,9 +1,10 @@
+import { Modal } from './Modal';
 import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Play, Square, X } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 import CueMarkModal from './CueMarkModal';
-import { ghostBtn, primaryBtn, modalBackdrop, modalPanel, useEscape } from './cueScanStyles';
+import { ghostBtn, primaryBtn } from './cueScanStyles';
 import { useScanQuery } from '../hooks/useScanQuery';
 import {
   crossEpisodeScan,
@@ -56,10 +57,6 @@ export default function CueCrossEpisodeScanModal({
   // preloadSrc: rows play different episodes' originals.
   const { playingKey, toggle: togglePlayback, stop: stopPlayback, audioElement } =
     useAuditionPlayer();
-
-  // Escape closes this modal, but only when no stacked CueMarkModal is open --
-  // the seed modal owns Escape while it is up, so the parent must stand down.
-  useEscape(seed ? () => {} : onClose);
 
   const pickerQuery = useQuery({
     queryKey: ['cue-template-picker', slug, pickerPage],
@@ -166,14 +163,7 @@ export default function CueCrossEpisodeScanModal({
   // Picker phase
   if (phase === 'picker') {
     return (
-      <div className={modalBackdrop} onClick={onClose}>
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Find cues across episodes"
-          className={`${modalPanel} w-full max-w-2xl p-5 max-h-[85vh] flex flex-col`}
-          onClick={(e) => e.stopPropagation()}
-        >
+      <Modal onClose={onClose} ariaLabel="Find cues across episodes" panelClassName="text-foreground w-full max-w-2xl p-5 max-h-[85vh] flex flex-col">
           <div className="flex items-start justify-between mb-3">
             <div>
               <h3 className="text-base font-semibold">Find cues across episodes</h3>
@@ -281,22 +271,14 @@ export default function CueCrossEpisodeScanModal({
               Scan
             </button>
           </div>
-        </div>
-      </div>
+        </Modal>
     );
   }
 
   // Results phase
   return (
     <>
-      <div className={modalBackdrop} onClick={onClose}>
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Cross-episode scan results"
-          className={`${modalPanel} w-full max-w-2xl p-5 max-h-[85vh] flex flex-col`}
-          onClick={(e) => e.stopPropagation()}
-        >
+      <Modal onClose={onClose} closeOnEscape={!seed} ariaLabel="Cross-episode scan results" panelClassName="text-foreground w-full max-w-2xl p-5 max-h-[85vh] flex flex-col">
           <div className="flex items-start justify-between mb-3">
             <div>
               <h3 className="text-base font-semibold">Cross-episode scan</h3>
@@ -452,8 +434,7 @@ export default function CueCrossEpisodeScanModal({
             </ul>
           )}
           {audioElement}
-        </div>
-      </div>
+        </Modal>
 
       {seed && targetEp && (
         <CueMarkModal

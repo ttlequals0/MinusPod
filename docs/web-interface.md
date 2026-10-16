@@ -7,6 +7,7 @@
 ## Contents
 
 - [Overview](#overview)
+- [Saving and updates](#saving-and-updates)
 - [Dashboard views](#dashboard-views)
 - [Episode actions and job state](#episode-actions-and-job-state)
 - [Feed Display Title](#feed-display-title)
@@ -84,9 +85,17 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Queue priority boosts in Queue > Queue Control
 - Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, and structural rate-limit hits, delivered by webhooks or native email (Settings > Notifications)
 - Podcast search via PodcastIndex.org
-- Search: start typing on any page, or press `/` or Ctrl+K, to open a keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
+- Search: press Ctrl+K on Windows/Linux or Cmd+K on macOS to open the keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
 - Installable as Progressive Web App (PWA)
+
+### Saving and updates
+
+Settings shows whether a control uses the page's Save Changes button, its own Save button, or an immediate action. Registered unsaved drafts prompt before navigation or closing an editor. Cancel keeps the draft; Discard closes it without saving. Browser reload/close uses the browser's own unsaved-change prompt.
+
+When an app update is ready, a banner offers Reload. Finish saving or discard registered drafts before applying it. Updates no longer reload the page automatically while a draft is open.
+
+Feed deletion, settings reset, and replacement imports use explicit confirmation dialogs. Read the named target and consequences before confirming. Failed requests show an error and Retry where supported; a failure does not establish an empty list.
 
 ### Dashboard views
 

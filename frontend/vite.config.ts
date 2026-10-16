@@ -12,10 +12,8 @@ export default defineConfig({
       base: '/ui/',
       scope: '/ui/',
       workbox: {
-        // Activate a new SW as soon as it's installed and take over open
-        // tabs immediately, so users see fresh deploys without having to
-        // close every tab of the app.
-        skipWaiting: true,
+        // Wait for the user's reload action before replacing an active bundle.
+        skipWaiting: false,
         clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         navigateFallback: '/ui/index.html',

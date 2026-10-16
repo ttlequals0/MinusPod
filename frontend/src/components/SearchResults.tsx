@@ -59,6 +59,8 @@ interface SearchResultsProps {
   onSelect: (row: SearchResultRow) => void;
   // Whether the query is long enough to have searched; drives the two empty-state messages.
   ready?: boolean;
+  loading?: boolean;
+  failed?: boolean;
 }
 
 const HINT_MESSAGE = 'Type two or more characters to search shows, episodes and transcripts.';
@@ -67,9 +69,12 @@ const NO_MATCHES_MESSAGE = 'No shows, episodes or transcripts match.';
 // Renders Shows/Episodes/In transcripts as <li role="option"> rows (plus
 // role="presentation" group headers and the two shared empty-state messages),
 // meant to sit inside a caller-supplied role="listbox". No layout container of its own.
-function SearchResults({ rows, activeIndex, onHover, onSelect, ready = true }: SearchResultsProps) {
+function SearchResults({ rows, activeIndex, onHover, onSelect, ready = true, loading, failed }: SearchResultsProps) {
   if (!ready) {
     return <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">{HINT_MESSAGE}</li>;
+  }
+  if (loading || failed) {
+    return <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground"><span role="status">{loading ? 'Searching...' : 'Search is unavailable. Try again.'}</span></li>;
   }
   if (rows.length === 0) {
     return <li role="presentation" className="px-4 py-3 text-sm text-muted-foreground">{NO_MATCHES_MESSAGE}</li>;

@@ -1,3 +1,4 @@
+import { useDraftClose } from '../hooks/useDraftClose';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdPattern, updatePattern, deletePattern, splitPattern } from '../api/patterns';
@@ -8,7 +9,7 @@ import { SegmentCategoryBadge } from './SegmentCategoryBadge';
 import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
 import { Modal } from './Modal';
 import Checkbox from './Checkbox';
-import { focusRing, selectBase } from './fieldStyles';
+import { focusRing, selectBase, inputBase } from './fieldStyles';
 import {
   SEGMENT_CATEGORIES,
   SEGMENT_CATEGORY_DESCRIPTIONS,
@@ -33,6 +34,10 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
     is_active: pattern.is_active,
     disabled_reason: pattern.disabled_reason || '',
   });
+  const dirty = isEditing && (editedPattern.text_template !== (pattern.text_template || '')
+    || editedPattern.sponsor !== (pattern.sponsor || '') || editedPattern.category !== (pattern.category || '')
+    || editedPattern.is_active !== pattern.is_active || editedPattern.disabled_reason !== (pattern.disabled_reason || ''));
+  const { requestClose, confirmation } = useDraftClose(dirty, onClose);
   const textTemplateRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-grow the textarea to fit its content so view and edit render at the
@@ -110,7 +115,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
   };
 
   return (
-    <Modal onClose={onClose} panelClassName="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <Modal ariaLabel="Pattern details" onClose={requestClose} panelClassName="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border">
         <div className="flex items-center gap-3">
@@ -121,7 +126,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
           <SegmentCategoryBadge category={pattern.category} />
         </div>
         <button
-          onClick={onClose}
+          onClick={requestClose}
           className={`p-1 text-muted-foreground hover:text-foreground ${focusRing}`}
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -219,14 +224,15 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
+              <label htmlFor="pattern-text-template" className="block text-sm font-medium text-foreground mb-1">
                 Text Template
               </label>
               <textarea
+                id="pattern-text-template"
                 ref={textTemplateRef}
                 value={editedPattern.text_template}
                 onChange={(e) => setEditedPattern(prev => ({ ...prev, text_template: e.target.value }))}
-                className={`w-full px-3 py-3 bg-secondary border border-border rounded text-sm font-mono min-h-[160px] max-h-[400px] resize-y overflow-auto ${focusRing}`}
+                className={`w-full ${inputBase} font-mono min-h-[160px] max-h-[400px] resize-y overflow-auto`}
               />
             </div>
 
@@ -412,7 +418,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
           ) : (
             <>
               <button
-                onClick={onClose}
+                onClick={requestClose}
                 className={`px-4 py-2 text-sm bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
               >
                 Close
@@ -438,6 +444,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
           </div>
         </div>
       )}
+      {confirmation}
     </Modal>
   );
 }

@@ -1,0 +1,662 @@
+{
+  "source": "User-supplied backup; production Flask app; GET-only audit instance; media files unavailable",
+  "scenarios": [
+    {
+      "route": "dashboard",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "feed",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "episode",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "patterns",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "sponsors",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "history",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "downloads",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "stats",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [
+          {
+            "clientWidth": 358,
+            "scrollWidth": 877
+          }
+        ],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [
+          {
+            "clientWidth": 358,
+            "scrollWidth": 877
+          }
+        ],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "queue",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "settings",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "search",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [
+          {
+            "clientWidth": 358,
+            "scrollWidth": 731
+          }
+        ],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "dashboard",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "feed",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "episode",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [
+          {
+            "clientWidth": 670,
+            "scrollWidth": 788
+          }
+        ],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [
+          {
+            "clientWidth": 670,
+            "scrollWidth": 800
+          }
+        ],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "patterns",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "sponsors",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [
+          {
+            "clientWidth": 718,
+            "scrollWidth": 722
+          }
+        ],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "history",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [
+          {
+            "clientWidth": 718,
+            "scrollWidth": 1123
+          }
+        ],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "downloads",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "stats",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [
+          {
+            "clientWidth": 720,
+            "scrollWidth": 877
+          },
+          {
+            "clientWidth": 668,
+            "scrollWidth": 1076
+          }
+        ],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [
+          {
+            "clientWidth": 720,
+            "scrollWidth": 877
+          }
+        ],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "queue",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "settings",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "search",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [
+          {
+            "clientWidth": 720,
+            "scrollWidth": 731
+          }
+        ],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "dashboard",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "feed",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "episode",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [
+          {
+            "clientWidth": 1166,
+            "scrollWidth": 1611
+          }
+        ],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [
+          {
+            "clientWidth": 1166,
+            "scrollWidth": 1611
+          }
+        ],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "patterns",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "sponsors",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "history",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "downloads",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [
+          {
+            "clientWidth": 1214,
+            "scrollWidth": 1246
+          }
+        ],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "stats",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "queue",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "settings",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "search",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "detections",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "review",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "cleanup",
+      "widthCssPx": 390,
+      "before": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 390,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "detections",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "review",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "cleanup",
+      "widthCssPx": 768,
+      "before": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 768,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "detections",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "review",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    },
+    {
+      "route": "cleanup",
+      "widthCssPx": 1440,
+      "before": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      },
+      "after": {
+        "documentWidthCssPx": 1440,
+        "horizontalRegions": [],
+        "pageErrorCount": 0
+      }
+    }
+  ]
+}

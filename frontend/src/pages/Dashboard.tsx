@@ -27,6 +27,8 @@ import { deleteStopsProcessingMessage } from '../utils/feedTitle';
 import { formatDateTime } from '../utils/format';
 import { btnPrimary, btnSecondary, touchTarget } from '../components/buttonStyles';
 import { focusRing, inputBase } from '../components/fieldStyles';
+import { ConfirmModal } from '../components/Modal';
+import QueryError from '../components/QueryError';
 
 type DashboardView = 'podcasts' | 'episodes';
 const DASHBOARD_VIEW_KEY = 'dashboardView';
@@ -61,7 +63,6 @@ function Dashboard() {
   // The modified OPML is what a podcast app imports, so it's offered here and
   // not only under Settings > Data Management.
   const [opmlExportOpen, setOpmlExportOpen] = useState(false);
-  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [feedsPage, setFeedsPage] = useState(1);
   const isEpisodesView = dashboardView === 'episodes';
@@ -128,17 +129,12 @@ function Dashboard() {
       setDeleteConfirm(null);
       if (result?.pending) setActionError(result.message);
     },
-    onError: (err) => { setDeleteConfirm(null); setActionError((err as Error).message); },
+    onError: (err) => { setActionError((err as Error).message); },
   });
 
   const handleDelete = (slug: string) => {
-    if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-    if (deleteConfirm === slug) {
-      deleteMutation.mutate(slug);
-    } else {
-      setDeleteConfirm(slug);
-      deleteTimerRef.current = setTimeout(() => setDeleteConfirm(null), 3000);
-    }
+    setActionError(null);
+    setDeleteConfirm(slug);
   };
 
   const handleRefresh = (slug: string, options?: { force?: boolean }) => {
@@ -149,7 +145,7 @@ function Dashboard() {
 
   const navigate = useNavigate();
   const searchRootRef = useRef<HTMLDivElement>(null);
-  const { query, setQuery, debounced, ready, rows, current, setActive, onKeyDown, open, close } = useUnifiedSearch('');
+  const { query, setQuery, debounced, ready, rows, current, setActive, onKeyDown, open, close, isFetching: searching, isError: searchFailed, refetch: retrySearch } = useUnifiedSearch('');
 
   const goToResult = (row: SearchResultRow) => { close(); navigate(row.to); };
 
@@ -175,9 +171,9 @@ function Dashboard() {
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <p className="text-destructive">Failed to load feeds</p>
-        <p className="text-sm text-muted-foreground mt-2">{(error as Error).message}</p>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">Feeds</h1>
+        <QueryError title="Failed to load feeds" onRetry={() => void activeQuery.refetch()} retrying={activeQuery.isFetching} />
       </div>
     );
   }
@@ -219,8 +215,7 @@ function Dashboard() {
             className={`${inputBase} w-full py-2.5 pl-10 pr-16`}
           />
           <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 gap-1 sm:flex">
-            <kbd className={kbdClass}>/</kbd>
-            <kbd className={kbdClass}>&#8984;K</kbd>
+            <kbd className={kbdClass}>Ctrl/Cmd+K</kbd>
           </span>
         </div>
         {showSearchPanel && (
@@ -231,8 +226,9 @@ function Dashboard() {
             onMouseDown={(e) => e.preventDefault()}
           >
             <ul id="dashboard-search-results" role="listbox" aria-label="Results" className="max-h-[60vh] overflow-y-auto py-1">
-              <SearchResults rows={rows} activeIndex={current} onHover={setActive} onSelect={goToResult} ready={ready} />
+              <SearchResults rows={rows} activeIndex={current} onHover={setActive} onSelect={goToResult} ready={ready} loading={searching} failed={searchFailed} />
             </ul>
+            {searchFailed && <button type="button" className="px-4 py-3 text-primary" onClick={() => void retrySearch()}>Retry search</button>}
             <div className="flex items-center justify-between gap-2 border-t border-border bg-secondary/50 px-4 py-2 text-sm">
               <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
                 <kbd className={kbdClass}>&#8593;</kbd><kbd className={kbdClass}>&#8595;</kbd> move
@@ -435,8 +431,12 @@ function Dashboard() {
             </div>
           )}
           {deleteConfirm && (
-            <div className="bg-card border border-border rounded-lg p-4 shadow-lg max-w-sm">
-              <p className="text-sm text-foreground">Click delete again to confirm</p>
+            <ConfirmModal title={`Delete ${feeds?.find(f => f.slug === deleteConfirm)?.title || deleteConfirm}?`}
+              confirmLabel="Delete feed" pending={deleteMutation.isPending}
+              onCancel={() => setDeleteConfirm(null)} onConfirm={() => deleteMutation.mutate(deleteConfirm)}>
+              <p>This removes the feed and its downloaded files.</p>
+              {feeds?.find(f => f.slug === deleteConfirm)?.feedType === 'local' && <p className="text-warning">Uploaded originals will also be deleted.</p>}
+              {actionError && <p role="alert" className="text-destructive">{actionError}</p>}
               {(() => {
                 const processingCount = feeds?.find((f) => f.slug === deleteConfirm)?.statusCounts?.processing ?? 0;
                 const message = deleteStopsProcessingMessage(processingCount);
@@ -444,7 +444,7 @@ function Dashboard() {
                   <p className="text-sm text-warning mt-1">{message}</p>
                 );
               })()}
-            </div>
+            </ConfirmModal>
           )}
         </div>
       )}

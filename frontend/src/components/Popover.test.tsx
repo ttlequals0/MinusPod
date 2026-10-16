@@ -157,7 +157,7 @@ describe('Popover placement', () => {
   it('centers on the screen under the anchor row on a phone', () => {
     setupPlacement(PHONE, PANEL);
     render(<Harness anchorRect={rect({ left: 200, right: 300, top: 100, bottom: 120 })} />);
-    expect(panel()!.className).toContain('fixed left-1/2 -translate-x-1/2');
+    expect(panel()!.className).toContain('left-1/2 -translate-x-1/2');
     expect(panel()!.style.top).toBe('124px');
   });
 

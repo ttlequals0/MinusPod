@@ -1,3 +1,5 @@
+import { useDraftClose } from '../hooks/useDraftClose';
+import { isTopDialog, useEscape, useFocusTrap } from './Modal';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
@@ -159,6 +161,8 @@ function AdReviewModal({
   mode = 'review', onCreate, onCreateDone, onAddNew, boundsWindow,
   hideConfirm = false, onSplitSaved,
 }: Props) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true);
   const containerRef = useRef<HTMLDivElement>(null);   // waveform host
   const overlayRef = useRef<HTMLDivElement>(null);     // relative wrapper around waveform + pins
   const cursorRef = useRef<HTMLDivElement>(null);      // playhead, position-updated from RAF
@@ -901,21 +905,17 @@ function AdReviewModal({
 
   // ------------------------------------------------------------------
   // Hotkeys
+  const dirty = adStart !== defaults.adStart || adEnd !== defaults.adEnd || sponsorInput !== (item.sponsor ?? '')
+    || reasonInput !== '' || reviewCategory !== (item.category ?? '')
+    || (mode === 'create' && (textTemplateInput !== '' || categoryInput !== '' || runs.length > 0));
+  const { requestClose, confirmation } = useDraftClose(dirty, onClose, multiSubmitting);
+  useEscape(requestClose, !showSplit && !multiSubmitting, dialogRef);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // The split editor is on top; its own handlers own the keyboard.
-      if (showSplit) return;
-      if (multiSubmitting) return;
-      const target = e.target as HTMLElement | null;
-      const inField =
-        target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
-      if (inField && e.key !== 'Escape') return;
-
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-        return;
-      }
+      if (showSplit || multiSubmitting || e.defaultPrevented || e.isComposing || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = document.activeElement as HTMLElement | null;
+      if (!isTopDialog(dialogRef.current) || !dialogRef.current?.contains(target)) return;
+      if (target?.closest('input,textarea,select,button,a,[contenteditable="true"],[role="combobox"],[role="slider"]')) return;
       if (e.key === ' ')      { e.preventDefault(); togglePlay(); return; }
       if (e.key === ',')      { e.preventDefault(); panBack(); return; }
       if (e.key === '.')      { e.preventDefault(); panForward(); return; }
@@ -951,7 +951,7 @@ function AdReviewModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
+      className="modal-backdrop fixed inset-0 z-60 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
       onMouseDown={(e) => {
         // Only close when the bare backdrop is the actual mousedown target.
         // Anything inside the modal panel (inputs, buttons, listbox items
@@ -961,13 +961,15 @@ function AdReviewModal({
         // an accidental tap would lose everything.
         if (e.target !== e.currentTarget) return;
         if (mode === 'create') return;
-        onClose();
+        requestClose();
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="Review ad"
+        aria-label={mode === 'create' ? 'Add new ad' : 'Review ad'}
         className="bg-card rounded-lg border border-border w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -1028,7 +1030,7 @@ function AdReviewModal({
                 </button>
               )}
               <button
-                onClick={onClose}
+                onClick={requestClose}
                 disabled={mode === 'create' && multiSubmitting}
                 className={`p-1 rounded ${btnGhost} transition-colors ${focusRing} max-sm:min-h-11 max-sm:min-w-11`}
                 aria-label="Close"
@@ -1613,7 +1615,7 @@ function AdReviewModal({
                 Save creates a manual ad pattern.
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={onClose} disabled={multiSubmitting}
+                <button type="button" onClick={requestClose} disabled={multiSubmitting}
                   className={`px-4 py-1.5 rounded-lg ${ghostBtn} text-sm ${focusRing} max-sm:min-h-11`}>
                   Cancel
                 </button>
@@ -1712,6 +1714,7 @@ function AdReviewModal({
           )}
         </div>
       </div>
+      {confirmation}
       {showSplit && (
         <SplitMarkerModal
           target={{

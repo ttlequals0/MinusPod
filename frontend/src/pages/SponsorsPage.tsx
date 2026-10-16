@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
+import QueryError from '../components/QueryError';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSponsors, deleteSponsor } from '../api/sponsors';
 import { getTagVocabulary } from '../api/community';
@@ -32,8 +34,9 @@ function SponsorsPage() {
 
 function SponsorsSection() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [tagFilter, setTagFilter] = useState('all');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('q') || '');
   const [showInactive, setShowInactive] = useState(false);
   const [page, setPage] = useState(1);
   const { sortField, sortDirection, handleSort } =
@@ -42,7 +45,7 @@ function SponsorsSection() {
   const [deleteTarget, setDeleteTarget] = useState<Sponsor | null>(null);
   const limit = 20;
 
-  const { data: sponsors, isLoading, error } = useQuery({
+  const { data: sponsors, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['sponsors', showInactive],
     queryFn: () => getSponsors(showInactive),
   });
@@ -101,7 +104,7 @@ function SponsorsSection() {
       </div>
     );
   }
-  if (error) return <div className="text-center py-12"><p className="text-destructive">Failed to load sponsors</p></div>;
+  if (error) return <QueryError title="Failed to load sponsors" onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div>

@@ -22,6 +22,7 @@ import {
 import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguages';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { useDraftField, type DraftField } from '../../hooks/useDraftField';
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { ConfirmModal } from '../../components/Modal';
 import SavedBadge from '../settings/SavedBadge';
@@ -270,6 +271,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // the button/badge update instantly. Dirty compare trims, so a whitespace-only edit isn't dirty.
   const notesField = useDraftField(feed, (f) => f.detectionNotes ?? '', (v) => v.trim());
   const chapterNotesField = useDraftField(feed, (f) => f.chapterNotes ?? '', (v) => v.trim());
+  useUnsavedChanges([cueScoreField, pairMinField, pairMaxField, pairFracField, snapConfField, snapLeadField,
+    snapLagField, maxAdDurField, maxAdDurRejectField, introExclusionField, notesField, chapterNotesField]
+    .some(field => field.dirty) || isEditingSourceUrl || isEditingNetwork);
   const [chapterNotesSaved, setChapterNotesSaved] = useState(false);
   const [chapterNotesError, setChapterNotesError] = useState<string | null>(null);
   const [detectionNotesSaved, setDetectionNotesSaved] = useState(false);
@@ -538,6 +542,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         onToggle={setPanelOpen}
       >
         <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">Notes, source URL, and network edits need Save. Other controls apply when changed; numeric fields save when you leave the field.</p>
           <SearchableSectionGroup
             placeholder="Search feed settings..."
             ariaLabel="Search feed settings"

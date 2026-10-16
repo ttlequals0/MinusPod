@@ -48,7 +48,7 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
   });
 
   return (
-    <Modal onClose={onClose} panelClassName="max-w-lg w-full">
+    <Modal ariaLabel="Edit normalization" onClose={onClose} panelClassName="max-w-lg w-full">
       <div className="flex items-center justify-between p-4 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground">
           {isNew ? 'Add Normalization' : 'Edit Normalization'}

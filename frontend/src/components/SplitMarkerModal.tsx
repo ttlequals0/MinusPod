@@ -279,7 +279,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   };
 
   return (
-    <Modal onClose={onClose} closeOnEscape panelClassName={`${modalPanel} max-w-4xl w-full`}>
+    <Modal ariaLabel="Split marker" onClose={onClose} closeOnEscape panelClassName={`${modalPanel} max-w-4xl w-full`}>
       <div className="p-5 space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Split ad block</h2>

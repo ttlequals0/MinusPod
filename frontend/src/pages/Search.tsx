@@ -6,6 +6,7 @@ import { SkeletonRows } from '../components/Skeleton';
 import { btnSecondary } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
 import { renderSnippet } from '../utils/searchSnippet';
+import QueryError from '../components/QueryError';
 
 type FilterType = 'all' | 'episode' | 'podcast' | 'transcript' | 'pattern' | 'sponsor';
 type ResultType = Exclude<FilterType, 'all'>;
@@ -78,7 +79,7 @@ function Search() {
     return () => clearTimeout(timer);
   }, [query, filterType, setSearchParams]);
 
-  const { data: results, isLoading, error } = useQuery({
+  const { data: results, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['search', debouncedQuery],
     queryFn: () => search(debouncedQuery),
     enabled: debouncedQuery.length >= 2,
@@ -113,10 +114,10 @@ function Search() {
         snippet: r.snippet, link: `/feeds/${r.feedSlug}/episodes/${r.episodeId}`,
       })),
       pattern: results.patterns.map((r) => ({
-        type: 'pattern', id: r.id, title: r.sponsor, subtitle: r.scope, snippet: r.snippet, link: '/patterns',
+        type: 'pattern', id: r.id, title: r.sponsor, subtitle: r.scope, snippet: r.snippet, link: `/patterns?q=${encodeURIComponent(r.sponsor)}`,
       })),
       sponsor: results.sponsors.map((r) => ({
-        type: 'sponsor', id: r.id, title: r.name, snippet: r.snippet, link: '/patterns',
+        type: 'sponsor', id: r.id, title: r.name, snippet: r.snippet, link: `/sponsors?q=${encodeURIComponent(r.name)}`,
       })),
     };
   }, [results]);
@@ -143,16 +144,10 @@ function Search() {
             Search across shows, episodes, transcripts, patterns, and sponsors
           </p>
         </div>
-        <button
-          onClick={() => rebuildMutation.mutate()}
-          disabled={rebuildMutation.isPending}
-          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
-        >
-          {rebuildMutation.isPending ? 'Rebuilding...' : 'Rebuild Index'}
-        </button>
       </div>
 
       {/* Search Input */}
+      <label htmlFor="library-search" className="block text-sm font-medium mb-2">Search your library</label>
       <div className="relative mb-6">
         <svg
           className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"
@@ -168,6 +163,7 @@ function Search() {
           />
         </svg>
         <input
+          id="library-search"
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -178,12 +174,13 @@ function Search() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+      <div role="group" aria-label="Result type" className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mb-6">
         {FILTER_TYPES.map((type) => (
           <button
             key={type}
+            aria-pressed={filterType === type}
             onClick={() => setFilterType(type)}
-            className={`px-4 py-2 rounded text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`min-w-0 min-h-11 whitespace-normal px-2 sm:px-4 py-2 rounded text-sm font-medium transition-colors ${
               filterType === type
                 ? 'bg-primary text-primary-foreground'
                 : btnSecondary
@@ -191,7 +188,7 @@ function Search() {
           >
             {type === 'all' ? 'All' : typeLabels[type]}
             {stats?.stats && type !== 'all' && type !== 'transcript' && stats.stats[type] !== undefined && (
-              <span className="ml-1 opacity-70">({stats.stats[type]})</span>
+              <span className="ml-1 inline-block">({stats.stats[type]})</span>
             )}
           </button>
         ))}
@@ -201,12 +198,10 @@ function Search() {
       {isLoading && debouncedQuery.length >= 2 && <SkeletonRows count={5} />}
 
       {error && (
-        <div className="p-4 rounded-lg bg-destructive/10 text-destructive">
-          {(error as Error).message}
-        </div>
+        <QueryError title="Search is unavailable." onRetry={() => void refetch()} retrying={isFetching} />
       )}
 
-      {!isLoading && debouncedQuery.length >= 2 && results && (
+      {!isLoading && !error && debouncedQuery.length >= 2 && results && (
         <>
           <p className="text-sm text-muted-foreground mb-4">
             {total} result{total !== 1 ? 's' : ''} for "{results.query}"
@@ -272,6 +267,15 @@ function Search() {
           <p>Enter at least 2 characters to search</p>
         </div>
       )}
+      <details className="mt-8 border-t border-border pt-4 text-sm">
+        <summary className="cursor-pointer text-muted-foreground py-3">Search maintenance</summary>
+        <button type="button" onClick={() => rebuildMutation.mutate()} disabled={rebuildMutation.isPending}
+          className={`px-3 py-2 rounded ${btnSecondary} ${focusRing} disabled:opacity-50`}>
+          {rebuildMutation.isPending ? 'Rebuilding...' : 'Rebuild Index'}
+        </button>
+        {rebuildMutation.isSuccess && <p role="status" className="mt-2">Search index rebuilt.</p>}
+        {rebuildMutation.isError && <p role="alert" className="mt-2 text-destructive">Could not rebuild the index. Try again.</p>}
+      </details>
     </div>
   );
 }

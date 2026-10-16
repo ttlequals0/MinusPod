@@ -112,7 +112,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
   const fallbackError = original404 && transcriptQuery.isError ? transcriptQuery.error : undefined;
 
   return (
-    <Modal onClose={onClose} panelClassName="w-full max-w-5xl h-[90vh] flex flex-col text-foreground">
+    <Modal ariaLabel="Transcript" onClose={onClose} panelClassName="w-full max-w-5xl h-[90vh] flex flex-col text-foreground">
       <div className="flex items-start justify-between gap-3 p-4 border-b border-border">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">Transcript</h2>

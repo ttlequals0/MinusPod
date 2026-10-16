@@ -1,0 +1,3166 @@
+[
+  {
+    "route": "add",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Skip to content\nAdd New Feed\nSubscribe to feed\nCreate local feed\nCreate recents feed\nPodcast RSS Feed URL\nAdvanced options (URL and search feeds)\nor import multiple feeds\nImport from OPML\n\nUpload an OPML file to import multiple feeds\n\nDrop your OPML file here, or\n\nbrowse to select\n\nSupports .opml and .xml files",
+        "smallControls": [
+          {
+            "label": "https://example.com/podcast/feed.xml",
+            "x": 16,
+            "y": 323,
+            "width": 288,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "Advanced options (URL and search feeds)",
+            "x": 16,
+            "y": 381,
+            "width": 288,
+            "height": 20,
+            "font": "14px"
+          },
+          {
+            "label": "my-podcast",
+            "x": 16,
+            "y": 445,
+            "width": 288,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "SELECT",
+            "x": 16,
+            "y": 575,
+            "width": 288,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "300 (default)",
+            "x": 16,
+            "y": 682,
+            "width": 288,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "SELECT",
+            "x": 16,
+            "y": 808,
+            "width": 288,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "browse to select",
+            "x": 101.234375,
+            "y": 687,
+            "width": 117.53125,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Skip to content\nAdd New Feed\nSubscribe to feed\nCreate local feed\nCreate recents feed\nPodcast RSS Feed URL\nAdvanced options (URL and search feeds)\nor import multiple feeds\nImport from OPML\n\nUpload an OPML file to import multiple feeds\n\nDrop your OPML file here, or\n\nbrowse to select\n\nSupports .opml and .xml files",
+        "smallControls": [
+          {
+            "label": "https://example.com/podcast/feed.xml",
+            "x": 16,
+            "y": 303,
+            "width": 328,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "Advanced options (URL and search feeds)",
+            "x": 16,
+            "y": 361,
+            "width": 328,
+            "height": 20,
+            "font": "14px"
+          },
+          {
+            "label": "my-podcast",
+            "x": 16,
+            "y": 425,
+            "width": 328,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "SELECT",
+            "x": 16,
+            "y": 555,
+            "width": 328,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "300 (default)",
+            "x": 16,
+            "y": 662,
+            "width": 328,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "SELECT",
+            "x": 16,
+            "y": 788,
+            "width": 328,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "browse to select",
+            "x": 121.234375,
+            "y": 667,
+            "width": 117.53125,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Skip to content\nAdd New Feed\nSubscribe to feed\nCreate local feed\nCreate recents feed\nPodcast RSS Feed URL\nAdvanced options (URL and search feeds)\nor import multiple feeds\nImport from OPML\n\nUpload an OPML file to import multiple feeds\n\nDrop your OPML file here, or\n\nbrowse to select\n\nSupports .opml and .xml files",
+        "smallControls": [
+          {
+            "label": "https://example.com/podcast/feed.xml",
+            "x": 16,
+            "y": 303,
+            "width": 358,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "Advanced options (URL and search feeds)",
+            "x": 16,
+            "y": 361,
+            "width": 358,
+            "height": 20,
+            "font": "14px"
+          },
+          {
+            "label": "my-podcast",
+            "x": 16,
+            "y": 425,
+            "width": 358,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "SELECT",
+            "x": 16,
+            "y": 555,
+            "width": 358,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "300 (default)",
+            "x": 16,
+            "y": 662,
+            "width": 358,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "SELECT",
+            "x": 16,
+            "y": 788,
+            "width": 358,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "browse to select",
+            "x": 136.234375,
+            "y": 667,
+            "width": 117.53125,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Skip to content\nAdd New Feed\nSubscribe to feed\nCreate local feed\nCreate recents feed\nPodcast RSS Feed URL\nAdvanced options (URL and search feeds)\nor import multiple feeds\nImport from OPML\n\nUpload an OPML file to import multiple feeds\n\nDrop your OPML file here, or\n\nbrowse to select\n\nSupports .opml and .xml files",
+        "smallControls": [
+          {
+            "label": "Subscribe to feed",
+            "x": 33,
+            "y": 194,
+            "width": 141.609375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Create local feed",
+            "x": 174.609375,
+            "y": 194,
+            "width": 137.734375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Create recents feed",
+            "x": 312.34375,
+            "y": 194,
+            "width": 154.59375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "https://example.com/podcast/feed.xml",
+            "x": 32,
+            "y": 283,
+            "width": 576,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "Advanced options (URL and search feeds)",
+            "x": 32,
+            "y": 341,
+            "width": 576,
+            "height": 20,
+            "font": "14px"
+          },
+          {
+            "label": "my-podcast",
+            "x": 32,
+            "y": 405,
+            "width": 576,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "SELECT",
+            "x": 32,
+            "y": 515,
+            "width": 576,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "300 (default)",
+            "x": 32,
+            "y": 622,
+            "width": 576,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "SELECT",
+            "x": 32,
+            "y": 728,
+            "width": 576,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "browse to select",
+            "x": 261.234375,
+            "y": 647,
+            "width": 117.53125,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Skip to content\nAdd New Feed\nSubscribe to feed\nCreate local feed\nCreate recents feed\nPodcast RSS Feed URL\nAdvanced options (URL and search feeds)\nor import multiple feeds\nImport from OPML\n\nUpload an OPML file to import multiple feeds\n\nDrop your OPML file here, or\n\nbrowse to select\n\nSupports .opml and .xml files",
+        "smallControls": [
+          {
+            "label": "Subscribe to feed",
+            "x": 97,
+            "y": 194,
+            "width": 141.609375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Create local feed",
+            "x": 238.609375,
+            "y": 194,
+            "width": 137.734375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Create recents feed",
+            "x": 376.34375,
+            "y": 194,
+            "width": 154.59375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "https://example.com/podcast/feed.xml",
+            "x": 96,
+            "y": 283,
+            "width": 576,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "Advanced options (URL and search feeds)",
+            "x": 96,
+            "y": 341,
+            "width": 576,
+            "height": 20,
+            "font": "14px"
+          },
+          {
+            "label": "my-podcast",
+            "x": 96,
+            "y": 405,
+            "width": 576,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "SELECT",
+            "x": 96,
+            "y": 515,
+            "width": 576,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "300 (default)",
+            "x": 96,
+            "y": 622,
+            "width": 576,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "SELECT",
+            "x": 96,
+            "y": 728,
+            "width": 576,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "browse to select",
+            "x": 325.234375,
+            "y": 647,
+            "width": 117.53125,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Skip to content\nAdd New Feed\nSubscribe to feed\nCreate local feed\nCreate recents feed\nPodcast RSS Feed URL\nAdvanced options (URL and search feeds)\nor import multiple feeds\nImport from OPML\n\nUpload an OPML file to import multiple feeds\n\nDrop your OPML file here, or\n\nbrowse to select\n\nSupports .opml and .xml files",
+        "smallControls": [
+          {
+            "label": "Subscribe to feed",
+            "x": 225,
+            "y": 194,
+            "width": 141.609375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Create local feed",
+            "x": 366.609375,
+            "y": 194,
+            "width": 137.734375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Create recents feed",
+            "x": 504.34375,
+            "y": 194,
+            "width": 154.59375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "https://example.com/podcast/feed.xml",
+            "x": 224,
+            "y": 283,
+            "width": 576,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "Advanced options (URL and search feeds)",
+            "x": 224,
+            "y": 341,
+            "width": 576,
+            "height": 20,
+            "font": "14px"
+          },
+          {
+            "label": "my-podcast",
+            "x": 224,
+            "y": 405,
+            "width": 576,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "SELECT",
+            "x": 224,
+            "y": 515,
+            "width": 576,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "300 (default)",
+            "x": 224,
+            "y": 622,
+            "width": 576,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "SELECT",
+            "x": 224,
+            "y": 728,
+            "width": 576,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "browse to select",
+            "x": 453.234375,
+            "y": 647,
+            "width": 117.53125,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nAdd New Feed\nSubscribe to feed\nCreate local feed\nCreate recents feed\nPodcast RSS Feed URL\nAdvanced options (URL and search feeds)\nor import multiple feeds\nImport from OPML\n\nUpload an OPML file to import multiple feeds\n\nDrop your OPML file here, or\n\nbrowse to select\n\nSupports .opml and .xml files",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1168,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1212,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Subscribe to feed",
+            "x": 353,
+            "y": 194,
+            "width": 141.609375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Create local feed",
+            "x": 494.609375,
+            "y": 194,
+            "width": 137.734375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Create recents feed",
+            "x": 632.34375,
+            "y": 194,
+            "width": 154.59375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "https://example.com/podcast/feed.xml",
+            "x": 352,
+            "y": 283,
+            "width": 576,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "Advanced options (URL and search feeds)",
+            "x": 352,
+            "y": 341,
+            "width": 576,
+            "height": 20,
+            "font": "14px"
+          },
+          {
+            "label": "my-podcast",
+            "x": 352,
+            "y": 405,
+            "width": 576,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "SELECT",
+            "x": 352,
+            "y": 515,
+            "width": 576,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "300 (default)",
+            "x": 352,
+            "y": 622,
+            "width": 576,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "SELECT",
+            "x": 352,
+            "y": 728,
+            "width": 576,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "browse to select",
+            "x": 581.234375,
+            "y": 647,
+            "width": 117.53125,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nAdd New Feed\nSubscribe to feed\nCreate local feed\nCreate recents feed\nPodcast RSS Feed URL\nAdvanced options (URL and search feeds)\nor import multiple feeds\nImport from OPML\n\nUpload an OPML file to import multiple feeds\n\nDrop your OPML file here, or\n\nbrowse to select\n\nSupports .opml and .xml files",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1248,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1292,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Subscribe to feed",
+            "x": 433,
+            "y": 194,
+            "width": 141.609375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Create local feed",
+            "x": 574.609375,
+            "y": 194,
+            "width": 137.734375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Create recents feed",
+            "x": 712.34375,
+            "y": 194,
+            "width": 154.59375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "https://example.com/podcast/feed.xml",
+            "x": 432,
+            "y": 283,
+            "width": 576,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "Advanced options (URL and search feeds)",
+            "x": 432,
+            "y": 341,
+            "width": 576,
+            "height": 20,
+            "font": "14px"
+          },
+          {
+            "label": "my-podcast",
+            "x": 432,
+            "y": 405,
+            "width": 576,
+            "height": 42,
+            "font": "16px"
+          },
+          {
+            "label": "SELECT",
+            "x": 432,
+            "y": 515,
+            "width": 576,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "300 (default)",
+            "x": 432,
+            "y": 622,
+            "width": 576,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "SELECT",
+            "x": 432,
+            "y": 728,
+            "width": 576,
+            "height": 39,
+            "font": "16px"
+          },
+          {
+            "label": "browse to select",
+            "x": 661.234375,
+            "y": 647,
+            "width": 117.53125,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  },
+  {
+    "route": "search",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Skip to content\nSearch\n\nSearch across shows, episodes, transcripts, patterns, and sponsors\n\nRebuild Index\nAll\nEpisodes\nPodcasts\nTranscripts\nPatterns\nSponsors\n\nEnter a search term",
+        "smallControls": [
+          {
+            "label": "All",
+            "x": 16,
+            "y": 343.875,
+            "width": 48.421875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Episodes",
+            "x": 72.421875,
+            "y": 343.875,
+            "width": 89.09375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Podcasts",
+            "x": 169.515625,
+            "y": 343.875,
+            "width": 90.625,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Transcripts",
+            "x": 268.140625,
+            "y": 343.875,
+            "width": 102.875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 379.015625,
+            "y": 343.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 472.21875,
+            "y": 343.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "overflow": [
+          {
+            "label": "Transcripts",
+            "x": 268.140625,
+            "y": 343.875,
+            "width": 102.875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 379.015625,
+            "y": 343.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 472.21875,
+            "y": 343.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Skip to content\nSearch\n\nSearch across shows, episodes, transcripts, patterns, and sponsors\n\nRebuild Index\nAll\nEpisodes\nPodcasts\nTranscripts\nPatterns\nSponsors\n\nEnter a search term",
+        "smallControls": [
+          {
+            "label": "All",
+            "x": 16,
+            "y": 319.875,
+            "width": 48.421875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Episodes",
+            "x": 72.421875,
+            "y": 319.875,
+            "width": 89.09375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Podcasts",
+            "x": 169.515625,
+            "y": 319.875,
+            "width": 90.625,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Transcripts",
+            "x": 268.140625,
+            "y": 319.875,
+            "width": 102.875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 379.015625,
+            "y": 319.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 472.21875,
+            "y": 319.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "overflow": [
+          {
+            "label": "Transcripts",
+            "x": 268.140625,
+            "y": 319.875,
+            "width": 102.875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 379.015625,
+            "y": 319.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 472.21875,
+            "y": 319.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Skip to content\nSearch\n\nSearch across shows, episodes, transcripts, patterns, and sponsors\n\nRebuild Index\nAll\nEpisodes\nPodcasts\nTranscripts\nPatterns\nSponsors\n\nEnter a search term",
+        "smallControls": [
+          {
+            "label": "All",
+            "x": 16,
+            "y": 319.875,
+            "width": 48.421875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Episodes",
+            "x": 72.421875,
+            "y": 319.875,
+            "width": 89.09375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Podcasts",
+            "x": 169.515625,
+            "y": 319.875,
+            "width": 90.625,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Transcripts",
+            "x": 268.140625,
+            "y": 319.875,
+            "width": 102.875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 379.015625,
+            "y": 319.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 472.21875,
+            "y": 319.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "overflow": [
+          {
+            "label": "Patterns",
+            "x": 379.015625,
+            "y": 319.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 472.21875,
+            "y": 319.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Skip to content\nSearch\n\nSearch across shows, episodes, transcripts, patterns, and sponsors\n\nRebuild Index\nAll\nEpisodes\nPodcasts\nTranscripts\nPatterns\nSponsors\n\nEnter a search term",
+        "smallControls": [
+          {
+            "label": "Rebuild Index",
+            "x": 508.375,
+            "y": 137,
+            "width": 107.625,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "All",
+            "x": 24,
+            "y": 295.875,
+            "width": 48.421875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Episodes",
+            "x": 80.421875,
+            "y": 295.875,
+            "width": 89.09375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Podcasts",
+            "x": 177.515625,
+            "y": 295.875,
+            "width": 90.625,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Transcripts",
+            "x": 276.140625,
+            "y": 295.875,
+            "width": 102.875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 387.015625,
+            "y": 295.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 480.21875,
+            "y": 295.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Skip to content\nSearch\n\nSearch across shows, episodes, transcripts, patterns, and sponsors\n\nRebuild Index\nAll\nEpisodes\nPodcasts\nTranscripts\nPatterns\nSponsors\n\nEnter a search term",
+        "smallControls": [
+          {
+            "label": "Rebuild Index",
+            "x": 636.375,
+            "y": 137,
+            "width": 107.625,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "All",
+            "x": 24,
+            "y": 295.875,
+            "width": 48.421875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Episodes",
+            "x": 80.421875,
+            "y": 295.875,
+            "width": 89.09375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Podcasts",
+            "x": 177.515625,
+            "y": 295.875,
+            "width": 90.625,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Transcripts",
+            "x": 276.140625,
+            "y": 295.875,
+            "width": 102.875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 387.015625,
+            "y": 295.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 480.21875,
+            "y": 295.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Skip to content\nSearch\n\nSearch across shows, episodes, transcripts, patterns, and sponsors\n\nRebuild Index\nAll\nEpisodes\nPodcasts\nTranscripts\nPatterns\nSponsors\n\nEnter a search term",
+        "smallControls": [
+          {
+            "label": "Rebuild Index",
+            "x": 852.375,
+            "y": 137,
+            "width": 107.625,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "All",
+            "x": 64,
+            "y": 295.875,
+            "width": 48.421875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Episodes",
+            "x": 120.421875,
+            "y": 295.875,
+            "width": 89.09375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Podcasts",
+            "x": 217.515625,
+            "y": 295.875,
+            "width": 90.625,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Transcripts",
+            "x": 316.140625,
+            "y": 295.875,
+            "width": 102.875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 427.015625,
+            "y": 295.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 520.21875,
+            "y": 295.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nSearch\n\nSearch across shows, episodes, transcripts, patterns, and sponsors\n\nRebuild Index\nAll\nEpisodes\nPodcasts\nTranscripts\nPatterns\nSponsors\n\nEnter a search term",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1168,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1212,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Rebuild Index",
+            "x": 980.375,
+            "y": 137,
+            "width": 107.625,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "All",
+            "x": 192,
+            "y": 295.875,
+            "width": 48.421875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Episodes",
+            "x": 248.421875,
+            "y": 295.875,
+            "width": 89.09375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Podcasts",
+            "x": 345.515625,
+            "y": 295.875,
+            "width": 90.625,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Transcripts",
+            "x": 444.140625,
+            "y": 295.875,
+            "width": 102.875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 555.015625,
+            "y": 295.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 648.21875,
+            "y": 295.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nSearch\n\nSearch across shows, episodes, transcripts, patterns, and sponsors\n\nRebuild Index\nAll\nEpisodes\nPodcasts\nTranscripts\nPatterns\nSponsors\n\nEnter a search term",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1248,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1292,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Rebuild Index",
+            "x": 1060.375,
+            "y": 137,
+            "width": 107.625,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "All",
+            "x": 272,
+            "y": 295.875,
+            "width": 48.421875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Episodes",
+            "x": 328.421875,
+            "y": 295.875,
+            "width": 89.09375,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Podcasts",
+            "x": 425.515625,
+            "y": 295.875,
+            "width": 90.625,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Transcripts",
+            "x": 524.140625,
+            "y": 295.875,
+            "width": 102.875,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 635.015625,
+            "y": 295.875,
+            "width": 85.203125,
+            "height": 36,
+            "font": "14px"
+          },
+          {
+            "label": "Sponsors",
+            "x": 728.21875,
+            "y": 295.875,
+            "width": 91.40625,
+            "height": 36,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  },
+  {
+    "route": "patterns",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Skip to content\nAd Patterns\n0 patterns\nImport\nExport\nPatterns\nDetected Ads\nAd Review\nCleanup\nUnassigned corrections\n\nFailed to load patterns",
+        "smallControls": [
+          {
+            "label": "Import",
+            "x": 87.109375,
+            "y": 185,
+            "width": 65.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Export",
+            "x": 160.71875,
+            "y": 185,
+            "width": 64.421875,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 16,
+            "y": 241,
+            "width": 69.203125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Detected Ads",
+            "x": 89.203125,
+            "y": 241,
+            "width": 100.03125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Ad Review",
+            "x": 193.234375,
+            "y": 241,
+            "width": 81.28125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Cleanup",
+            "x": 278.515625,
+            "y": 241,
+            "width": 67.21875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Unassigned corrections",
+            "x": 33,
+            "y": 320,
+            "width": 254,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [
+          {
+            "label": "Cleanup",
+            "x": 278.515625,
+            "y": 241,
+            "width": 67.21875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Skip to content\nAd Patterns\n0 patterns\nImport\nExport\nPatterns\nDetected Ads\nAd Review\nCleanup\nUnassigned corrections\n\nFailed to load patterns",
+        "smallControls": [
+          {
+            "label": "Import",
+            "x": 87.109375,
+            "y": 185,
+            "width": 65.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Export",
+            "x": 160.71875,
+            "y": 185,
+            "width": 64.421875,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 16,
+            "y": 241,
+            "width": 69.203125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Detected Ads",
+            "x": 89.203125,
+            "y": 241,
+            "width": 100.03125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Ad Review",
+            "x": 193.234375,
+            "y": 241,
+            "width": 81.28125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Cleanup",
+            "x": 278.515625,
+            "y": 241,
+            "width": 67.21875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Unassigned corrections",
+            "x": 33,
+            "y": 320,
+            "width": 294,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Skip to content\nAd Patterns\n0 patterns\nImport\nExport\nPatterns\nDetected Ads\nAd Review\nCleanup\nUnassigned corrections\n\nFailed to load patterns",
+        "smallControls": [
+          {
+            "label": "Import",
+            "x": 87.109375,
+            "y": 185,
+            "width": 65.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Export",
+            "x": 160.71875,
+            "y": 185,
+            "width": 64.421875,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 16,
+            "y": 241,
+            "width": 69.203125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Detected Ads",
+            "x": 89.203125,
+            "y": 241,
+            "width": 100.03125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Ad Review",
+            "x": 193.234375,
+            "y": 241,
+            "width": 81.28125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Cleanup",
+            "x": 278.515625,
+            "y": 241,
+            "width": 67.21875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Unassigned corrections",
+            "x": 33,
+            "y": 320,
+            "width": 324,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Skip to content\nAd Patterns\n0 patterns\nImport\nExport\nPatterns\nDetected Ads\nAd Review\nCleanup\nUnassigned corrections\n\nFailed to load patterns",
+        "smallControls": [
+          {
+            "label": "Import",
+            "x": 473.96875,
+            "y": 137,
+            "width": 65.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Export",
+            "x": 551.578125,
+            "y": 137,
+            "width": 64.421875,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 24,
+            "y": 193,
+            "width": 85.203125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Detected Ads",
+            "x": 113.203125,
+            "y": 193,
+            "width": 116.03125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Ad Review",
+            "x": 233.234375,
+            "y": 193,
+            "width": 97.28125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Cleanup",
+            "x": 334.515625,
+            "y": 193,
+            "width": 83.21875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Unassigned corrections",
+            "x": 41,
+            "y": 272,
+            "width": 558,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Skip to content\nAd Patterns\n0 patterns\nImport\nExport\nPatterns\nDetected Ads\nAd Review\nCleanup\nUnassigned corrections\n\nFailed to load patterns",
+        "smallControls": [
+          {
+            "label": "Import",
+            "x": 601.96875,
+            "y": 137,
+            "width": 65.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Export",
+            "x": 679.578125,
+            "y": 137,
+            "width": 64.421875,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 24,
+            "y": 193,
+            "width": 85.203125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Detected Ads",
+            "x": 113.203125,
+            "y": 193,
+            "width": 116.03125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Ad Review",
+            "x": 233.234375,
+            "y": 193,
+            "width": 97.28125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Cleanup",
+            "x": 334.515625,
+            "y": 193,
+            "width": 83.21875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Unassigned corrections",
+            "x": 41,
+            "y": 272,
+            "width": 686,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Skip to content\nAd Patterns\n0 patterns\nImport\nExport\nPatterns\nDetected Ads\nAd Review\nCleanup\nUnassigned corrections\n\nFailed to load patterns",
+        "smallControls": [
+          {
+            "label": "Import",
+            "x": 849.96875,
+            "y": 137,
+            "width": 65.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Export",
+            "x": 927.578125,
+            "y": 137,
+            "width": 64.421875,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 32,
+            "y": 193,
+            "width": 85.203125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Detected Ads",
+            "x": 121.203125,
+            "y": 193,
+            "width": 116.03125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Ad Review",
+            "x": 241.234375,
+            "y": 193,
+            "width": 97.28125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Cleanup",
+            "x": 342.515625,
+            "y": 193,
+            "width": 83.21875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Unassigned corrections",
+            "x": 49,
+            "y": 272,
+            "width": 926,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nAd Patterns\n0 patterns\nImport\nExport\nPatterns\nDetected Ads\nAd Review\nCleanup\nUnassigned corrections\n\nFailed to load patterns",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1168,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1212,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Import",
+            "x": 1105.96875,
+            "y": 137,
+            "width": 65.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Export",
+            "x": 1183.578125,
+            "y": 137,
+            "width": 64.421875,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 32,
+            "y": 193,
+            "width": 85.203125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Detected Ads",
+            "x": 121.203125,
+            "y": 193,
+            "width": 116.03125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Ad Review",
+            "x": 241.234375,
+            "y": 193,
+            "width": 97.28125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Cleanup",
+            "x": 342.515625,
+            "y": 193,
+            "width": 83.21875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Unassigned corrections",
+            "x": 49,
+            "y": 272,
+            "width": 1182,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nAd Patterns\n0 patterns\nImport\nExport\nPatterns\nDetected Ads\nAd Review\nCleanup\nUnassigned corrections\n\nFailed to load patterns",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1248,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1292,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Import",
+            "x": 1185.96875,
+            "y": 137,
+            "width": 65.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Export",
+            "x": 1263.578125,
+            "y": 137,
+            "width": 64.421875,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Patterns",
+            "x": 112,
+            "y": 193,
+            "width": 85.203125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Detected Ads",
+            "x": 201.203125,
+            "y": 193,
+            "width": 116.03125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Ad Review",
+            "x": 321.234375,
+            "y": 193,
+            "width": 97.28125,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Cleanup",
+            "x": 422.515625,
+            "y": 193,
+            "width": 83.21875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Unassigned corrections",
+            "x": 129,
+            "y": 272,
+            "width": 1182,
+            "height": 24,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  },
+  {
+    "route": "history",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Skip to content\nProcessing\nDownloads\n\nFailed to load processing history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 16,
+            "y": 137,
+            "width": 86.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 106.1875,
+            "y": 137,
+            "width": 85.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Skip to content\nProcessing\nDownloads\n\nFailed to load processing history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 16,
+            "y": 137,
+            "width": 86.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 106.1875,
+            "y": 137,
+            "width": 85.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Skip to content\nProcessing\nDownloads\n\nFailed to load processing history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 16,
+            "y": 137,
+            "width": 86.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 106.1875,
+            "y": 137,
+            "width": 85.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Skip to content\nProcessing\nDownloads\n\nFailed to load processing history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 24,
+            "y": 137,
+            "width": 102.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 130.1875,
+            "y": 137,
+            "width": 101.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Skip to content\nProcessing\nDownloads\n\nFailed to load processing history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 24,
+            "y": 137,
+            "width": 102.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 130.1875,
+            "y": 137,
+            "width": 101.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Skip to content\nProcessing\nDownloads\n\nFailed to load processing history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 32,
+            "y": 137,
+            "width": 102.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 138.1875,
+            "y": 137,
+            "width": 101.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nProcessing\nDownloads\n\nFailed to load processing history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1168,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1212,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Processing",
+            "x": 32,
+            "y": 137,
+            "width": 102.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 138.1875,
+            "y": 137,
+            "width": 101.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nProcessing\nDownloads\n\nFailed to load processing history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1248,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1292,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Processing",
+            "x": 112,
+            "y": 137,
+            "width": 102.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 218.1875,
+            "y": 137,
+            "width": 101.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  },
+  {
+    "route": "history?tab=downloads",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Skip to content\nHistory\nProcessing\nDownloads\nPodcast\nAll Podcasts\nSubscriber\nAll subscribers\nSince\nUntil\nSearch\n\nFailed to load download history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 16,
+            "y": 193,
+            "width": 86.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 106.1875,
+            "y": 193,
+            "width": 85.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Skip to content\nHistory\nProcessing\nDownloads\nPodcast\nAll Podcasts\nSubscriber\nAll subscribers\nSince\nUntil\nSearch\n\nFailed to load download history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 16,
+            "y": 193,
+            "width": 86.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 106.1875,
+            "y": 193,
+            "width": 85.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Skip to content\nHistory\nProcessing\nDownloads\nPodcast\nAll Podcasts\nSubscriber\nAll subscribers\nSince\nUntil\nSearch\n\nFailed to load download history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 16,
+            "y": 193,
+            "width": 86.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 106.1875,
+            "y": 193,
+            "width": 85.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Skip to content\nHistory\nProcessing\nDownloads\nPodcast\nAll Podcasts\nSubscriber\nAll subscribers\nSince\nUntil\nSearch\n\nFailed to load download history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 24,
+            "y": 193,
+            "width": 102.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 130.1875,
+            "y": 193,
+            "width": 101.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Skip to content\nHistory\nProcessing\nDownloads\nPodcast\nAll Podcasts\nSubscriber\nAll subscribers\nSince\nUntil\nSearch\n\nFailed to load download history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 24,
+            "y": 193,
+            "width": 102.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 130.1875,
+            "y": 193,
+            "width": 101.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Skip to content\nHistory\nProcessing\nDownloads\nPodcast\nAll Podcasts\nSubscriber\nAll subscribers\nSince\nUntil\nSearch\n\nFailed to load download history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Processing",
+            "x": 32,
+            "y": 193,
+            "width": 102.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 138.1875,
+            "y": 193,
+            "width": 101.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nHistory\nProcessing\nDownloads\nPodcast\nAll Podcasts\nSubscriber\nAll subscribers\nSince\nUntil\nSearch\n\nFailed to load download history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1168,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1212,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Processing",
+            "x": 32,
+            "y": 193,
+            "width": 102.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 138.1875,
+            "y": 193,
+            "width": 101.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nHistory\nProcessing\nDownloads\nPodcast\nAll Podcasts\nSubscriber\nAll subscribers\nSince\nUntil\nSearch\n\nFailed to load download history\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1248,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1292,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Processing",
+            "x": 112,
+            "y": 193,
+            "width": 102.1875,
+            "height": 38,
+            "font": "14px"
+          },
+          {
+            "label": "Downloads",
+            "x": 218.1875,
+            "y": 193,
+            "width": 101.421875,
+            "height": 38,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  },
+  {
+    "route": "sponsors",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Skip to content\nSponsors\n\nFailed to load sponsors",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Skip to content\nSponsors\n\nFailed to load sponsors",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Skip to content\nSponsors\n\nFailed to load sponsors",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Skip to content\nSponsors\n\nFailed to load sponsors",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Skip to content\nSponsors\n\nFailed to load sponsors",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Skip to content\nSponsors\n\nFailed to load sponsors",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nSponsors\n\nFailed to load sponsors",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1168,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1212,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nSponsors\n\nFailed to load sponsors",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1248,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1292,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  },
+  {
+    "route": "queue",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Skip to content\nQueue\n\nMonitor active processing and manage queued episodes.\n\nIn progress\n\nEpisodes currently moving through the pipeline.\n\nNo episodes are processing right now.\n\nCould not load queue controls.\n\nCould not load queued episodes.",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Skip to content\nQueue\n\nMonitor active processing and manage queued episodes.\n\nIn progress\n\nEpisodes currently moving through the pipeline.\n\nNo episodes are processing right now.\n\nCould not load queue controls.\n\nCould not load queued episodes.",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Skip to content\nQueue\n\nMonitor active processing and manage queued episodes.\n\nIn progress\n\nEpisodes currently moving through the pipeline.\n\nNo episodes are processing right now.\n\nCould not load queue controls.\n\nCould not load queued episodes.",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Skip to content\nQueue\n\nMonitor active processing and manage queued episodes.\n\nIn progress\n\nEpisodes currently moving through the pipeline.\n\nNo episodes are processing right now.\n\nCould not load queue controls.\n\nCould not load queued episodes.",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Skip to content\nQueue\n\nMonitor active processing and manage queued episodes.\n\nIn progress\n\nEpisodes currently moving through the pipeline.\n\nNo episodes are processing right now.\n\nCould not load queue controls.\n\nCould not load queued episodes.",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Skip to content\nQueue\n\nMonitor active processing and manage queued episodes.\n\nIn progress\n\nEpisodes currently moving through the pipeline.\n\nNo episodes are processing right now.\n\nCould not load queue controls.\n\nCould not load queued episodes.",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nQueue\n\nMonitor active processing and manage queued episodes.\n\nIn progress\n\nEpisodes currently moving through the pipeline.\n\nNo episodes are processing right now.\n\nCould not load queue controls.\n\nCould not load queued episodes.",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1168,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1212,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nQueue\n\nMonitor active processing and manage queued episodes.\n\nIn progress\n\nEpisodes currently moving through the pipeline.\n\nNo episodes are processing right now.\n\nCould not load queue controls.\n\nCould not load queued episodes.",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1248,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1292,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  },
+  {
+    "route": "settings",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Skip to content",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Skip to content",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Skip to content",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Skip to content",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Skip to content",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Skip to content",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1168,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1212,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1248,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1292,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  },
+  {
+    "route": "",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Skip to content\n\nFailed to load feeds\n\nRequest failed",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Skip to content\n\nFailed to load feeds\n\nRequest failed",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Skip to content\n\nFailed to load feeds\n\nRequest failed",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Skip to content\n\nFailed to load feeds\n\nRequest failed",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Skip to content\n\nFailed to load feeds\n\nRequest failed",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Skip to content\n\nFailed to load feeds\n\nRequest failed",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\n\nFailed to load feeds\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1168,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1212,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\n\nFailed to load feeds\n\nRequest failed",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1248,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1292,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  },
+  {
+    "route": "stats",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Skip to content\nStats\nPodcast\nAll Podcasts\nSpend\nLLM\nSystem One\nCleanup\nSpend\n\nSpend by provider, model, and episode across LLM and System One calls, including failed or cancelled runs that incurred cost. The filters below apply to spend, LLM calls, System One calls, and pattern cleanup activity. Dates select whole UTC days.\n\nFrom\nTo\nPodcast\nAll Podcasts\nProvider\nAll Providers\nModel\nAll Models\n\nLifetime spend (all recorded runs)\n\nCould not load the provider and model filter options: Request failed. The lists below may not offer every value.\nRetry\nProvider & model usage\nCould not load provider and model usage: Request failed. This is a failed request, not an absence of spend.\nRetry\nEpisode costs\nCould not load episode costs: Request failed. This is a failed request, not an absence of spend.\nRetry\nLLM calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load LLM call stats: Request failed.\nRetry LLM stats\nSystem One calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load System One call stats: Request failed.\nRetry System One stats\nPattern cleanup activity\n\nUses the Spend filters above.\n\nCould not load pattern cleanup stats: Request failed.\nRetry pattern cleanup stats",
+        "smallControls": [],
+        "overflow": [
+          {
+            "label": "Cleanup",
+            "x": 253.25,
+            "y": 277,
+            "width": 74.875,
+            "height": 44,
+            "font": "14px"
+          }
+        ],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Skip to content\nStats\nPodcast\nAll Podcasts\nSpend\nLLM\nSystem One\nCleanup\nSpend\n\nSpend by provider, model, and episode across LLM and System One calls, including failed or cancelled runs that incurred cost. The filters below apply to spend, LLM calls, System One calls, and pattern cleanup activity. Dates select whole UTC days.\n\nFrom\nTo\nPodcast\nAll Podcasts\nProvider\nAll Providers\nModel\nAll Models\n\nLifetime spend (all recorded runs)\n\nCould not load the provider and model filter options: Request failed. The lists below may not offer every value.\nRetry\nProvider & model usage\nCould not load provider and model usage: Request failed. This is a failed request, not an absence of spend.\nRetry\nEpisode costs\nCould not load episode costs: Request failed. This is a failed request, not an absence of spend.\nRetry\nLLM calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load LLM call stats: Request failed.\nRetry LLM stats\nSystem One calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load System One call stats: Request failed.\nRetry System One stats\nPattern cleanup activity\n\nUses the Spend filters above.\n\nCould not load pattern cleanup stats: Request failed.\nRetry pattern cleanup stats",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Skip to content\nStats\nPodcast\nAll Podcasts\nSpend\nLLM\nSystem One\nCleanup\nSpend\n\nSpend by provider, model, and episode across LLM and System One calls, including failed or cancelled runs that incurred cost. The filters below apply to spend, LLM calls, System One calls, and pattern cleanup activity. Dates select whole UTC days.\n\nFrom\nTo\nPodcast\nAll Podcasts\nProvider\nAll Providers\nModel\nAll Models\n\nLifetime spend (all recorded runs)\n\nCould not load the provider and model filter options: Request failed. The lists below may not offer every value.\nRetry\nProvider & model usage\nCould not load provider and model usage: Request failed. This is a failed request, not an absence of spend.\nRetry\nEpisode costs\nCould not load episode costs: Request failed. This is a failed request, not an absence of spend.\nRetry\nLLM calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load LLM call stats: Request failed.\nRetry LLM stats\nSystem One calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load System One call stats: Request failed.\nRetry System One stats\nPattern cleanup activity\n\nUses the Spend filters above.\n\nCould not load pattern cleanup stats: Request failed.\nRetry pattern cleanup stats",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Skip to content\nStats\nPodcast\nAll Podcasts\nSpend\nLLM\nSystem One\nCleanup\nSpend\n\nSpend by provider, model, and episode across LLM and System One calls, including failed or cancelled runs that incurred cost. The filters below apply to spend, LLM calls, System One calls, and pattern cleanup activity. Dates select whole UTC days.\n\nFrom\nTo\nPodcast\nAll Podcasts\nProvider\nAll Providers\nModel\nAll Models\n\nLifetime spend (all recorded runs)\n\nCould not load the provider and model filter options: Request failed. The lists below may not offer every value.\nRetry\nProvider & model usage\nCould not load provider and model usage: Request failed. This is a failed request, not an absence of spend.\nRetry\nEpisode costs\nCould not load episode costs: Request failed. This is a failed request, not an absence of spend.\nRetry\nLLM calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load LLM call stats: Request failed.\nRetry LLM stats\nSystem One calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load System One call stats: Request failed.\nRetry System One stats\nPattern cleanup activity\n\nUses the Spend filters above.\n\nCould not load pattern cleanup stats: Request failed.\nRetry pattern cleanup stats",
+        "smallControls": [
+          {
+            "label": "Retry",
+            "x": 61,
+            "y": 818,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry",
+            "x": 61,
+            "y": 974,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry",
+            "x": 61,
+            "y": 1150,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry LLM stats",
+            "x": 457.390625,
+            "y": 1356,
+            "width": 121.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry System One stats",
+            "x": 410,
+            "y": 1562,
+            "width": 169,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry pattern cleanup stats",
+            "x": 61,
+            "y": 1800,
+            "width": 191.390625,
+            "height": 32,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Skip to content\nStats\nPodcast\nAll Podcasts\nSpend\nLLM\nSystem One\nCleanup\nSpend\n\nSpend by provider, model, and episode across LLM and System One calls, including failed or cancelled runs that incurred cost. The filters below apply to spend, LLM calls, System One calls, and pattern cleanup activity. Dates select whole UTC days.\n\nFrom\nTo\nPodcast\nAll Podcasts\nProvider\nAll Providers\nModel\nAll Models\n\nLifetime spend (all recorded runs)\n\nCould not load the provider and model filter options: Request failed. The lists below may not offer every value.\nRetry\nProvider & model usage\nCould not load provider and model usage: Request failed. This is a failed request, not an absence of spend.\nRetry\nEpisode costs\nCould not load episode costs: Request failed. This is a failed request, not an absence of spend.\nRetry\nLLM calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load LLM call stats: Request failed.\nRetry LLM stats\nSystem One calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load System One call stats: Request failed.\nRetry System One stats\nPattern cleanup activity\n\nUses the Spend filters above.\n\nCould not load pattern cleanup stats: Request failed.\nRetry pattern cleanup stats",
+        "smallControls": [
+          {
+            "label": "Retry",
+            "x": 61,
+            "y": 818,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry",
+            "x": 61,
+            "y": 974,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry",
+            "x": 61,
+            "y": 1130,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry LLM stats",
+            "x": 585.390625,
+            "y": 1336,
+            "width": 121.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry System One stats",
+            "x": 538,
+            "y": 1542,
+            "width": 169,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry pattern cleanup stats",
+            "x": 515.609375,
+            "y": 1748,
+            "width": 191.390625,
+            "height": 32,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Skip to content\nStats\nPodcast\nAll Podcasts\nSpend\nLLM\nSystem One\nCleanup\nSpend\n\nSpend by provider, model, and episode across LLM and System One calls, including failed or cancelled runs that incurred cost. The filters below apply to spend, LLM calls, System One calls, and pattern cleanup activity. Dates select whole UTC days.\n\nFrom\nTo\nPodcast\nAll Podcasts\nProvider\nAll Providers\nModel\nAll Models\n\nLifetime spend (all recorded runs)\n\nCould not load the provider and model filter options: Request failed. The lists below may not offer every value.\nRetry\nProvider & model usage\nCould not load provider and model usage: Request failed. This is a failed request, not an absence of spend.\nRetry\nEpisode costs\nCould not load episode costs: Request failed. This is a failed request, not an absence of spend.\nRetry\nLLM calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load LLM call stats: Request failed.\nRetry LLM stats\nSystem One calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load System One call stats: Request failed.\nRetry System One stats\nPattern cleanup activity\n\nUses the Spend filters above.\n\nCould not load pattern cleanup stats: Request failed.\nRetry pattern cleanup stats",
+        "smallControls": [
+          {
+            "label": "Retry",
+            "x": 898.875,
+            "y": 578,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry",
+            "x": 898.875,
+            "y": 682,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry",
+            "x": 898.875,
+            "y": 806,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry LLM stats",
+            "x": 833.390625,
+            "y": 1012,
+            "width": 121.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry System One stats",
+            "x": 786,
+            "y": 1218,
+            "width": 169,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry pattern cleanup stats",
+            "x": 763.609375,
+            "y": 1424,
+            "width": 191.390625,
+            "height": 32,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nStats\nPodcast\nAll Podcasts\nSpend\nLLM\nSystem One\nCleanup\nSpend\n\nSpend by provider, model, and episode across LLM and System One calls, including failed or cancelled runs that incurred cost. The filters below apply to spend, LLM calls, System One calls, and pattern cleanup activity. Dates select whole UTC days.\n\nFrom\nTo\nPodcast\nAll Podcasts\nProvider\nAll Providers\nModel\nAll Models\n\nLifetime spend (all recorded runs)\n\nCould not load the provider and model filter options: Request failed. The lists below may not offer every value.\nRetry\nProvider & model usage\nCould not load provider and model usage: Request failed. This is a failed request, not an absence of spend.\nRetry\nEpisode costs\nCould not load episode costs: Request failed. This is a failed request, not an absence of spend.\nRetry\nLLM calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load LLM call stats: Request failed.\nRetry LLM stats\nSystem One calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load System One call stats: Request failed.\nRetry System One stats\nPattern cleanup activity\n\nUses the Spend filters above.\n\nCould not load pattern cleanup stats: Request failed.\nRetry pattern cleanup stats",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1168,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1212,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Retry",
+            "x": 1154.875,
+            "y": 578,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry",
+            "x": 1154.875,
+            "y": 682,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry",
+            "x": 1154.875,
+            "y": 806,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry LLM stats",
+            "x": 1089.390625,
+            "y": 1012,
+            "width": 121.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry System One stats",
+            "x": 1042,
+            "y": 1218,
+            "width": 169,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry pattern cleanup stats",
+            "x": 1019.609375,
+            "y": 1424,
+            "width": 191.390625,
+            "height": 32,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Skip to content\nDashboard\nAdd Feed\nPatterns\nSponsors\nHistory\nStats\nQueue\nSettings\nStats\nPodcast\nAll Podcasts\nSpend\nLLM\nSystem One\nCleanup\nSpend\n\nSpend by provider, model, and episode across LLM and System One calls, including failed or cancelled runs that incurred cost. The filters below apply to spend, LLM calls, System One calls, and pattern cleanup activity. Dates select whole UTC days.\n\nFrom\nTo\nPodcast\nAll Podcasts\nProvider\nAll Providers\nModel\nAll Models\n\nLifetime spend (all recorded runs)\n\nCould not load the provider and model filter options: Request failed. The lists below may not offer every value.\nRetry\nProvider & model usage\nCould not load provider and model usage: Request failed. This is a failed request, not an absence of spend.\nRetry\nEpisode costs\nCould not load episode costs: Request failed. This is a failed request, not an absence of spend.\nRetry\nLLM calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load LLM call stats: Request failed.\nRetry LLM stats\nSystem One calls\n\nUses the Spend filters above. One call may send several requests.\n\nCould not load System One call stats: Request failed.\nRetry System One stats\nPattern cleanup activity\n\nUses the Spend filters above.\n\nCould not load pattern cleanup stats: Request failed.\nRetry pattern cleanup stats",
+        "smallControls": [
+          {
+            "label": "Toggle theme",
+            "x": 1248,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Log out",
+            "x": 1292,
+            "y": 54,
+            "width": 36,
+            "height": 36,
+            "font": "16px"
+          },
+          {
+            "label": "Retry",
+            "x": 1234.875,
+            "y": 578,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry",
+            "x": 1234.875,
+            "y": 682,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry",
+            "x": 1234.875,
+            "y": 806,
+            "width": 56.125,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry LLM stats",
+            "x": 1169.390625,
+            "y": 1012,
+            "width": 121.609375,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry System One stats",
+            "x": 1122,
+            "y": 1218,
+            "width": 169,
+            "height": 32,
+            "font": "14px"
+          },
+          {
+            "label": "Retry pattern cleanup stats",
+            "x": 1099.609375,
+            "y": 1424,
+            "width": 191.390625,
+            "height": 32,
+            "font": "14px"
+          }
+        ],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  },
+  {
+    "route": "login",
+    "errors": [],
+    "measurements": [
+      {
+        "width": 320,
+        "scrollWidth": 320,
+        "text": "Enter password to continue\n\nPassword\nSign In",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 360,
+        "scrollWidth": 360,
+        "text": "Enter password to continue\n\nPassword\nSign In",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 390,
+        "scrollWidth": 390,
+        "text": "Enter password to continue\n\nPassword\nSign In",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 640,
+        "scrollWidth": 640,
+        "text": "Enter password to continue\n\nPassword\nSign In",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 768,
+        "scrollWidth": 768,
+        "text": "Enter password to continue\n\nPassword\nSign In",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1024,
+        "scrollWidth": 1024,
+        "text": "Enter password to continue\n\nPassword\nSign In",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1280,
+        "scrollWidth": 1280,
+        "text": "Enter password to continue\n\nPassword\nSign In",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      },
+      {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "text": "Enter password to continue\n\nPassword\nSign In",
+        "smallControls": [],
+        "overflow": [],
+        "dialogs": []
+      }
+    ]
+  }
+]

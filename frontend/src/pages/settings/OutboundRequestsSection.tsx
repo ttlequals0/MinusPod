@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -33,6 +34,7 @@ function OutboundRequestsSection() {
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
 
   const [draft, setDraft] = useState<Partial<Record<FieldKey, string>>>({});
+  useUnsavedChanges(Object.keys(draft).length > 0);
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({

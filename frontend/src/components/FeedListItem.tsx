@@ -73,21 +73,12 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
         <CopyButton text={feed.feedUrl} hideLabelOnMobile />
         {hasUpstream && (
           <>
-            <button
-              onClick={() => onRefresh(feed.slug)}
-              disabled={isRefreshing}
-              className={`sm:hidden inline-flex items-center justify-center h-8 w-8 rounded ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
-              title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
-              aria-label={isRefreshing ? 'Refreshing' : 'Refresh feed'}
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-            <div className="hidden sm:block">
+            <div>
               <DropdownMenu
                 triggerLabel={
                   <>
                     <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    <span className="text-xs">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
+                    <span className="hidden sm:inline text-xs">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
                   </>
                 }
                 triggerClassName={`inline-flex items-center justify-center gap-1.5 h-8 px-2 rounded ${btnPrimary} disabled:opacity-50 transition-colors`}

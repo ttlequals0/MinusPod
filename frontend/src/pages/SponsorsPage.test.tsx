@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router';
 /**
  * Loading-state test for the Sponsors page: the wait shows content-shaped
  * placeholders rather than a page spinner.
@@ -28,7 +29,7 @@ function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <SponsorsPage />
+      <MemoryRouter><SponsorsPage /></MemoryRouter>
     </QueryClientProvider>,
   );
 }

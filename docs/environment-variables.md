@@ -31,9 +31,10 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `OPENAI_MODEL` | _(none)_ | Model id that seeds `claude_model`, `verification_model`, and `chapters_model` whenever one of those settings is unset. No shipped default exists: **required for Ollama** (e.g. `qwen3:14b`) and needed for OpenAI-compatible/OpenRouter unless you pick a model in Settings > AI models instead. Once a setting has a stored value the env var no longer touches it. Processing fails with a message pointing at Settings > AI models until every model setting is configured. There is no `LLM_MODEL` variable. |
 | `BASE_URL` | `http://localhost:8000` | Public URL for generated feed links |
 | `UI_BASE_URL` | _(falls back to BASE_URL)_ | Public URL for UI links in webhooks (set if UI is on a different domain than feeds) |
-| `WHISPER_MODEL` | `small` | faster-whisper backend only. Model size. `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, plus `.en` variants |
-| `WHISPER_DEVICE` | `cuda` | `cuda` or `cpu`. Set to `cpu` when using API backend to skip GPU init. |
+| `WHISPER_MODEL` | `small` (GPU), `tiny` (CPU image) | faster-whisper backend only. Model size. `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, plus `.en` variants |
+| `WHISPER_DEVICE` | `cuda` (GPU image), `cpu` (CPU image/source) | `cuda` or `cpu`; applies to both local backends. Set to `cpu` with the CPU image or remote backend. |
 | `WHISPER_BACKEND` | `local` | `local` (faster-whisper, in the container), `parakeet` (NVIDIA Parakeet TDT 0.6B v3, in the container), or `openai-api` (remote HTTP server). `WHISPER_MODEL` and `WHISPER_COMPUTE_TYPE` apply to `local` only. See [Transcription](transcription.md). |
+| `HF_HOME` | `/app/data/.cache` in both images | Persistent model-cache root. Parakeet uses `parakeet/nemo-parakeet-tdt-0.6b-v3` beneath it. See [model storage and sizing](installation.md#parakeet-sizing). |
 | `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API |
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |

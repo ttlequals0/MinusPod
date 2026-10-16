@@ -95,7 +95,7 @@ describe('HistoryPage: Version column', () => {
 
     mockGetProcessingHistory.mockClear();
     const user = userEvent.setup();
-    await user.click(screen.getByText('Version'));
+    await user.click(screen.getByRole('button', { name: /Version/ }));
 
     await waitFor(() => {
       expect(mockGetProcessingHistory).toHaveBeenCalledWith(
@@ -158,7 +158,7 @@ describe('HistoryPage loading placeholder', () => {
   it('shows header and row skeletons while the history query is pending', () => {
     mockGetProcessingHistory.mockReturnValueOnce(new Promise(() => {}));
     renderPage([]);
-    expect(screen.getByTestId('skeleton-page-header')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'History', level: 1 })).toBeTruthy();
     expect(screen.getByTestId('skeleton-rows')).toBeTruthy();
   });
 

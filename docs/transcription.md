@@ -79,9 +79,13 @@ Select it in Settings > Transcription > Backend with "Local (Parakeet TDT 0.6B v
 WHISPER_BACKEND=parakeet
 ```
 
-The first use downloads the model into the data directory under `.cache/hub`. Later runs load it from there.
+Use `WHISPER_DEVICE=cpu` with the CPU image or `WHISPER_DEVICE=cuda` with the NVIDIA image. The shipped Compose files pass these values from `.env`; existing saved settings take precedence over environment defaults.
 
-The decoder works in 30 second windows with 2 second overlap, so memory use does not grow with episode length.
+The first use downloads weights into `$HF_HOME/parakeet/nemo-parakeet-tdt-0.6b-v3`, normally `/app/data/.cache/parakeet/nemo-parakeet-tdt-0.6b-v3`. CPU uses int8 weights; CUDA uses the unquantized export. Download sizes, RAM guidance, and the resource-measurement procedure are in [Installation > Parakeet sizing](installation.md#parakeet-sizing).
+
+The decoder uses 30-second windows with 2-second overlap. Each model call is bounded, but the input WAV and transcript data still consume system RAM. Longer inputs and concurrent processing can increase total memory use.
+
+For an offline installation, first complete a transcription on a connected instance using the same device mode. Preserve the entire model directory, including external weights and vocabulary. A complete local copy lets the loader continue when a later download attempt fails; an incomplete cache cannot. Keep the directory writable for normal model updates.
 
 Parakeet v3 is multilingual and cannot be pinned to a language. With the transcription language set to `en`, words written in other scripts (Cyrillic, Greek, CJK, Arabic and so on) are dropped before the transcript is built, and the count is logged at INFO. With `auto` or a non-English language, nothing is dropped.
 
@@ -89,7 +93,7 @@ The faster-whisper model, compute type and the API settings do not apply to this
 
 In tests on narrative shows with music beds (issue #834), Parakeet ran faster than the Whisper large models and produced fewer repetition loops. See [Choosing between Whisper and Parakeet](#choosing-between-whisper-and-parakeet) for the measured trade-offs.
 
-The built-in backend does not run on Apple Silicon. Mac users can run whisper.cpp's `parakeet-cli` behind a small OpenAI-compatible adapter and configure MinusPod like the whisper.cpp section below, with `WHISPER_BACKEND=openai-api`. The adapter is described in issue #834.
+The CPU image supports Linux arm64, including Docker on Apple Silicon. This uses the CPU provider; MinusPod does not select Metal or CoreML acceleration. Native macOS and Mac GPU performance were not validated in this audit. For an accelerated external transcriber, use an OpenAI-compatible server with `WHISPER_BACKEND=openai-api`.
 
 ## Remote Whisper APIs
 
@@ -198,10 +202,7 @@ All settings can also be configured via the Settings UI under the Transcription 
 
 ## Chunked transcription
 
-Episodes longer than one chunk are transcribed in pieces. Chunk size is
-computed from free GPU memory at run time (larger models leave room for
-shorter chunks; the log line "Calculated chunk duration" shows the math), with
-a 30-second overlap between chunks so no sentence is lost at a boundary.
+Episodes longer than one chunk are transcribed in pieces. Local faster-whisper sizes chunks from available GPU memory; the log line "Calculated chunk duration" shows the result. Parakeet starts with 1,800-second outer chunks and decodes each through its 30-second windows. Outer chunks overlap by 30 seconds. Remote API chunk sizes come from their separate settings.
 
 Each chunk is cut from the source file by its own ffmpeg pass, which also
 applies loudness normalization and band-pass filtering in the same step. Those
@@ -219,7 +220,7 @@ An optional standby transcriber (Settings > AI & Processing > Failover) takes ov
 
 ## Transcription language
 
-The transcriber is pinned to English by default. That keeps it from misdetecting on music intros or cold opens (a common failure mode on podcasts). If you run a non-English show, pick the language in Settings > Transcription or set `WHISPER_LANGUAGE` on first boot. Use `auto` for multilingual feeds; the model detects the language per request. Full list: [supported languages](https://whisper-api.com/docs/languages/).
+faster-whisper and remote transcription requests default to English. Parakeet detects language itself; its `en` setting applies the script filter described [above](#parakeet). If you run a non-English show, pick the language in Settings > Transcription or set `WHISPER_LANGUAGE` on first boot. Use `auto` for multilingual feeds; the model detects the language per request. Full list: [supported languages](https://whisper-api.com/docs/languages/).
 
 ## Processing timeouts
 

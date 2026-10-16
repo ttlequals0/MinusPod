@@ -159,7 +159,7 @@ function ModelUsageTable({
   return (
     <>
       <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div role="region" aria-label="Statistics table; scroll for more columns" tabIndex={0} className="overflow-x-auto">
           <table aria-label="Provider and model usage" className="w-full">
             <thead className="bg-muted/50">
               <tr>
@@ -412,8 +412,8 @@ function EpisodeCostTable({
   const [attemptRows, toggleAttemptRows] = useExpandedKeys();
   return (
     <>
-      <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="hidden xl:block bg-card border border-border rounded-lg overflow-hidden">
+        <div role="region" aria-label="Statistics table; scroll for more columns" tabIndex={0} className="overflow-x-auto">
           <table aria-label="Episode costs" className="w-full">
             <thead className="bg-muted/50">
               <tr>
@@ -498,7 +498,7 @@ function EpisodeCostTable({
         </div>
       </div>
 
-      <div className="sm:hidden space-y-3">
+      <div className="xl:hidden space-y-3">
         <div className="flex items-center gap-2">
           <select
             aria-label="Sort episode costs by"
@@ -1498,7 +1498,7 @@ export default function StatsPage() {
       {sortedPodcasts.length > 0 && (
         <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
           <h2 className="text-lg font-semibold text-foreground p-4 pb-2">All Podcasts</h2>
-          <div className="overflow-x-auto">
+          <div role="region" aria-label="Statistics table; scroll for more columns" tabIndex={0} className="overflow-x-auto">
             <table aria-label="Podcast totals" className="w-full">
               <thead className="bg-muted/50">
                 <tr>

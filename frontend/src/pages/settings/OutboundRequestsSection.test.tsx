@@ -3,7 +3,7 @@
  * strings, and resetting one back to its default.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import OutboundRequestsSection from './OutboundRequestsSection';
 import * as settingsApi from '../../api/settings';
@@ -90,9 +90,9 @@ describe('OutboundRequestsSection', () => {
     const reset = screen.getByRole('button', {
       name: 'Reset Audio, artwork, and chapters User-Agent',
     });
-    // Two-click confirm: the first click only arms the button.
+    // The first click opens the confirmation.
     fireEvent.click(reset);
-    fireEvent.click(reset);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
     await waitFor(() => {
       expect(mocked.updateSettings).toHaveBeenCalledWith({ downloadUserAgent: '' });
     });
@@ -120,7 +120,7 @@ describe('OutboundRequestsSection', () => {
       name: 'Reset Audio, artwork, and chapters User-Agent',
     });
     fireEvent.click(reset);
-    fireEvent.click(reset);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
 
     await waitFor(() => {
       expect(mocked.updateSettings).toHaveBeenCalledWith({ downloadUserAgent: '' });

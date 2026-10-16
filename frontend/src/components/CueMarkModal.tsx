@@ -1,3 +1,4 @@
+import { useDraftClose } from '../hooks/useDraftClose';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
@@ -9,7 +10,7 @@ import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import { primaryBtn, ctrlBtn, edgeBtn } from './ad-editor/controlStyles';
-import { useEscape } from './cueScanStyles';
+import { useEscape, useFocusTrap } from './Modal';
 import {
   formatTime,
   commitTimeInput,
@@ -194,11 +195,11 @@ function CueMarkModal({
   const windowPeaks = usePeakSlice(peaks, peakResolutionMs, windowStart, windowEnd);
 
   // Close on Escape, matching the rest of the app's modal behaviour.
-  useEscape(onClose);
-
-  // Move focus into the dialog on open so keyboard and screen-reader users land
-  // inside it.
-  useEffect(() => { dialogRef.current?.focus(); }, []);
+  const dirty = cueStart !== defaults.cueStart || cueEnd !== defaults.cueEnd || !removeWithAd
+    || cueType !== (initialCueType ?? 'ad_break_boundary');
+  const { requestClose, confirmation } = useDraftClose(dirty, onClose, saving);
+  useEscape(requestClose, !saving, dialogRef);
+  useFocusTrap(dialogRef);
 
   // Keep the time-input buffers in sync with the bounds when the field is not
   // focused (pin drag / set-at-playhead), without stomping an in-progress edit.
@@ -583,7 +584,7 @@ function CueMarkModal({
     // Data-entry modal: no backdrop click-to-close (an accidental outside tap
     // would lose the bracket). Only X / Cancel / Escape close it.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
+      className="modal-backdrop fixed inset-0 z-60 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
     >
       <div
         ref={dialogRef}
@@ -604,7 +605,7 @@ function CueMarkModal({
           <button
             type="button"
             className={`text-muted-foreground hover:text-foreground ${focusRing}`}
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
           >
             <X size={18} />
@@ -957,7 +958,7 @@ function CueMarkModal({
           <button
             type="button"
             className={`${ctrlBtn} ${focusRing}`}
-            onClick={onClose}
+            onClick={requestClose}
             disabled={saving || previewing}
           >
             Cancel
@@ -980,6 +981,7 @@ function CueMarkModal({
           </button>
         </div>
       </div>
+      {confirmation}
     </div>
   );
 }

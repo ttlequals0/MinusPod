@@ -1,5 +1,10 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { createBrowserRouter, Outlet, Navigate } from 'react-router';
+import { createBrowserRouter, Outlet, Navigate, useBlocker } from 'react-router';
+import { ConfirmModal } from './components/Modal';
+import { hasUnsavedChanges, useAnyUnsavedChanges } from './hooks/useUnsavedChanges';
+import { useAppUpdate } from './utils/appUpdate';
+import { btnSecondary, touchTarget } from './components/buttonStyles';
+import { focusRing } from './components/fieldStyles';
 import { RouterProvider } from 'react-router/dom';
 import PullToRefresh from 'pulltorefreshjs';
 import { ThemeProvider } from './context/ThemeContext';
@@ -34,15 +39,26 @@ function RouteFallback() {
 }
 
 function RootLayout() {
+  const dirty = useAnyUnsavedChanges();
+  const update = useAppUpdate();
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
   return (
     <>
       <GlobalStatusBar />
+      {update && <div role="status" className="bg-card border-b border-border p-3 flex flex-wrap items-center justify-center gap-3">
+        <p className="text-sm">{dirty ? 'Update ready. Save your changes before reloading.' : 'An app update is ready.'}</p>
+        <button type="button" disabled={dirty} onClick={update} className={`${btnSecondary} ${touchTarget} ${focusRing} rounded px-3 py-2 text-sm disabled:opacity-50`}>Reload to update</button>
+      </div>}
       <ChunkLoadRecovery>
         <Suspense fallback={<RouteFallback />}>
           <Outlet />
           <ClearChunkLoadRecoveryMarkers />
         </Suspense>
       </ChunkLoadRecovery>
+      {blocker.state === 'blocked' && <ConfirmModal title="Discard unsaved changes?" confirmLabel="Discard and leave"
+        onCancel={() => blocker.reset()} onConfirm={() => blocker.proceed()}>
+        Your edits have not been saved. Stay on this page to save them.
+      </ConfirmModal>}
     </>
   );
 }
@@ -84,6 +100,7 @@ const PTR_DIST_THRESHOLD = 80;
 const PTR_DWELL_MS = 300;
 
 function isPtrSuppressed(): boolean {
+  if (hasUnsavedChanges() || document.querySelector('[role="dialog"]')) return true;
   if (window.scrollY !== 0) return true;
   if (window.location.pathname.endsWith('/login')) return true;
   const active = document.activeElement;
@@ -158,7 +175,7 @@ function App() {
         armed = false;
         pullStartY = null;
         setDwellingClass(false);
-        if (wasArmed) window.location.reload();
+        if (wasArmed && !hasUnsavedChanges()) window.location.reload();
       },
     });
 

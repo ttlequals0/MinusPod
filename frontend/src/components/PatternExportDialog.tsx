@@ -168,6 +168,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
 
   return (
     <Modal
+      ariaLabel="Export patterns"
       onClose={handleClose}
       closeOnBackdrop
       panelClassName="w-full max-w-2xl max-h-[80vh] flex flex-col text-card-foreground"

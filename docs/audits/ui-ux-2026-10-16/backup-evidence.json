@@ -1,0 +1,15 @@
+{
+  "file": "minuspod-backup-20261016-203053.db",
+  "bytes": 2743754752,
+  "sha256": "2c0f11687a2feef2c735ed1d24f81afbc8aa6d6a82eb9a0a29e97abb3e876615",
+  "counts": {
+    "podcasts": 34,
+    "episodes": 16410,
+    "processing_history": 4267,
+    "episode_downloads": 45,
+    "ad_patterns": 1219,
+    "known_sponsors": 629,
+    "episode_details": 1791
+  },
+  "working_copy": "/private/tmp/minuspod-populated-audit-data/podcast.db"
+}

@@ -36,16 +36,15 @@ services:
       # =================================================================
       # Whisper Configuration
       # =================================================================
-      # Option 1: Local faster-whisper (default, GPU required; WHISPER_MODEL applies to this backend only)
+      # local (faster-whisper), parakeet, or openai-api; saved settings take precedence.
+      - WHISPER_BACKEND=${WHISPER_BACKEND:-local}
       - WHISPER_MODEL=${WHISPER_MODEL:-small}
       - WHISPER_DEVICE=${WHISPER_DEVICE:-cuda}
-
-      # Option 2: External OpenAI-compatible Whisper API (Groq, OpenAI, whisper.cpp)
-      # WHISPER_BACKEND takes local (faster-whisper), parakeet (Parakeet TDT 0.6B v3), or openai-api
-      # - WHISPER_BACKEND=openai-api
-      # - WHISPER_API_BASE_URL=https://api.groq.com/openai/v1
-      # - WHISPER_API_KEY=${WHISPER_API_KEY}
-      # - WHISPER_API_MODEL=whisper-large-v3-turbo
+      - WHISPER_COMPUTE_TYPE=${WHISPER_COMPUTE_TYPE:-auto}
+      - WHISPER_LANGUAGE=${WHISPER_LANGUAGE:-en}
+      - WHISPER_API_BASE_URL=${WHISPER_API_BASE_URL:-}
+      - WHISPER_API_KEY=${WHISPER_API_KEY:-}
+      - WHISPER_API_MODEL=${WHISPER_API_MODEL:-whisper-1}
 
       # =================================================================
       # Server Configuration

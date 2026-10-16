@@ -1,0 +1,6 @@
+*.db
+*.db-*
+*.sqlite*
+ui-ux-2026-10-16/populated-before.json
+ui-ux-2026-10-16/populated-after.json
+ui-ux-2026-10-16/images/data-*.png

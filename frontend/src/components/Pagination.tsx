@@ -29,6 +29,8 @@ function pageButtons(
     <button
       key={p}
       onClick={() => onPage(p)}
+      aria-label={`Page ${p}`}
+      aria-current={p === page ? 'page' : undefined}
       className={`px-2 sm:px-3 py-1.5 text-sm rounded transition-colors ${visibility} ${
         p === page ? 'bg-primary text-primary-foreground' : btnSecondary
       } ${focusRing}`}

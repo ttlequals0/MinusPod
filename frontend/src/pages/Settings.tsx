@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import QueryError from '../components/QueryError';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -9,7 +11,7 @@ import { useModelsRefresh } from '../hooks/useModelsRefresh';
 import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
+import { SkeletonRows } from '../components/Skeleton';
 import type { AffectedRunsAction, BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, ProviderSlot, SystemStatus, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
 import { LLM_PROVIDERS, SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY } from '../api/types';
 
@@ -406,6 +408,9 @@ function Settings() {
     data: settings,
     isLoading: settingsLoading,
     dataUpdatedAt: settingsUpdatedAt,
+    isError: settingsFailed,
+    refetch: retrySettings,
+    isFetching: settingsFetching,
   } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
@@ -1031,6 +1036,7 @@ function Settings() {
   // (which runs before hasChanges is defined) skips re-seeding while dirty.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setFormDirty(hasChanges); }, [hasChanges]);
+  useUnsavedChanges(hasChanges);
 
   // An endpoint or provider-type change moves in-flight work to a different
   // account, so the save carries the operator's decision about that work.
@@ -1210,10 +1216,17 @@ function Settings() {
   if (settingsLoading) {
     return (
       <div className="max-w-3xl mx-auto pb-20">
-        <SkeletonPageHeader />
+        <h1 className="text-2xl font-bold text-foreground mb-6">Settings</h1>
         <SkeletonRows count={6} />
       </div>
     );
+  }
+
+  if (settingsFailed || !settings) {
+    return <div className="max-w-3xl mx-auto space-y-6">
+      <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+      <QueryError title="Settings are unavailable. Your saved values could not be loaded." onRetry={() => void retrySettings()} retrying={settingsFetching} />
+    </div>;
   }
 
   return (
@@ -1222,7 +1235,7 @@ function Settings() {
         <div>
           <h1 className="text-2xl font-bold text-foreground mb-2">Settings</h1>
           <p className="text-muted-foreground">
-            Configure ad detection prompts and system settings
+            Configure ad detection prompts and system settings.
           </p>
         </div>
         <div className="flex items-center gap-4 shrink-0">
@@ -1250,6 +1263,8 @@ function Settings() {
           </a>
         </div>
       </div>
+
+      <p className="text-sm text-muted-foreground">Unsaved settings use the Save Changes bar. Sections with their own Save or Apply button save separately. Appearance changes apply immediately.</p>
 
       <SystemStatusSection
         status={status}
@@ -1782,7 +1797,7 @@ function Settings() {
       {hasChanges && (
         <div
           data-viewport-inset="bottom"
-          className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/80 backdrop-blur-md"
+          className="safe-bottom fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
         >
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
             <ConfirmResetButton

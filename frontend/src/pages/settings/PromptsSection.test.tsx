@@ -4,7 +4,7 @@
  * unaffected.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PromptsSection from './PromptsSection';
 
@@ -67,7 +67,7 @@ describe('PromptsSection: per-prompt reset', () => {
     );
     const [resetBtn] = screen.getAllByRole('button', { name: 'Reset' });
     await user.click(resetBtn);
-    await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
     expect(onResetSystemPrompt).toHaveBeenCalledTimes(1);
     expect(onResetVerificationPrompt).not.toHaveBeenCalled();
     expect(onResetChapterPrompt).not.toHaveBeenCalled();
@@ -91,7 +91,7 @@ describe('PromptsSection: per-prompt reset', () => {
     );
     const resetBtn = screen.getAllByRole('button', { name: 'Reset' })[2];
     await user.click(resetBtn);
-    await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
     expect(onResetChapterPrompt).toHaveBeenCalledTimes(1);
     expect(onResetSystemPrompt).not.toHaveBeenCalled();
     expect(onResetVerificationPrompt).not.toHaveBeenCalled();
@@ -118,7 +118,7 @@ describe('PromptsSection: per-prompt reset', () => {
     expect(onChange).toHaveBeenCalledWith('edited');
     const [, cleanupReset] = screen.getAllByRole('button', { name: 'Reset' });
     await user.click(cleanupReset);
-    await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
     expect(onResetCleanup).toHaveBeenCalledTimes(1);
     expect(onResetChapterPrompt).not.toHaveBeenCalled();
   });

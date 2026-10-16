@@ -7,6 +7,8 @@
 ## Contents
 
 - [Requirements](#requirements)
+- [Parakeet sizing](#parakeet-sizing)
+- [Checking resource use](#checking-resource-use)
 - [Quick Start](#quick-start)
 - [CPU-only image (no GPU)](#cpu-only-image-no-gpu)
 - [Intel hybrid CPU tuning (optional)](#intel-hybrid-cpu-tuning-optional)
@@ -22,7 +24,7 @@ A GPU is recommended but not required. The CPU image and [remote backends](trans
 
 ### Memory Requirements
 
-**GPU VRAM (optional, only for the GPU image):**
+**faster-whisper GPU VRAM:** These approximate values come from the application's [memory profiles](../src/config.py). They are planning values, not measured peaks for every GPU or compute type. They do not apply to Parakeet.
 
 | faster-whisper model | VRAM Required |
 |---------------|---------------|
@@ -33,7 +35,7 @@ A GPU is recommended but not required. The CPU image and [remote backends](trans
 | large-v3 | ~5-6 GB |
 | turbo | ~5 GB |
 
-**System RAM:**
+**System RAM:** Existing whole-application planning allowances follow. These are not backend-specific benchmark results; audio processing and other services also need memory.
 
 | Episode Length | RAM Required |
 |----------------|-------------|
@@ -41,6 +43,36 @@ A GPU is recommended but not required. The CPU image and [remote backends](trans
 | 1-2 hours | 8 GB |
 | 2-4 hours | 12 GB |
 | > 4 hours | 16 GB |
+
+### Parakeet sizing
+
+Parakeet uses one fixed model, `nemo-parakeet-tdt-0.6b-v3`. There is no `tiny`/`small`/`large` selector. MinusPod uses int8 weights on CPU and unquantized weights on CUDA; `WHISPER_COMPUTE_TYPE` does not change either choice.
+
+| Deployment | Host RAM | GPU VRAM | Initial model download |
+| --- | --- | --- | --- |
+| CPU image, amd64 or arm64 | Start with the application's 8 GB minimum; measure the workload before imposing a container limit | None | About 0.670 GB (670,480,039 bytes) |
+| GPU image, amd64 with NVIDIA runtime | Same 8 GB application baseline; GPU memory is additional | Peak requirement is not measured in this repository | About 2.550 GB (2,549,805,955 bytes) |
+
+Download sizes total the files selected by [MinusPod's loader](../src/parakeet_transcriber.py), including vocabulary and configuration. They come from the [ONNX model file listing](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/tree/8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce), checked on 2026-10-16. GB here means 1,000,000,000 bytes. [Exact file sizes](audits/ui-ux-2026-10-16/parakeet-model-evidence.json) are retained with the audit.
+
+These downloads are disk requirements, not RAM or VRAM minima. Runtime tensors, CUDA workspaces, audio buffers, and concurrent services need additional memory. Neither upstream's NeMo hardware examples nor Whisper's table establishes MinusPod's ONNX Runtime peak. Measure before choosing a GPU or setting a memory limit.
+
+The cache lives at `$HF_HOME/parakeet/nemo-parakeet-tdt-0.6b-v3`, normally `/app/data/.cache/parakeet/nemo-parakeet-tdt-0.6b-v3`. Keep it on the persistent data volume. Switching between CPU and CUDA downloads another weight set; retaining both uses about 3.220 GB before download metadata or temporary files. Allow additional disk space for those files, episode audio, and backups.
+
+Inference uses 30-second windows with 2-second overlap. This bounds each model call, not the entire application's RAM use: the decoder also holds its input WAV and transcript data. See [Parakeet setup](transcription.md#parakeet) for device settings, offline use, and limitations.
+
+### Checking resource use
+
+Process a representative retained episode, including your longest usual episode. Watch from cold model load through transcription, detection, and audio cutting:
+
+```bash
+docker stats minuspod
+
+# NVIDIA hosts: sample device-wide VRAM use during the run.
+nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv -l 1
+```
+
+Record the image version, CPU/GPU, backend, episode duration, highest observed container RAM, and highest observed GPU memory. GPU totals include other processes. A single idle reading is not a peak measurement. Leave capacity for the host and other services; a local Ollama model needs its own RAM/VRAM budget.
 
 ## Quick Start
 
@@ -58,8 +90,9 @@ EOF
 # 2. Create data directory
 mkdir -p data
 
-# 3. Run
-docker-compose up -d
+# 3. Run (pick one)
+docker compose up -d                            # NVIDIA GPU image
+docker compose -f docker-compose.cpu.yml up -d  # CPU image
 ```
 
 Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
@@ -89,7 +122,7 @@ docker compose -f docker-compose.cpu.yml up -d
 
 That pulls `ttlequals0/minuspod:cpu` (the floating CPU tag). To pin a release, set `MINUSPOD_VERSION=X.Y.Z-cpu` in `.env`. The `:latest` tag always points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag. Both follow every release. For vetted builds, set `MINUSPOD_VERSION=stable-cpu` (or `stable` for GPU): these tags move only after a production soak (see [Releasing & Channels](releasing.md)).
 
-The CPU image transcribes locally with `faster-whisper` or Parakeet. To use a remote backend instead, set this in your `.env`:
+The CPU image transcribes locally with `faster-whisper` or Parakeet. For Parakeet, set `WHISPER_BACKEND=parakeet`; keep `WHISPER_DEVICE=cpu`. To use a remote backend instead, set this in your `.env`:
 
 ```
 WHISPER_BACKEND=openai-api
@@ -98,7 +131,7 @@ WHISPER_API_KEY=gsk_your_key_here
 WHISPER_API_MODEL=whisper-large-v3-turbo
 ```
 
-Groq, OpenAI, or a self-hosted whisper.cpp server (see `docker-compose.whisper.yml`) all work here.
+Groq, OpenAI, or a self-hosted whisper.cpp server (see `docker-compose.whisper.yml`) all work here. The shipped Compose files pass these variables from `.env`. On an existing installation, change stored transcription settings in the UI; environment values seed unset settings.
 
 ### Intel hybrid CPU tuning (optional)
 

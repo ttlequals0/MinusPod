@@ -166,6 +166,7 @@ function CountChip({ count, noun, className }: { count: number; noun: string; cl
 }
 
 function GlobalStatusBar() {
+  const barRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<StatusData | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -261,6 +262,13 @@ function GlobalStatusBar() {
   const failoverActive = status?.failover?.active ?? [];
   const hasActivity = status?.currentJob || (status?.queueLength ?? 0) > 0
     || (status?.feedRefreshes?.length ?? 0) > 0 || summary !== null;
+  useEffect(() => {
+    const update = () => document.documentElement.style.setProperty('--status-bar-height', `${barRef.current?.getBoundingClientRect().height ?? 0}px`);
+    update();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    if (barRef.current) observer?.observe(barRef.current);
+    return () => { observer?.disconnect(); document.documentElement.style.removeProperty('--status-bar-height'); };
+  }, [hasActivity]);
   if (!hasActivity) {
     return null;
   }
@@ -272,14 +280,15 @@ function GlobalStatusBar() {
 
   return (
     <div
+      ref={barRef}
       // Only while it is on screen: translated away it costs a popover no room.
       data-viewport-inset={hasActivity ? 'top' : undefined}
-      className={`fixed top-0 left-0 right-0 z-50 bg-card border-b border-border shadow-xs transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] bg-card border-b border-border shadow-xs transition-all duration-300 ${
         hasActivity ? 'translate-y-0' : '-translate-y-full'
       }`}
     >
       {/* Collapsed View */}
-      {/* The row must stay one line: Layout.tsx reserves an h-10 spacer for it. */}
+      {/* Layout reserves the measured status bar height. */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={`w-full px-4 py-2 flex items-center gap-2 sm:gap-3 overflow-hidden hover:bg-accent/50 transition-colors ${focusRing}`}

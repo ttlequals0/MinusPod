@@ -451,7 +451,7 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
     <div>
       {note && <p className="text-sm text-muted-foreground mb-3">{note}</p>}
 
-      <div className="hidden sm:block overflow-x-auto" style={{ containerType: 'inline-size' }}>
+      <div role="region" aria-label="Processing runs; scroll for more columns" tabIndex={0} className="hidden sm:block overflow-x-auto" style={{ containerType: 'inline-size' }}>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
@@ -492,7 +492,7 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
                   {expanded && (
                     <tr className="border-b border-border/50 last:border-b-0 bg-muted/20">
                       <td colSpan={COLUMNS.length + 1} className="py-2 px-3">
-                        <div className="overflow-x-auto">
+                        <div role="region" aria-label="Run phase details" tabIndex={0} className="overflow-x-auto">
                           <PhaseBreakdown run={run} layout="table" />
                         </div>
                         <TimingBreakdown run={run} />

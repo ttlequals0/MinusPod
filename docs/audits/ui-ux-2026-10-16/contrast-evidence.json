@@ -1,0 +1,3206 @@
+{
+  "method": "WCAG sRGB relative luminance; normal text threshold 4.5:1; unrounded ratios used for decisions; base colors only, no hover/opacity compositing",
+  "themeCount": 20,
+  "results": [
+    {
+      "theme": "slate",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "slate",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "slate",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "slate",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "slate",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "slate",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 6.717449890919178,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 3.2500429529247143,
+      "passesNormalText": false
+    },
+    {
+      "theme": "slate",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 6.198269649191914,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 4.571058319761861,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 10.515125642250595,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 5.004624408549994,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 3.690776835268565,
+      "passesNormalText": false
+    },
+    {
+      "theme": "slate",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 6.717449890919178,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 4.953939881507531,
+      "passesNormalText": true
+    },
+    {
+      "theme": "slate",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 4.5689223621531685,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 4.809084504678823,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 5.440785101873922,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 7.210790939272655,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 7.756462016896892,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 7.756462016896892,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.403891910373573,
+      "passesNormalText": false
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.737153055331494,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 4.809084504678823,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 5.173008288651239,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 6.058141594165193,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 8.03519746693778,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 7.094867543545982,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 11.304100649753407,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 9.886397666575418,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 9.886397666575418,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 7.0818133976368225,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 6.1936482714391365,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 8.03519746693778,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 7.027463745144492,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 9.886397666575418,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2143555535715747,
+      "passesNormalText": false
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 5.440785101873922,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 7.210790939272655,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 7.756462016896892,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 7.756462016896892,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.403891910373573,
+      "passesNormalText": false
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.737153055331494,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 3.2143555535715747,
+      "passesNormalText": false
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.4575994464477393,
+      "passesNormalText": false
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 6.058141594165193,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 10.910457705806792,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 7.094867543545982,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 11.304100649753407,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 9.886397666575418,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 9.886397666575418,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 7.0818133976368225,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 6.1936482714391365,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 10.910457705806792,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 9.542123424592036,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-mocha-teal",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 9.886397666575418,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 4.809084504678823,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 5.440785101873922,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 7.210790939272655,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 7.756462016896892,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 7.756462016896892,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.403891910373573,
+      "passesNormalText": false
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.737153055331494,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 4.809084504678823,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 5.173008288651239,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 6.058141594165193,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 7.042243635477789,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 6.0460923862260705,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 10.181517632174836,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 8.745133784702752,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 8.745133784702752,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 6.52077948613205,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 5.600843709837894,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 7.042243635477789,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 6.048740960002611,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-macchiato",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 8.745133784702752,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 4.809084504678823,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 5.440785101873922,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 7.210790939272655,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 7.756462016896892,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 7.756462016896892,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.403891910373573,
+      "passesNormalText": false
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.737153055331494,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 4.809084504678823,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 5.173008288651239,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 6.058141594165193,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 5.8859049167173385,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.706601194329498,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 8.157776135532284,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 6.856960839796494,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 6.856960839796494,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 5.2345505920374045,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.3998643536192175,
+      "passesNormalText": false
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 5.8859049167173385,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 4.947355608951511,
+      "passesNormalText": true
+    },
+    {
+      "theme": "catppuccin-frappe",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 6.856960839796494,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 6.091716533489063,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 2.9181696406893427,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 13.516468295490807,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.7809608238084875,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.185071958649379,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 6.091716533489063,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 5.33245784349207,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 7.053763406419868,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 2.9181696406893427,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 15.651084373776625,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 13.995197389536704,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 13.995197389536704,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.6568501492759244,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.164154731783839,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 7.053763406419868,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 6.30747422059395,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-midnight",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 13.995197389536704,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 6.091321798857518,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 2.9181696406893427,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 13.516468295490807,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.7809608238084875,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.185071958649379,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 6.091321798857518,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 5.332112307751773,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-pink",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 10.382255276156004,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 2.9181696406893427,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 13.516468295490807,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.7809608238084875,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.185071958649379,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 10.382255276156004,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 9.088232893982937,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-cyan",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 10.495583438773258,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 2.9181696406893427,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 13.516468295490807,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.7809608238084875,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.185071958649379,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 10.495583438773258,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 9.187436073631021,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-green",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 8.436691351304656,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 2.9181696406893427,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 13.516468295490807,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.7809608238084875,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.185071958649379,
+      "passesNormalText": false
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 8.436691351304656,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 7.385159949919557,
+      "passesNormalText": true
+    },
+    {
+      "theme": "dracula-orange",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.83180421846056,
+      "passesNormalText": true
+    },
+    {
+      "theme": "nord",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 4.048334263697132,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.155766074938269,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 10.607983087906206,
+      "passesNormalText": true
+    },
+    {
+      "theme": "nord",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 11.709942537075323,
+      "passesNormalText": true
+    },
+    {
+      "theme": "nord",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 11.709942537075323,
+      "passesNormalText": true
+    },
+    {
+      "theme": "nord",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.361676551493614,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.814768402254327,
+      "passesNormalText": true
+    },
+    {
+      "theme": "nord",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 3.495240716933057,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.8583270362858952,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 9.081185226603848,
+      "passesNormalText": true
+    },
+    {
+      "theme": "nord",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 4.048334263697132,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.155766074938269,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 9.081185226603848,
+      "passesNormalText": true
+    },
+    {
+      "theme": "nord",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 7.338078014475853,
+      "passesNormalText": true
+    },
+    {
+      "theme": "nord",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 7.338078014475853,
+      "passesNormalText": true
+    },
+    {
+      "theme": "nord",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.056970375003768,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 3.278246657383557,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 3.0349792609461,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 2.4524237787700707,
+      "passesNormalText": false
+    },
+    {
+      "theme": "nord",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 7.338078014475853,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.5118698211340793,
+      "passesNormalText": false
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 8.166144949112013,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 13.511210162748682,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 12.900643091995537,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 12.900643091995537,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 6.212817970884866,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 5.932062803589477,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 3.5118698211340793,
+      "passesNormalText": false
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.3531695978581513,
+      "passesNormalText": false
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.279232798941651,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 5.80598147187511,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.182530743341441,
+      "passesNormalText": false
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 10.27228497151281,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 8.275651784696096,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 8.275651784696096,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.740258022389646,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 3.8188898450245783,
+      "passesNormalText": false
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 5.80598147187511,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 4.6774676776280675,
+      "passesNormalText": true
+    },
+    {
+      "theme": "gruvbox",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 8.275651784696096,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.5051087889044354,
+      "passesNormalText": false
+    },
+    {
+      "theme": "solarized",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.323221711976873,
+      "passesNormalText": false
+    },
+    {
+      "theme": "solarized",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.199897978705925,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 12.839996982910987,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 12.839996982910987,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 5.013731442116023,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 5.27678974875528,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 3.5051087889044354,
+      "passesNormalText": false
+    },
+    {
+      "theme": "solarized",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.6890133305099657,
+      "passesNormalText": false
+    },
+    {
+      "theme": "solarized",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 10.288439861531556,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.480604658356168,
+      "passesNormalText": false
+    },
+    {
+      "theme": "solarized",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.323221711976873,
+      "passesNormalText": false
+    },
+    {
+      "theme": "solarized",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.199897978705925,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 13.594238965110998,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 13.594238965110998,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.314160758574346,
+      "passesNormalText": false
+    },
+    {
+      "theme": "solarized",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.807231370977835,
+      "passesNormalText": true
+    },
+    {
+      "theme": "solarized",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 3.480604658356168,
+      "passesNormalText": false
+    },
+    {
+      "theme": "solarized",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.8784071433514744,
+      "passesNormalText": false
+    },
+    {
+      "theme": "solarized",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 13.594238965110998,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 8.29612016436147,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 3.6080295956993544,
+      "passesNormalText": false
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 9.301745856462679,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 8.082918070372301,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 8.082918070372301,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.153841611614364,
+      "passesNormalText": false
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 3.6095548020864014,
+      "passesNormalText": false
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 8.29612016436147,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 7.20906167780401,
+      "passesNormalText": true
+    },
+    {
+      "theme": "tokyo-night",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 8.082918070372301,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "github-dark",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "github-dark",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "github-dark",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "github-dark",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "github-dark",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 2.6203892340325843,
+      "passesNormalText": false
+    },
+    {
+      "theme": "github-dark",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.795614640835098,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 9.772473678767584,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 8.458254077586027,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 8.458254077586027,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.509320151822906,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 3.902898776198795,
+      "passesNormalText": false
+    },
+    {
+      "theme": "github-dark",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 6.596446607332937,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 5.709344762450014,
+      "passesNormalText": true
+    },
+    {
+      "theme": "github-dark",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 8.458254077586027,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 4.565136709881312,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 3.7186160826710144,
+      "passesNormalText": false
+    },
+    {
+      "theme": "unifi",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.659266995857598,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 13.891611666162678,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 13.891611666162678,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.749786982107371,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 5.212165623335163,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 4.160156925761681,
+      "passesNormalText": false
+    },
+    {
+      "theme": "unifi",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 4.565136709881312,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 10.958951831748186,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 4.565136709881312,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 3.7186160826710144,
+      "passesNormalText": false
+    },
+    {
+      "theme": "unifi",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 10.494511836655027,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 9.254567091479544,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 9.254567091479544,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.614389235318598,
+      "passesNormalText": true
+    },
+    {
+      "theme": "unifi",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.0691911571627974,
+      "passesNormalText": false
+    },
+    {
+      "theme": "unifi",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 3.5618630065713552,
+      "passesNormalText": false
+    },
+    {
+      "theme": "unifi",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.1410227248340767,
+      "passesNormalText": false
+    },
+    {
+      "theme": "unifi",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 9.254567091479544,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 7.17886283474894,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.444678732896358,
+      "passesNormalText": false
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 14.418446199207875,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 11.942596200256046,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 11.942596200256046,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.92093965035279,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.07594510240786,
+      "passesNormalText": false
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 7.17886283474894,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 5.946151119747018,
+      "passesNormalText": true
+    },
+    {
+      "theme": "blue-slate",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.942596200256046,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "hulu",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "hulu",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "hulu",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "hulu",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "hulu",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 11.649464799692403,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.382668670829402,
+      "passesNormalText": false
+    },
+    {
+      "theme": "hulu",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 18.41201637540372,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 16.963432749306666,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 16.963432749306666,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 6.903333952779137,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 6.360207316044521,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 11.649464799692403,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 10.732931617364164,
+      "passesNormalText": true
+    },
+    {
+      "theme": "hulu",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 13.315719480484747,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "light",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "obsidian",
+      "mode": "light",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.204970679407622,
+      "passesNormalText": false
+    },
+    {
+      "theme": "obsidian",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 12.730629424957959,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "light",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "light",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 14.258313844745901,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 4.2956356859661975,
+      "passesNormalText": false
+    },
+    {
+      "theme": "obsidian",
+      "mode": "light",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 4.8111149675852465,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 2.870432505775388,
+      "passesNormalText": false
+    },
+    {
+      "theme": "obsidian",
+      "mode": "light",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 3.2148864106647297,
+      "passesNormalText": false
+    },
+    {
+      "theme": "obsidian",
+      "mode": "light",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 11.334344891657443,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "dark",
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "ratio": 9.72711332876711,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "dark",
+      "fg": "destructive-foreground",
+      "bg": "destructive",
+      "ratio": 4.047607379257491,
+      "passesNormalText": false
+    },
+    {
+      "theme": "obsidian",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "background",
+      "ratio": 17.002413497788265,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "dark",
+      "fg": "foreground",
+      "bg": "card",
+      "ratio": 16.044189441322484,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "dark",
+      "fg": "card-foreground",
+      "bg": "card",
+      "ratio": 16.044189441322484,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "background",
+      "ratio": 6.900251178238079,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "dark",
+      "fg": "muted-foreground",
+      "bg": "card",
+      "ratio": 6.511365995819467,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "background",
+      "ratio": 10.430758138158962,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "dark",
+      "fg": "primary",
+      "bg": "card",
+      "ratio": 9.842900221607273,
+      "passesNormalText": true
+    },
+    {
+      "theme": "obsidian",
+      "mode": "dark",
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "ratio": 14.782903476884512,
+      "passesNormalText": true
+    }
+  ]
+}

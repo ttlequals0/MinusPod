@@ -80,7 +80,7 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
   };
 
   return (
-    <Modal onClose={onClose} panelClassName="w-full max-w-5xl h-[90vh] flex flex-col text-foreground">
+    <Modal ariaLabel="Processing run log" onClose={onClose} panelClassName="w-full max-w-5xl h-[90vh] flex flex-col text-foreground">
       <div className="flex items-start justify-between gap-3 p-4 border-b border-border">
         <div>
           <h2 className="text-lg font-semibold">Run {runNumber} log</h2>

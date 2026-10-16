@@ -1,0 +1,695 @@
+{
+  "responses": [
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/providers",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/reviewer",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/whisper-models",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/retention",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/processing-timeouts",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/providers",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/providers",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/reviewer",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/whisper-models",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/providers",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/retention",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/processing-timeouts",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/providers",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/reviewer",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/whisper-models",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/retention",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/processing-timeouts",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/providers",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/reviewer",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/whisper-models",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/retention",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/processing-timeouts",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/reviewer",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/whisper-models",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/retention",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/processing-timeouts",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/reviewer",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/whisper-models",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/retention",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/processing-timeouts",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio/file?v=0",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio/file?v=0",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio/file?v=0",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio/file?v=0",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/replacement-audio",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/db-backup",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/community-sync",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/timezone",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/notifications/email",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/webhooks",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings/update-check",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5173/api/v1/settings",
+      "status": 502
+    }
+  ],
+  "state": {
+    "viewport": {
+      "width": 390,
+      "height": 844,
+      "coarse": true
+    },
+    "text": "Skip to content",
+    "controls": [],
+    "dialogNames": [],
+    "scrollWidth": 390
+  }
+}

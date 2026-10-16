@@ -22,7 +22,7 @@ type Pending = 'block' | 'revoke' | 'agent' | 'request' | null;
 
 function DetailModal({ title, text, onClose }: { title: string; text: string; onClose: () => void }) {
   return (
-    <Modal onClose={onClose} closeOnBackdrop panelClassName="max-w-lg w-full text-left">
+    <Modal ariaLabel="Download request details" onClose={onClose} closeOnBackdrop panelClassName="max-w-lg w-full text-left">
       <div className="p-4 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       </div>

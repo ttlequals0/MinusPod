@@ -9,21 +9,21 @@
     --foreground: 213 10% 17%;
     --card: 0 0% 100%;
     --card-foreground: 213 10% 17%;
-    --primary: 194 66% 45%;
+    --primary: 194 66% 32.1%;
     --primary-foreground: 0 0% 100%;
     --secondary: 210 10% 90%;
     --secondary-foreground: 213 10% 17%;
     --muted: 210 10% 90%;
-    --muted-foreground: 210 5% 45%;
+    --muted-foreground: 210 5% 39.7%;
     --accent: 210 10% 92%;
     --accent-foreground: 213 10% 17%;
-    --destructive: 1 82% 55%;
+    --destructive: 1 82% 46.3%;
     --destructive-foreground: 0 0% 100%;
     /* Match Tailwind green-600/amber-600 (light) and green-400/amber-400
        (dark) so default rendering is unchanged after the token migration. */
-    --success: 142.3 100% 32.6%;
+    --success: 142.3 100% 23.5%;
     --success-foreground: 0 0% 100%;
-    --warning: 30.1 100% 44.2%;
+    --warning: 30.1 100% 31.7%;
     --warning-foreground: 0 0% 100%;
     --border: 210 15% 85%;
     --input: 210 15% 85%;
@@ -39,10 +39,10 @@
     --c-blue-on-tint: 221.2 83.2% 37.5%;
     --c-purple-on-tint: 271.5 81.3% 38.5%;
     --c-teal-on-tint: 175.3 77.4% 18.5%;
-    --success-on-tint: 142.3 100% 18.5%;
-    --warning-on-tint: 30.1 100% 25.5%;
-    --destructive-on-tint: 1 82% 33%;
-    --primary-on-tint: 194 66% 27%;
+    --success-on-tint: 142.3 100% 16.7%;
+    --warning-on-tint: 30.1 100% 22.8%;
+    --destructive-on-tint: 1 82% 29.7%;
+    --primary-on-tint: 194 66% 23.4%;
     /* Search highlight. Deliberately identical in light and dark: a
        highlighter should read the same way in both. */
     --highlight: 51 100% 63%;
@@ -53,7 +53,7 @@
   .dark {
     color-scheme: dark;
     --background: 213 10% 17%;
-    --foreground: 0 0% 67%;
+    --foreground: 0 0% 74.6%;
     --card: 210 8% 25%;
     --card-foreground: 0 0% 100%;
     --primary: 194 66% 61%;
@@ -63,15 +63,15 @@
     --secondary: 210 6% 34%;
     --secondary-foreground: 0 0% 80%;
     --muted: 210 6% 34%;
-    --muted-foreground: 0 0% 60%;
+    --muted-foreground: 0 0% 80.7%;
     --accent: 210 8% 30%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 1 82% 65%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 1 82% 76%;
+    --destructive-foreground: 0 0% 20.8%;
     --success: 150.1 95.6% 44.8%;
-    --success-foreground: 0 0% 100%;
+    --success-foreground: 0 0% 26.5%;
     --warning: 43.6 100% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning-foreground: 0 0% 27.3%;
     --border: 210 8% 22%;
     --input: 210 8% 22%;
     --ring: 194 66% 61%;
@@ -83,7 +83,7 @@
     --c-teal-on-tint: 172.5 66% 92%;
     --success-on-tint: 150.1 95.6% 89.5%;
     --warning-on-tint: 43.6 100% 93%;
-    --destructive-on-tint: 1 82% 87%;
+    --destructive-on-tint: 1 82% 93.7%;
     --primary-on-tint: 194 66% 89.5%;
   }
 }
@@ -159,4 +159,15 @@ mark,
 /* iOS Safari zooms the page when a focused field is under 16px. Gated on touch input, not width, so landscape phones count; unlayered so it beats text-sm utilities. */
 @media (pointer: coarse) {
   input, select, textarea { font-size: 16px; }
+  button, summary, [role="switch"], .touch-target { min-width: 44px; min-height: 44px; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select { min-height: 44px; }
+  summary:not(.flex) { padding-block: 12px; }
+}
+
+.modal-backdrop { padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+[role="dialog"][aria-modal="true"] { max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }

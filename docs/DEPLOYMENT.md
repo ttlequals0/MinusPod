@@ -93,16 +93,18 @@ Cancellation is durable across gunicorn workers. A request can return HTTP 202 w
 
 ### Out of memory
 
-1. Reduce faster-whisper model size: `WHISPER_MODEL=small` or `WHISPER_MODEL=tiny`
-2. Increase container memory limit
-3. For long episodes (>2 hours), expect 16GB+ RAM usage
+First distinguish exhausted system RAM from CUDA VRAM using container logs, `docker stats minuspod`, and `nvidia-smi` on NVIDIA hosts.
 
-A worker the kernel OOM-kills mid-run is recovered automatically at the
-next restart or maintenance pass, and since 2.94.0 a killed full/LLM
-reprocess leaves the episode's previous results intact. Size the
-container for the peak, though: transcription of a long episode holds
-the audio plus the transcription model in RAM at once, which is where the
-16GB+ figure in point 3 comes from.
+| Backend | Action |
+| --- | --- |
+| faster-whisper | Reduce the model size in Settings > Transcription. `WHISPER_MODEL` seeds unset settings; editing it does not replace a saved choice. |
+| Parakeet | The model size is fixed. `WHISPER_MODEL=tiny` and Whisper compute-type changes have no effect. Free memory used by other workloads, use the CPU image with `WHISPER_DEVICE=cpu`, or select a remote transcriber. |
+| Remote API | Check memory on the transcription server as well as MinusPod. Reduce request/episode concurrency in the Whisper Pool settings when enabled. |
+| Any backend | Increase the container memory limit only if the host has capacity. Include audio buffers and any local LLM in the budget. |
+
+See [Installation > Parakeet sizing](installation.md#parakeet-sizing) and [resource measurement](installation.md#checking-resource-use) for capacity guidance. Episode duration alone does not establish peak memory.
+
+A worker killed by the kernel's OOM handler is recovered at the next restart or maintenance pass. A failed full/LLM reprocess preserves the episode's previous results.
 
 ### Claude API errors
 
@@ -200,16 +202,9 @@ docker logs --tail 100 minuspod
 
 ## Resource usage
 
-| Component | CPU | RAM | GPU VRAM |
-|-----------|-----|-----|----------|
-| Flask API | Low | 100 MB | - |
-| Whisper (tiny) | High | 1 GB | 1 GB |
-| Whisper (small) | High | 2 GB | 2 GB |
-| Whisper (medium) | High | 4 GB | 3 GB |
-| Whisper (large-v3) | High | 6 GB | 5 GB |
-| Claude API | Low | 100 MB | - |
-| Audio processing | High | 500 MB | - |
-| Transition detection | Low | 100 MB | - |
+Use the [installation sizing tables](installation.md#memory-requirements) as the single capacity reference. Whisper estimates do not apply to Parakeet or to a separate transcription server. Model disk size is not runtime memory use.
+
+Measure cold startup and a complete episode with [the resource-check procedure](installation.md#checking-resource-use). Include other GPU users and local LLMs. Parakeet peak RAM/VRAM measurements remain an open documentation task; no benchmark is implied by its download size.
 
 ## Cloudflare tunnel (optional)
 

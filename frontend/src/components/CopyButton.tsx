@@ -23,9 +23,12 @@ function CopyButton({
   hideLabelOnMobile = false,
 }: CopyButtonProps) {
   const [copied, setCopied] = useTransientState(false, 2000);
+  const [failed, setFailed] = useTransientState(false, 4000);
 
   const handleCopy = async () => {
+    setFailed(false);
     if (await copyText(text)) setCopied(true);
+    else setFailed(true);
   };
 
   const labelClass = hideLabelOnMobile
@@ -37,6 +40,7 @@ function CopyButton({
     : 'flex items-center gap-1.5 rounded';
 
   return (
+    <>
     <button
       onClick={handleCopy}
       className={`${baseClass} transition-colors ${
@@ -44,8 +48,8 @@ function CopyButton({
           ? copiedClassName
           : btnGhost
       } ${className} ${focusRing}`}
-      title={copied ? copiedLabel : label}
-      aria-label={copied ? copiedLabel : label}
+      title={failed ? 'Copy failed. Try again.' : copied ? copiedLabel : label}
+      aria-label={failed ? 'Copy failed. Try again.' : copied ? copiedLabel : label}
     >
       {copied ? (
         <svg className="w-4 h-4 animate-scale-in" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -61,8 +65,10 @@ function CopyButton({
           />
         </svg>
       )}
-      <span className={labelClass}>{copied ? copiedLabel : label}</span>
+      <span className={failed ? labelClassName : labelClass}>{failed ? 'Copy failed' : copied ? copiedLabel : label}</span>
     </button>
+    <span role="status" className="sr-only">{failed ? 'Copy failed. Try again.' : copied ? copiedLabel : ''}</span>
+    </>
   );
 }
 

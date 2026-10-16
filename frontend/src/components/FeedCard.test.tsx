@@ -81,11 +81,12 @@ describe('FeedCard fixed slots', () => {
     expect(container.querySelector('.min-h-\\[1\\.375rem\\]')).not.toBeNull();
   });
 
-  it('keeps the refresh warning on the updated line', () => {
+  it('exposes the refresh failure without a hover tooltip', () => {
     renderCard(makeFeed({
       lastRefreshed: '2026-09-06T00:00:00Z', lastRefreshError: 'boom',
     }));
-    const warning = screen.getByText('Refresh failing');
-    expect(warning.parentElement?.textContent).toContain('Updated');
+    const warning = screen.getByText('Refresh failed');
+    expect(warning.tagName).toBe('SUMMARY');
+    expect(warning.closest('details')?.textContent).toContain('boom');
   });
 });

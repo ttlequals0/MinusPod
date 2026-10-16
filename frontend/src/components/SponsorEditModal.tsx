@@ -1,3 +1,4 @@
+import { useDraftClose } from '../hooks/useDraftClose';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addSponsor, updateSponsor } from '../api/sponsors';
@@ -67,16 +68,21 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
     onError: (e: unknown) => setError(getErrorMessage(e, 'Failed to save sponsor')),
   });
 
+  const dirty = name !== (sponsor?.name ?? '') || aliasesText !== (sponsor?.aliases ?? []).join(', ')
+    || category !== (sponsor?.category ?? '') || segmentCategory !== (sponsor?.segment_category ?? '')
+    || isActive !== (sponsor?.is_active ?? true) || JSON.stringify(tags) !== JSON.stringify(sponsor?.tags ?? []);
+  const { requestClose, confirmation } = useDraftClose(dirty, onClose, save.isPending);
+
   const toggleTag = (tag: string) =>
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
 
   return (
-    <Modal onClose={onClose} panelClassName="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+    <Modal ariaLabel={isNew ? 'Add Sponsor' : `Edit ${sponsor!.name}`} onClose={requestClose} panelClassName="max-w-lg w-full max-h-[90vh] overflow-y-auto">
       <div className="flex items-center justify-between p-4 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground">
           {isNew ? 'Add Sponsor' : `Edit ${sponsor!.name}`}
         </h2>
-        <button onClick={onClose} className={`p-1 text-muted-foreground hover:text-foreground ${focusRing}`}>
+        <button aria-label="Close" onClick={requestClose} className={`p-1 text-muted-foreground hover:text-foreground ${focusRing}`}>
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -181,7 +187,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
 
       <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
         <button
-          onClick={onClose}
+          onClick={requestClose}
           className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors ${focusRing}`}
         >
           Cancel
@@ -194,6 +200,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
           {save.isPending ? 'Saving...' : isNew ? 'Add Sponsor' : 'Save'}
         </button>
       </div>
+      {confirmation}
     </Modal>
   );
 }

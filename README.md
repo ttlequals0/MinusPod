@@ -78,7 +78,7 @@ The transcriber (faster-whisper, Parakeet, or a remote API) transcribes the epis
 - Docker on any amd64 or arm64 host; an NVIDIA GPU is recommended for local transcription but not required
 - Anthropic API key, [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, a System One credential, **or** any OpenAI-compatible endpoint
 
-Memory and VRAM tables are in [docs/installation.md](docs/installation.md).
+Whisper and Parakeet sizing, model storage, and RAM/VRAM measurement are in [Installation](docs/installation.md#memory-requirements).
 
 ## Quick start
 

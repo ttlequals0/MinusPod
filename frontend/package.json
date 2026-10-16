@@ -8,7 +8,10 @@
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "design:sync": "node scripts/sync-design-guide.mjs",
+    "design:check": "node scripts/sync-design-guide.mjs --check",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.1",
@@ -38,6 +41,7 @@
   "devDependencies": {
     "@babel/core": "^7.29.6",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",

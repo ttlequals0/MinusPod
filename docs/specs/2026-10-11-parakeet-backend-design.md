@@ -1,5 +1,7 @@
 # Parakeet transcription backend (design)
 
+Historical design. Runtime behavior and cache paths are documented in [Transcription](../transcription.md#parakeet); capacity guidance is in [Installation](../installation.md#parakeet-sizing). The implementation now supports the CPU image on Linux arm64; Apple GPU acceleration remains outside its scope.
+
 Issue #834. Adds NVIDIA Parakeet TDT 0.6B v3 as a third transcription
 backend that runs in-process, next to `local` (faster-whisper) and
 `openai-api` (remote HTTP). A remote Parakeet server already works through

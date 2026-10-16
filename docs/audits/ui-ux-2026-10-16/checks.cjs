@@ -1,0 +1,48 @@
+const { chromium } = require('../../../frontend/node_modules/@playwright/test');
+const fs = require('node:fs');
+const path = require('node:path');
+const out=__dirname;
+
+(async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  const context=await browser.newContext({viewport:{width:360,height:844},hasTouch:true,deviceScaleFactor:1,colorScheme:'light'});
+  const page=await context.newPage();
+  await page.goto('http://127.0.0.1:5173/ui/history?tab=downloads');
+  await page.waitForTimeout(12500);
+  const dateBoxes=()=>page.locator('input[type=date]').evaluateAll(es=>es.map(e=>({id:e.id,x:e.getBoundingClientRect().x,y:e.getBoundingClientRect().y,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height})));
+  const result={dateBefore:await dateBoxes()};
+  await page.screenshot({path:path.join(out,'images','dates-360-before.png')});
+  await page.evaluate(()=>{
+    const from=document.getElementById('downloads-since').parentElement.parentElement;
+    const to=document.getElementById('downloads-until').parentElement.parentElement;
+    const range=document.createElement('div');range.style.cssText='grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;min-width:0';
+    from.before(range);range.append(from,to);
+  });
+  result.dateAfter=await dateBoxes();
+  await page.screenshot({path:path.join(out,'images','dates-360-after.png')});
+  await page.goto('http://127.0.0.1:5173/ui/patterns');
+  await page.waitForTimeout(12500);
+  await page.getByRole('tab',{name:'Patterns',exact:true}).focus();
+  await page.keyboard.press('ArrowRight');
+  result.tabsAfterArrow=await page.locator('[role=tab]').evaluateAll(es=>es.map(e=>({name:e.textContent.trim(),selected:e.getAttribute('aria-selected'),focused:e===document.activeElement,tabIndex:e.tabIndex,controls:e.getAttribute('aria-controls')})));
+  await page.getByRole('button',{name:'Import',exact:true}).click();
+  result.import=await page.locator('[role=dialog]').evaluate(e=>({label:e.getAttribute('aria-label'),labelledBy:e.getAttribute('aria-labelledby'),fields:[...e.querySelectorAll('input,select')].map(f=>({tag:f.tagName,labels:[...f.labels].map(l=>l.textContent),ariaLabel:f.getAttribute('aria-label')})),backgroundInert:!!document.querySelector('main[inert],#root[inert]'),bodyOverflow:getComputedStyle(document.body).overflow}));
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'Import',exact:true}).focus();
+  await page.keyboard.press('x');
+  result.characterShortcutOpenedSearch=await page.getByRole('dialog',{name:'Quick search'}).isVisible();
+  const input=page.locator('[role=combobox]');
+  await input.fill('podcast');
+  await page.waitForTimeout(12500);
+  result.failedQuickSearch=await page.getByRole('dialog').innerText();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'Toggle theme'}).click();
+  await page.getByRole('button',{name:'Import',exact:true}).click();
+  await page.screenshot({path:path.join(out,'images','import-dark-360-before.png')});
+  await page.addStyleTag({content:'.dark{--muted-foreground:0 0% 72%;--destructive-foreground:213 10% 17%}[role=dialog]{max-height:calc(100dvh - 32px);overflow-y:auto}[role=dialog] button,[role=dialog] select,[role=dialog] input{min-height:44px}'});
+  await page.screenshot({path:path.join(out,'images','import-dark-360-after.png')});
+  result.browserVersion=browser.version();
+  fs.writeFileSync(path.join(out,'interaction-evidence.json'),JSON.stringify(result,null,2));
+  console.log(JSON.stringify(result,null,2));
+  await browser.close();
+})();

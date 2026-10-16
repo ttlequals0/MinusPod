@@ -54,12 +54,12 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           {/* Every slot below always renders so cards share one height. */}
           <p className="text-xs text-muted-foreground mt-1 truncate">
             {feed.lastRefreshed ? `Updated ${formatDate(feed.lastRefreshed)}` : 'Not refreshed yet'}
-            {hasUpstream && feed.lastRefreshError && (
-              <span className="text-warning ml-2" title={feed.lastRefreshError}>
-                Refresh failing
-              </span>
-            )}
+
           </p>
+          {hasUpstream && feed.lastRefreshError && <details className="text-xs text-warning mt-1">
+            <summary className="cursor-pointer">Refresh failed</summary>
+            <p className="break-words mt-1">{feed.lastRefreshError}</p>
+          </details>}
           <div className="h-4 mt-1">
             <PodpingBadge
               coverage={feed.podpingCoverage}

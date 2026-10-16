@@ -1,12 +1,9 @@
-import { type HTMLAttributes, type ReactNode, type RefObject } from 'react';
+import { useCallback, type HTMLAttributes, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { usePopover, type PopoverAlign, type PopoverCloseReason } from '../hooks/usePopover';
 
-// The panel scrolls itself once the placement caps its height, so rings inside
-// are drawn inset: an outset ring is clipped by that scroll box. z-40 clears the
-// sticky header (z-30) and stays under the fixed z-50 bars and modals, which the
-// placement already keeps it clear of.
-const surface = 'max-w-[calc(100vw-2rem)] bg-card border border-border rounded-lg shadow-lg overflow-y-auto z-40 [&_:focus-visible]:ring-inset';
+// Inset rings remain visible inside the scrolling panel.
+const surface = 'max-w-[calc(100vw-2rem)] bg-card border border-border rounded-lg shadow-lg overflow-y-auto [&_:focus-visible]:ring-inset';
 
 // style is the placement hook's to write, so it is not a caller's to pass.
 interface PopoverProps extends Omit<HTMLAttributes<HTMLDivElement>, 'style'> {
@@ -22,11 +19,18 @@ function PopoverPanel({
   anchorRef, onClose, align, centerOnMobile, className = '', children, ...rest
 }: Omit<PopoverProps, 'open'>) {
   const { centered, panelProps } = usePopover({ onClose, anchorRef, align, centerOnMobile });
+  const attachPanel = panelProps.ref;
+  const attach = useCallback((node: HTMLDivElement | null) => {
+    const owner = anchorRef.current?.closest<HTMLElement>('[role="dialog"]')?.dataset.dialogId;
+    if (node && owner) node.dataset.modalOwner = owner;
+    attachPanel(node);
+  }, [anchorRef, attachPanel]);
   return createPortal(
     <div
       {...rest}
       {...panelProps}
-      className={`fixed ${centered ? 'left-1/2 -translate-x-1/2' : ''} ${surface} ${className}`}
+      ref={attach}
+      className={`fixed z-40 data-[modal-owner]:z-70 ${centered ? 'left-1/2 -translate-x-1/2' : ''} ${surface} ${className}`}
     >
       {children}
     </div>,

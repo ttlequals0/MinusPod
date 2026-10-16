@@ -1,0 +1,21 @@
+2026-10-16 implementation validation
+Baseline: 0864a235d2e212fc7c4833db99f91870a5ca576c (2.100.15)
+
+PASS npm run build (TypeScript and production Vite/PWA build)
+PASS npm run lint (zero errors, zero warnings)
+PASS npm run test: 148 files, 1826 tests
+PASS Playwright: 28 checks at 320, 390, 768, and 1440 CSS px
+  24 backend-free checks; 4 checks require MINUSPOD_POPULATED_URL.
+  Local run used the supplied backup copy. CI skips populated checks.
+PASS six Compose configuration combinations: local/parakeet/openai-api on CPU/GPU
+PASS 55 selected images; gallery loads 39 images and device filters work
+PASS local audit links and image references
+PASS npm run design:check
+PASS python3 scripts/check_markdown_links.py (maintained documentation)
+PASS 42 populated route/width captures: no document overflow or uncaught page errors
+PASS original 400-pair contrast matrix: zero failures after, 122 before
+PASS populated sponsor editor: cancel preserves draft; discard restores background and trigger focus
+
+Limits: backend mutations disabled; audio/artwork absent; no physical iOS,
+VoiceOver, WebKit, or installed-PWA upgrade verification. Backend Python
+suite not run locally. See REPORT.md for remaining field/draft work.

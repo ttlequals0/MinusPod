@@ -14,18 +14,17 @@ interface Props {
 
 const EDITABLE = 'input,textarea,select,[contenteditable="true"]';
 
-// Global open trigger: a printable key, "/" or Ctrl/Cmd+K, outside editable fields and dialogs.
+// Global search uses a modifier so ordinary typing keeps its native behavior.
 export function useQuickSearchHotkey(onOpen: (seed: string) => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.isComposing || e.defaultPrevented) return;
+      if (e.isComposing || e.defaultPrevented || e.repeat || e.altKey) return;
       const palette = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
-      const printable = !e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1 && e.key !== ' ';
-      if (!palette && !printable) return;
+      if (!palette) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest(EDITABLE) || document.querySelector('[role="dialog"]')) return;
       e.preventDefault();
-      onOpen(palette || e.key === '/' ? '' : e.key);
+      onOpen('');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -35,9 +34,9 @@ export function useQuickSearchHotkey(onOpen: (seed: string) => void) {
 function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { query, setQuery, debounced, ready, rows, current, setActive, onKeyDown } = useUnifiedSearch(seed);
+  const { query, setQuery, debounced, ready, rows, current, setActive, onKeyDown, isFetching, isError, refetch } = useUnifiedSearch(seed);
 
-  useEscape(onClose);
+  useEscape(onClose, true, panelRef);
   useFocusTrap(panelRef);
 
   const go = (row: SearchResultRow) => { onClose(); navigate(row.to); };
@@ -58,6 +57,7 @@ function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
           </svg>
           <input
             role="combobox"
+            aria-label="Search shows, episodes and transcripts"
             aria-expanded={rows.length > 0}
             aria-controls="quick-search-results"
             aria-activedescendant={rows[current]?.key}
@@ -72,8 +72,9 @@ function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
           />
         </div>
         <ul id="quick-search-results" role="listbox" aria-label="Results" className="max-h-[50vh] overflow-y-auto py-1">
-          <SearchResults rows={rows} activeIndex={current} onHover={setActive} onSelect={go} ready={ready} />
+          <SearchResults rows={rows} activeIndex={current} onHover={setActive} onSelect={go} ready={ready} loading={isFetching} failed={isError} />
         </ul>
+        {isError && <button type="button" className="px-4 py-3 text-primary" onClick={() => void refetch()}>Retry search</button>}
         <div className="border-t border-border bg-secondary/50 px-4 py-2 text-sm">
           <Link
             to={ready ? `/search?q=${encodeURIComponent(debounced)}` : '/search'}

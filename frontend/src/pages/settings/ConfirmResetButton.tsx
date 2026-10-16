@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { ConfirmModal } from '../../components/Modal';
 import { focusRing } from '../../components/fieldStyles';
 
 interface ConfirmResetButtonProps {
@@ -20,36 +21,17 @@ interface ConfirmResetButtonProps {
   className?: string;
 }
 
-// Two-click destructive reset (issue #513): the first click arms the button
-// for 3s and asks for confirmation, the second fires onConfirm. Styled as an
-// outlined destructive button so it reads as clickable, unlike the old
-// secondary-background text.
 function ConfirmResetButton({
   label, isPending = false, onConfirm, size = 'default', disabled = false, title,
   confirmHint, ariaLabel, className = '',
 }: ConfirmResetButtonProps) {
   const [armed, setArmed] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
-
   const button = (
     <button
       type="button"
       title={title}
       aria-label={ariaLabel}
-      onClick={() => {
-        if (armed) {
-          if (timer.current) clearTimeout(timer.current);
-          setArmed(false);
-          onConfirm();
-        } else {
-          setArmed(true);
-          timer.current = setTimeout(() => setArmed(false), 3000);
-        }
-      }}
+      onClick={() => setArmed(true)}
       disabled={isPending || disabled}
       className={`rounded-lg border font-medium transition-colors disabled:opacity-50 ${
         size === 'compact' ? 'px-2 py-1 text-xs' : 'px-4 py-2 text-sm'
@@ -59,16 +41,18 @@ function ConfirmResetButton({
           : 'border-destructive/40 text-destructive hover:bg-destructive/10'
       } ${focusRing} ${className}`}
     >
-      {isPending ? 'Resetting...' : armed ? 'Click again to confirm' : label}
+      {isPending ? 'Resetting...' : label}
     </button>
   );
 
-  if (!confirmHint) return button;
   return (
-    <div className="flex flex-col gap-1">
+    <>
       {button}
-      {armed && <p className="text-xs text-muted-foreground">{confirmHint}</p>}
-    </div>
+      {armed && <ConfirmModal title={`${ariaLabel || label}?`} confirmLabel={label} busyLabel="Resetting..." pending={isPending}
+        onCancel={() => setArmed(false)} onConfirm={() => { setArmed(false); onConfirm(); }}>
+        {confirmHint || 'Restore the default value. This replaces your current setting.'}
+      </ConfirmModal>}
+    </>
   );
 }
 

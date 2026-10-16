@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { apiRequest, getErrorMessage } from '../api/client';
-import { Modal } from './Modal';
+import { Modal, ConfirmModal } from './Modal';
 import { btnOutline } from './buttonStyles';
 import { focusRing, selectBase } from './fieldStyles';
 
@@ -16,6 +16,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<ImportMode>('supplement');
   const [busy, setBusy] = useState(false);
+  const [confirmReplace, setConfirmReplace] = useState(false);
   const [result, setResult] = useState<{
     importedCount?: number;
     updatedCount?: number;
@@ -25,13 +26,14 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
 
   if (!open) return null;
 
-  async function handleImport() {
+  async function handleImport(confirmed = false) {
     setResult(null);
     const file = fileRef.current?.files?.[0];
     if (!file) {
       setResult({ error: 'Please pick a JSON file first.' });
       return;
     }
+    if (mode === 'replace' && !confirmed) { setConfirmReplace(true); return; }
     setBusy(true);
     try {
       const text = await file.text();
@@ -48,6 +50,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
         skippedCount: number;
       }>('/patterns/import', { method: 'POST', body });
       setResult(res);
+      setConfirmReplace(false);
       onComplete();
     } catch (e) {
       setResult({ error: getErrorMessage(e, 'Import failed') });
@@ -57,22 +60,26 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
   }
 
   return (
-    <Modal onClose={onClose} closeOnBackdrop panelClassName="w-full max-w-md p-6 text-card-foreground">
+    <Modal ariaLabel="Import patterns" onClose={onClose} closeOnEscape={!busy} panelClassName="w-full max-w-md p-6 text-card-foreground">
       <h2 className="text-lg font-semibold mb-3">Import patterns</h2>
       <p className="text-sm text-muted-foreground mb-4">
         Upload a JSON file exported from MinusPod, or a single community-pattern JSON.
       </p>
 
+      <label htmlFor="pattern-import-file" className="block text-sm font-medium mb-2">Pattern JSON file</label>
       <input
+        id="pattern-import-file"
         ref={fileRef}
         type="file"
         accept="application/json,.json"
-        className="block w-full mb-4 text-sm"
+        disabled={busy}
+        className="block w-full mb-4 text-sm py-2"
       />
 
       <div className="mb-4">
-        <label className="block text-sm font-medium mb-1">Mode</label>
+        <label htmlFor="pattern-import-mode" className="block text-sm font-medium mb-1">Mode</label>
         <select
+          id="pattern-import-mode"
           className={`w-full ${selectBase}`}
           value={mode}
           onChange={(e) => setMode(e.target.value as ImportMode)}
@@ -85,7 +92,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
       </div>
 
       {result && (
-        <div className="text-sm mb-4">
+        <div role={result.error ? 'alert' : 'status'} className="text-sm mb-4">
           {result.error ? (
             <p className="text-destructive">{result.error}</p>
           ) : (
@@ -108,13 +115,18 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
         </button>
         <button
           type="button"
-          onClick={handleImport}
+          onClick={() => void handleImport()}
           disabled={busy}
           className={`px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50 ${focusRing}`}
         >
           {busy ? 'Importing...' : 'Import'}
         </button>
       </div>
+      {confirmReplace && <ConfirmModal title="Replace all patterns?" confirmLabel="Replace patterns" busyLabel="Importing..." pending={busy}
+        onCancel={() => setConfirmReplace(false)} onConfirm={() => void handleImport(true)}>
+        <p>This deletes the existing pattern catalog and imports the selected file.</p>
+        {result?.error && <p role="alert" className="text-destructive">{result.error}</p>}
+      </ConfirmModal>}
     </Modal>
   );
 }

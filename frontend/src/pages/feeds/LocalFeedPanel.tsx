@@ -1061,7 +1061,7 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
   };
 
   return (
-    <Modal onClose={onClose} panelClassName="max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+    <Modal ariaLabel="Add episode" onClose={onClose} panelClassName="max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
       <h2 className="text-xl font-semibold text-foreground mb-4">Add episode</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>

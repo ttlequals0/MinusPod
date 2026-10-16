@@ -87,10 +87,25 @@ function failures(vars: Record<string, string>, mode: Mode): string[] {
   for (const [fill, text] of SOLID) {
     check(`${text} on ${fill}`, hslToRgb(vars[text]), hslToRgb(vars[fill]));
   }
+  for (const surface of ['background', 'card']) {
+    for (const token of ['foreground', 'muted-foreground', 'primary', 'destructive', 'success', 'warning']) {
+      check(`${token} on ${surface}`, hslToRgb(vars[token]), hslToRgb(vars[surface]));
+    }
+    for (const token of ['primary', 'destructive', 'success', 'warning']) {
+      for (const opacity of [1, 0.9]) {
+        check(`${token}-foreground on ${token} at ${opacity}`, hslToRgb(vars[`${token}-foreground`]),
+          composite(hslToRgb(vars[token]), hslToRgb(vars[surface]), opacity));
+      }
+    }
+  }
+  for (const [text, surface] of [['card-foreground', 'card'], ['muted-foreground', 'muted'],
+    ['muted-foreground', 'secondary'], ['accent-foreground', 'accent']]) {
+    check(`${text} on ${surface}`, hslToRgb(vars[text]), hslToRgb(vars[surface]));
+  }
   return out;
 }
 
-describe('theme on-tint tokens clear WCAG AA', () => {
+describe('theme text, controls, and tints clear WCAG AA', () => {
   for (const theme of THEMES) {
     for (const mode of ['light', 'dark'] as const) {
       it(`${theme.id} ${mode}`, () => {

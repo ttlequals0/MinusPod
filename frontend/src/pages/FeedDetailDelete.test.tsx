@@ -1,12 +1,5 @@
-/**
- * Deleting a feed from its own detail page (#618).
- *
- * Uses the dashboard's delete button and confirm flow: click once to arm,
- * again within 3s to delete, with a toast in between. Success navigates back
- * to the dashboard, since the page being viewed no longer exists.
- */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -74,7 +67,9 @@ async function renderFeedDetail(feedOverrides: Partial<Feed> = {}) {
   await screen.findByText('Test Feed');
 }
 
-const deleteButton = () => screen.getByRole('button', { name: 'Delete feed' });
+const deleteButton = () => screen.queryByRole('dialog')
+  ? within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete feed' })
+  : screen.getByRole('button', { name: 'Delete feed' });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -96,7 +91,7 @@ describe('FeedDetail: deleting the feed', () => {
     await userEvent.click(deleteButton());
 
     expect(mockDeleteFeed).not.toHaveBeenCalled();
-    expect(screen.getByText('Click delete again to confirm')).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'Delete Test Feed?' })).toBeDefined();
   });
 
   it('warns that deleting stops the job when an episode is processing', async () => {
@@ -120,7 +115,7 @@ describe('FeedDetail: deleting the feed', () => {
 
     await userEvent.click(deleteButton());
 
-    expect(screen.getByText('Click delete again to confirm')).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'Delete Test Feed?' })).toBeDefined();
     expect(screen.queryByText(/Deleting this podcast will stop/)).toBeNull();
   });
 
@@ -161,21 +156,11 @@ describe('FeedDetail: deleting the feed', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('disarms after 3s so a stale click cannot delete the feed', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+  it('keeps confirmation open until cancelled', async () => {
     await renderFeedDetail();
-
-    await user.click(deleteButton());
-    expect(screen.getByText('Click delete again to confirm')).toBeDefined();
-
-    await vi.advanceTimersByTimeAsync(3100);
-    await waitFor(() => {
-      expect(screen.queryByText('Click delete again to confirm')).toBeNull();
-    });
-
-    // The next click re-arms instead of deleting.
-    await user.click(deleteButton());
+    await userEvent.click(deleteButton());
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(mockDeleteFeed).not.toHaveBeenCalled();
   });
 
@@ -188,11 +173,10 @@ describe('FeedDetail: deleting the feed', () => {
 
     await waitFor(() => expect(screen.getByText('feed is locked')).toBeDefined());
     expect(mockNavigate).not.toHaveBeenCalled();
-    // Armed state cleared, so the next click starts the confirm over.
-    expect(screen.queryByText('Click delete again to confirm')).toBeNull();
+    expect(screen.getByRole('dialog')).toBeDefined();
   });
 
-  it('dismisses the error toast', async () => {
+  it('closes the failed confirmation', async () => {
     mockDeleteFeed.mockRejectedValue(new Error('feed is locked'));
     await renderFeedDetail();
 
@@ -200,7 +184,7 @@ describe('FeedDetail: deleting the feed', () => {
     await userEvent.click(deleteButton());
     await waitFor(() => expect(screen.getByText('feed is locked')).toBeDefined());
 
-    await userEvent.click(screen.getByRole('button', { name: 'Dismiss error' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.queryByText('feed is locked')).toBeNull();
   });

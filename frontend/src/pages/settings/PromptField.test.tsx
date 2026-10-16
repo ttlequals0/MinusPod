@@ -4,7 +4,7 @@
  * confirm before onReset.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PromptField from './PromptField';
 
@@ -35,8 +35,8 @@ describe('PromptField: per-prompt reset', () => {
     const btn = screen.getByRole('button', { name: 'Reset' });
     await user.click(btn);
     expect(onReset).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Click again to confirm' })).toBeDefined();
-    await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' })).toBeDefined();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 });

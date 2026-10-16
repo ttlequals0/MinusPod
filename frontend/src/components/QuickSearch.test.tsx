@@ -107,7 +107,7 @@ describe('QuickSearch', () => {
 });
 
 describe('useQuickSearchHotkey', () => {
-  it('opens on a printable key outside fields, not inside an input, and empty on Ctrl+K', async () => {
+  it('ignores printable keys and opens on Ctrl+K outside fields', async () => {
     const onOpen = vi.fn();
     renderHook(() => useQuickSearchHotkey(onOpen));
     const input = document.createElement('input');
@@ -115,7 +115,7 @@ describe('useQuickSearchHotkey', () => {
 
     document.body.focus();
     await userEvent.keyboard('b');
-    expect(onOpen).toHaveBeenCalledWith('b');
+    expect(onOpen).not.toHaveBeenCalled();
 
     onOpen.mockClear();
     input.focus();

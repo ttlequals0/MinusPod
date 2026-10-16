@@ -9,6 +9,19 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+- Compose passes transcription backend and API settings from `.env`. The example environment keeps CPU image defaults intact. Installation and deployment guidance now covers Parakeet storage, memory limits, cache paths, and backend-specific troubleshooting.
+- Failed Settings, search, queue, history, and sponsor requests show recovery actions instead of empty or indefinite-loading states. Search filters fit narrow screens and sponsor/pattern results open filtered destinations.
+- Dialogs require accessible names, contain keyboard focus, restore their triggers, and coordinate nested dialogs and popovers. Global search uses Ctrl/Cmd+K; editor shortcuts leave native controls alone.
+- Feed deletion, resets, and replace-mode imports use explicit confirmations. Registered settings drafts block accidental navigation and reload; edited dialogs ask before discarding changes. App updates wait for an explicit reload.
+- Shared touch targets retain 44 CSS px minimums on coarse pointers, including tablets. History cards expose sorting, date ranges stay paired, and populated History and episode-cost tables switch to cards at tablet widths.
+- Theme text and filled-control contrast now passes the expanded contrast checks. Status-bar spacing follows its measured height, and shared animations respect reduced-motion preferences.
+
+### Added
+- UI/UX audit with populated before/after images, a behavior contract, generated design-guide themes, and browser regression checks in CI.
+
 ## [2.100.15] - 2026-10-15
 
 ### Fixed

@@ -16,6 +16,8 @@ import { SkeletonRows } from '../../components/Skeleton';
 import { Pagination } from '../../components/Pagination';
 import { SortHeader, useSortState } from '../../components/SortHeader';
 import DownloadRowActions from './DownloadRowActions';
+import SortControls from '../../components/SortControls';
+import QueryError from '../../components/QueryError';
 import { selectBase, inputBase, focusRing, filterGrid, filterLabel, filterControl } from '../../components/fieldStyles';
 
 const LIMIT = 20;
@@ -100,7 +102,7 @@ function DownloadsTab({ tabs }: Props) {
     ...(search && { search }),
   };
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['download-history', params],
     queryFn: () => getDownloadHistory(params),
     placeholderData: keepPreviousData,
@@ -123,7 +125,7 @@ function DownloadsTab({ tabs }: Props) {
     setPage(1);
   };
 
-  const th = 'px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
+  const th = 'px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
 
   return (
     <div>
@@ -132,8 +134,9 @@ function DownloadsTab({ tabs }: Props) {
       </div>
 
       {tabs}
+      <div role="tabpanel" id="history-panel-downloads" aria-labelledby="history-tab-downloads" tabIndex={0}>
 
-      <div className={`${filterGrid} sm:grid-cols-3 lg:grid-cols-5 mb-6`}>
+      <div className={`${filterGrid} sm:grid-cols-2 lg:grid-cols-5 mb-6`}>
         <div className="min-w-0">
           <label htmlFor="downloads-podcast" className={filterLabel}>Podcast</label>
           <select
@@ -164,6 +167,7 @@ function DownloadsTab({ tabs }: Props) {
             ))}
           </select>
         </div>
+        <div role="group" aria-label="Download date range" className="grid grid-cols-2 gap-2 min-w-0 min-[375px]:col-span-2">
         <DateField
           id="downloads-since"
           label="Since"
@@ -178,7 +182,8 @@ function DownloadsTab({ tabs }: Props) {
           min={since || undefined}
           onChange={(value) => setFilter(setUntil, value)}
         />
-        <div className="min-w-0 min-[375px]:col-span-2 sm:col-span-3 lg:col-span-1">
+        </div>
+        <div className="min-w-0 min-[375px]:col-span-2 lg:col-span-1">
           <label htmlFor="downloads-search" className={filterLabel}>Search</label>
           <input
             id="downloads-search"
@@ -191,12 +196,14 @@ function DownloadsTab({ tabs }: Props) {
         </div>
       </div>
 
+      <SortControls className="md:hidden" field={sortField} direction={sortDirection} onSort={handleSort} options={[
+        { value: 'last_seen_at', label: 'Time' }, { value: 'podcast', label: 'Podcast' },
+        { value: 'client_ip', label: 'Client IP' }, { value: 'location', label: 'Location' },
+        { value: 'subscriber', label: 'Subscriber' },
+      ]} />
       {isLoading && <SkeletonRows count={8} />}
       {error && (
-        <div className="text-center py-12">
-          <p className="text-destructive">Failed to load download history</p>
-          <p className="text-sm text-muted-foreground mt-2">{(error as Error).message}</p>
-        </div>
+        <QueryError title="Failed to load download history" onRetry={() => void refetch()} retrying={isFetching} />
       )}
 
       {!isLoading && !error && (
@@ -242,33 +249,33 @@ function DownloadsTab({ tabs }: Props) {
               <table className="w-full">
                 <thead className="bg-muted/50">
                   <tr>
-                    <SortHeader field="last_seen_at" label="Time" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="last_seen_at" label="Time" className="px-3" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                     <th scope="col" className={th}>Episode</th>
-                    <SortHeader field="podcast" label="Podcast" className="px-4 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortHeader field="client_ip" label="Client IP" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortHeader field="location" label="Location" className="px-4 hidden xl:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortHeader field="subscriber" label="Subscriber" className="px-4 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="podcast" label="Podcast" className="px-3 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="client_ip" label="Client IP" className="px-3" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="location" label="Location" className="px-3 hidden xl:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="subscriber" label="Subscriber" className="px-3 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                     <th scope="col" className={`${th} hidden xl:table-cell`}>Client</th>
                     <th scope="col" className={`${th} text-right`}>Requests</th>
-                    <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>
+                    <th scope="col" className="px-3 py-3"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {rows.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                      <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
                         No downloads recorded
                       </td>
                     </tr>
                   ) : rows.map((row) => (
                     <tr key={row.id} className="hover:bg-muted/50">
-                      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap" title={`First seen ${formatDateTime(row.firstSeenAt)}`}>
+                      <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap" title={`First seen ${formatDateTime(row.firstSeenAt)}`}>
                         {formatDateTime(row.lastSeenAt)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <EpisodeLink row={row} className="max-w-[150px] block" />
                       </td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
+                      <td className="px-3 py-3 hidden lg:table-cell">
                         <Link
                           to={`/feeds/${row.podcastSlug}`}
                           className={`text-primary hover:underline text-sm truncate max-w-[110px] block ${focusRing}`}
@@ -277,18 +284,18 @@ function DownloadsTab({ tabs }: Props) {
                           {row.podcastTitle}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-sm text-foreground font-mono min-w-[9rem]"><ClientIp ip={row.clientIp} /></td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
+                      <td className="px-3 py-3 text-sm text-foreground font-mono min-w-[9rem]"><ClientIp ip={row.clientIp} /></td>
+                      <td className="px-3 py-3 text-sm text-muted-foreground hidden xl:table-cell">
                         <Location row={row} geoEnabled={geoEnabled} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+                      <td className="px-3 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                         <SubscriberCell row={row} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground hidden xl:table-cell">
+                      <td className="px-3 py-3 text-sm text-muted-foreground hidden xl:table-cell">
                         <ClientCell row={row} className="block truncate max-w-[140px]" />
                       </td>
-                      <td className="px-4 py-3 text-sm text-foreground text-right tabular-nums">{row.requestCount}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-3 py-3 text-sm text-foreground text-right tabular-nums">{row.requestCount}</td>
+                      <td className="px-3 py-3 text-right">
                         <DownloadRowActions row={row} blocked={blocked} />
                       </td>
                     </tr>
@@ -301,6 +308,7 @@ function DownloadsTab({ tabs }: Props) {
           <Pagination page={page} totalPages={totalPages} total={total} onPage={setPage} />
         </>
       )}
+      </div>
     </div>
   );
 }

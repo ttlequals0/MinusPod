@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -52,7 +52,7 @@ describe('DataManagementSection backup export', () => {
     await userEvent.click(button);
     expect(mockDownloadBackup).not.toHaveBeenCalled();
     expect(button.className).toContain('min-h-[44px]');
-    await userEvent.click(button);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Download plaintext' }));
 
     await waitFor(() => expect(mockDownloadBackup).toHaveBeenCalledWith(false));
   });

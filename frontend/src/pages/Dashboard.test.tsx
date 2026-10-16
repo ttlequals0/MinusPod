@@ -238,7 +238,7 @@ describe('Dashboard delete confirmation', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Delete feed' }));
 
-    expect(screen.getByText('Click delete again to confirm')).toBeDefined();
+    expect(screen.getByRole('dialog', { name: 'Delete Existing Feed?' })).toBeDefined();
     expect(screen.queryByText(/Deleting this podcast will stop/)).toBeNull();
   });
 });
