@@ -146,7 +146,7 @@ describe('AIModelsSection: typing a model ID', () => {
 
     const input = screen.getByLabelText('Ad Detection Model');
     expect(input.getAttribute('aria-invalid')).toBe('true');
-    expect(input.getAttribute('aria-describedby')).toBe('model-required-message');
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toEqual(['model-required-message', 'model-help']);
     expect(screen.getByText('Pick a model before processing episodes.')).toBeDefined();
   });
 
@@ -257,6 +257,9 @@ describe('AIModelsSection: custom pricing', () => {
       modelPricingOverrides: { 'retired-model': { inputCostPerMtok: 3, outputCostPerMtok: 4 } },
     }));
     expect((screen.getByLabelText('Input, USD per 1 million tokens') as HTMLInputElement).value).toBe('3');
+    view.rerender(section({ pricingModelIds: ['retired-model'], modelPricingOverrides: {} }));
+    expect((screen.getByLabelText('Input, USD per 1 million tokens') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Output, USD per 1 million tokens') as HTMLInputElement).value).toBe('');
   });
 
   it('edits the operative alias key and disables its row during saving', async () => {

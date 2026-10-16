@@ -6,31 +6,35 @@ Source commit: `0864a235d2e212fc7c4833db99f91870a5ca576c`
 
 The [documentation gap review](DOCUMENTATION-GAPS.md) covers installation, Parakeet sizing, configuration examples, and deployment guidance.
 
+## Completion update
+
+The remaining code repairs and local verification are complete. [Completion report](COMPLETION.md) records the fixes, live save/media results, WebKit coverage, real service-worker updates, and [new comparisons](completion-gallery.html). Physical iOS and VoiceOver remain unverified by agreement.
+
 ## Implementation update
 
 These changes fix shared failure paths and update the design guide. [Implemented before/after gallery](implemented-gallery.html) contains screenshots of the real changed frontend. The [earlier proposal gallery](gallery.html) remains a historical design reference; its after images are browser-only proposals.
 
-The populated pass uses the supplied `minuspod-backup-20261016-203053.db`: 34 podcasts, 16,410 episodes, 4,267 processing-history records, 45 download-history records, 1,219 patterns, and 629 sponsors. Counts and the original file hash are recorded in [backup evidence](backup-evidence.json). The app runs against a disposable copy with background work, external connections, and mutation requests disabled.
+The populated pass uses the supplied `minuspod-backup-20261016-203053.db`: 34 podcasts, 16,410 episodes, 4,267 processing-history records, 45 download-history records, 1,219 patterns, and 629 sponsors. Counts and the original file hash are recorded in [backup evidence](backup-evidence.json). The initial populated pass used a read-only disposable copy. The completion pass used a second copy for local writes and explicit processing, with external connections and periodic jobs disabled.
 
 | Audit item | Implementation | Verification or remaining limit |
 | --- | --- | --- |
 | UI-01 | Retry states for Settings, search, queue, history, and sponsors; pending search is distinct from no matches | Browser failure flows; populated route sweep |
-| UI-02 | Required dialog names, shared focus containment, inert background, nested Escape, scroll lock, restored focus; cue dialogs use the same behavior | Nested import browser test; existing editor tests; real media unavailable |
+| UI-02 | Required dialog names, shared focus containment, inert background, nested Escape, scroll lock, restored focus; cue dialogs use the same behavior | Chromium/WebKit nested-dialog checks; live editor playback and save |
 | UI-03 | Ctrl/Cmd+K global search; editor shortcuts respect controls, composition, modifiers, repeat, and focus ownership | Browser shortcut checks and editor unit tests |
 | UI-04 | Updated theme tokens; tests cover text, filled controls, hover, status colors, and existing tint combinations | Original 400-pair matrix: 122 failures before, zero after; expanded theme suite passes |
 | UI-05 | Coarse-pointer minimums apply across viewport widths; row-action recipe uses 44 CSS px targets | Phone and tablet browser checks; visual review |
 | UI-06 | Shared PageTabs; active navigation, pagination, and appearance selection semantics | Arrow/Home/End browser test and panel association checks |
 | UI-07 | Search label and wrapping filters; maintenance control moved below results; sponsor/pattern destinations carry the selected name | Real populated search at 390, 768, and 1440 CSS px |
 | UI-08 | Explicit feed-delete, reset, and replace-import confirmations; no confirmation timer | Updated mutation unit tests; nested import browser test |
-| UI-09 | Registered page/section drafts protect navigation, unload, refresh, and update application; sponsor, pattern, ad, and cue editors confirm discard | Draft lifecycle tests; populated sponsor discard check; physical-device and installed-PWA checks remain |
+| UI-09 | Registered page/section drafts protect navigation, unload, refresh, and update application; sponsor, pattern, ad, and cue editors confirm discard | Draft lifecycle tests; populated sponsor discard check; browser PWA updates passed; physical iOS and installed-device checks remain |
 | UI-10 | Date range is a nested paired group | Browser bounds at 320, 390, 768, and 1440 CSS px |
 | UI-11 | Mobile feed list exposes Force Refresh; History/Downloads expose sorting; History and episode costs use cards below 1280 CSS px; Downloads cell padding fits real content | Populated History at 768 CSS px and Downloads at 1440 CSS px |
-| UI-12 | Import labels/status, pattern textarea recipe, copy/export failure feedback, visible feed-refresh details | Browser import checks and existing component tests; broader field associations remain a follow-up |
+| UI-12 | Import labels/status, pattern textarea recipe, copy/export failure feedback, visible feed-refresh details | Browser import checks and existing component tests; remaining field associations implemented; populated axe scan passed |
 | UI-13 | Measured status-bar inset, named layer order, safe-area padding and dynamic dialog height | Rendered shell and modal checks; notched physical devices remain unverified |
 | UI-14 | Shared reduced-motion CSS | Source/build verification; manual assistive-technology review remains |
 | UI-15 | Generated theme catalog and tokens; corrected target and breakpoint guidance; new behavior contract | Guide parity check |
-| UI-16 | Playwright browser contracts in CI; expanded contrast tests; UI evidence in PR template | 28 local browser checks (24 backend-free, 4 populated); 1,826 unit tests; lint and production build |
-| UI-17 | History summary-card typography and stable loading headings | Populated History comparison; wider page-spacing redesign remains a proposal |
+| UI-16 | Playwright browser contracts in CI; expanded contrast tests; UI evidence in PR template | 72 local browser checks (64 backend-free, 8 populated); 1,828 unit tests; lint and production build |
+| UI-17 | Shared page headers and summary typography; consistent Counter and Metric cards | History alignment rechecked; Settings, Sponsor, and Stats completion comparisons |
 
 ### Populated findings
 
@@ -56,14 +60,11 @@ The populated sweep covers 14 route variants at 390, 768, and 1440 CSS px, for 4
 | --- | --- |
 | ![Populated History before](images/data-history-768-before.png) | ![Populated History after](images/data-history-768-after.png) |
 
-### Remaining work and release checks
+### Remaining release checks
 
-- Complete label/help/error associations in the remaining settings and Add Feed fields. The concrete field targets in UI-12 remain applicable beyond the import and pattern-editor fixes.
-- Register drafts in any independently saved settings section that still owns local state outside the page's Save Changes model. The contract requires this; the new guard cannot infer ownership from arbitrary inputs.
-- Verify waveform playback, cue scanning, successful saves, recuts, and active-job cancellation with retained media and a writable test instance. The supplied database does not include audio or artwork files.
-- Verify VoiceOver, physical iOS keyboards/safe areas, WebKit date rendering, browser zoom, and production PWA upgrade behavior. These are release checks, not claims covered by Chromium screenshots.
-- Decide whether to extend the proposed page-spacing and summary-card normalization beyond History. Existing screenshots distinguish the implementation from that broader proposal.
+The completion pass closes the code items previously listed here. It verifies independent saves, failed-save retention, live playback/waveforms, correction saves, recuts, active cancellation, cue scanning, WebKit, and production service-worker updates. See the [completion evidence and limits](COMPLETION.md).
 
+Physical iOS keyboards/safe areas, VoiceOver, and installed iOS PWA updates remain unverified. The user confirmed that no physical device was available.
 The detailed findings below describe the original source revision. Line-specific source links are pinned to that commit so the evidence remains readable after the changes.
 
 ## Findings at the baseline
@@ -289,7 +290,7 @@ The wrapping filter layout and maintenance disclosure shown in the images are pr
 
 **Source:** [PatternDetailModal](https://github.com/ttlequals0/MinusPod/blob/0864a235d2e212fc7c4833db99f91870a5ca576c/frontend/src/components/PatternDetailModal.tsx#L222) styles Text Template with `bg-secondary` and a small radius, contrary to the guide's textarea recipe. Its label has no `htmlFor`. [History](https://github.com/ttlequals0/MinusPod/blob/0864a235d2e212fc7c4833db99f91870a5ca576c/frontend/src/pages/HistoryPage.tsx#L257) truncates failure text and relies on `title` for the full message. [FeedCard](https://github.com/ttlequals0/MinusPod/blob/0864a235d2e212fc7c4833db99f91870a5ca576c/frontend/src/components/FeedCard.tsx#L63) exposes refresh failure details through a tooltip. History export failures are only logged to the console. [CopyButton](https://github.com/ttlequals0/MinusPod/blob/0864a235d2e212fc7c4833db99f91870a5ca576c/frontend/src/components/CopyButton.tsx#L30) has no visible failure response, and [SavedBadge](https://github.com/ttlequals0/MinusPod/blob/0864a235d2e212fc7c4833db99f91870a5ca576c/frontend/src/pages/settings/SavedBadge.tsx#L3) has no live status semantics.
 
-Remaining examples: [Add Feed URL validation](https://github.com/ttlequals0/MinusPod/blob/0864a235d2e212fc7c4833db99f91870a5ca576c/frontend/src/pages/AddFeed.tsx#L633) changes the border and renders an error without `aria-invalid` or `aria-describedby`. [Sponsor edit fields](https://github.com/ttlequals0/MinusPod/blob/0864a235d2e212fc7c4833db99f91870a5ca576c/frontend/src/components/SponsorEditModal.tsx#L85) have visible labels that are not associated with their inputs. These need a follow-up field migration.
+Remaining examples: [Add Feed URL validation](https://github.com/ttlequals0/MinusPod/blob/0864a235d2e212fc7c4833db99f91870a5ca576c/frontend/src/pages/AddFeed.tsx#L633) changes the border and renders an error without `aria-invalid` or `aria-describedby`. [Sponsor edit fields](https://github.com/ttlequals0/MinusPod/blob/0864a235d2e212fc7c4833db99f91870a5ca576c/frontend/src/components/SponsorEditModal.tsx#L85) have visible labels that are not associated with their inputs. These were repaired in the completion pass; the source links show the baseline defects.
 
 **Fix:** Finish migration to existing field recipes. Pair each control with its label, help, and validation message. Reuse an expandable failure-detail pattern with Copy details. Report export, copy, and save outcomes where the user acted; use a restrained live region for status changes.
 
@@ -521,7 +522,7 @@ Browser timing and transient loading content can vary. The JSON captures record 
 | --- | --- |
 | [implemented-gallery.html](implemented-gallery.html) | Actual implemented screenshots, including populated before/after pairs |
 | [populated.cjs](populated.cjs) | Real-data capture without presentation changes |
-| [serve-backup.py](serve-backup.py) | GET-only audit launcher; requires `MINUSPOD_AUDIT_DATA` pointing to a disposable copy directory containing `podcast.db` |
+| [serve-backup.py](serve-backup.py) | Read-only by default; optional writable/explicit-job modes for disposable copies; requires `MINUSPOD_AUDIT_DATA` pointing to a disposable copy directory containing `podcast.db` |
 | [REPORT.md](REPORT.md) | Findings, priorities, guide changes, and acceptance criteria |
 | [gallery.html](gallery.html) | Before/proposed-after image comparisons |
 | [inspect.cjs](inspect.cjs) | Route and width sweep; entry point for targeted captures |

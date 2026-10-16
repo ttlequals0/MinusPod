@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -27,6 +28,7 @@ function ConfigurationTransferSection() {
   const [message, setMessage] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
   const [reading, setReading] = useState(false);
+  useUnsavedChanges(document !== null && !message);
   const fileGeneration = useRef(0);
 
   const handleFile = async (nextFile: File | null) => {

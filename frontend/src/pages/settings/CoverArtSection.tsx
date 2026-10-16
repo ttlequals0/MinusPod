@@ -60,13 +60,14 @@ function CoverArtSection({
             disabled={!artworkWatermarkEnabled}
             onChange={(e) => onArtworkBadgePositionChange(e.target.value as BadgePosition)}
             className={`w-full disabled:opacity-50 ${selectBase}`}
+            aria-describedby="artworkBadgePosition-help"
           >
             <option value="bottom-right">Bottom right</option>
             <option value="bottom-left">Bottom left</option>
             <option value="top-right">Top right</option>
             <option value="top-left">Top left</option>
           </select>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p id="artworkBadgePosition-help" className="mt-2 text-sm text-muted-foreground">
             Pick a corner that stays clear of the show's own logo. Existing covers keep the old corner until they re-render, so use Refresh all artwork below to rebuild them now.
           </p>
         </div>

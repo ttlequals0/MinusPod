@@ -1,3 +1,5 @@
+import { useDraftField } from '../../hooks/useDraftField';
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import type { ClaudeModel, ModelPricingOverride, ModelPricingOverrides } from '../../api/types';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
@@ -182,7 +184,7 @@ function AIModelsSection({
               const overrideKey = pricingOverrideKey(modelId, modelPricingOverrides);
               const override = modelPricingOverrides[overrideKey];
               return <ModelPricingFields
-                key={`${modelId}:${overrideKey}:${override?.inputCostPerMtok ?? ''}:${override?.outputCostPerMtok ?? ''}`}
+                key={`${modelId}:${overrideKey}`}
                 fieldId={`modelPricing-${index}`}
                 modelId={modelId}
                 override={override}
@@ -223,11 +225,14 @@ function ModelPricingFields({
 }) {
   const savedInput = override === undefined ? '' : String(override.inputCostPerMtok);
   const savedOutput = override === undefined ? '' : String(override.outputCostPerMtok);
-  const [inputRate, setInputRate] = useState(savedInput);
-  const [outputRate, setOutputRate] = useState(savedOutput);
+  const inputDraft = useDraftField(savedInput, (value) => value);
+  const outputDraft = useDraftField(savedOutput, (value) => value);
+  const { value: inputRate, setValue: setInputRate } = inputDraft;
+  const { value: outputRate, setValue: setOutputRate } = outputDraft;
   const [message, setMessage] = useState<string | null>(null);
 
   const isDirty = inputRate !== savedInput || outputRate !== savedOutput;
+  useUnsavedChanges(isDirty);
   const commit = async () => {
     setMessage(null);
     const bothBlank = inputRate.trim() === '' && outputRate.trim() === '';
@@ -247,6 +252,8 @@ function ModelPricingFields({
         inputCostPerMtok: input,
         outputCostPerMtok: output,
       });
+      inputDraft.markClean(bothBlank ? '' : String(input));
+      outputDraft.markClean(bothBlank ? '' : String(output));
       setMessage(bothBlank ? 'Using catalog pricing.' : 'Custom pricing saved.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not save custom pricing.');
@@ -267,6 +274,8 @@ function ModelPricingFields({
           </label>
           <input
             id={`${fieldId}-input`}
+            disabled={saving}
+            aria-describedby={message ? `${fieldId}-result` : undefined}
             type="number"
             min="0"
             step="any"
@@ -282,6 +291,8 @@ function ModelPricingFields({
           </label>
           <input
             id={`${fieldId}-output`}
+            disabled={saving}
+            aria-describedby={message ? `${fieldId}-result` : undefined}
             type="number"
             min="0"
             step="any"
@@ -313,7 +324,7 @@ function ModelPricingFields({
         </p>
       )}
       {message && (
-        <p role="status" className="text-xs text-muted-foreground">{message}</p>
+        <p id={`${fieldId}-result`} role="status" className="text-xs text-muted-foreground">{message}</p>
       )}
     </fieldset>
   );

@@ -1,3 +1,4 @@
+import { pageHeader, pageTitle } from '../components/pageStyles';
 import { useState, useRef } from 'react';
 import DashboardControlsMenu from '../components/DashboardControlsMenu';
 import SegmentedToggle from '../components/SegmentedToggle';
@@ -172,7 +173,7 @@ function Dashboard() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Feeds</h1>
+        <h1 className={pageTitle}>Feeds</h1>
         <QueryError title="Failed to load feeds" onRetry={() => void activeQuery.refetch()} retrying={activeQuery.isFetching} />
       </div>
     );
@@ -246,9 +247,9 @@ function Dashboard() {
         )}
       </div>
 
-      <div className="flex flex-wrap justify-between items-center gap-y-2 mb-6">
+      <div className={pageHeader}>
         <div className="w-full sm:w-auto flex min-w-0 flex-wrap items-baseline gap-x-3">
-          <h1 className="text-2xl font-bold text-foreground">Feeds</h1>
+          <h1 className={pageTitle}>Feeds</h1>
           {lastRefreshCompletedAt && (
             <span
               className="text-sm text-muted-foreground"

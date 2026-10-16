@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -36,6 +37,8 @@ function DatabaseBackupSection() {
   const cron = draft.cron ?? data?.cron ?? '30 3 * * *';
   const dest = draft.dest ?? data?.dest ?? '';
   const keepCount = draft.keepCount ?? data?.keepCount ?? 1;
+  useUnsavedChanges(!!data && (enabled !== data.enabled || cron !== data.cron
+    || dest !== data.dest || keepCount !== data.keepCount));
 
   const save = useMutation({
     mutationFn: () => updateDatabaseBackupSettings({ enabled, cron, dest, keepCount }),
@@ -127,6 +130,7 @@ function DatabaseBackupSection() {
               </label>
               <input
                 id="db-backup-dest"
+                aria-describedby="db-backup-dest-help"
                 type="text"
                 value={dest}
                 onChange={(e) => setDraft((d) => ({ ...d, dest: e.target.value }))}
@@ -134,7 +138,7 @@ function DatabaseBackupSection() {
                 className="flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground font-mono text-sm"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p id="db-backup-dest-help" className="text-xs text-muted-foreground">
               Directory path inside the container. Empty uses the default.
             </p>
             {data.destWritable === false && (
@@ -158,6 +162,7 @@ function DatabaseBackupSection() {
               </label>
               <NumberInput
                 id="db-backup-keep"
+                ariaDescribedBy="db-backup-keep-help"
                 min={1}
                 max={365}
                 step={1}
@@ -172,7 +177,7 @@ function DatabaseBackupSection() {
                 className="w-20 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
               />
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p id="db-backup-keep-help" className="text-xs text-muted-foreground">
               1 overwrites a single file; higher keeps timestamped copies and
               prunes the oldest.
             </p>

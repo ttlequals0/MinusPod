@@ -3,6 +3,18 @@
   "add-1440-before.png",
   "add-390-after.png",
   "add-390-before.png",
+  "completion-settings-1440-after.png",
+  "completion-settings-1440-before.png",
+  "completion-settings-390-after.png",
+  "completion-settings-390-before.png",
+  "completion-sponsors-1440-after.png",
+  "completion-sponsors-1440-before.png",
+  "completion-sponsors-390-after.png",
+  "completion-sponsors-390-before.png",
+  "completion-stats-1440-after.png",
+  "completion-stats-1440-before.png",
+  "completion-stats-390-after.png",
+  "completion-stats-390-before.png",
   "data-dashboard-1440-after.png",
   "data-dashboard-1440-before.png",
   "data-dashboard-390-after.png",
@@ -53,5 +65,7 @@
   "settings-1440-after.png",
   "settings-1440-before.png",
   "settings-390-after.png",
-  "settings-390-before.png"
+  "settings-390-before.png",
+  "status-active-390.png",
+  "status-expanded-390.png"
 ]

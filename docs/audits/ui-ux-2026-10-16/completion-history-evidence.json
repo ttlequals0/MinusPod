@@ -1,0 +1,242 @@
+[
+  {
+    "width": 320,
+    "rows": [
+      {
+        "label": "Total Processed",
+        "top": 267,
+        "valueTop": 284,
+        "labelTop": 312,
+        "overflow": false
+      },
+      {
+        "label": "Completed",
+        "top": 267,
+        "valueTop": 284,
+        "labelTop": 312,
+        "overflow": false
+      },
+      {
+        "label": "Failed",
+        "top": 361,
+        "valueTop": 378,
+        "labelTop": 406,
+        "overflow": false
+      },
+      {
+        "label": "Total Ads Detected",
+        "top": 361,
+        "valueTop": 378,
+        "labelTop": 406,
+        "overflow": false
+      },
+      {
+        "label": "Total Cost",
+        "top": 455,
+        "valueTop": 472,
+        "labelTop": 500,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "rows": [
+      {
+        "label": "Total Processed",
+        "top": 267,
+        "valueTop": 284,
+        "labelTop": 312,
+        "overflow": false
+      },
+      {
+        "label": "Completed",
+        "top": 267,
+        "valueTop": 284,
+        "labelTop": 312,
+        "overflow": false
+      },
+      {
+        "label": "Failed",
+        "top": 361,
+        "valueTop": 378,
+        "labelTop": 406,
+        "overflow": false
+      },
+      {
+        "label": "Total Ads Detected",
+        "top": 361,
+        "valueTop": 378,
+        "labelTop": 406,
+        "overflow": false
+      },
+      {
+        "label": "Total Cost",
+        "top": 455,
+        "valueTop": 472,
+        "labelTop": 500,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "width": 640,
+    "rows": [
+      {
+        "label": "Total Processed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Completed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Failed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Total Ads Detected",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Total Cost",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "width": 768,
+    "rows": [
+      {
+        "label": "Total Processed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Completed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Failed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Total Ads Detected",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Total Cost",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "width": 1024,
+    "rows": [
+      {
+        "label": "Total Processed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Completed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Failed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Total Ads Detected",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Total Cost",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "width": 1440,
+    "rows": [
+      {
+        "label": "Total Processed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Completed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Failed",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Total Ads Detected",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      },
+      {
+        "label": "Total Cost",
+        "top": 219,
+        "valueTop": 236,
+        "labelTop": 264,
+        "overflow": false
+      }
+    ]
+  }
+]

@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
@@ -101,6 +102,7 @@ function PatternCleanupSection({
     || modelSelection !== (data.modelMissing ? '' : data.model || SAME_AS_DETECTION)
   );
   const update = (patch: Partial<PatternCleanupSettings>) => setDraft((d) => ({ ...d, ...patch }));
+  useUnsavedChanges(hasUnsavedChanges);
 
   useEffect(() => {
     if (!data) return;
@@ -239,8 +241,9 @@ function PatternCleanupSection({
                 value={settings.batchSize}
                 onCommit={(n) => update({ batchSize: n })}
                 className={`w-24 ${fieldInput} ${focusRing}`}
+                ariaDescribedBy="pattern-cleanup-batch-help"
               />
-              <p className="text-xs text-muted-foreground">
+              <p id="pattern-cleanup-batch-help" className="text-xs text-muted-foreground">
                 Patterns not yet reviewed go first. 1 to 200.
               </p>
             </div>
@@ -258,8 +261,9 @@ function PatternCleanupSection({
                 value={settings.unusedDays}
                 onCommit={(n) => update({ unusedDays: n })}
                 className={`w-24 ${fieldInput} ${focusRing}`}
+                ariaDescribedBy="pattern-cleanup-unused-help"
               />
-              <p className="text-xs text-muted-foreground">
+              <p id="pattern-cleanup-unused-help" className="text-xs text-muted-foreground">
                 Suggests retiring a pattern with no matches for this long. 7 to 3650.
               </p>
             </div>

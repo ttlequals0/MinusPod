@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import type { ProviderName, ProviderStatus, ProviderTestResult } from '../../api/providers';
 import { getErrorMessage } from '../../api/client';
@@ -34,6 +35,7 @@ function ProviderKeyField({
   onSave, onClear, onTest,
 }: ProviderKeyFieldProps) {
   const [draft, setDraft] = useState('');
+  useUnsavedChanges(draft.length > 0);
   const [busy, setBusy] = useState<'save' | 'test' | 'clear' | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [savedNotice, setSavedNotice] = useTransientState(false, 4000);
@@ -104,14 +106,16 @@ function ProviderKeyField({
       </div>
       <input
         id={`key-${provider}`}
+        aria-describedby={[helper ? `key-${provider}-help` : "", error ? `key-${provider}-error` : ""].filter(Boolean).join(" ") || undefined}
         type="password"
         autoComplete="off"
         value={draft}
+        disabled={busy !== null}
         onChange={(e) => setDraft(e.target.value)}
         placeholder={status.source === 'db' ? '(stored - enter new value to change)' : placeholder}
         className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
       />
-      {helper && <p className="mt-1 text-sm text-muted-foreground">{helper}</p>}
+      {helper && <p id={`key-${provider}-help`} className="mt-1 text-sm text-muted-foreground">{helper}</p>}
       {showActions && (
         <div className="flex items-center gap-2 mt-2">
           <button
@@ -153,7 +157,7 @@ function ProviderKeyField({
           )}
         </div>
       )}
-      {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
+      {error && <p id={`key-${provider}-error`} role="alert" className="mt-1 text-sm text-destructive">{error}</p>}
       {confirmClear && (
         <ConfirmModal
           title={`Remove stored ${provider} key?`}

@@ -22,3 +22,19 @@ Final text: [UI audit](REPORT.md), [documentation gaps](DOCUMENTATION-GAPS.md), 
 Report length: 7,424 words before the final editorial pass; 7,368 words after, including the added documentation-review link. Counts use whitespace-separated tokens, including tables and code blocks. New factual documentation was assessed separately from editorial cuts; it is not counted as a prose reduction.
 
 History alignment follow-up: the added contract rule and changelog sentence use concrete behavior and contain no findings in the seven groups above. The rule preserves wrapped labels and names the native-button cause.
+
+## Completion pass
+
+Reviewed the completion report and gallery, revised repair status, behavior contract, guide examples, changelog, validation summary, and updated PR description with the humanizer criteria.
+
+| Group | Sections | Findings and edits |
+| --- | --- | --- |
+| Content patterns | 1-6 | Kept observed results separate from physical-device and timing-accuracy limits. No unsupported sizing claims. |
+| Language and grammar | 7-12b | Used concrete triggers and effects: failed save retains a draft; the status bar moves the header. |
+| Style | 13-15b | New prose uses ASCII, sentence-case headings, and explicit CSS px units. |
+| Communication | 16 | No chat openers, closing offers, or praise. |
+| Filler and hedging | 17-18 | Removed the duplicated cue-playback claim from the media row; retained the separately evidenced scan result. |
+| Report voice | 19 | Replaced the stale remaining-code list with current repairs and explicit unverified device checks. |
+| Voice and soul | n/a | Technical language stays direct; screenshots and measured behavior support the conclusions. |
+
+The report changed from 7,368 to 7,357 whitespace-separated words as the completion status was added. The completion report has 1,286 words; the PR description has 344 words. These are content changes, not claimed editorial reductions.

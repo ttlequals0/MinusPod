@@ -1,3 +1,5 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { useDraftClose } from '../../hooks/useDraftClose';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
@@ -254,10 +256,18 @@ function LocalFeedPanel({ feed, slug }: Props) {
     podroll: setPodrollRows,
   };
 
+  const matchesMetadata = (f: Feed) => title === f.title && description === (f.description ?? '')
+    && author === (f.author ?? '') && explicit === (f.explicit ?? false)
+    && categoriesInput === (f.categories ?? []).join(', ')
+    && medium === (f.p20?.medium ?? 'podcast') && locked === (f.p20?.locked ?? 'yes')
+    && lockedOwner === (f.p20?.locked_owner ?? '')
+    && P20_TAG_DEFS.every(({ tag }) => JSON.stringify(p20RowsByTag[tag]) === JSON.stringify(normalizeP20Rows(f.p20?.[tag])));
+  useUnsavedChanges(!matchesMetadata(feed));
+
   // Reseed the form from the server feed object whenever its identity
   // changes (a successful save or a background refetch), same idiom
   // FeedSettingsPanel uses for its per-field inputs.
-  useSyncFromQuery(feed, (f) => {
+  const syncMetadata = (f: Feed) => {
     setTitle(f.title);
     setDescription(f.description ?? '');
     setAuthor(f.author ?? '');
@@ -272,11 +282,16 @@ function LocalFeedPanel({ feed, slug }: Props) {
     setLocationRows(normalizeP20Rows(f.p20?.location));
     setTxtRows(normalizeP20Rows(f.p20?.txt));
     setPodrollRows(normalizeP20Rows(f.p20?.podroll));
+  };
+  useSyncFromQuery(feed, (f, previous) => {
+    if (!previous || matchesMetadata(previous)) syncMetadata(f);
   });
 
   const metaMutation = useMutation({
     mutationFn: (data: UpdateFeedPayload) => updateFeed(slug, data),
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['feed', slug], saved);
+      syncMetadata(saved);
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setMetaSaved(true);
       setTimeout(() => setMetaSaved(false), 2000);
@@ -557,6 +572,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
         )}
 
         <form onSubmit={handleSaveMetadata} className="space-y-4 mb-6">
+          <fieldset disabled={metaMutation.isPending} className="space-y-4">
           <h3 className="text-sm font-semibold text-foreground">Feed metadata</h3>
           <div>
             <label htmlFor={`local-title-${slug}`} className="block text-sm font-medium text-foreground mb-2">Title</label>
@@ -603,8 +619,9 @@ function LocalFeedPanel({ feed, slug }: Props) {
               onChange={(e) => setCategoriesInput(e.target.value)}
               placeholder="Technology, Business"
               className={fieldCls}
+              aria-describedby={`local-categories-${slug}` + '-help'}
             />
-            <p className="mt-1 text-sm text-muted-foreground">Comma-separated, e.g. Technology, Business</p>
+            <p id={`local-categories-${slug}` + '-help'} className="mt-1 text-sm text-muted-foreground">Comma-separated, e.g. Technology, Business</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
@@ -702,6 +719,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
           >
             {metaMutation.isPending ? 'Saving...' : metaSaved ? 'Saved' : 'Save metadata'}
           </button>
+          </fieldset>
         </form>
 
         <div className="pt-4 border-t border-border mb-6">
@@ -1055,13 +1073,17 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
     },
   });
 
+  const { requestClose, confirmation } = useDraftClose(
+    !!(audioFile || title || season || episode || publishedAt || description || artworkFile), onClose, mutation.isPending,
+  );
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (audioFile) mutation.mutate();
   };
 
   return (
-    <Modal ariaLabel="Add episode" onClose={onClose} panelClassName="max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+    <Modal ariaLabel="Add episode" onClose={requestClose} panelClassName="max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
       <h2 className="text-xl font-semibold text-foreground mb-4">Add episode</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -1113,8 +1135,9 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
             value={publishedAt}
             onChange={(e) => setPublishedAt(e.target.value)}
             className={fieldCls}
+            aria-describedby="add-ep-published-help"
           />
-          <p className="mt-1 text-sm text-muted-foreground">Leave blank to use the upload time.</p>
+          <p id="add-ep-published-help" className="mt-1 text-sm text-muted-foreground">Leave blank to use the upload time.</p>
         </div>
         <div>
           <label htmlFor="add-ep-description" className="block text-sm font-medium text-foreground mb-2">Description</label>
@@ -1137,12 +1160,12 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
           />
         </div>
         {mutation.isError && (
-          <p className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Upload failed')}</p>
+          <p role="alert" className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Upload failed')}</p>
         )}
         <div className="flex gap-3 justify-end pt-2">
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={mutation.isPending}
             className={`px-4 py-2 rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
           >
@@ -1157,6 +1180,7 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
           </button>
         </div>
       </form>
+      {confirmation}
     </Modal>
   );
 }

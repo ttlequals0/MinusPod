@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { createBrowserRouter, Outlet, Navigate, useBlocker } from 'react-router';
-import { ConfirmModal } from './components/Modal';
+import { captureDialogTrigger, ConfirmModal } from './components/Modal';
 import { hasUnsavedChanges, useAnyUnsavedChanges } from './hooks/useUnsavedChanges';
 import { useAppUpdate } from './utils/appUpdate';
 import { btnSecondary, touchTarget } from './components/buttonStyles';
@@ -43,8 +43,9 @@ function RootLayout() {
   const update = useAppUpdate();
   const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
   return (
-    <>
+    <div onClickCapture={captureDialogTrigger} onKeyDownCapture={captureDialogTrigger}>
       <GlobalStatusBar />
+      <div style={{ height: 'var(--status-bar-height, 0px)' }} aria-hidden="true" />
       {update && <div role="status" className="bg-card border-b border-border p-3 flex flex-wrap items-center justify-center gap-3">
         <p className="text-sm">{dirty ? 'Update ready. Save your changes before reloading.' : 'An app update is ready.'}</p>
         <button type="button" disabled={dirty} onClick={update} className={`${btnSecondary} ${touchTarget} ${focusRing} rounded px-3 py-2 text-sm disabled:opacity-50`}>Reload to update</button>
@@ -59,7 +60,7 @@ function RootLayout() {
         onCancel={() => blocker.reset()} onConfirm={() => blocker.proceed()}>
         Your edits have not been saved. Stay on this page to save them.
       </ConfirmModal>}
-    </>
+    </div>
   );
 }
 

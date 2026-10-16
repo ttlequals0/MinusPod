@@ -263,8 +263,9 @@ function FailoverSection({
               parse={(s) => parseInt(s, 10)}
               onCommit={onProbeIntervalChange}
               className={`w-full ${inputBase}`}
+              ariaDescribedBy="failoverProbeIntervalMinutes-help"
             />
-            <p className="mt-1 text-sm text-muted-foreground">How often each provider and transcriber is checked.</p>
+            <p id="failoverProbeIntervalMinutes-help" className="mt-1 text-sm text-muted-foreground">How often each provider and transcriber is checked.</p>
           </div>
           <div>
             <label htmlFor="failoverRecoveryProbes" className="block text-sm font-medium text-foreground mb-2">
@@ -280,8 +281,9 @@ function FailoverSection({
               parse={(s) => parseInt(s, 10)}
               onCommit={onRecoveryProbesChange}
               className={`w-full ${inputBase}`}
+              ariaDescribedBy="failoverRecoveryProbes-help"
             />
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p id="failoverRecoveryProbes-help" className="mt-1 text-sm text-muted-foreground">
               An automatic failover ends after this many healthy checks in a row. A manual one stays until cancelled.
             </p>
           </div>
@@ -423,8 +425,9 @@ function FailoverSection({
                     placeholder="small"
                     spellCheck={false}
                     className={`w-full ${inputBase} placeholder:text-muted-foreground font-mono`}
+                    aria-describedby="failoverWhisperModel-help"
                   />
-                  <p className="mt-1 text-sm text-muted-foreground">faster-whisper model name, such as small or large-v3.</p>
+                  <p id="failoverWhisperModel-help" className="mt-1 text-sm text-muted-foreground">faster-whisper model name, such as small or large-v3.</p>
                 </div>
               ) : whisper.backend === WHISPER_BACKENDS.PARAKEET ? (
                 <p className="text-sm text-muted-foreground">Runs in this container; no model or endpoint settings.</p>
@@ -512,8 +515,9 @@ function FailoverSection({
                       parse={parseOptionalNumber}
                       onChange={(maxAttempts) => onWhisperChange({ maxAttempts })}
                       className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+                      ariaDescribedBy="failoverWhisperMaxAttempts-help"
                     />
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <p id="failoverWhisperMaxAttempts-help" className="mt-1 text-sm text-muted-foreground">
                       Includes the first upload. Leave blank to use the active transcriber's setting ({activeWhisperMaxAttempts} attempts).
                     </p>
                   </div>
@@ -532,8 +536,9 @@ function FailoverSection({
                   placeholder="Same as the active transcriber"
                   spellCheck={false}
                   className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+                  aria-describedby="failoverWhisperLanguage-help"
                 />
-                <p className="mt-1 text-sm text-muted-foreground">Leave blank to use the active transcriber's language.</p>
+                <p id="failoverWhisperLanguage-help" className="mt-1 text-sm text-muted-foreground">Leave blank to use the active transcriber's language.</p>
               </div>
             </>
           )}

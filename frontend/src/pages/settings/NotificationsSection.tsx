@@ -1,3 +1,5 @@
+import { useDraftClose } from '../../hooks/useDraftClose';
+import { ConfirmModal } from '../../components/Modal';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -10,7 +12,7 @@ import { useTransientState } from '../../hooks/useTransientState';
 import EmailSettingsForm from './EmailSettingsForm';
 import TimezoneSettingsForm from './TimezoneSettingsForm';
 import { EVENT_OPTIONS } from './notificationEvents';
-import { btnPrimary, btnSecondary, touchTarget } from '../../components/buttonStyles';
+import { btnDestructive, btnPrimary, btnSecondary, touchTarget } from '../../components/buttonStyles';
 import Checkbox from '../../components/Checkbox';
 import { focusRing } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
@@ -50,6 +52,7 @@ function WebhooksBlock() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<WebhookFormData>({ ...emptyForm });
   const [showSecret, setShowSecret] = useState(false);
+  const [baseline, setBaseline] = useState<WebhookFormData>(emptyForm);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   // One transient result at a time; auto-clears 4s after the last test.
   // `results` carries a per-event breakdown; only the summary line is shown below.
@@ -95,6 +98,7 @@ function WebhooksBlock() {
 
   function resetForm() {
     setForm({ ...emptyForm });
+    setBaseline(emptyForm);
     setShowForm(false);
     setEditingId(null);
     setShowSecret(false);
@@ -102,14 +106,16 @@ function WebhooksBlock() {
   }
 
   function startEdit(webhook: Webhook) {
-    setForm({
+    const next = {
       url: webhook.url,
       events: [...webhook.events],
       enabled: webhook.enabled,
       secret: '',
       payloadTemplate: webhook.payloadTemplate || '',
       contentType: webhook.contentType,
-    });
+    };
+    setForm(next);
+    setBaseline(next);
     setEditingId(webhook.id);
     setShowForm(true);
     setTemplatePreview(null);
@@ -144,16 +150,6 @@ function WebhooksBlock() {
     }
   }
 
-  function handleDeleteClick(id: string) {
-    if (deleteConfirmId === id) {
-      deleteMutation.mutate(id);
-      setDeleteConfirmId(null);
-    } else {
-      setDeleteConfirmId(id);
-      setTimeout(() => setDeleteConfirmId((current) => (current === id ? null : current)), 3000);
-    }
-  }
-
   async function handleValidateTemplate() {
     if (!form.payloadTemplate.trim()) return;
     setValidating(true);
@@ -168,6 +164,9 @@ function WebhooksBlock() {
   }
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  const { requestClose, confirmation } = useDraftClose(
+    showForm && JSON.stringify(form) !== JSON.stringify(baseline), resetForm, isSaving,
+  );
 
   return (
     <div className="space-y-4">
@@ -246,16 +245,17 @@ function WebhooksBlock() {
                 </button>
                 <button
                   onClick={() => startEdit(wh)}
+                  disabled={showForm}
                   className={`${touchTarget} px-2.5 py-1 text-xs rounded ${btnSecondary} transition-colors ${focusRing}`}
                 >
                   Edit
                 </button>
                 <button
-                  onClick={() => handleDeleteClick(wh.id)}
+                  onClick={() => setDeleteConfirmId(wh.id)}
                   disabled={deleteMutation.isPending}
-                  className={`${touchTarget} px-2.5 py-1 text-xs rounded bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-colors ${focusRing}`}
+                  className={`${touchTarget} px-2.5 py-1 text-xs rounded ${btnDestructive} disabled:opacity-50 transition-colors ${focusRing}`}
                 >
-                  {deleteConfirmId === wh.id ? 'Confirm?' : 'Delete'}
+                  Delete
                 </button>
               </div>
             </div>
@@ -268,6 +268,7 @@ function WebhooksBlock() {
         <button
           onClick={() => {
             setForm({ ...emptyForm });
+            setBaseline(emptyForm);
             setEditingId(null);
             setShowForm(true);
             setTemplatePreview(null);
@@ -280,7 +281,8 @@ function WebhooksBlock() {
 
       {/* Form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="space-y-4 p-4 rounded-lg border border-border bg-background">
+        <form aria-describedby={createMutation.isError || updateMutation.isError ? "webhook-save-error" : undefined} onSubmit={handleSubmit} className="space-y-4 p-4 rounded-lg border border-border bg-background">
+      <fieldset disabled={isSaving} className="space-y-4">
           <h3 className="text-sm font-semibold text-foreground">
             {editingId ? 'Edit Webhook' : 'New Webhook'}
           </h3>
@@ -322,11 +324,13 @@ function WebhooksBlock() {
             <label htmlFor="webhook-template" className="block text-sm font-medium text-foreground mb-0.5">
               Payload Template (optional)
             </label>
-            <p className="text-xs text-muted-foreground mb-1">
+            <p id="webhook-template-help" className="text-xs text-muted-foreground mb-1">
               Customize the JSON body sent to your endpoint
             </p>
             <textarea
               id="webhook-template"
+              aria-invalid={templatePreview?.valid === false}
+              aria-describedby={`webhook-template-help${templatePreview ? " webhook-template-result" : ""}`}
               value={form.payloadTemplate}
               onChange={(e) => {
                 setForm((prev) => ({ ...prev, payloadTemplate: e.target.value }));
@@ -348,6 +352,7 @@ function WebhooksBlock() {
             </div>
             {templatePreview && (
               <div
+                id="webhook-template-result" role="status"
                 className={`mt-2 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap ${
                   templatePreview.valid
                     ? 'bg-success/10 text-success'
@@ -408,7 +413,7 @@ function WebhooksBlock() {
 
           {/* Error messages */}
           {(createMutation.isError || updateMutation.isError) && (
-            <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+            <div id="webhook-save-error" role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
               {((createMutation.error || updateMutation.error) as Error)?.message || 'Failed to save webhook'}
             </div>
           )}
@@ -424,14 +429,22 @@ function WebhooksBlock() {
             </button>
             <button
               type="button"
-              onClick={resetForm}
+              onClick={requestClose}
               className={`${touchTarget} px-4 py-2 rounded-lg ${btnSecondary} transition-colors text-sm ${focusRing}`}
             >
               Cancel
             </button>
           </div>
-        </form>
+              </fieldset>
+    </form>
       )}
+      {confirmation}
+      {deleteConfirmId && <ConfirmModal title="Delete webhook?" confirmLabel="Delete webhook"
+        pending={deleteMutation.isPending} onCancel={() => setDeleteConfirmId(null)}
+        onConfirm={() => deleteMutation.mutate(deleteConfirmId, { onSuccess: () => setDeleteConfirmId(null) })}>
+        <p>This removes the selected notification endpoint.</p>
+        {deleteMutation.isError && <p role="alert" className="text-destructive">Failed to delete webhook. Try again.</p>}
+      </ConfirmModal>}
     </div>
   );
 }

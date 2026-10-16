@@ -118,12 +118,13 @@ function AdDetectionSection({
             value={minCutConfidence}
             onChange={(e) => onMinCutConfidenceChange(parseFloat(e.target.value))}
             className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+            aria-describedby="minCutConfidence-help"
           />
           <div className="flex justify-between text-xs text-muted-foreground mt-1">
             <span>More Aggressive (50%)</span>
             <span>More Conservative (95%)</span>
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p id="minCutConfidence-help" className="mt-3 text-sm text-muted-foreground">
             How confident the system must be before removing an ad.
             Lower values remove more potential ads but may include false positives.
           </p>
@@ -150,8 +151,9 @@ function AdDetectionSection({
             fallback={0}
             onCommit={onMinContentBetweenAdsSecondsChange}
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            ariaDescribedBy="minContentBetweenAdsSeconds-help"
           />
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p id="minContentBetweenAdsSeconds-help" className="mt-2 text-sm text-muted-foreground">
             Ads separated by less than this much speech merge into one cut. Above
             it they stay separate, so the talking between them survives. 0 disables.
           </p>
@@ -169,8 +171,9 @@ function AdDetectionSection({
             fallback={300}
             onCommit={onMaxAdDurationSecondsChange}
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            ariaDescribedBy="maxAdDurationSeconds-help"
           />
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p id="maxAdDurationSeconds-help" className="mt-2 text-sm text-muted-foreground">
             Past this length an ad must name a recognized sponsor or score very high to be
             cut; anything else is held for review. Raise it on shows with long ad blocks.
           </p>
@@ -188,8 +191,9 @@ function AdDetectionSection({
             fallback={900}
             onCommit={onMaxAdDurationConfirmedSecondsChange}
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            ariaDescribedBy="maxAdDurationConfirmedSeconds-help"
           />
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p id="maxAdDurationConfirmedSeconds-help" className="mt-2 text-sm text-muted-foreground">
             The hard ceiling. Even an ad with a confirmed sponsor is held rather than cut past this length.
           </p>
         </div>
@@ -206,8 +210,9 @@ function AdDetectionSection({
             fallback={420}
             onCommit={onMaxLlmWindowAdSecondsChange}
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            ariaDescribedBy="maxLlmWindowAdSeconds-help"
           />
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p id="maxLlmWindowAdSeconds-help" className="mt-2 text-sm text-muted-foreground">
             A single ad the model reports longer than this is discarded within its detection window. A feed's max ad duration caps raise it for that feed.
           </p>
         </div>

@@ -1,3 +1,4 @@
+import { pageTitle } from '../components/pageStyles';
 import { useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -845,7 +846,7 @@ function EpisodeDetail() {
             />
           </div>
           <div className="flex flex-col gap-2 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground">{episode.title}</h1>
+            <h1 className={pageTitle}>{episode.title}</h1>
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
               <span>{formatDate(episode.published)}</span>
               {episode.status === 'completed' && episode.newDuration ? (

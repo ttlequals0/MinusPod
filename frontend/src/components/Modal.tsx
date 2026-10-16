@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useId, useRef } from 'react';
+import { ReactNode, type SyntheticEvent, useEffect, useId, useRef } from 'react';
 import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
@@ -34,6 +34,14 @@ export function useEscape(onClose: () => void, enabled = true, panelRef?: React.
 
 export const FOCUSABLE = 'summary,a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
+let dialogTrigger: HTMLElement | null = null;
+
+// WebKit does not focus buttons on pointer activation.
+export function captureDialogTrigger(event: SyntheticEvent) {
+  dialogTrigger = event.type === 'click' && event.target instanceof Element
+    ? event.target.closest<HTMLElement>(FOCUSABLE) : null;
+}
+
 const inertLocks = new Map<HTMLElement, { count: number; previous: boolean }>();
 let scrollLocks = 0;
 let previousOverflow = '';
@@ -46,7 +54,11 @@ export function useFocusTrap(panelRef: React.RefObject<HTMLElement | null>, focu
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
-    if (!returnFocus.current) returnFocus.current = document.activeElement as HTMLElement | null;
+    if (!returnFocus.current) {
+      returnFocus.current = dialogTrigger?.isConnected && !panel.contains(dialogTrigger)
+        ? dialogTrigger : document.activeElement as HTMLElement | null;
+      dialogTrigger = null;
+    }
     const previous = returnFocus.current;
     panel.dataset.dialogId = id;
     if (scrollLocks++ === 0) previousOverflow = document.body.style.overflow;

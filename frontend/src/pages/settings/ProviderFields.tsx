@@ -130,8 +130,9 @@ export function ProviderFields({
             onChange={(e) => onBaseUrlChange(e.target.value)}
             placeholder="http://localhost:11434/v1"
             className={`w-full ${inputBase} placeholder:text-muted-foreground font-mono`}
+            aria-describedby={baseUrlInputId + '-help'}
           />
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p id={baseUrlInputId + '-help'} className="mt-1 text-sm text-muted-foreground">
             {provider === LLM_PROVIDERS.OLLAMA
               ? 'Ollama server URL (e.g. http://localhost:11434)'
               : provider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE
@@ -178,8 +179,9 @@ export function ProviderFields({
             parse={parseOptionalNumber}
             onChange={onMaxRetriesChange}
             className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+            ariaDescribedBy={`${providerSelectId}MaxRetries` + '-help'}
           />
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p id={`${providerSelectId}MaxRetries` + '-help'} className="mt-1 text-sm text-muted-foreground">
             Blank uses the provider default. 0 sends one request with no retries.
           </p>
         </div>

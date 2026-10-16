@@ -39,6 +39,7 @@
     "postcss": ">=8.5.23"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@babel/core": "^7.29.6",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.1",

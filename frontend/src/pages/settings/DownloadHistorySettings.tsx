@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ToggleSwitch from '../../components/ToggleSwitch';
@@ -19,10 +20,16 @@ function DownloadHistorySettings() {
 
   const [retentionDraft, setRetentionDraft] = useState<string | null>(null);
   const retentionInput = retentionDraft ?? String(retentionDays);
+  useUnsavedChanges(retentionInput !== String(retentionDays));
 
   const mutation = useMutation({
     mutationFn: (update: UpdateSettingsPayload) => updateSettings(update),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
+    onSuccess: async (_data, update) => {
+      await queryClient.invalidateQueries({ queryKey: ['settings'] });
+      if (update.downloadHistoryRetentionDays !== undefined) {
+        setRetentionDraft((current) => current === String(update.downloadHistoryRetentionDays) ? null : current);
+      }
+    },
   });
 
   const parsedRetention = Number(retentionInput);
@@ -30,7 +37,6 @@ function DownloadHistorySettings() {
     && parsedRetention >= RETENTION_MIN && parsedRetention <= RETENTION_MAX;
 
   const saveRetention = () => {
-    setRetentionDraft(null);
     if (retentionValid && parsedRetention !== retentionDays) {
       mutation.mutate({ downloadHistoryRetentionDays: parsedRetention });
     }
@@ -83,17 +89,18 @@ function DownloadHistorySettings() {
           onChange={(e) => setRetentionDraft(e.target.value)}
           onBlur={saveRetention}
           aria-invalid={!retentionValid}
+          aria-describedby={[!retentionValid ? "download-retention-error" : "", mutation.isError ? "download-setting-error" : ""].filter(Boolean).join(" ") || undefined}
           className={`w-32 ${inputBase}`}
         />
         {!retentionValid && (
-          <p className="mt-1 text-sm text-destructive">
+          <p id="download-retention-error" role="alert" className="mt-1 text-sm text-destructive">
             Enter a whole number from {RETENTION_MIN} to {RETENTION_MAX}.
           </p>
         )}
       </div>
 
       {mutation.isError && (
-        <p className="text-sm text-destructive">
+        <p id="download-setting-error" role="alert" className="text-sm text-destructive">
           {getErrorMessage(mutation.error, 'Failed to update setting')}
         </p>
       )}

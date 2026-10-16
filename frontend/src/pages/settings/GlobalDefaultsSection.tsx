@@ -70,11 +70,12 @@ function GlobalDefaultsSection({
             value={skipSecondPass ? 'skip' : 'run'}
             onChange={(e) => onSkipSecondPassChange(e.target.value === 'skip')}
             className={`w-full ${selectBase}`}
+            aria-describedby="globalVerificationPass-help"
           >
             <option value="run">Run verification</option>
             <option value="skip">Skip verification</option>
           </select>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p id="globalVerificationPass-help" className="mt-2 text-sm text-muted-foreground">
             Verification scans the processed audio a second time. Feeds can override this setting.
           </p>
         </div>
@@ -85,12 +86,13 @@ function GlobalDefaultsSection({
           </label>
           <select id="differentialFetchMode" value={differentialFetchMode}
             onChange={(e) => onDifferentialFetchModeChange(e.target.value as 'auto' | 'on' | 'off')}
-            className={`w-full ${selectBase}`}>
+            className={`w-full ${selectBase}`}
+            aria-describedby="differentialFetchMode-help">
             <option value="auto">Auto for dynamic-ad feeds</option>
             <option value="on">On for every subscribed feed</option>
             <option value="off">Off</option>
           </select>
-          <p className="mt-2 text-sm text-muted-foreground">Feeds can inherit this default or choose their own mode.</p>
+          <p id="differentialFetchMode-help" className="mt-2 text-sm text-muted-foreground">Feeds can inherit this default or choose their own mode.</p>
         </div>
         {/* Auto-process new episodes */}
         <div>
@@ -192,12 +194,13 @@ function GlobalDefaultsSection({
             value={lowAdYieldAction}
             onChange={(e) => onLowAdYieldActionChange(e.target.value as LowAdYieldAction)}
             className={`w-full ${selectBase}`}
+            aria-describedby="lowAdYieldAction-help"
           >
             {(Object.keys(LOW_AD_YIELD_ACTION_LABELS) as LowAdYieldAction[]).map((action) => (
               <option key={action} value={action}>{LOW_AD_YIELD_ACTION_LABELS[action]}</option>
             ))}
           </select>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p id="lowAdYieldAction-help" className="mt-2 text-sm text-muted-foreground">
             When an episode finishes with far less ad time removed than its feed usually yields, run this action automatically (once per episode).
           </p>
         </div>
@@ -222,7 +225,7 @@ function GlobalDefaultsSection({
             />
             <span className="text-sm text-muted-foreground">days (0-365)</span>
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p id="episodeLogLevel-help" className="mt-2 text-sm text-muted-foreground">
             Each run writes its pipeline log to disk, readable on the episode page. 0 keeps
             nothing and deletes what is already stored. A feed can opt out in its own settings.
           </p>
@@ -237,11 +240,12 @@ function GlobalDefaultsSection({
             value={episodeLogLevel}
             onChange={(e) => onEpisodeLogLevelChange(e.target.value as EpisodeLogLevel)}
             className={`w-full ${selectBase}`}
+            aria-describedby={["episodeLogLevel" + '-help', "episodeLogLevel" + '-help-2'].join(' ')}
           >
             <option value="debug">Everything the pipeline logs</option>
             <option value="info">Info and above</option>
           </select>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p id="episodeLogLevel-help-2" className="mt-2 text-sm text-muted-foreground">
             Run logs keep what the server already logs, so debug lines appear only when
             LOG_LEVEL is debug too.
           </p>

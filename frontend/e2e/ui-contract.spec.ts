@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 
@@ -108,4 +109,23 @@ test('discarding a nested editor restores the page and its trigger', async ({ pa
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('[inert]')).toHaveCount(0);
   await expect(trigger).toBeFocused();
+});
+
+test('feed URL validation associates its visible error with the field', async ({ page }) => {
+  await page.goto('add');
+  const input = page.locator('#podcastInput');
+  await input.fill('https://');
+  await input.blur();
+  await expect(input).toHaveAttribute('aria-invalid', 'true');
+  await expect(input).toHaveAttribute('aria-describedby', 'podcast-url-feedback');
+  await expect(page.locator('#podcast-url-feedback')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add Feed', exact: true })).toBeDisabled();
+});
+
+
+test('add-feed controls have accessible names and valid ARIA relationships', async ({ page }) => {
+  await page.goto('add');
+  await page.getByText('Advanced options', { exact: false }).click();
+  const scan = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(scan.violations.map(({ id, nodes }) => ({ id, targets: nodes.map((node) => node.target) }))).toEqual([]);
 });

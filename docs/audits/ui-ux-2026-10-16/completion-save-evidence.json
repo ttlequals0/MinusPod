@@ -1,0 +1,268 @@
+{
+  "checks": [
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "preserves email-smtp-host on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "preserves db-backup-keep on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "preserves cron on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "preserves pattern-cleanup-batch on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "preserves podping-node-0 on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "preserves modelPricing-0-input on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "preserves windowSizeSeconds on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "preserves softTimeoutMinutes on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "preserves downloadUserAgent on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "timezone saves, persists, restores, and becomes clean",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 390,
+      "check": "failed retention save retains value, announced error, and navigation guard",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "preserves email-smtp-host on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "preserves db-backup-keep on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "preserves cron on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "preserves pattern-cleanup-batch on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "preserves podping-node-0 on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "preserves modelPricing-0-input on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "preserves windowSizeSeconds on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "preserves softTimeoutMinutes on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "preserves downloadUserAgent on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "timezone saves, persists, restores, and becomes clean",
+      "passed": true
+    },
+    {
+      "engine": "chromium",
+      "width": 1440,
+      "check": "failed retention save retains value, announced error, and navigation guard",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "preserves email-smtp-host on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "preserves db-backup-keep on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "preserves cron on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "preserves pattern-cleanup-batch on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "preserves podping-node-0 on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "preserves modelPricing-0-input on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "preserves windowSizeSeconds on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "preserves softTimeoutMinutes on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "preserves downloadUserAgent on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "timezone saves, persists, restores, and becomes clean",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "check": "failed retention save retains value, announced error, and navigation guard",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "preserves email-smtp-host on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "preserves db-backup-keep on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "preserves cron on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "preserves pattern-cleanup-batch on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "preserves podping-node-0 on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "preserves modelPricing-0-input on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "preserves windowSizeSeconds on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "preserves softTimeoutMinutes on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "preserves downloadUserAgent on cancelled navigation",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "timezone saves, persists, restores, and becomes clean",
+      "passed": true
+    },
+    {
+      "engine": "webkit",
+      "width": 1440,
+      "check": "failed retention save retains value, announced error, and navigation guard",
+      "passed": true
+    }
+  ]
+}

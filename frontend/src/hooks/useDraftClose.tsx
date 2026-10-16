@@ -12,7 +12,7 @@ export function useDraftClose(dirty: boolean, onClose: () => void, pending = fal
       else onClose();
     },
     confirmation: confirming && <ConfirmModal title="Discard unsaved changes?" confirmLabel="Discard changes"
-      pending={pending} onCancel={() => setConfirming(false)} onConfirm={onClose}>
+      pending={pending} onCancel={() => setConfirming(false)} onConfirm={() => { setConfirming(false); onClose(); }}>
       Your edits have not been saved.
     </ConfirmModal>,
   };

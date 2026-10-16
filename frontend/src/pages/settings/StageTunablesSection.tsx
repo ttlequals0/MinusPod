@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useMemo, useState } from 'react';
 import type {
   LlmProvider,
@@ -161,6 +162,7 @@ export function useServerDraft<K extends string, V>(
   }
 
   const dirty = !equal(draft, serverBaseline);
+  useUnsavedChanges(dirty);
 
   const setField = (key: K, value: V) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -278,8 +280,9 @@ export function NumberFieldRow({
         onChange={onChange}
         className={`${DRAFT_NUMBER_INPUT_CLASS} min-h-11 sm:min-h-0`}
         disabled={disabled}
+        ariaDescribedBy={inputId + '-help'}
       />
-      <p className="mt-1 text-xs text-muted-foreground">{help}</p>
+      <p id={inputId + '-help'} className="mt-1 text-xs text-muted-foreground">{help}</p>
     </div>
   );
 }
@@ -409,13 +412,14 @@ function StageBlockEditor({
           }}
           className={`w-full min-h-11 sm:min-h-0 ${selectBase}`}
           disabled={chatControlsDisabled}
+          aria-describedby={String(block.levelKey) + '-help'}
         >
           <option value="">Default (provider decides)</option>
           {REASONING_LEVEL_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p id={String(block.levelKey) + '-help'} className="mt-1 text-xs text-muted-foreground">
           {levelEnv
             ? `Default from ${levelEnv}.`
             : useAnthropic

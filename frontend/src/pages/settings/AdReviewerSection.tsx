@@ -118,6 +118,7 @@ function AdReviewerSection({
                 value={reviewer.provider}
                 onChange={(e) => update('provider', e.target.value)}
                 className={`w-full ${selectBase}`}
+                aria-describedby="reviewProvider-help"
               >
                 <option value={SAME_AS_PASS}>Same as pass</option>
                 <option value={SLOT_PRIMARY}>{SLOT_LABELS.primary}</option>
@@ -133,7 +134,7 @@ function AdReviewerSection({
                   {SLOT_LABELS.secondary} is off, so the reviewer runs on {SLOT_LABELS.primary}.
                 </p>
               )}
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p id="reviewProvider-help" className="mt-1 text-sm text-muted-foreground">
                 "Same as pass" runs the reviewer on whichever provider and model detected or verified the ad. Pick a provider to run the reviewer somewhere else.
               </p>
             </div>

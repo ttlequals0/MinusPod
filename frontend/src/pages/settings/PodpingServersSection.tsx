@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
@@ -24,6 +25,8 @@ function PodpingServersSection({ enabled }: { enabled: boolean }) {
     enabled,
   });
   const [draft, setDraft] = useState<string[] | null>(null);
+  useUnsavedChanges(draft !== null && !!data && (draft.length !== data.nodes.length
+    || draft.some((node, index) => node !== data.nodes[index])));
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({

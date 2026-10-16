@@ -1,0 +1,24 @@
+{
+  "checks": [
+    {
+      "engine": "chromium",
+      "width": 390,
+      "installedWorker": true,
+      "dirtyUpdateBlocked": true,
+      "explicitReload": true,
+      "newBundleLoaded": true,
+      "savedValuePersisted": true,
+      "originalRestored": true
+    },
+    {
+      "engine": "webkit",
+      "width": 390,
+      "installedWorker": true,
+      "dirtyUpdateBlocked": true,
+      "explicitReload": true,
+      "newBundleLoaded": true,
+      "savedValuePersisted": true,
+      "originalRestored": true
+    }
+  ]
+}

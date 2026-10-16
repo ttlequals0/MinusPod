@@ -98,7 +98,6 @@ function Layout() {
       >
         Skip to content
       </a>
-      <div className="sticky top-0 z-30 bg-background" style={{ height: 'var(--status-bar-height, 0px)' }} aria-hidden="true" />
       <header className="sticky z-30 border-b border-border bg-card" style={{ top: 'var(--status-bar-height, 0px)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -195,7 +194,7 @@ function Layout() {
           </div>
         </div>
         {mobileMenuOpen && (
-          <div className="xl:hidden max-h-[calc(100dvh-6.5rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
+          <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
             <nav className="flex flex-col px-4 py-2 gap-1">
               {NAV_ITEMS.map((item) => (
                 <NavLink

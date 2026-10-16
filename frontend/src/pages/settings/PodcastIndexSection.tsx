@@ -46,11 +46,12 @@ function PodcastIndexSection({
             value={searchProvider}
             onChange={(e) => onSearchProviderChange(e.target.value)}
             className={`w-full ${selectBase}`}
+            aria-describedby="podcastSearchProvider-help"
           >
             <option value="itunes">iTunes (no setup needed)</option>
             <option value="podcastindex">PodcastIndex.org (API key required)</option>
           </select>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p id="podcastSearchProvider-help" className="mt-1 text-sm text-muted-foreground">
             {usingPodcastIndex
               ? 'Searches the PodcastIndex.org directory using your API credentials.'
               : "Searches Apple's podcast directory. Nothing to configure."}

@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
@@ -18,7 +19,7 @@ function listTimezones(): string[] {
   const supportedValuesOf = (Intl as { supportedValuesOf?: (key: string) => string[] })
     .supportedValuesOf;
   try {
-    return supportedValuesOf ? supportedValuesOf('timeZone') : FALLBACK_ZONES;
+    return supportedValuesOf ? ['UTC', ...supportedValuesOf('timeZone').filter((zone) => zone !== 'UTC')] : FALLBACK_ZONES;
   } catch {
     return FALLBACK_ZONES;
   }
@@ -34,11 +35,18 @@ function TimezoneSettingsForm() {
     queryFn: getNotificationTimezone,
   });
 
-  useSyncFromQuery(settings, (s) => setDraft(s.timezone));
+  useSyncFromQuery(settings, (s, previous) => {
+    if (draft === null || draft === previous?.timezone) setDraft(s.timezone);
+  });
+  const dirty = draft !== null && !!settings && draft !== settings.timezone;
+  useUnsavedChanges(dirty);
 
   const saveMutation = useMutation({
     mutationFn: (timezone: string) => updateNotificationTimezone(timezone),
-    onSuccess: (data) => queryClient.setQueryData(['notificationTimezone'], data),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['notificationTimezone'], data);
+      setDraft(data.timezone);
+    },
   });
 
   if (isError) {
@@ -48,9 +56,6 @@ function TimezoneSettingsForm() {
     return <p className="text-sm text-muted-foreground">Loading timezone...</p>;
   }
 
-  // isLoading/draft===null both cleared above, so a successful fetch has landed.
-  const dirty = draft !== settings!.timezone;
-
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (draft) saveMutation.mutate(draft);
@@ -58,7 +63,7 @@ function TimezoneSettingsForm() {
 
   return (
     <form onSubmit={handleSave} className="space-y-3 p-4 rounded-lg border border-border bg-background">
-      <p className="text-xs text-muted-foreground">
+      <p id="notification-timezone-help" className="text-xs text-muted-foreground">
         Notifications also show times in this timezone, alongside UTC.
       </p>
       <div className="flex items-end gap-2 flex-wrap">
@@ -68,6 +73,8 @@ function TimezoneSettingsForm() {
           </label>
           <select
             id="notification-timezone"
+            disabled={saveMutation.isPending}
+            aria-describedby={`notification-timezone-help${saveMutation.isError ? " notification-timezone-error" : ""}`}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             className={`max-sm:min-h-11 w-full ${selectBase}`}
@@ -87,7 +94,7 @@ function TimezoneSettingsForm() {
         </button>
       </div>
       {saveMutation.isError && (
-        <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+        <div id="notification-timezone-error" role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
           {getErrorMessage(saveMutation.error, 'Failed to save timezone')}
         </div>
       )}

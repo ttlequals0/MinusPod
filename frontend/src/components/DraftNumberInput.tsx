@@ -24,6 +24,7 @@ interface DraftNumberInputProps {
   disabled?: boolean;
   id?: string;
   ariaLabel?: string;
+  ariaDescribedBy?: string;
   ariaInvalid?: boolean;
   onBlur?: () => void;
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
@@ -35,7 +36,7 @@ interface DraftNumberInputProps {
 // rather than on blur, so a typed value survives when the user never blurs.
 export default function DraftNumberInput({
   value, fallback, min, max, step, placeholder, parse, onChange,
-  className = DRAFT_NUMBER_INPUT_CLASS, disabled, id, ariaLabel, ariaInvalid, onBlur, onKeyDown, autoFocus,
+  className = DRAFT_NUMBER_INPUT_CLASS, disabled, id, ariaLabel, ariaDescribedBy, ariaInvalid, onBlur, onKeyDown, autoFocus,
 }: DraftNumberInputProps) {
   const display = (v: number | null) => {
     if (v !== null && v !== undefined) return String(v);
@@ -56,6 +57,7 @@ export default function DraftNumberInput({
       ref={inputRef}
       id={id}
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       aria-invalid={ariaInvalid}
       type="number"
       min={min}

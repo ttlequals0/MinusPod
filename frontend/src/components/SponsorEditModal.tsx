@@ -1,5 +1,5 @@
 import { useDraftClose } from '../hooks/useDraftClose';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addSponsor, updateSponsor } from '../api/sponsors';
 import { getTagVocabulary, updateSponsorTags } from '../api/community';
@@ -8,7 +8,7 @@ import { getErrorMessage } from '../api/client';
 import { btnOutline, btnPrimary } from './buttonStyles';
 import { Modal } from './Modal';
 import Checkbox from './Checkbox';
-import { focusRing, selectBase } from './fieldStyles';
+import { focusRing, inputBase, selectBase } from './fieldStyles';
 import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../utils/segmentCategory';
 import { badgeBase, tint } from './badgeStyles';
 
@@ -22,6 +22,7 @@ interface Props {
 function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
   const queryClient = useQueryClient();
   const isNew = sponsor === null;
+  const fieldId = useId();
 
   const [name, setName] = useState(sponsor?.name ?? '');
   const [aliasesText, setAliasesText] = useState((sponsor?.aliases ?? []).join(', '));
@@ -91,36 +92,42 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
 
       <div className="p-4 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Name</label>
+          <label htmlFor={`${fieldId}-name`} className="block text-sm font-medium text-foreground mb-1">Name</label>
           <input
             type="text"
+            id={`${fieldId}-name`}
             value={name}
+            aria-required="true"
+            aria-invalid={!!error && !name.trim()}
+            aria-describedby={error ? `${fieldId}-error` : undefined}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
+            className={`w-full ${inputBase}`}
             placeholder="Sponsor name"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor={`${fieldId}-aliases`} className="block text-sm font-medium text-foreground mb-1">
             Aliases <span className="text-muted-foreground font-normal">(comma-separated)</span>
           </label>
           <input
             type="text"
+            id={`${fieldId}-aliases`}
             value={aliasesText}
             onChange={(e) => setAliasesText(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
+            className={`w-full ${inputBase}`}
             placeholder="alt name, abbreviation"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1">Category</label>
+          <label htmlFor={`${fieldId}-category`} className="block text-sm font-medium text-foreground mb-1">Category</label>
           <input
             type="text"
+            id={`${fieldId}-category`}
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
+            className={`w-full ${inputBase}`}
             placeholder="e.g. technology"
           />
         </div>
@@ -131,6 +138,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
           </label>
           <select
             id="sponsor-segment-category"
+            aria-describedby={`${fieldId}-segment-help`}
             value={segmentCategory}
             onChange={(e) => setSegmentCategory(e.target.value as SegmentCategory | '')}
             className={`w-full ${selectBase}`}
@@ -140,13 +148,13 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
               <option key={c} value={c}>{SEGMENT_CATEGORY_LABELS[c]}</option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p id={`${fieldId}-segment-help`} className="mt-1 text-xs text-muted-foreground">
             Overrides the detected category for this sponsor.
           </p>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-2">Tags</label>
+        <fieldset>
+          <legend className="block text-sm font-medium text-foreground mb-2">Tags</legend>
           <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
             {(vocab?.all_tags ?? []).map((tag) => {
               const on = tags.includes(tag);
@@ -167,7 +175,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
               );
             })}
           </div>
-        </div>
+        </fieldset>
 
         {!isNew && (
           <div className="flex items-center gap-2">
@@ -182,7 +190,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
           </div>
         )}
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p id={`${fieldId}-error`} role="alert" className="text-sm text-destructive">{error}</p>}
       </div>
 
       <div className="flex items-center justify-end gap-2 p-4 border-t border-border">

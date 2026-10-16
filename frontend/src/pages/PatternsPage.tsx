@@ -1,3 +1,4 @@
+import { pageHeader, pageTitle } from '../components/pageStyles';
 import { useState, useEffect, useMemo } from 'react';
 import PageTabs from '../components/PageTabs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -205,8 +206,8 @@ function PatternsPage() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Ad Patterns</h1>
+      <div className={pageHeader}>
+        <h1 className={pageTitle}>Ad Patterns</h1>
         {activeTab === 'patterns' && (
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground">

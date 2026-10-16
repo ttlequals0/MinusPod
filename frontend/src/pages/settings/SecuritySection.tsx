@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -75,6 +76,7 @@ function SecuritySection({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  useUnsavedChanges(!!(agentInput || currentPassword || newPassword || confirmPassword));
 
   const handleLogout = async () => {
     await logout();
@@ -155,6 +157,8 @@ function SecuritySection({
             <input
               type="password"
               id="currentPassword"
+              disabled={isChangingPassword}
+              aria-describedby={passwordError ? "password-error" : undefined}
               autoComplete="current-password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -171,6 +175,9 @@ function SecuritySection({
           <input
             type="password"
             id="newPassword"
+            aria-invalid={!!passwordError && !!newPassword && newPassword.length < MIN_PASSWORD_LENGTH}
+            disabled={isChangingPassword}
+            aria-describedby={passwordError ? "password-error" : undefined}
             autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
@@ -186,6 +193,9 @@ function SecuritySection({
           <input
             type="password"
             id="confirmPassword"
+            aria-invalid={!!passwordError && newPassword !== confirmPassword}
+            disabled={isChangingPassword}
+            aria-describedby={passwordError ? "password-error" : undefined}
             autoComplete="new-password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
@@ -194,7 +204,7 @@ function SecuritySection({
         </div>
 
         {passwordError && (
-          <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+          <div id="password-error" role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
             {passwordError}
           </div>
         )}
@@ -283,6 +293,7 @@ function SecuritySection({
                 }}
                 placeholder="^atc/"
                 aria-label="New blocked agent pattern"
+                aria-describedby={agentError ? "blocked-agent-error" : undefined}
                 maxLength={200}
                 className={`px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0 ${focusRing}`}
               />
@@ -309,7 +320,7 @@ function SecuritySection({
           )}
         </div>
         {agentError && (
-          <p className="mt-2 text-sm text-destructive">{agentError}</p>
+          <p id="blocked-agent-error" role="alert" className="mt-2 text-sm text-destructive">{agentError}</p>
         )}
       </div>
     </CollapsibleSection>

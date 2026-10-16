@@ -1,6 +1,6 @@
 import { useDraftClose } from '../hooks/useDraftClose';
 import { isTopDialog, useEscape, useFocusTrap } from './Modal';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
@@ -909,6 +909,7 @@ function AdReviewModal({
     || reasonInput !== '' || reviewCategory !== (item.category ?? '')
     || (mode === 'create' && (textTemplateInput !== '' || categoryInput !== '' || runs.length > 0));
   const { requestClose, confirmation } = useDraftClose(dirty, onClose, multiSubmitting);
+  const boundaryErrorId = useId();
   useEscape(requestClose, !showSplit && !multiSubmitting, dialogRef);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1362,6 +1363,7 @@ function AdReviewModal({
               value={startInput}
               aria-label="Selection start time"
               aria-invalid={boundaryError !== null}
+              aria-describedby={boundaryError ? boundaryErrorId : undefined}
               onChange={(e) => setStartInput(e.target.value)}
               onBlur={commitStartInput}
               onKeyDown={timeInputKeyDown(adStart, setStartInput)}
@@ -1376,6 +1378,7 @@ function AdReviewModal({
               value={endInput}
               aria-label="Selection end time"
               aria-invalid={boundaryError !== null}
+              aria-describedby={boundaryError ? boundaryErrorId : undefined}
               onChange={(e) => setEndInput(e.target.value)}
               onBlur={commitEndInput}
               onKeyDown={timeInputKeyDown(adEnd, setEndInput)}
@@ -1390,6 +1393,7 @@ function AdReviewModal({
           </div>
           {boundaryError && (
             <div
+              id={boundaryErrorId}
               role="alert"
               className={`${badgeBase} mt-1.5 inline-flex items-center gap-1.5 ${tint.destructive} font-medium`}
             >

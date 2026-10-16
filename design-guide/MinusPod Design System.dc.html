@@ -327,18 +327,18 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
   </div>
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
     <div style="font-size:15px;font-weight:600">Two summary-card variants</div>
-    <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">Both are legitimate; which one a screen uses follows from what the row is for. They share the panel recipe, the 12px/16px responsive padding, the 20px bold value and the 12px muted caption, so a page that mixes them still reads as one system.</p>
+    <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">Both are legitimate; which one a screen uses follows from what the row is for. They share the panel recipe, 16px padding, the 20px bold value and the 12px muted caption, so a page that mixes them still reads as one system.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(244px,1fr));gap:16px">
       <div>
-        <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px;text-align:center">
-          <div style="font-size:20px;font-weight:700">128</div>
-          <div style="font-size:12px;color:hsl(var(--muted-foreground));margin-top:2px">Completed</div>
+        <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px;text-align:left">
+          <div style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums">128</div>
+          <div style="font-size:12px;color:hsl(var(--muted-foreground))">Completed</div>
         </div>
-        <div style="font-size:12px;color:hsl(var(--muted-foreground));margin-top:6px"><b style="color:hsl(var(--foreground))">Counter</b>: value over a centered label. A dense row of same-shaped counts scanned as a set, as in <span style="font-family:ui-monospace,monospace;font-size:12px">FeedStatsCards</span>. The number leads because it is the content.</div>
+        <div style="font-size:12px;color:hsl(var(--muted-foreground));margin-top:6px"><b style="color:hsl(var(--foreground))">Counter</b>: value over a left-aligned label. A dense row of same-shaped counts scanned as a set, as in <span style="font-family:ui-monospace,monospace;font-size:12px">FeedStatsCards</span>. The number leads because it is the content.</div>
       </div>
       <div>
         <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px">
-          <div style="font-size:14px;color:hsl(var(--muted-foreground))">Avg Cost</div>
+          <div style="font-size:12px;color:hsl(var(--muted-foreground))">Avg Cost</div>
           <div style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums">$0.0412</div>
           <div style="font-size:12px;color:hsl(var(--muted-foreground));margin-top:4px">Min: $0.0102&nbsp;&nbsp;Max: $0.1980</div>
         </div>

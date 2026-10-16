@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from './useUnsavedChanges';
 import { useState } from 'react';
 import { useSyncFromQuery } from './useSyncFromQuery';
 
@@ -24,6 +25,7 @@ export function useDraftField<T>(
   const [value, setValue] = useState(initial);
   const [baseline, setBaseline] = useState(initial);
   const dirty = normalize(value) !== normalize(baseline);
+  useUnsavedChanges(dirty);
 
   useSyncFromQuery(source, (s) => {
     if (dirty) return;

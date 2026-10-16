@@ -108,7 +108,7 @@ describe('QueuePage', () => {
       queueLength: 25,
     });
     await screen.findByText('Episode 0');
-    expect(screen.getByRole('heading', { name: 'Queue' }).parentElement?.parentElement?.className).toContain('max-w-7xl');
+    expect(screen.getByRole('heading', { name: 'Queue' }).closest('.max-w-7xl')?.className).toContain('max-w-7xl');
     const activeLink = screen.getByRole('link', { name: 'Episode 0' });
     expect(activeLink.getAttribute('href')).toBe('/feeds/example-podcast/episodes/episode-0');
     expect(screen.getByText('Transcribing')).toBeDefined();

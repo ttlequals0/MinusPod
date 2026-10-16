@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useEffect, useRef, useState } from 'react';
 import type { AffectedRunsAction, LlmProvider, StageTunables, UpdateSettingsPayload } from '../../api/types';
 import { LLM_PROVIDERS, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
@@ -396,12 +397,13 @@ function LLMProviderSection({
             value={pricingSourceMode}
             onChange={(e) => onPricingSourceModeChange(e.target.value)}
             className={`w-full ${selectBase}`}
+            aria-describedby="pricingSourceMode-help"
           >
             <option value="auto">Auto (recommended)</option>
             <option value="litellm">LiteLLM catalog</option>
             <option value="free">None (free local models)</option>
           </select>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p id="pricingSourceMode-help" className="mt-1 text-sm text-muted-foreground">
             Auto picks by provider. Choose None only if your endpoint serves free local models.
           </p>
         </div>
@@ -420,6 +422,7 @@ function OllamaNumCtxField({
 }) {
   const upstream = (entry.value as number | null) ?? null;
   const [draft, setDraft] = useState(upstream === null ? '' : String(upstream));
+  useUnsavedChanges(draft !== (upstream === null ? '' : String(upstream)));
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Skip re-syncing upstream into the draft while the user is mid-edit; a
@@ -458,8 +461,9 @@ function OllamaNumCtxField({
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
         }}
         className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm disabled:opacity-60"
+        ariaDescribedBy="ollamaNumCtx-help"
       />
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p id="ollamaNumCtx-help" className="mt-1 text-sm text-muted-foreground">
         {entry.envOverride
           ? `Default from ${entry.envOverride}.`
           : "Ollama default (often 2048) silently truncates long prompts. Set to your model's context limit (8192+)."}

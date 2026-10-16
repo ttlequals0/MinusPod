@@ -1,3 +1,4 @@
+import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -137,10 +138,10 @@ function Search() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="flex justify-between items-start mb-6">
+      <div className={pageHeader}>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Search</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className={pageTitle}>Search</h1>
+          <p className={pageDescription}>
             Search across shows, episodes, transcripts, patterns, and sponsors
           </p>
         </div>

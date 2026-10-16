@@ -1,3 +1,4 @@
+import { pageHeader, pageTitle, summaryCard, summaryValue, summaryLabel } from '../components/pageStyles';
 import { useState, type ReactNode } from 'react';
 import PageTabs from '../components/PageTabs';
 import SortControls from '../components/SortControls';
@@ -26,10 +27,8 @@ import DownloadsTab from './history/DownloadsTab';
 type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost' | 'appVersion';
 
-const SUMMARY_CARD_CLASS = 'flex flex-col items-start justify-start border rounded-lg p-4 text-left';
-
 const FILTER_CARD_CLASS =
-  `${SUMMARY_CARD_CLASS} cursor-pointer transition-colors ` +
+  `${summaryCard} cursor-pointer transition-colors ` +
   'hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 function ProcessingTab({ tabs }: { tabs: ReactNode }) {
@@ -88,12 +87,12 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
   };
 
   if (isLoading) {
-    return <div><h1 className="text-2xl font-bold mb-6">History</h1>{tabs}<div role="tabpanel" id="history-panel-processing" aria-labelledby="history-tab-processing"><SkeletonRows count={8} /></div></div>;
+    return <div><h1 className={`${pageTitle} mb-6`}>History</h1>{tabs}<div role="tabpanel" id="history-panel-processing" aria-labelledby="history-tab-processing"><SkeletonRows count={8} /></div></div>;
   }
 
   if (error) {
     return <div>
-      <h1 className="text-2xl font-bold mb-6">History</h1>{tabs}
+      <h1 className={`${pageTitle} mb-6`}>History</h1>{tabs}
       <div role="tabpanel" id="history-panel-processing" aria-labelledby="history-tab-processing">
         <QueryError title="Failed to load processing history" onRetry={() => void refetch()} retrying={isFetching} />
       </div>
@@ -105,8 +104,8 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-foreground">History</h1>
+      <div className={pageHeader}>
+        <h1 className={pageTitle}>History</h1>
         <div className="flex gap-2">
           <button
             onClick={() => handleExport('csv')}
@@ -132,9 +131,9 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
       {/* Stats Summary */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
-          <div className={`${SUMMARY_CARD_CLASS} bg-card border-border`}>
-            <div className="text-xl font-bold text-foreground">{stats.totalProcessed}</div>
-            <div className="text-xs text-muted-foreground">Total Processed</div>
+          <div className={`${summaryCard} bg-card border-border`}>
+            <div className={`${summaryValue} text-foreground`}>{stats.totalProcessed}</div>
+            <div className={summaryLabel}>Total Processed</div>
           </div>
           <button
             type="button"
@@ -143,8 +142,8 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
             title="Filter the list below by completed runs"
             className={`${FILTER_CARD_CLASS} ${statusFilter === 'completed' ? 'border-primary bg-primary/5' : 'border-border bg-card'} ${focusRing}`}
           >
-            <div className="text-xl font-bold text-success">{stats.completedCount}</div>
-            <div className="text-xs text-muted-foreground">Completed</div>
+            <div className={`${summaryValue} text-success`}>{stats.completedCount}</div>
+            <div className={summaryLabel}>Completed</div>
           </button>
           <button
             type="button"
@@ -153,18 +152,18 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
             title="Filter the list below by failed runs"
             className={`${FILTER_CARD_CLASS} ${statusFilter === 'failed' ? 'border-primary bg-primary/5' : 'border-border bg-card'} ${focusRing}`}
           >
-            <div className="text-xl font-bold text-destructive">{stats.failedCount}</div>
-            <div className="text-xs text-muted-foreground">Failed</div>
+            <div className={`${summaryValue} text-destructive`}>{stats.failedCount}</div>
+            <div className={summaryLabel}>Failed</div>
           </button>
-          <div className={`${SUMMARY_CARD_CLASS} bg-card border-border`}>
-            <div className="text-xl font-bold text-foreground">{stats.totalAdsDetected}</div>
-            <div className="text-xs text-muted-foreground">Total Ads Detected</div>
+          <div className={`${summaryCard} bg-card border-border`}>
+            <div className={`${summaryValue} text-foreground`}>{stats.totalAdsDetected}</div>
+            <div className={summaryLabel}>Total Ads Detected</div>
           </div>
-          <div className={`${SUMMARY_CARD_CLASS} bg-card border-border`}>
-            <div className="text-xl font-bold text-foreground">
+          <div className={`${summaryCard} bg-card border-border`}>
+            <div className={`${summaryValue} text-foreground`}>
               {stats.totalLlmCost != null ? `$${stats.totalLlmCost.toFixed(2)}` : '-'}
             </div>
-            <div className="text-xs text-muted-foreground">Total Cost</div>
+            <div className={summaryLabel}>Total Cost</div>
           </div>
         </div>
       )}

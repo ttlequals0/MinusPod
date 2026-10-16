@@ -1,3 +1,4 @@
+import { pageTitle } from '../components/pageStyles';
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router';
@@ -582,7 +583,7 @@ function FeedDetail() {
               </div>
             ) : (
               <div className="flex items-start gap-2">
-                <h1 className="text-2xl font-bold text-foreground min-w-0 break-words">
+                <h1 className={pageTitle}>
                   {feedDisplayTitle(feed)}
                 </h1>
                 <FeedTypeBadge feedType={feed.feedType} className="mt-1.5" />

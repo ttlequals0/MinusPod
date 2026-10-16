@@ -1,3 +1,4 @@
+import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -161,9 +162,11 @@ function QueuePage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4 pb-20">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground mb-2">Queue</h1>
-        <p className="text-muted-foreground">Monitor active processing and manage queued episodes.</p>
+      <div className={pageHeader}>
+        <div>
+        <h1 className={pageTitle}>Queue</h1>
+        <p className={pageDescription}>Monitor active processing and manage queued episodes.</p>
+        </div>
       </div>
 
       <ActiveQueue

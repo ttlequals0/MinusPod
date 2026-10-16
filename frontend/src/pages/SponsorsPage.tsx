@@ -1,3 +1,4 @@
+import { pageHeader, pageTitle } from '../components/pageStyles';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import QueryError from '../components/QueryError';
@@ -23,8 +24,8 @@ type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_ma
 function SponsorsPage() {
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Sponsors</h1>
+      <div className={pageHeader}>
+        <h1 className={pageTitle}>Sponsors</h1>
       </div>
 
       <SponsorsSection />

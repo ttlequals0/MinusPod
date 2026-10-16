@@ -103,7 +103,7 @@ jobs:
         run: npm run design:check
 
       - name: Install browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Browser UI contracts
         run: npm run test:browser

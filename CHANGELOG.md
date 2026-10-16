@@ -19,6 +19,9 @@ release notes.
 - Shared touch targets retain 44 CSS px minimums on coarse pointers, including tablets. History summary values and labels align across clickable and static cards. History cards expose sorting, date ranges stay paired, and populated History and episode-cost tables switch to cards at tablet widths.
 - Theme text and filled-control contrast now passes the expanded contrast checks. Status-bar spacing follows its measured height, and shared animations respect reduced-motion preferences.
 
+- Independently saved settings now protect drafts during navigation and background refreshes. Failed retention saves keep the entered value; notification, key, pricing, and security fields cannot be edited while their saves are pending. UTC remains available in the timezone selector.
+- Form labels, help, and validation messages are associated with their controls. Headers and summary cards share sizing rules. WebKit dialog focus returns to the clicked trigger, and webhook deletion uses an explicit confirmation.
+
 ### Added
 - UI/UX audit with populated before/after images, a behavior contract, generated design-guide themes, and browser regression checks in CI.
 

@@ -1,10 +1,11 @@
+import { hasUnsavedChanges } from '../../hooks/useUnsavedChanges';
 /**
  * Tests for the Notifications settings section: email settings form
  * (render, save payload shape, test button) and the webhook list still
  * rendering under its sub-heading.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import NotificationsSection from './NotificationsSection';
@@ -379,5 +380,55 @@ describe('NotificationsSection', () => {
     await user.type(screen.getByLabelText('SMTP host'), 'x');
     expect((screen.getByRole('button', { name: 'Send test email' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/uses saved settings/)).toBeDefined();
+  });
+});
+
+
+describe('independent notification drafts', () => {
+  it('preserves email and timezone drafts across a background refresh and clears only saved drafts', async () => {
+    const user = userEvent.setup();
+    const client = makeClient();
+    render(<QueryClientProvider client={client}><NotificationsSection /></QueryClientProvider>);
+    const host = await screen.findByLabelText('SMTP host');
+    const original = makeSettings();
+    await user.clear(host);
+    await user.type(host, original.smtpHost + '.draft');
+    await user.selectOptions(screen.getByLabelText('Timezone'), 'America/New_York');
+    expect(hasUnsavedChanges()).toBe(true);
+    act(() => {
+      client.setQueryData(['emailNotifications'], { ...original, smtpPort: original.smtpPort + 1 });
+      client.setQueryData(['notificationTimezone'], { timezone: 'Europe/London' });
+    });
+    expect((host as HTMLInputElement).value).toBe(original.smtpHost + '.draft');
+    expect((screen.getByLabelText('Timezone') as HTMLSelectElement).value).toBe('America/New_York');
+    mockUpdateTimezone.mockRejectedValueOnce(new Error('Save failed'));
+    await user.click(screen.getByRole('button', { name: 'Save timezone' }));
+    await screen.findByRole('alert');
+    expect((screen.getByLabelText('Timezone') as HTMLSelectElement).value).toBe('America/New_York');
+    expect(hasUnsavedChanges()).toBe(true);
+    mockUpdateTimezone.mockResolvedValueOnce({ timezone: 'America/New_York' });
+    await user.click(screen.getByRole('button', { name: 'Save timezone' }));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Save timezone' }) as HTMLButtonElement).disabled).toBe(true));
+    expect(hasUnsavedChanges()).toBe(true);
+    mockUpdateEmail.mockResolvedValueOnce({ ...original, smtpHost: original.smtpHost + '.draft' });
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(hasUnsavedChanges()).toBe(false));
+  });
+
+  it('requires an explicit discard before closing a webhook draft', async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await screen.findByLabelText('SMTP host');
+    await user.click(screen.getByRole('button', { name: 'Add Webhook' }));
+    await user.type(screen.getByLabelText('URL', { exact: true }), 'http://hook.example.com/x');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    const dialog = screen.getByRole('dialog', { name: 'Discard unsaved changes?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect((screen.getByLabelText('URL', { exact: true }) as HTMLInputElement).value).toBe('http://hook.example.com/x');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+    expect(screen.queryByLabelText('URL', { exact: true })).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(hasUnsavedChanges()).toBe(false);
   });
 });

@@ -1,3 +1,4 @@
+import { pageHeader, pageTitle, summaryValue, summaryLabel } from '../components/pageStyles';
 import { Fragment, useState, useMemo, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
@@ -42,7 +43,7 @@ function ReviewerStatCard({ label, value }: { label: string; value: number | str
   return (
     <div className="bg-secondary/50 rounded-md p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold tabular-nums text-foreground">{value}</p>
+      <p className={`${summaryValue} text-foreground`}>{value}</p>
     </div>
   );
 }
@@ -54,7 +55,7 @@ function Metric({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="flex min-w-0 flex-col">
       <p className="flex-1 text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold tabular-nums text-foreground">{value}</p>
+      <p className={`${summaryValue} text-foreground`}>{value}</p>
     </div>
   );
 }
@@ -852,8 +853,8 @@ export default function StatsPage() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Stats</h1>
+      <div className={pageHeader}>
+        <h1 className={pageTitle}>Stats</h1>
         <div className="w-full sm:w-64 min-w-0">
         <label htmlFor="stats-summary-podcast" className={filterLabel}>Podcast</label>
         <select
@@ -937,38 +938,17 @@ export default function StatsPage() {
       )}
       {dashboard && (
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-          <div className="bg-card rounded-lg border border-border p-4">
-            <p className="text-sm text-muted-foreground">Total Episodes</p>
-            <p className="text-xl font-bold tabular-nums text-foreground">{dashboard.totalEpisodesProcessed}</p>
-            {dashboard.totalRuns !== dashboard.totalEpisodesProcessed && (
-              <p className="text-xs text-muted-foreground mt-1">{dashboard.totalRuns} processing runs</p>
-            )}
-          </div>
-          <div className="bg-card rounded-lg border border-border p-4">
-            <p className="text-sm text-muted-foreground">Total Ads Removed</p>
-            <p className="text-xl font-bold tabular-nums text-foreground">{dashboard.totalAdsRemoved}</p>
-          </div>
-          <div className="bg-card rounded-lg border border-border p-4">
-            <p className="text-sm text-muted-foreground">Total Audio Cues</p>
-            <p className="text-xl font-bold tabular-nums text-foreground">{dashboard.totalAudioCuesDetected}</p>
-          </div>
-          <div className="bg-card rounded-lg border border-border p-4">
-            <p className="text-sm text-muted-foreground">Total Time Saved</p>
-            <p className="text-xl font-bold tabular-nums text-foreground">{formatDuration(dashboard.totalTimeSavedSeconds)}</p>
-            {dashboard.episodesWithTimeSaved > 0 &&
-              dashboard.episodesWithTimeSaved !== dashboard.totalEpisodesProcessed && (
-                <p className="text-xs text-muted-foreground mt-1">from {dashboard.episodesWithTimeSaved} episodes</p>
-              )}
-          </div>
-          <div className="bg-card rounded-lg border border-border p-4">
-            <p className="text-sm text-muted-foreground">Total Cost</p>
-            <p className="text-xl font-bold tabular-nums text-foreground">{formatCost(dashboard.totalLlmCost)}</p>
-          </div>
-          <div className="bg-card rounded-lg border border-border p-4">
-            <p className="text-sm text-muted-foreground">Total Tokens</p>
-            <p className="text-xl font-bold tabular-nums text-foreground">{formatTokenCount(dashboard.totalInputTokens + dashboard.totalOutputTokens)}</p>
-            <p className="text-xs text-muted-foreground mt-1">In: {formatTokenCount(dashboard.totalInputTokens)} / Out: {formatTokenCount(dashboard.totalOutputTokens)}</p>
-          </div>
+          <StatCard label="Total Episodes" value={String(dashboard.totalEpisodesProcessed)}
+            details={dashboard.totalRuns !== dashboard.totalEpisodesProcessed
+              ? `${dashboard.totalRuns} processing runs` : undefined} />
+          <StatCard label="Total Ads Removed" value={String(dashboard.totalAdsRemoved)} />
+          <StatCard label="Total Audio Cues" value={String(dashboard.totalAudioCuesDetected)} />
+          <StatCard label="Total Time Saved" value={formatDuration(dashboard.totalTimeSavedSeconds)}
+            details={dashboard.episodesWithTimeSaved > 0 && dashboard.episodesWithTimeSaved !== dashboard.totalEpisodesProcessed
+              ? `from ${dashboard.episodesWithTimeSaved} episodes` : undefined} />
+          <StatCard label="Total Cost" value={formatCost(dashboard.totalLlmCost)} />
+          <StatCard label="Total Tokens" value={formatTokenCount(dashboard.totalInputTokens + dashboard.totalOutputTokens)}
+            details={`In: ${formatTokenCount(dashboard.totalInputTokens)} / Out: ${formatTokenCount(dashboard.totalOutputTokens)}`} />
         </div>
       )}
 
@@ -1555,9 +1535,9 @@ function CleanupUsageCards({ title, usage }: { title: string; usage: CleanupStat
 
 function StatCard({ label, value, details }: { label: string; value: string; details?: ReactNode }) {
   return (
-    <div className="row-span-3 grid grid-rows-subgrid gap-y-0 bg-card rounded-lg border border-border p-3 sm:p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="text-xl font-bold tabular-nums text-foreground">{value}</p>
+    <div className="row-span-3 grid grid-rows-subgrid gap-y-0 bg-card rounded-lg border border-border p-4">
+      <p className={summaryLabel}>{label}</p>
+      <p className={`${summaryValue} text-foreground`}>{value}</p>
       {details && <p className="flex flex-wrap content-start gap-x-2 text-xs text-muted-foreground mt-1 [&>span]:whitespace-nowrap">{details}</p>}
     </div>
   );

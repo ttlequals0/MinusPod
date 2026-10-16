@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -50,6 +51,9 @@ function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
     unknownReserve: value.unknownReserve,
   });
   const [budgetDirty, setBudgetDirty] = useState(false);
+  useUnsavedChanges(draft.enabled !== value.enabled || draft.maxReservations !== value.maxReservations
+    || draft.unknownCost !== value.unknownCost || draft.displayCurrency !== value.displayCurrency
+    || draft.dailyLimit !== value.dailyLimit || draft.unknownReserve !== value.unknownReserve);
   const [preview, setPreview] = useState<{
     currency: string; fromCurrency: string; dailyLimit: string; unknownReserve: string; fromRate: string;
   } | null>(null);
@@ -168,7 +172,7 @@ function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
           </div>
         )}
       </div>
-      <div><label htmlFor="dailyBudget" className="block text-sm font-medium text-foreground mb-1">Daily limit in {draft.displayCurrency}</label><input id="dailyBudget" value={draft.dailyLimit} inputMode="decimal" disabled={needsCurrentRate} onChange={(event) => { setDraft({ ...draft, dailyLimit: event.target.value }); setBudgetDirty(true); }} className="w-full px-3 py-2 rounded-lg border border-input bg-background disabled:opacity-50" /><p className="mt-1 text-xs text-muted-foreground">0 allows unlimited daily spending.</p></div>
+      <div><label htmlFor="dailyBudget" className="block text-sm font-medium text-foreground mb-1">Daily limit in {draft.displayCurrency}</label><input id="dailyBudget" value={draft.dailyLimit} inputMode="decimal" disabled={needsCurrentRate} onChange={(event) => { setDraft({ ...draft, dailyLimit: event.target.value }); setBudgetDirty(true); }} className="w-full px-3 py-2 rounded-lg border border-input bg-background disabled:opacity-50" aria-describedby="dailyBudget-help" /><p id="dailyBudget-help" className="mt-1 text-xs text-muted-foreground">0 allows unlimited daily spending.</p></div>
       <div><label htmlFor="maxReservations" className="block text-sm font-medium text-foreground mb-1">Concurrent reservations</label><NumberInput id="maxReservations" value={draft.maxReservations} min={1} max={64} fallback={1} parse={parseInt} onCommit={(maxReservations) => setDraft({ ...draft, maxReservations })} className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground" /></div>
     </div>
     <div><label htmlFor="unknownCost" className="block text-sm font-medium text-foreground mb-1">When cost is unknown</label><select id="unknownCost" value={draft.unknownCost} onChange={(event) => setDraft({ ...draft, unknownCost: event.target.value as ProviderBudget['unknownCost'] })} className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground ${focusRing}`}><option value="deny">Deny the request</option><option value="reserve">Reserve a fixed amount</option><option value="allow">Allow without a reservation</option></select></div>
@@ -234,6 +238,9 @@ function QueueHoldBlock<
   const ttlHours = draft.ttlHours ?? data?.ttlHours ?? 48;
   const llmUsageUrl = draft.llmUsageUrl ?? data?.llmUsageUrl ?? '';
   const rateLimitProbeMinutes = draft.rateLimitProbeMinutes ?? data?.rateLimitProbeMinutes ?? 5;
+  useUnsavedChanges(!!data && (enabled !== data.enabled
+    || (!!config.ttlInputId && ttlHours !== data.ttlHours)
+    || (!!config.probeFields && (llmUsageUrl !== data.llmUsageUrl || rateLimitProbeMinutes !== data.rateLimitProbeMinutes))));
 
   const save = useMutation({
     mutationFn: () => config.save({
@@ -333,8 +340,9 @@ function QueueHoldBlock<
               onChange={(e) => setDraft((d) => ({ ...d, llmUsageUrl: e.target.value }))}
               placeholder="https://your-proxy:8001/v1/usage"
               className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+              aria-describedby="llmUsageUrl-help"
             />
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p id="llmUsageUrl-help" className="mt-1 text-sm text-muted-foreground">
               Checked first while the queue is paused; without one, a single test
               call to the LLM provider stands in.
             </p>
@@ -471,9 +479,9 @@ function QueueControlSection({
                 step={1}
                 fallback={20}
                 commitOn="blur"
-                onCommit={onQueueManualBoostChange}
+                onCommit={onQueueManualBoostChange} ariaDescribedBy="queueManualBoost-help"
               />
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p id="queueManualBoost-help" className="mt-2 text-sm text-muted-foreground">
                 Playing an unprocessed episode or reprocessing one. Keep highest so your requests skip the backlog. Default 20.
               </p>
             </div>
@@ -489,9 +497,9 @@ function QueueControlSection({
                 step={1}
                 fallback={5}
                 commitOn="blur"
-                onCommit={onQueueFreshBoostChange}
+                onCommit={onQueueFreshBoostChange} ariaDescribedBy="queueFreshBoost-help"
               />
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p id="queueFreshBoost-help" className="mt-2 text-sm text-muted-foreground">
                 Published in the last 48 hours. Needs the toggle above. Default 5.
               </p>
             </div>
@@ -507,9 +515,9 @@ function QueueControlSection({
                 step={1}
                 fallback={0}
                 commitOn="blur"
-                onCommit={onQueueBulkBoostChange}
+                onCommit={onQueueBulkBoostChange} ariaDescribedBy="queueBulkBoost-help"
               />
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p id="queueBulkBoost-help" className="mt-2 text-sm text-muted-foreground">
                 Reprocess All and segment re-renders. Leave at 0 to keep backfills last. Default 0.
               </p>
             </div>

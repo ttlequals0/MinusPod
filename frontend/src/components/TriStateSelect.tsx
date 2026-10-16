@@ -6,6 +6,7 @@ interface TriStateSelectProps {
   value: boolean | null | undefined;
   onChange: (value: boolean | null) => void;
   id?: string;
+  ariaDescribedBy?: string;
   disabled?: boolean;
   /** Tailwind classes; falls back to the project's standard input shape. */
   className?: string;
@@ -19,6 +20,7 @@ function TriStateSelect({
   value,
   onChange,
   id,
+  ariaDescribedBy,
   disabled,
   className,
   globalLabel = 'Global Default',
@@ -31,6 +33,7 @@ function TriStateSelect({
   return (
     <select
       id={id}
+      aria-describedby={ariaDescribedBy}
       value={stringValue}
       disabled={disabled}
       onChange={(e) => {

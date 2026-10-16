@@ -25,12 +25,13 @@ function ExperimentsSection({ addressingMode, onAddressingModeChange }: Experime
           value={addressingMode}
           onChange={(e) => onAddressingModeChange(e.target.value)}
           className={`w-full ${selectBase}`}
+          aria-describedby="adAddressingMode-help"
         >
           <option value="timestamps">Timestamps (default)</option>
           <option value="segment_ids">Segment IDs</option>
           <option value="random">Random (A/B test)</option>
         </select>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p id="adAddressingMode-help" className="mt-2 text-sm text-muted-foreground">
           How the detector points at ads. Timestamps asks for start and end times; segment
           IDs asks it to name numbered transcript lines, which removes invented timestamps.
           Random alternates so the Stats page can compare them.

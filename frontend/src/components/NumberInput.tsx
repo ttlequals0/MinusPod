@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { useEffect, useRef, useState } from 'react';
 
 interface NumberInputProps {
@@ -8,6 +9,8 @@ interface NumberInputProps {
   onCommit: (value: number) => void;
   id?: string;
   ariaLabel?: string;
+  ariaDescribedBy?: string;
+  ariaInvalid?: boolean;
   step?: number | 'any';
   parse?: (s: string) => number;
   className?: string;
@@ -30,13 +33,14 @@ interface NumberInputProps {
  * text parses, and normalizes (empty/invalid -> fallback, else clamp) on blur.
  */
 export default function NumberInput({
-  value, min, max, fallback, onCommit, id, ariaLabel, step,
+  value, min, max, fallback, onCommit, id, ariaLabel, ariaDescribedBy, ariaInvalid, step,
   disabled = false, commitOn = 'edit',
   parse = parseFloat,
   className = 'w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring',
 }: NumberInputProps) {
   const [text, setText] = useState(String(value));
   const focused = useRef(false);
+  useUnsavedChanges(text !== String(value));
 
   // Re-sync from the prop when it changes externally (settings load / reset),
   // but never while the user is mid-edit.
@@ -51,6 +55,8 @@ export default function NumberInput({
       type="number"
       id={id}
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
+      aria-invalid={ariaInvalid}
       value={text}
       min={min}
       max={max}

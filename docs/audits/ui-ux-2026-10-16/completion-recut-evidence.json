@@ -1,0 +1,31 @@
+{
+  "actualRecut": true,
+  "processedAudioRangeStatus": 206,
+  "idleHeaderTop": 0,
+  "measures": [
+    {
+      "state": "running-collapsed",
+      "barBottom": 45,
+      "headerTop": 45,
+      "inset": 45
+    },
+    {
+      "state": "running-expanded",
+      "barBottom": 164,
+      "headerTop": 164,
+      "inset": 164
+    },
+    {
+      "state": "desktop-expanded",
+      "barBottom": 164,
+      "headerTop": 164,
+      "inset": 164
+    },
+    {
+      "state": "desktop-collapsed",
+      "barBottom": 45,
+      "headerTop": 45,
+      "inset": 45
+    }
+  ]
+}

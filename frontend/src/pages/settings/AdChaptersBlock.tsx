@@ -125,9 +125,9 @@ function AdChaptersBlock({
             step={0.05}
             fallback={0.9}
             disabled={disabled}
-            onCommit={onMinConfidenceChange}
+            onCommit={onMinConfidenceChange} ariaDescribedBy="adChapterMinConfidence-help"
           />
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p id="adChapterMinConfidence-help" className="mt-2 text-sm text-muted-foreground">
             Kept segments below this score get no chapter. 0 to 1, default 0.9.
           </p>
         </div>

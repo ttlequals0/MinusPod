@@ -62,7 +62,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
   return (
     <Modal ariaLabel="Import patterns" onClose={onClose} closeOnEscape={!busy} panelClassName="w-full max-w-md p-6 text-card-foreground">
       <h2 className="text-lg font-semibold mb-3">Import patterns</h2>
-      <p className="text-sm text-muted-foreground mb-4">
+      <p id="pattern-import-file-help" className="text-sm text-muted-foreground mb-4">
         Upload a JSON file exported from MinusPod, or a single community-pattern JSON.
       </p>
 
@@ -74,6 +74,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
         accept="application/json,.json"
         disabled={busy}
         className="block w-full mb-4 text-sm py-2"
+        aria-describedby="pattern-import-file-help"
       />
 
       <div className="mb-4">

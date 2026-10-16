@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -38,6 +39,8 @@ function CommunityPatternsSection() {
   const enabled = draft.enabled ?? data?.enabled ?? false;
   const cron = draft.cron ?? data?.cron ?? '0 3 * * 0';
   const categories = draft.categories ?? data?.categories ?? SEGMENT_CATEGORIES;
+  useUnsavedChanges(!!data && (enabled !== data.enabled || cron !== data.cron
+    || categories.length !== data.categories.length || categories.some((category) => !data.categories.includes(category))));
 
   const save = useMutation({
     mutationFn: () => updateCommunitySyncSettings({ enabled, cron, categories }),

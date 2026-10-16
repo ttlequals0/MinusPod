@@ -209,6 +209,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                   ...prev, category: e.target.value as SegmentCategory | '',
                 }))}
                 className={`w-full ${selectBase}`}
+                aria-describedby="pattern-category-help"
               >
                 <option value="">Uncategorized</option>
                 {SEGMENT_CATEGORIES.map((c) => (
@@ -217,7 +218,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p id="pattern-category-help" className="text-xs text-muted-foreground mt-1">
                 Each feed's segment actions decide what happens to matches in
                 this category. Uncategorized patterns count as Sponsor.
               </p>

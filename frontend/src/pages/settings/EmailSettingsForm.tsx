@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
@@ -51,13 +52,18 @@ function EmailSettingsForm() {
     queryFn: getEmailNotificationSettings,
   });
 
-  useSyncFromQuery(settings, (s) => setDraft(draftFromSettings(s)));
+  useSyncFromQuery(settings, (s, previous) => {
+    if (!draft || (previous && JSON.stringify(draft) === JSON.stringify(draftFromSettings(previous)))) {
+      setDraft(draftFromSettings(s));
+    }
+  });
 
   const saveMutation = useMutation({
     mutationFn: (payload: EmailNotificationSettingsPayload) =>
       updateEmailNotificationSettings(payload),
     onSuccess: (data) => {
       queryClient.setQueryData(['emailNotifications'], data);
+      setDraft(draftFromSettings(data));
       setShowPassword(false);
     },
   });
@@ -68,14 +74,7 @@ function EmailSettingsForm() {
     onError: () => setTestResult({ success: false, message: 'Request failed' }),
   });
 
-  if (isError) {
-    return <p className="text-sm text-destructive">Failed to load email settings.</p>;
-  }
-  if (isLoading || !draft) {
-    return <p className="text-sm text-muted-foreground">Loading email settings...</p>;
-  }
-
-  const dirty = settings != null && (
+  const dirty = draft != null && settings != null && (
     draft.enabled !== settings.enabled
     || draft.smtpHost !== settings.smtpHost
     || draft.smtpPort !== String(settings.smtpPort)
@@ -87,6 +86,15 @@ function EmailSettingsForm() {
     || draft.events.length !== settings.events.length
     || draft.events.some((e) => !settings.events.includes(e))
   );
+
+  useUnsavedChanges(dirty);
+
+  if (isError) {
+    return <p className="text-sm text-destructive">Failed to load email settings.</p>;
+  }
+  if (isLoading || !draft) {
+    return <p className="text-sm text-muted-foreground">Loading email settings...</p>;
+  }
 
   const savedSendReady = settings != null && settings.enabled
     && !!settings.smtpHost && !!settings.fromAddress && !!settings.recipients;
@@ -126,7 +134,8 @@ function EmailSettingsForm() {
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-4 p-4 rounded-lg border border-border bg-background">
+    <form aria-describedby={saveMutation.isError ? "email-save-error" : undefined} onSubmit={handleSave} className="space-y-4 p-4 rounded-lg border border-border bg-background">
+      <fieldset disabled={saveMutation.isPending} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="sm:col-span-2">
           <label htmlFor="email-smtp-host" className="block text-sm font-medium text-foreground mb-1">
@@ -235,13 +244,14 @@ function EmailSettingsForm() {
           </label>
           <input
             id="email-recipients"
+            aria-describedby="email-recipients-help"
             type="text"
             value={draft.recipients}
             onChange={(e) => set('recipients', e.target.value)}
             placeholder="you@example.com, other@example.com"
             className={emailInputClass}
           />
-          <p className="text-xs text-muted-foreground mt-1">Comma-separated email addresses</p>
+          <p id="email-recipients-help" className="text-xs text-muted-foreground mt-1">Comma-separated email addresses</p>
         </div>
       </div>
 
@@ -268,7 +278,7 @@ function EmailSettingsForm() {
       />
 
       {saveMutation.isError && (
-        <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+        <div id="email-save-error" role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
           {(saveMutation.error as Error)?.message || 'Failed to save email settings'}
         </div>
       )}
@@ -305,6 +315,7 @@ function EmailSettingsForm() {
           </span>
         )}
       </div>
+      </fieldset>
     </form>
   );
 }

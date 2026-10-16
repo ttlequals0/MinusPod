@@ -34,7 +34,6 @@ function OutboundRequestsSection() {
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
 
   const [draft, setDraft] = useState<Partial<Record<FieldKey, string>>>({});
-  useUnsavedChanges(Object.keys(draft).length > 0);
   const [error, setError] = useState<string | null>(null);
 
   const save = useMutation({
@@ -59,6 +58,7 @@ function OutboundRequestsSection() {
   const isDefault = (key: FieldKey) => settings?.[key]?.isDefault !== false;
   const current = (key: FieldKey) => draft[key] ?? stored(key);
   const dirty = FIELDS.some(({ key }) => current(key) !== stored(key));
+  useUnsavedChanges(dirty);
 
   return (
     <CollapsibleSection
@@ -85,8 +85,9 @@ function OutboundRequestsSection() {
               autoComplete="off"
               maxLength={512}
               className={`w-full font-mono ${inputBase}`}
+              aria-describedby={key + '-help'}
             />
-            <p className="mt-1 text-sm text-muted-foreground">{help}</p>
+            <p id={key + '-help'} className="mt-1 text-sm text-muted-foreground">{help}</p>
           </div>
         ))}
 

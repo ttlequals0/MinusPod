@@ -49,6 +49,7 @@ function AudioSection({
             value={audioBitrate}
             onChange={(e) => onAudioBitrateChange(e.target.value)}
             className={`w-full ${selectBase}`}
+            aria-describedby="audioBitrate-help"
           >
             <option value="64k">64 kbps</option>
             <option value="96k">96 kbps</option>
@@ -56,7 +57,7 @@ function AudioSection({
             <option value="192k">192 kbps</option>
             <option value="256k">256 kbps</option>
           </select>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p id="audioBitrate-help" className="mt-1 text-sm text-muted-foreground">
             Applies when the episode is re-encoded.
           </p>
         </div>
@@ -70,13 +71,14 @@ function AudioSection({
             value={audioEncoderCompressionLevel}
             onChange={(e) => onAudioEncoderCompressionLevelChange(e.target.value)}
             className={`w-full ${selectBase}`}
+            aria-describedby="audioEncoderCompressionLevel-help"
           >
             <option value="default">Default</option>
             {Array.from({ length: 10 }, (_, i) => String(i)).map((level) => (
               <option key={level} value={level}>{level}</option>
             ))}
           </select>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p id="audioEncoderCompressionLevel-help" className="mt-1 text-sm text-muted-foreground">
             MP3 encoding quality: lower levels are slower with higher quality; higher levels encode faster. Default uses the encoder's own setting.
           </p>
         </div>
@@ -119,6 +121,7 @@ function AudioSection({
               value={audioNormalizeIntensity}
               onChange={(e) => onAudioNormalizeIntensityChange(e.target.value)}
               className={`w-full ${selectBase}`}
+              aria-describedby="audioNormalizeIntensity-help"
             >
               <option value="gentle">Gentle - Light leveling, preserves dynamics</option>
               <option value="normal">Normal - Balanced leveling (recommended)</option>
@@ -126,7 +129,7 @@ function AudioSection({
               <option value="extreme">Extreme - Heavy compression, very even level</option>
               <option value="maximum">Maximum - Flattest possible (may add slight pumping)</option>
             </select>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p id="audioNormalizeIntensity-help" className="mt-1 text-sm text-muted-foreground">
               Stronger settings flatten harder but reduce natural dynamics; Extreme and Maximum add compression on top.
             </p>
           </div>

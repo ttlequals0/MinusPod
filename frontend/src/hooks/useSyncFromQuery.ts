@@ -17,12 +17,12 @@ import { useState } from 'react';
 // Use this instead of useEffect+setState for query->form sync; useEffect
 // would seed AFTER commit (one frame of stale UI) and was the exact
 // anti-pattern fixed in Settings.tsx on May 4 2026.
-export function useSyncFromQuery<T>(data: T | undefined, onSync: (d: T) => void): void {
+export function useSyncFromQuery<T>(data: T | undefined, onSync: (d: T, previous: T | undefined) => void): void {
   const [snapshot, setSnapshot] = useState<T | undefined>(undefined);
   if (data !== snapshot) {
     setSnapshot(data);
     if (data !== undefined) {
-      onSync(data);
+      onSync(data, snapshot);
     }
   }
 }

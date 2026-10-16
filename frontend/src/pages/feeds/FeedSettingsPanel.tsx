@@ -778,8 +778,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   }}
                   placeholder="What only this show does, e.g. host-read ads start right after 'a word from our sponsors'."
                   className={`w-full resize-y placeholder:text-muted-foreground ${inputBase}`}
+                  aria-describedby="detection-notes-help"
                 />
-                <p className="flex justify-between gap-2 text-xs text-muted-foreground">
+                <p id="detection-notes-help" className="flex justify-between gap-2 text-xs text-muted-foreground">
                   <span>Sent to the model with every episode of this feed.</span>
                   <span className="tabular-nums shrink-0">{notesField.value.length} / 1000</span>
                 </p>
@@ -844,6 +845,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     })}
                     disabled={updateMutation.isPending}
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase} pl-2`}
+                    aria-describedby="processing-mode-help"
                   >
                     <option value="standard">Standard (detect and cut ads)</option>
                     <option value="keep_content">Keep content only (experimental)</option>
@@ -859,7 +861,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       ad-break end template. Mark one of each below to turn it on.
                     </p>
                   )}
-                  <p className={PROCESSING_MODE_HINTS[processingMode].className}>
+                  <p id="processing-mode-help" className={PROCESSING_MODE_HINTS[processingMode].className}>
                     {PROCESSING_MODE_HINTS[processingMode].text}
                   </p>
                   {processingMode === 'cue_only' && (
@@ -1169,8 +1171,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   }}
                   placeholder="Make listener donations their own chapter."
                   className={`w-full resize-y placeholder:text-muted-foreground ${inputBase}`}
+                  aria-describedby="chapter-notes-help"
                 />
-                <p className="flex justify-between gap-2 text-xs text-muted-foreground">
+                <p id="chapter-notes-help" className="flex justify-between gap-2 text-xs text-muted-foreground">
                   <span>Sent with every chapter request for this feed, for example: Always make the listener donation and producer thank-you segment its own chapter titled Donations.</span>
                   <span className="tabular-nums shrink-0">{chapterNotesField.value.length} / 1000</span>
                 </p>

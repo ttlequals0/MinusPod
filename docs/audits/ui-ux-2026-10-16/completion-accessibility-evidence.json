@@ -1,0 +1,38 @@
+{
+  "engine": "chromium",
+  "widthCssPx": 390,
+  "routes": [
+    {
+      "route": "settings",
+      "violationCount": 0
+    },
+    {
+      "route": "add",
+      "violationCount": 0
+    },
+    {
+      "route": "sponsors",
+      "violationCount": 0
+    },
+    {
+      "route": "patterns",
+      "violationCount": 0
+    },
+    {
+      "route": "history",
+      "violationCount": 0
+    },
+    {
+      "route": "stats",
+      "violationCount": 0
+    },
+    {
+      "route": "queue",
+      "violationCount": 0
+    },
+    {
+      "route": "search",
+      "violationCount": 0
+    }
+  ]
+}

@@ -16,13 +16,14 @@ export default function CronScheduleField({ id, value, onChange, placeholder }: 
       </label>
       <input
         id={id}
+        aria-describedby={`${id}-help`}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={`w-40 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground font-mono text-sm ${focusRing}`}
       />
-      <span className="text-xs text-muted-foreground">UTC</span>
+      <span id={`${id}-help`} className="text-xs text-muted-foreground">UTC</span>
     </div>
   );
 }

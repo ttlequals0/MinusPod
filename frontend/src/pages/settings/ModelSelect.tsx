@@ -57,7 +57,7 @@ function ModelSelect({
           value={value === inheritValue ? '' : value}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={notConfigured || undefined}
-          aria-describedby={notConfigured ? requiredMessageId : undefined}
+          aria-describedby={[notConfigured ? requiredMessageId : "", description ? `${id}-help` : ""].filter(Boolean).join(" ") || undefined}
           placeholder={inheritLabel && inheritValue === ''
             ? `Blank: ${inheritLabel.toLowerCase()}`
             : "Provider's exact model ID"}
@@ -71,7 +71,7 @@ function ModelSelect({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={notConfigured || undefined}
-          aria-describedby={notConfigured ? requiredMessageId : undefined}
+          aria-describedby={[notConfigured ? requiredMessageId : "", description ? `${id}-help` : ""].filter(Boolean).join(" ") || undefined}
           className={`w-full min-h-11 sm:min-h-0 ${selectBase}`}
         >
           {inheritLabel && <option value={inheritValue}>{inheritLabel}</option>}
@@ -90,7 +90,7 @@ function ModelSelect({
         </p>
       )}
       <CatalogStatus loading={catalog.isLoading} error={catalog.isError} />
-      {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      {description && <p id={`${id}-help`} className="mt-1 text-sm text-muted-foreground">{description}</p>}
     </div>
   );
 }

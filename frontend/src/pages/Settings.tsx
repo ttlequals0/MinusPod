@@ -1,3 +1,4 @@
+import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
 import { useState, useEffect } from 'react';
 import QueryError from '../components/QueryError';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -727,18 +728,25 @@ function Settings() {
   // upstream query data identity changes. useSyncFromQuery encapsulates the
   // snapshot+conditional-setState pattern; staying render-phase preserves
   // the May 4 fix that moved these blocks off useEffect.
-  useSyncFromQuery(retention, (r) => {
+  useSyncFromQuery(retention, (r, previous) => {
+    if (previous && (retentionDays !== (previous.retentionDays || 30)
+      || originalRetentionDays !== (previous.originalRetentionDays ?? previous.retentionDays ?? 30)
+      || retentionEnabled !== previous.enabled)) return;
     setRetentionDays(r.retentionDays || 30);
     setOriginalRetentionDays(r.originalRetentionDays ?? r.retentionDays ?? 30);
     setRetentionEnabled(r.enabled);
   });
 
-  useSyncFromQuery(processingTimeouts, (t) => {
+  useSyncFromQuery(processingTimeouts, (t, previous) => {
+    if (previous && (softTimeoutMinutes !== Math.round(previous.softTimeoutSeconds / 60)
+      || hardTimeoutMinutes !== Math.round(previous.hardTimeoutSeconds / 60))) return;
     setSoftTimeoutMinutes(Math.round(t.softTimeoutSeconds / 60));
     setHardTimeoutMinutes(Math.round(t.hardTimeoutSeconds / 60));
   });
 
-  useSyncFromQuery(reviewerSettings, (rs) => {
+  useSyncFromQuery(reviewerSettings, (rs, previous) => {
+    if (previous && (reviewer.updatePatterns !== previous.updatePatternsFromReviewerAdjustments
+      || reviewer.minTrimThreshold !== previous.minTrimThreshold)) return;
     setReviewer((prev) => ({
       ...prev,
       updatePatterns: rs.updatePatternsFromReviewerAdjustments,
@@ -1036,7 +1044,12 @@ function Settings() {
   // (which runs before hasChanges is defined) skips re-seeding while dirty.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setFormDirty(hasChanges); }, [hasChanges]);
-  useUnsavedChanges(hasChanges);
+  useUnsavedChanges(hasChanges || podcastIndexApiKey !== '' || podcastIndexApiSecret !== ''
+    || (!!retention && (retentionDays !== (retention.retentionDays || 30)
+      || originalRetentionDays !== (retention.originalRetentionDays ?? retention.retentionDays ?? 30)
+      || retentionEnabled !== retention.enabled))
+    || (!!processingTimeouts && (softTimeoutMinutes !== Math.round(processingTimeouts.softTimeoutSeconds / 60)
+      || hardTimeoutMinutes !== Math.round(processingTimeouts.hardTimeoutSeconds / 60))));
 
   // An endpoint or provider-type change moves in-flight work to a different
   // account, so the save carries the operator's decision about that work.
@@ -1216,7 +1229,7 @@ function Settings() {
   if (settingsLoading) {
     return (
       <div className="max-w-3xl mx-auto pb-20">
-        <h1 className="text-2xl font-bold text-foreground mb-6">Settings</h1>
+        <h1 className={`${pageTitle} mb-6`}>Settings</h1>
         <SkeletonRows count={6} />
       </div>
     );
@@ -1224,17 +1237,17 @@ function Settings() {
 
   if (settingsFailed || !settings) {
     return <div className="max-w-3xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+      <h1 className={pageTitle}>Settings</h1>
       <QueryError title="Settings are unavailable. Your saved values could not be loaded." onRetry={() => void retrySettings()} retrying={settingsFetching} />
     </div>;
   }
 
   return (
     <div className="max-w-3xl mx-auto space-y-4 pb-20">
-      <div className="flex justify-between items-start">
+      <div className={pageHeader}>
         <div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">Settings</h1>
-          <p className="text-muted-foreground">
+          <h1 className={pageTitle}>Settings</h1>
+          <p className={pageDescription}>
             Configure ad detection prompts and system settings.
           </p>
         </div>

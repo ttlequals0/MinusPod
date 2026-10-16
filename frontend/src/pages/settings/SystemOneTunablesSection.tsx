@@ -1,3 +1,4 @@
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useState } from 'react';
 import type { SystemOneCredentialSlot, SystemOneProfile, SystemOneProfiles, SystemOneProvider, UpdateSettingsPayload } from '../../api/types';
 import { SLOT_LABELS } from '../../api/types';
@@ -38,6 +39,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
     setBaseline(profiles);
   }
   const dirty = !equalProfiles(draft, profiles);
+  useUnsavedChanges(dirty);
 
   const change = <K extends keyof SystemOneProfile>(
     slot: SystemOneCredentialSlot,

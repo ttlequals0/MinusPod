@@ -1,0 +1,22 @@
+{
+  "source": "Re-fetched real DTNS episode; CDN duration differs from backup. Tests verify operation, not correctness of stored ad timings.",
+  "checks": [
+    {
+      "engine": "chromium",
+      "originalPlayback": true,
+      "rangeBytes": 1024,
+      "rangeStatus": 206,
+      "waveformPeaks": true,
+      "duration": 3950.888375
+    },
+    {
+      "engine": "webkit",
+      "originalPlayback": true,
+      "rangeBytes": 1024,
+      "rangeStatus": 206,
+      "waveformPeaks": true,
+      "duration": 3950.915918367347
+    }
+  ],
+  "correctionSaved": true
+}

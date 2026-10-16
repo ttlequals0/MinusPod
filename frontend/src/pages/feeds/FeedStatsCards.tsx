@@ -1,3 +1,4 @@
+import { summaryCard, summaryValue, summaryLabel } from '../../components/pageStyles';
 import { useQuery } from '@tanstack/react-query';
 import { getDashboardStats } from '../../api/stats';
 import type { Feed } from '../../api/types';
@@ -19,9 +20,9 @@ function StatCard({ value, label, valueClass = 'text-foreground' }: {
   valueClass?: string;
 }) {
   return (
-    <div className="bg-card rounded-lg border border-border p-3 sm:p-4 text-center">
-      <p className={`text-xl font-bold ${valueClass}`}>{value}</p>
-      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+    <div className={`${summaryCard} bg-card border-border`}>
+      <p className={`${summaryValue} ${valueClass}`}>{value}</p>
+      <p className={summaryLabel}>{label}</p>
     </div>
   );
 }
