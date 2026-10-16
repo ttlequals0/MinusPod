@@ -32,9 +32,9 @@ export const edgeBtn =
   'disabled:opacity-40 disabled:cursor-not-allowed';
 
 // Amber "play selection" button, matched to the amber selection region/badge.
-// Wider than the ghost icon buttons (px-2) to fit the bracketed [play] glyphs.
+// Wider than the ghost icon buttons to fit the bracketed [play] glyphs.
 export const selectionBtn =
-  'inline-flex items-center gap-0.5 px-2 py-1.5 rounded transition-colors ' +
+  'inline-flex items-center gap-0.5 px-1 sm:px-2 py-1.5 rounded transition-colors ' +
   'border border-warning/50 text-warning bg-warning/10 ' +
   'hover:bg-warning/20 hover:border-warning ' +
   'dark:border-warning/60 dark:text-warning dark:hover:border-warning ' +

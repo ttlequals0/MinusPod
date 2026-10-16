@@ -159,6 +159,7 @@ mark,
 @media (pointer: coarse) {
   input, select, textarea { font-size: 16px; }
   button, summary, [role="switch"], .touch-target { min-width: 44px; min-height: 44px; }
+  @media (max-width: 639.98px) { .touch-target-row { min-width: 0; } }
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select { min-height: 44px; }
   summary:not(.flex) { padding-block: 12px; }
 }

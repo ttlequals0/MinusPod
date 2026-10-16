@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+- The ad editor's playback controls share one row on a phone. The Edit and Add buttons above Detected Ads center their icons.
+
 ## [2.100.16] - 2026-10-16
 
 ### Fixed

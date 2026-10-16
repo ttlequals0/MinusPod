@@ -14,3 +14,6 @@ export const btnDestructive = 'bg-destructive text-destructive-foreground hover:
 // Coarse-pointer sizing is enforced centrally in index.css, at every width.
 export const touchTarget =
   'touch-target inline-flex items-center justify-center min-h-11 min-w-11 sm:min-h-0 sm:min-w-0';
+// For a row that must stay on one line on a phone: full height, shared width below sm.
+export const touchTargetRow =
+  'touch-target-row inline-flex items-center justify-center min-h-11 sm:min-h-0';

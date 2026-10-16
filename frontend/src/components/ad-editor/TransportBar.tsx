@@ -3,12 +3,12 @@ import { Play, Pause, SkipBack, SkipForward, Rewind, FastForward, Square } from 
 import { formatTime } from '../../utils/adReviewHelpers';
 import { ghostBtn, primaryBtn, selectionBtn } from './controlStyles';
 import { focusRing } from '../../components/fieldStyles';
-import { touchTarget } from '../buttonStyles';
+import { touchTargetRow } from '../buttonStyles';
 import { tint } from '../badgeStyles';
 import SpeedMenu from './SpeedMenu';
 
 // Shared editor controls; the host owns audio, playhead, and handlers.
-// Wrap only when controls cannot fit on one row.
+// The controls share one row at every width; on a phone they split the width.
 interface TransportBarProps {
   isPlaying: boolean;
   onTogglePlay: () => void;
@@ -45,45 +45,45 @@ function TransportBar({
   selectionInfo,
 }: TransportBarProps) {
   return (
-    <div className="mt-3 mx-auto w-fit max-w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border">
+    <div className="mt-3 mx-auto w-full sm:w-fit max-w-full px-2 sm:px-3 py-2 rounded-lg bg-secondary/50 border border-border">
       {/* Controls and the selection readout share one row on desktop (there is
           plenty of width) and stack on mobile, so the editor is not three lines
           tall on a wide screen. The transport cluster keeps the speed control
           grouped beside it at any width. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center sm:gap-4">
-        <div className="flex flex-wrap items-center justify-center gap-0.5">
-          <button type="button" onClick={onSeekToStart} className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`} title="Jump to START pin">
-            <SkipBack className="w-4 h-4" />
+        <div className="flex items-center justify-center gap-0.5">
+          <button type="button" onClick={onSeekToStart} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Jump to START pin">
+            <SkipBack className="w-4 h-4 shrink-0" />
           </button>
-          <button type="button" onClick={() => onSeekRelative(-10)} className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`} title="Back 10s">
-            <Rewind className="w-4 h-4" />
+          <button type="button" onClick={() => onSeekRelative(-10)} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Back 10s">
+            <Rewind className="w-4 h-4 shrink-0" />
           </button>
-          <button type="button" onClick={onTogglePlay} className={`p-1.5 rounded ${primaryBtn} ${touchTarget} ${focusRing}`} title="Play / pause (Space)">
-            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+          <button type="button" onClick={onTogglePlay} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${primaryBtn} ${touchTargetRow} ${focusRing}`} title="Play / pause (Space)">
+            {isPlaying ? <Pause className="w-5 h-5 shrink-0" /> : <Play className="w-5 h-5 shrink-0" />}
           </button>
           {onPlaySelection && (
             <button
               type="button"
               onClick={onPlaySelection}
-              className={`${selectionBtn} ${touchTarget} ${focusRing}`}
+              className={`flex-none ${selectionBtn} ${touchTargetRow} ${focusRing}`}
               title="Play the selection only"
               aria-label="Play selection"
             >
               <span aria-hidden="true" className="text-xs font-bold leading-none">[</span>
-              <Play className="w-3.5 h-3.5" />
+              <Play className="w-3.5 h-3.5 shrink-0" />
               <span aria-hidden="true" className="text-xs font-bold leading-none">]</span>
             </button>
           )}
-          <button type="button" onClick={() => onSeekRelative(10)} className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`} title="Forward 10s">
-            <FastForward className="w-4 h-4" />
+          <button type="button" onClick={() => onSeekRelative(10)} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Forward 10s">
+            <FastForward className="w-4 h-4 shrink-0" />
           </button>
-          <button type="button" onClick={onSeekToEnd} className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`} title="Jump to END pin">
-            <SkipForward className="w-4 h-4" />
+          <button type="button" onClick={onSeekToEnd} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Jump to END pin">
+            <SkipForward className="w-4 h-4 shrink-0" />
           </button>
-          <button type="button" onClick={onStop} className={`p-1.5 rounded ${ghostBtn} ${touchTarget} ${focusRing}`} title="Stop (pause + return to START)">
-            <Square className="w-4 h-4" />
+          <button type="button" onClick={onStop} className={`flex-1 sm:flex-none px-0.5 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Stop (pause + return to START)">
+            <Square className="w-4 h-4 shrink-0" />
           </button>
-          <SpeedMenu playbackRate={playbackRate} onChange={onPlaybackRateChange} className="ml-0.5" />
+          <SpeedMenu playbackRate={playbackRate} onChange={onPlaybackRateChange} className="ml-0.5 shrink-0" />
         </div>
         {/* Selection readout: below the controls on mobile, beside them on desktop. */}
         <div className="mt-2 sm:mt-0 flex items-center justify-center gap-2 flex-wrap text-xs tabular-nums text-muted-foreground">
