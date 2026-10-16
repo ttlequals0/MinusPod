@@ -26,10 +26,10 @@ import DownloadsTab from './history/DownloadsTab';
 type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost' | 'appVersion';
 
-// Shared shell for the clickable Completed/Failed filter cards. Background is set
-// per-state below (bg-card / bg-primary/5) so only one bg utility ever applies.
+const SUMMARY_CARD_CLASS = 'flex flex-col items-start justify-start border rounded-lg p-4 text-left';
+
 const FILTER_CARD_CLASS =
-  'border rounded-lg p-4 text-left cursor-pointer transition-colors ' +
+  `${SUMMARY_CARD_CLASS} cursor-pointer transition-colors ` +
   'hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 function ProcessingTab({ tabs }: { tabs: ReactNode }) {
@@ -132,7 +132,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
       {/* Stats Summary */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
-          <div className="bg-card border border-border rounded-lg p-4">
+          <div className={`${SUMMARY_CARD_CLASS} bg-card border-border`}>
             <div className="text-xl font-bold text-foreground">{stats.totalProcessed}</div>
             <div className="text-xs text-muted-foreground">Total Processed</div>
           </div>
@@ -156,11 +156,11 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
             <div className="text-xl font-bold text-destructive">{stats.failedCount}</div>
             <div className="text-xs text-muted-foreground">Failed</div>
           </button>
-          <div className="bg-card border border-border rounded-lg p-4">
+          <div className={`${SUMMARY_CARD_CLASS} bg-card border-border`}>
             <div className="text-xl font-bold text-foreground">{stats.totalAdsDetected}</div>
             <div className="text-xs text-muted-foreground">Total Ads Detected</div>
           </div>
-          <div className="bg-card border border-border rounded-lg p-4">
+          <div className={`${SUMMARY_CARD_CLASS} bg-card border-border`}>
             <div className="text-xl font-bold text-foreground">
               {stats.totalLlmCost != null ? `$${stats.totalLlmCost.toFixed(2)}` : '-'}
             </div>

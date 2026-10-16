@@ -79,6 +79,7 @@ Feed deletion, resets, and replace-mode imports use `ConfirmModal`. Name the obj
 - Normal text requires at least 4.5:1 contrast against its rendered surface. Test ordinary text, muted text, status text, links, solid controls, hover states, and tinted badges across every theme and mode.
 - Use the appropriate paired foreground token. Being token-based does not prove sufficient contrast. Disabled controls and decorative marks require separate interpretation; do not dilute active text with opacity.
 - Use one visible page `h1` at 24 CSS px, section headings at 18 CSS px, and consistent summary-card labels/values. Keep numeric column headings aligned with their values.
+- Summary cards in the same row align their values and label starts, including clickable cards. Use an explicit shared layout; native button centering must not shift content when a neighboring label wraps.
 - Layer order: sticky navigation 30, ordinary popovers and save bars 40, status bar 50, dialogs 60, dialog-owned popovers 70. Nested dialogs follow DOM order within the dialog layer.
 - The status bar reports its measured occupied height to Layout. Do not reserve an unconditional gap or assume that safe-area padding is zero.
 - Respect `prefers-reduced-motion` for spinners, copied-state animation, transitions, and smooth scrolling. Keep loading and status information understandable without animation.

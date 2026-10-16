@@ -7,6 +7,9 @@ PASS npm run test: 148 files, 1826 tests
 PASS Playwright: 28 checks at 320, 390, 768, and 1440 CSS px
   24 backend-free checks; 4 checks require MINUSPOD_POPULATED_URL.
   Local run used the supplied backup copy. CI skips populated checks.
+PASS History summary alignment: 240 combinations (20 themes x 2 modes x 6 widths)
+  Value and label starts match within each row; no document overflow.
+  Evidence: history-summary-alignment.json. History tests: 11 passed; build passed.
 PASS six Compose configuration combinations: local/parakeet/openai-api on CPU/GPU
 PASS 55 selected images; gallery loads 39 images and device filters work
 PASS local audit links and image references

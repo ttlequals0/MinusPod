@@ -16,7 +16,7 @@ release notes.
 - Failed Settings, search, queue, history, and sponsor requests show recovery actions instead of empty or indefinite-loading states. Search filters fit narrow screens and sponsor/pattern results open filtered destinations.
 - Dialogs require accessible names, contain keyboard focus, restore their triggers, and coordinate nested dialogs and popovers. Global search uses Ctrl/Cmd+K; editor shortcuts leave native controls alone.
 - Feed deletion, resets, and replace-mode imports use explicit confirmations. Registered settings drafts block accidental navigation and reload; edited dialogs ask before discarding changes. App updates wait for an explicit reload.
-- Shared touch targets retain 44 CSS px minimums on coarse pointers, including tablets. History cards expose sorting, date ranges stay paired, and populated History and episode-cost tables switch to cards at tablet widths.
+- Shared touch targets retain 44 CSS px minimums on coarse pointers, including tablets. History summary values and labels align across clickable and static cards. History cards expose sorting, date ranges stay paired, and populated History and episode-cost tables switch to cards at tablet widths.
 - Theme text and filled-control contrast now passes the expanded contrast checks. Status-bar spacing follows its measured height, and shared animations respect reduced-motion preferences.
 
 ### Added

@@ -20,3 +20,5 @@ The humanizer pass covers the audit report, both galleries, behavior contract, c
 Final text: [UI audit](REPORT.md), [documentation gaps](DOCUMENTATION-GAPS.md), [implemented gallery](implemented-gallery.html), [historical proposal gallery](gallery.html), and [behavior contract](../../../design-guide/UI-CONTRACT.md). Reader documentation changes are linked from the documentation review. The PR description received the same review before submission.
 
 Report length: 7,424 words before the final editorial pass; 7,368 words after, including the added documentation-review link. Counts use whitespace-separated tokens, including tables and code blocks. New factual documentation was assessed separately from editorial cuts; it is not counted as a prose reduction.
+
+History alignment follow-up: the added contract rule and changelog sentence use concrete behavior and contain no findings in the seven groups above. The rule preserves wrapped labels and names the native-button cause.

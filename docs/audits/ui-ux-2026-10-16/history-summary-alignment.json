@@ -1,0 +1,41 @@
+{
+  "source": "Populated disposable backup; real production History components and theme exports",
+  "widthsCssPx": [
+    320,
+    390,
+    640,
+    768,
+    1024,
+    1440
+  ],
+  "themes": [
+    "slate",
+    "catppuccin-mocha",
+    "catppuccin-mocha-teal",
+    "catppuccin-macchiato",
+    "catppuccin-frappe",
+    "dracula",
+    "dracula-midnight",
+    "dracula-pink",
+    "dracula-cyan",
+    "dracula-green",
+    "dracula-orange",
+    "nord",
+    "gruvbox",
+    "solarized",
+    "tokyo-night",
+    "github-dark",
+    "unifi",
+    "blue-slate",
+    "hulu",
+    "obsidian"
+  ],
+  "modes": [
+    "light",
+    "dark"
+  ],
+  "checkedCombinations": 240,
+  "maximumValueTopDifferenceCssPx": 0,
+  "maximumLabelTopDifferenceCssPx": 0,
+  "documentOverflow": false
+}
