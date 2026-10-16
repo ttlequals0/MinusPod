@@ -58,7 +58,7 @@ function ActiveQueue({
           </span>
         )}
       </div>
-      {failed ? <QueryError title="Processing status is unavailable." onRetry={onRetry} /> : loading ? <LoadingSpinner size="sm" /> : jobs.length > 0 ? (
+      {failed ? <QueryError title="Active processing is unavailable." onRetry={onRetry} /> : loading ? <LoadingSpinner size="sm" /> : jobs.length > 0 ? (
         <div className="space-y-3">
           {jobs.map((job) => (
             <ProcessingJobProgress
@@ -176,7 +176,7 @@ function QueuePage() {
         cancelIsPending={cancel.isPending}
         cancelingKey={cancel.variables ? `${cancel.variables.slug}:${cancel.variables.episodeId}` : null}
         loading={status.isPending && episodes.isPending}
-        failed={episodes.isError && !status.data}
+        failed={episodes.isError && !episodes.data && !status.data}
         onRetry={() => { void episodes.refetch(); void status.refetch(); }}
       />
       {cancel.isError && <p className="text-sm text-destructive">Could not cancel the selected episode. Refresh and try again.</p>}

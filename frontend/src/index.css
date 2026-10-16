@@ -19,8 +19,7 @@
     --accent-foreground: 213 10% 17%;
     --destructive: 1 82% 46.3%;
     --destructive-foreground: 0 0% 100%;
-    /* Match Tailwind green-600/amber-600 (light) and green-400/amber-400
-       (dark) so default rendering is unchanged after the token migration. */
+    /* Status colors are tuned for 4.5:1 text contrast on their backgrounds. */
     --success: 142.3 100% 23.5%;
     --success-foreground: 0 0% 100%;
     --warning: 30.1 100% 31.7%;
@@ -169,5 +168,6 @@ mark,
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  /* The spinner stays out: frozen, it reads as a hang. */
+  *:not(.animate-spin), :not(.animate-spin)::before, :not(.animate-spin)::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }

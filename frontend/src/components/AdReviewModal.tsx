@@ -906,7 +906,7 @@ function AdReviewModal({
   // ------------------------------------------------------------------
   // Hotkeys
   const dirty = adStart !== defaults.adStart || adEnd !== defaults.adEnd || sponsorInput !== (item.sponsor ?? '')
-    || reasonInput !== '' || reviewCategory !== (item.category ?? '')
+    || reasonInput !== ''
     || (mode === 'create' && (textTemplateInput !== '' || categoryInput !== '' || runs.length > 0));
   const { requestClose, confirmation } = useDraftClose(dirty, onClose, multiSubmitting);
   const boundaryErrorId = useId();

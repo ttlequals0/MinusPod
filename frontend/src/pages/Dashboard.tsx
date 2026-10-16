@@ -92,7 +92,7 @@ function Dashboard() {
   });
 
   const activeQuery = isEpisodesView ? episodesQuery : podcastsQuery;
-  const { data, isLoading, error } = activeQuery;
+  const { data, isLoading, error, isPlaceholderData } = activeQuery;
   const feeds = data?.feeds;
   const lastRefreshCompletedAt = data?.lastRefreshCompletedAt ?? null;
   const totalFeeds = data?.total ?? 0;
@@ -146,7 +146,7 @@ function Dashboard() {
 
   const navigate = useNavigate();
   const searchRootRef = useRef<HTMLDivElement>(null);
-  const { query, setQuery, debounced, ready, rows, current, setActive, onKeyDown, open, close, isFetching: searching, isError: searchFailed, refetch: retrySearch } = useUnifiedSearch('');
+  const { query, setQuery, debounced, ready, rows, current, setActive, onKeyDown, open, close, loading: searching, isError: searchFailed, refetch: retrySearch } = useUnifiedSearch('');
 
   const goToResult = (row: SearchResultRow) => { close(); navigate(row.to); };
 
@@ -170,7 +170,7 @@ function Dashboard() {
     );
   }
 
-  if (error) {
+  if (error && (!data || isPlaceholderData)) {
     return (
       <div className="space-y-6">
         <h1 className={pageTitle}>Feeds</h1>
@@ -183,6 +183,7 @@ function Dashboard() {
 
   return (
     <div>
+      {error && <div className="mb-6"><QueryError title="Feeds could not be refreshed. Showing the last loaded list." onRetry={() => void activeQuery.refetch()} retrying={activeQuery.isFetching} /></div>}
       <div
         className="relative mb-6"
         ref={searchRootRef}
@@ -417,7 +418,7 @@ function Dashboard() {
 
       {(deleteConfirm || actionError) && (
         <div className="fixed bottom-4 right-4 flex flex-col items-end gap-2">
-          {actionError && (
+          {actionError && !deleteConfirm && (
             <div className="max-w-sm bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
               <span className="flex-1">{actionError}</span>
               <button
@@ -434,7 +435,7 @@ function Dashboard() {
           {deleteConfirm && (
             <ConfirmModal title={`Delete ${feeds?.find(f => f.slug === deleteConfirm)?.title || deleteConfirm}?`}
               confirmLabel="Delete feed" pending={deleteMutation.isPending}
-              onCancel={() => setDeleteConfirm(null)} onConfirm={() => deleteMutation.mutate(deleteConfirm)}>
+              onCancel={() => { setDeleteConfirm(null); setActionError(null); }} onConfirm={() => deleteMutation.mutate(deleteConfirm)}>
               <p>This removes the feed and its downloaded files.</p>
               {feeds?.find(f => f.slug === deleteConfirm)?.feedType === 'local' && <p className="text-warning">Uploaded originals will also be deleted.</p>}
               {actionError && <p role="alert" className="text-destructive">{actionError}</p>}

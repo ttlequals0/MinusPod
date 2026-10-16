@@ -1235,7 +1235,7 @@ function Settings() {
     );
   }
 
-  if (settingsFailed || !settings) {
+  if (!settings) {
     return <div className="max-w-3xl mx-auto space-y-6">
       <h1 className={pageTitle}>Settings</h1>
       <QueryError title="Settings are unavailable. Your saved values could not be loaded." onRetry={() => void retrySettings()} retrying={settingsFetching} />
@@ -1244,6 +1244,7 @@ function Settings() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-4 pb-20">
+      {settingsFailed && <QueryError title="Settings could not be refreshed. Showing the last loaded values." onRetry={() => void retrySettings()} retrying={settingsFetching} />}
       <div className={pageHeader}>
         <div>
           <h1 className={pageTitle}>Settings</h1>

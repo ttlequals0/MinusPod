@@ -1,5 +1,6 @@
 import { pageHeader, pageTitle } from '../components/pageStyles';
 import { useState } from 'react';
+import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useSearchParams } from 'react-router';
 import QueryError from '../components/QueryError';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -40,6 +41,7 @@ function SponsorsSection() {
   const [search, setSearch] = useState(searchParams.get('q') || '');
   const [showInactive, setShowInactive] = useState(false);
   const [page, setPage] = useState(1);
+  useSyncFromQuery(searchParams.get('q') ?? undefined, setSearch);
   const { sortField, sortDirection, handleSort } =
     useSortState<SortField>('name', 'asc', () => setPage(1));
   const [editing, setEditing] = useState<Sponsor | null | undefined>(undefined); // undefined = closed, null = new
@@ -105,10 +107,11 @@ function SponsorsSection() {
       </div>
     );
   }
-  if (error) return <QueryError title="Failed to load sponsors" onRetry={() => void refetch()} retrying={isFetching} />;
+  if (error && !sponsors) return <QueryError title="Failed to load sponsors" onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div>
+      {error && <div className="mb-6"><QueryError title="Sponsors could not be refreshed. Showing the last loaded list." onRetry={() => void refetch()} retrying={isFetching} /></div>}
       {/* Filters + add */}
       <div className="bg-card rounded-lg border border-border p-4 mb-6">
         <div className={`${filterGrid} lg:grid-cols-4 items-end`}>

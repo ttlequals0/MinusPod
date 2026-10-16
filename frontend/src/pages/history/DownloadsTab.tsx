@@ -204,10 +204,10 @@ function DownloadsTab({ tabs }: Props) {
       ]} />
       {isLoading && <SkeletonRows count={8} />}
       {error && (
-        <QueryError title="Failed to load download history" onRetry={() => void refetch()} retrying={isFetching} />
+        <QueryError title={data ? 'Download history could not be refreshed. Showing the last loaded rows.' : 'Failed to load download history'} onRetry={() => void refetch()} retrying={isFetching} />
       )}
 
-      {!isLoading && !error && (
+      {!isLoading && data && (
         <>
           {/* Mobile cards */}
           <div className="md:hidden space-y-3 mb-4">

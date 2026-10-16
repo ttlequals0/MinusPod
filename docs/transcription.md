@@ -93,7 +93,7 @@ The faster-whisper model, compute type and the API settings do not apply to this
 
 In tests on narrative shows with music beds (issue #834), Parakeet ran faster than the Whisper large models and produced fewer repetition loops. See [Choosing between Whisper and Parakeet](#choosing-between-whisper-and-parakeet) for the measured trade-offs.
 
-The CPU image supports Linux arm64, including Docker on Apple Silicon. This uses the CPU provider; MinusPod does not select Metal or CoreML acceleration. Native macOS and Mac GPU performance were not validated in this audit. For an accelerated external transcriber, use an OpenAI-compatible server with `WHISPER_BACKEND=openai-api`.
+The CPU image supports Linux arm64, including Docker on Apple Silicon. This uses the CPU provider; MinusPod does not select Metal or CoreML acceleration. Native macOS and Mac GPU performance have not been measured. For an accelerated external transcriber, use an OpenAI-compatible server with `WHISPER_BACKEND=openai-api`.
 
 ## Remote Whisper APIs
 

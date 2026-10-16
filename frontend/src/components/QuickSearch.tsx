@@ -34,7 +34,7 @@ export function useQuickSearchHotkey(onOpen: (seed: string) => void) {
 function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { query, setQuery, debounced, ready, rows, current, setActive, onKeyDown, isFetching, isError, refetch } = useUnifiedSearch(seed);
+  const { query, setQuery, debounced, ready, rows, current, setActive, onKeyDown, loading, isError, refetch } = useUnifiedSearch(seed);
 
   useEscape(onClose, true, panelRef);
   useFocusTrap(panelRef);
@@ -72,7 +72,7 @@ function Palette({ seed, onClose }: { seed: string; onClose: () => void }) {
           />
         </div>
         <ul id="quick-search-results" role="listbox" aria-label="Results" className="max-h-[50vh] overflow-y-auto py-1">
-          <SearchResults rows={rows} activeIndex={current} onHover={setActive} onSelect={go} ready={ready} loading={isFetching} failed={isError} />
+          <SearchResults rows={rows} activeIndex={current} onHover={setActive} onSelect={go} ready={ready} loading={loading} failed={isError} />
         </ul>
         {isError && <button type="button" className="px-4 py-3 text-primary" onClick={() => void refetch()}>Retry search</button>}
         <div className="border-t border-border bg-secondary/50 px-4 py-2 text-sm">

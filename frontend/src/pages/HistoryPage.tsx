@@ -90,7 +90,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
     return <div><h1 className={`${pageTitle} mb-6`}>History</h1>{tabs}<div role="tabpanel" id="history-panel-processing" aria-labelledby="history-tab-processing"><SkeletonRows count={8} /></div></div>;
   }
 
-  if (error) {
+  if (error && !historyData) {
     return <div>
       <h1 className={`${pageTitle} mb-6`}>History</h1>{tabs}
       <div role="tabpanel" id="history-panel-processing" aria-labelledby="history-tab-processing">
@@ -126,6 +126,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
 
       {tabs}
       <div role="tabpanel" id="history-panel-processing" aria-labelledby="history-tab-processing" tabIndex={0}>
+      {error && <div className="mb-4"><QueryError title="History could not be refreshed. Showing the last loaded rows." onRetry={() => void refetch()} retrying={isFetching} /></div>}
       {exportError && <p role="alert" className="text-destructive mb-4">{exportError}</p>}
 
       {/* Stats Summary */}

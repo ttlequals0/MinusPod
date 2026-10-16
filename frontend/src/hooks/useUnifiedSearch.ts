@@ -57,5 +57,7 @@ export function useUnifiedSearch(seed: string, limit = 8) {
     }
   };
 
-  return { query, setQuery, debounced, ready, results, rows, current, setActive, onKeyDown, open, close, isFetching, isError, refetch };
+  // Rows stay visible through a background refetch; only an empty list says searching.
+  const loading = isFetching && rows.length === 0;
+  return { query, setQuery, debounced, ready, results, rows, current, setActive, onKeyDown, open, close, loading, isError, refetch };
 }

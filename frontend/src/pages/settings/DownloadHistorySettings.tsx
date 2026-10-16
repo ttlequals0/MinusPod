@@ -1,5 +1,4 @@
-import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
-import { useState } from 'react';
+import { useDraftField } from '../../hooks/useDraftField';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { getSettings, updateSettings } from '../../api/settings';
@@ -18,28 +17,26 @@ function DownloadHistorySettings() {
   const geoEnabled = settings?.downloadGeoLookupEnabled?.value ?? false;
   const retentionDays = settings?.downloadHistoryRetentionDays?.value ?? 90;
 
-  const [retentionDraft, setRetentionDraft] = useState<string | null>(null);
-  const retentionInput = retentionDraft ?? String(retentionDays);
-  useUnsavedChanges(retentionInput !== String(retentionDays));
+  const retention = useDraftField(settings, (s) => String(s?.downloadHistoryRetentionDays?.value ?? 90), (v) => String(Number(v)));
 
   const mutation = useMutation({
     mutationFn: (update: UpdateSettingsPayload) => updateSettings(update),
     onSuccess: async (_data, update) => {
       await queryClient.invalidateQueries({ queryKey: ['settings'] });
       if (update.downloadHistoryRetentionDays !== undefined) {
-        setRetentionDraft((current) => current === String(update.downloadHistoryRetentionDays) ? null : current);
+        retention.markClean(String(update.downloadHistoryRetentionDays));
       }
     },
   });
 
-  const parsedRetention = Number(retentionInput);
+  const parsedRetention = Number(retention.value);
   const retentionValid = Number.isInteger(parsedRetention)
     && parsedRetention >= RETENTION_MIN && parsedRetention <= RETENTION_MAX;
 
   const saveRetention = () => {
-    if (retentionValid && parsedRetention !== retentionDays) {
-      mutation.mutate({ downloadHistoryRetentionDays: parsedRetention });
-    }
+    if (!retentionValid) return;
+    if (parsedRetention === retentionDays) retention.markClean(String(retentionDays));
+    else mutation.mutate({ downloadHistoryRetentionDays: parsedRetention });
   };
 
   return (
@@ -85,8 +82,8 @@ function DownloadHistorySettings() {
           type="number"
           min={RETENTION_MIN}
           max={RETENTION_MAX}
-          value={retentionInput}
-          onChange={(e) => setRetentionDraft(e.target.value)}
+          value={retention.value}
+          onChange={(e) => retention.setValue(e.target.value)}
           onBlur={saveRetention}
           aria-invalid={!retentionValid}
           aria-describedby={[!retentionValid ? "download-retention-error" : "", mutation.isError ? "download-setting-error" : ""].filter(Boolean).join(" ") || undefined}

@@ -8,7 +8,6 @@ baseline: 0864a235d2e212fc7c4833db99f91870a5ca576c
 
 - [UI behavior and review contract](UI-CONTRACT.md) defines responsive, keyboard, data-state, save, and review requirements.
 - [Visual reference](MinusPod%20Design%20System.dc.html) uses generated application theme values. Run `npm run design:sync` from `frontend`; CI runs `npm run design:check`.
-- [Audit and implementation evidence](../docs/audits/ui-ux-2026-10-16/REPORT.md) records the baseline findings and repair status.
 
 ## Source map
 

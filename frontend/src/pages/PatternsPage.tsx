@@ -1,5 +1,6 @@
 import { pageHeader, pageTitle } from '../components/pageStyles';
 import { useState, useEffect, useMemo } from 'react';
+import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import PageTabs from '../components/PageTabs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
@@ -58,6 +59,8 @@ function PatternsPage() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [showInactive, setShowInactive] = useState(false);
   const [selectedPattern, setSelectedPattern] = useState<AdPattern | null>(null);
+  // A search-result link can land here while the page is already mounted.
+  useSyncFromQuery(searchParams.get('q') ?? undefined, setSearchQuery);
   const [page, setPage] = useState(1);
   // Reset to first page on sort change.
   const { sortField, sortDirection, handleSort } =
@@ -275,10 +278,10 @@ function PatternsPage() {
       {isLoading && <SkeletonRows count={6} />}
       {error && (
         <div className="text-center py-12">
-          <p className="text-destructive">Failed to load patterns</p>
+          <p className="text-destructive">{patterns ? 'Patterns could not be refreshed. Showing the last loaded list.' : 'Failed to load patterns'}</p>
         </div>
       )}
-      {!isLoading && !error && (<>
+      {!isLoading && patterns && (<>
 
       {/* Stats Summary */}
       {stats && (
