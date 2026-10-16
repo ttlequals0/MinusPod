@@ -53,7 +53,7 @@ Parakeet uses one fixed model, `nemo-parakeet-tdt-0.6b-v3`. There is no `tiny`/`
 | CPU image, amd64 or arm64 | Start with the application's 8 GB minimum; measure the workload before imposing a container limit | None | About 0.670 GB (670,480,039 bytes) |
 | GPU image, amd64 with NVIDIA runtime | Same 8 GB application baseline; GPU memory is additional | Peak requirement is not measured in this repository | About 2.550 GB (2,549,805,955 bytes) |
 
-Download sizes total the files selected by [MinusPod's loader](../src/parakeet_transcriber.py), including vocabulary and configuration. They come from the [ONNX model file listing](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/tree/8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce), checked on 2026-10-16. GB here means 1,000,000,000 bytes. [Exact file sizes](audits/ui-ux-2026-10-16/parakeet-model-evidence.json) are retained with the audit.
+Download sizes total the files selected by [MinusPod's loader](../src/parakeet_transcriber.py), including vocabulary and configuration. They come from the [ONNX model file listing](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/tree/8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce), checked on 2026-10-16. GB here means 1,000,000,000 bytes.
 
 These downloads are disk requirements, not RAM or VRAM minima. Runtime tensors, CUDA workspaces, audio buffers, and concurrent services need additional memory. Neither upstream's NeMo hardware examples nor Whisper's table establishes MinusPod's ONNX Runtime peak. Measure before choosing a GPU or setting a memory limit.
 
