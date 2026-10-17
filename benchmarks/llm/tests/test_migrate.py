@@ -30,7 +30,7 @@ def _v1_record(**overrides) -> dict:
 def _v1_layout(tmp_path: Path, records: list[dict], responses: dict[str, str], prompts: dict[str, str]) -> RunPaths:
     paths = RunPaths.for_root(tmp_path / "results")
     for rec in records:
-        append_jsonl(paths.calls_jsonl, rec)
+        append_jsonl(paths.raw / "calls.jsonl", rec)
     paths.responses_dir.mkdir(parents=True, exist_ok=True)
     for call_id, body in responses.items():
         (paths.responses_dir / f"{call_id}.txt").write_text(body)
@@ -75,7 +75,7 @@ def test_migrate_happy_path(tmp_path, write_corpus_episode):
     assert not list(paths.responses_dir.glob("*.txt"))
     assert not paths.prompts_dir.exists()
 
-    records = list(read_jsonl(paths.calls_jsonl))
+    records = list(read_jsonl(paths.raw / "calls.jsonl"))
     assert [r["schema_version"] for r in records] == [2, 2]
     assert records[0]["response_path"] == "responses/m1.jsonl"
     assert records[1]["response_path"] == "responses/openai_gpt-4.jsonl"
@@ -175,7 +175,7 @@ def test_migrate_preserves_null_response_path_on_errored_records(tmp_path, write
 
     migrate(paths, corpus_dir=corpus_dir)
 
-    records = list(read_jsonl(paths.calls_jsonl))
+    records = list(read_jsonl(paths.raw / "calls.jsonl"))
     assert records[0]["response_path"] is None
     assert records[0]["schema_version"] == 2
 
@@ -194,7 +194,7 @@ def test_migrate_keeps_txt_when_shard_body_differs(tmp_path, write_corpus_episod
 
     assert result.responses_kept == 1
     assert (paths.responses_dir / f"{c1}.txt").read_text() == "real body"
-    records = list(read_jsonl(paths.calls_jsonl))
+    records = list(read_jsonl(paths.raw / "calls.jsonl"))
     assert records[0]["response_path"] == f"responses/{c1}.txt"
 
 
@@ -220,7 +220,7 @@ def test_migrate_never_downgrades_newer_schema_records(tmp_path, write_corpus_ep
     result = migrate(paths, corpus_dir=corpus_dir)
 
     assert result.records_rewritten == 0
-    records = list(read_jsonl(paths.calls_jsonl))
+    records = list(read_jsonl(paths.raw / "calls.jsonl"))
     assert records[0]["schema_version"] == 3
 
 

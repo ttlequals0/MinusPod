@@ -9,14 +9,32 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 import threading
+import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from .config import ProviderConfig, secret
 from .systemone import NativeCallError, call_native
 
 logger = logging.getLogger(__name__)
+
+# Cap on a rate-limit pause before the call is recorded as an error; see [run] max_rate_limit_pause_seconds.
+DEFAULT_MAX_RATE_LIMIT_PAUSE_SECONDS = 21600.0
+
+# Slack past the wrapper's stated reset time (clock skew, rounding).
+ACCOUNT_RESET_SLACK_SECONDS = 15.0
+
+# Used when a 429's reset is unknown and no Retry-After header is usable.
+ACCOUNT_RESET_DEFAULT_SECONDS = 60.0
+
+# Mirrors the openai SDK's own backoff (openai._constants), which max_retries=0
+# below disables so this layer can see a raw 429 before the SDK retries it.
+_INNER_RETRY_INITIAL_DELAY = 0.5
+_INNER_RETRY_MAX_DELAY = 8.0
+_INNER_MAX_RETRIES = 2
 
 # Process-level memo of Anthropic models that have rejected `temperature` as
 # deprecated. Populated lazily on the first 400 per model so subsequent calls
@@ -55,6 +73,119 @@ class LLMNonRetryableError(RuntimeError):
     pass
 
 
+class AccountRateLimitError(RuntimeError):
+    """Account-level 429 from the Claude OpenAI-compatible wrapper (e.g. the
+    subscription's five-hour session cap), distinct from a per-model
+    provider throttle. Carries the wrapper's own reset fields so
+    call_with_retry can compute a resume time with its injected clock."""
+
+    def __init__(self, message: str, *, resets_at: float | None,
+                 retry_after: float | None, reason: str) -> None:
+        super().__init__(message)
+        self.resets_at = resets_at
+        self.retry_after = retry_after
+        self.reason = reason
+
+
+class ProviderPausedError(RuntimeError):
+    """The provider is paused (see ProviderPauseState). Raised instead of
+    sleeping so the caller can release its concurrency slot, wait with
+    wait_for_pause, and resend."""
+
+
+class ProviderPauseState:
+    """Per-provider resume-at timestamp (epoch seconds), shared across every
+    concurrent call for that provider. A call checks this before sending;
+    while it is in the future, the call waits instead of dispatching."""
+
+    def __init__(self) -> None:
+        self._resume_at: dict[str, float] = {}
+
+    def resume_at(self, provider_name: str) -> float:
+        return self._resume_at.get(provider_name, 0.0)
+
+    def start_or_extend(self, provider_name: str, resume_at: float, *,
+                        reason: str, now: float) -> None:
+        """Record resume_at, keeping the later time if a pause is already
+        active (a second 429 can push the reset out, never pull it in).
+        Logs once, only when this call actually starts a new pause."""
+        current = self._resume_at.get(provider_name, 0.0)
+        if resume_at <= current:
+            return
+        was_active = current > now
+        self._resume_at[provider_name] = resume_at
+        if not was_active:
+            resume_iso = datetime.fromtimestamp(resume_at, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            wait_minutes = (resume_at - now) / 60.0
+            logger.warning(
+                "provider %s paused (%s); resumes %s UTC (%.1f min)",
+                provider_name, reason, resume_iso, wait_minutes,
+            )
+
+
+# Production default; tests construct their own ProviderPauseState so pauses
+# from one test never leak into another.
+_default_pause_state = ProviderPauseState()
+
+
+async def wait_for_pause(provider_name: str, *, pause_state: ProviderPauseState | None = None,
+                         now_fn=time.time, sleep_fn=asyncio.sleep) -> None:
+    """Block until provider_name's shared pause (if any) has resolved.
+
+    Re-reads resume_at after every wake: another caller's 429 can extend the
+    pause while this one sleeps, so a single fixed-duration sleep would wake
+    and send too early.
+    """
+    state = pause_state if pause_state is not None else _default_pause_state
+    while True:
+        resume_at = state.resume_at(provider_name)
+        now = now_fn()
+        if resume_at <= now:
+            return
+        await sleep_fn(resume_at - now)
+
+
+def _retry_after_seconds(exc: Exception) -> float | None:
+    """The wrapper's Retry-After header, in seconds, or None."""
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None) if response is not None else None
+    if headers is None:
+        return None
+    raw = headers.get("Retry-After") or headers.get("retry-after")
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _account_rate_limit_error(exc: Exception) -> "AccountRateLimitError | None":
+    """Parse an OpenAI-SDK 429 into an AccountRateLimitError, or None when it
+    is not the wrapper's account-limit shape (e.g. an OpenRouter per-model
+    throttle, which has neither field and keeps the existing backoff path).
+    """
+    if getattr(exc, "status_code", None) != 429:
+        return None
+    body = getattr(exc, "body", None)
+    err = body.get("error") if isinstance(body, dict) else None
+    err = err if isinstance(err, dict) else {}
+    code = err.get("code")
+    resets_at = err.get("resets_at")
+    if code != "assistant_rate_limit" and resets_at is None:
+        return None
+    resets_at_val: float | None = None
+    if resets_at is not None:
+        try:
+            resets_at_val = float(resets_at)
+        except (TypeError, ValueError):
+            resets_at_val = None
+    return AccountRateLimitError(
+        str(exc), resets_at=resets_at_val, retry_after=_retry_after_seconds(exc),
+        reason=str(code or "assistant_rate_limit"),
+    )
+
+
 async def call(
     *,
     provider: ProviderConfig,
@@ -66,6 +197,7 @@ async def call(
     timeout: int,
     response_format: str = "json_object",
     max_retries: int = 0,
+    sleep_fn=asyncio.sleep,
 ) -> LLMResponse:
     if provider.client == "anthropic":
         return await _call_anthropic(
@@ -87,6 +219,7 @@ async def call(
             max_tokens=max_tokens,
             timeout=timeout,
             response_format=response_format,
+            sleep_fn=sleep_fn,
         )
     if provider.client in ('typesafe', 'systemone_compatible'):
         cancel_event = threading.Event()
@@ -194,6 +327,35 @@ def _rejects_json_mode(err: str) -> bool:
     return any(k in low for k in _JSON_MODE_REJECTIONS)
 
 
+async def _create_with_inner_retries(client, kwargs: dict, *, sleep_fn):
+    """One chat-completion call, retrying connection errors, timeouts, and 5xx
+    up to _INNER_MAX_RETRIES times with the SDK's own backoff shape (restored
+    here since the client is built with max_retries=0). A 429 is converted
+    and raised immediately, never retried here; a non-5xx APIStatusError
+    (e.g. 400) is re-raised as-is for the caller's own handling.
+    """
+    from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
+
+    attempt = 0
+    while True:
+        try:
+            return await client.chat.completions.create(**kwargs)
+        except RateLimitError as e:
+            raise _account_rate_limit_error(e) or LLMTransientError(str(e)) from e
+        except (APITimeoutError, APIConnectionError) as e:
+            if attempt >= _INNER_MAX_RETRIES:
+                raise LLMTransientError(str(e)) from e
+        except APIStatusError as e:
+            status = getattr(e, "status_code", 0)
+            if not (500 <= status < 600):
+                raise
+            if attempt >= _INNER_MAX_RETRIES:
+                raise LLMTransientError(str(e)) from e
+        delay = min(_INNER_RETRY_INITIAL_DELAY * (2 ** attempt), _INNER_RETRY_MAX_DELAY)
+        await sleep_fn(delay * (1 - 0.25 * random.random()))
+        attempt += 1
+
+
 async def _call_openai_compatible(
     *,
     provider: ProviderConfig,
@@ -204,9 +366,9 @@ async def _call_openai_compatible(
     max_tokens: int,
     timeout: int,
     response_format: str,
+    sleep_fn=asyncio.sleep,
 ) -> LLMResponse:
-    from openai import AsyncOpenAI
-    from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
+    from openai import AsyncOpenAI, APIStatusError
 
     # OpenRouter recommends HTTP-Referer + X-Title headers for app attribution.
     # Routes calls to the project's free-tier allowance and shows up named in
@@ -224,6 +386,9 @@ async def _call_openai_compatible(
         base_url=provider.base_url,
         timeout=timeout,
         default_headers=default_headers,
+        # Disables the SDK's own 429 retry so our raw-429 handling (below)
+        # sees it before the SDK's backoff burns the wrapper's rate-limit window.
+        max_retries=0,
     )
     kwargs: dict[str, Any] = dict(
         model=model_id,
@@ -240,9 +405,7 @@ async def _call_openai_compatible(
         json_format_used = "native"
 
     try:
-        msg = await client.chat.completions.create(**kwargs)
-    except (RateLimitError, APITimeoutError, APIConnectionError) as e:
-        raise LLMTransientError(str(e)) from e
+        msg = await _create_with_inner_retries(client, kwargs, sleep_fn=sleep_fn)
     except APIStatusError as e:
         status = getattr(e, "status_code", 0)
         # Providers word the rejection differently: OpenAI says `response_format`,
@@ -250,16 +413,10 @@ async def _call_openai_compatible(
         if status == 400 and json_format_used == "native" and _rejects_json_mode(str(e)):
             kwargs.pop("response_format", None)
             try:
-                msg = await client.chat.completions.create(**kwargs)
+                msg = await _create_with_inner_retries(client, kwargs, sleep_fn=sleep_fn)
                 json_format_used = "prompt_injection"
-            except (RateLimitError, APITimeoutError, APIConnectionError) as e2:
-                raise LLMTransientError(str(e2)) from e2
             except APIStatusError as e2:
-                if 500 <= getattr(e2, "status_code", 0) < 600:
-                    raise LLMTransientError(str(e2)) from e2
                 raise LLMNonRetryableError(str(e2)) from e2
-        elif 500 <= status < 600:
-            raise LLMTransientError(str(e)) from e
         else:
             raise LLMNonRetryableError(str(e)) from e
 
@@ -297,13 +454,20 @@ async def call_with_retry(
     timeout: int,
     response_format: str,
     max_retries: int,
+    max_rate_limit_pause_seconds: float = DEFAULT_MAX_RATE_LIMIT_PAUSE_SECONDS,
+    pause_state: ProviderPauseState | None = None,
+    now_fn=time.time,
+    sleep_fn=asyncio.sleep,
 ) -> LLMResponse:
     if provider.client in ('typesafe', 'systemone_compatible'):
         return await call(provider=provider, model_id=model_id, system_prompt=system_prompt,
                           user_prompt=user_prompt, temperature=temperature, max_tokens=max_tokens,
                           timeout=timeout, response_format=response_format, max_retries=max_retries)
-    last_exc: Exception | None = None
-    for attempt in range(max_retries + 1):
+    state = pause_state if pause_state is not None else _default_pause_state
+    attempt = 0
+    while True:
+        if state.resume_at(provider.name) > now_fn():
+            raise ProviderPausedError(provider.name)
         try:
             return await call(
                 provider=provider,
@@ -314,13 +478,30 @@ async def call_with_retry(
                 max_tokens=max_tokens,
                 timeout=timeout,
                 response_format=response_format,
+                sleep_fn=sleep_fn,
             )
+        except AccountRateLimitError as e:
+            now = now_fn()
+            if e.resets_at is not None:
+                resume_at = e.resets_at + ACCOUNT_RESET_SLACK_SECONDS
+            elif e.retry_after is not None:
+                resume_at = now + e.retry_after
+            else:
+                resume_at = now + ACCOUNT_RESET_DEFAULT_SECONDS
+            wait_seconds = resume_at - now
+            if wait_seconds > max_rate_limit_pause_seconds:
+                logger.warning(
+                    "%s: rate-limit pause of %.0fs exceeds cap of %.0fs; recording as error",
+                    provider.name, wait_seconds, max_rate_limit_pause_seconds,
+                )
+                raise
+            state.start_or_extend(provider.name, resume_at, reason=e.reason, now=now)
+            raise ProviderPausedError(provider.name) from e
         except LLMTransientError as e:
-            last_exc = e
             if attempt >= max_retries:
                 raise
             backoff = min(2.0 * (2 ** attempt), 60.0)
             logger.warning("transient error on %s attempt %d/%d: %s; sleeping %.1fs",
                            model_id, attempt + 1, max_retries + 1, e, backoff)
-            await asyncio.sleep(backoff)
-    raise last_exc  # type: ignore[misc]
+            await sleep_fn(backoff)
+            attempt += 1

@@ -3,16 +3,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
+import shutil
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Iterator
 
 
 # v2: response bodies live in per-model JSONL shards (responses/<model>.jsonl)
 # keyed by call_id; prompts are no longer stored (reconstructed from the corpus
 # and verified against prompt_hash). v1 stored one .txt per call/prompt.
-SCHEMA_VERSION = 2
+# v3: call records also live in per-model JSONL shards (calls/<model>.jsonl)
+# instead of one calls.jsonl.
+SCHEMA_VERSION = 3
+
+logger = logging.getLogger(__name__)
 
 
 class StorageError(RuntimeError):
@@ -66,12 +72,71 @@ def append_response(responses_dir: Path, model_id: str, call_id: str, body: str)
     return path
 
 
-def find_call(path: Path, call_id: str) -> dict | None:
-    """Last matching record wins, matching the report's retry semantics.
+def calls_dir(raw_dir: Path) -> Path:
+    return raw_dir / "calls"
 
-    Substring pre-filter before json.loads: these files reach tens of MB and
-    a single lookup should not pay a full-file JSON parse.
-    """
+
+def call_shard(raw_dir: Path, model_id: str) -> Path:
+    return calls_dir(raw_dir) / f"{safe_model_id(model_id)}.jsonl"
+
+
+def append_call(raw_dir: Path, record: dict) -> Path:
+    path = call_shard(raw_dir, record["model"])
+    append_jsonl(path, record)
+    return path
+
+
+def append_calls(raw_dir: Path, records: Iterable[dict], *, existing_ids: set[str]) -> int:
+    """Append records whose call_id is not in existing_ids, one open + fsync
+    per shard. Adds the appended ids to existing_ids; returns the count appended."""
+    by_shard: dict[Path, list[dict]] = {}
+    for rec in records:
+        if rec["call_id"] in existing_ids:
+            continue
+        existing_ids.add(rec["call_id"])
+        by_shard.setdefault(call_shard(raw_dir, rec["model"]), []).append(rec)
+    for path, recs in by_shard.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.writelines(dump_line(rec) for rec in recs)
+            f.flush()
+            os.fsync(f.fileno())
+    return sum(len(recs) for recs in by_shard.values())
+
+
+def has_calls(raw_dir: Path) -> bool:
+    return (raw_dir / "calls.jsonl").is_file() or any(calls_dir(raw_dir).glob("*.jsonl"))
+
+
+def reset_calls(raw_dir: Path) -> None:
+    """Delete every call record (legacy file and shards); responses stay."""
+    (raw_dir / "calls.jsonl").unlink(missing_ok=True)
+    shutil.rmtree(calls_dir(raw_dir), ignore_errors=True)
+
+
+_migrate_nudged: set[Path] = set()
+
+
+def read_calls(raw_dir: Path) -> Iterator[dict]:
+    """Every call record across the per-model shards under calls_dir(raw_dir),
+    in sorted shard-name order (then within-file order). Falls back to a
+    legacy calls.jsonl next to the shard dir if one still exists, yielding
+    its rows first."""
+    legacy = raw_dir / "calls.jsonl"
+    if legacy.is_file():
+        if legacy not in _migrate_nudged:
+            _migrate_nudged.add(legacy)
+            logger.warning("%s still exists; run `benchmark migrate-calls` to fold it into calls/ shards.", legacy)
+        yield from read_jsonl(legacy)
+    shard_dir = calls_dir(raw_dir)
+    if shard_dir.is_dir():
+        for shard in sorted(shard_dir.glob("*.jsonl")):
+            yield from read_jsonl(shard)
+
+
+def _find_in_file(path: Path, call_id: str) -> dict | None:
+    """Substring pre-filter before json.loads: these files reach tens of MB
+    and a single lookup should not pay a full-file JSON parse."""
     found: dict | None = None
     if not path.is_file():
         return None
@@ -85,6 +150,19 @@ def find_call(path: Path, call_id: str) -> dict | None:
                 raise StorageError(f"{path}:{lineno}: invalid JSON: {e}") from e
             if rec.get("call_id") == call_id:
                 found = rec
+    return found
+
+
+def find_call(source: Path, call_id: str) -> dict | None:
+    """Last matching record wins, matching the report's retry semantics.
+    ``source`` is one JSONL file (e.g. a response shard) or the raw dir, whose
+    call shards and legacy calls.jsonl are scanned via read_calls."""
+    if not source.is_dir():
+        return _find_in_file(source, call_id)
+    found: dict | None = None
+    for rec in read_calls(source):
+        if rec.get("call_id") == call_id:
+            found = rec
     return found
 
 
@@ -108,18 +186,19 @@ def hash_prompt(*, system_prompt: str, user_prompt: str, model: str, temperature
 CallKey = tuple[str, str, int, int, str]
 
 
-def scan_calls(calls_path: Path) -> tuple[set[CallKey], set[CallKey]]:
-    """Single-pass read of calls.jsonl. Returns (completed, errored).
+def scan_calls(records: Iterable[dict]) -> tuple[set[CallKey], set[CallKey]]:
+    """Single pass over call records (e.g. ``read_calls(raw_dir)``). Returns
+    (completed, errored).
 
     Errored is the subset of completed whose *last* record carries an error, so
     callers that want to skip errored records use ``completed - errored`` and
-    callers that want to retry only errored records use ``errored``. The file is
-    append-only, so a successful retry discharges an earlier failure; without
+    callers that want to retry only errored records use ``errored``. Call shards
+    are append-only, so a successful retry discharges an earlier failure; without
     that, every later --retry-errors pass would redo work already recovered.
     """
     completed: set[CallKey] = set()
     errored: set[CallKey] = set()
-    for rec in read_jsonl(calls_path):
+    for rec in records:
         key: CallKey = (
             rec["model"],
             rec["episode_id"],
@@ -135,13 +214,13 @@ def scan_calls(calls_path: Path) -> tuple[set[CallKey], set[CallKey]]:
     return completed, errored
 
 
-def dedup_index(calls_path: Path) -> set[CallKey]:
-    completed, _ = scan_calls(calls_path)
+def dedup_index(source: Path | Iterable[dict]) -> set[CallKey]:
+    completed, _ = scan_calls(read_calls(source) if isinstance(source, Path) else source)
     return completed
 
 
-def errored_keys(calls_path: Path) -> set[CallKey]:
-    _, errored = scan_calls(calls_path)
+def errored_keys(source: Path | Iterable[dict]) -> set[CallKey]:
+    _, errored = scan_calls(read_calls(source) if isinstance(source, Path) else source)
     return errored
 
 

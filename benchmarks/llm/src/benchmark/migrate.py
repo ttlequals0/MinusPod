@@ -37,7 +37,7 @@ class MigrationReport:
 
 def migrate(paths: RunPaths, *, corpus_dir: Path) -> MigrationReport:
     report = MigrationReport()
-    records = list(read_jsonl(paths.calls_jsonl))
+    records = list(read_jsonl(paths.raw / "calls.jsonl"))
     model_by_call = {
         rec["call_id"]: rec["model"]
         for rec in records
@@ -179,20 +179,21 @@ def _rewrite_calls(paths: RunPaths, records: list[dict], report: MigrationReport
         # body; only verified-in-shard records point at the shard.
         if new.get("response_path") and new.get("call_id") not in kept_call_ids:
             shard = response_shard(paths.responses_dir, new["model"])
-            new["response_path"] = str(shard.relative_to(paths.calls_jsonl.parent))
+            new["response_path"] = str(shard.relative_to(paths.raw))
         if new != rec:
             changed += 1
         rewritten.append(new)
     if not changed:
         return
 
+    legacy = paths.raw / "calls.jsonl"
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    backup_path = paths.calls_jsonl.with_name(f"calls.jsonl.bak-{ts}")
-    shutil.copy2(paths.calls_jsonl, backup_path)
+    backup_path = legacy.with_name(f"calls.jsonl.bak-{ts}")
+    shutil.copy2(legacy, backup_path)
 
-    tmp = paths.calls_jsonl.with_suffix(".jsonl.tmp")
+    tmp = legacy.with_suffix(".jsonl.tmp")
     tmp.write_text("".join(dump_line(rec) for rec in rewritten), encoding="utf-8")
-    os.replace(tmp, paths.calls_jsonl)
+    os.replace(tmp, legacy)
 
     report.records_rewritten = changed
     report.backup_path = backup_path

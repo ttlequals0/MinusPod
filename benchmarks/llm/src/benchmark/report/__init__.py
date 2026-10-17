@@ -7,7 +7,8 @@ from pathlib import Path
 
 from .. import jev, pricing
 from ..corpus import Episode
-from ..storage import read_jsonl
+from ..storage import read_calls
+from ..variants import DEFAULT_CELL, record_cell
 from .aggregate import (
     _aggregate,
     _dedup_last_write_wins,
@@ -60,11 +61,21 @@ from .sections import (
 
 logger = logging.getLogger(__name__)
 
+def report_paths(results_dir: Path, prompt_variant: str, addressing_mode: str) -> tuple[Path, Path]:
+    """Per-(variant, mode) cell output paths; the default cell keeps the
+    pre-existing report.md path, other cells get a suffixed path so they
+    don't clobber each other's charts."""
+    if (prompt_variant, addressing_mode) == DEFAULT_CELL:
+        return results_dir / "report.md", results_dir / "report_assets"
+    suffix = f"{prompt_variant}-{addressing_mode}"
+    return results_dir / f"report-{suffix}.md", results_dir / f"report_assets-{suffix}"
+
+
 def render(
     *,
     cfg,
     episodes: list[Episode],
-    calls_path: Path,
+    raw_dir: Path,
     pricing_snapshot: pricing.PricingSnapshot,
     output_path: Path,
     assets_dir: Path,
@@ -72,31 +83,43 @@ def render(
     addressing_mode: str = "timestamps",
     include_jev: bool = False,
     jev_passes: int = 1,
+    prompt_variant: str = "detection",
 ) -> None:
-    """Render results/report.md from calls.jsonl.
+    """Render results/report.md from the call records under raw_dir.
 
     ``addressing_mode`` isolates the report to one addressing scheme: calls
     are filtered to records whose ``addressing_mode`` field (missing on every
     call written before this field existed, which defaults to 'timestamps')
-    matches. A store holding both timestamps- and segment_ids-mode calls
-    never blends them into one set of numbers; run twice with each mode to
-    get two separate reports.
+    matches. ``prompt_variant`` does the same for the ``prompt_variant`` field
+    (missing records default to 'detection'). A store holding more than one
+    (variant, mode) cell never blends them into one set of numbers; render
+    once per cell to see each side of an A/B.
     """
+    # (label, value, cli flag) for each cell dimension that is not the default.
+    non_default = [
+        (label, value, flag)
+        for (label, value, flag), default in zip(
+            (("prompt variant", prompt_variant, "--prompt-variant"),
+             ("addressing mode", addressing_mode, "--addressing-mode")),
+            DEFAULT_CELL,
+        )
+        if value != default
+    ]
     title = "# MinusPod LLM Benchmark Report"
-    if addressing_mode != "timestamps":
-        title += f" (addressing mode: {addressing_mode})"
+    if non_default:
+        title += " (" + ", ".join(f"{label}: {value}" for label, value, _ in non_default) + ")"
 
-    all_calls = list(read_jsonl(calls_path))
-    raw_calls = [r for r in all_calls if r.get("addressing_mode", "timestamps") == addressing_mode]
+    all_calls = list(read_calls(raw_dir))
+    raw_calls = [r for r in all_calls if record_cell(r) == (prompt_variant, addressing_mode)]
     if not raw_calls:
-        run_hint = "benchmark run" + ("" if addressing_mode == "timestamps" else f" --addressing-mode {addressing_mode}")
-        mode_note = "" if addressing_mode == "timestamps" else f" for addressing mode '{addressing_mode}'"
+        run_hint = " ".join(["benchmark run", *(f"{flag} {value}" for _, value, flag in non_default)])
+        mode_note = " for " + " and ".join(f"{label} '{value}'" for label, value, _ in non_default) if non_default else ""
         output_path.write_text(f"{title}\n\nNo benchmark data yet{mode_note}. Run `{run_hint}` first.\n")
         return
     mixed = campaign_mixing(raw_calls)
     if mixed:
         logger.warning(
-            "calls.jsonl holds more than one campaign: %d work units across %d models carry "
+            "call records hold more than one campaign: %d work units across %d models carry "
             "two prompt hashes. Dedup keeps the last row per unit regardless of prompt, so "
             "any unit not re-run this campaign still shows the older result. Run "
             "`benchmark rotate-raw` between campaigns.",
@@ -109,7 +132,7 @@ def render(
     active = {mid: s for mid, s in by_model.items() if mid not in deprecated_ids}
     if include_jev:
         try:
-            jev.merge_into_stats(active, episodes, cache_path=calls_path.parent / "jev_cache.json",
+            jev.merge_into_stats(active, episodes, cache_path=raw_dir / "jev_cache.json",
                                  passes=jev_passes)
         except KeyError as exc:
             logger.warning("jev rows skipped: %s", exc)
@@ -126,14 +149,15 @@ def render(
             "trusting the affected models' numbers.", stale,
         )
 
+    assets_dir_name = assets_dir.name
     sections = [
         _render_how_to_read(episodes),
         _render_tldr(active, episodes),
-        _render_charts_section(active),
+        _render_charts_section(active, assets_dir_name),
         _render_failures(calls_active),
         _render_accuracy_breakdown(active),
         _render_boundary_accuracy(active),
-        _render_calibration_table(extras_active.calibration),
+        _render_calibration_table(extras_active.calibration, assets_dir_name),
         _render_latency_tail(active),
         _render_token_efficiency(active),
         _render_cost_breakdown(active),
@@ -150,11 +174,12 @@ def render(
     if deprecated:
         sections.append(_render_deprecated(deprecated))
     sections += [
-        _render_methodology(cfg, episodes, pricing_snapshot=pricing_snapshot),
+        _render_methodology(cfg, episodes, calls_active, pricing_snapshot=pricing_snapshot),
         _render_transcript_source(),
         _render_run_metadata(
             calls, pricing_snapshot=pricing_snapshot, raw_calls=raw_calls,
             prompt_source=prompt_source, addressing_mode=addressing_mode,
+            prompt_variant=prompt_variant,
         ),
     ]
 

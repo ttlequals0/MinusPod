@@ -54,6 +54,8 @@ class RunConfig:
     max_tokens: int = 4096  # actual default resolved at parse time via _default_max_tokens()
     max_concurrent_calls: int = 8
     max_concurrent_per_provider: int = 4
+    # Cap on a rate-limit pause (e.g. the wrapper's five-hour account reset) before it's recorded as an error.
+    max_rate_limit_pause_seconds: int = 21600
 
 
 @dataclass(frozen=True)
@@ -146,6 +148,7 @@ def _parse(raw: dict[str, Any], base_dir: Path) -> BenchmarkConfig:
         max_tokens=int(run_raw.get("max_tokens", _default_max_tokens())),
         max_concurrent_calls=int(run_raw.get("max_concurrent_calls", 8)),
         max_concurrent_per_provider=int(run_raw.get("max_concurrent_per_provider", 4)),
+        max_rate_limit_pause_seconds=int(run_raw.get("max_rate_limit_pause_seconds", 21600)),
     )
 
     corpus_raw = raw.get("corpus", {})
