@@ -9,6 +9,7 @@ from pathlib import Path
 
 import typer
 from dotenv import load_dotenv
+from utils.prompt import finalize_prompt
 
 # Load benchmarks/llm/.env so MINUSPOD_PASSWORD and provider API keys are available
 # regardless of where the user invokes `benchmark` from. Shell-exported vars still win.
@@ -37,8 +38,8 @@ def _validate_addressing_mode(mode: str) -> None:
 def _with_id_mode_section(system_prompt: str, addressing_mode: str) -> str:
     """Append SEGMENT_ID_SYSTEM_SECTION after the live/snapshot prompt is
     resolved, so a frozen snapshot file stays mode-agnostic."""
-    if addressing_mode == "segment_ids":
-        return system_prompt + parsing.SEGMENT_ID_SYSTEM_SECTION
+    # if addressing_mode == "segment_ids":
+    #     return system_prompt + parsing.SEGMENT_ID_SYSTEM_SECTION
     return system_prompt
 
 
@@ -60,7 +61,8 @@ def _root() -> Path:
 
 def _resolve_prompt(snapshot: Path | None) -> tuple[str, str]:
     try:
-        return parsing.resolve_system_prompt(snapshot)
+        prompt, source = parsing.resolve_system_prompt(snapshot)
+        return finalize_prompt(prompt), source
     except (FileNotFoundError, ValueError) as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(1) from e
@@ -285,7 +287,7 @@ def dump_prompt(
     output: Path = typer.Argument(..., help="File to write the current live system prompt to"),
 ) -> None:
     """Freeze the current live system prompt to a file for use with `run --snapshot`."""
-    text = parsing.get_static_system_prompt()
+    text, _ = _resolve_prompt(None)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(text)
     typer.echo(f"wrote prompt snapshot: {output} ({len(text)} chars)")

@@ -297,6 +297,12 @@ async def run(
                     parsed_ads, extraction_method, id_contract_miss = _parse_id_response(response_text, id_segments)
                 else:
                     parsed_ads, extraction_method = _parse_response(response_text)
+
+                # drop intro, outro, and recap segments. Our revised prompt asks for
+                # them but the benchmark doesn't know that and will count them as
+                # false positives.
+                parsed_ads = [ad for ad in parsed_ads if ad.get('category') not in ('intro', 'outro', 'recap')]
+
                 comp = compliance_score(extraction_method)
                 cost_lookup = pricing_snapshot.lookup(unit.model_id)
                 if cost_lookup is not None and native_accounting is None:

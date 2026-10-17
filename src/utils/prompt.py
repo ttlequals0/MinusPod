@@ -156,3 +156,19 @@ def strip_comments_from_prompt(prompt: str|None) -> str:
                r'|^([ ]{4,}<!--.*?-->)' # keep literal single-line comment
                r'|<!--.*?-->') # single-line comment (dot does NOT match newlines)
     return re.sub(pattern, r'\1\2', prompt, flags=re.MULTILINE)
+
+
+def finalize_prompt(prompt: str) -> str:
+    """Finalize the prompt string by removing unnecessary whitespace and
+    redundant newlines.
+    """
+    prompt = prompt.strip() if prompt else ""
+    if not prompt:
+        return ""
+
+    # remove trailing whitespace from all lines
+    prompt = re.sub(r"[ \t]+\r?\n", "\n", prompt)
+    # Collapse 3 or more consecutive newlines into two
+    prompt = re.sub(r"(?:\r?\n){3,}", "\n\n", prompt)
+
+    return prompt

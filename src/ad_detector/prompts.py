@@ -15,7 +15,7 @@ from sponsor_context import (SPONSOR_MIN_MENTIONS, framed_sponsor_names, registr
 from sponsor_service import SponsorService
 from text_pattern_matcher import bounded_segment_texts
 from utils.prompt import (
-    format_sponsor_block, render_prompt, strip_comments_from_prompt
+    finalize_prompt, format_sponsor_block, render_prompt, strip_comments_from_prompt
 )
 from utils.text import truncate
 from utils.time import parse_timestamp
@@ -58,11 +58,19 @@ _SPONSOR_FIELD_STEMS = frozenset(_singular(f) for f in SPONSOR_PRIORITY_FIELDS)
 
 # User prompt template (not configurable via UI - just formats the transcript)
 # Description is optional - may contain sponsor lists, chapter markers, or content context
-USER_PROMPT_TEMPLATE = """Podcast: {podcast_name}
+USER_PROMPT_TEMPLATE = """
+Please segment the following podcast transcript.
+
+{window_context}
+
+Podcast: {podcast_name}
 Episode: {episode_title}
 {description_section}
-Transcript:
-{transcript}"""
+
+{transcript}
+
+{audio_context}
+"""
 
 def create_windows(segments: list[dict], window_size: float = None,
                    overlap: float = None) -> list[dict]:
@@ -132,6 +140,47 @@ def create_windows(segments: list[dict], window_size: float = None,
     return windows
 
 
+def _build_window_context(
+    window_index: int,
+    total_windows: int,
+    window_start: float,
+    window_end: float,
+) -> str:
+    """Builds the window context prompt for a partial transcript.
+    Returns:
+        A string containing the window context instructions for the partial
+        transcript or an empty string if there is only a single window (i.e.,
+        not partial).
+    """
+    if (total_windows <= 1): 
+        return "" # No context needed for a single window
+
+    window_context = (
+        f"Note: This is a partial transcript (window {window_index + 1} of "
+        f"{total_windows}) with hard cuts at minutes {window_start/60:.1f} "
+        f"thru {window_end/60:.1f}.\n"
+    )
+    if (window_index > 0 and window_index + 1 < total_windows):
+        # save a few tokens by combining the two instructions
+        window_context += (
+            "If the first or last segment appears to begin or end outside this "
+            "window, append \"continues from previous\" or \"continues in next\" "
+            "to the `reason` field.\n"
+        )
+    elif (window_index > 0):
+        window_context += (
+            "If the first segment appears to begin outside this window, append "
+            "\"continues from previous\" to the `reason` field.\n"
+        )
+    elif (window_index + 1 < total_windows):
+        window_context += (
+            "If the last segment appears to end outside this window, append "
+            "\"continues in next\" to the `reason` field.\n"
+        )
+
+    return window_context
+
+
 def format_window_prompt(
     podcast_name: str,
     episode_title: str,
@@ -150,35 +199,44 @@ def format_window_prompt(
     benchmark can call this without DB or audio-analysis state. Production
     callers assemble both then pass them in.
 
-    `addressing_mode` selects the window-context rules appended after the
-    header: 'timestamps' (default) emits the original three bullets telling
-    the model to use absolute timestamps, byte-identical to before this
-    parameter existed; 'segment_ids' (issue: hushpod adoption) emits
-    SEGMENT_ID_WINDOW_RULES instead of those bullets -- never both, so the
-    prompt never tells the model to use and never use timestamps in the same
-    message. Callers that never pass it (benchmark, keep-content windows)
-    get 'timestamps' behavior unchanged.
+    `description_section` in inserted between the episode title and window
+    context (before the transcript) and may contain any or all of the
+    following preformatted sections:
+      - Podcast description
+      - Podcast operator notes
+      - Episode description
+      - Sponsor history
+      - Learned ad-break hints
+
+    `audio_context` is inserted after the transcript and may contain any or all
+    of the following preformatted sections:
+      - Audio analysis signals
+      - Recurring segment hints
     """
-    transcript = "\n".join(transcript_lines)
-    header = (
-        f"\n\n=== WINDOW {window_index + 1}/{total_windows}: "
-        f"{window_start/60:.1f}-{window_end/60:.1f} minutes ==="
+    window_context = _build_window_context(
+        window_index=window_index,
+        total_windows=total_windows,
+        window_start=window_start,
+        window_end=window_end,
     )
-    if addressing_mode == "segment_ids":
-        rules = SEGMENT_ID_WINDOW_RULES
-    else:
-        rules = (
-            "\n- Use absolute timestamps from transcript (as shown in brackets)"
-            "\n- If an ad starts before this window, use the first timestamp with note \"continues from previous\""
-            f"\n- If an ad extends past this window, use {window_end:.1f} with note \"continues in next\"\n"
+
+    transcript = (
+        "Transcript with timestamps:\n"
+        if addressing_mode == "timestamps" 
+        else "Transcript with indexes:\n"
+    )
+    transcript += "\n".join(transcript_lines)
+
+    return finalize_prompt(
+        strip_comments_from_prompt(USER_PROMPT_TEMPLATE).format(
+            podcast_name=podcast_name,
+            episode_title=episode_title,
+            description_section=description_section,
+            window_context=window_context,
+            transcript=transcript,
+            audio_context=audio_context,
         )
-    window_context = header + rules
-    return strip_comments_from_prompt(USER_PROMPT_TEMPLATE).format(
-        podcast_name=podcast_name,
-        episode_title=episode_title,
-        description_section=description_section,
-        transcript=transcript,
-    ) + audio_context + window_context
+    )
 
 
 SEGMENT_ID_SYSTEM_SECTION = """
@@ -453,11 +511,13 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
                         f"{start:.1f}s-{end:.1f}s (is_ad={is_ad_val})")
             return None
 
-    # Filter by classification/type field
-    classification = str(ad.get('classification') or ad.get('type') or '').lower()
-    if classification in NOT_AD_CLASSIFICATIONS:
+    # Filter by category
+    raw_category = _get_category(ad)
+    resolved_category = _repair_category(raw_category)
+    if not resolved_category:
+        # not a recognized ad (probably main_content) so ignore it.
         logger.info(f"[{slug}:{episode_id}] Skipping non-ad: "
-                    f"{start:.1f}s-{end:.1f}s (classification={classification})")
+                    f"{start:.1f}s-{end:.1f}s (category={raw_category})")
         return None
 
     # Extract sponsor/advertiser name using priority fields + pattern matching
@@ -575,6 +635,7 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     ad_entry = {
         'start': start,
         'end': end,
+        'category': resolved_category,
         'confidence': norm_conf,
         'reason': reason,
         'start_text': _as_text(ad.get('start_text')),
@@ -584,11 +645,6 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
     # (reuses sponsor_name captured above; ad is unmutated between)
     if sponsor_name and sponsor_name != 'Advertisement detected':
         ad_entry['sponsor'] = sponsor_name
-    # Pass the LLM's raw category through unvalidated; the
-    # merge seam normalizes it against SEGMENT_CATEGORIES.
-    resolved_category = resolve_ad_category(ad)
-    if resolved_category:
-        ad_entry['category'] = resolved_category
     return ad_entry
 
 
@@ -727,8 +783,8 @@ def parse_id_ads_from_response(response_text: str, slug: str = None,
     for obj in raw:
         if not isinstance(obj, dict):
             continue
-        sid_lo = _int_field(obj, ('start_id', 'startid', 'start_segment_id'))
-        sid_hi = _int_field(obj, ('end_id', 'endid', 'end_segment_id'))
+        sid_lo = _int_field(obj, ('start_id', 'startid', 'start_segment_id', 'start'))
+        sid_hi = _int_field(obj, ('end_id', 'endid', 'end_segment_id', 'end'))
         if sid_lo is None or sid_hi is None:
             skipped_no_id += 1
             continue
@@ -831,10 +887,12 @@ CATEGORY_REPAIR_JSON_SCHEMA = {
                     "category": {"type": "string", "enum": list(SEGMENT_CATEGORIES)},
                 },
                 "required": ["index", "category"],
+                "additionalProperties": False,
             },
         },
     },
     "required": ["categories"],
+    "additionalProperties": False,
 }
 
 # Detection-window schema (#694). Wrapped under "ads" because a json_schema
@@ -863,39 +921,30 @@ SPONSOR_ALIAS_FIELD_DESCRIPTION = (
 AD_DETECTION_JSON_SCHEMA = {
     "type": "object",
     "properties": {
-        "ads": {
+        "segments": {
             "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
                     "start": {"type": "number"},
                     "end": {"type": "number"},
-                    "start_id": {"type": "integer"},
-                    "end_id": {"type": "integer"},
-                    "start_text": {"type": "string"},
-                    # The prompt requires end_text on every segment and the
-                    # sponsor extractors read these names; a schema-enforcing
-                    # decoder would silently strip anything absent here.
-                    "end_text": {"type": "string"},
-                    # Same enum as the repair schema above: an enforcing
-                    # decoder cannot emit a synonym the repair map translates.
-                    "category": {"type": "string", "enum": list(SEGMENT_CATEGORIES)},
+                    "category": {
+                        "type": "string",
+                        "enum": list(SEGMENT_CATEGORIES) + ["main_content", "teaser", "transition"]
+                    },
                     "confidence": {"type": "number"},
-                    "reason": {"type": "string"},
-                    "note": {"type": "string"},
-                    # Described on the extractor's first-choice field only:
-                    # the model follows the schema here, so repeating it on all
-                    # seven adds tokens and invites the multi-fill it warns off.
-                    **{name: ({"type": "string",
-                               "description": SPONSOR_ALIAS_FIELD_DESCRIPTION}
-                              if name == SPONSOR_PRIORITY_FIELDS[0]
-                              else {"type": "string"})
-                       for name in SPONSOR_PRIORITY_FIELDS},
+                    "reason": {"type": ["string", "null"]},
+                    "sponsor_name": {"type": ["string", "null"]},
+                    "start_text": {"type": ["string", "null"]},
+                    "end_text": {"type": ["string", "null"]},
                 },
+                "required": ["start", "end", "category", "confidence", "reason", "start_text", "end_text", "sponsor_name"],
+                "additionalProperties": False,
             },
         },
     },
-    "required": ["ads"],
+    "required": ["segments"],
+    "additionalProperties": False,
 }
 
 # Small fixed budget: the repair call only ever emits a short JSON array,
@@ -955,24 +1004,21 @@ _CATEGORY_KEY_HINTS = ('categor', 'segment_type', 'classification', 'type')
 _repair_category = repair_segment_category
 
 
-def resolve_ad_category(ad: dict):
+def _get_category(ad: dict):
     """The segment category an ad object carries, wherever it put it.
 
-    "category" first, then the other keys a model uses for the same idea. The
-    value is validated against the vocabulary either way, so a `type` of "ad"
-    or "advertisement" contributes nothing while a `type` of "self_promo"
-    is taken at face value.
+    "category" first, then the other keys a model uses for the same idea.
     """
     if not isinstance(ad, dict):
         return None
-    direct = _repair_category(ad.get('category'))
-    if direct:
-        return direct
+    category = ad.get('category')
+    if category:
+        return category
     for key, value in ad.items():
         kl = str(key).lower()
         if kl == 'category' or not any(h in kl for h in _CATEGORY_KEY_HINTS):
             continue
-        found = _repair_category(value)
+        found = ad.get(value)
         if found:
             return found
     return None
