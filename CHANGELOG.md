@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.100.17] - 2026-10-17
 
 ### Fixed
 - Search ranks a title hit above the same words in a description or transcript. A
