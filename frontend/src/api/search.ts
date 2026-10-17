@@ -3,6 +3,7 @@ import { apiRequest, buildQueryString } from './client';
 export interface SearchShowResult {
   slug: string;
   title: string;
+  titleSnippet: string | null;
   snippet: string | null;
 }
 
@@ -13,6 +14,7 @@ export interface SearchEpisodeResult {
   title: string;
   status: string;
   publishDate: string | null;
+  titleSnippet: string | null;
   snippet: string | null;
 }
 

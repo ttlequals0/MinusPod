@@ -1,9 +1,9 @@
 import { Fragment } from 'react';
 import type { SearchEpisodeResult, SearchShowResult, SearchTranscriptResult } from '../api/search';
-import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS } from '../utils/episodeStatus';
+import { displayStatusColor, displayStatusLabel } from '../utils/episodeStatus';
 import { formatDate, formatTimestamp } from '../utils/format';
 import { renderSnippet } from '../utils/searchSnippet';
-import { badgeBase, tint } from './badgeStyles';
+import { badgeBase } from './badgeStyles';
 
 export type SearchResultGroup = 'shows' | 'episodes' | 'transcripts';
 
@@ -21,6 +21,7 @@ export interface SearchResultRow {
   title: string;
   subtitle?: string;
   status?: string;
+  titleSnippet?: string | null;
   snippet?: string | null;
   timestamp?: number | null;
   to: string;
@@ -35,13 +36,15 @@ const GROUP_LABELS: Record<SearchResultGroup, string> = {
 export function buildSearchResultRows(results: UnifiedSearchGroups): SearchResultRow[] {
   return [
     ...results.shows.map((r) => ({
-      key: `show-${r.slug}`, group: 'shows' as const, title: r.title, snippet: r.snippet,
+      key: `show-${r.slug}`, group: 'shows' as const, title: r.title, titleSnippet: r.titleSnippet,
+      snippet: r.snippet,
       to: `/feeds/${r.slug}`,
     })),
     ...results.episodes.map((r) => ({
       key: `episode-${r.feedSlug}-${r.episodeId}`, group: 'episodes' as const, title: r.title,
       subtitle: r.publishDate ? `${r.feedTitle}, ${formatDate(r.publishDate)}` : r.feedTitle,
-      status: r.status, snippet: r.snippet, to: `/feeds/${r.feedSlug}/episodes/${r.episodeId}`,
+      status: r.status, titleSnippet: r.titleSnippet, snippet: r.snippet,
+      to: `/feeds/${r.feedSlug}/episodes/${r.episodeId}`,
     })),
     ...results.transcripts.map((r, i) => ({
       key: `transcript-${r.feedSlug}-${r.episodeId}-${i}`, group: 'transcripts' as const, title: r.title,
@@ -108,10 +111,12 @@ function SearchResults({ rows, activeIndex, onHover, onSelect, ready = true, loa
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm">{row.title}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {row.titleSnippet ? renderSnippet(row.titleSnippet) : row.title}
+                    </span>
                     {row.status && (
-                      <span className={`${badgeBase} whitespace-nowrap font-normal ${EPISODE_STATUS_COLORS[row.status] || tint.neutral}`}>
-                        {EPISODE_STATUS_LABELS[row.status] || row.status}
+                      <span className={`${badgeBase} whitespace-nowrap font-normal ${displayStatusColor(row.status)}`}>
+                        {displayStatusLabel(row.status)}
                       </span>
                     )}
                   </div>

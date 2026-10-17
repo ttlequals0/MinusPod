@@ -214,8 +214,16 @@ END;
 
 # search_index column order: content_type, content_id, podcast_slug, title, body, metadata.
 _SNIPPET_COL = {'title': 3, 'body': 4, 'metadata': 5}
-# Only the three text columns score; weighting content_type would rank by row length.
-_BM25 = 'bm25(search_index, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0)'
+# A title hit outranks the same words buried in a description or transcript.
+_BM25_WEIGHTS = {'title': 10.0, 'body': 1.0, 'metadata': 1.0}
+# Words in nearly every description; the AND branch of a multi-word query drops them.
+_STOPWORDS = frozenset('a an and are as at be by for from in is it of on or the to with'.split())
+
+
+def _bm25(cols):
+    """bm25 over the group's matched columns only; any other column would rank rows by length."""
+    weights = [_BM25_WEIGHTS[c] if c in cols else 0.0 for c in _SNIPPET_COL]
+    return f"bm25(search_index, 0.0, 0.0, 0.0, {', '.join(map(str, weights))})"
 
 
 class SearchMixin:
@@ -596,11 +604,13 @@ class SearchMixin:
     def _safe_fts_query(clean_query: str) -> str:
         """Quote every term so punctuation and bare AND/OR/NOT can't be parsed as FTS5 syntax."""
         tokens = clean_query.split()
-        quoted = [f'"{t}"' for t in tokens]
-        quoted[-1] += '*'
         # One token makes the phrase branch identical to the term branch; skip the duplicate OR.
         if len(tokens) == 1:
-            return quoted[0]
+            return f'"{tokens[0]}"*'
+        terms = [t for t in tokens if t.lower() not in _STOPWORDS] or tokens
+        quoted = [f'"{t}"' for t in terms]
+        if terms[-1] == tokens[-1]:
+            quoted[-1] += '*'
         return f'"{clean_query}"* OR {" AND ".join(quoted)}'
 
     @staticmethod
@@ -632,7 +642,7 @@ class SearchMixin:
             f"FROM search_index si {join} "
             f"WHERE si.content_type = '{content_type}' "
             f"AND search_index MATCH 'content_type:{content_type} AND {target}:(' || ? || ')' "
-            f"ORDER BY {_BM25} LIMIT ?",
+            f"ORDER BY {_bm25(cols)} LIMIT ?",
             (fts_query, limit)
         ).fetchall()
 
@@ -656,9 +666,11 @@ class SearchMixin:
         return self._merge_fts_and_like(
             rows, key_fn=lambda r: r['slug'],
             row_builder=lambda r: {'slug': r['slug'], 'title': r['title'],
-                                    'snippet': self._pick_snippet(r, 'body_snippet', 'title_snippet')},
+                                    'titleSnippet': self._pick_snippet(r, 'title_snippet'),
+                                    'snippet': self._pick_snippet(r, 'body_snippet')},
             like_fetch=like_fetch,
-            like_row_builder=lambda r: {'slug': r['slug'], 'title': r['title'], 'snippet': None},
+            like_row_builder=lambda r: {'slug': r['slug'], 'title': r['title'],
+                                         'titleSnippet': None, 'snippet': None},
             limit=limit)
 
     def _search_episodes(self, conn, fts_query, like_pattern, like_prefix, limit):
@@ -686,12 +698,13 @@ class SearchMixin:
         def row_builder(r):
             return {'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'], 'episodeId': r['episode_id'],
                     'title': r['title'], 'status': r['status'], 'publishDate': r['publish_date'],
-                    'snippet': self._pick_snippet(r, 'metadata_snippet', 'title_snippet')}
+                    'titleSnippet': self._pick_snippet(r, 'title_snippet'),
+                    'snippet': self._pick_snippet(r, 'metadata_snippet')}
 
         def like_row_builder(r):
             return {'feedSlug': r['feed_slug'], 'feedTitle': r['feed_title'], 'episodeId': r['episode_id'],
                     'title': r['title'], 'status': r['status'], 'publishDate': r['publish_date'],
-                    'snippet': None}
+                    'titleSnippet': None, 'snippet': None}
 
         # Episodes is the big table here, so its LIKE pass only runs on a total miss.
         return self._merge_fts_and_like(

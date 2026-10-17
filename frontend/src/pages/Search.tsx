@@ -7,6 +7,9 @@ import { SkeletonRows } from '../components/Skeleton';
 import { btnSecondary } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
 import { renderSnippet } from '../utils/searchSnippet';
+import { formatDate } from '../utils/format';
+import { displayStatusColor, displayStatusLabel } from '../utils/episodeStatus';
+import { badgeBase } from '../components/badgeStyles';
 import QueryError from '../components/QueryError';
 
 type FilterType = 'all' | 'episode' | 'podcast' | 'transcript' | 'pattern' | 'sponsor';
@@ -25,6 +28,9 @@ interface NormalizedResult {
   subtitle?: string;
   snippet: string | null;
   link: string;
+  titleSnippet?: string | null;
+  status?: string;
+  date?: string;
 }
 
 const typeIcons: Record<ResultType, React.ReactNode> = {
@@ -104,11 +110,14 @@ function Search() {
     if (!results) return { podcast: [], episode: [], transcript: [], pattern: [], sponsor: [] };
     return {
       podcast: results.shows.map((r) => ({
-        type: 'podcast', id: r.slug, title: r.title, snippet: r.snippet, link: `/feeds/${r.slug}`,
+        type: 'podcast', id: r.slug, title: r.title, titleSnippet: r.titleSnippet, snippet: r.snippet,
+        link: `/feeds/${r.slug}`,
       })),
       episode: results.episodes.map((r) => ({
-        type: 'episode', id: `${r.feedSlug}-${r.episodeId}`, title: r.title, subtitle: r.feedTitle,
-        snippet: r.snippet, link: `/feeds/${r.feedSlug}/episodes/${r.episodeId}`,
+        type: 'episode', id: `${r.feedSlug}-${r.episodeId}`, title: r.title,
+        subtitle: r.feedTitle, date: r.publishDate ? formatDate(r.publishDate) : undefined,
+        status: r.status, titleSnippet: r.titleSnippet, snippet: r.snippet,
+        link: `/feeds/${r.feedSlug}/episodes/${r.episodeId}`,
       })),
       transcript: results.transcripts.map((r) => ({
         type: 'transcript', id: `${r.feedSlug}-${r.episodeId}`, title: r.title,
@@ -290,9 +299,21 @@ function SearchResultCard({ result }: { result: NormalizedResult }) {
       <div className="flex items-start gap-3">
         <div className="shrink-0 mt-1 text-muted-foreground">{typeIcons[result.type]}</div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-foreground truncate">{result.title}</h3>
-          {result.subtitle && (
-            <p className="text-xs text-muted-foreground truncate">{result.subtitle}</p>
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium text-foreground truncate">
+              {result.titleSnippet ? renderSnippet(result.titleSnippet) : result.title}
+            </h3>
+            {result.status && (
+              <span className={`${badgeBase} shrink-0 whitespace-nowrap font-normal ${displayStatusColor(result.status)}`}>
+                {displayStatusLabel(result.status)}
+              </span>
+            )}
+          </div>
+          {(result.subtitle || result.date) && (
+            <p className="flex justify-between gap-3 text-xs text-muted-foreground">
+              <span className="truncate">{result.subtitle}</span>
+              {result.date && <span className="shrink-0 tabular-nums">{result.date}</span>}
+            </p>
           )}
           {result.snippet && (
             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">

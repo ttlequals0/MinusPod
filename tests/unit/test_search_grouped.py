@@ -9,7 +9,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('search_grouped_')
 
 import database
-from database.search import SEARCH_GROUP_NAMES
+from database.search import SEARCH_GROUP_NAMES, _bm25
 from main_app import app
 from api import get_database
 
@@ -179,8 +179,10 @@ def test_colon_in_query_finds_real_title_match():
 
 def test_fts_operator_characters_do_not_raise():
     empty = {'shows': [], 'episodes': [], 'transcripts': [], 'patterns': [], 'sponsors': []}
-    for needle in ('foo:bar', '(', 'a OR OR b'):
-        assert db.search_grouped(needle) == empty
+    assert db.search_grouped('foo:bar') == empty
+    assert db.search_grouped('(') == empty
+    # Quoted operators are stopwords here, so the AND branch is "b"* and may hit rows.
+    assert set(db.search_grouped('a OR OR b')) == set(empty)
 
 
 def test_transcript_only_match_absent_from_episodes_group():
@@ -370,15 +372,15 @@ def test_groups_param_via_api_only_requested_group_has_matches():
 
 
 def test_literal_mark_tag_in_a_description_is_not_read_as_a_highlight():
-    # The description is checked before the title and holds a literal <mark> tag
-    # without matching, so a substring test for "<mark>" would return it unhighlighted.
+    # The description holds a literal <mark> tag without matching; it must not read as a hit.
     slug = _feed('literal-mark-tag')
     ep_id = _eid()
     db.upsert_episode(slug, ep_id, title='Flimflammery Hour',
                       description='see <mark>the notes</mark> for details')
     hit = next(e for e in db.search_grouped('flimflammery')['episodes']
                if e['episodeId'] == ep_id)
-    assert '<mark>Flimflammery</mark>' in hit['snippet']
+    assert hit['titleSnippet'] == '<mark>Flimflammery</mark> Hour'
+    assert hit['snippet'] is None
 
 
 def test_episode_like_fallback_skipped_when_fts_found_a_row():
@@ -469,3 +471,51 @@ def test_openapi_groups_enum_matches_the_server():
                   if p['name'] == 'groups')
     assert tuple(groups['schema']['items']['enum']) == SEARCH_GROUP_NAMES
     assert tuple(groups['schema']['default']) == SEARCH_GROUP_NAMES
+
+
+def test_title_phrase_hit_outranks_description_word_hits():
+    slug = _feed('rank-title-vs-description')
+    original, rerun, noise = _eid(), _eid(), _eid()
+    db.upsert_episode(slug, original, title='Quartzwater Canyon', description='filler text')
+    db.upsert_episode(slug, rerun, title='Fan Favorite - Quartzwater Canyon', description='filler text')
+    db.upsert_episode(slug, noise, title='Unrelated Story',
+                      description='the quartzwater route for the canyon trail ' * 3)
+    db.rebuild_search_index()
+    ids = [e['episodeId'] for e in db.search_grouped('quartzwater for the canyon')['episodes']]
+    assert ids.index(noise) > max(ids.index(original), ids.index(rerun))
+
+
+def test_description_match_does_not_need_the_querys_stopwords():
+    slug = _feed('stopword-free-description')
+    ep = _eid()
+    db.upsert_episode(slug, ep, title='Plain Title', description='quartzwater canyons ahead')
+    db.rebuild_search_index()
+    ids = [e['episodeId'] for e in db.search_grouped('quartzwater for the canyon')['episodes']]
+    assert ep in ids
+
+
+def test_and_branch_drops_stopwords_but_the_phrase_keeps_them():
+    assert db._safe_fts_query('head for the hills') == '"head for the hills"* OR "head" AND "hills"*'
+
+
+def test_and_branch_keeps_every_word_when_all_are_stopwords():
+    assert db._safe_fts_query('the for') == '"the for"* OR "the" AND "for"*'
+
+
+def test_and_branch_has_no_prefix_star_when_the_last_word_is_a_stopword():
+    assert db._safe_fts_query('hills for the') == '"hills for the"* OR "hills"'
+
+
+def test_bm25_scores_only_the_groups_matched_columns():
+    assert _bm25(('title', 'metadata')) == 'bm25(search_index, 0.0, 0.0, 0.0, 10.0, 0.0, 1.0)'
+    assert _bm25(('body',)) == 'bm25(search_index, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0)'
+
+
+def test_episode_result_carries_title_and_description_hits_separately():
+    slug = _feed('snippet-title-first')
+    ep = _eid()
+    db.upsert_episode(slug, ep, title='Quartzwater Canyon', description='the quartzwater story')
+    db.rebuild_search_index()
+    [hit] = [e for e in db.search_grouped('quartzwater')['episodes'] if e['episodeId'] == ep]
+    assert hit['titleSnippet'] == '<mark>Quartzwater</mark> Canyon'
+    assert hit['snippet'] == 'the <mark>quartzwater</mark> story'

@@ -18417,11 +18417,16 @@ components:
           type: string
         title:
           type: string
+        titleSnippet:
+          type:
+            - string
+            - 'null'
+          description: The title with its matched words highlighted; null when the title did not match
         snippet:
           type:
             - string
             - 'null'
-          description: Highlighted match context; null for a title-only substring match
+          description: Highlighted match context from the description; null when nothing in it matched
     SearchEpisodeResult:
       type: object
       properties:
@@ -18439,11 +18444,16 @@ components:
           type:
             - string
             - 'null'
+        titleSnippet:
+          type:
+            - string
+            - 'null'
+          description: The title with its matched words highlighted; null when the title did not match
         snippet:
           type:
             - string
             - 'null'
-          description: Highlighted match context; null for a title-only substring match
+          description: Highlighted match context from the description; null when nothing in it matched
     SearchTranscriptResult:
       type: object
       properties:

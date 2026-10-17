@@ -60,3 +60,35 @@ describe('Search page loading placeholder', () => {
     expect(screen.queryByTestId('skeleton-rows')).toBeNull();
   });
 });
+
+describe('Search page episode results', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearch.mockResolvedValue({
+      query: 'quartz', shows: [], transcripts: [], patterns: [], sponsors: [],
+      episodes: [
+        { feedSlug: 'example-podcast', feedTitle: 'The Daily Tech Show', episodeId: 'a1b2c3', title: 'Quartz Canyon',
+          status: 'discovered', publishDate: '2024-12-16T08:00:00Z', titleSnippet: '<mark>Quartz</mark> Canyon', snippet: null },
+        { feedSlug: 'example-podcast', feedTitle: 'The Daily Tech Show', episodeId: 'd4e5f6', title: 'Rerun',
+          status: 'completed', publishDate: '2026-06-19T07:00:00Z', titleSnippet: null, snippet: 'about <mark>quartz</mark> mines' },
+      ],
+    });
+  });
+
+  it('shows each episode with its status and publish date', async () => {
+    renderSearch('/search?q=quartz');
+    await waitFor(() => screen.getByText('Rerun'));
+    expect(screen.getByText('discovered')).toBeTruthy();
+    expect(screen.getByText('completed')).toBeTruthy();
+    const expected = new Date('2024-12-16T08:00:00Z').toLocaleDateString();
+    expect(screen.getByText(expected)).toBeTruthy();
+  });
+
+  it('highlights a title hit in the title and keeps description hits as the snippet', async () => {
+    renderSearch('/search?q=quartz');
+    await waitFor(() => screen.getByText('Rerun'));
+    const heading = screen.getByRole('heading', { level: 3, name: 'Quartz Canyon' });
+    expect(heading.querySelector('mark')?.textContent).toBe('Quartz');
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'about quartz mines')).toBeTruthy();
+  });
+});

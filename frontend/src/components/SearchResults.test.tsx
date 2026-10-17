@@ -3,10 +3,10 @@ import { render, screen } from '@testing-library/react';
 import SearchResults, { buildSearchResultRows, UnifiedSearchGroups } from './SearchResults';
 
 const results: UnifiedSearchGroups = {
-  shows: [{ slug: 'example-podcast', title: 'The Daily Tech Show', snippet: 'mentions <mark>batteries</mark>' }],
+  shows: [{ slug: 'example-podcast', title: 'The Daily Tech Show', titleSnippet: null, snippet: 'mentions <mark>batteries</mark>' }],
   episodes: [
     { feedSlug: 'example-podcast', feedTitle: 'The Daily Tech Show', episodeId: 'a1b2c3', title: 'Batteries again',
-      status: 'permanently_failed', publishDate: null, snippet: null },
+      status: 'permanently_failed', publishDate: null, titleSnippet: '<mark>Batteries</mark> again', snippet: null },
   ],
   transcripts: [
     { feedSlug: 'example-podcast', episodeId: 'a1b2c3', title: 'Batteries again',
@@ -77,5 +77,11 @@ describe('SearchResults', () => {
     const timestamps = screen.getAllByTestId('timestamp');
     expect(timestamps).toHaveLength(1);
     expect(timestamps[0].textContent).toBe('1:07');
+  });
+
+  it('renders a title hit as the highlighted title', () => {
+    renderResults();
+    const [title] = screen.getAllByText((_, el) => el?.tagName === 'SPAN' && el.textContent === 'Batteries again');
+    expect(title.querySelector('mark')?.textContent).toBe('Batteries');
   });
 });

@@ -12,6 +12,10 @@ release notes.
 ## [Unreleased]
 
 ### Fixed
+- Search ranks a title hit above the same words in a description or transcript. A
+  multi-word query no longer needs its function words, such as "the" or "for", to
+  appear in a description. Episode results show the publish date and status, and a
+  title hit is highlighted in the title rather than shown as a description snippet.
 - The ad editor's playback controls share one row on a phone, and the Selection label sits above its start and end boxes. The Edit and Add buttons above Detected Ads are 36 px squares with centered icons.
 
 ## [2.100.16] - 2026-10-16
