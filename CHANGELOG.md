@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Changed
+- Include transcript gap cues into LLM prompts using Segment Id addressing mode.
+
 ## [2.100.19] - 2026-10-19
 
 ### Added

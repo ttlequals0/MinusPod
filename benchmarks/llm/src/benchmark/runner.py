@@ -181,7 +181,21 @@ def _build_user_prompt(
     description = scrub_description(episode.metadata.description, max_length=4000)
     description_section = f"\n\nEpisode description: {description}\n" if description else ""
     if addressing_mode == "segment_ids":
-        transcript_lines = [f"[{seg['sid']}] {seg['text']}" for seg in (id_segments or [])]
+        transcript_lines = []
+        # prefix each segment with its ID and display long gaps between segments
+        min_gap_callout = 1.5
+        gap_displayed = False
+        prev_end = None
+        for seg in id_segments or []:
+            gap = max(0, seg['start'] - prev_end) if prev_end is not None else 0
+            if gap >= min_gap_callout:
+                transcript_lines.append(
+                    f"[gap of {gap:.1f}s (no transcript, likely silence, jingle, or unintelligible speech)]"
+                    if not gap_displayed
+                    else f"[gap {gap:.1f}s]")
+                gap_displayed = True
+            transcript_lines.append(f"[{seg['sid']}] {seg['text']}")
+            prev_end = seg['end']
     else:
         transcript_lines = window.transcript_lines
     return parsing.format_window_prompt(

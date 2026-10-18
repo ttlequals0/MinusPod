@@ -75,12 +75,24 @@ def test_effective_mode_random_logs_the_draw(caplog):
 
 
 def test_id_transcript_lines():
-    segs = [{'sid': 0, 'start': 0.0, 'end': 5.0, 'text': 'hello'},
-            {'sid': 1, 'start': 5.0, 'end': 9.0, 'text': 'world'}]
-    lines = AdDetector._format_transcript_lines(segs, 'segment_ids')
-    assert lines == ['[0] hello', '[1] world']
+    segs = [{'sid': 0, 'start': 0.0, 'end': 3.0, 'text': 'hello'},
+            {'sid': 1, 'start': 5.0, 'end': 7.0, 'text': 'cruel'},
+            {'sid': 2, 'start': 8.5, 'end': 10.0, 'text': 'world'},
+            {'sid': 3, 'start': 11.0, 'end': 12.0, 'text': 'foo'}]
+    lines = AdDetector._format_transcript_lines(segs, 'segment_ids', min_gap_callout=1.5)
+    assert lines == [
+        '[0] hello',
+        '[gap of 2.0s (no transcript, likely silence, jingle, or unintelligible speech)]',
+        '[1] cruel',
+        '[gap 1.5s]',
+        '[2] world',
+        '[3] foo']
     ts_lines = AdDetector._format_transcript_lines(segs, 'timestamps')
-    assert ts_lines == ['[0.0s - 5.0s] hello', '[5.0s - 9.0s] world']
+    assert ts_lines == [
+        '[0.0s - 3.0s] hello',
+        '[5.0s - 7.0s] cruel',
+        '[8.5s - 10.0s] world',
+        '[11.0s - 12.0s] foo']
 
 
 def test_timestamp_transcript_lines_expose_timed_show_and_ad_utterances():
