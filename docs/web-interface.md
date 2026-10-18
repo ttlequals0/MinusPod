@@ -88,7 +88,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Podcast search via PodcastIndex.org
 - Search: press Ctrl+K on Windows/Linux or Cmd+K on macOS to open the keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
-- Installs as an app on phones, tablets and desktops, see [Install as an app](#install-as-an-app)
+- Installs as an app on phones, tablets and desktops ([Install as an app](#install-as-an-app))
 
 ### Saving and updates
 
@@ -289,7 +289,7 @@ When a feed has a max ad duration cap or cue-gated approval on, ads that cannot 
 - **Approve & Recut** - stores a confirm correction and immediately re-cuts the original audio if retained; otherwise the button reads Approve and the cut applies on the next reprocess.
 - **Dismiss** - records a rejection and leaves the audio unchanged.
 
-When the original audio is retained, a pencil button next to the play button opens the ad in the waveform editor, where you can drag the boundaries before confirming; confirming with moved boundaries cuts only the span inside the pins. If the hold came from the ad reviewer proposing a boundary past the detected span, confirming at that position is accepted too, not just a narrower one.
+When the original audio is retained, a pencil button next to the play button opens the ad in the waveform editor, where you can drag the boundaries before confirming. Confirming with moved boundaries cuts only the span inside the pins. If the hold came from the ad reviewer proposing a boundary past the detected span, confirming at that position is accepted too, not just a narrower one.
 
 When the ad reviewer proposed a narrower span, the row offers a trimmed confirm that approves only that span. If the hold is a remainder carved out of a larger detection, the proposal is dropped or clamped to the remainder, and the trimmed button is hidden when the proposal does not overlap the held span. Changing the category in the editor records the new category and keeps the ad held; it does not confirm it.
 
