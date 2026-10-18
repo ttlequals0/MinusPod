@@ -17,10 +17,10 @@ export const tableActionBtn = 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
 export const tableActionIcon =
   'h-[30px] w-[30px] inline-flex items-center justify-center';
 
-/** Review/detection cards: 44px, the tap-target floor. */
+/** Review/detection cards: 44px, the tap-target floor. Labels wrap on a phone, where a flex row can squeeze a button below its text. */
 const cardActionTail =
   ' px-3 text-sm rounded inline-flex items-center'
-  + ' justify-center touch-manipulation whitespace-nowrap text-center max-w-full';
+  + ' justify-center touch-manipulation sm:whitespace-nowrap text-center max-w-full';
 export const cardActionBtn = `min-h-[44px]${cardActionTail}`;
 /** cardActionBtn with the 44px floor on phones only. */
 export const cardActionBtnMobileOnly = `max-sm:min-h-[44px]${cardActionTail}`;

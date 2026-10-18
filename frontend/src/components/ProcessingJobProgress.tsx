@@ -37,21 +37,21 @@ export default function ProcessingJobProgress({
   const stageLabel = getStageLabel(job.stage);
   const progress = clampProgress(job.progress);
   const title = linkTo ? (
-    <Link to={linkTo} className={`block font-medium text-primary hover:underline truncate ${compact ? 'text-sm' : ''} ${focusRing}`}>
+    <Link to={linkTo} className={`block font-medium text-primary hover:underline sm:truncate ${compact ? 'text-sm' : ''} ${focusRing}`}>
       {job.title}
     </Link>
   ) : (
-    <p className={`${compact ? 'text-sm' : ''} font-medium text-foreground truncate`}>{job.title}</p>
+    <p className={`${compact ? 'text-sm' : ''} font-medium text-foreground sm:truncate`}>{job.title}</p>
   );
 
   return (
     <div className={className} data-testid={testId}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3 max-sm:flex-col max-sm:items-stretch max-sm:gap-1">
         <div className="min-w-0 flex-1">
           {title}
           <p className={`${compact ? 'text-xs' : 'text-sm'} text-muted-foreground truncate`}>{job.podcastName}</p>
         </div>
-        <div className="text-right shrink-0">
+        <div className="sm:shrink-0 sm:text-right">
           <p className="text-sm font-medium text-primary">{stageLabel}</p>
           <p className="text-xs text-muted-foreground tabular-nums">
             {Math.round(progress)}% - {formatDurationWhole(elapsed)}

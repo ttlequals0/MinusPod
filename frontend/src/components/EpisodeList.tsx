@@ -115,12 +115,12 @@ function EpisodeRow({
           {episode.feedTitle && (
             <p className="text-xs text-muted-foreground truncate">{episode.feedTitle}</p>
           )}
-          {/* Fixed slots (two description lines, one meta line, one badge
-              line) so every row in the list is the same height. */}
+          {/* Fixed description and badge slots keep rows aligned; the meta
+              line wraps on a narrow phone rather than clipping. */}
           <p className="text-sm text-muted-foreground mt-1 line-clamp-2 min-h-10">
             {episode.description ? stripHtml(episode.description, { collapse: true }) : ''}
           </p>
-          <div className="flex gap-x-3 mt-2 text-sm text-muted-foreground truncate">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-sm text-muted-foreground">
             <span className="whitespace-nowrap">{formatDate(episode.published)}</span>
             {episode.duration && <span className="whitespace-nowrap">{formatDurationHoursMinutes(episode.duration)}</span>}
             {episode.ad_count !== undefined && episode.ad_count > 0 && (

@@ -9,6 +9,22 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.100.18] - 2026-10-18
+
+### Fixed
+- Bulk action buttons on a phone (Reprocess, Set pass-through, Delete)
+  collapsed to 44px squares with their labels spilling across each other.
+  The 2.100.17 touch-target rule set a minimum button width outside the
+  Tailwind layers, so it overrode every button's own minimum width. The
+  width floor now sits in the base layer, and the bulk toolbar wraps long
+  labels on phones.
+- More phone layout fixes. The episode card meta line ("4 ads detected")
+  wraps instead of being cut mid-word. The audio cue template buttons
+  size to their labels instead of squeezing their text. A running job's
+  stage label sits under the title instead of shrinking it to a few
+  characters. The prev/next pills and the VTT/Chapters download chips meet
+  the 44px tap-target floor.
+
 ## [2.100.17] - 2026-10-17
 
 ### Fixed

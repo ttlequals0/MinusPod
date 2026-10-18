@@ -158,10 +158,17 @@ mark,
 /* iOS Safari zooms the page when a focused field is under 16px. Gated on touch input, not width, so landscape phones count; unlayered so it beats text-sm utilities. */
 @media (pointer: coarse) {
   input, select, textarea { font-size: 16px; }
-  button, summary, [role="switch"], .touch-target { min-width: 44px; min-height: 44px; }
-  @media (max-width: 639.98px) { .touch-target-row { min-width: 0; } .touch-compact { min-width: 36px; min-height: 36px; } }
+  button, summary, [role="switch"], .touch-target { min-height: 44px; }
+  @media (max-width: 639.98px) { .touch-compact { min-height: 36px; } }
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select { min-height: 44px; }
   summary:not(.flex) { padding-block: 12px; }
+}
+
+/* Height is a hard floor (above); width is a default in the base layer, so a button's own min-w-* utility wins. */
+@layer base {
+  @media (pointer: coarse) {
+    button, summary, [role="switch"] { min-width: 44px; }
+  }
 }
 
 .modal-backdrop { padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }

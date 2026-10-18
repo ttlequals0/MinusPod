@@ -57,7 +57,6 @@ const STATUS_BADGE: Record<Exclude<CleanupStatus, 'pending'>, [string, string]> 
 };
 
 const actionBtn = `${scopedCardActionBtn} grow basis-0 sm:grow-0 sm:basis-auto disabled:opacity-50 transition-colors ${focusRing}`;
-const bulkActionBtn = `${scopedCardActionBtn.replace('whitespace-nowrap', 'whitespace-normal')} grow basis-0 sm:grow-0 sm:basis-auto sm:whitespace-nowrap disabled:opacity-50 transition-colors ${focusRing}`;
 const PAGE_SIZE = 200;
 
 function actionError(err: unknown, action?: 'approve' | 'reject' | 'undo'): string {
@@ -438,7 +437,7 @@ export default function CleanupTab() {
               type="button"
               disabled={busy || chosen.length === 0}
               onClick={() => bulk.mutate({ ids: chosen, action: 'approve' })}
-              className={`${bulkActionBtn} ${btnPrimary}`}
+              className={`${actionBtn} ${btnPrimary}`}
             >
               Approve selected ({chosen.length})
             </button>
@@ -446,7 +445,7 @@ export default function CleanupTab() {
               type="button"
               disabled={busy || chosen.length === 0}
               onClick={() => bulk.mutate({ ids: chosen, action: 'reject' })}
-              className={`${bulkActionBtn} ${btnOutline}`}
+              className={`${actionBtn} ${btnOutline}`}
             >
               Reject selected ({chosen.length})
             </button>

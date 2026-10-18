@@ -49,6 +49,8 @@ interface Props {
 
 // Per-feed cue template management. Templates take precedence over the global
 // spectral cue detector when at least one is enabled for the feed.
+const cueBtn = `whitespace-nowrap px-3 py-1.5 rounded text-sm ${focusRing}`;
+
 function CueTemplatesPanel({ slug }: Props) {
   const queryClient = useQueryClient();
   // Mirrors the CollapsibleSection's persisted open state (same storage key)
@@ -324,7 +326,7 @@ function CueTemplatesPanel({ slug }: Props) {
         <div className="flex flex-wrap gap-2 mb-3">
           <button
             type="button"
-            className={`flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded ${ghostBtn} text-sm ${focusRing}`}
+            className={`${cueBtn} ${ghostBtn}`}
             onClick={() => importInputRef.current?.click()}
             disabled={importMutation.isPending}
             title="Import a cue template zip exported from another install"
@@ -333,7 +335,7 @@ function CueTemplatesPanel({ slug }: Props) {
           </button>
           <button
             type="button"
-            className={`flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded ${ghostBtn} text-sm disabled:opacity-50 ${focusRing}`}
+            className={`${cueBtn} ${ghostBtn} disabled:opacity-50`}
             onClick={() => setScanOpen(true)}
             disabled={templates.length === 0}
             title={templates.length === 0 ? 'Mark at least one cue first' : 'Run all enabled templates against an episode'}
@@ -342,7 +344,7 @@ function CueTemplatesPanel({ slug }: Props) {
           </button>
           <button
             type="button"
-            className={`flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded ${ghostBtn} text-sm disabled:opacity-50 ${focusRing}`}
+            className={`${cueBtn} ${ghostBtn} disabled:opacity-50`}
             onClick={() => { setActionError(null); setCrossEpisodeScanOpen(true); }}
             disabled={!crossEpisodeEligible}
             title={!crossEpisodeEligible ? 'Need at least 2 episodes with original audio' : 'Find recurring cue sounds across multiple episodes'}
@@ -351,7 +353,7 @@ function CueTemplatesPanel({ slug }: Props) {
           </button>
           <button
             type="button"
-            className={`flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded ${primaryBtn} text-sm ${focusRing}`}
+            className={`${cueBtn} ${primaryBtn}`}
             onClick={() => { setActionError(null); setPickerOpen(true); }}
           >
             + Mark cue

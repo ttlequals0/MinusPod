@@ -21,7 +21,7 @@ Run these commands from `frontend`. The guide's theme catalog and default tokens
 
 ## Responsive layout and targets
 
-- Use at least 44 x 44 CSS px for standalone controls on coarse pointers, including tablets. An icon may be smaller. Padding outside the clickable element does not enlarge its target.
+- Use at least 44 x 44 CSS px for standalone controls on coarse pointers, including tablets. An icon may be smaller. Padding outside the clickable element does not enlarge its target. On coarse pointers the global CSS makes the 44px height a hard floor. The 44px width is a base-layer default that any `min-w-*` utility overrides, so a flex row can give a button its own wider floor.
 - Inline text links and range-slider tracks are exceptions to the square target rule. Checkbox and radio measurements use their associated clickable label, not an intentionally hidden native input.
 - Preserve action and sorting access when tables become cards. Processing History and episode costs use cards below 1280 CSS px. Downloads uses cards below 768 CSS px and progressively reveals columns.
 - Choose table breakpoints from populated content. Check long titles, large counts, IPv4 and IPv6 values, and error messages. Routine lists must fit their containers. Detailed comparison tables may scroll within a named, keyboard-focusable region.

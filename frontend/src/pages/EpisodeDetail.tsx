@@ -45,7 +45,7 @@ import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import CostAmount from '../components/CostAmount';
 import EpisodeLogsCard from '../components/EpisodeLogsCard';
-import { btnDestructive, btnPrimary, btnSecondary, touchCompact } from '../components/buttonStyles';
+import { btnDestructive, btnPrimary, btnSecondary, touchCompact, touchTarget } from '../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
 import { fileInputBase, focusRing } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
@@ -348,6 +348,8 @@ function blockedRunReason(jobState?: JobState): string {
   if (jobState === 'processing') return 'This episode is already processing.';
   return 'A run is already starting.';
 }
+
+const downloadChip = `${touchTarget} px-3 py-1 text-sm rounded transition-colors ${focusRing}`;
 
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
@@ -1094,7 +1096,7 @@ function EpisodeDetail() {
                   <a
                     href={episode.transcriptVttUrl}
                     download
-                    className={`px-3 py-1 text-sm bg-c-blue/20 text-c-blue-on-tint rounded hover:bg-c-blue/30 transition-colors ${focusRing}`}
+                    className={`${downloadChip} ${tint.blue} hover:bg-c-blue/30`}
                   >
                     Download VTT
                   </a>
@@ -1103,7 +1105,7 @@ function EpisodeDetail() {
                   <a
                     href={episode.chaptersUrl}
                     download
-                    className={`px-3 py-1 text-sm bg-c-purple/20 text-c-purple-on-tint rounded hover:bg-c-purple/30 transition-colors ${focusRing}`}
+                    className={`${downloadChip} ${tint.purple} hover:bg-c-purple/30`}
                   >
                     Download Chapters
                   </a>

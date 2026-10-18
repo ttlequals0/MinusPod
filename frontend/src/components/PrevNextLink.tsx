@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
 import { focusRing } from './fieldStyles';
+import { touchTarget } from './buttonStyles';
 
 // One prev/next pill, shared by the episode and feed detail headers. `side`
 // fixes the chevron position (prev = left, next = right); `label` is the visible
@@ -15,7 +16,7 @@ export default function PrevNextLink({ to, side, label, title }: {
   const icon = side === 'prev'
     ? <ChevronLeft className="w-4 h-4" />
     : <ChevronRight className="w-4 h-4" />;
-  const base = 'inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm border transition-colors';
+  const base = `${touchTarget} gap-1 px-2 py-1 rounded-md text-sm border transition-colors`;
 
   if (!to) {
     return (
