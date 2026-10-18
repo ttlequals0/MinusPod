@@ -11,6 +11,10 @@ release notes.
 
 ## [2.100.18] - 2026-10-18
 
+### Added
+- Docs: how to install the web UI as an app on iPhone, iPad, Android,
+  macOS and Windows (docs/web-interface.md).
+
 ### Fixed
 - Bulk action buttons on a phone (Reprocess, Set pass-through, Delete)
   collapsed to 44px squares with their labels spilling across each other.

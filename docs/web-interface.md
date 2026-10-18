@@ -8,6 +8,7 @@
 
 - [Overview](#overview)
 - [Saving and updates](#saving-and-updates)
+- [Install as an app](#install-as-an-app)
 - [Dashboard views](#dashboard-views)
 - [Episode actions and job state](#episode-actions-and-job-state)
 - [Feed Display Title](#feed-display-title)
@@ -87,7 +88,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Podcast search via PodcastIndex.org
 - Search: press Ctrl+K on Windows/Linux or Cmd+K on macOS to open the keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
-- Installable as Progressive Web App (PWA)
+- Installs as an app on phones, tablets and desktops, see [Install as an app](#install-as-an-app)
 
 ### Saving and updates
 
@@ -96,6 +97,19 @@ Settings shows whether a control uses the page's Save Changes button, its own Sa
 When an app update is ready, a banner offers Reload. Finish saving or discard registered drafts before applying it. Updates no longer reload the page automatically while a draft is open.
 
 Feed deletion, settings reset, and replacement imports use explicit confirmation dialogs. Read the named target and consequences before confirming. Failed requests show an error and Retry where supported; a failure does not establish an empty list.
+
+### Install as an app
+
+The web UI is a Progressive Web App. Installed, it opens full screen from its own icon, with no browser toolbar, and keeps your login session. Browsers only offer to install over HTTPS, so put the server behind the reverse proxy or tunnel from the [installation guide](installation.md) first.
+
+| Platform | How |
+|---|---|
+| iPhone and iPad | Open the UI in Safari, tap Share, then Add to Home Screen. Only Safari can install it on iOS. Chrome and Firefox there cannot. |
+| Android | Chrome offers an Install prompt on first visit. If it does not, open the browser menu and choose Install app or Add to Home screen. |
+| macOS | Chrome and Edge show an install icon at the right end of the address bar. Safari 17 and later: File, then Add to Dock. |
+| Windows | Chrome and Edge show the same install icon in the address bar, or use the browser menu and choose Install MinusPod. |
+
+The installed app updates the same way as the browser tab: when a new version is ready, the Reload banner appears and applies it. To remove it, delete the icon as you would any app.
 
 ### Dashboard views
 

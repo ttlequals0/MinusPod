@@ -63,7 +63,7 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
 - Optional Recents feed combines processed episodes published on or after its creation date across subscribed and local feeds, including feeds added later
 
 **Interface and ops**
-- Web UI with a waveform ad editor, plus feed, episode, queue, search, pattern, sponsor, history, stats, and settings views
+- Web UI with a waveform ad editor, plus feed, episode, queue, search, pattern, sponsor, history, stats, and settings views. Installs as an app on iOS, Android, macOS and Windows. [Details](docs/web-interface.md#install-as-an-app)
 - Stats and cost analytics: ads cut, time saved, an LLM cost ledger (per-episode, per-run, and per-phase spend, with a drill-down to calls), plus System One, reviewer, and Pattern Cleanup stats. [Details](docs/web-interface.md)
 - Retention controls (global or per feed, including a never-delete archive mode), scheduled and downloadable backups (encrypted when a master passphrase is set), email and webhook notifications, and a full REST API with OpenAPI
 - Shared-password UI and API auth, with optional feed keys or per-feed subscriber keys for RSS; runs behind a reverse proxy or Cloudflare tunnel
