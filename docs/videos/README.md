@@ -142,9 +142,9 @@ laptop crop is given in source pixels (`[x, y, w, h]` on the 2000x1800
 capture); the landscape cut reshapes it around the same center.
 
 The feed excerpt in the Podcasting 2.0 video is not a recording. Fetch the
-served RSS of the demo feed and run `node feedcard.mjs feed.xml`: hostnames
-become `example.com`, key parameters are dropped, and the result is an 8 s
-laptop-sized clip at `clips/p20/feedxml.mp4` that the composer frames like any
-other.
+served RSS of the demo feed and run `node feedcard.mjs feed.xml`: every URL
+loses its query string, every host except the namespace hosts becomes
+`example.com`, and the result is an 8 s laptop-sized clip at
+`clips/p20/feedxml.mp4` that the composer frames like any other.
 
 [< Docs index](../README.md) | [Project README](../../README.md)

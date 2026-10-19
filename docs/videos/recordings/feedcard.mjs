@@ -1,19 +1,20 @@
 // Renders a served RSS feed as a code card and loops it into a laptop-sized clip, for the Podcasting 2.0 video.
 // Usage: node feedcard.mjs <feed.xml> [clips/p20/feedxml.mp4]
-// Instance hostnames (the leakPatterns in targets.json) become example.com and key parameters are dropped; namespace URLs stay.
+// Every URL loses its query string and every host except the namespace hosts becomes example.com, whatever the
+// parameter is called, so a feed key or token cannot reach the card.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { DEVICES, loadTargets } from './helpers.mjs';
+import { DEVICES } from './helpers.mjs';
 
 const [,, xmlFile, outFile = 'clips/p20/feedxml.mp4'] = process.argv;
 if (!xmlFile) { console.error('usage: node feedcard.mjs <feed.xml> [out.mp4]'); process.exit(2); }
 const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 let xml = fs.readFileSync(xmlFile, 'utf8').replace(/<!--[\s\S]*?-->\n?/g, '');
-const LEAK = new RegExp(loadTargets().leakPatterns.join('|'), 'i');
-xml = xml.replace(/https?:\/\/[^/\s"'<]+/g, (m) => (LEAK.test(m) ? 'https://example.com' : m)).replace(/[?&]key=[^&"'\s<]+/g, '');
+const NAMESPACE_HOSTS = /^https?:\/\/(www\.)?(itunes\.com|podcastindex\.org|w3\.org|purl\.org)$/i;
+xml = xml.replace(/https?:\/\/[^/\s"'<]+/g, (m) => (NAMESPACE_HOSTS.test(m) ? m : 'https://example.com')).replace(/\?[^"'\s<]*/g, '');
 const lines = xml.trim().split('\n').map((l) => esc(l)
   .replace(/(&lt;\/?)(podcast:[a-zA-Z]+)/g, '$1<b class="p2">$2</b>')
   .replace(/(&lt;\/?)([a-zA-Z]+(?::[a-zA-Z]+)?)(?=[ &>])/g, (m, a, tag) => tag.startsWith('podcast:') ? m : `${a}<span class="tag">${tag}</span>`)
