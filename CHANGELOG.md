@@ -12,9 +12,10 @@ release notes.
 ## [2.100.19] - 2026-10-19
 
 ### Added
-- Docs: two short vertical videos under docs/videos. A tour of the web UI
-  and an animated walk through the processing pipeline, with the animation
-  source and a rebuild recipe for the second one.
+- Docs: two short videos under docs/videos, each in a portrait and a
+  landscape cut. A tour of the web UI and an animated walk through the
+  processing pipeline, with the animation source and a rebuild recipe for
+  the second one.
 
 ## [2.100.18] - 2026-10-18
 

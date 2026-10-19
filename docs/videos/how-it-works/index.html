@@ -14,7 +14,14 @@
 <body>
 <canvas id="c" width="1080" height="1920"></canvas>
 <script>
+// Scenes draw in portrait coordinates (W x H). The landscape layout places the caption and rail in a left column
+// and scales the portrait content box into the right side of a 1920x1080 frame.
 const W = 1080, H = 1920, FPS = 30;
+const LANDSCAPE = new URLSearchParams(location.search).get('layout') === 'landscape';
+const OUT_W = LANDSCAPE ? 1920 : W, OUT_H = LANDSCAPE ? 1080 : H;
+const BOX = { top: 520, bottom: 1700 };                      // portrait y range that holds every scene's content
+const LS = { capX: 72, capW: 760, scale: (OUT_H - 80) / (BOX.bottom - BOX.top) };
+LS.x = OUT_W - 72 - W * LS.scale;
 const C = {
   bg: '#15181D', fg: '#F3F5F7', muted: '#9AA3AD', dim: '#5F6873', border: '#3A4049', card: '#1F242B', card2: '#272D35',
   primary: '#5ABFDD', ad: '#EF5F5D', ok: '#05DF73', warn: '#FFB900', teal: '#00C9A7', purple: '#C084FC',
@@ -29,7 +36,7 @@ const REMOVED_SEC = Math.round(EP_SEC * AD_FRAC);
 // The eleven stages of docs/workflows.md, in order.
 const STAGES = ['Download', 'Transcribe', 'Second download', 'Audio analysis', 'Detect ads', 'Validate', 'Boundary review', 'Cut audio', 'Verify pass', 'Transcript, chapters', 'Publish feed'];
 
-const cv = document.getElementById('c'); const ctx = cv.getContext('2d');
+const cv = document.getElementById('c'); cv.width = OUT_W; cv.height = OUT_H; const ctx = cv.getContext('2d');
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const seg = (t, a, d) => clamp01((t - a) / d);
 const eio = (p) => (p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p);
@@ -101,7 +108,7 @@ function checklist(x, y, items, done, rowH = 86) {
 function splash(lt, d, draw) {
   const z = 1 + 0.03 * (lt / d);
   reveal(eo(seg(lt, 0.1, 0.8)), () => {
-    ctx.translate(W / 2, 860); ctx.scale(z, z);
+    ctx.translate(OUT_W / 2, LANDSCAPE ? 520 : 860); ctx.scale(z, z);
     const lw = 560, lh = lw * logo.height / logo.width; ctx.drawImage(logo, -lw / 2, -lh - 40, lw, lh);
     draw();
   });
@@ -143,16 +150,18 @@ const cutLabel = (cut) => timeLabel(EP_SEC - REMOVED_SEC * cut);
 
 // ---------- caption + stage rail ----------
 function caption(head, sub, p) {
+  const [x, maxw, hs, ss] = LANDSCAPE ? [LS.capX, LS.capW, 56, 34] : [72, W - 144, 62, 38];
   reveal(p, () => {
-    let y = 170;
-    for (const l of wrap(head, font(700, 62), W - 144)) { text(l, 72, y, font(700, 62), C.fg); y += 74; }
-    if (sub) { y += 8; for (const l of wrap(sub, font(400, 38), W - 144)) { text(l, 72, y, font(400, 38), C.muted); y += 48; } }
+    let y = LANDSCAPE ? 150 : 170;
+    for (const l of wrap(head, font(700, hs), maxw)) { text(l, x, y, font(700, hs), C.fg); y += hs * 1.2; }
+    if (sub) { y += 8; for (const l of wrap(sub, font(400, ss), maxw)) { text(l, x, y, font(400, ss), C.muted); y += ss * 1.27; } }
   }, 18);
 }
 // Eleven numbered chips; the active stages are filled and named underneath.
 function rail(active, alpha) {
   reveal(alpha, () => {
-    const y = 1740, cw = 64, gap = 12, n = STAGES.length; let x = (W - n * cw - (n - 1) * gap) / 2;
+    const n = STAGES.length, [y, cw, gap] = LANDSCAPE ? [920, 56, 8] : [1740, 64, 12]; let x = LANDSCAPE ? LS.capX : (W - n * cw - (n - 1) * gap) / 2;
+    const labelX = LANDSCAPE ? LS.capX : W / 2, labelAlign = LANDSCAPE ? 'left' : 'center';
     const ai = active.map((s) => STAGES.indexOf(s)), last = Math.max(...ai);
     STAGES.forEach((s, i) => {
       const on = ai.includes(i);
@@ -160,7 +169,7 @@ function rail(active, alpha) {
       text(String(i + 1).padStart(2, '0'), x + cw / 2, y + 28, font(700, 22), on ? C.bg : i < last ? C.muted : C.dim, 'center');
       x += cw + gap;
     });
-    text(active.map((s, i) => `${String(ai[i] + 1).padStart(2, '0')} ${s}`).join('   +   '), W / 2, y + 86, font(500, 28), C.primary, 'center');
+    text(active.map((s, i) => `${String(ai[i] + 1).padStart(2, '0')} ${s}`).join('   +   '), labelX, y + 86, font(500, 28), C.primary, labelAlign);
   });
 }
 
@@ -414,16 +423,16 @@ add(4.6, '', '', (lt, d) => splash(lt, d, () => {
   text('github.com/ttlequals0/MinusPod', 0, 250, font(500, 36), C.teal, 'center', eo(seg(lt, 0.9, 0.6)));
 }));
 
-window.W = W; window.H = H; window.FPS = FPS;
+window.W = OUT_W; window.H = OUT_H; window.FPS = FPS;
 window.total = scenes.reduce((a, s) => a + s.dur, 0);
 // Midpoint of each scene, the default preview set.
 window.sceneMids = scenes.map((s, i) => scenes.slice(0, i).reduce((a, x) => a + x.dur, 0) + s.dur / 2);
 window.render = function (t) {
-  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = C.bg; ctx.fillRect(0, 0, OUT_W, OUT_H);
   let acc = 0, idx = 0; for (; idx < scenes.length - 1 && t >= acc + scenes[idx].dur; idx++) acc += scenes[idx].dur;
   const sc = scenes[idx], lt = Math.min(t - acc, sc.dur), last = idx === scenes.length - 1;
   const fade = last ? seg(lt, 0, 0.35) : envelope(lt, sc.dur, 0, 0.35, 0.35);
-  reveal(fade, () => sc.draw(lt, sc.dur));
+  reveal(fade, () => { if (LANDSCAPE && sc.head) { ctx.translate(LS.x, 40); ctx.scale(LS.scale, LS.scale); ctx.translate(0, -BOX.top); } sc.draw(lt, sc.dur); });
   if (sc.head) caption(sc.head, sc.sub, envelope(lt, sc.dur, 0.15, 0.45, 0.35));
   if (sc.stage) rail(sc.stage, fade);
 };

@@ -2,14 +2,15 @@
 
 [< Docs index](../README.md) | [Project README](../../README.md)
 
-Short vertical videos about MinusPod, cut for TikTok and other 9:16 feeds.
-Both are 1080x1920 at 30 fps, H.264, with no audio track, so a caption or
-music can be added in the posting app.
+Short videos about MinusPod, each in a portrait cut for TikTok and other 9:16
+feeds and a landscape cut for YouTube, a README or a talk. Portrait is 1080x1920
+and landscape is 1920x1080, both 30 fps H.264 with no audio track, so a caption
+or music can be added in the posting app.
 
-| File | Length | What it shows |
-|---|---|---|
-| [minuspod-demo.mp4](minuspod-demo.mp4) | 85 s | A tour of the web UI: dashboard, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and themes. Recorded from a running instance. |
-| [minuspod-how-it-works.mp4](minuspod-how-it-works.mp4) | 107 s | An animated walk through one episode across all eleven pipeline stages: download, transcribe, second download and audio analysis, detect (free matches, then the model), validate, boundary review, cut, verify pass, transcript and chapters, publish. Then the learning loop and what happens when something fails. Follows [How It Works](../how-it-works.md) and [Episode Processing Workflows](../workflows.md). |
+| Video | Portrait | Landscape | Length | What it shows |
+|---|---|---|---|---|
+| UI tour | [minuspod-demo.mp4](minuspod-demo.mp4) | [minuspod-demo-landscape.mp4](minuspod-demo-landscape.mp4) | 85 s | Dashboard, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and themes. Recorded from a running instance. |
+| How it works | [minuspod-how-it-works.mp4](minuspod-how-it-works.mp4) | [minuspod-how-it-works-landscape.mp4](minuspod-how-it-works-landscape.mp4) | 107 s | One episode across all eleven pipeline stages: download, transcribe, second download and audio analysis, detect (free matches, then the model), validate, boundary review, cut, verify pass, transcript and chapters, publish. Then the learning loop and what happens when something fails. Follows [How It Works](../how-it-works.md) and [Episode Processing Workflows](../workflows.md). |
 
 ## Rebuilding the how-it-works video
 
@@ -23,10 +24,15 @@ app's dark theme tokens, so the video tracks the app's own look.
 cd docs/videos/how-it-works
 npm install                      # playwright, once
 npx playwright install chromium  # once, if Chromium is not installed yet
-npm run frames                   # writes frames/*.png
-npm run encode                   # ffmpeg -> ../minuspod-how-it-works.mp4
+npm run frames && npm run encode                      # portrait
+npm run frames:landscape && npm run encode:landscape  # landscape
 rm -rf frames
 ```
+
+The scenes are drawn once, in portrait coordinates. The landscape layout keeps
+the caption and the stage rail in a left column and scales the scene content
+into the right side of the frame. `node render.mjs preview --landscape` previews
+that layout.
 
 `node render.mjs preview 2,25.5,49` writes single frames at those times to
 `preview/` for checking a scene without a full render; with no times it
