@@ -1,24 +1,24 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-// Usage: node render.mjs preview <t1,t2,...>  |  node render.mjs frames
-// Needs playwright with Chromium on the module path, for example: npx -y -p playwright node render.mjs frames
+// Usage: node render.mjs preview [t1,t2,...]  |  npm run frames
 const [, , mode, arg] = process.argv;
-const D = path.dirname(new URL(import.meta.url).pathname);
-const FPS = 30;
+const D = path.dirname(fileURLToPath(import.meta.url));
 const browser = await chromium.launch({ channel: 'chromium' });
 const page = await browser.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
-page.on('pageerror', (e) => { console.error('PAGE ERROR', e.message); process.exitCode = 1; });
-await page.goto('file://' + D + '/index.html');
-await page.evaluate(() => window.ready); await page.evaluate(() => document.fonts.ready);
-const total = await page.evaluate(() => window.total);
-console.log('total', total.toFixed(2), 's');
-const shot = async (t, file) => { await page.evaluate((t) => window.render(t), t); await page.screenshot({ path: file, clip: { x: 0, y: 0, width: 1080, height: 1920 } }); };
+let pageError; page.on('pageerror', (e) => { pageError = e; });
+await page.goto(pathToFileURL(path.join(D, 'index.html')).href);
+await page.evaluate(() => window.ready);
+const { W, H, FPS, total, sceneMids } = await page.evaluate(() => ({ W: window.W, H: window.H, FPS: window.FPS, total: window.total, sceneMids: window.sceneMids }));
+await page.setViewportSize({ width: W, height: H });
+console.log('total', total.toFixed(2), 's at', FPS, 'fps');
+const shot = async (t, file) => { await page.evaluate((t) => window.render(t), t); if (pageError) throw pageError; await page.screenshot({ path: file }); };
 
 if (mode === 'preview') {
   fs.mkdirSync(`${D}/preview`, { recursive: true });
-  for (const t of arg.split(',').map(Number)) await shot(t, `${D}/preview/t${t.toFixed(2).replace('.', '_')}.png`);
+  for (const t of arg ? arg.split(',').map(Number) : sceneMids) await shot(t, `${D}/preview/t${t.toFixed(2).replace('.', '_')}.png`);
 } else {
   fs.rmSync(`${D}/frames`, { recursive: true, force: true }); fs.mkdirSync(`${D}/frames`);
   const n = Math.round(total * FPS);

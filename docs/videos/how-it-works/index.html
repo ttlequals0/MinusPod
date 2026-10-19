@@ -14,26 +14,37 @@
 <body>
 <canvas id="c" width="1080" height="1920"></canvas>
 <script>
-const W = 1080, H = 1920;
+const W = 1080, H = 1920, FPS = 30;
 const C = {
   bg: '#15181D', fg: '#F3F5F7', muted: '#9AA3AD', dim: '#5F6873', border: '#3A4049', card: '#1F242B', card2: '#272D35',
   primary: '#5ABFDD', ad: '#EF5F5D', ok: '#05DF73', warn: '#FFB900', teal: '#00C9A7', purple: '#C084FC',
 };
+// One content column shared by the tape, cards and gate.
+const COL_W = 880, COL_X = (W - COL_W) / 2;
+// The episode the video follows: runtime and where its ads sit on the bar.
+const EP_SEC = 3730;
+const ADS = [[0, 0.07], [0.46, 0.57], [0.93, 1]];
+const AD_FRAC = ADS.reduce((a, [s, e]) => a + (e - s), 0);
+const REMOVED_SEC = Math.round(EP_SEC * AD_FRAC);
+
 const cv = document.getElementById('c'); const ctx = cv.getContext('2d');
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const seg = (t, a, d) => clamp01((t - a) / d);
 const eio = (p) => (p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p);
 const eo = (p) => 1 - Math.pow(1 - p, 3);
-const eb = (p) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
 const lerp = (a, b, p) => a + (b - a) * p;
 const font = (w, s) => `${w} ${s}px Roboto`;
+// Fade in over inDur from inStart, fade out over outDur before dur ends.
+const envelope = (lt, dur, inStart, inDur, outDur) => Math.min(seg(lt, inStart, inDur), seg(dur - lt, 0, outDur));
 const logo = new Image(); logo.src = '../../../frontend/public/logo-dark.svg';
 window.ready = Promise.all([document.fonts.load(font(700, 64)), document.fonts.load(font(400, 38)), document.fonts.load(font(500, 30)),
-  new Promise((r) => { logo.onload = r; if (logo.complete) r(); })]);
+  new Promise((r, j) => { logo.onload = r; logo.onerror = () => j(new Error('logo failed to load: ' + logo.src)); if (logo.complete) r(); })]);
 
 function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
 function fillRR(x, y, w, h, r, color) { rr(x, y, w, h, r); ctx.fillStyle = color; ctx.fill(); }
 function strokeRR(x, y, w, h, r, color, lw = 2) { rr(x, y, w, h, r); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.stroke(); }
+// Draw fn at opacity p, slid up by dy while it fades in.
+function reveal(p, fn, dy = 0) { if (p <= 0) return; ctx.save(); ctx.globalAlpha *= p; ctx.translate(0, (1 - p) * dy); fn(); ctx.restore(); }
 function wrap(text, f, maxw) {
   ctx.font = f; const words = text.split(' '), lines = []; let cur = '';
   for (const w of words) { const t = (cur + ' ' + w).trim(); if (ctx.measureText(t).width <= maxw) cur = t; else { lines.push(cur); cur = w; } }
@@ -42,13 +53,19 @@ function wrap(text, f, maxw) {
 function text(s, x, y, f, color, align = 'left', alpha = 1) {
   ctx.save(); ctx.globalAlpha *= alpha; ctx.font = f; ctx.fillStyle = color; ctx.textAlign = align; ctx.textBaseline = 'alphabetic'; ctx.fillText(s, x, y); ctx.restore();
 }
-function pill(label, x, y, color, opts = {}) {
-  const f = font(opts.weight || 500, opts.size || 26); ctx.font = f; const pw = ctx.measureText(label).width + 36, ph = (opts.size || 26) + 22;
-  const px = opts.align === 'center' ? x - pw / 2 : opts.align === 'right' ? x - pw : x;
+function pillWidth(label, size = 26, weight = 500) { ctx.font = font(weight, size); return ctx.measureText(label).width + 36; }
+function pill(label, x, y, color, { weight = 500, size = 26, align = 'left' } = {}) {
+  const pw = pillWidth(label, size, weight), ph = size + 22;
+  const px = align === 'center' ? x - pw / 2 : align === 'right' ? x - pw : x;
   ctx.save(); ctx.globalAlpha *= 0.18; fillRR(px, y, pw, ph, ph / 2, color); ctx.restore();
   strokeRR(px, y, pw, ph, ph / 2, color, 1.5);
-  text(label, px + pw / 2, y + ph / 2 + (opts.size || 26) * 0.36, f, color, 'center');
+  text(label, px + pw / 2, y + ph / 2 + size * 0.36, font(weight, size), color, 'center');
   return pw;
+}
+// Centered row of pills; items are [label, color, alpha].
+function pillRow(items, y, gap = 24, size = 26) {
+  const widths = items.map(([l]) => pillWidth(l, size)); let x = (W - widths.reduce((a, b) => a + b, 0) - gap * (items.length - 1)) / 2;
+  items.forEach(([l, col, a], i) => { const px = x; reveal(a, () => pill(l, px, y, col, { size }), 10); x += widths[i] + gap; });
 }
 function arrow(x1, y1, x2, y2, color, p = 1, lw = 4) {
   if (p <= 0) return; const ex = lerp(x1, x2, p), ey = lerp(y1, y2, p);
@@ -58,39 +75,41 @@ function arrow(x1, y1, x2, y2, color, p = 1, lw = 4) {
   ctx.restore();
 }
 function card(x, y, w, h, title, sub, accent, alpha = 1, r = 22) {
-  ctx.save(); ctx.globalAlpha *= alpha;
-  ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10; fillRR(x, y, w, h, r, C.card); ctx.shadowColor = 'transparent';
-  strokeRR(x, y, w, h, r, C.border, 1.5);
-  if (accent) { ctx.save(); rr(x, y, w, h, r); ctx.clip(); ctx.fillStyle = accent; ctx.fillRect(x, y, 8, h); ctx.restore(); }
-  if (title) text(title, x + 34, y + (sub ? 56 : h / 2 + 11), font(700, 32), C.fg);
-  if (sub) for (const [i, l] of wrap(sub, font(400, 26), w - 60).entries()) text(l, x + 34, y + 98 + i * 34, font(400, 26), C.muted);
-  ctx.restore();
+  reveal(alpha, () => {
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10; fillRR(x, y, w, h, r, C.card); ctx.shadowColor = 'transparent';
+    strokeRR(x, y, w, h, r, C.border, 1.5);
+    if (accent) { ctx.save(); rr(x, y, w, h, r); ctx.clip(); ctx.fillStyle = accent; ctx.fillRect(x, y, 8, h); ctx.restore(); }
+    if (title) text(title, x + 34, y + (sub ? 56 : h / 2 + 11), font(700, 32), C.fg);
+    if (sub) for (const [i, l] of wrap(sub, font(400, 26), w - 60).entries()) text(l, x + 34, y + 98 + i * 34, font(400, 26), C.muted);
+  });
+}
+function splash(lt, d, draw) {
+  const z = 1 + 0.03 * (lt / d);
+  reveal(eo(seg(lt, 0.1, 0.8)), () => {
+    ctx.translate(W / 2, 860); ctx.scale(z, z);
+    const lw = 560, lh = lw * logo.height / logo.width; ctx.drawImage(logo, -lw / 2, -lh - 40, lw, lh);
+    draw();
+  });
 }
 
-// Episode tape: content blocks and ad blocks on a horizontal bar.
-const ADS = [[0, 0.07], [0.46, 0.57], [0.93, 1]];
-const TAPE_W = 880, TAPE_X = (W - TAPE_W) / 2;
+// Episode tape: content blocks and ad blocks on a horizontal bar. Returns the drawn width and the x of each ad (its marker once cut).
 function tape(x, y, w, h, opts = {}) {
-  const { ads = ADS, adAlpha = 1, cut = 0, labels = 0, markers = 0, glow = 0, wave = 0, t = 0 } = opts;
-  // cut: 0..1 collapses ad blocks; the bar shrinks from the right.
-  let removed = 0; for (const [a, b] of ads) removed += (b - a) * cut;
-  const scale = 1 - removed, cw = w * scale;
+  const { ads = ADS, adAlpha = 1, alpha = 1, cut = 0, labels = 0, markers = 0, glow = 0, wave = 0, t = 0 } = opts;
+  const cw = w * (1 - cut * ads.reduce((a, [s, e]) => a + (e - s), 0));
+  ctx.save(); ctx.globalAlpha *= alpha;
   ctx.save();
   rr(x, y, cw, h, h / 2); ctx.clip();
   ctx.fillStyle = '#2B4652'; ctx.fillRect(x, y, cw, h);
-  // content stripes
   ctx.fillStyle = 'rgba(90,191,221,0.18)'; for (let i = 0; i < cw; i += 34) ctx.fillRect(x + i, y, 14, h);
   if (wave > 0) {
     ctx.strokeStyle = `rgba(243,245,247,${0.55 * wave})`; ctx.lineWidth = 3; ctx.beginPath();
-    for (let i = 0; i <= cw; i += 6) { const n = Math.sin(i * 0.11 + t * 6) * Math.sin(i * 0.037 + 1.3) * Math.sin(i * 0.013 + t) ; const a = (h * 0.42) * Math.abs(n); ctx.moveTo(x + i, y + h / 2 - a); ctx.lineTo(x + i, y + h / 2 + a); }
+    for (let i = 0; i <= cw; i += 6) { const n = Math.sin(i * 0.11 + t * 6) * Math.sin(i * 0.037 + 1.3) * Math.sin(i * 0.013 + t); const a = (h * 0.42) * Math.abs(n); ctx.moveTo(x + i, y + h / 2 - a); ctx.lineTo(x + i, y + h / 2 + a); }
     ctx.stroke();
   }
-  // ad blocks: shrink in width as cut progresses, keeping order
-  let shift = 0;
-  const adRects = [];
+  let shift = 0; const adRects = [];
   for (const [a, b] of ads) {
     const ax = x + a * w - shift, aw = (b - a) * w * (1 - cut); shift += (b - a) * w * cut;
-    adRects.push([ax, aw, a]);
+    adRects.push([ax, aw]);
     if (aw > 0.5) { ctx.save(); ctx.globalAlpha *= adAlpha; ctx.fillStyle = C.ad; ctx.fillRect(ax, y, aw, h); ctx.fillStyle = 'rgba(0,0,0,0.18)'; for (let i = 0; i < aw; i += 18) ctx.fillRect(ax + i, y, 8, h); ctx.restore(); }
     if (markers > 0 && cut > 0.98) { ctx.save(); ctx.globalAlpha *= markers; ctx.fillStyle = C.teal; ctx.fillRect(ax - 4, y, 8, h); ctx.restore(); }
   }
@@ -98,219 +117,202 @@ function tape(x, y, w, h, opts = {}) {
   if (glow > 0) { ctx.save(); ctx.globalAlpha *= glow; for (const [ax, aw] of adRects) if (aw > 0.5) { ctx.shadowColor = C.ad; ctx.shadowBlur = 40; strokeRR(ax - 3, y - 6, aw + 6, h + 12, 8, C.ad, 3); } ctx.restore(); }
   if (labels > 0) {
     const names = ['pre-roll', 'mid-roll', 'post-roll'];
-    adRects.forEach(([ax, aw], i) => { const p = seg(labels, i * 0.25, 0.4); if (p > 0) { ctx.save(); ctx.globalAlpha *= p; const cx = Math.max(x + 70, Math.min(x + cw - 70, ax + aw / 2)); text(names[i], cx, y + h + 44 + (1 - eo(p)) * 14, font(500, 26), C.ad, 'center'); ctx.restore(); } });
+    adRects.forEach(([ax, aw], i) => reveal(seg(labels, i * 0.25, 0.4), () => { const cx = Math.max(x + 70, Math.min(x + cw - 70, ax + aw / 2)); text(names[i], cx, y + h + 44, font(500, 26), C.ad, 'center'); }, 14));
   }
-  return cw;
+  ctx.restore();
+  return { cw, marks: adRects.map(([ax]) => ax) };
 }
 function timeLabel(s) { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = Math.floor(s % 60); return `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`; }
+const cutLabel = (cut) => timeLabel(EP_SEC - REMOVED_SEC * cut);
 
 // ---------- caption + rail ----------
 function caption(head, sub, p) {
-  if (p <= 0) return; ctx.save(); ctx.globalAlpha *= p; const dy = (1 - eo(p)) * 18; let y = 170 + dy;
-  for (const l of wrap(head, font(700, 62), W - 144)) { text(l, 72, y, font(700, 62), C.fg); y += 74; }
-  if (sub) { y += 8; for (const l of wrap(sub, font(400, 38), W - 144)) { text(l, 72, y, font(400, 38), C.muted); y += 48; } }
-  ctx.restore();
+  reveal(p, () => {
+    let y = 170;
+    for (const l of wrap(head, font(700, 62), W - 144)) { text(l, 72, y, font(700, 62), C.fg); y += 74; }
+    if (sub) { y += 8; for (const l of wrap(sub, font(400, 38), W - 144)) { text(l, 72, y, font(400, 38), C.muted); y += 48; } }
+  }, 18);
 }
 const STAGES = ['Fetch', 'Transcribe', 'Detect', 'Gate', 'Cut', 'Verify', 'Publish', 'Learn'];
 function rail(active, alpha) {
-  if (alpha <= 0) return; ctx.save(); ctx.globalAlpha *= alpha;
-  const y = 1760, gap = 12; ctx.font = font(500, 24);
-  const widths = STAGES.map((s) => ctx.measureText(s).width + 28); const total = widths.reduce((a, b) => a + b, 0) + gap * (STAGES.length - 1);
-  let x = (W - total) / 2;
-  STAGES.forEach((s, i) => {
-    const on = i === active, done = i < active;
-    if (on) { fillRR(x, y, widths[i], 44, 22, C.primary); text(s, x + widths[i] / 2, y + 30, font(700, 24), C.bg, 'center'); }
-    else { text(s, x + widths[i] / 2, y + 30, font(500, 24), done ? C.muted : C.dim, 'center'); }
-    x += widths[i] + gap;
+  reveal(alpha, () => {
+    const y = 1760, gap = 12, ai = STAGES.indexOf(active); ctx.font = font(500, 24);
+    const widths = STAGES.map((s) => ctx.measureText(s).width + 28); let x = (W - widths.reduce((a, b) => a + b, 0) - gap * (STAGES.length - 1)) / 2;
+    STAGES.forEach((s, i) => {
+      if (i === ai) { fillRR(x, y, widths[i], 44, 22, C.primary); text(s, x + widths[i] / 2, y + 30, font(700, 24), C.bg, 'center'); }
+      else text(s, x + widths[i] / 2, y + 30, font(500, 24), i < ai ? C.muted : C.dim, 'center');
+      x += widths[i] + gap;
+    });
   });
-  ctx.restore();
 }
 
-// ---------- scenes ----------
+// ---------- scenes: duration, headline, subline, draw(localTime, duration), rail stage ----------
 const scenes = [];
-const add = (dur, head, sub, draw, stage = -1) => scenes.push({ dur, head, sub, draw, stage });
+const add = (dur, head, sub, draw, stage) => scenes.push({ dur, head, sub, draw, stage });
 
-// 0 title
-add(3.6, '', '', (lt, d) => {
-  const p = eo(seg(lt, 0.1, 0.8)); const z = 1 + 0.03 * (lt / d);
-  ctx.save(); ctx.translate(W / 2, 860); ctx.scale(z, z); ctx.globalAlpha *= p;
-  const lw = 560, lh = lw * logo.height / logo.width; ctx.drawImage(logo, -lw / 2, -lh - 40, lw, lh);
+add(3.6, '', '', (lt, d) => splash(lt, d, () => {
   text('How it works', 0, 90, font(700, 76), C.fg, 'center');
   text('One episode, start to finish.', 0, 160, font(400, 44), C.muted, 'center', eo(seg(lt, 0.6, 0.7)));
-  ctx.restore();
+}));
+
+add(7.0, 'An episode, as published.', 'Pre-roll, mid-roll, post-roll. Below it, the shorter file MinusPod serves instead.', (lt) => {
+  const y1 = 760, h = 96, grow = eo(seg(lt, 0.1, 0.9));
+  tape(COL_X, y1, COL_W, h, { alpha: grow, labels: seg(lt, 0.9, 1.4), adAlpha: eo(seg(lt, 0.6, 0.6)) });
+  text(timeLabel(EP_SEC), COL_X + COL_W, y1 - 28, font(500, 30), C.muted, 'right', grow);
+  arrow(W / 2, y1 + h + 90, W / 2, y1 + h + 230, C.primary, eo(seg(lt, 2.2, 0.7)));
+  const p2 = seg(lt, 2.6, 1.2);
+  if (p2 > 0) {
+    const y2 = y1 + h + 290, cut = eio(p2);
+    const { cw } = tape(COL_X, y2, COL_W, h, { cut, markers: seg(lt, 3.9, 0.6) });
+    text(cutLabel(cut), COL_X + cw, y2 - 28, font(500, 30), C.ok, 'right');
+    reveal(eo(seg(lt, 4.3, 0.8)), () => text(`${Math.floor(REMOVED_SEC / 60)} min ${REMOVED_SEC % 60} s shorter`, W / 2, y2 + h + 70, font(500, 30), C.ok, 'center'), 12);
+  }
 });
 
-// 1 the job
-add(7.0, 'An episode, as published.', 'Pre-roll, mid-roll, post-roll. Below it, the shorter file MinusPod serves instead.', (lt) => {
-  const y1 = 760, h = 96;
-  const grow = eo(seg(lt, 0.1, 0.9));
-  ctx.save(); ctx.globalAlpha *= grow; tape(TAPE_X, y1, TAPE_W, h, { labels: seg(lt, 0.9, 1.4), adAlpha: eo(seg(lt, 0.6, 0.6)) }); ctx.restore();
-  text('1:02:10', TAPE_X + TAPE_W, y1 - 28, font(500, 30), C.muted, 'right', grow);
-  const p2 = seg(lt, 2.6, 1.2);
-  arrow(W / 2, y1 + h + 90, W / 2, y1 + h + 230, C.primary, eo(seg(lt, 2.2, 0.7)));
-  if (p2 > 0) {
-    const y2 = y1 + h + 290; const cut = eio(p2);
-    const cw = tape(TAPE_X, y2, TAPE_W, h, { cut, markers: seg(lt, 3.9, 0.6) });
-    text(timeLabel(3730 - 1130 * cut), TAPE_X + cw, y2 - 28, font(500, 30), C.ok, 'right');
-    const p3 = eo(seg(lt, 4.3, 0.8));
-    text('18 min 50 s shorter', W / 2, y2 + h + 70 + (1 - p3) * 12, font(500, 30), C.ok, 'center', p3);
-  }
-}, -1);
-
-// 2 arrival
 add(6.4, 'Work arrives three ways.', 'One queue. One episode at a time, unless you turn on the Whisper pool.', (lt) => {
   const src = [['Scheduled poll', 'every feed, on a timer'], ['Publisher announcement', 'Podping, the moment it drops'], ['You press play', 'the app asks for it first']];
   const cx = 110, cw = 470, ch = 130, ys = [640, 820, 1000];
   const qx = 700, qy = 640, qw = 280, qh = 490;
   src.forEach(([t, s], i) => { const p = eo(seg(lt, 0.1 + i * 0.35, 0.6)); card(cx - (1 - p) * 60, ys[i], cw, ch, t, s, C.primary, p); });
-  const pq = eo(seg(lt, 1.2, 0.7)); ctx.save(); ctx.globalAlpha *= pq; strokeRR(qx, qy, qw, qh, 26, C.border, 2); text('Queue', qx + qw / 2, qy + 50, font(700, 30), C.fg, 'center'); ctx.restore();
+  reveal(eo(seg(lt, 1.2, 0.7)), () => { strokeRR(qx, qy, qw, qh, 26, C.border, 2); text('Queue', qx + qw / 2, qy + 50, font(700, 30), C.fg, 'center'); });
   src.forEach((_, i) => arrow(cx + cw + 14, ys[i] + ch / 2, qx - 14, qy + 110 + i * 150, C.dim, eo(seg(lt, 1.5 + i * 0.3, 0.6)), 3));
-  // chips arrive then one leaves to the pipeline
-  for (let i = 0; i < 3; i++) { const p = eo(seg(lt, 2.1 + i * 0.3, 0.5)); if (p > 0) { const yy = qy + 90 + i * 110; ctx.save(); ctx.globalAlpha *= p; fillRR(qx + 30 + (1 - p) * 40, yy, qw - 60, 80, 16, C.card2); fillRR(qx + 46, yy + 28, 90 + i * 30, 24, 12, i === 0 ? C.primary : C.dim); ctx.restore(); } }
+  const chip = (yy, w) => { fillRR(qx + 30, yy, qw - 60, 80, 16, C.card2); fillRR(qx + 46, yy + 28, w, 24, 12, w === 90 ? C.primary : C.dim); };
+  for (let i = 0; i < 3; i++) { const p = eo(seg(lt, 2.1 + i * 0.3, 0.5)); reveal(p, () => { ctx.translate((1 - p) * 40, 0); chip(qy + 90 + i * 110, 90 + i * 30); }); }
+  // The first chip leaves the queue for the pipeline.
   const leave = eio(seg(lt, 3.8, 1.2));
-  if (leave > 0) { const yy = qy + 90 + 110 * 0 ; ctx.save(); fillRR(qx + 30, yy, qw - 60, 80, 16, C.bg); const ty = qy + qh + 120; fillRR(qx + 30, lerp(yy, ty, leave), qw - 60, 80, 16, C.card2); fillRR(qx + 46, lerp(yy, ty, leave) + 28, 90, 24, 12, C.primary); ctx.restore(); }
-  const pp = eo(seg(lt, 3.6, 0.6)); ctx.save(); ctx.globalAlpha *= pp; const py = qy + qh + 100; strokeRR(qx - 60, py, qw + 120, 120, 26, C.primary, 2); text('Pipeline', qx + qw / 2, py + 140 + 34, font(700, 30), C.primary, 'center'); ctx.restore();
+  if (leave > 0) { fillRR(qx + 30, qy + 90, qw - 60, 80, 16, C.bg); chip(lerp(qy + 90, qy + qh + 120, leave), 90); }
+  reveal(eo(seg(lt, 3.6, 0.6)), () => { const py = qy + qh + 100; strokeRR(qx - 60, py, qw + 120, 120, 26, C.primary, 2); text('Pipeline', qx + qw / 2, py + 174, font(700, 30), C.primary, 'center'); });
   arrow(qx + qw / 2, qy + qh + 10, qx + qw / 2, qy + qh + 86, C.primary, eo(seg(lt, 3.3, 0.5)), 3);
-}, 0);
+}, 'Fetch');
 
-// 3 transcribe
 add(7.0, 'Transcribe it.', 'Whisper or Parakeet on your own GPU or CPU, or a remote Whisper API. Long episodes go in chunks.', (lt) => {
-  const y = 660, h = 96; tape(TAPE_X, y, TAPE_W, h, { adAlpha: 0.9, wave: eo(seg(lt, 0.2, 0.8)), t: lt });
-  // chunk brackets lighting up
-  const n = 4, cwid = TAPE_W / n; const prog = seg(lt, 0.6, 4.6) * n;
-  for (let i = 0; i < n; i++) { const p = clamp01(prog - i); const col = p >= 1 ? C.ok : p > 0 ? C.primary : C.dim; ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(TAPE_X + i * cwid + 6, y + h + 26); ctx.lineTo(TAPE_X + i * cwid + 6, y + h + 44); ctx.lineTo(TAPE_X + (i + 1) * cwid - 6, y + h + 44); ctx.lineTo(TAPE_X + (i + 1) * cwid - 6, y + h + 26); ctx.stroke(); if (p > 0 && p < 1) { ctx.fillStyle = C.primary; ctx.fillRect(TAPE_X + i * cwid + 6, y + h + 40, (cwid - 12) * p, 6); } ctx.restore(); text(`chunk ${i + 1}`, TAPE_X + (i + 0.5) * cwid, y + h + 84, font(500, 24), col, 'center'); }
-  // transcript lines typing in
+  const y = 660, h = 96; tape(COL_X, y, COL_W, h, { adAlpha: 0.9, wave: eo(seg(lt, 0.2, 0.8)), t: lt });
+  const n = 4, cwid = COL_W / n, prog = seg(lt, 0.6, 4.6) * n;
+  for (let i = 0; i < n; i++) {
+    const p = clamp01(prog - i), col = p >= 1 ? C.ok : p > 0 ? C.primary : C.dim, x0 = COL_X + i * cwid + 6, x1 = COL_X + (i + 1) * cwid - 6;
+    ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, y + h + 26); ctx.lineTo(x0, y + h + 44); ctx.lineTo(x1, y + h + 44); ctx.lineTo(x1, y + h + 26); ctx.stroke();
+    if (p > 0 && p < 1) { ctx.fillStyle = C.primary; ctx.fillRect(x0, y + h + 40, (x1 - x0) * p, 6); }
+    ctx.restore(); text(`chunk ${i + 1}`, COL_X + (i + 0.5) * cwid, y + h + 84, font(500, 24), col, 'center');
+  }
   const lines = [['00:00:12', 'welcome back to the show, this week we are'], ['00:00:19', 'looking at what changed in the new release and'], ['00:00:27', 'why it matters for anyone who hosts their own'], ['00:28:41', 'this episode is brought to you by'], ['00:28:44', 'use code SHOW for twenty percent off your first'], ['00:29:03', 'and now back to it, so the first thing we noticed']];
-  const ty = 960; const chars = Math.floor(seg(lt, 1.0, 5.2) * 260);
-  let used = 0;
+  const ty = 960, chars = Math.floor(seg(lt, 1.0, 5.2) * 260); let used = 0;
   lines.forEach(([ts, s], i) => { const avail = chars - used; if (avail <= 0) return; const shown = s.slice(0, avail); used += s.length; const isAd = i === 3 || i === 4;
-    const yy = ty + i * 78; fillRR(TAPE_X, yy - 44, TAPE_W, 64, 14, isAd ? 'rgba(239,95,93,0.10)' : C.card);
-    text(ts, TAPE_X + 24, yy, font(500, 26), isAd ? C.ad : C.primary); text(shown + (avail < s.length ? '|' : ''), TAPE_X + 170, yy, font(400, 28), isAd ? C.fg : C.muted); });
-  const pb = eo(seg(lt, 5.2, 0.7)); if (pb > 0) { ctx.save(); ctx.globalAlpha *= pb; pill('Timestamps on every word', W / 2, 1460, C.ok, { align: 'center' }); ctx.restore(); }
-}, 1);
+    const yy = ty + i * 78; fillRR(COL_X, yy - 44, COL_W, 64, 14, isAd ? 'rgba(239,95,93,0.10)' : C.card);
+    text(ts, COL_X + 24, yy, font(500, 26), isAd ? C.ad : C.primary); text(shown + (avail < s.length ? '|' : ''), COL_X + 170, yy, font(400, 28), isAd ? C.fg : C.muted); });
+  reveal(eo(seg(lt, 5.2, 0.7)), () => pill('Timestamps on every word', W / 2, 1460, C.ok, { align: 'center' }));
+}, 'Transcribe');
 
-// 4 evidence
 add(7.4, 'Five kinds of evidence.', 'Four cost nothing. Only the model call is paid, and it gets the other four as hints.', (lt) => {
-  const items = [['Acoustic match', 'the exact audio of a known ad, fingerprinted', C.purple, 'free'], ['Known script', 'a learned pattern from this show or its network', C.purple, 'free'], ['Copy comparison', 'a second download; the parts that differ are the ads', C.purple, 'free'], ['Audio signals', 'volume drops and transitions around a cut', C.purple, 'free'], ['Model call', 'reads the transcript with the hints above', C.warn, 'paid']];
-  const x = 100, w = 880, h = 128, gap = 18, y0 = 620;
-  items.forEach(([t, s, acc, tag], i) => {
-    const p = eo(seg(lt, 0.1 + i * 0.45, 0.6)); if (p <= 0) return; const y = y0 + i * (h + gap);
-    card(x, y + (1 - p) * 30, w, h, t, s, i === 4 ? C.warn : C.primary, p);
-    const pt = eo(seg(lt, 0.6 + i * 0.45, 0.4)); if (pt > 0) { ctx.save(); ctx.globalAlpha *= pt; ctx.translate(0, (1 - pt) * -10); pill(tag, x + w - 34, y + 36, tag === 'free' ? C.ok : C.warn, { align: 'right' }); ctx.restore(); }
+  const items = [['Acoustic match', 'the exact audio of a known ad, fingerprinted'], ['Known script', 'a learned pattern from this show or its network'], ['Copy comparison', 'a second download; the parts that differ are the ads'], ['Audio signals', 'volume drops and transitions around a cut'], ['Model call', 'reads the transcript with the hints above']];
+  const h = 128, gap = 18, y0 = 620, rowY = (i) => y0 + i * (h + gap);
+  items.forEach(([t, s], i) => {
+    const paid = i === 4, p = eo(seg(lt, 0.1 + i * 0.45, 0.6));
+    card(COL_X, rowY(i) + (1 - p) * 30, COL_W, h, t, s, paid ? C.warn : C.primary, p);
+    reveal(eo(seg(lt, 0.6 + i * 0.45, 0.4)), () => pill(paid ? 'paid' : 'free', COL_X + COL_W - 34, rowY(i) + 36, paid ? C.warn : C.ok, { align: 'right' }), -10);
   });
   const ph = eo(seg(lt, 3.2, 0.8));
-  if (ph > 0) { for (let i = 0; i < 4; i++) { const y = y0 + i * (h + gap) + h / 2; arrow(x + w + 10, y, x + w + 40, y0 + 4 * (h + gap) + h / 2, C.ok, ph, 2); } }
-  const pf = eo(seg(lt, 4.3, 0.8)); if (pf > 0) { ctx.save(); ctx.globalAlpha *= pf; text('hints go into the prompt', x + w - 150, y0 + 4 * (h + gap) + h + 50, font(500, 26), C.ok, 'right'); ctx.restore(); }
-}, 2);
+  for (let i = 0; i < 4; i++) arrow(COL_X + COL_W + 10, rowY(i) + h / 2, COL_X + COL_W + 40, rowY(4) + h / 2, C.ok, ph, 2);
+  reveal(eo(seg(lt, 4.3, 0.8)), () => text('hints go into the prompt', COL_X + COL_W - 150, rowY(4) + h + 50, font(500, 26), C.ok, 'right'));
+}, 'Detect');
 
-// 5 gate
 add(7.6, 'One gate decides.', '80% and up is cut. 50 to 79 waits for your review. Below 50 is dropped.', (lt) => {
-  const x = 100, w = 880, y = 1010, h = 40;
+  const y = 1010, h = 40;
   const zones = [[0, 0.5, C.dim, 'reject'], [0.5, 0.8, C.warn, 'hold for review'], [0.8, 1, C.ok, 'cut']];
-  const pg = eo(seg(lt, 0.1, 0.8));
-  ctx.save(); ctx.globalAlpha *= pg;
-  zones.forEach(([a, b, col, lab]) => { fillRR(x + a * w + 3, y, (b - a) * w - 6, h, 10, col); text(lab, x + (a + b) / 2 * w, y + h + 42, font(500, 26), col, 'center'); });
-  [0, 50, 80, 100].forEach((v) => text(`${v}%`, x + v / 100 * w, y - 62, font(500, 24), C.muted, v === 0 ? 'left' : v === 100 ? 'right' : 'center'));
-  ctx.restore();
-  // candidates drop from a tape above onto the gate
-  const ty = 660; tape(TAPE_X, ty, TAPE_W, 72, { adAlpha: 0.9, ads: [[0, 0.07], [0.46, 0.57], [0.62, 0.66], [0.93, 1]] });
+  reveal(eo(seg(lt, 0.1, 0.8)), () => {
+    zones.forEach(([a, b, col, lab]) => { fillRR(COL_X + a * COL_W + 3, y, (b - a) * COL_W - 6, h, 10, col); text(lab, COL_X + (a + b) / 2 * COL_W, y + h + 42, font(500, 26), col, 'center'); });
+    [0, 50, 80, 100].forEach((v) => text(`${v}%`, COL_X + v / 100 * COL_W, y - 62, font(500, 24), C.muted, v === 0 ? 'left' : v === 100 ? 'right' : 'center'));
+  });
+  // Candidates drop from the tape onto the gate.
+  const ty = 660; tape(COL_X, ty, COL_W, 72, { adAlpha: 0.9, ads: [[0, 0.07], [0.46, 0.57], [0.62, 0.66], [0.93, 1]] });
   const cands = [[0.035, 0.96, 'cut'], [0.515, 0.84, 'cut'], [0.64, 0.63, 'held'], [0.965, 0.31, 'rejected']];
   cands.forEach(([tp, conf, res], i) => {
     const p = eio(seg(lt, 1.2 + i * 1.1, 0.9)); if (p <= 0) return;
-    const sx = TAPE_X + tp * TAPE_W, sy = ty + 36, ex = x + conf * w, ey = y + h / 2;
+    const sx = COL_X + tp * COL_W, sy = ty + 36, ex = COL_X + conf * COL_W, ey = y + h / 2;
     const px = lerp(sx, ex, p), py = lerp(sy, ey, p) - Math.sin(p * Math.PI) * 80;
     const col = res === 'cut' ? C.ok : res === 'held' ? C.warn : C.dim;
     ctx.save(); ctx.fillStyle = p >= 1 ? col : C.ad; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 18; ctx.beginPath(); ctx.arc(px, py, 20, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     text(`${Math.round(conf * 100)}%`, px, py - 36, font(700, 28), p >= 1 ? col : C.fg, 'center');
-    const pr = eo(seg(lt, 2.1 + i * 1.1, 0.5)); if (pr > 0) { ctx.save(); ctx.globalAlpha *= pr; pill(res, x + 60 + i * 215, 1220 + (1 - pr) * 12, col, { align: 'center' }); ctx.restore(); }
+    reveal(eo(seg(lt, 2.1 + i * 1.1, 0.5)), () => pill(res, COL_X + 60 + i * 215, 1220, col, { align: 'center' }), 12);
   });
-  const pn = eo(seg(lt, 5.8, 0.7)); if (pn > 0) text('A confirmed correction always wins over the score.', W / 2, 1380, font(400, 30), C.muted, 'center', pn);
-}, 3);
+  text('A confirmed correction always wins over the score.', W / 2, 1380, font(400, 30), C.muted, 'center', eo(seg(lt, 5.8, 0.7)));
+}, 'Gate');
 
-// 6 cut
 add(6.6, 'Cut.', 'FFmpeg removes the ads and drops a short audio marker where each one was.', (lt) => {
   const y = 800, h = 110;
-  const glow = seg(lt, 0.3, 0.6) * (1 - seg(lt, 1.6, 0.6));
-  const cut = eio(seg(lt, 1.6, 1.6));
-  const cw = tape(TAPE_X, y, TAPE_W, h, { glow, cut, markers: eo(seg(lt, 3.4, 0.6)) });
-  text(timeLabel(3730 - 1130 * cut), TAPE_X + cw, y - 32, font(700, 36), cut > 0.99 ? C.ok : C.fg, 'right');
-  // falling ad pieces
-  if (cut > 0 && cut < 1) { ctx.save(); ctx.globalAlpha *= 1 - cut; ADS.forEach(([a, b], i) => { const fx = TAPE_X + (a + b) / 2 * TAPE_W, fy = y + h + 60 + cut * 500 + i * 30; fillRR(fx - (b - a) * TAPE_W / 2, fy, (b - a) * TAPE_W, 40, 8, C.ad); }); ctx.restore(); }
-  const pm = eo(seg(lt, 3.8, 0.7));
-  if (pm > 0) { ctx.save(); ctx.globalAlpha *= pm; const mx = TAPE_X + 0.46 * (1 - 0.0) * TAPE_W * (1 - 0.07 / 1) ; const lx = TAPE_X + (0.46 - 0.07) * TAPE_W; arrow(lx, y + h + 140, lx, y + h + 30, C.teal, 1, 3); text('a short tone marks the cut', lx + 18, y + h + 170, font(500, 28), C.teal, 'left'); ctx.restore(); }
-  const pk = eo(seg(lt, 4.6, 0.7)); if (pk > 0) { ctx.save(); ctx.globalAlpha *= pk; pill('original kept on disk', W / 2, 1230, C.muted, { align: 'center' }); text('so any cut can be undone or redrawn later', W / 2, 1330, font(400, 28), C.muted, 'center'); ctx.restore(); }
-}, 4);
+  const glow = seg(lt, 0.3, 0.6) * (1 - seg(lt, 1.6, 0.6)), cut = eio(seg(lt, 1.6, 1.6));
+  const { cw, marks } = tape(COL_X, y, COL_W, h, { glow, cut, markers: eo(seg(lt, 3.4, 0.6)) });
+  text(cutLabel(cut), COL_X + cw, y - 32, font(700, 36), cut > 0.99 ? C.ok : C.fg, 'right');
+  if (cut > 0 && cut < 1) reveal(1 - cut, () => ADS.forEach(([a, b], i) => fillRR(COL_X + a * COL_W, y + h + 60 + cut * 500 + i * 30, (b - a) * COL_W, 40, 8, C.ad)));
+  reveal(eo(seg(lt, 3.8, 0.7)), () => { const lx = marks[1]; arrow(lx, y + h + 140, lx, y + h + 30, C.teal, 1, 3); text('a short tone marks the cut', lx + 18, y + h + 170, font(500, 28), C.teal, 'left'); });
+  reveal(eo(seg(lt, 4.6, 0.7)), () => { pill('original kept on disk', W / 2, 1230, C.muted, { align: 'center' }); text('so any cut can be undone or redrawn later', W / 2, 1330, font(400, 28), C.muted, 'center'); });
+}, 'Cut');
 
-// 7 verify
 add(6.6, 'Then it checks its own work.', 'The cut file is transcribed again and a second pass hunts for anything that does not belong.', (lt) => {
-  const y = 760, h = 96; const cutAds = []; const extra = [[0.33, 0.37]];
-  const found = seg(lt, 2.6, 0.5), recut = eio(seg(lt, 4.0, 1.0));
-  const vx = (W - TAPE_W * 0.7) / 2; const cw = tape(vx, y, TAPE_W * 0.7, h, { ads: extra, adAlpha: eo(found), cut: recut, markers: 1, glow: found * (1 - seg(lt, 3.6, 0.5)) });
-  // loop arc
-  const pl = seg(lt, 0.2, 1.6); if (pl > 0) { ctx.save(); ctx.strokeStyle = C.purple; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.setLineDash([14, 14]); ctx.lineDashOffset = -lt * 60; ctx.beginPath(); ctx.arc(W / 2, y + h / 2, 340, Math.PI * 0.08, Math.PI * 0.08 + Math.PI * 1.84 * eio(pl)); ctx.stroke(); ctx.restore(); }
-  const steps = [['Re-transcribe', 0.6], ['Ask: what does not belong?', 1.3], ['Re-cut', 4.0]];
-  steps.forEach(([s, at], i) => { const p = eo(seg(lt, at, 0.5)); if (p > 0) { ctx.save(); ctx.globalAlpha *= p; pill(s, W / 2, 1210 + i * 86 + (1 - p) * 10, i === 2 ? C.ok : C.purple, { align: 'center', size: 28 }); ctx.restore(); } });
-  const pf = eo(seg(lt, 2.6, 0.5)); if (pf > 0) text('missed one', vx + 0.35 * TAPE_W * 0.7, y - 30, font(700, 28), C.ad, 'center', pf * (1 - seg(lt, 4.2, 0.5)));
-  const pr = eo(seg(lt, 5.0, 0.6)); if (pr > 0) text('A miss that overlaps nothing gets its own confidence check first.', W / 2, 1520, font(400, 28), C.muted, 'center', pr);
-}, 5);
+  const y = 760, h = 96, vw = COL_W * 0.7, vx = (W - vw) / 2;
+  const cue = { retranscribe: 0.6, ask: 1.3, found: 2.6, recut: 4.0 };
+  const found = eo(seg(lt, cue.found, 0.5)), recut = eio(seg(lt, cue.recut, 1.0));
+  tape(vx, y, vw, h, { ads: [[0.33, 0.37]], adAlpha: found, cut: recut, markers: 1, glow: found * (1 - seg(lt, cue.recut - 0.4, 0.5)) });
+  const pl = eio(seg(lt, 0.2, 1.6));
+  if (pl > 0) { ctx.save(); ctx.strokeStyle = C.purple; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.setLineDash([14, 14]); ctx.lineDashOffset = -lt * 60; ctx.beginPath(); ctx.arc(W / 2, y + h / 2, 340, Math.PI * 0.08, Math.PI * 0.08 + Math.PI * 1.84 * pl); ctx.stroke(); ctx.restore(); }
+  [['Re-transcribe', cue.retranscribe, C.purple], ['Ask: what does not belong?', cue.ask, C.purple], ['Re-cut', cue.recut, C.ok]].forEach(([s, at, col], i) =>
+    reveal(eo(seg(lt, at, 0.5)), () => pill(s, W / 2, 1210 + i * 86, col, { align: 'center', size: 28 }), 10));
+  text('missed one', vx + 0.35 * vw, y - 30, font(700, 28), C.ad, 'center', found * (1 - seg(lt, cue.recut + 0.2, 0.5)));
+  text('A miss that overlaps nothing gets its own confidence check first.', W / 2, 1520, font(400, 28), C.muted, 'center', eo(seg(lt, 5.0, 0.6)));
+}, 'Verify');
 
-// 8 publish
 add(6.4, 'Published to your feed.', 'Your app gets the shorter file, with the transcript and chapters rebuilt for the new timing.', (lt) => {
-  const px = 190, py = 600, pw = 700, ph = 900; const p = eo(seg(lt, 0.1, 0.8));
-  ctx.save(); ctx.globalAlpha *= p; ctx.translate(0, (1 - p) * 40);
-  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 20; fillRR(px, py, pw, ph, 56, '#0E1115'); ctx.shadowColor = 'transparent'; strokeRR(px, py, pw, ph, 56, C.border, 2);
-  fillRR(px + 250, py + 22, 200, 30, 15, '#000');
-  text('The Daily Tech Show', px + 50, py + 130, font(700, 34), C.fg); text('MinusPod feed', px + 50, py + 172, font(400, 26), C.teal);
-  const eps = [['Episode 412: the new release', '43:20', 1], ['Episode 411: self-hosting, part two', '48:02', 1], ['Episode 410: listener questions', '1:01:17', 1], ['Episode 409: the hardware show', '', 0]];
-  eps.forEach(([t, d, done], i) => { const pe = eo(seg(lt, 0.9 + i * 0.3, 0.5)); if (pe <= 0) return; const yy = py + 230 + i * 150; ctx.save(); ctx.globalAlpha *= pe; fillRR(px + 36, yy, pw - 72, 126, 22, C.card); text(t, px + 64, yy + 48, font(500, 28), C.fg);
-    if (done) { tape(px + 64, yy + 70, 300, 18, { ads: [], cut: 1 }); text(d, px + 64 + 320, yy + 86, font(500, 24), C.ok); pill('ads cut', px + pw - 70, yy + 64, C.ok, { align: 'right', size: 20 }); }
-    else { text('processing on first play', px + 64, yy + 92, font(400, 24), C.muted); }
-    ctx.restore(); });
-  ctx.restore();
-  const chips = [['Transcript', C.primary], ['Chapters', C.purple], ['Podcasting 2.0 tags', C.teal]];
-  chips.forEach(([c, col], i) => { const pc = eo(seg(lt, 3.4 + i * 0.35, 0.5)); if (pc > 0) { ctx.save(); ctx.globalAlpha *= pc; pill(c, 180 + i * 250 + (i === 2 ? 60 : 0), 1560 + (1 - pc) * 10, col, { align: i === 0 ? 'left' : i === 1 ? 'left' : 'left' }); ctx.restore(); } });
-}, 6);
+  const px = 190, py = 600, pw = 700, ph = 900;
+  reveal(eo(seg(lt, 0.1, 0.8)), () => {
+    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 20; fillRR(px, py, pw, ph, 56, '#0E1115'); ctx.shadowColor = 'transparent'; strokeRR(px, py, pw, ph, 56, C.border, 2);
+    fillRR(px + 250, py + 22, 200, 30, 15, '#000');
+    text('The Daily Tech Show', px + 50, py + 130, font(700, 34), C.fg); text('MinusPod feed', px + 50, py + 172, font(400, 26), C.teal);
+    const eps = [['Episode 412: the new release', cutLabel(1)], ['Episode 411: self-hosting, part two', '0:48:02'], ['Episode 410: listener questions', '1:01:17'], ['Episode 409: the hardware show', '']];
+    eps.forEach(([t, d], i) => reveal(eo(seg(lt, 0.9 + i * 0.3, 0.5)), () => {
+      const yy = py + 230 + i * 150; fillRR(px + 36, yy, pw - 72, 126, 22, C.card); text(t, px + 64, yy + 48, font(500, 28), C.fg);
+      if (d) { tape(px + 64, yy + 70, 300, 18, { ads: [] }); text(d, px + 64 + 320, yy + 86, font(500, 24), C.ok); pill('ads cut', px + pw - 70, yy + 64, C.ok, { align: 'right', size: 20 }); }
+      else text('processing on first play', px + 64, yy + 92, font(400, 24), C.muted);
+    }));
+  }, 40);
+  pillRow([['Transcript', C.primary], ['Chapters', C.purple], ['Podcasting 2.0 tags', C.teal]].map(([l, col], i) => [l, col, eo(seg(lt, 3.4 + i * 0.35, 0.5))]), 1560);
+}, 'Publish');
 
-// 9 learn
 add(6.8, 'It learns from you.', 'A confirmed ad becomes a pattern that matches for free next time, and widens from one show to its network to everywhere.', (lt) => {
   const cx = W / 2, cy = 1060;
-  const rings = [[150, 'this show', 0.8], [290, 'its network', 2.2], [430, 'global', 3.6]];
-  rings.forEach(([r, lab, at], i) => { const p = eo(seg(lt, at, 0.9)); if (p <= 0) return; ctx.save(); ctx.globalAlpha *= p; ctx.strokeStyle = C.primary; ctx.lineWidth = 3; ctx.setLineDash(i === 0 ? [] : [10, 12]); ctx.beginPath(); ctx.arc(cx, cy, r * (0.9 + 0.1 * p), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); text(lab, cx, cy - r * (0.9 + 0.1 * p) - 16, font(500, 28), C.primary, 'center'); ctx.restore(); });
-  // correction card in the middle
-  const p0 = eo(seg(lt, 0.1, 0.7)); if (p0 > 0) { ctx.save(); ctx.globalAlpha *= p0; fillRR(cx - 220, cy - 70, 440, 140, 24, C.card); strokeRR(cx - 220, cy - 70, 440, 140, 24, C.border, 1.5); text('"use code SHOW for twenty..."', cx, cy - 18, font(500, 26), C.fg, 'center');
-    const pc = eo(seg(lt, 0.6, 0.4)); if (pc > 0) { ctx.save(); ctx.globalAlpha *= pc; pill('Confirm ad', cx - 10, cy + 8, C.ok, { align: 'right', size: 24 }); pill('Not an ad', cx + 10, cy + 8, C.muted, { size: 24 }); ctx.restore(); }
-    ctx.restore(); }
-  const pp = eo(seg(lt, 1.6, 0.5)); if (pp > 0) { ctx.save(); ctx.globalAlpha *= pp; pill('pattern saved', cx, cy + 90 + (1 - pp) * 10, C.purple, { align: 'center', size: 24 }); ctx.restore(); }
-  const pf = eo(seg(lt, 4.8, 0.7)); if (pf > 0) text('Each pattern keeps its own hit and false-positive counts. Stale ones retire.', W / 2, 1600, font(400, 28), C.muted, 'center', pf);
-}, 7);
+  [[150, 'this show', 0.8], [290, 'its network', 2.2], [430, 'global', 3.6]].forEach(([r, lab, at], i) => { const p = eo(seg(lt, at, 0.9)); reveal(p, () => {
+    const rr_ = r * (0.9 + 0.1 * p); ctx.strokeStyle = C.primary; ctx.lineWidth = 3; ctx.setLineDash(i === 0 ? [] : [10, 12]); ctx.beginPath(); ctx.arc(cx, cy, rr_, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    text(lab, cx, cy - rr_ - 16, font(500, 28), C.primary, 'center'); }); });
+  reveal(eo(seg(lt, 0.1, 0.7)), () => {
+    fillRR(cx - 220, cy - 70, 440, 140, 24, C.card); strokeRR(cx - 220, cy - 70, 440, 140, 24, C.border, 1.5); text('"use code SHOW for twenty..."', cx, cy - 18, font(500, 26), C.fg, 'center');
+    reveal(eo(seg(lt, 0.6, 0.4)), () => { pill('Confirm ad', cx - 10, cy + 8, C.ok, { align: 'right', size: 24 }); pill('Not an ad', cx + 10, cy + 8, C.muted, { size: 24 }); });
+  });
+  reveal(eo(seg(lt, 1.6, 0.5)), () => pill('pattern saved', cx, cy + 90, C.purple, { align: 'center', size: 24 }), 10);
+  text('Each pattern keeps its own hit and false-positive counts. Stale ones retire.', W / 2, 1600, font(400, 28), C.muted, 'center', eo(seg(lt, 4.8, 0.7)));
+}, 'Learn');
 
-// 10 failure
 add(6.2, 'Nothing fails silently.', 'A failed model call still publishes what it found. An unsure cut waits for you.', (lt) => {
   const items = [['Model call fails', 'the free evidence still cuts; the run is marked for you', C.warn], ['Endpoint offline', 'the episode parks in the offline queue and retries', C.warn], ['Cut is uncertain', 'it is held, not applied, until you confirm it', C.ad]];
-  items.forEach(([t, s, col], i) => { const p = eo(seg(lt, 0.2 + i * 0.7, 0.7)); if (p <= 0) return; card(100, 700 + i * 230 + (1 - p) * 30, 880, 180, t, s, col, p); });
-  const pb = eo(seg(lt, 3.2, 0.7)); if (pb > 0) { ctx.save(); ctx.globalAlpha *= pb; pill('Held for review', W / 2, 1420, C.warn, { align: 'center', size: 28 }); text('shows up on the episode page and in Patterns, with one-tap confirm or reject', W / 2, 1520, font(400, 28), C.muted, 'center'); ctx.restore(); }
-}, -1);
+  items.forEach(([t, s, col], i) => { const p = eo(seg(lt, 0.2 + i * 0.7, 0.7)); card(COL_X, 700 + i * 230 + (1 - p) * 30, COL_W, 180, t, s, col, p); });
+  reveal(eo(seg(lt, 3.2, 0.7)), () => { pill('Held for review', W / 2, 1420, C.warn, { align: 'center', size: 28 }); text('shows up on the episode page and in Patterns, with one-tap confirm or reject', W / 2, 1520, font(400, 28), C.muted, 'center'); });
+});
 
-// 11 end card
-add(4.6, '', '', (lt, d) => {
-  const p = eo(seg(lt, 0.1, 0.8)); const z = 1 + 0.03 * (lt / d);
-  ctx.save(); ctx.translate(W / 2, 860); ctx.scale(z, z); ctx.globalAlpha *= p;
-  const lw = 560, lh = lw * logo.height / logo.width; ctx.drawImage(logo, -lw / 2, -lh - 40, lw, lh);
+add(4.6, '', '', (lt, d) => splash(lt, d, () => {
   text('Self-hosted. Open source.', 0, 90, font(700, 72), C.fg, 'center');
   text('Docker on any box. GPU optional.', 0, 160, font(400, 44), C.muted, 'center', eo(seg(lt, 0.5, 0.6)));
   text('github.com/ttlequals0/MinusPod', 0, 250, font(500, 36), C.teal, 'center', eo(seg(lt, 0.9, 0.6)));
-  ctx.restore();
-});
+}));
 
+window.W = W; window.H = H; window.FPS = FPS;
 window.total = scenes.reduce((a, s) => a + s.dur, 0);
+// Midpoint of each scene, the default preview set.
+window.sceneMids = scenes.map((s, i) => scenes.slice(0, i).reduce((a, x) => a + x.dur, 0) + s.dur / 2);
 window.render = function (t) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
-  let acc = 0, idx = 0; for (; idx < scenes.length; idx++) { if (t < acc + scenes[idx].dur || idx === scenes.length - 1) break; acc += scenes[idx].dur; }
-  const sc = scenes[idx], lt = Math.min(t - acc, sc.dur);
-  const fade = Math.min(seg(lt, 0, 0.35), idx === scenes.length - 1 ? 1 : seg(sc.dur - lt, 0, 0.35));
-  ctx.save(); ctx.globalAlpha = fade; sc.draw(lt, sc.dur); ctx.restore();
-  if (sc.head) caption(sc.head, sc.sub, Math.min(seg(lt, 0.15, 0.45), seg(sc.dur - lt, 0, 0.35)));
-  if (idx > 0 && idx < scenes.length - 1) rail(sc.stage, fade);
+  let acc = 0, idx = 0; for (; idx < scenes.length - 1 && t >= acc + scenes[idx].dur; idx++) acc += scenes[idx].dur;
+  const sc = scenes[idx], lt = Math.min(t - acc, sc.dur), last = idx === scenes.length - 1;
+  const fade = last ? seg(lt, 0, 0.35) : envelope(lt, sc.dur, 0, 0.35, 0.35);
+  reveal(fade, () => sc.draw(lt, sc.dur));
+  if (sc.head) caption(sc.head, sc.sub, envelope(lt, sc.dur, 0.15, 0.45, 0.35));
+  if (sc.stage) rail(sc.stage, fade);
 };
 </script>
 </body>

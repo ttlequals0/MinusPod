@@ -21,20 +21,23 @@ app's dark theme tokens, so the video tracks the app's own look.
 
 ```bash
 cd docs/videos/how-it-works
-npx -y -p playwright node render.mjs frames
-ffmpeg -framerate 30 -i frames/%05d.png -c:v libx264 -crf 18 -preset slow \
-  -pix_fmt yuv420p -movflags +faststart ../minuspod-how-it-works-tiktok.mp4
+npm install                      # playwright, once
+npx playwright install chromium  # once, if Chromium is not installed yet
+npm run frames                   # writes frames/*.png
+npm run encode                   # ffmpeg -> ../minuspod-how-it-works-tiktok.mp4
 rm -rf frames
 ```
 
 `node render.mjs preview 2,25.5,49` writes single frames at those times to
-`preview/` for checking a scene without a full render. Rendering needs network
-access for the Roboto web font; Playwright's Chromium must be installed
-(`npx playwright install chromium`).
+`preview/` for checking a scene without a full render; with no times it
+writes the midpoint of every scene. Rendering needs network
+access for the Roboto web font. `frames/` and `preview/` are gitignored.
 
 Scenes, captions and timings live in the `scenes` list at the bottom of
 `index.html`. Each scene is a duration, a headline, a subline, a draw function
-of local time, and the pipeline stage to light up in the footer rail.
+of local time, and the pipeline stage to light up in the footer rail. The
+episode runtime and ad positions are constants at the top, and every duration
+label in the video is derived from them.
 
 The demo video is a screen recording; there is nothing to rebuild.
 
