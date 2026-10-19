@@ -8,8 +8,8 @@ music can be added in the posting app.
 
 | File | Length | What it shows |
 |---|---|---|
-| [minuspod-demo-tiktok.mp4](minuspod-demo-tiktok.mp4) | 85 s | A tour of the web UI: dashboard, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and themes. Recorded from a running instance. |
-| [minuspod-how-it-works-tiktok.mp4](minuspod-how-it-works-tiktok.mp4) | 107 s | An animated walk through one episode across all eleven pipeline stages: download, transcribe, second download and audio analysis, detect (free matches, then the model), validate, boundary review, cut, verify pass, transcript and chapters, publish. Then the learning loop and what happens when something fails. Follows [How It Works](../how-it-works.md) and [Episode Processing Workflows](../workflows.md). |
+| [minuspod-demo.mp4](minuspod-demo.mp4) | 85 s | A tour of the web UI: dashboard, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and themes. Recorded from a running instance. |
+| [minuspod-how-it-works.mp4](minuspod-how-it-works.mp4) | 107 s | An animated walk through one episode across all eleven pipeline stages: download, transcribe, second download and audio analysis, detect (free matches, then the model), validate, boundary review, cut, verify pass, transcript and chapters, publish. Then the learning loop and what happens when something fails. Follows [How It Works](../how-it-works.md) and [Episode Processing Workflows](../workflows.md). |
 
 ## Rebuilding the how-it-works video
 
@@ -24,7 +24,7 @@ cd docs/videos/how-it-works
 npm install                      # playwright, once
 npx playwright install chromium  # once, if Chromium is not installed yet
 npm run frames                   # writes frames/*.png
-npm run encode                   # ffmpeg -> ../minuspod-how-it-works-tiktok.mp4
+npm run encode                   # ffmpeg -> ../minuspod-how-it-works.mp4
 rm -rf frames
 ```
 

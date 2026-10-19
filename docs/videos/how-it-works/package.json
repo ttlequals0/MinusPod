@@ -5,7 +5,7 @@
   "scripts": {
     "frames": "node render.mjs frames",
     "preview": "node render.mjs preview",
-    "encode": "ffmpeg -y -framerate 30 -i frames/%05d.png -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p -movflags +faststart ../minuspod-how-it-works-tiktok.mp4"
+    "encode": "ffmpeg -y -framerate 30 -i frames/%05d.png -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p -movflags +faststart ../minuspod-how-it-works.mp4"
   },
   "devDependencies": {
     "playwright": "^1.64.1"
