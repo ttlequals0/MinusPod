@@ -1,0 +1,84 @@
+{
+ "output": "minuspod-review-queue",
+ "beats": [
+  {
+   "card": true,
+   "dur": 3.6,
+   "head": "",
+   "sub": "When MinusPod isn't sure, it asks you.",
+   "logo": "logo-dark.png"
+  },
+  {
+   "clip": "queue",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 6.5,
+   "head": "Every held detection, one queue.",
+   "sub": "Filter by podcast, hold reason, category or who flagged it."
+  },
+  {
+   "clip": "held",
+   "dev": "laptop",
+   "start": 0.3,
+   "dur": 5.5,
+   "crop": [
+    48,
+    230,
+    1904,
+    1570
+   ],
+   "head": "Each hold says why.",
+   "sub": "A known sponsor pattern, estimated bounds, 84% confidence. Nothing is cut until you decide."
+  },
+  {
+   "clip": "modal",
+   "dev": "laptop",
+   "start": 1.6,
+   "dur": 10.5,
+   "crop": [
+    104,
+    72,
+    1792,
+    1660
+   ],
+   "head": "Hear it before you decide.",
+   "sub": "Play the span. Drag a pin to the exact word if an edge is off."
+  },
+  {
+   "clip": "confirm",
+   "dev": "laptop",
+   "start": 0.8,
+   "dur": 8.0,
+   "crop": [
+    48,
+    60,
+    1904,
+    1700
+   ],
+   "head": "Confirm and recut.",
+   "sub": "The episode is rebuilt from the retained original."
+  },
+  {
+   "clip": "after",
+   "dev": "laptop",
+   "start": 0.4,
+   "dur": 5.5,
+   "crop": [
+    48,
+    100,
+    1904,
+    1600
+   ],
+   "head": "Five ads now, and your call is on the record.",
+   "sub": "Confirmed and rejected detections stay visible for auditing."
+  },
+  {
+   "card": true,
+   "dur": 4.2,
+   "head": "Review queue",
+   "sub": "Borderline calls wait for you. The rest ships on its own.",
+   "small": "github.com/ttlequals0/MinusPod",
+   "logo": "logo-dark.png"
+  }
+ ]
+}

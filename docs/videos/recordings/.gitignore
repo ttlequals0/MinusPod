@@ -1,0 +1,6 @@
+targets.json
+clips/
+out/
+work-*/
+probe/
+node_modules

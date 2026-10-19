@@ -1,0 +1,100 @@
+{
+ "output": "minuspod-local-feeds",
+ "beats": [
+  {
+   "card": true,
+   "dur": 3.8,
+   "head": "",
+   "sub": "No RSS feed? Build one from your own audio files.",
+   "logo": "logo-dark.png"
+  },
+  {
+   "clip": "create",
+   "dev": "phone",
+   "start": 0.6,
+   "dur": 10.0,
+   "head": "Create a local feed.",
+   "sub": "A title and a slug. MinusPod serves it like any subscribed show."
+  },
+  {
+   "clip": "feedpage",
+   "dev": "laptop",
+   "start": 0.4,
+   "dur": 6.5,
+   "crop": [
+    48,
+    60,
+    1904,
+    1500
+   ],
+   "head": "Your own show page.",
+   "sub": "Cover art, description and a feed URL for any podcast app, with the Local badge to tell it apart."
+  },
+  {
+   "clip": "upload",
+   "dev": "laptop",
+   "start": 0.8,
+   "dur": 9.5,
+   "crop": [
+    48,
+    60,
+    1904,
+    1700
+   ],
+   "head": "Upload an episode.",
+   "sub": "One file at a time, or a bulk import with a dry-run preview first."
+  },
+  {
+   "clip": "process",
+   "dev": "laptop",
+   "start": 0.5,
+   "dur": 7.5,
+   "crop": [
+    48,
+    60,
+    1904,
+    1200
+   ],
+   "head": "Run it through the same pipeline.",
+   "sub": "Transcribe, detect, cut. The feed's source changes nothing about how ads are found."
+  },
+  {
+   "clip": "queue",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 6.0,
+   "head": "Watch it in the queue.",
+   "sub": "Until it finishes, the feed serves the original file so the archive is listenable right away."
+  },
+  {
+   "clip": "result",
+   "dev": "laptop",
+   "start": 0.4,
+   "dur": 8.0,
+   "crop": [
+    48,
+    100,
+    1904,
+    1700
+   ],
+   "head": "Ads found and cut.",
+   "sub": "Markers, chapters and transcript, exactly like a subscribed feed."
+  },
+  {
+   "clip": "dashboard",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 6.0,
+   "head": "It sits beside your subscriptions.",
+   "sub": "Same retention and backups, in the same podcast apps."
+  },
+  {
+   "card": true,
+   "dur": 4.2,
+   "head": "Local feeds",
+   "sub": "Your archive, ad-free, in any podcast app.",
+   "small": "github.com/ttlequals0/MinusPod",
+   "logo": "logo-dark.png"
+  }
+ ]
+}

@@ -1,0 +1,70 @@
+{
+ "output": "minuspod-podcasting-2",
+ "beats": [
+  {
+   "card": true,
+   "dur": 3.8,
+   "head": "",
+   "sub": "Podcasting 2.0 output, regenerated for the cut audio.",
+   "logo": "logo-dark.png"
+  },
+  {
+   "clip": "chapters",
+   "dev": "laptop",
+   "start": 0.4,
+   "dur": 6.0,
+   "crop": [
+    48,
+    100,
+    1904,
+    1400
+   ],
+   "head": "Chapters that match the new timeline.",
+   "sub": "Ad boundaries and description timestamps become chapters. Marked segments get a skippable chapter of their own."
+  },
+  {
+   "clip": "transcript",
+   "dev": "laptop",
+   "start": 0.5,
+   "dur": 9.5,
+   "crop": [
+    48,
+    60,
+    1904,
+    1700
+   ],
+   "head": "A transcript to search.",
+   "sub": "Original and processed text, with the ads highlighted."
+  },
+  {
+   "clip": "feedxml",
+   "dev": "laptop",
+   "start": 0.0,
+   "dur": 8.0,
+   "crop": [
+    48,
+    40,
+    1904,
+    1720
+   ],
+   "head": "The served feed carries it all.",
+   "sub": "Transcript and chapter tags point at MinusPod. An ai-content tag discloses the edit. Funding and value-for-value tags from the original feed pass through untouched."
+  },
+  {
+   "clip": "p20settings",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 7.0,
+   "head": "Chapters your way.",
+   "sub": "Chapter mode per feed, chapters for segments waiting on review, your own titles."
+  },
+  {
+   "card": true,
+   "dur": 4.2,
+   "head": "Podcasting 2.0",
+   "sub": "Transcripts, chapters, disclosure. Podping refreshes a feed within seconds of the host.",
+   "small": "github.com/ttlequals0/MinusPod",
+   "logo": "logo-dark.png"
+  }
+ ]
+}

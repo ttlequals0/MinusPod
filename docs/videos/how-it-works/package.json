@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "frames": "node render.mjs frames",
-    "preview": "node render.mjs preview",
+    "frames": "node ../render.mjs frames",
+    "preview": "node ../render.mjs preview",
     "encode": "ffmpeg -y -framerate 30 -i frames/%05d.png -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p -movflags +faststart ../minuspod-how-it-works.mp4",
-    "frames:landscape": "node render.mjs frames --landscape",
+    "frames:landscape": "node ../render.mjs frames --landscape",
     "encode:landscape": "ffmpeg -y -framerate 30 -i frames/%05d.png -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p -movflags +faststart ../minuspod-how-it-works-landscape.mp4"
   },
   "devDependencies": {

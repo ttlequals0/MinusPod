@@ -1,17 +1,20 @@
-import { chromium } from 'playwright';
+import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
-// Usage: node render.mjs preview [t1,t2,...] [--landscape]  |  node render.mjs frames [--landscape]
+// Run from an animation folder (the one holding index.html), via its npm scripts:
+//   node ../render.mjs preview [t1,t2,...] [--landscape]  |  node ../render.mjs frames [--landscape]
 const landscape = process.argv.includes('--landscape');
 const [, , mode, arg] = process.argv.filter((a) => a !== '--landscape');
-const D = path.dirname(fileURLToPath(import.meta.url));
+const D = process.cwd();  // the animation folder, which also holds the playwright install
+const { chromium } = createRequire(path.join(D, 'package.json'))('playwright');
 const browser = await chromium.launch({ channel: 'chromium' });
 const page = await browser.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
 let pageError; page.on('pageerror', (e) => { pageError = e; });
 await page.goto(pathToFileURL(path.join(D, 'index.html')).href + (landscape ? '?layout=landscape' : ''));
 await page.evaluate(() => window.ready);
+if (pageError) throw pageError;  // a script error in index.html or lib/canvas.js
 const { W, H, FPS, total, sceneMids } = await page.evaluate(() => ({ W: window.W, H: window.H, FPS: window.FPS, total: window.total, sceneMids: window.sceneMids }));
 await page.setViewportSize({ width: W, height: H });
 console.log('total', total.toFixed(2), 's at', FPS, 'fps,', `${W}x${H}`);

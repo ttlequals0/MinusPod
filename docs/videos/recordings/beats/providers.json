@@ -1,0 +1,98 @@
+{
+ "output": "minuspod-providers",
+ "beats": [
+  {
+   "card": true,
+   "dur": 3.8,
+   "head": "",
+   "sub": "Bring your own model. Any provider, switchable at runtime.",
+   "logo": "logo-dark.png"
+  },
+  {
+   "clip": "provider",
+   "dev": "laptop",
+   "start": 0.5,
+   "dur": 9.0,
+   "crop": [
+    48,
+    100,
+    1904,
+    1700
+   ],
+   "head": "Two provider slots.",
+   "sub": "Anthropic, OpenRouter, Ollama, System One or any OpenAI-compatible endpoint. Keys are stored encrypted."
+  },
+  {
+   "clip": "models",
+   "dev": "laptop",
+   "start": 0.4,
+   "dur": 6.0,
+   "crop": [
+    48,
+    100,
+    1904,
+    1500
+   ],
+   "head": "Pick a model per stage.",
+   "sub": "Detection, verification and chapters can each use a different provider and model."
+  },
+  {
+   "clip": "failover",
+   "dev": "laptop",
+   "start": 0.4,
+   "dur": 7.0,
+   "crop": [
+    48,
+    60,
+    1904,
+    1500
+   ],
+   "head": "Failover when a provider is down.",
+   "sub": "Health probes on a schedule. A standby LLM or transcriber takes over and hands back once the primary is healthy again."
+  },
+  {
+   "clip": "spend",
+   "dev": "laptop",
+   "start": 0.4,
+   "dur": 8.5,
+   "crop": [
+    48,
+    100,
+    1904,
+    1700
+   ],
+   "head": "Every call is in the ledger.",
+   "sub": "Spend by provider and model, then by episode and run."
+  },
+  {
+   "clip": "llmcalls",
+   "dev": "phone",
+   "start": 0.4,
+   "dur": 7.0,
+   "head": "Tokens, latency and cost.",
+   "sub": "Per phase, from detection to chapters."
+  },
+  {
+   "clip": "episodecost",
+   "dev": "laptop",
+   "start": 0.3,
+   "dur": 5.0,
+   "crop": [
+    48,
+    60,
+    1904,
+    1300
+   ],
+   "head": "Down to one episode.",
+   "sub": "Total spend and tokens in and out, on the episode page."
+  },
+  {
+   "card": true,
+   "dur": 4.2,
+   "head": "Your model, your bill",
+   "sub": "Run it fully local with Ollama, or mix providers per stage.",
+   "small": "github.com/ttlequals0/MinusPod",
+   "logo": "logo-dark.png"
+  }
+ ]
+}

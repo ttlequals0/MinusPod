@@ -1,0 +1,192 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MinusPod: processing modes</title>
+<!-- Animation source for docs/videos/minuspod-processing-modes.mp4. render.mjs drives window.render(t) frame by frame. -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+<style>
+  html, body { margin: 0; background: #15181D; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="../lib/canvas.js"></script>
+<script>
+// Shared helpers, palette and the render driver come from ../lib/canvas.js; this file holds the modes and their scenes.
+// The episode every mode is shown on: a pre-roll, a mid-roll and a post-roll.
+const ADS = [[0, 0.05], [0.47, 0.56], [0.93, 1]];
+const MODES = ['Standard', 'Keep content only', 'Cue-only', 'Skip detection', 'Pass-through'];
+
+function steps(y, lit, alpha = 1) {
+  reveal(alpha, () => pillRow(['Transcribe', 'Detect ads', 'Cut audio'].map((l, i) => [l, lit[i] > 0.5 ? C.primary : C.dim, 1]), y, 30, 28));
+}
+
+// Episode tape. Blocks are [start, end, color, alpha]; cut removes the blocks flagged for removal.
+function tape(x, y, w, h, { blocks = [], cut = 0, removed = () => false, alpha = 1, labels = 0, wave = 0, t = 0 } = {}) {
+  const gone = blocks.filter(removed), cw = w * (1 - cut * span(gone));
+  ctx.save(); ctx.globalAlpha *= alpha;
+  ctx.save(); rr(x, y, cw, h, h / 2); ctx.clip();
+  ctx.fillStyle = '#2B4652'; ctx.fillRect(x, y, cw, h);
+  ctx.fillStyle = 'rgba(90,191,221,0.18)'; for (let i = 0; i < cw; i += 34) ctx.fillRect(x + i, y, 14, h);
+  if (wave > 0) {
+    ctx.strokeStyle = `rgba(243,245,247,${0.55 * wave})`; ctx.lineWidth = 3; ctx.beginPath();
+    for (let i = 0; i <= cw; i += 6) { const n = Math.sin(i * 0.11 + t * 6) * Math.sin(i * 0.037 + 1.3) * Math.sin(i * 0.013 + t); const a = (h * 0.42) * Math.abs(n); ctx.moveTo(x + i, y + h / 2 - a); ctx.lineTo(x + i, y + h / 2 + a); }
+    ctx.stroke();
+  }
+  let shift = 0; const rects = [];
+  for (const b of blocks) {
+    const [a, e, color, ba = 1] = b, isGone = removed(b);
+    const bx = x + a * w - shift, bw = (e - a) * w * (isGone ? 1 - cut : 1); if (isGone) shift += (e - a) * w * cut;
+    rects.push([bx, bw, b]);
+    if (bw > 0.5 && color) { ctx.save(); ctx.globalAlpha *= ba; ctx.fillStyle = color; ctx.fillRect(bx, y, bw, h); ctx.fillStyle = 'rgba(0,0,0,0.18)'; for (let i = 0; i < bw; i += 18) ctx.fillRect(bx + i, y, 8, h); ctx.restore(); }
+    if (isGone && cut > 0.98) { ctx.fillStyle = C.teal; ctx.fillRect(Math.max(x + h * 0.4, Math.min(x + cw - h * 0.4, bx)) - 4, y, 8, h); }
+  }
+  ctx.restore();
+  if (labels > 0) rects.forEach(([bx, bw, b], i) => { if (!b[2] || bw < 0.5) return; reveal(seg(labels, i * 0.5 / Math.max(1, blocks.length - 1), 0.4), () => text(b[4] || adName(b), Math.max(x + 70, Math.min(x + cw - 70, bx + bw / 2)), y + h + 44, font(500, 26), b[2], 'center'), 14); });
+  ctx.restore();
+  return rects;
+}
+const adBlocks = (alpha = 1) => ADS.map(([a, b]) => [a, b, C.ad, alpha]);
+const isAd = (b) => b[2] === C.ad;
+
+// ---------- mode rail: the five modes as chips, the active one filled ----------
+function rail(active, alpha) {
+  reveal(alpha, () => {
+    const size = LANDSCAPE ? 22 : 24, gap = LANDSCAPE ? 10 : 14;
+    const widths = MODES.map((m) => pillWidth(m, size));
+    if (LANDSCAPE) {
+      let x = LS.capX, row = 0; const rowY = [880, 880 + size + 36];
+      MODES.forEach((m, i) => { if (i === 3) { x = LS.capX; row = 1; } pill(m, x, rowY[row], m === active ? C.primary : C.dim, { size, filled: m === active }); x += widths[i] + gap; });
+    } else {
+      let x = (W - widths.reduce((a, b) => a + b, 0) - gap * (MODES.length - 1)) / 2;
+      MODES.forEach((m, i) => { pill(m, x, 1740, m === active ? C.primary : C.dim, { size, filled: m === active }); x += widths[i] + gap; });
+    }
+  });
+}
+
+// ---------- scenes ----------
+const TY = 760, TH = 64;
+
+add(3.8, '', '', (lt, d) => splash(lt, d, () => {
+  text('Processing modes', 0, 90, font(700, 76), C.fg, 'center');
+  text('Five modes per feed. Four actions per segment.', 0, 160, font(400, 42), C.muted, 'center', eo(seg(lt, 0.6, 0.7)));
+}));
+
+// 1. Standard: detect with the model, cut the ads.
+add(8, 'Standard', 'The model finds the ads and they come out. The default for most feeds.', (lt) => {
+  const found = eo(seg(lt, 1.2, 0.8)), cut = eio(seg(lt, 3.6, 1.4));
+  text('Original', colX(0), TY - 30, font(500, 26), C.muted);
+  tape(colX(0), TY, COL_W, TH, { blocks: adBlocks(found), cut, removed: isAd, labels: seg(lt, 1.8, 1), wave: 1, t: lt });
+  steps(1000, [1, 1, cut > 0.5 ? 1 : 0.4]);
+  note('Transcribe, detect with the model, validate, review, cut. Then a verify pass on the result.', 1140, eo(seg(lt, 2.4, 0.8)));
+  reveal(eo(seg(lt, 5.2, 0.8)), () => pill(`${Math.round(span(ADS) * 100)}% of the runtime removed`, W / 2, 1300, C.teal, { align: 'center', size: 28 }));
+}, 'Standard');
+
+// 2. Keep content only: invert the question; anything not labelled show content is removed.
+add(9, 'Keep content only', 'Removes everything the model does not mark as show content. Experimental.', (lt) => {
+  const CONTENT = ADS.slice(0, -1).map(([, e], i) => [e, ADS[i + 1][0]]);   // the stretches between the ads
+  const label = eo(seg(lt, 1.2, 0.9)), gaps = eo(seg(lt, 3.0, 0.8)), cut = eio(seg(lt, 4.8, 1.4));
+  const gapBlocks = ADS.map(([a, b]) => [a, b, C.ad, gaps, 'not content']);
+  text('Original', colX(0), TY - 30, font(500, 26), C.muted);
+  const rects = tape(colX(0), TY, COL_W, TH, { blocks: gapBlocks, cut, removed: isAd, wave: 1, t: lt });
+  // Teal brackets over the stretches the model labelled as show content.
+  reveal(label * (1 - cut), () => CONTENT.forEach(([a, b]) => {
+    const x1 = colX(a) + 6, x2 = colX(b) - 6; ctx.strokeStyle = C.teal; ctx.lineWidth = 4; ctx.beginPath();
+    ctx.moveTo(x1, TY - 46); ctx.lineTo(x1, TY - 62); ctx.lineTo(x2, TY - 62); ctx.lineTo(x2, TY - 46); ctx.stroke();
+    text('show content', (x1 + x2) / 2, TY - 74, font(500, 24), C.teal, 'center');
+  }));
+  reveal(gaps * (1 - cut), () => rects.forEach(([bx, bw]) => { if (bw > 0.5) text('not content', Math.max(colX(0) + 70, Math.min(colX(1) - 70, bx + bw / 2)), TY + TH + 44, font(500, 24), C.ad, 'center'); }));
+  steps(1000, [1, 1, cut > 0.5 ? 1 : 0.4]);
+  note('For feeds whose inserted ads the model cannot recognise as ads. Safety checks fall back to standard removal when the labelling looks off, and a mislabelled stretch can still cut real audio, so check each episode.', 1140, eo(seg(lt, 2.2, 0.8)));
+}, 'Keep content only');
+
+// 3. Cue-only: cut between the feed's own ad-break cues, no model call.
+add(9, 'Cue-only', 'Cuts come only from this feed\'s ad-break start and end cue templates. No model call.', (lt) => {
+  const cues = eo(seg(lt, 1.2, 0.8)), pair = eo(seg(lt, 2.8, 0.8)), cut = eio(seg(lt, 4.8, 1.4));
+  const mid = ADS[1];
+  text('Original', colX(0), TY - 30, font(500, 26), C.muted);
+  tape(colX(0), TY, COL_W, TH, { blocks: [[mid[0], mid[1], C.ad, pair, 'between the cues']], cut, removed: isAd, labels: pair, wave: 1, t: lt });
+  // Start and end cue ticks on the mid-roll edges; labels sit outside, the mid-roll is too narrow to hold both.
+  reveal(cues * (1 - cut), () => [[mid[0], 'start cue', 'right', -14], [mid[1], 'end cue', 'left', 14]].forEach(([f, l, align, dx]) => {
+    const x = colX(f); ctx.fillStyle = C.teal; ctx.fillRect(x - 4, TY - 26, 8, TH + 52);
+    text(l, x + dx, TY - 40, font(500, 24), C.teal, align);
+  }));
+  steps(1000, [1, 0.2, cut > 0.5 ? 1 : 0.4]);
+  reveal(eo(seg(lt, 2.0, 0.6)), () => pill('no model call', W / 2, 1090, C.warn, { align: 'center', size: 26 }));
+  note('Needs one enabled ad-break start template and one ad-break end template on the feed. Safety limits on break length still apply, and a cue that also plays outside ad breaks can land a cut wrong.', 1190, eo(seg(lt, 3.4, 0.8)));
+}, 'Cue-only');
+
+// 4. Skip detection: transcript and chapters, nothing cut.
+add(7, 'Skip detection', 'Still transcribed, still gets chapters and a transcript. Nothing is cut.', (lt) => {
+  text('Served as published', colX(0), TY - 30, font(500, 26), C.muted);
+  tape(colX(0), TY, COL_W, TH, { wave: 1, t: lt });
+  steps(900, [1, 0.2, 0.2]);
+  const rows = [['00:00', 'Cold open'], ['04:12', 'This week'], ['18:40', 'Listener questions'], ['31:05', 'Picks of the week']];
+  card(COL_X, 1030, COL_W, 360, 'Chapters and transcript', 'Generated from the transcript and the episode description.', C.primary, eo(seg(lt, 1.6, 0.8)));
+  rows.forEach(([ts, l], i) => reveal(eo(seg(lt, 2.2 + i * 0.35, 0.5)), () => { text(ts, COL_X + 36, 1190 + i * 46, font(500, 26), C.primary); text(l, COL_X + 150, 1190 + i * 46, font(400, 26), C.fg); }, 10));
+  note('For shows with no ads, or ones you want searchable without touching the audio.', 1450, eo(seg(lt, 3.6, 0.8)));
+}, 'Skip detection');
+
+// 5. Pass-through: the upstream file, untouched.
+add(7, 'Pass-through', 'Downloaded and served exactly as published. No transcription, no detection.', (lt) => {
+  text('Served as published', colX(0), TY - 30, font(500, 26), C.muted);
+  tape(colX(0), TY, COL_W, TH, { wave: 1, t: lt });
+  steps(900, [0.2, 0.2, 0.2]);
+  reveal(eo(seg(lt, 1.6, 0.8)), () => pill('upstream audio, untouched', W / 2, 1020, C.muted, { align: 'center', size: 28 }));
+  note('Set it on a feed, or on a single episode from its page, to keep a show in the same app and the same feed list without processing it.', 1140, eo(seg(lt, 2.6, 0.8)));
+}, 'Pass-through');
+
+// 6. Segment categories and actions.
+const CATS = [['Sponsor', C.ad, 'Remove', 'cut out of the audio'], ['Self-promo', C.purple, 'Beep', 'replaced with a tone'], ['Interaction', C.warn, 'Keep', 'left in the audio'], ['Recap', C.primary, 'Mark', 'left in, published as its own chapter']];
+add(11, 'Every segment has a category', 'Each category resolves to an action: remove, beep, keep or mark. Set globally or per feed.', (lt) => {
+  const blocks = [[0, 0.05, C.ad, 1, 'Sponsor'], [0.3, 0.36, C.purple, 1, 'Self-promo'], [0.56, 0.6, C.warn, 1, 'Interaction'], [0.88, 0.93, C.primary, 1, 'Recap']];
+  const labels = eo(seg(lt, 1.0, 0.9)), act = eo(seg(lt, 4.0, 0.9)), cut = eio(seg(lt, 6.2, 1.4));
+  const rects = tape(colX(0), TY, COL_W, TH, { blocks, cut, removed: (b) => b[4] === 'Sponsor', labels, wave: 1, t: lt });
+  // Action badges above each block once the actions apply.
+  reveal(act, () => rects.forEach(([bx, bw, b]) => {
+    if (bw < 0.5) return; const action = CATS.find(([c]) => c === b[4])[2];
+    const x = Math.max(colX(0) + 60, Math.min(colX(1) - 60, bx + bw / 2));
+    pill(action, x, TY - 70, b[2], { align: 'center', size: 22 });
+    if (action === 'Beep') { ctx.fillStyle = C.purple; for (let i = 0; i < bw; i += 10) ctx.fillRect(bx + i, TY + TH / 2 - 3, 5, 6); }
+  }));
+  // The category to action table.
+  const ty = 1000;
+  CATS.forEach(([c, col, a, what], i) => reveal(eo(seg(lt, 2.0 + i * 0.3, 0.5)), () => {
+    const y = ty + i * 72; fillRR(COL_X, y, COL_W, 58, 14, C.card); strokeRR(COL_X, y, COL_W, 58, 14, C.border, 1);
+    ctx.fillStyle = col; ctx.fillRect(COL_X + 22, y + 17, 16, 24);
+    text(c, COL_X + 58, y + 38, font(500, 28), C.fg);
+    text(a, COL_X + COL_W - 36, y + 38, font(700, 28), act > 0.5 ? col : C.dim, 'right');
+    text(what, COL_X + COL_W / 2 + 40, y + 38, font(400, 24), C.muted, 'center');
+  }, 10));
+  note('Categories: sponsor, cross-promo, self-promo, interaction, plus intro, outro and recap when show-segment detection is on. Everything defaults to remove until you configure it.', 1340, eo(seg(lt, 3.6, 0.8)));
+});
+
+// 7. Mark publishes a chapter.
+add(7, 'Mark keeps it, and makes it skippable', 'A marked segment stays in the audio and is published as its own chapter.', (lt) => {
+  const rows = [['00:00', 'Show', C.fg], ['12:51', 'Ad: Recap', C.primary], ['13:04', 'Show', C.fg]];
+  card(COL_X, 720, COL_W, 380, 'chapters.json', 'What a Podcasting 2.0 app shows for this episode.', C.primary, eo(seg(lt, 0.6, 0.8)));
+  rows.forEach(([ts, l, col], i) => reveal(eo(seg(lt, 1.4 + i * 0.4, 0.5)), () => { text(ts, COL_X + 36, 890 + i * 60, font(500, 30), C.primary); text(l, COL_X + 160, 890 + i * 60, font(l.startsWith('Ad') ? 700 : 400, 30), col); }, 10));
+  reveal(eo(seg(lt, 2.8, 0.7)), () => pill('skippable in apps that jump by chapter', W / 2, 1150, C.teal, { align: 'center', size: 26 }));
+  note('Segments waiting for review can get a chapter too, with their own title format, so a held segment is never silently left in. Chapter titles are yours to set.', 1260, eo(seg(lt, 3.6, 0.8)));
+});
+
+// 8. Where the knobs live.
+add(7, 'Global defaults, per-feed overrides', 'Set the mode and the actions once for everything, then override the shows that need it.', (lt) => {
+  card(COL_X, 700, COL_W, 230, 'Settings', 'The global default for every category action, and the auto-process default.', C.primary, eo(seg(lt, 0.6, 0.8)));
+  card(COL_X, 970, COL_W, 230, 'Feed settings', 'Processing mode, category overrides, auto-process and queue priority for this show.', C.teal, eo(seg(lt, 1.6, 0.8)));
+  card(COL_X, 1240, COL_W, 200, 'Episode page', 'Pass-through for one episode, and a reprocess that follows whatever the feed now says.', C.purple, eo(seg(lt, 2.6, 0.8)));
+});
+
+add(4.6, '', '', (lt, d) => splash(lt, d, () => {
+  text('Pick per feed. Change any time.', 0, 90, font(700, 64), C.fg, 'center');
+  text('The next episode follows the new setting.', 0, 160, font(400, 42), C.muted, 'center', eo(seg(lt, 0.5, 0.6)));
+  text('github.com/ttlequals0/MinusPod', 0, 250, font(500, 36), C.teal, 'center', eo(seg(lt, 0.9, 0.6)));
+}));
+
+finish((sc, fade) => rail(sc.rail, fade));
+</script>
+</body>
+</html>

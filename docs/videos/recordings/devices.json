@@ -1,0 +1,5 @@
+{
+  "phone":   { "W": 1170, "H": 2532, "DSF": 3, "display": ":97" },
+  "laptop":  { "W": 2000, "H": 1800, "DSF": 2, "display": ":96" },
+  "desktop": { "W": 2880, "H": 1800, "DSF": 2, "display": ":98" }
+}

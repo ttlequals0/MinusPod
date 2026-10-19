@@ -12,7 +12,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Web Interface](web-interface.md) - the management UI, ad editor workflow, screenshots
 - [How It Works & Detection Pipeline](how-it-works.md) - the transcription -> detection -> cut pipeline, verification pass, sliding windows, processing queue, validation, pattern learning, audio analysis
 - [Episode Processing Workflows](workflows.md) - visual map of the pipeline, the five processing modes, re-runs, and failure paths
-- [Videos](videos/README.md) - a UI tour and an animated walk through the pipeline, in portrait and landscape cuts, plus how to rebuild the animation
+- [Videos](videos/README.md) - a UI tour, an animated walk through the pipeline, and one short video per feature, in portrait and landscape cuts, plus how to rebuild and re-record them
 - [Configuration & Experiments](configuration.md) - settings, per-stage LLM tuning, VAD gap detector, provider keys, ad reviewer, community patterns, scheduled backups
 - [Security, Storage & Custom Assets](security-and-storage.md) - remote access, login lockout, backups, custom ad markers
 - [Audio Cue Detection](audio-cues.md) - per-feed cue templates, the find-audio-cues scan, cue types, settings, and tuning

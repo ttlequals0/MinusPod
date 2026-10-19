@@ -1,0 +1,15 @@
+{
+  "name": "minuspod-processing-modes-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "frames": "node ../render.mjs frames",
+    "preview": "node ../render.mjs preview",
+    "encode": "ffmpeg -y -framerate 30 -i frames/%05d.png -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p -movflags +faststart ../minuspod-processing-modes.mp4",
+    "frames:landscape": "node ../render.mjs frames --landscape",
+    "encode:landscape": "ffmpeg -y -framerate 30 -i frames/%05d.png -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p -movflags +faststart ../minuspod-processing-modes-landscape.mp4"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1"
+  }
+}
