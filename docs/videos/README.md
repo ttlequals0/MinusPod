@@ -9,7 +9,7 @@ music can be added in the posting app.
 | File | Length | What it shows |
 |---|---|---|
 | [minuspod-demo-tiktok.mp4](minuspod-demo-tiktok.mp4) | 85 s | A tour of the web UI: dashboard, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and themes. Recorded from a running instance. |
-| [minuspod-how-it-works-tiktok.mp4](minuspod-how-it-works-tiktok.mp4) | 76 s | An animated walk through one episode: how work arrives, transcription, the five kinds of evidence, the confidence gate, the cut, the verification pass, publishing, the learning loop and what happens when something fails. Follows [How It Works](../how-it-works.md) and [Episode Processing Workflows](../workflows.md). |
+| [minuspod-how-it-works-tiktok.mp4](minuspod-how-it-works-tiktok.mp4) | 107 s | An animated walk through one episode across all eleven pipeline stages: download, transcribe, second download and audio analysis, detect (free matches, then the model), validate, boundary review, cut, verify pass, transcript and chapters, publish. Then the learning loop and what happens when something fails. Follows [How It Works](../how-it-works.md) and [Episode Processing Workflows](../workflows.md). |
 
 ## Rebuilding the how-it-works video
 
@@ -35,7 +35,7 @@ access for the Roboto web font. `frames/` and `preview/` are gitignored.
 
 Scenes, captions and timings live in the `scenes` list at the bottom of
 `index.html`. Each scene is a duration, a headline, a subline, a draw function
-of local time, and the pipeline stage to light up in the footer rail. The
+of local time, and the pipeline stages to light up in the footer rail. The
 episode runtime and ad positions are constants at the top, and every duration
 label in the video is derived from them.
 
