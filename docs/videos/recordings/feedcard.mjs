@@ -12,7 +12,8 @@ import { DEVICES } from './helpers.mjs';
 const [,, xmlFile, outFile = 'clips/p20/feedxml.mp4'] = process.argv;
 if (!xmlFile) { console.error('usage: node feedcard.mjs <feed.xml> [out.mp4]'); process.exit(2); }
 const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-let xml = fs.readFileSync(xmlFile, 'utf8').replace(/<!--[\s\S]*?-->\n?/g, '');
+// Whole-line XML comments (the renderer's version stamp) are left out of the card.
+let xml = fs.readFileSync(xmlFile, 'utf8').split('\n').filter((l) => !(l.trim().startsWith('<!--') && l.trim().endsWith('-->'))).join('\n');
 const NAMESPACE_HOSTS = /^https?:\/\/(www\.)?(itunes\.com|podcastindex\.org|w3\.org|purl\.org)$/i;
 xml = xml.replace(/https?:\/\/[^/\s"'<]+/g, (m) => (NAMESPACE_HOSTS.test(m) ? m : 'https://example.com')).replace(/\?[^"'\s<]*/g, '');
 const lines = xml.trim().split('\n').map((l) => esc(l)
