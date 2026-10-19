@@ -26,13 +26,26 @@ const C = {
   bg: '#15181D', fg: '#F3F5F7', muted: '#9AA3AD', dim: '#5F6873', border: '#3A4049', card: '#1F242B', card2: '#272D35',
   primary: '#5ABFDD', ad: '#EF5F5D', ok: '#05DF73', warn: '#FFB900', teal: '#00C9A7', purple: '#C084FC',
 };
-// One content column shared by the tape, cards and gate.
-const COL_W = 880, COL_X = (W - COL_W) / 2;
+// One content column shared by the tape, cards and gate; colX maps an episode fraction into it.
+const COL_W = 880, COL_X = (W - COL_W) / 2, colX = (f) => COL_X + f * COL_W;
 // The episode the video follows: runtime and where its ads sit on the bar.
+// ADS are the three the first pass finds; MISS is a second mid-roll only the verify pass catches.
 const EP_SEC = 3730;
-const ADS = [[0, 0.07], [0.46, 0.57], [0.93, 1]];
-const AD_FRAC = ADS.reduce((a, [s, e]) => a + (e - s), 0);
-const REMOVED_SEC = Math.round(EP_SEC * AD_FRAC);
+const ADS = [[0, 0.03], [0.44, 0.53], [0.95, 1]];
+const MISS = [0.70, 0.72];
+const ALL_ADS = [...ADS, MISS].sort((a, b) => a[0] - b[0]);
+const adName = ([a, b]) => (a === 0 ? 'pre-roll' : b === 1 ? 'post-roll' : 'mid-roll');
+const span = (ads) => ads.reduce((a, [s, e]) => a + (e - s), 0);
+const AD_FRAC = span(ADS);
+const REMOVED_SEC = Math.round(EP_SEC * AD_FRAC), MISS_SEC = Math.round(EP_SEC * span([MISS]));
+const TOTAL_REMOVED_SEC = REMOVED_SEC + MISS_SEC;
+const [MID_START_SEC, MID_END_SEC] = ADS[1].map((f) => f * EP_SEC);
+const CONF = [0.96, 0.84, 0.89];                                 // model confidence for each of ADS, used by detect and validate
+const mid = ([a, b]) => (a + b) / 2;
+// Where a point of the original lands once the given ads are removed, as a fraction of the shorter file.
+const cutPos = (f, ads) => (f - span(ads.filter(([, b]) => b <= f))) / (1 - span(ads));
+const toFinalSec = (sec) => cutPos(sec / EP_SEC, ALL_ADS) * (EP_SEC - TOTAL_REMOVED_SEC);
+const MISS_CUT = MISS.map((f) => cutPos(f, ADS));
 // The eleven stages of docs/workflows.md, in order.
 const STAGES = ['Download', 'Transcribe', 'Second download', 'Audio analysis', 'Detect ads', 'Validate', 'Boundary review', 'Cut audio', 'Verify pass', 'Transcript, chapters', 'Publish feed'];
 
@@ -117,8 +130,8 @@ function splash(lt, d, draw) {
 // Episode tape: content blocks and ad blocks on a horizontal bar. An ad is [start, end] or [start, end, { alpha, glow }] for per-ad fades.
 // Returns the drawn width and the x of each ad (its marker once cut).
 function tape(x, y, w, h, opts = {}) {
-  const { ads = ADS, adColor = C.ad, adAlpha = 1, alpha = 1, cut = 0, labels = 0, markers = 0, glow = 0, wave = 0, t = 0 } = opts;
-  const cw = w * (1 - cut * ads.reduce((a, [s, e]) => a + (e - s), 0));
+  const { ads = ADS, marks: fixedMarks = [], adColor = C.ad, adAlpha = 1, alpha = 1, cut = 0, labels = 0, markers = 0, glow = 0, wave = 0, t = 0 } = opts;
+  const cw = w * (1 - cut * span(ads));
   ctx.save(); ctx.globalAlpha *= alpha;
   ctx.save();
   rr(x, y, cw, h, h / 2); ctx.clip();
@@ -129,24 +142,27 @@ function tape(x, y, w, h, opts = {}) {
     for (let i = 0; i <= cw; i += 6) { const n = Math.sin(i * 0.11 + t * 6) * Math.sin(i * 0.037 + 1.3) * Math.sin(i * 0.013 + t); const a = (h * 0.42) * Math.abs(n); ctx.moveTo(x + i, y + h / 2 - a); ctx.lineTo(x + i, y + h / 2 + a); }
     ctx.stroke();
   }
+  // A marker at either end sits inside the rounded cap so it stays visible.
+  const markAt = (mx, a) => { ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = C.teal; ctx.fillRect(Math.max(x + h * 0.4, Math.min(x + cw - h * 0.4, mx)) - 4, y, 8, h); ctx.restore(); };
+  for (const f of fixedMarks) markAt(x + w * (f - cut * span(ads.filter(([, b]) => b <= f))), 1);   // pre-cut position, shifted like the ads
   let shift = 0; const adRects = [];
   for (const [a, b, o = {}] of ads) {
     const ax = x + a * w - shift, aw = (b - a) * w * (1 - cut); shift += (b - a) * w * cut;
     adRects.push([ax, aw, o.glow ?? 1]);
     if (aw > 0.5) { ctx.save(); ctx.globalAlpha *= adAlpha * (o.alpha ?? 1); ctx.fillStyle = adColor; ctx.fillRect(ax, y, aw, h); ctx.fillStyle = 'rgba(0,0,0,0.18)'; for (let i = 0; i < aw; i += 18) ctx.fillRect(ax + i, y, 8, h); ctx.restore(); }
-    if (markers > 0 && cut > 0.98) { ctx.save(); ctx.globalAlpha *= markers; ctx.fillStyle = C.teal; ctx.fillRect(ax - 4, y, 8, h); ctx.restore(); }
+    if (markers > 0 && cut > 0.98) markAt(ax, markers);
   }
   ctx.restore();
   if (glow > 0) for (const [ax, aw, g] of adRects) if (aw > 0.5 && g > 0) { ctx.save(); ctx.globalAlpha *= glow * g; ctx.shadowColor = adColor; ctx.shadowBlur = 40; strokeRR(ax - 3, y - 6, aw + 6, h + 12, 8, adColor, 3); ctx.restore(); }
-  if (labels > 0) {
-    const names = ['pre-roll', 'mid-roll', 'post-roll'];
-    adRects.forEach(([ax, aw], i) => reveal(seg(labels, i * 0.25, 0.4), () => { const cx = Math.max(x + 70, Math.min(x + cw - 70, ax + aw / 2)); text(names[i], cx, y + h + 44, font(500, 26), C.ad, 'center'); }, 14));
-  }
+  if (labels > 0) adRects.forEach(([ax, aw], i) => reveal(seg(labels, i * 0.6 / Math.max(1, ads.length - 1), 0.4), () => { const cx = Math.max(x + 70, Math.min(x + cw - 70, ax + aw / 2)); text(adName(ads[i]), cx, y + h + 44, font(500, 26), C.ad, 'center'); }, 14));
   ctx.restore();
   return { cw, marks: adRects.map(([ax]) => ax) };
 }
 function timeLabel(s) { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = Math.floor(s % 60); return `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`; }
-const cutLabel = (cut) => timeLabel(EP_SEC - REMOVED_SEC * cut);
+const ts = (s) => '0' + timeLabel(s);                             // transcript style, 00:28:35
+const mmss = (s) => timeLabel(s).replace(/^0:/, '');             // chapter style, 14:20
+const cutLabel = (cut, removed = REMOVED_SEC, from = EP_SEC) => timeLabel(from - removed * cut);
+const shorterLabel = (sec) => `${Math.floor(sec / 60)} min ${sec % 60} s shorter`;
 
 // ---------- caption + stage rail ----------
 function caption(head, sub, p) {
@@ -182,17 +198,17 @@ add(3.6, '', '', (lt, d) => splash(lt, d, () => {
   text('One episode through all eleven stages.', 0, 160, font(400, 44), C.muted, 'center', eo(seg(lt, 0.6, 0.7)));
 }));
 
-add(7.0, 'An episode, as published.', 'Pre-roll, mid-roll, post-roll. Below it, the shorter file MinusPod serves instead.', (lt) => {
+add(7.0, 'An episode, as published.', 'Pre-roll, two mid-rolls, post-roll. Below it, the shorter file MinusPod serves instead.', (lt) => {
   const y1 = 760, h = 96, grow = eo(seg(lt, 0.1, 0.9));
-  tape(COL_X, y1, COL_W, h, { alpha: grow, labels: seg(lt, 0.9, 1.4), adAlpha: eo(seg(lt, 0.6, 0.6)) });
+  tape(COL_X, y1, COL_W, h, { ads: ALL_ADS, alpha: grow, labels: seg(lt, 0.9, 1.4), adAlpha: eo(seg(lt, 0.6, 0.6)) });
   text(timeLabel(EP_SEC), COL_X + COL_W, y1 - 28, font(500, 30), C.muted, 'right', grow);
   arrow(W / 2, y1 + h + 90, W / 2, y1 + h + 230, C.primary, eo(seg(lt, 2.2, 0.7)));
   const p2 = seg(lt, 2.6, 1.2);
   if (p2 > 0) {
     const y2 = y1 + h + 290, cut = eio(p2);
-    const { cw } = tape(COL_X, y2, COL_W, h, { cut, markers: seg(lt, 3.9, 0.6) });
-    text(cutLabel(cut), COL_X + cw, y2 - 28, font(500, 30), C.ok, 'right');
-    reveal(eo(seg(lt, 4.3, 0.8)), () => text(`${Math.floor(REMOVED_SEC / 60)} min ${REMOVED_SEC % 60} s shorter`, W / 2, y2 + h + 70, font(500, 30), C.ok, 'center'), 12);
+    const { cw } = tape(COL_X, y2, COL_W, h, { ads: ALL_ADS, cut, markers: seg(lt, 3.9, 0.6) });
+    text(cutLabel(cut, TOTAL_REMOVED_SEC), COL_X + cw, y2 - 28, font(500, 30), C.ok, 'right');
+    reveal(eo(seg(lt, 4.3, 0.8)), () => text(shorterLabel(TOTAL_REMOVED_SEC), W / 2, y2 + h + 70, font(500, 30), C.ok, 'center'), 12);
   }
 });
 
@@ -221,11 +237,12 @@ add(7.0, 'Transcribe.', 'Whisper or Parakeet on your own GPU or CPU, or a remote
     if (p > 0 && p < 1) { ctx.fillStyle = C.primary; ctx.fillRect(x0, y + h + 40, (x1 - x0) * p, 6); }
     ctx.restore(); text(`chunk ${i + 1}`, COL_X + (i + 0.5) * cwid, y + h + 84, font(500, 24), col, 'center');
   }
-  const lines = [['00:00:12', 'welcome back to the show, this week we are'], ['00:00:19', 'looking at what changed in the new release and'], ['00:00:27', 'why it matters for anyone who hosts their own'], ['00:28:41', 'this episode is brought to you by'], ['00:28:44', 'use code SHOW for twenty percent off your first'], ['00:29:03', 'and now back to it, so the first thing we noticed']];
+  const c0 = ADS[0][1] * EP_SEC;
+  const lines = [[ts(c0 + 3), 'welcome back to the show, this week we are'], [ts(c0 + 10), 'looking at what changed in the new release and'], [ts(c0 + 18), 'why it matters for anyone who hosts their own'], [ts(MID_START_SEC + 5), 'this episode is brought to you by Acme, the'], [ts(MID_START_SEC + 9), 'easiest way to host your own site, Acme dot com'], [ts(MID_END_SEC + 2), 'and now back to it, so the first thing we noticed']];
   const ty = 1000, chars = Math.floor(seg(lt, 1.0, 5.2) * 260); let used = 0;
-  lines.forEach(([ts, s], i) => { const avail = chars - used; if (avail <= 0) return; const shown = s.slice(0, avail); used += s.length;
+  lines.forEach(([stamp, s], i) => { const avail = chars - used; if (avail <= 0) return; const shown = s.slice(0, avail); used += s.length;
     const yy = ty + i * 78; fillRR(COL_X, yy - 44, COL_W, 64, 14, C.card);
-    text(ts, COL_X + 24, yy, font(500, 26), C.primary); text(shown + (avail < s.length ? '|' : ''), COL_X + 170, yy, font(400, 28), C.muted); });
+    text(stamp, COL_X + 24, yy, font(500, 26), C.primary); text(shown + (avail < s.length ? '|' : ''), COL_X + 170, yy, font(400, 28), C.muted); });
   reveal(eo(seg(lt, 5.2, 0.7)), () => pill('the next chunk is prepared while the GPU works', W / 2, 1500, C.ok, { align: 'center' }));
 }, ['Transcribe']);
 
@@ -238,8 +255,9 @@ add(7.4, 'Meanwhile, two free checks.', 'A second download of the same episode, 
     tape(COL_X, y + h + 20, COL_W, h, { ads: [] }); text('copy B', COL_X - 8, y + h + 20 + h / 2 + 8, font(500, 22), C.muted, 'right');
   });
   const pd = eo(seg(lt, 1.2, 0.8));
-  reveal(pd, () => { for (const [a, b] of ADS) { const ax = COL_X + a * COL_W, aw = (b - a) * COL_W; fillRR(ax, y + h + 20, aw, h, 0, 'rgba(192,132,252,0.55)'); strokeRR(ax - 2, y - 6, aw + 4, 2 * h + 32, 8, C.purple, 2); } });
-  reveal(eo(seg(lt, 2.0, 0.6)), () => pill('differs here', COL_X + 0.515 * COL_W, y + 2 * h + 44, C.purple, { align: 'center', size: 24 }));
+  // Only the two inserted ads differ; the host read at the end is baked into both copies.
+  reveal(pd, () => { for (const [a, b] of ADS.slice(0, 2)) { const ax = colX(a), aw = (b - a) * COL_W; fillRR(ax, y + h + 20, aw, h, 0, 'rgba(192,132,252,0.55)'); strokeRR(ax - 2, y - 6, aw + 4, 2 * h + 32, 8, C.purple, 2); } });
+  reveal(eo(seg(lt, 2.0, 0.6)), () => pill('differs here', colX(mid(ADS[1])), y + 2 * h + 44, C.purple, { align: 'center', size: 24 }));
   // Audio analysis: a loudness trace with steps at the inserted ads, plus a cue sound.
   const ay = 1000, ah = 220, p2 = eo(seg(lt, 2.8, 0.7));
   reveal(p2, () => {
@@ -249,10 +267,10 @@ add(7.4, 'Meanwhile, two free checks.', 'A second download of the same episode, 
     ctx.strokeStyle = C.primary; ctx.lineWidth = 3; ctx.beginPath();
     for (let i = 0; i <= COL_W; i += 4) { const f = i / COL_W; const inAd = ADS.some(([a, b]) => f >= a && f < b); const base = inAd ? 0.32 : 0.6; const yy = ay + ah * (base + 0.05 * Math.sin(i * 0.21) * Math.sin(i * 0.07)); if (i === 0) ctx.moveTo(COL_X + i, yy); else ctx.lineTo(COL_X + i, yy); }
     ctx.stroke(); ctx.restore();
-    for (const [a, b] of ADS) for (const f of [a, b]) if (f > 0 && f < 1 && f <= sweep) { ctx.fillStyle = C.warn; ctx.fillRect(COL_X + f * COL_W - 2, ay + 10, 4, ah - 20); }
+    for (const [a, b] of ADS) for (const f of [a, b]) if (f > 0 && f < 1 && f <= sweep) { ctx.fillStyle = C.warn; ctx.fillRect(colX(f) - 2, ay + 10, 4, ah - 20); }
   });
   reveal(eo(seg(lt, 5.0, 0.6)), () => pillRow([['loudness step', C.warn, 1], ['transition pair', C.warn, 1], ['cue template match', C.warn, 1]], ay + ah + 36, 20, 24));
-  text('Nothing is cut yet. Both become hints for the next stage.', W / 2, 1400, font(400, 30), C.muted, 'center', eo(seg(lt, 5.8, 0.7)));
+  text('Nothing is cut yet. Both feed the next stages as evidence.', W / 2, 1400, font(400, 30), C.muted, 'center', eo(seg(lt, 5.8, 0.7)));
 }, ['Second download', 'Audio analysis']);
 
 add(6.8, 'Detect ads, part one: known ads first.', 'Fingerprints match the exact audio of an ad heard before. Learned scripts match the words. Both cost nothing and run before any model call.', (lt) => {
@@ -260,16 +278,16 @@ add(6.8, 'Detect ads, part one: known ads first.', 'Fingerprints match the exact
   const pf = eo(seg(lt, 1.0, 0.8)), ps = eo(seg(lt, 2.6, 0.8));
   // Fingerprint match lands on the pre-roll; learned script lands on the post-roll.
   tape(COL_X, y, COL_W, h, { adColor: C.purple, glow: 1, ads: [[...ADS[0], { alpha: pf, glow: pf * (1 - seg(lt, 2.2, 0.5)) }], [...ADS[2], { alpha: ps, glow: ps * (1 - seg(lt, 3.8, 0.5)) }]] });
-  reveal(pf, () => { const cx = COL_X + 0.035 * COL_W + 40; arrow(cx, y - 80, cx - 20, y - 14, C.purple, 1, 3); pill('acoustic fingerprint', cx - 40, y - 150, C.purple, { size: 24 }); text('this exact audio was an ad in an earlier episode', cx - 40, y - 180, font(400, 24), C.muted); }, 10);
-  reveal(ps, () => { const cx = COL_X + 0.965 * COL_W - 40; arrow(cx, y + h + 80, cx + 20, y + h + 14, C.purple, 1, 3); pill('learned script', cx + 40, y + h + 110, C.purple, { size: 24, align: 'right' }); text('"use code SHOW for twenty percent off"', cx + 40, y + h + 190, font(400, 24), C.muted, 'right'); }, 10);
+  reveal(pf, () => { const cx = colX(mid(ADS[0])) + 40; arrow(cx, y - 80, cx - 20, y - 14, C.purple, 1, 3); pill('acoustic fingerprint', cx - 40, y - 150, C.purple, { size: 24 }); text('this exact audio was an ad in an earlier episode', cx - 40, y - 180, font(400, 24), C.muted); }, 10);
+  reveal(ps, () => { const cx = colX(mid(ADS[2])) - 40; arrow(cx, y + h + 80, cx + 20, y + h + 14, C.purple, 1, 3); pill('learned script', cx + 40, y + h + 110, C.purple, { size: 24, align: 'right' }); text('"use code SHOW for twenty percent off"', cx + 40, y + h + 190, font(400, 24), C.muted, 'right'); }, 10);
   reveal(eo(seg(lt, 4.4, 0.7)), () => {
     text('Patterns are scoped to this show, its network, or every show.', W / 2, 1160, font(400, 28), C.muted, 'center');
     pillRow([['this show', C.primary, 1], ['network', C.primary, 1], ['global', C.primary, 1], ['community', C.teal, 1]], 1200, 20, 24);
   });
-  note('One you confirmed always cuts. One learned on its own still answers to the gate.', 1340, eo(seg(lt, 5.4, 0.7)), C.muted, 28);
+  note('One you confirmed always cuts. One learned on its own still follows the category actions you set.', 1340, eo(seg(lt, 5.4, 0.7)), C.muted, 28);
 }, ['Detect ads']);
 
-add(8.4, 'Detect ads, part two: the model reads the transcript.', 'In overlapping windows, with every free match as a hint. Any LLM provider, or a System One endpoint. The one paid call.', (lt) => {
+add(8.4, 'Detect ads, part two: the model reads the transcript.', 'In overlapping windows, with the learned sponsors as hints. Any LLM provider, or a System One endpoint. The first paid call.', (lt) => {
   const y = 700, h = 96;
   // Windows sweep the tape; candidates appear once a window has passed them.
   const sweep = seg(lt, 0.8, 4.2), nWin = 5, winW = 0.28, step = (1 - winW) / (nWin - 1);
@@ -279,44 +297,48 @@ add(8.4, 'Detect ads, part two: the model reads the transcript.', 'In overlappin
     const wx = i * step, active = sweep >= wx * 0.9 && sweep < (wx + winW) * 1.05;
     const col = active ? C.primary : sweep > wx ? C.dim : C.border;
     ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = active ? 4 : 2; ctx.setLineDash(active ? [] : [8, 8]);
-    rr(COL_X + wx * COL_W, y - 14 - (i % 2) * 22, winW * COL_W, h + 28 + (i % 2) * 44, 12); ctx.stroke(); ctx.restore();
+    rr(colX(wx), y - 14 - (i % 2) * 22, winW * COL_W, h + 28 + (i % 2) * 44, 12); ctx.stroke(); ctx.restore();
   }
   text('10 minute windows, 3 minutes of overlap, duplicates merged', W / 2, y + h + 70, font(400, 26), C.muted, 'center', eo(seg(lt, 0.6, 0.6)));
   // Confidence tags on found candidates.
-  [['96%', 0.035], ['84%', 0.515], ['91%', 0.965]].forEach(([c, f], i) => reveal(found[i], () => text(c, COL_X + f * COL_W, y - 34, font(700, 26), C.ad, 'center'), 8));
+  CONF.forEach((c, i) => reveal(found[i], () => text(`${Math.round(c * 100)}%`, colX(mid(ADS[i])), y - 34, font(700, 26), C.ad, 'center'), 8));
   // The model box with the hints feeding in.
   const my = 940, pm = eo(seg(lt, 0.2, 0.7));
   reveal(pm, () => {
     fillRR(COL_X, my, COL_W, 200, 24, C.card); strokeRR(COL_X, my, COL_W, 200, 24, C.warn, 2);
     text('Detection model', COL_X + 34, my + 56, font(700, 32), C.fg); pill('paid', COL_X + COL_W - 34, my + 30, C.warn, { align: 'right', size: 24 });
     text('reads each window of transcript and returns ad spans with a confidence and a category', COL_X + 34, my + 100, font(400, 24), C.muted);
-    pillRow([['Claude', C.dim, 1], ['OpenAI', C.dim, 1], ['Ollama', C.dim, 1], ['OpenRouter', C.dim, 1], ['System One', C.dim, 1]], my + 134, 14, 22);
+    pillRow([['Anthropic', C.dim, 1], ['OpenAI-compatible', C.dim, 1], ['Ollama', C.dim, 1], ['OpenRouter', C.dim, 1], ['System One', C.dim, 1]], my + 134, 14, 22);
   });
-  reveal(eo(seg(lt, 1.4, 0.6)), () => { text('hints: fingerprint and script matches, differential regions, audio signals, your past corrections', W / 2, my + 250, font(400, 24), C.purple, 'center'); arrow(W / 2, my + 268, W / 2, my + 212, C.purple, 1, 2); });
-  // Audio enforcement: a signal stretches one edge to the real transition.
-  const pe = eo(seg(lt, 5.6, 0.9));
-  reveal(pe, () => { const ex = COL_X + 0.57 * COL_W; ctx.fillStyle = C.warn; ctx.fillRect(ex - 2 + pe * 14, y, 4, h); arrow(ex + 14, y - 96, ex + 14, y - 8, C.warn, 1, 3); text('audio enforcement: a loudness step pushes the edge to the real transition', W / 2, y - 112, font(400, 26), C.warn, 'center'); });
-  note('Categories too: sponsor, cross-promo, self-promo, intro, outro. Each can be cut, beeped, kept or marked.', 1460, eo(seg(lt, 6.6, 0.7)), C.muted, 26);
+  reveal(eo(seg(lt, 1.4, 0.6)), () => { arrow(W / 2, my + 262, W / 2, my + 212, C.purple, 1, 2); text('hints: the sponsors and scripts it has learned, and where this show usually places its breaks', W / 2, my + 296, font(400, 24), C.purple, 'center'); });
+  note('Fingerprint, script and two-copy matches skip the model and join its findings as candidates of their own.', my + 346, eo(seg(lt, 3.0, 0.7)), C.muted, 26);
+  // Audio enforcement: a loudness step just past the model's edge pulls the cut out to the real transition.
+  const pe = eo(seg(lt, 5.6, 0.9)), ex = colX(ADS[1][1]), grow = 0.02 * COL_W * pe;
+  reveal(pe, () => { ctx.fillStyle = C.ad; ctx.fillRect(ex, y, grow, h); ctx.fillStyle = C.warn; ctx.fillRect(ex + grow - 2, y, 4, h); arrow(ex + grow, y - 96, ex + grow, y - 8, C.warn, 1, 3); text('audio enforcement: a loudness step pulls the edge out to the real transition', W / 2, y - 112, font(400, 26), C.warn, 'center'); });
+  note('Categories too: sponsor, cross-promo, self-promo, interaction, and optionally intro, outro, recap. Each can be cut, beeped, kept or marked.', 1460, eo(seg(lt, 6.6, 0.7)), C.muted, 26);
 }, ['Detect ads']);
 
-add(7.6, 'Validate.', 'Confidence, length, position and your past corrections. 80% and up is cut, 50 to 79 is held for your review, below 50 is dropped.', (lt) => {
+add(7.6, 'Validate.', 'Confidence, length, position and your past corrections. 80% and up is cut, 50 to 79 stays in the audio flagged for your review, below 50 is dropped.', (lt) => {
   const y = 1030, h = 40;
-  const zones = [[0, 0.5, C.dim, 'reject'], [0.5, 0.8, C.warn, 'hold for review'], [0.8, 1, C.ok, 'cut']];
+  const zones = [[0, 0.5, C.dim, 'reject'], [0.5, 0.8, C.warn, 'review'], [0.8, 1, C.ok, 'cut']];
   reveal(eo(seg(lt, 0.1, 0.8)), () => {
-    zones.forEach(([a, b, col, lab]) => { fillRR(COL_X + a * COL_W + 3, y, (b - a) * COL_W - 6, h, 10, col); text(lab, COL_X + (a + b) / 2 * COL_W, y + h + 42, font(500, 26), col, 'center'); });
+    zones.forEach(([a, b, col, lab]) => { fillRR(colX(a) + 3, y, (b - a) * COL_W - 6, h, 10, col); text(lab, colX((a + b) / 2), y + h + 42, font(500, 26), col, 'center'); });
     [0, 50, 80, 100].forEach((v) => text(`${v}%`, COL_X + v / 100 * COL_W, y - 62, font(500, 24), C.muted, v === 0 ? 'left' : v === 100 ? 'right' : 'center'));
   });
-  // Candidates drop from the tape onto the gate; the fourth is a low-confidence extra.
-  const ty = 700; tape(COL_X, ty, COL_W, 72, { adAlpha: 0.9, ads: [[0, 0.07], [0.46, 0.57], [0.62, 0.66], [0.93, 1]] });
-  const cands = [[0.035, 0.96, 'cut'], [0.515, 0.84, 'cut'], [0.64, 0.63, 'held'], [0.965, 0.31, 'rejected']];
+  // Candidates drop from the tape onto the gate: the three found ads plus two low-confidence extras.
+  const extras = [[0.60, 0.63], [0.82, 0.84]];
+  const ty = 700; tape(COL_X, ty, COL_W, 72, { adAlpha: 0.9, ads: [...ADS, ...extras].sort((a, b) => a[0] - b[0]) });
+  const cands = [[mid(ADS[0]), CONF[0], 'cut'], [mid(ADS[1]), CONF[1], 'cut'], [mid(extras[0]), 0.63, 'review'], [mid(extras[1]), 0.31, 'rejected'], [mid(ADS[2]), CONF[2], 'cut']];
+  // A score label that would land within a label width of an earlier one moves up a row.
+  const labelRow = (i) => cands.slice(0, i).filter(([, c]) => Math.abs(c - cands[i][1]) * COL_W < 56).length;
   cands.forEach(([tp, conf, res], i) => {
-    const p = eio(seg(lt, 1.2 + i * 1.1, 0.9)); if (p <= 0) return;
-    const sx = COL_X + tp * COL_W, sy = ty + 36, ex = COL_X + conf * COL_W, ey = y + h / 2;
+    const p = eio(seg(lt, 1.0 + i * 0.95, 0.9)); if (p <= 0) return;
+    const sx = colX(tp), sy = ty + 36, ex = colX(conf), ey = y + h / 2, dy = -64 * labelRow(i);
     const px = lerp(sx, ex, p), py = lerp(sy, ey, p) - Math.sin(p * Math.PI) * 80;
-    const col = res === 'cut' ? C.ok : res === 'held' ? C.warn : C.dim;
+    const col = res === 'cut' ? C.ok : res === 'review' ? C.warn : C.dim;
     ctx.save(); ctx.fillStyle = p >= 1 ? col : C.ad; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 18; ctx.beginPath(); ctx.arc(px, py, 20, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-    text(`${Math.round(conf * 100)}%`, px, py - 36, font(700, 28), p >= 1 ? col : C.fg, 'center');
-    reveal(eo(seg(lt, 2.1 + i * 1.1, 0.5)), () => pill(res, COL_X + 60 + i * 215, 1240, col, { align: 'center' }), 12);
+    text(`${Math.round(conf * 100)}%`, px, py - 36 + dy * p, font(700, 28), p >= 1 ? col : C.fg, 'center');
+    reveal(eo(seg(lt, 1.9 + i * 0.95, 0.5)), () => pill(res, COL_X + 70 + i * 185, 1240, col, { align: 'center' }), 12);
   });
   note('Also checked: too short or too long, a typical ad position, sponsor words in the text, and merges of ads with tiny gaps.', 1380, eo(seg(lt, 5.4, 0.7)), C.muted, 26);
   note('A correction you confirmed before always wins over the score.', 1480, eo(seg(lt, 6.0, 0.7)), C.muted, 26);
@@ -350,25 +372,26 @@ add(6.6, 'Cut audio.', 'FFmpeg removes the accepted spans and drops a short audi
   const glow = seg(lt, 0.3, 0.6) * (1 - seg(lt, 1.6, 0.6)), cut = eio(seg(lt, 1.6, 1.6));
   const { cw, marks } = tape(COL_X, y, COL_W, h, { glow, cut, markers: eo(seg(lt, 3.4, 0.6)) });
   text(cutLabel(cut), COL_X + cw, y - 32, font(700, 36), cut > 0.99 ? C.ok : C.fg, 'right');
-  if (cut > 0 && cut < 1) reveal(1 - cut, () => ADS.forEach(([a, b], i) => fillRR(COL_X + a * COL_W, y + h + 60 + cut * 500 + i * 30, (b - a) * COL_W, 40, 8, C.ad)));
+  if (cut > 0 && cut < 1) reveal(1 - cut, () => ADS.forEach(([a, b], i) => fillRR(colX(a), y + h + 60 + cut * 500 + i * 30, (b - a) * COL_W, 40, 8, C.ad)));
   reveal(eo(seg(lt, 3.8, 0.7)), () => { const lx = marks[1]; arrow(lx, y + h + 140, lx, y + h + 30, C.teal, 1, 3); text('a short tone marks the cut', lx + 18, y + h + 170, font(500, 28), C.teal, 'left'); });
   reveal(eo(seg(lt, 4.6, 0.7)), () => { pill('original kept on disk', W / 2, 1230, C.muted, { align: 'center' }); text('so any cut can be undone or redrawn later without a new model call', W / 2, 1330, font(400, 28), C.muted, 'center'); });
 }, ['Cut audio']);
 
-add(9.0, 'Verify pass.', 'The cut file goes through the pipeline a second time: transcribe, analyze, detect, review, re-cut. It catches what the first pass missed.', (lt) => {
-  const y = 700, h = 96, vw = COL_W * 0.7, vx = (W - vw) / 2;
-  const cue = { retranscribe: 0.6, analyze: 1.9, detect: 3.2, review: 4.6, recut: 6.0 };
+add(9.0, 'Verify pass.', 'The cut file goes through the pipeline a second time: transcribe, analyze, detect, enforce, review, re-cut. It catches what the first pass missed.', (lt) => {
+  const y = 700, h = 96, vw = COL_W * (1 - AD_FRAC), vx = (W - vw) / 2;
+  const cue = { retranscribe: 0.5, analyze: 1.6, detect: 2.7, enforce: 3.9, review: 5.0, recut: 6.1 };
   const found = eo(seg(lt, cue.detect + 0.5, 0.5)), recut = eio(seg(lt, cue.recut + 0.4, 1.0));
-  tape(vx, y, vw, h, { ads: [[0.33, 0.37]], adAlpha: found, cut: recut, markers: 1, glow: found * (1 - seg(lt, cue.recut, 0.5)), wave: seg(lt, cue.retranscribe, 0.5) * (1 - seg(lt, cue.analyze, 0.5)), t: lt });
-  text('missed one', vx + 0.35 * vw, y - 30, font(700, 28), C.ad, 'center', found * (1 - seg(lt, cue.recut + 0.6, 0.5)));
-  text(cutLabel(1), vx + vw, y - 30, font(500, 28), C.ok, 'right', 1 - found * (1 - seg(lt, cue.recut + 0.6, 0.5)));
-  const steps = [['Re-transcribe the cut file', cue.retranscribe], ['Audio analysis again', cue.analyze], ['Detect: what does not belong?', cue.detect], ['Boundary review again', cue.review], ['Re-cut the first output', cue.recut]];
-  checklist(COL_X + 80, 920, steps.map(([s]) => s), (i) => seg(lt, steps[i][1], 1.0));
-  note('A miss that overlaps nothing goes through its own confidence check, then cuts, holds, or is dropped with a log line.', 1400, eo(seg(lt, 7.2, 0.7)), C.muted, 26);
+  const { cw } = tape(vx, y, vw, h, { ads: [MISS_CUT], marks: ADS.map(([a]) => cutPos(a, ADS)), adAlpha: found, cut: recut, markers: 1, glow: found * (1 - seg(lt, cue.recut, 0.5)), wave: seg(lt, cue.retranscribe, 0.5) * (1 - seg(lt, cue.analyze, 0.5)), t: lt });
+  text('missed one', vx + mid(MISS_CUT) * vw, y - 30, font(700, 28), C.ad, 'center', found * (1 - seg(lt, cue.recut + 0.6, 0.5)));
+  text(cutLabel(recut, MISS_SEC, EP_SEC - REMOVED_SEC), vx + cw, y - 30, font(500, 28), C.ok, 'right', 1 - found * (1 - seg(lt, cue.recut + 0.6, 0.5)));
+  const steps = [['Re-transcribe the cut file', cue.retranscribe], ['Audio analysis again', cue.analyze], ['Detect: what does not belong?', cue.detect], ['Audio enforcement again', cue.enforce], ['Boundary review again', cue.review], ['Re-cut the first output', cue.recut]];
+  checklist(COL_X + 80, 900, steps.map(([s]) => s), (i) => seg(lt, steps[i][1], 1.0), 80);
+  note('A miss that overlaps nothing goes through its own confidence check, then cuts, holds, or is dropped with a log line.', 1440, eo(seg(lt, 7.4, 0.7)), C.muted, 26);
 }, ['Verify pass']);
 
 add(6.0, 'Transcript and chapters.', 'Rebuilt against the new, shorter timeline, so every timestamp in the served file lines up with the cut audio.', (lt) => {
-  const rows = [['00:28:41', '00:28:41', 'ad removed', true], ['00:29:03', '00:21:53', 'and now back to it, so the first thing we noticed'], ['00:41:10', '00:34:00', 'the second half of the show starts with questions']];
+  const q = 0.80 * EP_SEC, why = 0.30 * EP_SEC;
+  const rows = [[ts(MID_START_SEC + 5), '', 'ad removed', true], [ts(MID_END_SEC + 2), ts(toFinalSec(MID_END_SEC + 2)), 'and now back to it, so the first thing we noticed'], [ts(q), ts(toFinalSec(q)), 'the second half of the show starts with questions']];
   rows.forEach(([a, b, s, gone], i) => reveal(eo(seg(lt, 0.2 + i * 0.4, 0.6)), () => {
     const yy = 720 + i * 90; fillRR(COL_X, yy - 48, COL_W, 70, 14, gone ? 'rgba(239,95,93,0.10)' : C.card);
     text(a, COL_X + 24, yy, font(500, 26), gone ? C.ad : C.dim); if (!gone) { arrow(COL_X + 150, yy - 10, COL_X + 200, yy - 10, C.ok, eo(seg(lt, 1.8 + i * 0.3, 0.5)), 2); text(b, COL_X + 216, yy, font(700, 26), C.ok, 'left', eo(seg(lt, 2.0 + i * 0.3, 0.5))); }
@@ -376,7 +399,7 @@ add(6.0, 'Transcript and chapters.', 'Rebuilt against the new, shorter timeline,
   }));
   reveal(eo(seg(lt, 3.0, 0.7)), () => {
     text('Chapters', COL_X, 1050, font(700, 30), C.fg);
-    [['00:00', 'What changed in the release'], ['14:20', 'Why it matters for self-hosters'], ['34:00', 'Listener questions']].forEach(([t, s], i) => { const yy = 1100 + i * 60; text(t, COL_X + 10, yy, font(500, 26), C.purple); text(s, COL_X + 110, yy, font(400, 26), C.muted); });
+    [['00:00', 'What changed in the release'], [mmss(toFinalSec(why)), 'Why it matters for self-hosters'], [mmss(toFinalSec(q)), 'Listener questions']].forEach(([t, s], i) => { const yy = 1100 + i * 60; text(t, COL_X + 10, yy, font(500, 26), C.purple); text(s, COL_X + 110, yy, font(400, 26), C.muted); });
   });
   pillRow([['VTT and JSON transcript', C.primary, eo(seg(lt, 4.0, 0.5))], ['chapters JSON and ID3', C.purple, eo(seg(lt, 4.3, 0.5))]], 1320, 24, 24);
 }, ['Transcript, chapters']);
@@ -387,7 +410,7 @@ add(6.4, 'Publish feed.', 'The rewritten RSS points at the processed file. Your 
     ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 20; fillRR(px, py, pw, ph, 56, '#0E1115'); ctx.shadowColor = 'transparent'; strokeRR(px, py, pw, ph, 56, C.border, 2);
     fillRR(px + 250, py + 22, 200, 30, 15, '#000');
     text('The Daily Tech Show', px + 50, py + 130, font(700, 34), C.fg); text('MinusPod feed', px + 50, py + 172, font(400, 26), C.teal);
-    const eps = [['Episode 412: the new release', cutLabel(1)], ['Episode 411: self-hosting, part two', '0:48:02'], ['Episode 410: listener questions', '1:01:17'], ['Episode 409: the hardware show', '']];
+    const eps = [['Episode 412: the new release', cutLabel(1, TOTAL_REMOVED_SEC)], ['Episode 411: self-hosting, part two', '0:48:02'], ['Episode 410: listener questions', '1:01:17'], ['Episode 409: the hardware show', '']];
     eps.forEach(([t, d], i) => reveal(eo(seg(lt, 0.9 + i * 0.3, 0.5)), () => {
       const yy = py + 230 + i * 150; fillRR(px + 36, yy, pw - 72, 126, 22, C.card); text(t, px + 64, yy + 48, font(500, 28), C.fg);
       if (d) { tape(px + 64, yy + 70, 300, 18, { ads: [] }); text(d, px + 64 + 320, yy + 86, font(500, 24), C.ok); pill('ads cut', px + pw - 70, yy + 64, C.ok, { align: 'right', size: 20 }); }
@@ -403,16 +426,16 @@ add(6.8, 'Then it learns from you.', 'A confirmed ad becomes a pattern that matc
     const rad = r * (0.9 + 0.1 * p); ctx.strokeStyle = C.primary; ctx.lineWidth = 3; ctx.setLineDash(i === 0 ? [] : [10, 12]); ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     text(lab, cx, cy - rad - 16, font(500, 28), C.primary, 'center'); }); });
   reveal(eo(seg(lt, 0.1, 0.7)), () => {
-    fillRR(cx - 220, cy - 70, 440, 140, 24, C.card); strokeRR(cx - 220, cy - 70, 440, 140, 24, C.border, 1.5); text('"use code SHOW for twenty..."', cx, cy - 18, font(500, 26), C.fg, 'center');
+    fillRR(cx - 220, cy - 70, 440, 140, 24, C.card); strokeRR(cx - 220, cy - 70, 440, 140, 24, C.border, 1.5); text('"brought to you by Acme, the..."', cx, cy - 18, font(500, 26), C.fg, 'center');
     reveal(eo(seg(lt, 0.6, 0.4)), () => { pill('Confirm ad', cx - 10, cy + 8, C.ok, { align: 'right', size: 24 }); pill('Not an ad', cx + 10, cy + 8, C.muted, { size: 24 }); });
   });
   reveal(eo(seg(lt, 1.6, 0.5)), () => pill('pattern saved', cx, cy + 90, C.purple, { align: 'center', size: 24 }), 10);
   note('"Not an ad" is remembered too, so the same false positive is excluded next time.', 1560, eo(seg(lt, 4.4, 0.7)), C.muted, 28);
-  note('Each pattern keeps its own hit and false-positive counts. Stale ones retire.', 1660, eo(seg(lt, 5.0, 0.7)), C.muted, 28);
+  note('Each pattern keeps its own hit and false-positive counts. An optional scheduled cleanup proposes retirements for you to approve.', 1660, eo(seg(lt, 5.0, 0.7)), C.muted, 28);
 });
 
 add(6.2, 'Nothing fails silently.', 'A failed model call still publishes what the free evidence found. An unsure cut waits for you.', (lt) => {
-  const items = [['Model call fails', 'the free evidence still cuts; the episode is flagged and one retry is queued', C.warn], ['Endpoint offline', 'the episode parks in the offline queue and retries when it is back', C.warn], ['Cut is uncertain', 'it is held, not applied, until you confirm it', C.ad]];
+  const items = [['Model call fails', 'the free evidence still cuts; the episode is flagged and one retry is queued', C.warn], ['Endpoint offline', 'with the offline queue on, the episode parks and retries when the endpoint is back', C.warn], ['Cut is uncertain', 'it is held, not applied, until you confirm it', C.ad]];
   items.forEach(([t, s, col], i) => { const p = eo(seg(lt, 0.2 + i * 0.7, 0.7)); card(COL_X, 700 + i * 230 + (1 - p) * 30, COL_W, 180, t, s, col, p); });
   reveal(eo(seg(lt, 3.2, 0.7)), () => { pill('Held for review', W / 2, 1420, C.warn, { align: 'center', size: 28 }); text('shows up on the episode page and in Patterns, with one-tap approve or dismiss', W / 2, 1520, font(400, 28), C.muted, 'center'); });
 });
