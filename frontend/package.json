@@ -23,7 +23,7 @@
     "react-is": "^19.3.0",
     "react-router": "^8.4.0",
     "recharts": "^3.10.1",
-    "swagger-ui-dist": "^5.32.15",
+    "swagger-ui-dist": "^5.33.3",
     "wavesurfer.js": "^8.0.2"
   },
   "overrides": {
