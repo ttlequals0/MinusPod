@@ -18,6 +18,7 @@ or music can be added in the posting app.
 | Local feeds | [minuspod-local-feeds.mp4](minuspod-local-feeds.mp4) | [minuspod-local-feeds-landscape.mp4](minuspod-local-feeds-landscape.mp4) | 59 s | Create a feed from your own files, upload an episode, run it through the pipeline, and find it next to your subscriptions. Recorded. |
 | Providers and cost | [minuspod-providers.mp4](minuspod-providers.mp4) | [minuspod-providers-landscape.mp4](minuspod-providers-landscape.mp4) | 48 s | Two provider slots, a model per stage, failover, and the spend ledger from provider down to a single episode. Recorded. |
 | Podcasting 2.0 | [minuspod-podcasting-2.mp4](minuspod-podcasting-2.mp4) | [minuspod-podcasting-2-landscape.mp4](minuspod-podcasting-2-landscape.mp4) | 37 s | Chapters and transcript for the cut audio, the served feed's namespace tags, and the chapter settings. Recorded, plus one rendered feed excerpt. |
+| Patterns | [minuspod-patterns.mp4](minuspod-patterns.mp4) | [minuspod-patterns-landscape.mp4](minuspod-patterns-landscape.mp4) | 70 s | Learned patterns: the list, one created from a confirmed detection, its detail and edit forms, merge suggestions, then Pattern Cleanup from Run now to approve and undo. Recorded. |
 
 ## Rebuilding the animated videos
 
@@ -119,9 +120,11 @@ from Liberation Sans.
    the `output` field of the beats file. Pass beat indexes after the mode to
    rebuild only those segments while tuning a crop or a caption.
 
-Some beats change the instance: the review video confirms a held marker and
-recuts the episode, the local feed video creates a feed and uploads an
-episode, and processing an uploaded episode spends one detection call. Take a
+Some beats change the instance: the review and patterns videos each confirm
+a held marker and recut its episode, the patterns video sets one pattern's
+category and starts a Pattern Cleanup run, the local feed video creates a
+feed and uploads an episode, and processing an uploaded episode spends one
+detection call. Take a
 configuration export and a database backup first, and point `targets.json` at
 an episode you are happy to see change.
 

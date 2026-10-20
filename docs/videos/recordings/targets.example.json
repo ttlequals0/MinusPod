@@ -1,16 +1,46 @@
 {
   "baseUrl": "https://your-server:8000/ui",
   "cookieDomain": "your-server",
-  "leakPatterns": ["your-server", "your-feed-host", "[?&]key="],
+  "leakPatterns": [
+    "your-server",
+    "your-feed-host",
+    "[?&]key="
+  ],
   "excludeShows": [],
-  "review": { "feed": "example-podcast", "heldEpisode": "a1b2c3d4e5f6" },
+  "review": {
+    "feed": "example-podcast",
+    "heldEpisode": "a1b2c3d4e5f6"
+  },
   "cues": {
     "feed": "example-podcast",
     "candidateEpisode": "a1b2c3d4e5f6",
     "snappedEpisode": "f6e5d4c3b2a1",
-    "scanEpisodes": ["Episode title fragment one", "fragment two", "fragment three"]
+    "scanEpisodes": [
+      "Episode title fragment one",
+      "fragment two",
+      "fragment three"
+    ]
   },
-  "local": { "slug": "my-archive", "title": "My Archive", "description": "Recordings I keep locally, served as a feed.", "audio": "/path/to/episode.mp3", "episodeTitle": "Episode one", "episodeId": "s01e01" },
-  "providers": { "episode": "example-podcast/a1b2c3d4e5f6" },
-  "p20": { "episode": "example-podcast/a1b2c3d4e5f6", "searchTerm": "word that appears in the transcript" }
+  "local": {
+    "slug": "my-archive",
+    "title": "My Archive",
+    "description": "Recordings I keep locally, served as a feed.",
+    "audio": "/path/to/episode.mp3",
+    "episodeTitle": "Episode one",
+    "episodeId": "s01e01"
+  },
+  "providers": {
+    "episode": "example-podcast/a1b2c3d4e5f6"
+  },
+  "p20": {
+    "episode": "example-podcast/a1b2c3d4e5f6",
+    "searchTerm": "word that appears in the transcript"
+  },
+  "patterns": {
+    "feed": "example-podcast",
+    "heldEpisode": "a1b2c3d4e5f6",
+    "sponsor": "Acme",
+    "patternId": 1234,
+    "editSearch": "Globex"
+  }
 }

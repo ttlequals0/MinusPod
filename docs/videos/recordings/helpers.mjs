@@ -106,7 +106,7 @@ export async function waitForWaveform(p, timeout = 60000) {
     // wavesurfer renders inside a shadow root, so walk those too.
     const canvases = []; const walk = (root) => { root.querySelectorAll('*').forEach((el) => { if (el.tagName === 'CANVAS') canvases.push(el); if (el.shadowRoot) walk(el.shadowRoot); }); }; walk(dlg);
     return canvases.some((c) => {
-      if (c.width < 50 || c.height < 20) return false;
+      if (c.width < 50 || c.height < 100) return false;  // the main waveform, not the window minimap
       const ctx = c.getContext('2d'); if (!ctx) return false;
       const row = ctx.getImageData(0, Math.floor(c.height / 2), c.width, 1).data;
       let lit = 0; for (let i = 3; i < row.length; i += 4) if (row[i] > 0) lit++;
