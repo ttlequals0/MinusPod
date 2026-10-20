@@ -19,8 +19,8 @@
     1904,
     1650
    ],
-   "head": "Find the cue on any episode.",
-   "sub": "One scan surfaces the sounds that repeat at known ad breaks. Make a template from one."
+   "head": "Find the cue on an episode.",
+   "sub": "One scan surfaces sounds that repeat within the episode and counts how many sit at known ad breaks. Make a template from one."
   },
   {
    "clip": "templates",
@@ -34,7 +34,7 @@
     1420
    ],
    "head": "Templates live on the feed.",
-   "sub": "Intro, outro and ad-break cues, with health stats from every episode since."
+   "sub": "Intro, outro and ad-break cues, with a last-match date and health stats across processed episodes."
   },
   {
    "clip": "crossscan",
@@ -48,7 +48,7 @@
     1760
    ],
    "head": "Or scan several episodes at once.",
-   "sub": "Candidates that recur across episodes, ranked by how often they sit at an ad break."
+   "sub": "Candidates that recur across the episodes you pick, with a count of how many share each."
   },
   {
    "clip": "snapped",
@@ -70,13 +70,13 @@
    "start": 0.4,
    "dur": 6.5,
    "head": "Tune it globally or per feed.",
-   "sub": "Frequency band, prominence, confidence. Cue-only mode skips the model on shows that always chime."
+   "sub": "Global detection knobs, per-feed threshold and snap overrides. Cue-only mode skips the detection model on shows that always chime."
   },
   {
    "card": true,
    "dur": 4.2,
    "head": "Audio cues",
-   "sub": "Mark it once. Every episode after lands on the chime.",
+   "sub": "Mark it once. Matching episodes after it snap their cuts to the chime.",
    "small": "github.com/ttlequals0/MinusPod",
    "logo": "logo-dark.png"
   }

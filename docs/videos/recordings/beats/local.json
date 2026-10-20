@@ -56,7 +56,7 @@
     1200
    ],
    "head": "Run it through the same pipeline.",
-   "sub": "Transcribe, detect, cut. The feed's source changes nothing about how ads are found."
+   "sub": "Transcribe, detect, cut. Same pipeline as a subscribed feed, minus the stages that need an upstream."
   },
   {
    "clip": "queue",
@@ -86,7 +86,7 @@
    "start": 0.5,
    "dur": 6.0,
    "head": "It sits beside your subscriptions.",
-   "sub": "Same retention and backups, in the same podcast apps."
+   "sub": "Exempt from retention cleanup, in the same podcast apps."
   },
   {
    "card": true,

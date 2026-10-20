@@ -5,7 +5,7 @@
    "card": true,
    "dur": 3.8,
    "head": "",
-   "sub": "Bring your own model. Any provider, switchable at runtime.",
+   "sub": "Bring your own model. Anthropic, OpenRouter, Ollama, System One or any OpenAI-compatible endpoint, switchable at runtime.",
    "logo": "logo-dark.png"
   },
   {
@@ -20,7 +20,7 @@
     1700
    ],
    "head": "Two provider slots.",
-   "sub": "Anthropic, OpenRouter, Ollama, System One or any OpenAI-compatible endpoint. Keys are stored encrypted."
+   "sub": "Two independent accounts, each any supported provider. Keys are encrypted at rest when a master passphrase is set."
   },
   {
    "clip": "models",

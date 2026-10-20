@@ -104,7 +104,7 @@ add(9, 'Keep content only', 'Removes everything the model does not mark as show 
 }, 'Keep content only');
 
 // 3. Cue-only: cut between the feed's own ad-break cues, no model call.
-add(9, 'Cue-only', 'Cuts come only from this feed\'s ad-break start and end cue templates. No model call.', (lt) => {
+add(9, 'Cue-only', 'Cuts come from this feed\'s start and end cue pairs and learned patterns. No detection model call.', (lt) => {
   const cues = eo(seg(lt, 1.2, 0.8)), pair = eo(seg(lt, 2.8, 0.8)), cut = eio(seg(lt, 4.8, 1.4));
   const mid = ADS[1];
   text('Original', colX(0), TY - 30, font(500, 26), C.muted);
@@ -131,7 +131,7 @@ add(7, 'Skip detection', 'Still transcribed, still gets chapters and a transcrip
 }, 'Skip detection');
 
 // 5. Pass-through: the upstream file, untouched.
-add(7, 'Pass-through', 'Downloaded and served exactly as published. No transcription, no detection.', (lt) => {
+add(7, 'Pass-through', 'Downloaded and relayed, not edited. No transcription, no detection.', (lt) => {
   text('Served as published', colX(0), TY - 30, font(500, 26), C.muted);
   tape(colX(0), TY, COL_W, TH, { wave: 1, t: lt });
   steps(900, [0.2, 0.2, 0.2]);
@@ -174,10 +174,10 @@ add(7, 'Mark keeps it, and makes it skippable', 'A marked segment stays in the a
 });
 
 // 8. Where the knobs live.
-add(7, 'Global defaults, per-feed overrides', 'Set the mode and the actions once for everything, then override the shows that need it.', (lt) => {
+add(7, 'Global defaults, per-feed overrides', 'Set the actions once for everything, then override the shows that need it.', (lt) => {
   card(COL_X, 700, COL_W, 230, 'Settings', 'The global default for every category action, and the auto-process default.', C.primary, eo(seg(lt, 0.6, 0.8)));
   card(COL_X, 970, COL_W, 230, 'Feed settings', 'Processing mode, category overrides, auto-process and queue priority for this show.', C.teal, eo(seg(lt, 1.6, 0.8)));
-  card(COL_X, 1240, COL_W, 200, 'Episode page', 'Pass-through for one episode, and a reprocess that follows whatever the feed now says.', C.purple, eo(seg(lt, 2.6, 0.8)));
+  card(COL_X, 1240, COL_W, 200, 'Episode page', 'Pass-through for one episode, and a reprocess that follows the feed\'s current mode.', C.purple, eo(seg(lt, 2.6, 0.8)));
 });
 
 add(4.6, '', '', (lt, d) => splash(lt, d, () => {

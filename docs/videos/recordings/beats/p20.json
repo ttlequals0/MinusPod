@@ -20,7 +20,7 @@
     1400
    ],
    "head": "Chapters that match the new timeline.",
-   "sub": "Ad boundaries and description timestamps become chapters. Marked segments get a skippable chapter of their own."
+   "sub": "Publisher chapters remapped to the cut timeline, or generated from the transcript and description timestamps. Marked segments get a skippable chapter."
   },
   {
    "clip": "transcript",
@@ -62,7 +62,7 @@
    "card": true,
    "dur": 4.2,
    "head": "Podcasting 2.0",
-   "sub": "Transcripts, chapters, disclosure. Podping refreshes a feed within seconds of the host.",
+   "sub": "Transcripts, chapters, disclosure. Optional Podping listening refreshes a feed when its host announces an update.",
    "small": "github.com/ttlequals0/MinusPod",
    "logo": "logo-dark.png"
   }

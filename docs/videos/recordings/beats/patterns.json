@@ -1,7 +1,7 @@
 {
  "output": "minuspod-patterns",
  "beats": [
-  {"card": true, "dur": 3.8, "head": "", "sub": "Every correction you make becomes a pattern. This is where they live.", "logo": "logo-dark.png"},
+  {"card": true, "dur": 3.8, "head": "", "sub": "Confirmed and adjusted detections become patterns. This is where they live.", "logo": "logo-dark.png"},
   {"clip": "list", "dev": "laptop", "start": 0.4, "dur": 8.0, "crop": [48, 100, 1904, 1700], "head": "Learned patterns, one row each.", "sub": "Scope, sponsor, category, confirmations and false positives. Filter by scope, origin or text."},
   {"clip": "create", "dev": "laptop", "start": 11.5, "dur": 9.0, "crop": [48, 60, 1904, 1740], "head": "Patterns come from your corrections.", "sub": "Confirm a detection with a sponsor name. A new read becomes a pattern for this podcast, a known one gets another confirmation."},
   {"clip": "detail", "dev": "laptop", "start": 0.4, "dur": 7.5, "crop": [48, 60, 1904, 1740], "head": "Review what it learned.", "sub": "The text template, the intro and outro it keys on, where it came from, how often it matched and when it was wrong."},
@@ -10,6 +10,6 @@
   {"clip": "cleanuprun", "dev": "laptop", "start": 0.4, "dur": 7.5, "crop": [48, 60, 1904, 1500], "head": "Pattern Cleanup, scheduled or on demand.", "sub": "A model reads your learned patterns and proposes trims, splits, renames, retirements and flags. Experimental, off by default."},
   {"clip": "cleanup", "dev": "laptop", "start": 0.4, "dur": 11.0, "crop": [48, 60, 1904, 1740], "head": "Nothing changes until you approve.", "sub": "Each suggestion shows before and after. Approve, reject, or undo an approval."},
   {"clip": "cleanupstats", "dev": "phone", "start": 0.5, "dur": 7.0, "head": "The ledger keeps score.", "sub": "Suggested, applied and reverted, and what each run cost."},
-  {"card": true, "dur": 4.2, "head": "Patterns", "sub": "Your corrections, remembered. The next episode matches them without a model call.", "small": "github.com/ttlequals0/MinusPod", "logo": "logo-dark.png"}
+  {"card": true, "dur": 4.2, "head": "Patterns", "sub": "Your corrections, remembered. The next episode matches them for free, before the model reads.", "small": "github.com/ttlequals0/MinusPod", "logo": "logo-dark.png"}
  ]
 }

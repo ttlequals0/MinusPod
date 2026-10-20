@@ -13,8 +13,8 @@
    "dev": "phone",
    "start": 0.5,
    "dur": 6.5,
-   "head": "Every held detection, one queue.",
-   "sub": "Filter by podcast, hold reason, category or who flagged it."
+   "head": "Held detections, one queue.",
+   "sub": "Filter by podcast, hold reason, category or whether the reviewer moved an edge."
   },
   {
    "clip": "held",
