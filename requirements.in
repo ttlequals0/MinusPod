@@ -7,7 +7,7 @@
 
 # Core transcription
 faster-whisper>=1.1.0
-ctranslate2==4.8.2
+ctranslate2==4.8.3
 # Parakeet backend; onnxruntime comes via faster-whisper, GPU image swaps in onnxruntime-gpu
 onnx-asr>=0.12.0
 
@@ -25,7 +25,7 @@ httpx==0.28.1
 beautifulsoup4>=4.15.0
 
 # Image processing (cover-art watermark overlay)
-pillow>=12.3.0
+pillow>=13.0.0                 # CVE-2026-112395 and seven more fixed in 13.0.0
 
 # Utilities
 feedparser==6.0.14
@@ -57,6 +57,7 @@ wheel>=0.48.0
 urllib3>=2.8.0                 # CVE-2026-44431, CVE-2026-44432, CVE-2026-97687, CVE-2026-97688, CVE-2026-97689 (pulled in by requests)
 idna>=3.20                     # CVE-2026-45409 (pulled in by requests)
 soupsieve>=2.10               # CVE-2026-85999, CVE-2026-86000 (pulled in by beautifulsoup4)
+certifi>=2026.10.19            # PYSEC-2026-4320
 anyio>=4.15.1                  # CVE-2026-63374, CVE-2026-64847 (pulled in by anthropic/httpx/openai)
 fsspec>=2026.9.0               # CVE-2026-104851 (pulled in by huggingface-hub)
 werkzeug>=3.1.9                # CVE-2026-102598 (pulled in by flask)

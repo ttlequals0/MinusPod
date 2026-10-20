@@ -25,6 +25,15 @@ release notes.
   feature embeds its landscape cut, uploaded as a GitHub attachment so
   it plays inline.
 
+### Security
+- Dependencies: pillow 13.0.0 (CVE-2026-112395, CVE-2026-112397,
+  CVE-2026-112400, CVE-2026-112404, CVE-2026-112895, CVE-2026-112896,
+  CVE-2026-112897, CVE-2026-112899), certifi 2026.10.19 (PYSEC-2026-4320),
+  vite 8.3.4 with the launch-editor fixes (GHSA-r825-w8mm-5pxw,
+  GHSA-698v-4r3x-3vcv, GHSA-587h-7wmj-h5pm). Also moves ctranslate2 to
+  4.8.3, openai to 3.35.1, soupsieve to 3.0.3, vitest to 5.0.5, globals to
+  17.13.0, swagger-ui-dist to 5.33.3, and react and react-dom to 19.3.1.
+
 ## [2.100.18] - 2026-10-18
 
 ### Added
