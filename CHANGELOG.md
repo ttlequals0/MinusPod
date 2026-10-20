@@ -21,8 +21,9 @@ release notes.
   source and a rebuild recipe. The recordings ship with the Playwright
   harness that drives them, so a take can be redone against any instance
   without putting a feed URL or an API key on screen. The project README
-  and the doc for each feature embed the landscape cut, uploaded as a
-  GitHub attachment so it plays inline.
+  embeds the tour and the pipeline animation, and the doc for each
+  feature embeds its landscape cut, uploaded as a GitHub attachment so
+  it plays inline.
 
 ## [2.100.18] - 2026-10-18
 

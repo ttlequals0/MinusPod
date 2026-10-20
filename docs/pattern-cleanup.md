@@ -19,7 +19,7 @@ Experimental. Off by default. Nothing it suggests changes a pattern until you ap
 - [API](#api)
 - [Settings reference](#settings-reference)
 
-Learned patterns in 70 seconds: the list, one created from a confirmed detection, its detail and edit forms, merge suggestions, then Pattern Cleanup from Run now to approve and undo. Portrait cut and the file itself in [Videos](videos/README.md).
+Learned patterns: the list, one created from a confirmed detection, its detail and edit forms, merge suggestions, then Pattern Cleanup from Run now to approve and undo. Portrait cut and the file itself in [Videos](videos/README.md).
 
 https://github.com/user-attachments/assets/e3dd4a49-3fac-4ab2-96ab-25e60b858317
 

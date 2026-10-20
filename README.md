@@ -10,7 +10,7 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
   <img src="docs/screenshots/dashboard-mobile-hulu.png" alt="MinusPod dashboard on mobile" width="185" />
 </p>
 
-A tour of the web UI in 85 seconds. More videos, portrait cuts and the files themselves in [docs/videos](docs/videos/README.md).
+A tour of the web UI. More videos, portrait cuts and the files themselves in [docs/videos](docs/videos/README.md).
 
 https://github.com/user-attachments/assets/3c64b0eb-5b52-457a-bd94-17b7ecdeef2c
 
@@ -76,6 +76,10 @@ https://github.com/user-attachments/assets/3c64b0eb-5b52-457a-bd94-17b7ecdeef2c
 ## How it works
 
 The transcriber (faster-whisper, Parakeet, or a remote API) transcribes the episode, an LLM finds the ad segments in the transcript, FFmpeg cuts them, and Flask serves the modified feed and audio. Full pipeline detail (verification pass, sliding windows, pattern learning, audio analysis) is in [docs/how-it-works.md](docs/how-it-works.md).
+
+The same pipeline, one episode end to end.
+
+https://github.com/user-attachments/assets/d2f2ad13-71b9-4712-a872-de3c8e867a2a
 
 ## Requirements
 

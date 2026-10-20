@@ -34,7 +34,7 @@ with cue templates configured.** See
 [Cross-Fetch Differential](how-it-works.md#cross-fetch-differential) for how
 the two stages combine.
 
-Finding a cue on one episode, templates and their health on the feed, the cross-episode scan, cuts that snapped to a cue, and the settings, in 43 seconds. Portrait cut and the file itself in [Videos](videos/README.md).
+Finding a cue on one episode, templates and their health on the feed, the cross-episode scan, cuts that snapped to a cue, and the settings. Portrait cut and the file itself in [Videos](videos/README.md).
 
 https://github.com/user-attachments/assets/4903dbab-597c-45d4-82a7-5f91298d3a6c
 

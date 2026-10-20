@@ -16,7 +16,7 @@
 - [Custom model pricing](#custom-model-pricing)
 - [Reviewer Calibration Self-Test](#reviewer-calibration-self-test)
 
-Two provider slots, a model per stage, failover, and the spend ledger from provider down to a single episode, in 48 seconds. Portrait cut and the file itself in [Videos](videos/README.md).
+Two provider slots, a model per stage, failover, and the spend ledger from provider down to a single episode. Portrait cut and the file itself in [Videos](videos/README.md).
 
 https://github.com/user-attachments/assets/1c3800e7-5fb0-402b-b42f-89ae6140f45f
 

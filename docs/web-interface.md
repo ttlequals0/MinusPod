@@ -28,7 +28,7 @@
 - [Filters and date ranges](#filters-and-date-ranges)
 - [Screenshots](#screenshots)
 
-A tour of the web UI in 85 seconds: dashboard, queue, detected ads, the waveform editor, review, patterns, search, stats and settings. Portrait cut and the file itself in [Videos](videos/README.md).
+A tour of the web UI: dashboard, queue, detected ads, the waveform editor, review, patterns, search, stats and settings. Portrait cut and the file itself in [Videos](videos/README.md).
 
 https://github.com/user-attachments/assets/3c64b0eb-5b52-457a-bd94-17b7ecdeef2c
 
@@ -288,7 +288,7 @@ If a show plays a recurring ding or stinger around its ad breaks, you can teach 
 
 ### Held for Review
 
-A held detection from the queue to the waveform editor in 42 seconds: play the span, confirm it, watch the recut, see it on the record.
+A held detection from the queue to the waveform editor: play the span, confirm it, watch the recut, see it on the record.
 
 https://github.com/user-attachments/assets/ce18b17f-c99c-41fd-a973-62a686bb2d89
 
