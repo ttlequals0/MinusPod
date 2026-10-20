@@ -28,6 +28,10 @@
 - [Filters and date ranges](#filters-and-date-ranges)
 - [Screenshots](#screenshots)
 
+A tour of the web UI in 85 seconds: dashboard, queue, detected ads, the waveform editor, review, patterns, search, stats and settings. Portrait cut and the file itself in [Videos](videos/README.md).
+
+https://github.com/user-attachments/assets/3c64b0eb-5b52-457a-bd94-17b7ecdeef2c
+
 ## Overview
 
 The server includes a web-based management UI at `/ui/`. Opening the server root redirects there:
@@ -283,6 +287,10 @@ for validation rules, undo conflicts, and force recheck behavior.
 If a show plays a recurring ding or stinger around its ad breaks, you can teach MinusPod that exact sound and have it snap cuts to the chime. Marking a cue, the find-audio-cues scan, the cross-episode scan, the window optimizer, cue types, and cue management are all covered in [Audio Cue Detection](audio-cues.md). Each template row shows its last match date and, once it has matched before but produced no above-threshold matches in the feed's last 5 episodes, an amber "quiet" badge, so a publisher swapping their stinger shows up before a cue-only feed silently stops cutting ads.
 
 ### Held for Review
+
+A held detection from the queue to the waveform editor in 42 seconds: play the span, confirm it, watch the recut, see it on the record.
+
+https://github.com/user-attachments/assets/ce18b17f-c99c-41fd-a973-62a686bb2d89
 
 When a feed has a max ad duration cap or cue-gated approval on, ads that cannot auto-cut are held rather than cut. The episode publishes with the audio intact. Held ads appear on the episode page in an amber "Held for Review" section with two actions per row:
 

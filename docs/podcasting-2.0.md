@@ -39,6 +39,10 @@ tag to pass through, strip, or regenerate against. See
 [Local Feeds > Podcasting 2.0 fields](local-feeds.md#podcasting-20-fields)
 for what a local feed emits instead.
 
+Chapters and transcript for the cut audio, the served feed's namespace tags, and the chapter settings, in 37 seconds. Portrait cut and the file itself in [Videos](videos/README.md).
+
+https://github.com/user-attachments/assets/df257494-c2c8-43a4-91ef-743235ee6194
+
 ## The rule
 
 Every Podcast Namespace tag falls into one of four buckets:

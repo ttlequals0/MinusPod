@@ -9,6 +9,10 @@
 - [How It Works](#how-it-works)
 - [Advanced Features (Quick Reference)](#advanced-features-quick-reference)
 
+One episode across every pipeline stage in 107 seconds, then the learning loop and what happens when a stage fails. Portrait cut and the file itself in [Videos](videos/README.md).
+
+https://github.com/user-attachments/assets/d2f2ad13-71b9-4712-a872-de3c8e867a2a
+
 ## How It Works
 
 1. **Transcription** - audio is converted to text with timestamps by faster-whisper or Parakeet (local, GPU or CPU), or by a remote OpenAI-compatible API

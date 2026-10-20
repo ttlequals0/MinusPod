@@ -19,6 +19,10 @@ Experimental. Off by default. Nothing it suggests changes a pattern until you ap
 - [API](#api)
 - [Settings reference](#settings-reference)
 
+Learned patterns in 70 seconds: the list, one created from a confirmed detection, its detail and edit forms, merge suggestions, then Pattern Cleanup from Run now to approve and undo. Portrait cut and the file itself in [Videos](videos/README.md).
+
+https://github.com/user-attachments/assets/e3dd4a49-3fac-4ab2-96ab-25e60b858317
+
 ## What it does
 
 A learned pattern is captured straight from a transcript, so it often carries a few words of host banter or show content stitched onto the actual sponsor read, or merges two sponsors read back to back into one pattern. Pattern Cleanup runs an LLM over your learned pattern library and proposes trims, splits, sponsor renames, category corrections, or retirement for patterns that have stopped matching.

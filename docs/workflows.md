@@ -134,6 +134,10 @@ runtime, no single cut may exceed 7 minutes or a quarter of the episode, and
 every transcript window has to come back labelled. Miss any of those and the
 episode falls back to standard detection on its own.
 
+One episode under each of the five modes, then segment categories and the remove, beep, keep and mark actions, in 73 seconds. Portrait cut and the file itself in [Videos](videos/README.md).
+
+https://github.com/user-attachments/assets/436ca512-fb37-4f38-a0eb-6d9b8954457d
+
 ---
 
 ## Re-running an episode

@@ -22,6 +22,10 @@ A local feed is a podcast feed MinusPod builds and serves from your own audio fi
 
 There is no upstream for a local feed. MinusPod is the publisher, not a proxy. That changes a few things covered below: how episodes get added, what happens to your original files, and what parts of a normal feed's settings don't apply.
 
+Creating a feed from your own files, uploading an episode, running it through the pipeline and finding it next to your subscriptions, in 59 seconds. Portrait cut and the file itself in [Videos](videos/README.md).
+
+https://github.com/user-attachments/assets/fdedf891-099c-4746-98c5-561b41ff9130
+
 ## Creating a local feed
 
 `POST /api/v1/feeds` with `feedType: "local"` instead of a `sourceUrl`:

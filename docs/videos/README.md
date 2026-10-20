@@ -6,7 +6,7 @@ Short videos about MinusPod: a tour, the pipeline, and one per feature that
 rewards a closer look. Each comes in a portrait cut for TikTok and other 9:16
 feeds and a landscape cut for YouTube, a README or a talk. Portrait is 1080x1920
 and landscape is 1920x1080, both 30 fps H.264 with no audio track, so a caption
-or music can be added in the posting app.
+or music can be added in the posting app. The landscape cuts also play inline in the docs that cover each feature; see [Embedding in the docs](#embedding-in-the-docs).
 
 | Video | Portrait | Landscape | Length | What it shows |
 |---|---|---|---|---|
@@ -149,5 +149,32 @@ served RSS of the demo feed and run `node feedcard.mjs feed.xml`: every URL
 loses its query string, every host except the namespace hosts becomes
 `example.com`, and the result is an 8 s laptop-sized clip at
 `clips/p20/feedxml.mp4` that the composer frames like any other.
+
+## Embedding in the docs
+
+GitHub shows a video player only for files uploaded through its own editor, as
+`github.com/user-attachments/assets/...` URLs. A video committed in the repo,
+linked or wrapped in a `<video>` tag, renders as a plain link. So each
+landscape cut was dropped into a comment on the pull request that added it,
+and the doc that covers the feature carries that URL on a line of its own:
+
+| Video | Embedded in |
+|---|---|
+| UI tour | [Project README](../../README.md), [Web Interface](../web-interface.md) |
+| How it works | [How It Works](../how-it-works.md) |
+| Review queue | [Web Interface, Held for Review](../web-interface.md#held-for-review) |
+| Audio cues | [Audio Cue Detection](../audio-cues.md) |
+| Processing modes | [Episode Processing Workflows, Processing modes](../workflows.md#processing-modes) |
+| Local feeds | [Local Feeds](../local-feeds.md) |
+| Providers and cost | [LLM Providers](../llm-providers.md) |
+| Podcasting 2.0 | [Podcasting 2.0](../podcasting-2.0.md) |
+| Patterns | [Pattern Cleanup](../pattern-cleanup.md) |
+
+To replace a video, re-record or re-render it and commit the new files here.
+Then drag the new landscape file into a comment on a pull request or issue in
+this repository, copy the asset URL GitHub puts in the comment, and swap it in
+on the doc above. The upload cap is 10 MB per file on a free plan; every
+landscape cut here is under it. Keep the comment, so there is a record of where
+the asset came from.
 
 [< Docs index](../README.md) | [Project README](../../README.md)

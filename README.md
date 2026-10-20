@@ -10,6 +10,10 @@ MinusPod is a self-hosted server that removes ads from podcasts before you ever 
   <img src="docs/screenshots/dashboard-mobile-hulu.png" alt="MinusPod dashboard on mobile" width="185" />
 </p>
 
+A tour of the web UI in 85 seconds. More videos, portrait cuts and the files themselves in [docs/videos](docs/videos/README.md).
+
+https://github.com/user-attachments/assets/3c64b0eb-5b52-457a-bd94-17b7ecdeef2c
+
 ## Contents
 
 - [Features](#features)
