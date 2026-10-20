@@ -1,11 +1,11 @@
-"""Report renders cleanly from synthesized calls.jsonl."""
+"""Report renders cleanly from synthesized call records."""
 from __future__ import annotations
 
 from benchmark import report
 from benchmark.report import charts
 from benchmark.report.aggregate import ModelStats
-from benchmark.report.sections import _error_bucket, _render_fp_windows
-from benchmark.storage import append_jsonl
+from benchmark.report.sections import _error_bucket, _render_fp_windows, _render_methodology
+from benchmark.storage import append_call
 
 
 CALL_RECORD_TEMPLATE = {
@@ -32,11 +32,10 @@ CALL_RECORD_TEMPLATE = {
 
 
 def test_render_with_no_data(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
-    calls = tmp_path / "calls.jsonl"
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[make_episode()],
-        calls_path=calls,
+        raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -45,12 +44,11 @@ def test_render_with_no_data(tmp_path, minimal_cfg, make_episode, pricing_snapsh
 
 def test_render_with_one_call(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     ep = make_episode(n_windows=1)
-    calls = tmp_path / "calls.jsonl"
-    append_jsonl(calls, {**CALL_RECORD_TEMPLATE, "call_id": "c1", "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}]})
+    append_call(tmp_path, {**CALL_RECORD_TEMPLATE, "call_id": "c1", "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}]})
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls,
+        raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -61,19 +59,39 @@ def test_render_with_one_call(tmp_path, minimal_cfg, make_episode, pricing_snaps
     assert "Run Metadata" in text
 
 
+def test_methodology_reports_single_max_tokens_value(minimal_cfg, make_episode, pricing_snapshot):
+    calls = [{**CALL_RECORD_TEMPLATE, "max_tokens": 4096}]
+    text = _render_methodology(minimal_cfg, [make_episode()], calls, pricing_snapshot=pricing_snapshot)
+    assert "- max_tokens: 4096" in text
+
+
+def test_methodology_reports_mixed_max_tokens_split(minimal_cfg, make_episode, pricing_snapshot):
+    calls = [{**CALL_RECORD_TEMPLATE, "max_tokens": 4096} for _ in range(5)]
+    calls += [{**CALL_RECORD_TEMPLATE, "max_tokens": 16384} for _ in range(2)]
+    text = _render_methodology(minimal_cfg, [make_episode()], calls, pricing_snapshot=pricing_snapshot)
+    assert "4096 (71%), 16384 (29%) of calls" in text
+
+
+def test_methodology_treats_missing_max_tokens_as_legacy_default(minimal_cfg, make_episode, pricing_snapshot):
+    """Records written before max_tokens existed default to 4096 (the harness's old hardcoded value)."""
+    calls = [dict(CALL_RECORD_TEMPLATE)]
+    assert "max_tokens" not in calls[0]
+    text = _render_methodology(minimal_cfg, [make_episode()], calls, pricing_snapshot=pricing_snapshot)
+    assert "- max_tokens: 4096" in text
+
+
 def test_per_model_detail_reports_verbosity_and_truncation(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     """Per-model detail surfaces the over-1024, truncated, and salvaged counts
     so verbose/instruction-resistant models (phi-4, Gemini variants) are
     visible at a glance.
     """
     ep = make_episode(n_windows=1)
-    calls = tmp_path / "calls.jsonl"
-    append_jsonl(calls, {
+    append_call(tmp_path, {
         **CALL_RECORD_TEMPLATE, "call_id": "c1", "model": "verbose-model",
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
         "output_tokens": 1500, "truncated": False, "over_1024_tokens": True,
     })
-    append_jsonl(calls, {
+    append_call(tmp_path, {
         **CALL_RECORD_TEMPLATE, "call_id": "c2", "model": "verbose-model",
         "trial": 1,
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
@@ -84,7 +102,7 @@ def test_per_model_detail_reports_verbosity_and_truncation(tmp_path, minimal_cfg
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls,
+        raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -116,13 +134,12 @@ def test_json_format_summary_classifies_native_prompt_inject_mixed():
 def test_tldr_table_columns_and_json_mode_telemetry(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     """Best Accuracy table renders the F0.5 tier columns; per-model detail shows JSON mode."""
     ep = make_episode(n_windows=1)
-    calls = tmp_path / "calls.jsonl"
     # Two trials on `m1` (one native, one prompt_injection) -> mixed.
-    append_jsonl(calls, {
+    append_call(tmp_path, {
         **CALL_RECORD_TEMPLATE, "call_id": "c1", "trial": 0,
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
     })
-    append_jsonl(calls, {
+    append_call(tmp_path, {
         **CALL_RECORD_TEMPLATE, "call_id": "c2", "trial": 1,
         "json_format_used": "prompt_injection",
         "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
@@ -130,7 +147,7 @@ def test_tldr_table_columns_and_json_mode_telemetry(tmp_path, minimal_cfg, make_
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls,
+        raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -160,12 +177,11 @@ def test_aggregate_model_order_deterministic(make_episode, pricing_snapshot):
 
 def test_render_handles_no_ad_episode(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     ep = make_episode(n_windows=1, no_ad=True)
-    calls = tmp_path / "calls.jsonl"
-    append_jsonl(calls, {**CALL_RECORD_TEMPLATE, "call_id": "c2", "parsed_ads": []})
+    append_call(tmp_path, {**CALL_RECORD_TEMPLATE, "call_id": "c2", "parsed_ads": []})
     out = tmp_path / "report.md"
     report.render(
         cfg=minimal_cfg, episodes=[ep],
-        calls_path=calls,
+        raw_dir=tmp_path,
         pricing_snapshot=pricing_snapshot,
         output_path=out, assets_dir=tmp_path / "assets",
     )
@@ -211,7 +227,7 @@ def test_moderation_block_is_counted_and_flagged():
 
 
 def test_campaign_mixing_detects_two_prompt_hashes_per_unit():
-    """calls.jsonl accumulates campaigns unless rotated. Dedup ignores
+    """Call records accumulate campaigns unless rotated. Dedup ignores
     prompt_hash, so a partial re-run silently keeps old rows for the units it
     did not reach. Nothing else in the report would surface that."""
     from benchmark.report.aggregate import campaign_mixing
@@ -282,15 +298,14 @@ def test_fp_windows_table_lists_only_truthless_windows(make_episode):
 def test_native_failed_call_keeps_known_spend_and_unknown_cost_out_of_free_rankings(
         tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     ep = make_episode(n_windows=1)
-    calls = tmp_path / 'calls.jsonl'
     accounting = {'known_cost_usd': '0.000042', 'request_count': 2,
                   'unknown_cost_request_count': 1, 'unknown_usage_request_count': 1,
                   'input_tokens': 1000, 'output_tokens': 5, 'cost_source': 'estimated'}
-    append_jsonl(calls, {**CALL_RECORD_TEMPLATE, 'call_id': 'c1',
-                        'error': {'type': 'NativeCallError', 'message': 'failed upstream request'},
-                        'native_accounting': accounting, 'parsed_ads': []})
+    append_call(tmp_path, {**CALL_RECORD_TEMPLATE, 'call_id': 'c1',
+                           'error': {'type': 'NativeCallError', 'message': 'failed upstream request'},
+                           'native_accounting': accounting, 'parsed_ads': []})
     output = tmp_path / 'report.md'
-    report.render(cfg=minimal_cfg, episodes=[ep], calls_path=calls,
+    report.render(cfg=minimal_cfg, episodes=[ep], raw_dir=tmp_path,
                   pricing_snapshot=pricing_snapshot, output_path=output,
                   assets_dir=tmp_path / 'assets')
     text = output.read_text()

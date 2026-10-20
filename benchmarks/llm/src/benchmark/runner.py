@@ -1,4 +1,4 @@
-"""Async fan-out runner: dispatches LLM calls and writes calls.jsonl."""
+"""Async fan-out runner: dispatches LLM calls and writes per-model call shards."""
 from __future__ import annotations
 
 import asyncio
@@ -11,16 +11,17 @@ from pathlib import Path
 from utils.time import utc_now_iso
 from utils.prompt import scrub_description
 
-from . import llm, parsing, pricing
+from . import llm, parsing, pricing, variants
 from .config import BenchmarkConfig
 from .corpus import Episode, load_episode, stamp_id_windows
 from .metrics import compliance_score, schema_audit
 from .storage import (
     SCHEMA_VERSION,
+    append_call,
     append_jsonl,
     append_response,
     hash_prompt,
-    read_jsonl,
+    read_calls,
     safe_model_id,
     sanitize_error,
     scan_calls,
@@ -40,7 +41,8 @@ class WorkUnit:
 
 @dataclass
 class RunPaths:
-    calls_jsonl: Path
+    raw: Path
+    calls_dir: Path
     episode_results_jsonl: Path
     responses_dir: Path
     prompts_dir: Path
@@ -49,7 +51,8 @@ class RunPaths:
     def for_root(cls, results_root: Path) -> "RunPaths":
         raw = results_root / "raw"
         return cls(
-            calls_jsonl=raw / "calls.jsonl",
+            raw=raw,
+            calls_dir=raw / "calls",
             episode_results_jsonl=raw / "episode_results.jsonl",
             responses_dir=raw / "responses",
             prompts_dir=raw / "prompts",
@@ -64,6 +67,14 @@ class RunStats:
     errored: int = 0
 
 
+def _selected(cfg: BenchmarkConfig, episodes: list[Episode], only_models: set[str] | None,
+              only_episodes: set[str] | None) -> tuple[list, list[Episode]]:
+    """Active models and episodes narrowed by the optional --model/--episode sets."""
+    models = [m for m in cfg.models if not m.deprecated and (only_models is None or m.id in only_models)]
+    eps = [e for e in episodes if only_episodes is None or e.ep_id in only_episodes]
+    return models, eps
+
+
 def build_work_list(
     cfg: BenchmarkConfig,
     episodes: list[Episode],
@@ -72,6 +83,8 @@ def build_work_list(
     prompt_hashes: dict[tuple[str, str, int, int], str],
     include_errored: bool = False,
     error_keys: set[tuple[str, str, int, int, str]] | None = None,
+    only_models: set[str] | None = None,
+    only_episodes: set[str] | None = None,
 ) -> tuple[list[WorkUnit], int]:
     """Return (units_to_run, count_skipped).
 
@@ -81,9 +94,8 @@ def build_work_list(
     """
     skipped = 0
     units: list[WorkUnit] = []
-    for model in cfg.models:
-        if model.deprecated:
-            continue
+    models, episodes = _selected(cfg, episodes, only_models, only_episodes)
+    for model in models:
         for ep in episodes:
             for trial in range(cfg.run.trials):
                 for w in ep.windows:
@@ -114,6 +126,9 @@ def precompute_prompt_hashes(
     *,
     system_prompt: str,
     addressing_mode: str = "timestamps",
+    prompt_variant: str = "detection",
+    only_models: set[str] | None = None,
+    only_episodes: set[str] | None = None,
 ) -> dict[tuple[str, str, int, int], str]:
     """User prompt is identical across (model, trial); cache once per (episode, window).
 
@@ -121,6 +136,7 @@ def precompute_prompt_hashes(
     every (model, episode, trial, window_index) tuple in the result so callers
     have a flat lookup.
     """
+    active_models, episodes = _selected(cfg, episodes, only_models, only_episodes)
     id_windows_by_ep = _id_windows_for_episodes(episodes, addressing_mode)
     user_prompts: dict[tuple[str, int], str] = {}
     for ep in episodes:
@@ -129,9 +145,8 @@ def precompute_prompt_hashes(
             id_segments = id_windows[w.index] if id_windows is not None else None
             user_prompts[(ep.ep_id, w.index)] = _build_user_prompt(
                 ep, w, total_windows=len(ep.windows),
-                addressing_mode=addressing_mode, id_segments=id_segments,
+                addressing_mode=addressing_mode, prompt_variant=prompt_variant, id_segments=id_segments,
             )
-    active_models = [m for m in cfg.models if not m.deprecated]
     hash_by_model_window: dict[tuple[str, str, int], str] = {
         (model.id, ep_id, w_idx): hash_prompt(
             system_prompt=system_prompt,
@@ -150,7 +165,7 @@ def precompute_prompt_hashes(
 
 
 def reconstruct_user_prompt(record: dict, *, corpus_dir: Path) -> str:
-    """Rebuild the exact user prompt for a calls.jsonl record from the corpus.
+    """Rebuild the exact user prompt for a call record from the corpus.
 
     Uses the record's own ``addressing_mode`` (records written before this
     field existed default to 'timestamps'). Deterministic as long as the
@@ -166,16 +181,18 @@ def reconstruct_user_prompt(record: dict, *, corpus_dir: Path) -> str:
         )
     window = episode.windows[window_index]
     addressing_mode = record.get("addressing_mode", "timestamps")
+    prompt_variant = record.get("prompt_variant", "detection")
     id_segments = stamp_id_windows(episode)[window_index] if addressing_mode == "segment_ids" else None
     return _build_user_prompt(
         episode, window, total_windows=len(episode.windows),
-        addressing_mode=addressing_mode, id_segments=id_segments,
+        addressing_mode=addressing_mode, prompt_variant=prompt_variant, id_segments=id_segments,
     )
 
 
 def _build_user_prompt(
     episode: Episode, window, *, total_windows: int,
     addressing_mode: str = "timestamps",
+    prompt_variant: str = "detection",
     id_segments: list[dict] | None = None,
 ) -> str:
     description = scrub_description(episode.metadata.description, max_length=4000)
@@ -184,7 +201,8 @@ def _build_user_prompt(
         transcript_lines = [f"[{seg['sid']}] {seg['text']}" for seg in (id_segments or [])]
     else:
         transcript_lines = window.transcript_lines
-    return parsing.format_window_prompt(
+    format_prompt = _PROMPT_FORMATTERS[prompt_variant]
+    return format_prompt(
         podcast_name=episode.metadata.podcast_name,
         episode_title=episode.metadata.title,
         description_section=description_section,
@@ -206,19 +224,26 @@ async def run(
     system_prompt: str,
     include_errored: bool = False,
     addressing_mode: str = "timestamps",
+    prompt_variant: str = "detection",
+    only_models: set[str] | None = None,
+    only_episodes: set[str] | None = None,
 ) -> RunStats:
+    """Run every missing work unit, narrowed by only_models/only_episodes,
+    then derive episode_results.jsonl from the full corpus."""
     prompt_hashes = precompute_prompt_hashes(
-        cfg, episodes, system_prompt=system_prompt, addressing_mode=addressing_mode,
+        cfg, episodes, system_prompt=system_prompt, addressing_mode=addressing_mode, prompt_variant=prompt_variant,
+        only_models=only_models, only_episodes=only_episodes,
     )
     id_windows_by_ep = _id_windows_for_episodes(episodes, addressing_mode)
 
-    completed, err_keys = scan_calls(paths.calls_jsonl)
+    completed, err_keys = scan_calls(read_calls(paths.raw))
     units, skipped = build_work_list(
         cfg, episodes,
         completed=completed,
         prompt_hashes=prompt_hashes,
         include_errored=include_errored,
         error_keys=err_keys if include_errored else None,
+        only_models=only_models, only_episodes=only_episodes,
     )
 
     stats = RunStats(total_units=len(units) + skipped, skipped=skipped)
@@ -239,162 +264,176 @@ async def run(
         id_segments = id_windows[unit.window_index] if id_windows is not None else None
         user_prompt = _build_user_prompt(
             episode, window, total_windows=len(episode.windows),
-            addressing_mode=addressing_mode, id_segments=id_segments,
+            addressing_mode=addressing_mode, prompt_variant=prompt_variant, id_segments=id_segments,
         )
         ph = prompt_hashes[(unit.model_id, unit.episode_id, unit.trial, unit.window_index)]
 
-        async with global_sema, per_provider_sema[unit.provider_name]:
-            call_id = _call_id(unit, ph)
-            t0 = time.perf_counter()
-            error_payload: dict | None = None
-            response_text = ""
-            input_tokens = output_tokens = 0
-            json_format_used = "n/a"
-            underlying_provider = unit.provider_name
-            stop_reason: str | None = None
-            native_accounting = None
-            cancelled = None
-            parsed_ads: list[dict] = []
-            extraction_method: str | None = None
-            comp = 0.0
-            in_cost = out_cost = total_cost = 0.0
-            response_path: Path | None = None
+        async def call_llm() -> tuple[llm.LLMResponse, float]:
+            # A paused provider is waited on outside the semaphores so sleeping
+            # calls do not hold concurrency slots other providers could use.
+            while True:
+                await llm.wait_for_pause(unit.provider_name)
+                async with global_sema, per_provider_sema[unit.provider_name]:
+                    started = time.perf_counter()
+                    try:
+                        resp = await llm.call_with_retry(
+                            provider=provider_cfg,
+                            model_id=unit.model_id,
+                            system_prompt=system_prompt,
+                            user_prompt=user_prompt,
+                            temperature=cfg.run.temperature,
+                            max_tokens=cfg.run.max_tokens,
+                            timeout=cfg.run.timeout_seconds,
+                            response_format=cfg.run.response_format,
+                            max_retries=cfg.run.max_retries,
+                            max_rate_limit_pause_seconds=cfg.run.max_rate_limit_pause_seconds,
+                        )
+                    except llm.ProviderPausedError:
+                        continue
+                    return resp, started
 
-            try:
-                resp = await llm.call_with_retry(
-                    provider=provider_cfg,
-                    model_id=unit.model_id,
-                    system_prompt=system_prompt,
-                    user_prompt=user_prompt,
-                    temperature=cfg.run.temperature,
-                    max_tokens=cfg.run.max_tokens,
-                    timeout=cfg.run.timeout_seconds,
-                    response_format=cfg.run.response_format,
-                    max_retries=cfg.run.max_retries,
+        call_id = _call_id(unit, ph)
+        t0 = time.perf_counter()
+        error_payload: dict | None = None
+        response_text = ""
+        input_tokens = output_tokens = 0
+        json_format_used = "n/a"
+        underlying_provider = unit.provider_name
+        stop_reason: str | None = None
+        native_accounting = None
+        cancelled = None
+        parsed_ads: list[dict] = []
+        extraction_method: str | None = None
+        comp = 0.0
+        in_cost = out_cost = total_cost = 0.0
+        response_path: Path | None = None
+
+        try:
+            resp, t0 = await call_llm()
+            response_text = resp.text
+            input_tokens = resp.input_tokens
+            output_tokens = resp.output_tokens
+            json_format_used = resp.json_format_used
+            underlying_provider = resp.underlying_provider
+            stop_reason = resp.stop_reason
+            native_accounting = resp.native_accounting
+        except asyncio.CancelledError as e:
+            cancelled = e
+            error_payload = sanitize_error(e)
+            native_accounting = getattr(e, 'native_accounting', None)
+        except Exception as e:
+            error_payload = sanitize_error(e)
+            native_accounting = getattr(e, 'native_accounting', None)
+        if native_accounting is not None:
+            input_tokens = native_accounting['input_tokens']
+            output_tokens = native_accounting['output_tokens']
+
+        elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        id_contract_miss = False
+        try:
+            parsed_ads, extraction_method, id_contract_miss = _RESPONSE_PARSERS[prompt_variant](
+                response_text, addressing_mode, id_segments,
+            )
+            comp = compliance_score(extraction_method)
+            cost_lookup = pricing_snapshot.lookup(unit.model_id)
+            if cost_lookup is not None and native_accounting is None:
+                in_cost, out_cost, total_cost = pricing.cost_usd(
+                    cost_lookup, input_tokens=input_tokens, output_tokens=output_tokens
                 )
-                response_text = resp.text
-                input_tokens = resp.input_tokens
-                output_tokens = resp.output_tokens
-                json_format_used = resp.json_format_used
-                underlying_provider = resp.underlying_provider
-                stop_reason = resp.stop_reason
-                native_accounting = resp.native_accounting
-            except asyncio.CancelledError as e:
-                cancelled = e
-                error_payload = sanitize_error(e)
-                native_accounting = getattr(e, 'native_accounting', None)
-            except Exception as e:
-                error_payload = sanitize_error(e)
-                native_accounting = getattr(e, 'native_accounting', None)
-            if native_accounting is not None:
-                input_tokens = native_accounting['input_tokens']
-                output_tokens = native_accounting['output_tokens']
-
-            elapsed_ms = int((time.perf_counter() - t0) * 1000)
-            id_contract_miss = False
-            try:
-                if addressing_mode == "segment_ids":
-                    parsed_ads, extraction_method, id_contract_miss = _parse_id_response(response_text, id_segments)
-                else:
-                    parsed_ads, extraction_method = _parse_response(response_text)
-                comp = compliance_score(extraction_method)
-                cost_lookup = pricing_snapshot.lookup(unit.model_id)
-                if cost_lookup is not None and native_accounting is None:
-                    in_cost, out_cost, total_cost = pricing.cost_usd(
-                        cost_lookup, input_tokens=input_tokens, output_tokens=output_tokens
-                    )
-                response_path = append_response(paths.responses_dir, unit.model_id, call_id, response_text)
-            except Exception as post_e:
-                if error_payload is None:
-                    error_payload = sanitize_error(post_e)
-                else:
-                    logger.exception("post-LLM error after LLM also errored: %s", post_e)
-            violations = schema_audit(parsed_ads)
-
-            record = {
-                "schema_version": SCHEMA_VERSION,
-                "call_id": call_id,
-                "timestamp": utc_now_iso(),
-                "model": unit.model_id,
-                "provider_config": unit.provider_name,
-                "underlying_provider": underlying_provider,
-                "episode_id": unit.episode_id,
-                "trial": unit.trial,
-                "window_index": unit.window_index,
-                "temperature": cfg.run.temperature,
-                "addressing_mode": addressing_mode,
-                "prompt_hash": ph,
-                "response_time_ms": elapsed_ms,
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "input_cost_usd_at_runtime": round(in_cost, 6),
-                "output_cost_usd_at_runtime": round(out_cost, 6),
-                "total_cost_usd_at_runtime": round(total_cost, 6),
-                "pricing_snapshot_id_at_runtime": pricing_snapshot.captured_at,
-                "json_format_used": json_format_used,
-                "stop_reason": stop_reason,
-                # Provider-normalized truncation flag. The Anthropic SDK uses
-                # 'max_tokens'; OpenAI-compatible SDKs use 'length'. A True
-                # here means the model ran out of budget mid-response.
-                "truncated": stop_reason in ("length", "max_tokens"),
-                # Cheap "verbose model" signal: did this call's output exceed
-                # the legacy 1024-token reviewer cap. Useful for spotting
-                # chatty models (phi-4, some Gemini variants) that won't fit
-                # under a tight max_tokens budget even when not truncated.
-                "over_1024_tokens": (output_tokens or 0) > 1024,
-                "response_path": str(response_path.relative_to(paths.calls_jsonl.parent)) if response_path else None,
-                "extraction_method": extraction_method,
-                "compliance_score": comp,
-                "id_contract_miss": id_contract_miss,
-                "parsed_ads": parsed_ads,
-                "schema_violations": asdict(violations),
-                "windows_stale": False,
-                "error": error_payload,
-            }
-            if native_accounting is not None:
-                record['native_accounting'] = native_accounting
-                record['known_total_cost_usd_at_runtime'] = native_accounting['known_cost_usd']
-                record['total_cost_usd_at_runtime'] = (
-                    native_accounting['known_cost_usd']
-                    if native_accounting['unknown_cost_request_count'] == 0 else None)
-                record['input_cost_usd_at_runtime'] = (
-                    native_accounting['known_cost_usd']
-                    if native_accounting['cost_source'] == 'estimated' else None)
-                record['output_cost_usd_at_runtime'] = (
-                    0 if native_accounting['cost_source'] == 'estimated' else None)
-            try:
-                append_jsonl(paths.calls_jsonl, record)
-            except Exception as write_e:
-                logger.exception("failed to append calls.jsonl record %s: %s", call_id, write_e)
-                return
-
-            if cancelled is not None:
-                raise cancelled
-            if error_payload:
-                stats.errored += 1
+            response_path = append_response(paths.responses_dir, unit.model_id, call_id, response_text)
+        except Exception as post_e:
+            if error_payload is None:
+                error_payload = sanitize_error(post_e)
             else:
-                stats.completed += 1
+                logger.exception("post-LLM error after LLM also errored: %s", post_e)
+        violations = schema_audit(parsed_ads)
+
+        record = {
+            "schema_version": SCHEMA_VERSION,
+            "call_id": call_id,
+            "timestamp": utc_now_iso(),
+            "model": unit.model_id,
+            "provider_config": unit.provider_name,
+            "underlying_provider": underlying_provider,
+            "episode_id": unit.episode_id,
+            "trial": unit.trial,
+            "window_index": unit.window_index,
+            "temperature": cfg.run.temperature,
+            "max_tokens": cfg.run.max_tokens,
+            "addressing_mode": addressing_mode,
+            "prompt_variant": prompt_variant,
+            "prompt_hash": ph,
+            "response_time_ms": elapsed_ms,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "input_cost_usd_at_runtime": round(in_cost, 6),
+            "output_cost_usd_at_runtime": round(out_cost, 6),
+            "total_cost_usd_at_runtime": round(total_cost, 6),
+            "pricing_snapshot_id_at_runtime": pricing_snapshot.captured_at,
+            "json_format_used": json_format_used,
+            "stop_reason": stop_reason,
+            # Provider-normalized truncation flag. The Anthropic SDK uses
+            # 'max_tokens'; OpenAI-compatible SDKs use 'length'. A True
+            # here means the model ran out of budget mid-response.
+            "truncated": stop_reason in ("length", "max_tokens"),
+            # Cheap "verbose model" signal: did this call's output exceed
+            # the legacy 1024-token reviewer cap. Useful for spotting
+            # chatty models (phi-4, some Gemini variants) that won't fit
+            # under a tight max_tokens budget even when not truncated.
+            "over_1024_tokens": (output_tokens or 0) > 1024,
+            "response_path": str(response_path.relative_to(paths.raw)) if response_path else None,
+            "extraction_method": extraction_method,
+            "compliance_score": comp,
+            "id_contract_miss": id_contract_miss,
+            "parsed_ads": parsed_ads,
+            "schema_violations": asdict(violations),
+            "windows_stale": False,
+            "error": error_payload,
+        }
+        if native_accounting is not None:
+            record['native_accounting'] = native_accounting
+            record['known_total_cost_usd_at_runtime'] = native_accounting['known_cost_usd']
+            record['total_cost_usd_at_runtime'] = (
+                native_accounting['known_cost_usd']
+                if native_accounting['unknown_cost_request_count'] == 0 else None)
+            record['input_cost_usd_at_runtime'] = (
+                native_accounting['known_cost_usd']
+                if native_accounting['cost_source'] == 'estimated' else None)
+            record['output_cost_usd_at_runtime'] = (
+                0 if native_accounting['cost_source'] == 'estimated' else None)
+        try:
+            append_call(paths.raw, record)
+        except Exception as write_e:
+            logger.exception("failed to append call record %s: %s", call_id, write_e)
+            return
+
+        if cancelled is not None:
+            raise cancelled
+        if error_payload:
+            stats.errored += 1
+        else:
+            stats.completed += 1
 
     await asyncio.gather(*(execute(u) for u in units), return_exceptions=False)
-
     derive_episode_results(cfg, episodes, paths=paths)
     return stats
 
 
 def derive_episode_results(cfg: BenchmarkConfig, episodes: list[Episode], *, paths: RunPaths) -> None:
-    """Recompute episode_results.jsonl from calls.jsonl. Idempotent."""
+    """Recompute episode_results.jsonl from the call shards. Idempotent."""
     if paths.episode_results_jsonl.exists():
         paths.episode_results_jsonl.unlink()
 
-    by_trial: dict[tuple[str, str, int], list[dict]] = {}
-    for rec in read_jsonl(paths.calls_jsonl):
+    by_trial: dict[tuple[str, str, int, str, str], list[dict]] = {}
+    for rec in read_calls(paths.raw):
         if rec.get("error"):
             continue
-        key = (rec["model"], rec["episode_id"], rec["trial"])
+        prompt_variant, addressing_mode = variants.record_cell(rec)
+        key = (rec["model"], rec["episode_id"], rec["trial"], addressing_mode, prompt_variant)
         by_trial.setdefault(key, []).append(rec)
 
     episodes_by_id = {ep.ep_id: ep for ep in episodes}
-    for (model, episode_id, trial), records in by_trial.items():
+    for (model, episode_id, trial, addressing_mode, prompt_variant), records in by_trial.items():
         episode = episodes_by_id.get(episode_id)
         if episode is None:
             continue
@@ -411,6 +450,8 @@ def derive_episode_results(cfg: BenchmarkConfig, episodes: list[Episode], *, pat
             "model": model,
             "episode_id": episode_id,
             "trial": trial,
+            "addressing_mode": addressing_mode,
+            "prompt_variant": prompt_variant,
             "window_count": len(records),
             "merged_ads": deduped,
             "total_input_tokens": sum(r.get("input_tokens", 0) for r in records),
@@ -451,6 +492,26 @@ def _parse_id_response(text: str, id_segments: list[dict] | None) -> tuple[list[
         return resolved, "segment_id_direct", False
     parsed, method = _parse_response(text)
     return parsed, method, True
+
+
+def _parse_detection_response(
+    text: str, addressing_mode: str, id_segments: list[dict] | None,
+) -> tuple[list[dict], str | None, bool]:
+    if addressing_mode == "segment_ids":
+        return _parse_id_response(text, id_segments)
+    ads, method = _parse_response(text)
+    return ads, method, False
+
+
+# One entry per prompt variant; both halves share the same call signature.
+_PROMPT_FORMATTERS = {
+    "detection": parsing.format_window_prompt,
+    "segmentation": variants.format_segmentation_prompt,
+}
+_RESPONSE_PARSERS = {
+    "detection": _parse_detection_response,
+    "segmentation": variants.parse_segmentation_response,
+}
 
 
 def _call_id(unit: WorkUnit, prompt_hash: str) -> str:

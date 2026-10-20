@@ -6,12 +6,13 @@ real provider APIs, which is out of scope for the offline unit suite.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 
 import pytest
 
 from benchmark import corpus, runner
 from benchmark.llm import LLMResponse
-from benchmark.storage import read_jsonl
+from benchmark.storage import read_calls, read_jsonl
 
 
 def test_build_user_prompt_uses_minuspod_format(make_episode):
@@ -73,6 +74,50 @@ def test_build_work_list_includes_errored_when_requested(minimal_cfg, make_episo
     assert len(units) == 2
 
 
+def test_build_work_list_narrows_to_selected_models_and_episodes(minimal_cfg, make_episode):
+    ep_a, ep_b = make_episode("ep-a", n_windows=1), make_episode("ep-b", n_windows=1)
+    cfg = dataclasses.replace(minimal_cfg, models=[
+        minimal_cfg.models[0], dataclasses.replace(minimal_cfg.models[0], id="m2"),
+    ])
+    hashes = runner.precompute_prompt_hashes(cfg, [ep_a, ep_b], system_prompt="S")
+    units, skipped = runner.build_work_list(
+        cfg, [ep_a, ep_b], completed=set(), prompt_hashes=hashes,
+        only_models={"m2"}, only_episodes={"ep-b"},
+    )
+    assert skipped == 0
+    assert {(u.model_id, u.episode_id) for u in units} == {("m2", "ep-b")}
+
+
+def test_run_resends_after_a_provider_pause_outside_the_semaphores(
+        tmp_path, minimal_cfg, make_episode, pricing_snapshot, monkeypatch):
+    """A paused call releases its slot, waits, and is sent again."""
+    events: list[str] = []
+    attempts = {"n": 0}
+
+    async def fake_call(**kwargs):
+        attempts["n"] += 1
+        events.append("call")
+        if attempts["n"] == 1:
+            raise runner.llm.ProviderPausedError("openrouter")
+        return LLMResponse(text="[]", input_tokens=1, output_tokens=1,
+                           json_format_used="native", underlying_provider="openrouter", stop_reason="stop")
+
+    async def fake_wait(provider_name, **kwargs):
+        events.append("wait")
+
+    monkeypatch.setattr(runner.llm, "call_with_retry", fake_call)
+    monkeypatch.setattr(runner.llm, "wait_for_pause", fake_wait)
+    cfg = dataclasses.replace(minimal_cfg, run=dataclasses.replace(minimal_cfg.run, trials=1))
+    paths = runner.RunPaths.for_root(tmp_path)
+    stats = asyncio.run(runner.run(
+        cfg, [make_episode(n_windows=1)], paths=paths, pricing_snapshot=pricing_snapshot, system_prompt="S",
+    ))
+
+    assert (stats.completed, stats.errored) == (1, 0)
+    assert events == ["wait", "call", "wait", "call"]
+    assert all(not r.get("error") for r in read_calls(paths.raw))
+
+
 def test_call_id_is_deterministic_shape():
     unit = runner.WorkUnit(model_id="anthropic/claude-sonnet-4.6", provider_name="openrouter", episode_id="ep-001", trial=0, window_index=2)
     cid = runner._call_id(unit, "sha256:abcdef0123456789")
@@ -83,9 +128,10 @@ def test_call_id_is_deterministic_shape():
 
 
 def test_run_writes_v2_records_and_response_shards(tmp_path, minimal_cfg, make_episode, pricing_snapshot, monkeypatch):
-    """The execute path writes schema v2: response bodies appended to a
-    per-model JSONL shard, response_path pointing at the shard, and no
-    prompt_path (prompts are reconstructed on demand)."""
+    """The execute path writes schema v3: response bodies and the call record
+    itself both appended to per-model JSONL shards, response_path pointing at
+    the response shard, and no prompt_path (prompts are reconstructed on
+    demand)."""
     async def fake_call(**kwargs):
         return LLMResponse(
             text='[{"start_time": 0.0, "end_time": 30.0}]',
@@ -104,10 +150,11 @@ def test_run_writes_v2_records_and_response_shards(tmp_path, minimal_cfg, make_e
     ))
 
     assert stats.completed == 2  # 1 model x 1 window x 2 trials
-    records = list(read_jsonl(paths.calls_jsonl))
+    assert (paths.calls_dir / "m1.jsonl").is_file()
+    records = list(read_calls(paths.raw))
     assert len(records) == 2
     for rec in records:
-        assert rec["schema_version"] == 2
+        assert rec["schema_version"] == 3
         assert rec["response_path"] == "responses/m1.jsonl"
         assert "prompt_path" not in rec
 
@@ -116,6 +163,24 @@ def test_run_writes_v2_records_and_response_shards(tmp_path, minimal_cfg, make_e
     assert {b["call_id"] for b in bodies} == {r["call_id"] for r in records}
     assert all(b["body"] == '[{"start_time": 0.0, "end_time": 30.0}]' for b in bodies)
     assert not paths.prompts_dir.exists()
+
+
+def test_run_records_configured_max_tokens(tmp_path, minimal_cfg, make_episode, pricing_snapshot, monkeypatch):
+    """Call record carries cfg.run.max_tokens, not a hardcoded default."""
+    async def fake_call(**kwargs):
+        return LLMResponse(
+            text="[]", input_tokens=10, output_tokens=5,
+            json_format_used="native", underlying_provider="openrouter", stop_reason="stop",
+        )
+
+    monkeypatch.setattr(runner.llm, "call_with_retry", fake_call)
+    cfg = dataclasses.replace(minimal_cfg, run=dataclasses.replace(minimal_cfg.run, max_tokens=16384))
+    ep = make_episode(n_windows=1)
+    paths = runner.RunPaths.for_root(tmp_path)
+    asyncio.run(runner.run(cfg, [ep], paths=paths, pricing_snapshot=pricing_snapshot, system_prompt="S"))
+
+    records = list(read_calls(paths.raw))
+    assert records and all(r["max_tokens"] == 16384 for r in records)
 
 
 def test_reconstruct_user_prompt_matches_runtime_prompt(tmp_path, write_corpus_episode):

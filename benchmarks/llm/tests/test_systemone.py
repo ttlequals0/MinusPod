@@ -10,7 +10,7 @@ import httpx
 import pytest
 
 from benchmark import config, llm, runner, systemone
-from benchmark.storage import read_jsonl
+from benchmark.storage import read_calls
 from tests.test_jev import contiguous
 
 
@@ -176,7 +176,7 @@ def test_native_runner_persists_partial_error_accounting(
     paths = runner.RunPaths.for_root(tmp_path)
     stats = asyncio.run(runner.run(minimal_cfg, [make_episode(n_windows=1)], paths=paths,
                                    pricing_snapshot=pricing_snapshot, system_prompt='Policy.'))
-    rows = list(read_jsonl(paths.calls_jsonl))
+    rows = list(read_calls(paths.raw))
     assert stats.errored == 2
     assert all(row['input_tokens'] == 1000 for row in rows)
     assert all(row['known_total_cost_usd_at_runtime'] == '0.000042' for row in rows)

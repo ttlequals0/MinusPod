@@ -103,6 +103,13 @@ release notes.
 - The subscriber-feed podcast picker is sorted alphabetically.
 - The evidence gate (#807) now holds LLM spans whose reason restates the audio signals without the word "pair": "DAI transition(s)", "dynamic ad insertion" and "potential ad content" count as audio echoes, so a reason such as "Dynamic ad insertion detected" or "DAI transition with volume anomaly and splice evidence" is no longer read as ad language. Those spans were being cut as ads; they now need ad language in the span transcript or measured audio evidence.
 
+### Changed
+- The LLM benchmark can run and report two ad-detection prompt variants side by side via `--prompt-variant` (`detection`, the production prompt, or `segmentation`, an alternative that segments the whole episode). `benchmark compare` renders a paired comparison between them.
+- `benchmark run` and `benchmark report` accept `--model`/`--episode` filters, and community segmentation-prompt results from PR #801 are importable via `scripts/import_calls.py`.
+- Benchmark call records now live in per-model shards under `results/raw/calls/` (schema v3); `benchmark migrate-calls` converts an existing checkout.
+- Benchmark call records carry the output-token budget (`max_tokens`) used for that call; methodology and the prompt-variant comparison report now summarize the budgets actually present instead of printing the config's single value.
+- The LLM benchmark pauses all calls to a provider on the Claude wrapper's account-level rate limit (its five-hour session cap) instead of recording each one as an error; a paused call releases its concurrency slot while it waits, and `[run] max_rate_limit_pause_seconds` caps how long it will wait before falling back to an error row.
+
 ## [2.100.11] - 2026-10-12
 
 Maintenance release with no new functionality. The processing pipeline, API, and UI behave as in 2.100.10. The work is module splits, documentation, dependency updates, OpenAPI corrections, and one settings save fix.
