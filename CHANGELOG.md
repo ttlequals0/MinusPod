@@ -9,6 +9,11 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Changed
+- Use minimal timestamps in LLM prompts to help reduce token usage.
+
 ## [2.100.19] - 2026-10-19
 
 ### Added

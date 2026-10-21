@@ -395,13 +395,13 @@ def test_user_prompt_candidate_lines_are_timestamped():
         episode_meta=_mock_episode_meta(),
         pool='accepted',
     )
-    assert '[120.0s-180.0s] ad sponsor pitch' in prompt
+    assert '[120.0-180.0] ad sponsor pitch' in prompt
     assert '>>> CANDIDATE AD START [120.0s] >>>' in prompt
     assert '<<< CANDIDATE AD END [180.0s] <<<' in prompt
     # Context blocks are per-segment timestamped like the candidate body.
-    assert '[60.0s-120.0s] before ad' in prompt
-    assert '[180.0s-240.0s] after ad' in prompt
-    assert re.search(r'lines? carry \[start-end\] second timestamps', prompt)
+    assert '[60.0-120.0] before ad' in prompt
+    assert '[180.0-240.0] after ad' in prompt
+    assert re.search(r'lines? carry \[{start}-{end}\] timestamp, in seconds', prompt)
     # The old stripped single-anchor context form is gone.
     assert '[60.0s] show content' not in prompt
 
@@ -424,9 +424,9 @@ def test_user_prompt_includes_word_timing_near_candidate_edges():
         pool='accepted',
     )
 
-    assert 'Boundary word timing, use these timestamps for corrections:' in prompt
-    assert '[119.80s-120.10s] Sponsor' in prompt
-    assert '[179.70s-180.00s] return' in prompt
+    assert 'Boundary word timing, use these timestamps (in seconds) for corrections:' in prompt
+    assert '[119.80-120.10] Sponsor' in prompt
+    assert '[179.70-180.00] return' in prompt
 
 
 def test_resurrect_prompt_candidate_lines_are_timestamped():
@@ -438,7 +438,7 @@ def test_resurrect_prompt_candidate_lines_are_timestamped():
         episode_meta=_mock_episode_meta(),
         pool='resurrection',
     )
-    assert '[120.0s-180.0s] ad sponsor pitch' in prompt
+    assert '[120.0-180.0] ad sponsor pitch' in prompt
     assert 'rejected for low confidence' in prompt
 
 
@@ -455,10 +455,10 @@ def test_final_sentence_anchor_visible_in_prompt():
         episode_meta=_mock_episode_meta(),
         pool='accepted',
     )
-    assert '[15.0s-28.4s] So fuel up with Acme Fuel Plus today.' in prompt
+    assert '[15.0-28.4] So fuel up with Acme Fuel Plus today.' in prompt
     # The old shape gave exactly two anchors ([0.0s] and [35.0s]) with all
     # candidate text between them stripped of timestamps.
-    assert '28.4s' in prompt
+    assert '28.4' in prompt
 
 
 # ---------- Edge-proximity tolerance constant ----------
@@ -1118,10 +1118,10 @@ def test_user_prompt_names_untranscribed_audio_inside_the_candidate():
     prompt = reviewer._build_user_prompt(
         ad={'start': 728.8, 'end': 939.9}, segments=_hole_segments(752.55 - 728.77),
         episode_meta=_mock_episode_meta(), pool='accepted')
-    gap_line = '[728.77s-752.55s] (23.8 s of audio with no transcript)'
+    gap_line = '[728.8-752.5] (gap of 23.8s - no transcript, likely silence, jingle, or unintelligible speech)'
     assert prompt.count(gap_line) == 1
     candidate = prompt.split('>>> CANDIDATE AD START [728.8s] >>>\n', 1)[1]
-    assert candidate.startswith(gap_line + '\n[752.5s-800.0s] And the nicest thing?')
+    assert candidate.startswith(gap_line + '\n[752.5-800.0] And the nicest thing?')
 
 
 def test_user_prompt_has_no_gap_line_for_a_short_pause():
@@ -1150,10 +1150,10 @@ def test_user_prompt_places_each_gap_line_between_its_neighbours():
         episode_meta=_mock_episode_meta(), pool='accepted')
     candidate = prompt.split('>>> CANDIDATE AD START [100.0s] >>>\n', 1)[1].split('\n<<<', 1)[0]
     assert candidate.split('\n') == [
-        '[100.0s-110.0s] one',
-        '[110.00s-120.00s] (10.0 s of audio with no transcript)',
-        '[120.0s-130.0s] two',
-        '[130.5s-140.0s] three',
-        '[140.00s-150.00s] (10.0 s of audio with no transcript)',
-        '[150.0s-160.0s] four',
+        '[100.0-110.0] one',
+        '[110.0-120.0] (gap of 10.0s - no transcript, likely silence, jingle, or unintelligible speech)',
+        '[120.0-130.0] two',
+        '[130.5-140.0] three',
+        '[140.0-150.0] (gap 10.0s)',
+        '[150.0-160.0] four',
     ]

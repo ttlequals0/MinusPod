@@ -676,7 +676,11 @@ def _timestamped_with_gaps(lines: list[dict], gaps, lo: float, hi: float,
     for g_lo, g_hi in mine:
         at = bisect_right(starts, g_lo)
         parts.append(get_timestamped_transcript_for_range(in_range[cut:at], lo, hi))
-        parts.append(f"[{g_lo:.2f}s-{g_hi:.2f}s] ({g_hi - g_lo:.1f} s of audio with no transcript)")
+        parts.append(
+            f"[{g_lo:.1f}-{g_hi:.1f}] (gap of {g_hi - g_lo:.1f}s - no transcript, likely silence, jingle, or unintelligible speech)"
+            if cut == 0
+            else f"[{g_lo:.1f}-{g_hi:.1f}] (gap {g_hi - g_lo:.1f}s)"
+        )
         cut = at
     parts.append(get_timestamped_transcript_for_range(in_range[cut:], lo, hi))
     return '\n'.join(part for part in parts if part)
@@ -2304,7 +2308,7 @@ class AdReviewer:
         ad_text = _timestamped_with_gaps(context_segments, gaps, start, end, closed=True)
         if not ad_text:
             fallback = ad.get("end_text", "") or ""
-            ad_text = f"[{start:.1f}s-{end:.1f}s] {fallback}" if fallback else ""
+            ad_text = f"[{start:.1f}-{end:.1f}] {fallback}" if fallback else ""
         after_text = _timestamped_with_gaps(context_segments, gaps, end, context_end)
         start_words = get_timestamped_words_for_range(
             segments, max(0.0, start - max_shift), start + max_shift)
@@ -2313,7 +2317,7 @@ class AdReviewer:
         word_context = ''
         if start_words or end_words:
             word_context = (
-                'Boundary word timing, use these timestamps for corrections:\n'
+                'Boundary word timing, use these timestamps (in seconds) for corrections:\n'
                 f'Start edge:\n{start_words}\n'
                 f'End edge:\n{end_words}\n'
             )
@@ -2372,8 +2376,8 @@ class AdReviewer:
             f"{framing}\n"
             f"{cue_section}"
             f"{policy_section}"
-            f"Transcript (60s before, the candidate ad, 60s after; all lines "
-            f"carry [start-end] second timestamps):\n"
+            "Transcript (60s before, the candidate ad, 60s after; all lines "
+            "carry [{start}-{end}] timestamp, in seconds):\n"
             f"{before_text}\n"
             f">>> CANDIDATE AD START [{start:.1f}s] >>>\n"
             f"{ad_text}\n"

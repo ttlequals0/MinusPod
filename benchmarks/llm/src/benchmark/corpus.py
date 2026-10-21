@@ -77,7 +77,7 @@ def compute_windows(segments: list[dict]) -> list[Window]:
     out: list[Window] = []
     for i, w in enumerate(raw):
         lines = [
-            f"[{seg['start']:.1f}s - {seg['end']:.1f}s] {seg['text']}"
+            f"[{seg['start']:.1f}-{seg['end']:.1f}] {seg['text']}"
             for seg in w["segments"]
         ]
         out.append(Window(index=i, start=w["start"], end=w["end"], transcript_lines=lines))

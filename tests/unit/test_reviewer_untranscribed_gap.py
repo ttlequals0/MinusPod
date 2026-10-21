@@ -174,7 +174,7 @@ def test_word_gap_inside_one_segment_is_shown_in_the_prompt():
     prompt = _reviewer()._build_user_prompt(
         ad={'start': 100.0, 'end': 111.0}, segments=segments,
         episode_meta=_mock_episode_meta(), pool='accepted')
-    assert '[100.50s-110.50s] (10.0 s of audio with no transcript)' in prompt
+    assert '[100.5-110.5] (gap of 10.0s - no transcript, likely silence, jingle, or unintelligible speech)' in prompt
 
 
 @pytest.mark.parametrize('proposal, barriers, expected', [
@@ -198,7 +198,7 @@ def test_gap_notes_tolerate_a_line_without_an_end():
              {'start': 120.0, 'end': 125.0, 'text': 'two'}]
     text = ad_reviewer._timestamped_with_gaps(lines, [(105.0, 120.0)], 100.0, 130.0)
     assert text.split('\n') == [
-        '[100.0s-105.0s] one',
-        '[105.00s-120.00s] (15.0 s of audio with no transcript)',
-        '[120.0s-125.0s] two',
+        '[100.0-105.0] one',
+        '[105.0-120.0] (gap of 15.0s - no transcript, likely silence, jingle, or unintelligible speech)',
+        '[120.0-125.0] two',
     ]

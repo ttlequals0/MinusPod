@@ -1132,7 +1132,7 @@ class AdDetector:
     def _format_transcript_lines(window_segments, addressing_mode):
         if addressing_mode == 'segment_ids':
             return [f"[{seg['sid']}] {seg['text']}" for seg in window_segments]
-        return [f"[{seg['start']:.1f}s - {seg['end']:.1f}s] {seg['text']}"
+        return [f"[{seg['start']:.1f}-{seg['end']:.1f}] {seg['text']}"
                 for seg in timed_line_segments(window_segments)]
 
     @staticmethod
@@ -2195,7 +2195,7 @@ class AdDetector:
         spans. Thread-safe: writes nothing to shared instance state.
         """
         transcript_lines = [
-            f"[{s['start']:.1f}s - {s['end']:.1f}s] {s['text']}"
+            f"[{s['start']:.1f}-{s['end']:.1f}] {s['text']}"
             for s in window['segments']
         ]
         prompt = format_window_prompt(

@@ -10,7 +10,7 @@ bootstrap('review_prompt_examples_test_')
 from database import DEFAULT_REVIEW_PROMPT
 from main_app import db
 
-_STAMPED_LINE = re.compile(r'^\[\d+\.\d+s-\d+\.\d+s\] ', re.MULTILINE)
+_STAMPED_LINE = re.compile(r'^\[\d+\.\d+-\d+\.\d+\] ', re.MULTILINE)
 
 
 def test_examples_use_the_candidate_markers():
@@ -26,8 +26,8 @@ def test_examples_carry_start_end_stamps_on_every_transcript_line():
 
 def test_adjust_example_boundaries_appear_in_its_context_lines():
     """95.0 and 132.0 must be readable off the surrounding lines, not guessed."""
-    assert '[92.0s-95.0s]' in DEFAULT_REVIEW_PROMPT
-    assert '[130.0s-132.0s]' in DEFAULT_REVIEW_PROMPT
+    assert '[92.0-95.0]' in DEFAULT_REVIEW_PROMPT
+    assert '[130.0-132.0]' in DEFAULT_REVIEW_PROMPT
     assert '"start": 95.0, "end": 132.0' in DEFAULT_REVIEW_PROMPT
 
 
